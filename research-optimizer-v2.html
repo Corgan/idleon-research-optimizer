@@ -1,0 +1,4145 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Research Optimizer v2</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --bg2: #16213e;
+  --bg3: #0f3460;
+  --accent: #e94560;
+  --text: #eee;
+  --text2: #aab;
+  --gold: #ffd700;
+  --green: #4caf50;
+  --blue: #2196f3;
+  --purple: #9c27b0;
+  --cyan: #00bcd4;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+
+/* Tabs */
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all .2s; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; padding: 16px; }
+.tab-content.active { display: block; }
+
+/* Save import */
+#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+#save-area label { font-weight: 600; }
+#save-area input[type="file"] { color: var(--text2); }
+.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
+.btn:hover { filter: brightness(1.2); }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+
+/* Grid */
+.research-grid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; max-width: 1200px; margin: 0 auto; position: relative; }
+.shape-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.grid-cell { aspect-ratio: 1; border: 1px solid #333; border-radius: 3px; font-size: .6em; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2px; cursor: pointer; position: relative; transition: all .15s; min-width: 0; overflow: hidden; }
+.grid-cell.empty { background: rgba(255,255,255,.02); cursor: default; }
+.grid-cell.active { background: rgba(73,150,255,.15); border-color: #4996ff; }
+.grid-cell.active:hover { background: rgba(73,150,255,.25); }
+.grid-cell.maxed { border-color: var(--gold); box-shadow: 0 0 4px rgba(255,215,0,.3); }
+.grid-cell .cell-name { font-weight: 600; font-size: .85em; line-height: 1.1; word-break: break-word; }
+.grid-cell .cell-lv { color: var(--gold); font-weight: 700; margin-top: 2px; }
+/* Tooltip */
+.tooltip { display: none; position: fixed; background: #222; border: 1px solid #555; border-radius: 6px; padding: 10px 14px; max-width: 350px; z-index: 1000; font-size: .85em; line-height: 1.4; pointer-events: none; }
+.tooltip .tt-name { color: var(--gold); font-weight: 700; font-size: 1.1em; }
+.tooltip .tt-lv { color: var(--cyan); }
+.tooltip .tt-bonus { color: var(--green); }
+.tooltip .tt-desc { color: var(--text2); margin-top: 4px; font-size: .9em; }
+.tooltip .tt-shape { color: #e67e22; margin-top: 4px; }
+
+/* Observations */
+.obs-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; max-width: 1000px; margin: 0 auto; }
+.obs-cell { background: var(--bg2); border: 1px solid #333; border-radius: 6px; padding: 8px; font-size: .8em; text-align: center; cursor: pointer; transition: all .15s; }
+.obs-cell.found { border-color: var(--green); background: rgba(76,175,80,.08); }
+.obs-cell.not-found { opacity: .35; }
+.obs-cell .obs-name { font-weight: 600; font-size: .9em; line-height: 1.2; }
+.obs-cell .obs-lv { color: var(--gold); font-weight: 700; font-size: 1.1em; }
+.obs-cell .obs-mag { color: var(--blue); font-size: .85em; }
+.obs-cell .obs-rate { color: var(--green); font-size: .8em; }
+.obs-cell.selected { border-color: var(--accent); box-shadow: 0 0 6px rgba(233,69,96,.4); }
+
+/* Magnifier panel */
+.mag-panel { max-width: 1000px; margin: 16px auto; background: var(--bg2); border-radius: 8px; padding: 16px; }
+.mag-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.mag-stat { background: var(--bg3); border-radius: 6px; padding: 10px; text-align: center; }
+.mag-stat .stat-val { font-size: 1.4em; font-weight: 700; color: var(--gold); }
+.mag-stat .stat-lbl { font-size: .8em; color: var(--text2); }
+.mag-assign { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.mag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: .8em; font-weight: 600; }
+.mag-chip.type-0 { background: rgba(76,175,80,.2); color: #81c784; border: 1px solid rgba(76,175,80,.4); }
+.mag-chip.type-1 { background: rgba(156,39,176,.2); color: #ce93d8; border: 1px solid rgba(156,39,176,.4); }
+.mag-chip.type-2 { background: rgba(0,188,212,.2); color: #4dd0e1; border: 1px solid rgba(0,188,212,.4); }
+
+/* Optimizer */
+.optimizer { max-width: 1000px; margin: 16px auto; }
+.opt-section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.opt-section h3 { margin-bottom: 8px; color: var(--cyan); }
+.opt-table { width: 100%; border-collapse: collapse; font-size: .85em; }
+.opt-table th { text-align: left; padding: 6px 8px; color: var(--text2); border-bottom: 1px solid #333; }
+.opt-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.opt-table tr:hover td { background: rgba(255,255,255,.03); }
+.rate-bar { height: 6px; border-radius: 3px; background: var(--green); transition: width .3s; }
+
+/* Optimizer sub-tabs */
+.opt-subtabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
+.opt-subtab { padding: 7px 16px; cursor: pointer; color: var(--text2); border-radius: 6px; font-size: .85em; font-weight: 600; transition: all .15s; user-select: none; }
+.opt-subtab:hover { color: var(--text); background: rgba(255,255,255,.06); }
+.opt-subtab.active { color: var(--accent); background: var(--bg2); }
+.optab-content { display: none; }
+.optab-content.active { display: block; }
+
+/* Card grids */
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.opt-card { background: #1a1a2e; border-radius: 10px; padding: 14px 16px; border: 1px solid #333; transition: border-color .15s; }
+.opt-card.highlight { border-color: var(--gold); background: rgba(255,215,0,.04); }
+.opt-card .card-rank { font-size: .7em; font-weight: 700; color: var(--bg); background: var(--gold); border-radius: 4px; padding: 1px 7px; display: inline-block; margin-bottom: 6px; }
+.opt-card .card-rank.dim { background: #444; color: #aaa; }
+.opt-card .card-title { font-weight: 700; font-size: 1em; margin-bottom: 4px; }
+.opt-card .card-sub { color: var(--text2); font-size: .8em; }
+.opt-card .card-val { font-weight: 700; font-size: 1.15em; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.bar-row .bar-track { flex: 1; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+.bar-row .bar-fill { height: 100%; border-radius: 3px; }
+.bar-row .bar-label { font-size: .75em; color: var(--text2); min-width: 36px; text-align: right; }
+.verdict-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: .8em; font-weight: 700; }
+
+/* Info panel */
+.info-panel { max-width: 1000px; margin: 12px auto; background: var(--bg2); border-radius: 8px; padding: 14px; font-size: .9em; }
+.info-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.info-row .lbl { color: var(--text2); }
+.info-row .val { color: var(--gold); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1><span>Idleon</span> Research Optimizer v2</h1>
+
+<div id="save-area">
+  <label>Load save (save.json or it.json):</label>
+  <input type="file" id="file-input" accept=".json">
+  <span style="color:var(--text2);margin:0 4px;">or</span>
+  <button class="btn btn-sm" onclick="document.getElementById('json-paste-wrap').style.display=document.getElementById('json-paste-wrap').style.display==='none'?'flex':'none'">Paste JSON</button>
+  <span id="save-format-badge" style="font-size:.8em;padding:2px 8px;border-radius:4px;display:none;"></span>
+</div>
+<div id="json-paste-wrap" style="display:none;padding:0 16px 12px;background:var(--bg2);gap:8px;align-items:flex-start;">
+  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..." style="flex:1;min-width:0;background:#111;border:1px solid #444;border-radius:4px;padding:6px 8px;color:var(--text);font-size:.8em;font-family:monospace;resize:vertical;"></textarea>
+  <button class="btn" onclick="loadFromPaste()">Load</button>
+</div>
+<div id="supplement-panel" style="display:none;padding:10px 16px;background:var(--bg2);border-top:1px solid #333;">
+  <div style="font-size:.85em;color:var(--gold);margin-bottom:8px;">&#9888; save.json doesn't include companion/tome data. Set manually:</div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:.82em;">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="52"> <span style="color:#ce93d8;">Jellofish</span> <span style="color:var(--text2);">(1.5x Research EXP)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="55"> <span style="color:#ce93d8;">Pirate Deckhand</span> <span style="color:var(--text2);">(+15% grid multi)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(+5% grid multi)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="54"> <span style="color:#ce93d8;">Neonscale</span> <span style="color:var(--text2);">(+1 shape owned)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="28"> <span style="color:#ce93d8;">RIP Tide</span> <span style="color:var(--text2);">(+30% AFK rate)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="39"> <span style="color:#ce93d8;">Pufferblob</span> <span style="color:var(--text2);">(meritoc +50%)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="1"> <span style="color:#ce93d8;">Rift Slug</span> <span style="color:var(--text2);">(+25 talent)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="4"> <span style="color:#ce93d8;">Sheepie</span> <span style="color:var(--text2);">(all bubbles)</span></label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="27"> <span style="color:#ce93d8;">Spirit Reindeer</span> <span style="color:var(--text2);">(arcade 2x)</span></label>
+    <span style="margin-left:8px;">Tome Score:</span>
+    <input type="number" id="supp-tome" value="0" min="0" step="1000" style="width:80px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;">
+    <span style="margin-left:8px;">A_ResXP:</span>
+    <input type="number" id="supp-resxp" value="1.01" min="1" step="0.01" style="width:70px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;" title="Server variable A_ResXP (EXP curve scaling for levels 21+)">
+    <button class="btn btn-sm" onclick="applySupplements()">Apply</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="dashboard">Dashboard</div>
+  <div class="tab" data-tab="optimizer">Optimizer</div>
+  <!-- <div class="tab" data-tab="sandbox">Sandbox</div> -->
+</div>
+
+<!-- ===== DASHBOARD TAB ===== -->
+<div id="tab-dashboard" class="tab-content active">
+  <div class="info-panel" id="dash-summary"></div>
+  <div style="max-width:1200px;margin:16px auto;">
+    <h3 style="color:var(--cyan);margin-bottom:8px;">Research Grid</h3>
+    <div class="research-grid" id="dash-grid"></div>
+  </div>
+  <div style="max-width:1200px;margin:16px auto;">
+    <h3 style="color:var(--green);margin-bottom:8px;">Observations</h3>
+    <div class="obs-grid" id="dash-obs"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1200px;margin:16px auto;">
+    <div class="opt-section">
+      <h3 style="color:var(--green);">EXP Rate Breakdown</h3>
+      <div id="dash-exp-breakdown"></div>
+    </div>
+    <div class="opt-section">
+      <h3 style="color:var(--text2);">AFK Rate</h3>
+      <div id="dash-afk"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== OPTIMIZER TAB ===== -->
+<div id="tab-optimizer" class="tab-content">
+  <div class="optimizer" id="optimizer">
+    <div class="opt-section" style="border:2px solid var(--accent);">
+      <h3 style="color:var(--accent);">Optimization Target</h3>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm" id="opt-mode-level" style="opacity:1;">Reach Level</button>
+          <button class="btn btn-sm" id="opt-mode-hours" style="opacity:.5;">Maximize in Hours</button>
+        </div>
+        <div id="opt-target-level-wrap">
+          <label style="color:var(--text2);font-size:.9em;">Target:</label>
+          <input type="number" id="opt-target-level" min="1" max="200" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+        </div>
+        <div id="opt-target-hours-wrap" style="display:none;">
+          <label style="color:var(--text2);font-size:.9em;">Hours:</label>
+          <input type="number" id="opt-target-hours" min="1" max="168" value="24" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+        </div>
+        <button class="btn" id="opt-run-btn" style="padding:8px 24px;font-size:1em;">Run Optimizer</button>
+      </div>
+      <div id="opt-progress" style="display:none;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;height:8px;background:#333;border-radius:4px;overflow:hidden;">
+            <div id="opt-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .3s;"></div>
+          </div>
+          <span id="opt-progress-text" style="font-size:.8em;color:var(--text2);min-width:60px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results: Time comparison -->
+    <div class="opt-section" id="opt-comparison" style="display:none;border:2px solid var(--green);">
+      <h3 style="color:var(--green);">Strategy Comparison</h3>
+      <div id="opt-comparison-body"></div>
+    </div>
+
+    <!-- Results: Interactive timeline -->
+    <div class="opt-section" id="opt-timeline-section" style="display:none;border:2px solid var(--cyan);">
+      <h3 style="color:var(--cyan);">Optimal Strategy Timeline</h3>
+      <div id="opt-timeline" style="position:relative;height:60px;background:#0d0d1a;border-radius:8px;overflow:visible;cursor:pointer;margin-bottom:12px;margin-top:20px;"></div>
+      <div id="opt-timeline-detail"></div>
+    </div>
+
+    <!-- Results: EXP/hr chart -->
+    <div class="opt-section" id="opt-chart-section" style="display:none;border:1px solid var(--cyan);">
+      <h3 style="color:var(--cyan);">EXP/hr Over Time</h3>
+      <div id="opt-chart" style="position:relative;height:160px;background:#0d0d1a;border-radius:8px;overflow:hidden;"></div>
+    </div>
+
+    <!-- Results: Action list -->
+    <div class="opt-section" id="opt-actions-section" style="display:none;">
+      <h3 style="color:var(--gold);">Step-by-Step Actions</h3>
+      <div id="opt-actions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SANDBOX TAB ===== -->
+<div id="tab-sandbox" class="tab-content">
+  <div class="optimizer">
+    <div class="opt-section" style="border:2px solid var(--purple);">
+      <h3 style="color:var(--purple);">Sandbox  What-If Scenarios</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-sm" id="sb-add-scenario">+ New Scenario</button>
+        <button class="btn btn-sm" id="sb-import-optimizer" style="background:var(--cyan);">Import from Optimizer</button>
+        <span style="color:var(--text2);font-size:.8em;">Create scenarios to compare different configurations.</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <label style="color:var(--text2);font-size:.9em;">Tick interval:</label>
+        <select id="sb-tick-interval" style="padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--text);">
+          <option value="10">10 min</option>
+          <option value="5">5 min</option>
+        </select>
+        <label style="color:var(--text2);font-size:.9em;margin-left:16px;">Target:</label>
+        <select id="sb-target-mode" style="padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--text);">
+          <option value="level">Reach Level</option>
+          <option value="hours">Hours</option>
+        </select>
+        <input type="number" id="sb-target-value" min="1" max="200" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+        <button class="btn" id="sb-run-all">Run All Scenarios</button>
+      </div>
+    </div>
+    <div id="sb-scenarios"></div>
+    <div class="opt-section" id="sb-comparison" style="display:none;">
+      <h3 style="color:var(--green);">Scenario Comparison</h3>
+      <div id="sb-comparison-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ===== GAME DATA =====
+const GRID_COLS = 20;
+const GRID_ROWS = 12;
+const GRID_SIZE = 240;
+
+// ResGridSquares: [name, maxLV, bonusPerLV, ?, ?, description...]
+const RES_GRID_RAW = {
+  31: ["Smart_Eye",3,5,"Raises_the_minimum_possible_Roll_by_+1_for_each_failed_Roll,_up_to_+$._Also_+{%_Research_EXP_Gain."],
+  47: ["Sticker-it_To_Em!",2,1,"Unlocks_TRUE_Damage_Multi_from_Sticker_Depot"],
+  48: ["Materials_Science",4,25,"Reduces_Polymerization_cycle_time_by_{%"],
+  49: ["Polymer_Refinery",2,5,"Unlocks_Polymerization_tab._+{%_faster_refinery_cycles"],
+  50: ["Pts_Every_Ten",1,5,"+1_extra_Research_PTS_per_10_LVs._+{%_Research_EXP"],
+  51: ["Sharp_Eye",4,5,"+max_roll._+{%_Research_EXP"],
+  52: ["Holding_Onto_You",3,10,"+{%_Kaleidoscope_effect"],
+  67: ["Sticky_Crowns",3,25,"{%_Megacrop_growth_per_King_Rat_Crown"],
+  68: ["Boony_Crowns",1,1,"{%_sticker_bonus_per_King_Rat_Crown"],
+  69: ["Adequate_Sized",2,50,"{%_Tiny_Cog_tier_upgrade_chance"],
+  70: ["Takin'_Notes",4,12,"}x_Research_EXP_(TRUE_multi)"],
+  71: ["Powered_Down_Research",2,1,"+{%_Research_AFK_Gains"],
+  72: ["Kaleidoscope",4,5,"+1_Kaleidoscope._+{%_Kaleidoscope_effect"],
+  87: ["Gaming_Zuperbits",2,200,"Unlocks_Zuperbits._}x_Gaming_Bit_Multi"],
+  88: ["Sticker_Depot",3,50,"Unlocks_Stickers._}x_Megacrop_growth"],
+  89: ["Tiny_Cogs",4,200,"Unlocks_Tiny_Cog_board._}x_Flaggy_Rate"],
+  90: ["Observationalistic",4,1,"+1_daily_rolls._+{%_Research_EXP"],
+  91: ["Optical_Monocle",4,1,"+1_Optical_Monocle._+{%_Insight_EXP"],
+  92: ["Oracular_Spectacular",2,25,"+{%_Insight_from_Monocles"],
+  93: ["Game_Design_101",3,4,"Observations_give_}x_more_EXP_per_LV"],
+  94: ["Game_Design_102",4,1,"+{%_Research_EXP_per_TOTAL_Obs_LV"],
+  107: ["Palettable_Crowns",1,3,"+{%_Palette_Luck_per_Crown"],
+  108: ["Rat_King_of_Olde",2,25,"Unlocks_Rat_King._+{%_King_Tokens/hr"],
+  109: ["Transcendent_Artifacts",1,25,"Unlocks_Transcendent_Artifacts._+{%_Artifact_Find"],
+  110: ["All_Night_Studying",2,50,"+{%_Research_EXP"],
+  111: ["Research_AFK_Gains",2,5,"+{%_Research_AFK_Gains"],
+  112: ["See_'Em_All",1,5,"+{%_Research_EXP_per_Obs_found"],
+  127: ["Eclectoplasmaticism",1,1,"+{%_TRUE_DMG_Multi_per_Eclectic_Sigil"],
+  128: ["Eclectic_Sigils",1,10,"5th_sigil_upgrade_(Eclectic)"],
+  129: ["Mr_Minehead_Linguistics",4,10,"Unlocks_Depth_Charge._+{_base_Minehead_Currency/hr"],
+  130: ["Legendary_Yellow_Fever",3,5,"+max_LV_Yellow_Legend_Talents._}x_Class_EXP"],
+  131: ["Legendary_Red_Fever",3,5,"+max_LV_Red_Legend_Talents._}x_Class_EXP"],
+  132: ["Legendary_Brown_Fever",3,5,"+max_LV_Brown_Legend_Talents._}x_Class_EXP"],
+  147: ["Depth_Charge_Rematch!",4,25,"+daily_Depth_Charge_tries._+{%_Minehead_Currency/hr"],
+  148: ["More_Minehead_Money",4,25,"}x_Minehead_Currency/hr"],
+  149: ["Glimbo_Linguistics",1,15,"Unlocks_Glimbo._}x_coins"],
+  150: ["Masterclass_Research",2,10,"-{%_Masterclass_cost_daily,_FOREVER"],
+  151: ["Spelunking_Research",2,25,"+{%_Spelunking_POW_daily,_FOREVER"],
+  152: ["Legendary_Green_Fever",3,5,"+max_LV_Green_Legend_Talents._}x_Class_EXP"],
+  167: ["Minehead_Damagio",3,15,"}x_Depth_Charge_damage"],
+  168: ["Glimbo_Insider_Trading",1,1,"+{%_DR_TRUE_Multi_per_100_Glimbo_Trades"],
+  169: ["Glimbo_BOGO_Offer",2,10,"Some_Glimbo_trades_give_+LVs._}x_Coins"],
+  170: ["All_Quick_All_Done",3,50,"}x_more_Souls/EXP_from_first_daily_All_Quick"],
+  171: ["Day_'N'_Nite",4,50,"+{_Max_LV_Day/Night_Market_upgrades"],
+  172: ["Well_Dressed",2,25,"}x_first_MISC_bonus_on_Clothing"],
+  173: ["Divine_Design",1,25,"+{%_Drop_Rate"],
+};
+
+const SHAPE_NAMES = ["Purple Diamond","Blue Circle","Green Microsquare","Cyan Hexagon",
+  "Golden Rectangle","Orange Star","Maroon Triangle","White Moon","Pink Heart","Bat Symbol"];
+const SHAPE_BONUS_PCT = [25,15,50,20,20,35,25,30,35,60];
+const SHAPE_COLORS = ["#9b59b6","#3498db","#2ecc71","#00bcd4","#f1c40f","#e67e22","#800000","#ecf0f1","#ff69b4","#555"];
+const SHAPE_VERTICES = [
+  [[16,0],[32,29],[16,59],[0,30]],
+  [[29,0],[45,5],[55,16],[58,28],[54,44],[47,52],[31,58],[15,54],[4,44],[0,30],[3,16],[14,4]],
+  [[1,1],[31,1],[31,31],[1,31]],
+  [[17,0],[58,0],[75,33],[58,67],[17,67],[0,34]],
+  [[0,0],[111,0],[111,80],[0,80]],
+  [[42,0],[53,26],[83,29],[63,50],[71,80],[42,67],[12,80],[20,50],[0,29],[30,26]],
+  [[110,0],[141,63],[0,58]],
+  [[62,0],[92,8],[103,21],[67,18],[46,30],[35,52],[37,82],[48,99],[71,109],[102,105],[100,113],[86,122],[65,127],[40,123],[20,110],[5,90],[0,70],[2,45],[15,22],[36,6]],
+  [[20,0],[31,3],[35,7],[39,3],[50,0],[63,5],[70,19],[64,34],[35,63],[4,32],[0,18],[7,5]],
+  [[14,0],[33,10],[40,0],[47,11],[55,11],[62,0],[69,10],[88,0],[102,25],[99,30],[102,34],[89,60],[57,45],[51,54],[45,45],[13,60],[0,34],[3,30],[0,25]]
+];
+const SHAPE_DIMS = [[33,60],[59,59],[33,33],[76,68],[111,83],[84,82],[142,64],[104,128],[71,64],[103,61]];
+
+const OCC_DATA = [
+  {name:"Bored_Tree",roll:1},{name:"Shopping_Oyster",roll:3},{name:"Bridge_Plank",roll:5},
+  {name:"Carrot_Patch",roll:6},{name:"Salty_Seawebs",roll:8},{name:"Dogbone_Tombstone",roll:10},
+  {name:"Ominous_Signage",roll:11},{name:"Canyon_Pointerino",roll:13},{name:"Corange_Coral",roll:15},
+  {name:"Oasis_Erosion",roll:17},{name:"Barnacle_Brothers",roll:20},{name:"Green_Shallowrock",roll:22},
+  {name:"Broken_Spacerocks",roll:24},{name:"Meenie_Cactus",roll:27},{name:"Coraltree_Branch",roll:30},
+  {name:"Useless_Anchor",roll:31},{name:"Oboe_Coral_Trio",roll:34},{name:"Spadespire",roll:37},
+  {name:"Seaswept_Ruins",roll:40},{name:"Tetrino_Stones",roll:42},{name:"Stalagtite",roll:45},
+  {name:"OG_Secret_Rock",roll:48},{name:"Happy_Piggy",roll:50},{name:"Treeception",roll:52},
+  {name:"Keymaster",roll:55},{name:"Space_Drip",roll:57},{name:"Coralcave_Coral",roll:60},
+  {name:"Unblinking_Eye",roll:63},{name:"Monster_Decoy",roll:66},{name:"Standard_Stump",roll:70},
+  {name:"Big_Ol_Reef",roll:72},{name:"Oasis_Palm",roll:74},{name:"Stalagmite",roll:76},
+  {name:"Rope_Lamp",roll:78},{name:"Unremarkable_Rock",roll:80},{name:"Standard_Mine",roll:82},
+  {name:"Ancient_Chainrope",roll:84},{name:"Birchtree_Bitty",roll:87},{name:"Unreachable_Grate",roll:90},
+  {name:"Genuine_Deadwood",roll:92},{name:"Rifty_Crystals",roll:94},{name:"Pirate_Flag",roll:97},
+  {name:"Happy_Tree",roll:100},
+];
+
+// Static data from game code
+const MINEHEAD_BONUS_QTY = [10,2,1,40,1,100,50,1,2,80,3,11,1,30,2,10,20,5,1,25,1,2,50,23,24,25,26,27,28,29,30,31];
+const STICKER_BASE = [10,5,15,250,40,30,60,1,1,1,1,1]; // Research[25]
+const DANCING_CORAL_BASE = [2,5,3,4,3,1,1,1,1]; // Spelunky[24] parsed digits
+const N2L = '_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ肥肢肖肋肉職耐者箱管算箔策答筒筍白発癒痛痕病疾疲潤潜漬漠演漏漁滞毎殻殺段殖残歳歯歩武歓欲次欠櫛機色村材杉本末未木授掃捧彼役影彫彩胃堪城坑努助加功力創割借候倒老個景是明昇早既掴担想扉戻懸懲憩態感蛮蛍虫虚蘇薬薄蔵';
+const CARD_BASE_REQ = { w7b1: 100000, w7b4: 900000, w7b11: 20000000, Crystal3: 10 };
+const ARENA_THRESHOLDS = [2,5,8,12,15,20,25,35,50,65,80,100,125,150,175,200];
+const GODS_TYPE = [0,2,7,3,5,4,6,1,8,9]; // GodsInfo[godIdx][13]
+// SummonEnemies[9]: 40-entry endless bonus types (1-indexed)
+const SUMMON_ENDLESS_TYPE = [21,22,23,24,25,27,23,22,24,29,25,26,24,23,22,32,30,31,25,24,26,29,24,22,21,23,31,28,27,24,26,22,30,25,29,28,23,26,24,32];
+const SUMMON_ENDLESS_VAL  = [1,3,1,12,1,7,2,4,15,3,1,4,18,2,4,3,2,2,2,20,5,4,24,4,1,2,3,5,9,26,5,5,3,1,5,8,2,6,30,3];
+// SummonEnemies normal wins: mob name  [bonusType(1-indexed), bonusValue]
+const SUMMON_NORMAL_BONUS = {mushG:[1,15],frogG:[2,30],poopSmall:[6,15],branch:[3,4],beanG:[1,16],ratB:[4,15],slimeG:[5,0.3],mushR:[7,10],acorn:[6,20],snakeG:[2,35],carrotO:[3,5],goblinG:[4,20],plank:[8,10],frogBIG:[5,0.3],mushW:[1,19],poopD:[6,25],jarSand:[9,5],mimicA:[7,15],crabcake:[10,2],coconut:[2,40],sandcastle:[8,15],pincermin:[7,25],potato:[3,6],steak:[5,0.3],moonman:[11,10],sandgiant:[4,20],snailZ:[1,25],sheep:[12,1],flake:[9,10],stache:[6,30],bloque:[1,30],mamoth:[8,15],snowball:[13,10],penguin:[2,50],thermostat:[4,20],glass:[10,3],snakeB:[14,30],speaker:[15,10],eye:[7,30],ram:[5,0.3],skele2:[11,15],mushP:[16,50],w4a2:[9,15],w4a3:[1,35],demonP:[3,6],w4b2:[12,2],w4b1:[6,35],w4b3:[8,20],w4b4:[13,15],w4b5:[1,50],w4c1:[2,75],w4c2:[4,25],w4c3:[10,5],w4c4:[14,60],w5a1:[17,30],w5a2:[15,10],w5a3:[1,40],w5a4:[5,0.3],w5a5:[11,25],w5b1:[16,90],w5b2:[7,30],w5b3:[18,25],w5b4:[9,25],w5b5:[3,7],w5b6:[6,25],w5c1:[4,15],w5c2:[10,10],w6a1:[19,3],w6a2:[2,50],w6a3:[8,20],w6a4:[12,2],w6a5:[14,80],w6b1:[13,20],w6b2:[1,60],w6b3:[16,120],w6b4:[5,0.3],w6c1:[15,20],w6c2:[17,50],w6d1:[3,8],w6d2:[18,70],w6d3:[20,3],Pet1:[1,8],Pet2:[2,15],Pet3:[3,3],Pet0:[6,7],Pet4:[4,15],Pet6:[2,25],Pet5:[1,12],Pet10:[5,0.3],Pet11:[3,4],w7a1:[1,250],w7a2:[4,17],w7a3:[10,5],w7a4:[12,3],w7a5:[1,350],w7a6:[17,250],w7a7:[4,20],w7a8:[14,300],w7a9:[20,1],w7a10:[1,500],w7a11:[4,23],w7a12:[11,90],w7b1:[1,400],w7b2:[9,80],w7b3:[16,150],w7b4:[11,70],w7b5:[17,200],w7b6:[1,500]};
+// DeathNoteMobs per world: [klaIndex, killReq] per mob
+const DN_MOB_DATA = [
+  [[1,21],[17,0],[2,25],[14,50],[16,60],[19,90],[24,120],[26,130],[27,30],[28,0],[8,20000],[15,35000],[13,2500],[18,5000],[31,0]],
+  [[51,100],[52,120],[53,150],[57,200],[58,250],[59,300],[60,500],[62,1000],[63,2000],[64,3000],[65,1]],
+  [[101,1000],[103,2000],[104,3000],[105,4000],[106,6000],[107,8000],[108,11000],[109,15000],[110,18000],[111,22000],[112,35000],[113,120000],[116,250000],[117,0]],
+  [[151,5000],[152,12000],[153,18000],[154,25000],[155,40000],[156,60000],[157,90000],[158,120000],[159,150000],[160,190000],[161,250000],[162,300000],[163,350000]],
+  [[201,15000],[202,25000],[203,40000],[204,50000],[205,75000],[206,100000],[207,200000],[208,300000],[209,450000],[210,600000],[211,1000000],[212,3000000],[213,60000]],
+  [[251,30000],[252,50000],[253,100000],[254,250000],[255,400000],[256,1100000],[257,3200000],[258,8000000],[259,12000000],[260,25000000],[261,70000000],[262,100000000],[263,150000000],[264,100]],
+  [[301,100000],[302,250000],[303,10000000],[304,5000000],[305,20000000],[306,0],[307,250000000],[308,60000000],[309,0],[310,500000000],[311,1000000000],[312,0],[315,2000000],[316,6000000],[317,1000000000],[318,60000000],[319,125000000],[320,250000000]]
+];
+// EmperorBon static data: [1]=bonus value by TYPE (12 entries), [2]=maps slotbonus type index (48 entries)
+const EMPEROR_BON_VAL_BY_TYPE = [30,5,20,1,5,15,5,50,1,5,5,10];
+const EMPEROR_BON_TYPE = [0,1,0,2,1,4,0,2,4,3,1,0,2,4,5,0,1,2,4,0,6,5,4,2,7,0,1,3,5,4,11,8,0,7,6,9,2,1,7,10,4,5,7,6,0,2,11,1];
+const EMPEROR_SET_BONUS_VAL = 20; // EquipmentSets.EMPEROR_SET[3][2]
+// RANDOlist[90]: shinyTypeIndex  bonus category key
+const SHINY_TYPE_TO_CAT = [0,16,3,5,15,20,0,1,3,4,10,22,2,3,13,19,16,6,5,22,21,20,7,12,15,3,8,0,23,9,22,4,21,5,1,13,3,2,24,16,14,17,25,6,4,15,24,7,18,21,5,3,0,9,24,1,6,2,4,23,16,24,25,7,5,8,9,20,16,1];
+// RANDOlist[92]: bonus per shiny level for each category (indexed by shinyTypeIndex, not category)
+const SHINY_BONUS_PER_LV = [1,3,2,2,2,1,1,1,2,1,2,20,2,2,2,1,3,3,1,20,2,1,2,1,2,2,2,1,1,2,20,1,2,1,1,2,2,2,1,3,2,3,1,2,1,2,1,2,1,2,1,2,1,2,1,1,2,2,1,1,3,1,1,2,1,2,2,1,3,1];
+// PetStats[world][pet][5] = shinyTypeIndex per pet
+const PET_SHINY_TYPE = [
+  [1,2,3,4,5,6,8,9,11,13,16,19,22,28,33,38,44],
+  [7,10,12,14,15,17,18,19,20,24,26,30,35,46,53,60,62],
+  [21,23,25,27,29,31,32,34,36,37,39,40,43,51,54,58,61,64],
+  [38,41,42,45,47,48,49,50,52,55,56,57,59,63,65,66]
+];
+// NinjaInfo[41] base bonus values per meritoc option (28 options)
+const MERITOC_BASE = [0,700,150,200,400,200,900,200,200,100,125,100,9900,200,100,900,100,200,200,200,50,40,60,30,200,200,50,150];
+// LegendTalents bonus per point for specific indices
+const LEGEND_TALENT_PER_PT = { 21: 3, 24: 20, 28: 15, 29: 20 };
+// ArcadeShopInfo decay params: [base, denom]
+const ARCADE_SHOP = { 51: ['add', 0.2, 0], 53: ['decay', 100, 100], 59: ['decay', 10, 100], 63: ['decay', 20, 100] };
+// ArcaneUpg bonus per level for flat indices and multiplied indices
+const ARCANE_FLAT_SET = new Set([3,7,8,10,13,16,20,25,26,28,33,35,39,40,43,45,48,57,58]);
+// HolesInfo static data for measurements
+const HOLES_MEAS_BASE = ['45TOT','2','10','6','80TOT','11','13','60TOT','30','40TOT','10','5TOT','30TOT','10TOT','18','50TOT'];
+const HOLES_MEAS_TYPE = [3,4,6,8,1,7,2,8,3,0,9,4,2,6,7,10];
+const HOLES_BOLAIA_PER_LV = [10,2,5,3,20,100,1,5,1,50,25,5,1,5,30];
+const HOLES_MON_BONUS = '2 4 10 1 8 2 1 1 50 250 2 4 500 1 5 2 1 300 50 250 2 3 2 1 4 2 100 35 50 250'.split(' ').map(Number);
+const HOLES_JAR_BONUS_PER_LV = { 23: 1, 30: 1 };
+const COSMO_UPG_BASE = { '0_0': 25, '1_3': 25 };
+// ArtifactInfo[32][3] = base bonus
+const ARTIFACT_BASE = { 32: 25 };
+// GetSetBonus for GODSHARD_SET
+const GODSHARD_SET_BONUS = 15;
+
+// ===== LAB MAINFRAME DATA =====
+// LabMainBonus: [x, y, range, inactiveVal, activeVal, name]
+const LAB_BONUS_BASE = [
+  [91,353,90,0,1,'Animal_Farm'],       // 0
+  [250,310,90,1,2,'Wired_In'],         // 1
+  [356,147,90,1,3,'Gilded_Cyclical'],  // 2
+  [450,220,90,0,1,'No_Bubble'],        // 3
+  [538,362,90,1,2,'Killers_Brightside'],// 4
+  [651,200,90,0,1,'Shrine_World'],     // 5
+  [753,113,90,1,5,'Viaduct_Gods'],     // 6
+  [824,377,90,1,2,'Certified_Stamp'],  // 7
+  [945,326,90,1,1.5,'Spelunker_Obol'],  // 8
+  [990,148,90,0,2,'Fungi_Finger'],     // 9
+  [1177,163,90,1,2,'Chemistry_Set'],   // 10
+  [1300,380,90,0,2,'Banking_Fury'],    // 11
+  [400,390,90,0,1,'Sigils_Alchemy'],   // 12
+  [1430,265,90,0,50,'Viral_Connection'],// 13
+];
+// Dynamic entries from NinjaInfo[25-28], require EmporiumBonus(8-11)
+const LAB_BONUS_DYNAMIC = [
+  [1530,105,90,0,50,'Artifact_Attraction',8], // 14, req Emp(8)
+  [1630,365,90,0,25,'Slab_Sovereignty',9],    // 15, req Emp(9)
+  [1790,250,90,0,50,'Spiritual_Growth',10],   // 16, req Emp(10)
+  [1950,195,90,0,30,'Depot_Studies_PhD',11],  // 17, req Emp(11)
+];
+// JewelDesc: [x, y, baseBonus, name]
+const JEWEL_DESC = [
+  [76,134,1.5,'Amethyst_Rhinestone'],    // 0
+  [164,412,0.5,'Purple_Navette'],        // 1
+  [163,218,40,'Purple_Rhombol'],         // 2
+  [246,110,3,'Sapphire_Rhinestone'],     // 3
+  [277,394,3,'Sapphire_Navette'],        // 4
+  [470,294,25,'Sapphire_Rhombol'],       // 5
+  [490,112,2,'Sapphire_Pyramite'],       // 6
+  [552,163,2,'Pyrite_Rhinestone'],       // 7
+  [646,407,3,'Pyrite_Navette'],          // 8
+  [680,319,30,'Pyrite_Rhombol'],         // 9  (MF 109)
+  [847,105,10,'Pyrite_Pyramite'],        // 10
+  [998,404,28,'Emerald_Rhinestone'],     // 11
+  [1079,233,200,'Emerald_Navette'],      // 12
+  [1085,121,1,'Emerald_Rhombol'],        // 13
+  [1167,390,1,'Emerald_Pyramite'],       // 14
+  [1300,208,30,'Emerald_Ulthurite'],     // 15
+  [1365,100,16,'Black_Diamond_Rhinestone'],// 16 (MF 116)
+  [1389,408,1,'Black_Diamond_Ulthurite'],// 17
+  [1619,203,20,'Pure_Opal_Rhinestone'],  // 18 (MF 118)
+  [1846,410,10,'Pure_Opal_Navette'],     // 19 (MF 119)
+  [2040,96,10,'Pure_Opal_Rhombol'],      // 20 (MF 120)
+  [1815,96,50,'Deadly_Wrath_Jewel'],     // 21
+  [1728,421,50,'North_Winds_Jewel'],     // 22
+  [2042,410,50,'Eternal_Energy_Jewel'],  // 23
+];
+
+// ===== STATE =====
+let research = null; // parsed Research array from save
+let gridLevels = new Array(GRID_SIZE).fill(0);
+let shapeOverlay = new Array(GRID_SIZE).fill(-1);
+let occFound = new Array(80).fill(0);
+let insightLvs = new Array(80).fill(0);
+let insightProgress = new Array(80).fill(0);
+let magData = []; // [{x,y,slot,type}]
+let shapePositions = []; // [{x,y,rot,?}]
+let stateR7 = new Array(20).fill(0);
+let researchLevel = 0;
+let magMaxPerSlot = 1;
+let externalResearchPct = 0;
+let comp52TrueMulti = 1; // Companion(52) TRUE multiplier
+let allBonusMulti = 1;   // Grid_Bonus_Allmulti
+let magnifiersOwned = 0;
+// Save data for external bonus computation
+let olaData = [];
+let towerData = [];
+let spelunkData = [];
+let arcadeUpgData = [];
+let cards0Data = {};
+let cards1Data = [];
+let sailingData = [];
+let lv0Data = [];
+let totemInfoData = [];
+let gamingData = [];
+let ninjaData = [];
+let ribbonData = [];
+let mealsData = [];
+let farmCropCount = 0;
+let grimoireData = [];
+let labData = [];
+let farmUpgData = [];
+let totalTomePoints = 0;
+let holesData = [];
+let riftData = [];
+let breedingData = [];
+let summonData = [];
+let arcaneData = [];
+let gemItemsData = [];
+let achieveRegData = [];
+let tasksW7Data = [];
+let tasksGlobalData = [];
+let dreamData = [];
+let numCharacters = 10;
+let divinityData = [];
+let optionsListData = [];
+let lv0AllData = []; // lv0AllData[charIdx] = Lv0 array for each character
+let charClassData = []; // CharacterClass per char
+let skillLvData = []; // SkillLevels per char (sparse maps)
+let playerStuffData = []; // PlayerStuff per char
+let cauldronInfoData = []; // CauldronInfo[cauldron][bubble] = level
+let cauldronBubblesData = []; // CauldronBubbles[player] = [slot0, slot1, slot2]
+let klaData = []; // KLA_N per player: klaData[charIdx][mapIdx] = [killsLeft, ...]
+let labBonusConnected = []; // connectivity for chip bonuses (indices 0..LMB.length-1)
+let labJewelConnected = []; // connectivity for jewels (indices 0..23)
+let labMainBonusFull = [];  // built LAB_BONUS_BASE + dynamic entries
+let companionIds = new Set(); // owned companion DB indices from it.json
+let extBonusOverrides = {}; // manual overrides for runtime-only bonuses
+let exp0Data = []; // Exp0  current skill EXP values
+let serverVarResXP = 1.01; // A_ResXP server variable for Research EXP curve
+let loadedSaveFormat = ''; // 'it.json' or 'save.json'
+
+// ===== LOAD SAVE =====
+function parseSaveKey(save, key) {
+  const raw = save[key];
+  if (raw == null) return null;
+  if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return raw; } }
+  return raw;
+}
+
+function eventShopOwned(t) {
+  if (t < 0 || t >= N2L.length) return 0;
+  return String(olaData[311] || '').includes(N2L[t]) ? 1 : 0;
+}
+
+function superBitType(t) {
+  if (t < 0 || t >= N2L.length) return 0;
+  return String(gamingData[12] || '').includes(N2L[t]) ? 1 : 0;
+}
+
+function emporiumBonus(t) {
+  if (t < 0 || t >= N2L.length) return 0;
+  return String(ninjaData?.[102]?.[9] || '').includes(N2L[t]) ? 1 : 0;
+}
+
+function ribbonBonusAt(index) {
+  const t = ribbonData[index] || 0;
+  if (t <= 0) return 1;
+  const hasEmperorSet = String(olaData[379] || '').includes('EMPEROR_SET');
+  const empTerm = hasEmperorSet ? Math.floor(t / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
+  return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm) / 100;
+}
+
+function labJewelUnlocked(idx) {
+  return (labData?.[14]?.[idx] || 0) === 1;
+}
+
+// ===== LAB CONNECTIVITY BFS =====
+function euclidDist(x1, y1, x2, y2) {
+  const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
+  return 0.9604339 * Math.max(dx, dy) + 0.397824735 * Math.min(dx, dy);
+}
+
+function computePetArenaBonus(idx) {
+  const waves = optionsListData[89] || 0;
+  let tier = 0;
+  for (let s = 0; s < 16; s++) {
+    if (waves >= ARENA_THRESHOLDS[s]) tier = s + 1;
+    else break;
+  }
+  return tier > idx ? 1 : 0;
+}
+
+function hasBonusMajor(playerIdx, godType) {
+  // Companions(0): Ballthezar = all gods, requires divinity lv >= 2
+  if (companionIds.has(0) && (lv0AllData[0]?.[14] || 0) >= 2) return true;
+  // Holes PocketDivOwned: cosmic pocket slots
+  const hole29 = holesData?.[11]?.[29] ?? -1;
+  const hole30 = holesData?.[11]?.[30] ?? -1;
+  if (hole29 >= 0 && hole29 < GODS_TYPE.length && GODS_TYPE[hole29] === godType) return true;
+  if (hole30 >= 0 && hole30 < GODS_TYPE.length && GODS_TYPE[hole30] === godType) return true;
+  // W7divChosen
+  const w7chosen = optionsListData[425] || 0;
+  if (w7chosen > 0) {
+    const chosenGodIdx = Math.max(0, w7chosen - 1);
+    if (chosenGodIdx < GODS_TYPE.length && GODS_TYPE[chosenGodIdx] === godType) return true;
+  }
+  // Research grid 173  type 2 only
+  if (godType === 2 && (gridLevels[173] || 0) >= 1) return true;
+  // Normal: player's assigned god from Divinity[playerIdx + 12]
+  const assignedGod = divinityData[playerIdx + 12] ?? -1;
+  if (assignedGod >= 0 && assignedGod < GODS_TYPE.length && GODS_TYPE[assignedGod] === godType) return true;
+  return false;
+}
+
+function computeBonusLineWidth(playerIdx) {
+  const gemSlots = 2 * (gemItemsData[123] || 0);
+  if (playerIdx >= gemSlots) return 0;
+  return hasBonusMajor(playerIdx, 2) ? 30 : 0;
+}
+
+function computeChip6Count(playerIdx) {
+  const chipSlots = labData?.[1 + playerIdx];
+  if (!chipSlots) return 0;
+  let count = 0;
+  for (let s = 0; s < 7; s++) {
+    if (chipSlots[s] === 6) count++;
+  }
+  return count;
+}
+
+function computeCookingMealMulti() {
+  const mfb116 = mainframeBonus(116);
+  const shinyS20 = computeShinyBonusS(20);
+  const winBon26 = computeWinBonus(26);
+  return (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+}
+
+function computeMealBonusPxLine() {
+  // PxLine: level * base, NO ribbon, NO cook multi. Meals 11 (Pancakes, base 2) + 25 (Wild_Boar, base 2)
+  return (mealsData?.[0]?.[11] || 0) * 2 + (mealsData?.[0]?.[25] || 0) * 2;
+}
+
+function computeMealBonusLinePct() {
+  // LinePct: cookMulti * ribbon * level * base. Only meal 40 (Eel, base 1)
+  const eelLv = mealsData?.[0]?.[40] || 0;
+  if (eelLv <= 0) return 0;
+  const cookMulti = computeCookingMealMulti();
+  const ribbon = ribbonBonusAt(28 + 40);
+  return cookMulti * ribbon * eelLv * 1;
+}
+
+function computeAllTalentLVz(talentLv, slotIdx) {
+  // Replicates AllTalentLVz from the game. The argument is the player's talent LEVEL
+  // (passed as-is from getbonus2 due to game code design).
+  // Banned check: if level value falls in banned range, return 0
+  if ((talentLv >= 49 && talentLv <= 59) || talentLv === 149 || talentLv === 374
+      || talentLv === 539 || talentLv === 505 || talentLv > 614) return 0;
+
+  // Spelunk super talent: Spelunk[20+slot+12*preset].indexOf(talentLv)
+  let spelunkBonus = 0;
+  if (slotIdx >= 0) {
+    const preset = Number(playerStuffData[slotIdx]?.[1]) || 0;
+    const superArr = spelunkData?.[20 + slotIdx + 12 * preset];
+    if (Array.isArray(superArr) && superArr.indexOf(talentLv) !== -1) {
+      spelunkBonus = Math.round(50 + (Number(spelunkData?.[18]?.[7]) || 0) * 10 + (Number(spelunkData?.[45]?.[5]) || 0));
+    }
+  }
+
+  // GetTalentNumber(1, 149/374/539): intervalAdd(1, 20, lv) = 1 + floor(lv/20)
+  // Uses the "current player" context. We take max across all characters.
+  function intervalAddMax(talId) {
+    let maxLv = 0;
+    for (let ci = 0; ci < numCharacters; ci++) {
+      const sl = skillLvData[ci];
+      const lv = Number(sl?.[talId] || sl?.[String(talId)]) || 0;
+      if (lv > maxLv) maxLv = lv;
+    }
+    return maxLv > 0 ? 1 + Math.floor(maxLv / 20) : 0;
+  }
+  const tal149 = intervalAddMax(149);
+  const tal374 = intervalAddMax(374);
+  const tal539 = intervalAddMax(539);
+  const achieve291 = achieveRegData[291] === -1 ? 1 : 0;
+
+  // FamBonusQTYs[68]: ClassFamilyBonuses[34], decay(20, 350, max(0, round(charLv-69)))
+  // Only classes whose ReturnClasses chain includes 34 contribute: classes 34, 35.
+  let maxMageCharLv = 0;
+  for (let ci = 0; ci < numCharacters; ci++) {
+    const cls = charClassData[ci];
+    if (cls === 34 || cls === 35) {
+      const lv = lv0AllData[ci]?.[0] || 0;
+      if (lv > maxMageCharLv) maxMageCharLv = lv;
+    }
+  }
+  const famN = Math.max(0, Math.round(maxMageCharLv - 69));
+  const famBonus68 = famN > 0 ? 20 * famN / (famN + 350) : 0;
+
+  // Companions(1): Rift Slug = +25 talent levels if owned
+  const comp1 = companionIds.has(1) ? 25 : 0;
+
+  // Divinity("Bonus_Minor", currentPlayer, 2): ceil(minorBonus)
+  // Minor bonus 2 (Arctis) = max(1,Y2ACTIVE) * (1+CoralKid(3)/100) * divLv/(60+divLv) * 15
+  // Y2ACTIVE = bubble Y2 (CauldronInfo[3][21]) active if equipped or Companions(4)
+  const y2BubbleLv = Number(cauldronInfoData?.[3]?.[21]) || 0;
+  const y2Value = y2BubbleLv > 0 ? 1 + 0.5 * y2BubbleLv / (y2BubbleLv + 60) : 0;
+  const allBubblesActive = companionIds.has(4);
+  let divMinor = 0;
+  const coralKid3 = Number(optionsListData?.[430]) || 0;
+  for (let ci = 0; ci < numCharacters; ci++) {
+    if (!hasBonusMajor(ci, 2)) continue;
+    const divLv = lv0AllData[ci]?.[14] || 0;
+    if (divLv <= 0) continue;
+    const y2Active = (allBubblesActive || (cauldronBubblesData?.[ci] || []).includes('d21')) ? y2Value : 0;
+    const val = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * 15;
+    if (val > divMinor) divMinor = val;
+  }
+
+  // Dream[12]
+  const dream12 = Number(dreamData?.[12]) || 0;
+
+  // 5 * floor((97 + OptionsListAccount[232]) / 100)
+  const ola232 = Number(optionsListData?.[232]) || 0;
+  const ola232bonus = 5 * Math.floor((97 + ola232) / 100);
+
+  // GrimoireUpgBonus(39) = Grimoire[39] * 1 (no global multi; index 39 is exception)
+  const grimoire39 = Number(grimoireData?.[39]) || 0;
+
+  // GetSetBonus("KATTLEKRUK_SET"): +5 if permanently unlocked in OLA[379]
+  const kattlekrukSet = String(optionsListData?.[379] || '').split(',').includes('KATTLEKRUK_SET') ? 5 : 0;
+
+  // min(5, ArcaneUpgBonus(57)) = min(5, Arcane[57] * 1)
+  const arcane57 = Math.min(5, Number(arcaneData?.[57]) || 0);
+
+  // max(0, floor((Lv0[0] - 500) / 100) * SuperBitType(47))
+  // Lv0[0] = current player's level
+  const currentPlayerLv = (slotIdx >= 0 ? lv0AllData[slotIdx]?.[0] : 0) || 0;
+  const superBit47 = superBitType(47);
+  const lvBonusTerm = superBit47 ? Math.max(0, Math.floor((currentPlayerLv - 500) / 100)) : 0;
+
+  return Math.floor(
+    spelunkBonus + tal149 + tal374 + tal539 + achieve291
+    + Math.floor(famBonus68)
+    + comp1
+    + Math.ceil(divMinor)
+    + dream12
+    + ola232bonus
+    + grimoire39
+    + kattlekrukSet
+    + arcane57
+    + lvBonusTerm
+  );
+}
+
+function computeBubonicPurple(playerIdx) {
+  // Find the Bubonic Conjuror / Arcane Cultist (class 36 or 39)
+  let bcIdx = -1;
+  let bestLv = 0;
+  for (let ci = 0; ci < numCharacters; ci++) {
+    const cls = charClassData[ci];
+    if (cls !== 36 && cls !== 39) continue;
+    const sl = skillLvData[ci];
+    const lv = Number(sl?.[535] || sl?.['535']) || 0;
+    if (lv > bestLv) { bestLv = lv; bcIdx = ci; }
+  }
+  if (bcIdx < 0 || bestLv <= 0) return 0;
+  // Condition: player X pos >= BC X pos
+  const playerX = labData?.[0]?.[2 * playerIdx] || 0;
+  const bcX = labData?.[0]?.[2 * bcIdx] || 0;
+  if (playerX < bcX) return 0;
+  // When talent level > 0 and index >= 100: add AllTalentLVz bonus levels
+  // Game passes SkillLevels[535] (the level value) to AllTalentLVz
+  const allTalent = bestLv > 0 ? computeAllTalentLVz(bestLv, bcIdx) : 0;
+  const effectiveLv = bestLv + allTalent;
+  // Decay formula: 40 * lv / (lv + 100)
+  return 40 * effectiveLv / (effectiveLv + 100);
+}
+
+function computePlayerDist(playerIdx) {
+  const labLev = lv0AllData[playerIdx]?.[12] || 0;
+  let baseDist = 50 + 2 * labLev;
+
+  // Jewel 5 proximity: x1.25 if unlocked and within 150px
+  const px = labData?.[0]?.[2 * playerIdx] || 0;
+  const py = labData?.[0]?.[2 * playerIdx + 1] || 0;
+  if (labJewelUnlocked(5) && euclidDist(px, py, JEWEL_DESC[5][0], JEWEL_DESC[5][1]) < 150) {
+    baseDist *= 1.25;
+  }
+
+  // Flat: baseDist + PxLine meals + Crystal3 card
+  const mealPx = computeMealBonusPxLine();
+  const crystal3Lv = computeCardLv('Crystal3');
+  const flat = baseDist + mealPx + Math.min(2 * crystal3Lv, 50);
+
+  // Percent bonuses
+  const bubonicPurple = computeBubonicPurple(playerIdx);
+  const linePct = computeMealBonusLinePct();
+  const chip6Pct = computeChip6Count(playerIdx) * 12; // ChipDesc[6][11] = 12
+  const arenaPct = 20 * computePetArenaBonus(13);
+  const bonusLW = computeBonusLineWidth(playerIdx);
+  const shinyS19 = computeShinyBonusS(19);
+  const pctTotal = bubonicPurple + linePct + chip6Pct + arenaPct + bonusLW + shinyS19;
+
+  return Math.floor(flat * (1 + pctTotal / 100));
+}
+
+function buildLabMainBonus() {
+  // Base 14 entries always present
+  const lmb = LAB_BONUS_BASE.map(e => [...e]);
+  // Dynamic entries from NinjaInfo[25-28], require Emporium unlocks
+  for (const dyn of LAB_BONUS_DYNAMIC) {
+    if (emporiumBonus(dyn[6])) {
+      lmb.push([dyn[0], dyn[1], dyn[2], dyn[3], dyn[4], dyn[5]]);
+    }
+  }
+  return lmb;
+}
+
+function computeLabConnectivity() {
+  labMainBonusFull = buildLabMainBonus();
+  const lmbLen = labMainBonusFull.length;
+  const jdLen = JEWEL_DESC.length; // 24
+  const totalNodes = 12 + lmbLen + jdLen;
+
+  // Initialize connectivity arrays
+  labBonusConnected = new Array(lmbLen).fill(0);
+  labJewelConnected = new Array(jdLen).fill(0);
+
+  // Player positions from Lab[0]: pairs of (x, y) for chars 0-11
+  const playerPos = [];
+  const lab0 = labData?.[0] || [];
+  for (let i = 0; i < 12; i++) {
+    playerPos.push({ x: lab0[2 * i] || 0, y: lab0[2 * i + 1] || 0 });
+  }
+
+  // Determine which players are "in lab":
+  const inLab = new Array(12).fill(false);
+  for (let i = 0; i < Math.min(12, numCharacters); i++) {
+    if (playerPos[i].x > 0 || playerPos[i].y > 0) inLab[i] = true;
+  }
+
+  // Per-player distance thresholds (recomputed each pass as MF(116) may change)
+  let playerDist = new Array(12).fill(0);
+
+  // Bonus/Gem distance: computed iteratively
+  // Game: floor(80*(1+(MF(109)+MF(13))/100) + TaskShopDesc[3][4][11]*Tasks[2][3][4] + Dream[8] + WinBonus(4))
+  // TaskShopDesc[3][4][11] = 1, so it's just Tasks[2][3][4]
+  const taskShopLabRange = Number(tasksGlobalData?.[2]?.[3]?.[4]) || 0;
+  const dreamLabRange = Number(dreamData?.[8]) || 0;
+  const winBonus4 = computeWinBonus(4);
+  const bonusGemFlat = taskShopLabRange + dreamLabRange + winBonus4;
+  let bonusGemDist = 80 + bonusGemFlat;
+
+  // Iterate BFS until connectivity stabilizes (distances depend on which bonuses are connected)
+  for (let pass = 0; pass < 10; pass++) {
+    // Recompute per-player distances using current connectivity state
+    for (let i = 0; i < 12; i++) {
+      if (inLab[i]) playerDist[i] = computePlayerDist(i);
+    }
+
+    // Reset connectivity for this pass
+    const bonusConn = new Array(lmbLen).fill(0);
+    const jewelConn = new Array(jdLen).fill(0);
+    const connected = []; // list of connected player indices
+    const visited = new Set();
+
+    // Phase 1: find first player connected to origin (43, 229)
+    for (let n = 0; n < 12; n++) {
+      if (!inLab[n]) continue;
+      const d = euclidDist(43, 229, playerPos[n].x, playerPos[n].y);
+      if (d < playerDist[n]) {
+        connected.push(n);
+        visited.add(n);
+        break;
+      }
+    }
+
+    // Phase 2: BFS expansion through connected players
+    for (let ci = 0; ci < connected.length; ci++) {
+      const src = connected[ci];
+      const sx = playerPos[src].x;
+      const sy = playerPos[src].y;
+
+      for (let dn = 0; dn < totalNodes; dn++) {
+        if (visited.has(dn)) continue;
+
+        if (dn < 12) {
+          if (!inLab[dn]) continue;
+          const d = euclidDist(sx, sy, playerPos[dn].x, playerPos[dn].y);
+          if (d < playerDist[dn]) {
+            connected.push(dn);
+            visited.add(dn);
+          }
+        } else if (dn < 12 + lmbLen) {
+          const bi = dn - 12;
+          if (bonusConn[bi]) continue;
+          const bx = labMainBonusFull[bi][0];
+          const by = labMainBonusFull[bi][1];
+          const threshold = (bi === 13 || bi === 8) ? 80 : bonusGemDist;
+          const d = euclidDist(sx, sy, bx, by);
+          if (d < threshold) {
+            bonusConn[bi] = 1;
+            visited.add(dn);
+          }
+        } else {
+          const ji = dn - 12 - lmbLen;
+          if (jewelConn[ji]) continue;
+          if (!labJewelUnlocked(ji)) continue;
+          const jx = JEWEL_DESC[ji][0];
+          const jy = JEWEL_DESC[ji][1];
+          let threshold;
+          if (ji === 9 || ji === 19) threshold = 80;
+          else if (ji === 21 || ji === 22 || ji === 23) threshold = 100;
+          else threshold = bonusGemDist;
+          const d = euclidDist(sx, sy, jx, jy);
+          if (d < threshold) {
+            jewelConn[ji] = 1;
+            visited.add(dn);
+          }
+        }
+      }
+    }
+
+    // Save results so mainframeBonus() can use current connectivity
+    labBonusConnected = bonusConn;
+    labJewelConnected = jewelConn;
+
+    // Recompute bonusGemDist using full mainframeBonus chain
+    const newDist = Math.floor(80 * (1 + (mainframeBonus(109) + mainframeBonus(13)) / 100)) + bonusGemFlat;
+    if (newDist === bonusGemDist && pass > 0) break; // converged
+    bonusGemDist = newDist;
+  }
+}
+
+// MainframeBonus(e): returns bonus value based on connectivity
+// e < 100: chip bonus index into labMainBonusFull
+// e >= 100: jewel index (e - 100) into JEWEL_DESC
+function mainframeBonus(e) {
+  const lmbLen = labMainBonusFull.length;
+  if (e < 100) {
+    if (e >= lmbLen) return 0;
+    if (!labBonusConnected[e]) return labMainBonusFull[e][3]; // inactive value
+    // Connected: return active value with chain bonuses
+    const active = labMainBonusFull[e][4];
+    if (e === 9) return active + mainframeBonus(113);
+    if (e === 0) {
+      const totPets = (breedingData?.[1] || []).reduce((s, v) => s + (Number(v) || 0), 0);
+      return (active + mainframeBonus(101)) * totPets;
+    }
+    if (e === 3) return active + mainframeBonus(107);
+    if (e === 11) return active + mainframeBonus(117);
+    if (e === 13) return active; // Viral_Connection = 50
+    if (e === 15) return active + mainframeBonus(118);
+    if (e === 17) return active + mainframeBonus(120);
+    if (e === 8) return active + mainframeBonus(119) / 100;
+    return active;
+  }
+  // Jewel: e >= 100
+  const ji = e - 100;
+  if (ji < 0 || ji >= JEWEL_DESC.length) return 0;
+  if (!labJewelConnected[ji]) return 0;
+  const base = JEWEL_DESC[ji][2];
+  if (e === 119) return base; // Pure_Opal_Navette: no MF(8) multiplier
+  return base * mainframeBonus(8);
+}
+
+function grimoireUpgBonus22() {
+  // "Superior Crop Research"  GrimoireUpg[22][5]=1
+  // GrimoireUpgBonus(36) = Grimoire[36]*1 (exception set, no self-boost)
+  // GrimoireUpgBonus(22) = Grimoire[22]*1*(1 + GrimoireUpgBonus(36)/100)
+  const g22 = grimoireData?.[22] || 0;
+  const g36 = grimoireData?.[36] || 0;
+  return g22 * (1 + g36 / 100);
+}
+
+function exoticBonusQTY40() {
+  // MarketExoticInfo[40]="SCIENTERRIFIC" [3]=20 [4]=1(diminishing)
+  // FarmUpg[20+40] = FarmUpg[60]
+  const lv = farmUpgData?.[60] || 0;
+  if (lv <= 0) return 0;
+  return 20 * lv / (1000 + lv);
+}
+
+function getOverrideOrAuto(key, autoVal) {
+  const ov = extBonusOverrides[key];
+  return (ov !== undefined && ov !== '') ? parseFloat(ov) || 0 : autoVal;
+}
+
+function mineheadBonusQTY(t) {
+  const mineFloor = research ? (research[7]?.[4] || 0) : 0;
+  return mineFloor > t ? (MINEHEAD_BONUS_QTY[t] || 0) : 0;
+}
+
+// Game: min(80, round(1 + (KaleidoscopeOwned + OpticalMonocleOwned) + (BonusQTY(2)+BonusQTY(12)+BonusQTY(20)+EventShopOwned(34)) + lvBonuses))
+function computeMagnifiersOwned() {
+  const kaleiOwned = Math.round((gridLevels[72] || 0) + eventShopOwned(33));
+  const monoOwned = Math.round(gridLevels[91] || 0);
+  const lvBonus = Math.min(1, Math.floor(researchLevel / 10))
+    + Math.min(1, Math.floor(researchLevel / 100))
+    + Math.min(1, Math.floor(researchLevel / 130))
+    + Math.min(1, Math.floor(researchLevel / 140));
+  return Math.min(80, Math.round(
+    1 + kaleiOwned + monoOwned
+    + mineheadBonusQTY(2) + mineheadBonusQTY(12) + mineheadBonusQTY(20)
+    + eventShopOwned(34)
+    + lvBonus
+  ));
+}
+
+// Game: ShapesOwned (N.formatted.js:91912)
+function computeShapesOwned() {
+  const lv = researchLevel;
+  return Math.min(10, Math.round(
+    eventShopOwned(36)
+    + Math.min(1, Math.max(0, Math.floor(lv / 20) * (companionIds.has(54) ? 1 : 0)))
+    + Math.min(1, Math.floor(lv / 20) * ((spelunkData?.[0]?.[7] || 0) >= 1 ? 1 : 0))
+    + Math.min(1, Math.floor(lv / 20))
+    + Math.min(1, Math.floor(lv / 30))
+    + Math.min(1, Math.floor(lv / 50))
+    + Math.min(1, Math.floor(lv / 80))
+    + Math.min(1, Math.floor(lv / 110))
+  ));
+}
+
+// Game: OccurrencesToBeFound (N.formatted.js:91853)
+// min(43, 5*floor((lv+10)/10) - floor(lv/20) - floor(lv/30) - floor(lv/50)) or 0/1 edge cases
+function computeOccurrencesToBeFound() {
+  if (researchLevel < 1) return 0;
+  if (occFound[0] === 0) return 1;
+  return Math.min(43, 5 * Math.floor((researchLevel + 10) / 10)
+    - Math.floor(researchLevel / 20)
+    - Math.floor(researchLevel / 30)
+    - Math.floor(researchLevel / 50));
+}
+
+function computeGridPointsEarned(rLv) {
+  if (!rLv) rLv = researchLevel;
+  const sq50 = gridLevels[50] || 0;
+  return Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
+}
+
+function computeGridPointsSpent() {
+  let total = 0;
+  for (const idx of Object.keys(RES_GRID_RAW)) total += gridLevels[Number(idx)] || 0;
+  return total;
+}
+
+function computeGridPointsAvailable() {
+  return Math.max(0, computeGridPointsEarned() - computeGridPointsSpent());
+}
+
+// Game Grid_CanWeSelect: a cell is unlocked if it has lv>=1, is a seed cell, or is
+// orthogonally adjacent (up/down/left/right) to any cell with lv>=1.
+// Seed cells: indices where col is 9 or 10 AND 100 <= idx <= 140 (center 2x2).
+function isGridCellUnlocked(idx, gl) {
+  if (!RES_GRID_RAW[idx]) return false;
+  if ((gl[idx] || 0) >= 1) return true;
+  const col = idx % GRID_COLS;
+  // Seed cells (always selectable)
+  if ((col === 9 || col === 10) && idx >= 100 && idx <= 140) return true;
+  // Adjacent check
+  if (idx >= GRID_COLS  && (gl[idx - GRID_COLS] || 0) >= 1) return true; // up
+  if (idx < GRID_SIZE - GRID_COLS && (gl[idx + GRID_COLS] || 0) >= 1) return true; // down
+  if (col > 0             && (gl[idx - 1] || 0) >= 1) return true; // left
+  if (col < GRID_COLS - 1 && (gl[idx + 1] || 0) >= 1) return true; // right
+  return false;
+}
+
+function computeCardLv(cardKey) {
+  const qty = cards0Data[cardKey] || 0;
+  if (qty <= 0) return 0;
+  // Max stars = 4 + RiftStuff("5starCards") + Spelunk("6starCards")
+  const rift5star = (riftData[0] || 0) >= 45 ? 1 : 0;
+  const spelunk6star = (spelunkData?.[0]?.[2] || 0) >= 1 ? 1 : 0;
+  const maxStars = Math.round(4 + rift5star + spelunk6star);
+  const baseReq = CARD_BASE_REQ[cardKey] || 1;
+  let lv = 1; // having > 0 qty = at least star 1
+  for (let s = 0; s < maxStars; s++) {
+    const thr = baseReq * Math.pow(s + 1 + Math.floor(s / 3) + 16 * Math.floor(s / 4) + 100 * Math.floor(s / 5), 2);
+    if (qty > thr) lv = s + 2;
+  }
+  // OLA[155] 6-star override
+  const ola155 = String(olaData[155] || '');
+  if (ola155.split(',').includes(cardKey) && lv < 6) lv = 6;
+  return lv;
+}
+
+// --- Exact helper functions for external bonus computation ---
+
+function arcadeBonus(idx) {
+  const params = ARCADE_SHOP[idx];
+  if (!params) return 0;
+  const lv = arcadeUpgData[idx] || 0;
+  if (lv <= 0) return 0;
+  const [type, base, denom] = params;
+  const raw = type === 'add' ? (denom !== 0 ? ((base + denom) / denom + 0.5 * (lv - 1)) / (base / denom) * lv * base : base * lv) : base * lv / (lv + denom);
+  const maxedM = lv >= 101 ? 2 : 1;
+  const comp27M = companionIds.has(27) ? 2 : 1;
+  return maxedM * comp27M * raw;
+}
+
+function arcaneUpgBonus(idx) {
+  const lv = arcaneData[idx] || 0;
+  if (lv <= 0) return 0;
+  if (ARCANE_FLAT_SET.has(idx)) return lv; // ArcaneUpg[t][5]=1 for all relevant indices
+  return lv * (1 + arcaneUpgBonus(39) / 100);
+}
+
+function legendPTSbonus(idx) {
+  const lv = spelunkData?.[18]?.[idx] || 0;
+  const perPt = LEGEND_TALENT_PER_PT[idx] || 0;
+  return Math.round(lv * perPt);
+}
+
+function achieveStatus(idx) {
+  return achieveRegData[idx] === -1 ? 1 : 0;
+}
+
+function computeShinyBonusS(catKey) {
+  // Sum shiny pet contributions for a given bonus category
+  let total = 0;
+  for (let world = 0; world < 4; world++) {
+    const shinyExps = breedingData[22 + world];
+    const petTypes = PET_SHINY_TYPE[world];
+    if (!shinyExps || !petTypes) continue;
+    for (let pet = 0; pet < petTypes.length; pet++) {
+      const exp = shinyExps[pet] || 0;
+      if (exp <= 0) continue;
+      const shinyTypeIdx = petTypes[pet];
+      const cat = SHINY_TYPE_TO_CAT[shinyTypeIdx];
+      if (cat !== catKey) continue;
+      // SpecialPassives("Lv"): compute shiny level from EXP
+      let shinyLv = 1;
+      for (let e = 0; e < 19; e++) {
+        if (exp > Math.floor((1 + Math.pow(e + 1, 1.6)) * Math.pow(1.7, e + 1)))
+          shinyLv = e + 2;
+      }
+      const bonusPerLv = SHINY_BONUS_PER_LV[shinyTypeIdx] || 0;
+      total += Math.round(shinyLv * bonusPerLv);
+    }
+  }
+  return total;
+}
+
+function computeSummWinBonus() {
+  // Build SummWinBonus[0..31] from normal + endless summon wins
+  const bonus = new Array(32).fill(0);
+  // Normal wins: Summon[1] = array of defeated enemy names
+  const normalWins = summonData[1] || [];
+  for (let i = 0; i < normalWins.length; i++) {
+    const name = normalWins[i];
+    if (typeof name !== 'string' || name.startsWith('rift')) continue;
+    const entry = SUMMON_NORMAL_BONUS[name];
+    if (!entry) continue;
+    const bonusIdx = Math.round(entry[0] - 1);
+    if (bonusIdx >= 0 && bonusIdx < 32) bonus[bonusIdx] += entry[1];
+  }
+  // Endless wins (OLA[319] = total endless wins)
+  const endlessWins = Number(olaData[319]) || 0;
+  for (let i = 0; i < endlessWins; i++) {
+    const idx = i % 40;
+    const type = SUMMON_ENDLESS_TYPE[idx] - 1;
+    if (type >= 0 && type < 32) bonus[type] += SUMMON_ENDLESS_VAL[idx];
+  }
+  return bonus;
+}
+
+function computeEmperorBon(bonusIdx) {
+  const emperorCount = Number(olaData[369]) || 0;
+  let sum = 0;
+  for (let r = 0; r < emperorCount; r++) {
+    const slot = r % 48;
+    if (EMPEROR_BON_TYPE[slot] === bonusIdx) sum += Number(EMPEROR_BON_VAL_BY_TYPE[bonusIdx]) || 0;
+  }
+  // mult = (1 + (ArcaneUpgBonus(48) + ArcadeBonus(51))/100)
+  const mult = 1 + (arcaneUpgBonus(48) + arcadeBonus(51)) / 100;
+  return Math.floor(sum * mult);
+}
+
+function computeWinBonus(idx) {
+  const swb = computeSummWinBonus();
+  // Raw indices (no multiplier): 20, 22, 24, 31
+  if (idx === 20 || idx === 22 || idx === 24 || idx === 31) return swb[idx] || 0;
+  const raw = swb[idx] || 0;
+  if (raw <= 0) return 0;
+  // Pristine charm 8: Ninja[107][8]==1  NjTrP8[3]=30
+  const pristine8 = (ninjaData?.[107]?.[8] === 1) ? 30 : 0;
+  const gemItems11 = Number(gemItemsData[11]) || 0;
+  // ArtifactBonus(32): base 25, rarity = Sailing[3][32], mult = rarity (2-6). 0 if not owned.
+  const artRarity = Number(sailingData?.[3]?.[32]) || 0;
+  const artBonus32 = artRarity > 0 ? (ARTIFACT_BASE[32] || 25) * artRarity : 0;
+  // Tasks[2][5][4] = global W6 task shop item 4
+  const taskVal = Math.min(10, Number(tasksGlobalData?.[2]?.[5]?.[4]) || 0);
+  const wb31 = swb[31] || 0; // raw, no multiplier
+  const empBon8 = computeEmperorBon(8);
+  const godshardSet = String(olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
+
+  // Index 19: 3.5x but NO wb31/empBon8
+  if (idx === 19) {
+    return 3.5 * raw
+      * (1 + pristine8 / 100)
+      * (1 + 10 * gemItems11 / 100)
+      * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + godshardSet) / 100);
+  }
+  // Indices 20-33 (except raw 20,22,24,31 handled above): 1x with wb31+empBon8
+  if (idx >= 20 && idx <= 33) {
+    return raw
+      * (1 + pristine8 / 100)
+      * (1 + 10 * gemItems11 / 100)
+      * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + wb31 + empBon8 + godshardSet) / 100);
+  }
+  // Everything else (0-18 except 19): 3.5x with wb31+empBon8
+  return 3.5 * raw
+    * (1 + pristine8 / 100)
+    * (1 + 10 * gemItems11 / 100)
+    * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + wb31 + empBon8 + godshardSet) / 100);
+}
+
+function computeMeritocBonusz(optionIdx) {
+  // Returns bonus only for the active voted option
+  const activeVote = Number(olaData[453]) || 0;
+  if (optionIdx !== activeVote) return 0;
+  const baseVal = MERITOC_BASE[optionIdx] || 0;
+  if (baseVal <= 0) return 0;
+  // MeritocCanVote: OLA[472]==1
+  const canVote = Number(olaData[472]) === 1;
+  // ClamWorkBonus(3): OLA[464] > 3 ? 1 : 0
+  const clamWork3 = (Number(olaData[464]) || 0) > 3 ? 1 : 0;
+  const comp39 = companionIds.has(39) ? 50 : 0;
+  const legend24 = legendPTSbonus(24);
+  const arcade59 = arcadeBonus(59);
+  const eventShop23 = eventShopOwned(23);
+  let multi;
+  if (canVote) {
+    multi = 1 + (5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23) / 100;
+  } else {
+    multi = 0.25 + (5 * clamWork3 + comp39 + legend24 + arcade59) / 100;
+  }
+  return baseVal * multi;
+}
+
+function cosmoBonus(t, i) {
+  const key = t + '_' + i;
+  const base = COSMO_UPG_BASE[key] || 0;
+  return Math.floor(base * (Number(holesData?.[4 + t]?.[i]) || 0));
+}
+
+function deathNoteRank(kills, mode) {
+  if (mode === 7842) {
+    if (kills < 100) return 0;
+    if (kills < 250) return 1;
+    if (kills < 1000) return 2;
+    if (kills < 5000) return 3;
+    if (kills < 25000) return 4;
+    if (kills < 100000) return 5;
+    if (kills < 1000000) return 7;
+    return 10;
+  }
+  if (kills < 25000) return 0;
+  if (kills < 100000) return 1;
+  if (kills < 250000) return 2;
+  if (kills < 500000) return 3;
+  if (kills < 1000000) return 4;
+  if (kills < 5000000) return 5;
+  if (kills < 100000000) return 7;
+  if (kills > 1000000000 && (riftData[0] || 0) >= 20) return 20;
+  return 10;
+}
+
+function computeOverkillQTY() {
+  // Returns sum of OverkillQTY(0..6): death note rank sums per world
+  let total = 0;
+  for (let w = 0; w < 7; w++) {
+    const mobs = DN_MOB_DATA[w];
+    if (!mobs) continue;
+    for (let m = 0; m < mobs.length; m++) {
+      const [klaIdx, killReq] = mobs[m];
+      if (klaIdx < 0) continue;
+      let kills = 0;
+      for (let ci = 0; ci < numCharacters; ci++) {
+        const kla = klaData[ci];
+        const left = Number(kla?.[klaIdx]?.[0]) || 0;
+        kills += killReq - left;
+      }
+      total += deathNoteRank(Math.max(0, kills), 0);
+    }
+  }
+  return total;
+}
+
+function computeMeasurementMulti(typeIdx) {
+  // MeasurementQTYfound(type, 99)  normalized quantity
+  let qty = 0;
+  switch (typeIdx) {
+    case 0: { const raw = Number(holesData?.[11]?.[28]) || 0; qty = raw > 0 ? Math.log(raw) : 0; break; }
+    case 1: qty = farmCropCount / 14; break;
+    case 3: qty = totalTomePoints / 2500; break;
+    case 6: qty = computeOverkillQTY() / 125; break;
+    case 8: qty = (cards1Data.length || 0) / 150; break;
+    case 9: {
+      let sum = 0;
+      const bolaia = holesData[26] || [];
+      for (let i = 0; i < bolaia.length; i++) sum += Number(bolaia[i]) || 0;
+      qty = sum / 6; break;
+    }
+    default: qty = 0;
+  }
+  if (qty < 5) return 1 + 18 * qty / 100;
+  return 1 + (18 * qty + 8 * (qty - 5)) / 100;
+}
+
+function computeGambitPTSmulti() {
+  // MeasurementBonusTOTAL(13)
+  const cosmo13 = cosmoBonus(1, 3);
+  const measBaseStr = HOLES_MEAS_BASE[13] || '0';
+  const isTOT = measBaseStr.includes('TOT');
+  const measBaseNum = parseFloat(measBaseStr) || 0;
+  const measLv = Number(holesData?.[22]?.[13]) || 0;
+  let measBase;
+  if (isTOT) {
+    measBase = (1 + cosmo13 / 100) * (measBaseNum * measLv / (100 + measLv));
+  } else {
+    measBase = (1 + cosmo13 / 100) * measBaseNum * measLv;
+  }
+  const measType = Number(HOLES_MEAS_TYPE[13]) || 0;
+  const measMulti = computeMeasurementMulti(measType);
+  const measTotal = measBase * measMulti;
+
+  // StudyBolaiaBonuses(13)
+  const bolaiaLv = Number(holesData?.[26]?.[13]) || 0;
+  const bolaiaPerLv = HOLES_BOLAIA_PER_LV[13] || 0;
+  const studyBolaia = bolaiaLv * bolaiaPerLv;
+
+  // B_UPG(78, 10)
+  const bUpg78 = (Number(holesData?.[13]?.[78]) || 0) === 1 ? 10 : 0;
+
+  // MonumentROGbonuses(2, 7)
+  const mon29Lv = Number(holesData?.[15]?.[29]) || 0;
+  const mon29Bonus = HOLES_MON_BONUS[29] || 0;
+  const mon29 = mon29Bonus >= 30
+    ? 0.1 * Math.ceil(mon29Lv / (250 + mon29Lv) * 10 * mon29Bonus)
+    : mon29Lv * mon29Bonus;
+  const cosmo00 = cosmoBonus(0, 0);
+  const holeozDN = (1 + mon29 / 100) + cosmo00 / 100;
+  const mon27Lv = Number(holesData?.[15]?.[27]) || 0;
+  const mon27Bonus = HOLES_MON_BONUS[27] || 0;
+  let monROG27;
+  if (mon27Bonus >= 30) {
+    monROG27 = 0.1 * Math.ceil(mon27Lv / (250 + mon27Lv) * 10 * mon27Bonus * Math.max(1, holeozDN));
+  } else {
+    monROG27 = mon27Lv * mon27Bonus * Math.max(1, holeozDN);
+  }
+
+  // JarCollectibleBonus(23) and (30)
+  const legend29 = legendPTSbonus(29);
+  const jar23 = (Number(holesData?.[24]?.[23]) || 0) * (HOLES_JAR_BONUS_PER_LV[23] || 0) * (1 + legend29 / 100);
+  const jar30 = (Number(holesData?.[24]?.[30]) || 0) * (HOLES_JAR_BONUS_PER_LV[30] || 0) * (1 + legend29 / 100);
+
+  // ArcaneUpgBonus(47)
+  const arcane47 = arcaneUpgBonus(47);
+
+  const sum = measTotal + studyBolaia + bUpg78 + monROG27 + jar23 + jar30 + arcane47;
+  return { multi: 1 + sum / 100, parts: { measTotal, studyBolaia, bUpg78, monROG27, jar23, jar30, arcane47 } };
+}
+
+function computeExternalBonuses() {
+  const b = {};
+  // 1. StickerBonus(1) = (1 + (Grid_Bonus(68,2) + 30*EventShop(37))/100) * (1 + 20*SuperBit(62)/100) * R[9][1] * base
+  const stkLv = research?.[9]?.[1] || 0;
+  const stkBase = STICKER_BASE[1] || 5;
+  // Grid_Bonus(68, mode 2) = Grid_Bonus(68,0) * Research[11].length (boony crown count)
+  const boonyCount = research?.[11]?.length || 0;
+  const gridBonus68mode2 = getGridBonusFinal(68) * boonyCount;
+  const stkCrownMulti = 1 + (gridBonus68mode2 + 30 * eventShopOwned(37)) / 100;
+  const stkSuperbit62 = 1 + 20 * superBitType(62) / 100;
+  const autoSticker = stkCrownMulti * stkSuperbit62 * stkLv * stkBase;
+  b.sticker = { val: autoSticker, label: 'Sticker Bonus', note: `LV${stkLv}x${stkBase}xcrown(${stkCrownMulti.toFixed(2)})xsb62(${stkSuperbit62.toFixed(2)})` };
+
+  // 2. Dancing Coral (index 4 = Research EXP)
+  const tower22 = towerData[22] || 0;
+  const dcBase = DANCING_CORAL_BASE[4] || 3;
+  b.dancingCoral = { val: dcBase * Math.max(0, tower22 - 200), label: 'Dancing Coral/Clover Shrine', note: `${dcBase} x max(0, ${tower22}-200)` };
+
+  // 3. ZenithMarket (index 8)
+  // ZenithMarket[8][4] = 1 (static), Spelunk[45][8] = purchase level
+  const zmLevel = spelunkData?.[45]?.[8] || 0;
+  b.zenithMarket = { val: Math.floor(1 * zmLevel), label: 'Zenith', note: `1 x ${zmLevel}` };
+
+  // 4. Card levels
+  const clvW7b1 = computeCardLv('w7b1');
+  const clvW7b4 = computeCardLv('w7b4');
+  b.cardW7b1 = { val: Math.min(clvW7b1, 10), label: 'Trench Fish Card', note: `min(${clvW7b1}, 10)` };
+  b.cardW7b4 = { val: Math.min(2 * clvW7b4, 10), label: 'Eggroll Card', note: `min(2x${clvW7b4}, 10)` };
+
+  // 5. GetSetBonus("PREHISTORIC_SET")  set value=100, capped at 50 in ResearchEXPmulti
+  const ola379 = String(olaData[379] || '');
+  b.prehistoricSet = { val: ola379.includes('PREHISTORIC_SET') ? 50 : 0, label: 'Prehistoric Set', note: ola379.includes('PREHISTORIC_SET') ? 'Unlocked: min(50, 100) = 50' : 'Not unlocked' };
+
+  // 6. SlabboBonus(7) = 0.1 * mult * floor(max(0, Cards1.length-1300)/5). Requires SuperBit(34).
+  const hasSB34 = superBitType(34);
+  const c1len = cards1Data.length || 0;
+  const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
+  // mult = (1 + MainframeBonus(15)/100) * (1 + MeritocBonusz(23)/100) * (1 + LegendPTS_bonus(28)/100)
+  const slabboMF15 = mainframeBonus(15);
+  const slabboMeritoc23 = computeMeritocBonusz(23);
+  const slabboLegend28 = legendPTSbonus(28);
+  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100);
+  const autoSlabbo = hasSB34 ? 0.1 * slabboMult * slabboBase : 0;
+  b.slabbo = { val: autoSlabbo, label: 'Slab Bonus', note: hasSB34 ? `0.1x${slabboBase}xmulti(${slabboMult.toFixed(2)}) [MF15=${slabboMF15.toFixed(0)},merit=${slabboMeritoc23.toFixed(0)},leg=${slabboLegend28}]` : 'SuperBit(34) not unlocked' };
+
+  // 7. ArcadeBonus(63)  uses shared arcadeBonus helper
+  const autoArcade = arcadeBonus(63);
+  const arcLv = arcadeUpgData[63] || 0;
+  b.arcade = { val: autoArcade, label: 'Arcade Bonus', note: `arcadeBonus(63) lv=${arcLv}  ${autoArcade.toFixed(2)}` };
+
+  // 8. MealBonusesS  Giga_Chip (Meals[0][72], base 0.01, MealINFO[72][5]="ResearchXP")
+  const mealLv = mealsData?.[0]?.[72] || 0;
+  const ribT = ribbonData[100] || 0;
+  const ribBon = ribbonBonusAt(100);
+  const mealBase = ribBon * mealLv * 0.01;
+  // CookingMealBonusMultioo = (1 + (MainframeBonus(116) + ShinyBonusS(20))/100) x (1 + WinBonus(26)/100)
+  const mfb116 = mainframeBonus(116);
+  const shinyS20 = computeShinyBonusS(20);
+  const winBon26 = computeWinBonus(26);
+  const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+  const autoMeal = mealBase * cookMulti;
+  b.meal = { val: autoMeal, label: 'Meal (Giga Chip)', note: `LV${mealLv}x0.01xrib=${ribBon.toFixed(3)}xcook(mfb=${mfb116},shiny=${shinyS20.toFixed(1)},win=${winBon26.toFixed(1)})=${autoMeal.toFixed(2)}` };
+
+  // 9. CropSCbonus(9)  EmporiumBonus(44), floor(max(0,(crops-200)/10))
+  const hasEmp44 = emporiumBonus(44);
+  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (farmCropCount - 200) / 10)) : 0;
+  // CropSCbonMulti = (1 + MainframeBonus(17)/100) x (1 + (GrimoireUpgBonus(22)+ExoticBonusQTY(40))/100)
+  const mf17 = mainframeBonus(17);
+  const gub22 = grimoireUpgBonus22();
+  const exo40 = exoticBonusQTY40();
+  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40) / 100);
+  const autoCropSC = cropRaw * cropSCmulti;
+  b.cropSC = { val: autoCropSC, label: 'Crop Scientist', note: hasEmp44 ? `floor((${farmCropCount}-200)/10)=${cropRaw}xmulti(${cropSCmulti.toFixed(2)}) [MF17=${mf17.toFixed(0)}]` : 'Emporium(44) not unlocked' };
+
+  // 10. MSA_Bonus(10)  SuperBitType(44), sum(TotemInfo[0]) = gaming stars
+  const hasSB44 = superBitType(44);
+  const gamingStars = Array.isArray(totemInfoData[0]) ? totemInfoData[0].reduce((a,v) => a + (Number(v)||0), 0) : 0;
+  const autoMSA = hasSB44 ? 0.3 * Math.max(0, Math.floor((gamingStars - 300) / 10)) : 0;
+  b.msa = { val: autoMSA, label: 'MSA Bonus', note: hasSB44 ? `0.3 x max(0,floor((${gamingStars}-300)/10)) = ${autoMSA.toFixed(1)}` : 'SuperBit(44) not unlocked' };
+
+  // 11. LoreEpiBon(7)  Research EXP from Lore Episode 7
+  // Spelunky[21][7] = "20|16000"  base=20, threshold=16000
+  // Requires Spelunk[13][2] > 7 (at least 8 lore episodes completed)
+  // mult = (1 + (GrimoireUpgBonus(17) + GetSetBonus("TROLL_SET")) / 100)
+  // GrimoireUpgBonus(17) = Grimoire[17] * GrimoireUpg[17][5]=1 (in exception set, no recursive boost)
+  // TROLL_SET bonus = 25 if permanently unlocked via OLA[379], else 0
+  const loreEpisodes = spelunkData?.[13]?.[2] || 0;
+  if (loreEpisodes > 7 && totalTomePoints > 0) {
+    const g17 = grimoireData?.[17] || 0;
+    const trollSet = String(olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
+    const loreMult = 1 + (g17 + trollSet) / 100;
+    const x = Math.floor(Math.max(0, totalTomePoints - 16000) / 100);
+    const xp = Math.pow(x, 0.7);
+    const loreVal = loreMult * 20 * Math.max(0, xp / (25 + xp));
+    b.loreEpi = { val: loreVal, label: 'Tome Bonus', note: `TomePTS=${totalTomePoints} x=${x} grey=${g17} troll=${trollSet}  ${loreVal.toFixed(2)}%` };
+  } else if (totalTomePoints <= 0) {
+    b.loreEpi = { val: parseFloat(extBonusOverrides.loreEpi) || 0, label: 'Tome Bonus', note: 'Use it.json for auto (needs TomePTS)', override: true };
+  } else {
+    b.loreEpi = { val: 0, label: 'Tome Bonus' };
+  }
+
+  // --- Compute total additive ---
+  let totalAdd = 0;
+  for (const k of Object.keys(b)) totalAdd += b[k].val;
+  b._total = totalAdd;
+
+  // --- TRUE multipliers (not additive) ---
+  // Companion ownership auto-detected from it.json companion.l data
+  const comp52owned = companionIds.has(52);
+  const comp52val = comp52owned ? 0.5 : 0; // CompanionDB[52][2] = 0.5  1.5x Research EXP
+  b._comp52 = { val: comp52val, label: 'Jellofish (1.5x Research EXP)', note: comp52owned ? 'Owned ' : 'Not owned', isTrueMult: true };
+
+  // Grid_Bonus_Allmulti: 1 + (Companions(55) + 5*min(1, R[0][173]*Companions(0)))/100
+  const comp55owned = companionIds.has(55);
+  const comp55val = comp55owned ? 15 : 0; // CompanionDB[55][2] = 15  1.15x all grid bonuses
+  const comp0owned = companionIds.has(0);
+  const comp0val = comp0owned && (lv0AllData[0]?.[14] || 0) >= 2 && (gridLevels[173] || 0) > 0 ? 5 : 0; // 5*min(1, lv*1)
+  b._allMulti = { val: 1 + (comp55val + comp0val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val})/100` };
+
+  return b;
+}
+
+// Compute GambitBonuses(15)  flat +3% Research AFK if total gambit pts >= req
+function computeGambitBonus15() {
+  if (!Array.isArray(holesData[11])) return { val: 0, note: 'No Holes data' };
+  let rawPts = 0;
+  for (let i = 0; i < 6; i++) {
+    const score = Number(holesData[11][65 + i]) || 0;
+    const base = score + 3 * Math.floor(score / 10) + 10 * Math.floor(score / 60);
+    rawPts += (i === 0 ? 100 : 200) * base;
+  }
+  const gambitMulti = computeGambitPTSmulti();
+  const totalPts = rawPts * gambitMulti.multi;
+  const req = 2000 + 1000 * 16 * (1 + 15 / 5) * Math.pow(1.26, 15); // ~1.82M
+  if (totalPts < req) return { val: 0, note: `Gambit pts ${totalPts.toFixed(0)} < ${req.toFixed(0)} req (raw=${rawPts.toFixed(0)}x${gambitMulti.multi.toFixed(2)})` };
+  return { val: 3, note: `Unlocked (pts ${totalPts.toFixed(0)}  ${req.toFixed(0)}, multi=${gambitMulti.multi.toFixed(2)})` };
+}
+
+// Compute AFK Gains Rate for Research  min(1, 0.01 + sum/100)
+// Formula: min(1, 0.01 + (Companions(28) + GambitBonuses(15) + Minehead(1) + Minehead(10) + GridBonus(71) + GridBonus(111) + min(6,Sailing[3][36]) + min(CardLv("w7b11"),10)) / 100)
+function computeAFKGainsRate() {
+  const parts = {};
+
+  // Companion(28) = CompanionDB[28] w7d1, bonus=30
+  const comp28owned = companionIds.has(28);
+  parts.comp28 = { val: comp28owned ? 30 : 0, label: 'RIP Tide (Companion)', note: comp28owned ? 'Owned (30%)' : 'Not owned' };
+
+  // GambitBonuses(15)  flat 3 if unlocked
+  const gambit = computeGambitBonus15();
+  parts.gambit15 = { val: gambit.val, label: 'Gambit Milestone', note: gambit.note };
+
+  // Minehead("BonusQTY", 1) = MINEHEAD_BONUS_QTY[1] = 2
+  parts.minehead1 = { val: mineheadBonusQTY(1), label: 'Minehead Floor 2', note: `${MINEHEAD_BONUS_QTY[1]}` };
+
+  // Minehead("BonusQTY", 10) = MINEHEAD_BONUS_QTY[10] = 3
+  parts.minehead10 = { val: mineheadBonusQTY(10), label: 'Minehead Floor 11', note: `${MINEHEAD_BONUS_QTY[10]}` };
+
+  // Grid_Bonus(71, 0)  Powered Down Research
+  const gb71 = getGridBonusFinal(71);
+  parts.gridBonus71 = { val: gb71, label: 'Grid L4: Powered Down Research', note: `LV${gridLevels[71]||0}` };
+
+  // Grid_Bonus(111, 0)  AFK Research grid bonus
+  const gb111 = getGridBonusFinal(111);
+  parts.gridBonus111 = { val: gb111, label: 'Grid L6: Research AFK Gains', note: `LV${gridLevels[111]||0}` };
+
+  // min(6, Sailing[3][36])
+  const sail36 = Number(sailingData?.[3]?.[36]) || 0;
+  parts.sailing36 = { val: Math.min(6, sail36), label: 'Ender Pearl (Artifact)', note: `min(6, ${sail36})` };
+
+  // min(CardLv("w7b11"), 10)
+  const clvW7b11 = computeCardLv('w7b11');
+  parts.cardW7b11 = { val: Math.min(clvW7b11, 10), label: 'Pirate Deckhand Card', note: `min(${clvW7b11}, 10)` };
+
+  let sum = 0;
+  for (const k of Object.keys(parts)) sum += parts[k].val;
+  const rate = Math.min(1, 0.01 + sum / 100);
+
+  return { rate, pct: rate * 100, sum, parts };
+}
+
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const raw = JSON.parse(text);
+    loadSaveData(raw);
+  } catch (err) {
+    console.error('Load error:', err);
+  }
+});
+
+function loadSaveData(raw) {
+    // Support both it.json (has .data + .companion) and plain save.json
+    const save = raw.data ? raw.data : raw;
+    const companionRaw = raw.companion;
+    const R = typeof save.Research === 'string' ? JSON.parse(save.Research) : save.Research;
+    research = R;
+    gridLevels = R[0].slice();
+    shapeOverlay = R[1].slice();
+    occFound = R[2].slice();
+    insightLvs = R[4].slice();
+    insightProgress = R[3].slice();
+    stateR7 = R[7].slice();
+
+    // Parse additional save data
+    olaData = parseSaveKey(save, 'OptLacc') || [];
+    towerData = parseSaveKey(save, 'Tower') || [];
+    spelunkData = parseSaveKey(save, 'Spelunk') || [];
+    arcadeUpgData = parseSaveKey(save, 'ArcadeUpg') || [];
+    cards0Data = parseSaveKey(save, 'Cards0') || {};
+    cards1Data = parseSaveKey(save, 'Cards1') || [];
+    sailingData = parseSaveKey(save, 'Sailing') || [];
+    lv0Data = parseSaveKey(save, 'Lv0_0') || parseSaveKey(save, 'Lv0') || [];
+    exp0Data = parseSaveKey(save, 'Exp0_0') || parseSaveKey(save, 'Exp0') || [];
+    totemInfoData = parseSaveKey(save, 'TotemInfo') || [];
+    gamingData = parseSaveKey(save, 'Gaming') || [];
+    ninjaData = parseSaveKey(save, 'Ninja') || [];
+    ribbonData = parseSaveKey(save, 'Ribbon') || [];
+    mealsData = parseSaveKey(save, 'Meals') || [];
+    const farmCrop = parseSaveKey(save, 'FarmCrop') || {};
+    farmCropCount = typeof farmCrop === 'object' ? Object.keys(farmCrop).length : 0;
+    grimoireData = parseSaveKey(save, 'Grimoire') || [];
+    labData = parseSaveKey(save, 'Lab') || [];
+    farmUpgData = parseSaveKey(save, 'FarmUpg') || [];
+    holesData = parseSaveKey(save, 'Holes') || [];
+    riftData = parseSaveKey(save, 'Rift') || [];
+    breedingData = parseSaveKey(save, 'Breeding') || [];
+    summonData = parseSaveKey(save, 'Summon') || [];
+    arcaneData = parseSaveKey(save, 'Arcane') || [];
+    gemItemsData = parseSaveKey(save, 'GemItemsPurchased') || [];
+    achieveRegData = parseSaveKey(save, 'AchieveReg') || [];
+    tasksW7Data = parseSaveKey(save, 'TaskZZ5') || [];
+    tasksGlobalData = [];
+    for (let tz = 0; tz <= 5; tz++) tasksGlobalData.push(parseSaveKey(save, 'TaskZZ' + tz) || []);
+    dreamData = parseSaveKey(save, 'Dream') || [];
+    divinityData = parseSaveKey(save, 'Divinity') || [];
+    optionsListData = parseSaveKey(save, 'OptionsListAccount') || [];
+    numCharacters = raw.charNames ? raw.charNames.length : 10;
+    // Parse per-character Lv0 data
+    lv0AllData = [];
+    charClassData = [];
+    skillLvData = [];
+    playerStuffData = [];
+    let exp0AllData = [];
+    for (let ci = 0; ci < numCharacters; ci++) {
+      lv0AllData.push(parseSaveKey(save, 'Lv0_' + ci) || []);
+      exp0AllData.push(parseSaveKey(save, 'Exp0_' + ci) || []);
+      charClassData.push(Number(parseSaveKey(save, 'CharacterClass_' + ci)) || 0);
+      skillLvData.push(parseSaveKey(save, 'SL_' + ci) || {});
+      playerStuffData.push(parseSaveKey(save, 'PlayerStuff_' + ci) || []);
+    }
+    cauldronInfoData = parseSaveKey(save, 'CauldronInfo') || [];
+    cauldronBubblesData = parseSaveKey(save, 'CauldronBubbles') || [];
+    klaData = [];
+    for (let ci = 0; ci < numCharacters; ci++) {
+      klaData.push(parseSaveKey(save, 'KLA_' + ci) || []);
+    }
+
+    // Parse companion ownership from it.json companion.l array
+    companionIds = new Set();
+    if (companionRaw && Array.isArray(companionRaw.l)) {
+      for (const entry of companionRaw.l) {
+        const id = parseInt(String(entry).split(',')[0]);
+        if (!isNaN(id)) companionIds.add(id);
+      }
+    }
+
+    // Parse TomePTS from it.json extraData
+    totalTomePoints = raw.extraData?.totalTomePoints || 0;
+
+    // Parse A_ResXP server variable for Research EXP curve
+    serverVarResXP = Number(raw.serverVars?.A_ResXP) || 1.01;
+
+    researchLevel = Math.max(...lv0AllData.map(lv0 => lv0[20] || 0), 0);
+    // Use highest research EXP across all characters (can desync from not logging in)
+    exp0Data[20] = Math.max(...exp0AllData.map(e => Number(e[20]) || 0), 0);
+    magMaxPerSlot = Math.min(4, Math.round(1 + Math.min(1, Math.floor(researchLevel/40)) + Math.min(1, Math.floor(researchLevel/70)) + Math.min(1, Math.floor(researchLevel/120))));
+
+    // Compute magnifiersOwned (for display/UI)
+    magnifiersOwned = computeMagnifiersOwned();
+
+    // Parse magnifiers  game iterates ALL of Research[5] without truncation (N.formatted.js:91883)
+    magData = [];
+    for (let i = 0; i < R[5].length; i += 4) {
+      magData.push({ x: R[5][i], y: R[5][i+1], slot: R[5][i+2], type: R[5][i+3] });
+    }
+
+    // Parse shapes (groups of 4)
+    shapePositions = [];
+    for (let i = 0; i < R[6].length; i += 4) {
+      shapePositions.push({ x: R[6][i], y: R[6][i+1], rot: R[6][i+2], unk: R[6][i+3] });
+    }
+
+    // Compute lab connectivity BFS (needed for MainframeBonus)
+    computeLabConnectivity();
+
+    // Compute external bonuses
+    const ext = computeExternalBonuses();
+    externalResearchPct = ext._total;
+    comp52TrueMulti = 1 + (ext._comp52?.val || 0);
+    allBonusMulti = ext._allMulti?.val || 1;
+
+    loadedSaveFormat = raw.data ? 'it.json' : 'save.json';
+    updateSaveFormatUI();
+    renderAll();
+}
+
+function loadFromPaste() {
+  const ta = document.getElementById('json-paste');
+  const text = (ta.value || '').trim();
+  if (!text) return;
+  try {
+    const raw = JSON.parse(text);
+    // Re-use the file-input loading path by creating a synthetic event
+    loadSaveData(raw);
+    ta.value = '';
+    document.getElementById('json-paste-wrap').style.display = 'none';
+  } catch (err) {
+    alert('Invalid JSON: ' + err.message);
+  }
+}
+
+function updateSaveFormatUI() {
+  const badge = document.getElementById('save-format-badge');
+  badge.style.display = 'inline';
+  if (loadedSaveFormat === 'it.json') {
+    badge.textContent = 'it.json';
+    badge.style.background = 'rgba(76,175,80,.2)';
+    badge.style.color = 'var(--green)';
+    document.getElementById('supplement-panel').style.display = 'none';
+  } else {
+    badge.textContent = 'save.json';
+    badge.style.background = 'rgba(233,69,96,.15)';
+    badge.style.color = 'var(--accent)';
+    // Show supplement panel with current state
+    const sp = document.getElementById('supplement-panel');
+    sp.style.display = '';
+    sp.querySelectorAll('.comp-toggle').forEach(cb => {
+      cb.checked = companionIds.has(Number(cb.dataset.id));
+    });
+    document.getElementById('supp-tome').value = totalTomePoints || 0;
+    document.getElementById('supp-resxp').value = serverVarResXP || 1.01;
+  }
+}
+
+function applySupplements() {
+  companionIds = new Set();
+  document.querySelectorAll('.comp-toggle').forEach(cb => {
+    if (cb.checked) companionIds.add(Number(cb.dataset.id));
+  });
+  totalTomePoints = Number(document.getElementById('supp-tome').value) || 0;
+  serverVarResXP = Number(document.getElementById('supp-resxp').value) || 1.01;
+  // Recompute derived state
+  const ext = computeExternalBonuses();
+  externalResearchPct = ext._total;
+  comp52TrueMulti = 1 + (ext._comp52?.val || 0);
+  allBonusMulti = ext._allMulti?.val || 1;
+  renderAll();
+}
+
+// ===== CALCULATIONS =====
+function getGridBonus(idx) {
+  const info = RES_GRID_RAW[idx];
+  if (!info) return 0;
+  const lv = gridLevels[idx] || 0;
+  const bonusPerLv = info[2];
+  return bonusPerLv * lv;
+}
+
+function getGridBonusFinal(idx) {
+  const base = getGridBonus(idx);
+  const si = shapeOverlay[idx];
+  let val = base;
+  if (si >= 0 && si < SHAPE_BONUS_PCT.length) val *= (1 + SHAPE_BONUS_PCT[si] / 100);
+  return val * allBonusMulti;
+}
+
+// Game: TotalObsLVs (N.formatted.js:91868)  sums Research[4][i] where >=1, for i<OccurrencesToBeFound
+function getTotalObsLVs() {
+  let total = 0;
+  const occTBF = computeOccurrencesToBeFound();
+  for (let i = 0; i < occTBF; i++) {
+    if ((insightLvs[i] || 0) >= 1) total += insightLvs[i];
+  }
+  return total;
+}
+
+// Game: TotalOccurrencesFound (N.formatted.js:91854)  counts Research[2][i]>=1 for i<OccurrencesToBeFound
+function getOccurrenceCount() {
+  const occTBF = computeOccurrencesToBeFound();
+  let count = 0;
+  for (let i = 0; i < occTBF; i++) {
+    if ((occFound[i] || 0) >= 1) count++;
+  }
+  return count;
+}
+
+function getKaleiMultiBase() {
+  return (30 + getGridBonusFinal(52) + getGridBonusFinal(72)) / 100;
+}
+
+function buildKaleiMap() {
+  // Build adjacency count map for kaleidoscope magnifiers
+  const kalMap = {};
+  for (const m of magData) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  return kalMap;
+}
+
+function getKaleiMultiTot(obsIdx) {
+  const kalMap = buildKaleiMap();
+  return 1 + (kalMap[obsIdx] || 0) * getKaleiMultiBase();
+}
+
+function getResearchExpPerObs(obsIdx) {
+  // Count type-0 magnifiers assigned to this observation
+  let count = 0;
+  for (const m of magData) {
+    if (m.type === 0 && m.slot === obsIdx) count++;
+  }
+  if (count === 0) return 0;
+
+  const t = obsIdx;
+  const basePerMag = (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
+  let rate = count * basePerMag;
+
+  // Game_Design_101 bonus per observation LV
+  const gd101 = getGridBonusFinal(93);
+  rate *= (1 + gd101 * (insightLvs[t] || 0) / 100);
+
+  // Kaleidoscope multiplier
+  rate *= getKaleiMultiTot(t);
+
+  return rate;
+}
+
+function getInsightExpPerObs(obsIdx) {
+  // Count type-1 (Monocle) magnifiers assigned to this observation
+  let count = 0;
+  for (const m of magData) {
+    if (m.type === 1 && m.slot === obsIdx) count++;
+  }
+  if (count === 0) return 0;
+
+  const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
+  let rate = 3 * count * (1 + insightBonus / 100);
+  rate *= getKaleiMultiTot(obsIdx);
+  return rate;
+}
+
+function getInsightExpReq(obsIdx) {
+  const t = obsIdx;
+  const lv = insightLvs[t] || 0;
+  return (2 + 0.7*t) * Math.pow(1.75 + t/200, lv) * (1 + Math.pow(t, 2)/100) + lv;
+}
+
+function getMagCountByType(type) {
+  return magData.slice(0, magnifiersOwned).filter(m => m.type === type).length;
+}
+function getMagAssignedByType(type) {
+  return magData.slice(0, magnifiersOwned).filter(m => m.type === type && m.slot >= 0).length;
+}
+
+function getInsightAnalysis(obsIdx) {
+  const t = obsIdx;
+  const lv = insightLvs[t] || 0;
+  const progress = insightProgress[t] || 0;
+
+  // EXP required for next insight level
+  const insReq = getInsightExpReq(t);
+  const insRemaining = Math.max(0, insReq - progress);
+
+  const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
+  const kaleiMulti = getKaleiMultiTot(t);
+  const monoRatePer = 3 * (1 + insightBonus / 100) * kaleiMulti; // insight EXP/hr per monocle
+
+  const base = obsBaseExp(t);
+  const gd101 = getGridBonusFinal(93);
+  const magExpPer = base * (1 + gd101 * lv / 100) * kaleiMulti; // research EXP/hr per magnifier at current insight
+  const magExpNext = base * (1 + gd101 * (lv + 1) / 100) * kaleiMulti; // per-mag EXP at next insight
+  const rateGainPerMag = magExpNext - magExpPer; // per-magnifier gain from +1 insight
+
+  // Also compute the GLOBAL gain from +1 insight (includes gd94 multiplier)
+  const currentTotal = simTotalExp().total;
+  const tempIL = insightLvs.slice();
+  tempIL[t] = lv + 1;
+  const newTotal = simTotalExp({ insightLvs: tempIL }).total;
+  const totalRateGain = newTotal - currentTotal;
+
+  // How many magnifiers (type 0) and total mags are on this slot currently
+  let currentMagsOnSlot = 0, currentMonosOnSlot = 0, currentTotalOnSlot = 0;
+  for (const m of magData.slice(0, magnifiersOwned)) {
+    if (m.slot === t) {
+      currentTotalOnSlot++;
+      if (m.type === 0) currentMagsOnSlot++;
+      if (m.type === 1) currentMonosOnSlot++;
+    }
+  }
+  const freeSlots = Math.max(0, magMaxPerSlot - currentTotalOnSlot);
+
+  // ---- Scenario analysis for 1 and 2 monocles ----
+  const scenarios = [];
+  for (const monoCount of [1, 2]) {
+    if (monoCount > magMaxPerSlot) continue;
+
+    // How many magnifiers must be displaced?
+    const monosNeeded = monoCount - currentMonosOnSlot;
+    if (monosNeeded <= 0) {
+      // Already have enough monocles  no new assignment needed
+      const rate = monoRatePer * monoCount;
+      const ttl = rate > 0 ? insRemaining / rate : Infinity;
+      scenarios.push({
+        monoCount,
+        displaced: 0,
+        opportunityCostPerHr: 0,
+        insightRate: rate,
+        timeToLevel: ttl,
+        expLostDuringGrind: 0,
+        totalRateGain,
+        breakevenHrs: 0,
+        label: `${monoCount} mono (already placed)`,
+        alreadyPlaced: true,
+      });
+      continue;
+    }
+
+    // Can we fit new monocles in free slots, or must we displace magnifiers?
+    const canFitFree = Math.min(monosNeeded, freeSlots);
+    const mustDisplace = monosNeeded - canFitFree;
+
+    // Opportunity cost: displaced magnifiers lose magExpPer each;
+    // free-slot monocles cost the magnifier you COULD have placed there instead
+    const displacedLoss = mustDisplace * magExpPer; // lose existing mag EXP
+    const forgoneLoss = canFitFree * magExpPer; // could have had a mag there
+    const opportunityCostPerHr = displacedLoss + forgoneLoss;
+
+    const rate = monoRatePer * monoCount;
+    const ttl = rate > 0 ? insRemaining / rate : Infinity;
+
+    // EXP lost while grinding insight = opportunity cost Ã— time
+    const expLost = opportunityCostPerHr * ttl;
+
+    // After insight levels: all mags on this slot gain rateGainPerMag each
+    // But total gain includes global gd94 effect too
+    // Break-even: hours after level-up to recover lost EXP
+    const breakevenAfter = totalRateGain > 0 ? expLost / totalRateGain : Infinity;
+    const breakevenTotal = isFinite(ttl) ? ttl + breakevenAfter : Infinity;
+
+    scenarios.push({
+      monoCount,
+      displaced: mustDisplace,
+      forgone: canFitFree,
+      opportunityCostPerHr,
+      insightRate: rate,
+      timeToLevel: ttl,
+      expLostDuringGrind: expLost,
+      totalRateGain,
+      recoveryHrs: breakevenAfter,
+      breakevenHrs: breakevenTotal,
+      label: mustDisplace > 0
+        ? `${monoCount} mono (replace ${mustDisplace} mag${mustDisplace > 1 ? 's' : ''})`
+        : `${monoCount} mono (${canFitFree} in free slot${canFitFree > 1 ? 's' : ''})`,
+      alreadyPlaced: false,
+    });
+  }
+
+  return {
+    insightLv: lv,
+    insProgress: progress,
+    insReq,
+    insRemaining,
+    monoRatePer,
+    magExpPer,
+    rateGainPerMag,
+    totalRateGain,
+    currentMagsOnSlot,
+    currentMonosOnSlot,
+    currentTotalOnSlot,
+    freeSlots,
+    scenarios,
+    progressPct: insReq > 0 ? Math.min(100, progress / insReq * 100) : 0,
+  };
+}
+
+// ===== SIMULATION ENGINE =====
+// Computes total research EXP/hr using only grid-based bonuses.
+// External sources are additive constant  pass via externalPct for ranking accuracy.
+function simTotalExp(opts = {}) {
+  const gl = opts.gridLevels || gridLevels;
+  const so = opts.shapeOverlay || shapeOverlay;
+  const md = opts.magData || magData;
+  const il = opts.insightLvs || insightLvs;
+  const occ = opts.occFound || occFound;
+  const extPct = opts.externalPct !== undefined ? opts.externalPct : externalResearchPct;
+
+  function gb(idx) {
+    const info = RES_GRID_RAW[idx];
+    if (!info) return 0;
+    const lv = gl[idx] || 0;
+    if (lv === 0) return 0;
+    let val = info[2] * lv;
+    const si = so[idx];
+    if (si >= 0 && si < SHAPE_BONUS_PCT.length) val *= (1 + SHAPE_BONUS_PCT[si] / 100);
+    val *= allBonusMulti;
+    return val;
+  }
+
+  // Kaleidoscope adjacency
+  const kalMap = {};
+  for (const m of md) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  const kalBase = (30 + gb(52) + gb(72)) / 100;
+  const gd101 = gb(93);
+
+  // Game: ResearchEXPrateTOT loops i=0..OccurrencesToBeFound-1, calling ResearchEXPrateObj(i)
+  // ResearchEXPrateObj counts ALL type-0 magnifiers in Research[5] at slot i (N.formatted.js:91883)
+  const occTBF = computeOccurrencesToBeFound();
+  let obsTotal = 0;
+  for (let i = 0; i < occTBF; i++) {
+    let count = 0;
+    for (const m of md) { if (m.type === 0 && m.slot === i) count++; }
+    if (count === 0) continue;
+    const t = i;
+    // Game: (4+(t/2+floor(t/4)))*(1+pow(t,1+t/15*0.4)/10)+(pow(t,1.5)+1.5*t) (N.formatted.js:91883)
+    const base = (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
+    const kalMulti = 1 + (kalMap[t] || 0) * kalBase;
+    obsTotal += count * base * (1 + gd101 * (il[t] || 0) / 100) * kalMulti;
+  }
+
+  // Game: ResearchEXPmulti additive (N.formatted.js:91894)
+  let additive = gb(50) + gb(90) + gb(110) + extPct;
+  // Game: TotalOccurrencesFound loops i=0..OccurrencesToBeFound-1, counts Research[2][i]>=1
+  let occFoundCount = 0;
+  for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
+  additive += gb(112) * occFoundCount;
+  // Game: TotalObsLVs loops i=0..OccurrencesToBeFound-1, sums Research[4][i] where >=1
+  let totalObsLV = 0;
+  for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
+  additive += gb(94) * totalObsLV;
+  const takinNotes = gb(70);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * comp52TrueMulti;
+
+  return { total: obsTotal * multi, multi, obsBase: obsTotal };
+}
+
+// Per-observation base EXP with 1 magnifier (for comparison)
+function obsBaseExp(t) {
+  return (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
+}
+
+// ===== DISCOVERY PRIORITY =====
+function computeDiscoveryPriority() {
+  const occTBF = computeOccurrencesToBeFound();
+  const currentTotal = simTotalExp().total;
+  const kalMap = buildKaleiMap();
+  const kalBase = getKaleiMultiBase();
+  const gd101 = getGridBonusFinal(93);
+  const gd112val = getGridBonusFinal(112);
+  const results = [];
+
+  for (let t = 0; t < occTBF; t++) {
+    if ((occFound[t] || 0) >= 1) continue; // already found
+    const name = OCC_DATA[t] ? OCC_DATA[t].name.replace(/_/g, ' ') : `#${t}`;
+
+    // 1) Raw base EXP/hr from 1 magnifier on this slot
+    const rawBase = obsBaseExp(t);
+
+    // 2) With current kaleidoscope adjacency
+    const kalMulti = 1 + (kalMap[t] || 0) * kalBase;
+    const expWith1Mag = rawBase * kalMulti;
+
+    // 3) Global EXP gain from gd112 (obs found count +1)
+    //    Use simTotalExp with a fake occFound to get exact delta
+    const tempOF = occFound.slice();
+    tempOF[t] = 1;
+    const withDiscovered = simTotalExp({ occFound: tempOF }).total;
+    const globalGain = withDiscovered - currentTotal;
+
+    // 4) Kaleidoscope placement value: if a kaleidoscope were placed HERE,
+    //    how much would adjacent discovered obs benefit?
+    //    Adjacent slots: t (same row) and t (above/below)
+    const adjSlots = [];
+    if (t % 8 !== 0) adjSlots.push(t - 1);
+    if (t % 8 !== 7) adjSlots.push(t + 1);
+    if (t >= 8) adjSlots.push(t - 8);
+    if (t + 8 < 80) adjSlots.push(t + 8);
+
+    let kaleiValue = 0;
+    for (const adj of adjSlots) {
+      if (adj >= occTBF || (occFound[adj] || 0) < 1) continue;
+      // Count type-0 magnifiers on this adjacent slot
+      let magCount = 0;
+      for (const m of magData) { if (m.type === 0 && m.slot === adj) magCount++; }
+      if (magCount === 0) continue;
+      const adjBase = obsBaseExp(adj);
+      const adjInsight = insightLvs[adj] || 0;
+      // EXP gain from +1 kaleidoscope adjacency on this neighbor
+      kaleiValue += magCount * adjBase * (1 + gd101 * adjInsight / 100) * kalBase;
+    }
+
+    // Count how many discovered neighbors (for adjacency display)
+    let discoveredNeighbors = 0;
+    for (const adj of adjSlots) {
+      if (adj < occTBF && (occFound[adj] || 0) >= 1) discoveredNeighbors++;
+    }
+
+    // Existing kaleidoscopes adjacent to this slot
+    const existingKalei = kalMap[t] || 0;
+
+    results.push({
+      idx: t, name,
+      rawBase,
+      kalMulti,
+      expWith1Mag,
+      globalGain,
+      kaleiValue,
+      adjSlots: adjSlots.length,
+      discoveredNeighbors,
+      existingKalei,
+      // Combined score: global gain (always applies) + raw EXP potential (if you'd assign a mag)
+      totalValue: globalGain,
+    });
+  }
+
+  results.sort((a, b) => b.totalValue - a.totalValue);
+  return results;
+}
+
+// ===== POINT OPTIMIZER =====
+let _pointPriorityRunning = false;
+async function computePointPriority(progressCb) {
+  if (_pointPriorityRunning) return null;
+  _pointPriorityRunning = true;
+  try {
+  const EXP_SQUARES = new Set([50, 90, 110, 112, 94, 70, 93, 52, 72, 91, 92]);
+  const EXPLAIN = {
+    50: 'Additive EXP% + extra PTS/10LVs', 90: 'Additive EXP% + daily rolls',
+    110: 'Additive EXP%', 112: 'EXP% x Obs found', 94: 'EXP% x Total Obs LVs',
+    70: 'TRUE EXP multiplier', 93: 'Per-obs EXP x Insight LV',
+    52: 'Kaleidoscope effect %', 72: 'Kaleidoscope effect % + new kalei', 91: 'Insight EXP% + new monocle',
+    92: 'Monocle insight EXP%', 111: 'AFK Research %', 71: 'AFK Research %',
+    129: 'Minehead Currency', 131: 'Red Legend talents', 130: 'Yellow Legend talents',
+    132: 'Brown Legend talents', 152: 'Green Legend talents', 147: 'Depth Charge + Minehead',
+    148: 'Minehead Currency', 150: 'Masterclass cost', 151: 'Spelunking POW', 171: 'Day/Night Market',
+  };
+
+  // Save all globals that will be mutated during optimization
+  const origGL = gridLevels;
+  const origSO = shapeOverlay;
+  const origMD = magData;
+  const origMO = magnifiersOwned;
+
+  // Compute optimized baseline (best mag+shape arrangement at current levels)
+  gridLevels = origGL.slice();
+  magData = origMD.slice();
+  magnifiersOwned = origMO;
+  shapeOverlay = origSO.slice();
+  const baseMags = optimizeMagnifiers();
+  magData = baseMags;
+  const baseShapes = optimizeShapePlacement();
+  shapeOverlay = baseShapes.optimizedOverlay;
+  const baseTotal = simTotalExp().total;
+
+  // Restore before yielding
+  gridLevels = origGL;
+  magData = origMD;
+  shapeOverlay = origSO;
+  magnifiersOwned = origMO;
+
+  const candidates = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
+    const info = RES_GRID_RAW[idx];
+    return (gridLevels[idx] || 0) < info[1];
+  });
+  const results = [];
+
+  for (let ci = 0; ci < candidates.length; ci++) {
+    const idx = candidates[ci];
+    const info = RES_GRID_RAW[idx];
+    const lv = origGL[idx] || 0;
+
+    // Temporarily set gridLevels with +1 on this square
+    gridLevels = origGL.slice();
+    gridLevels[idx] = lv + 1;
+
+    // Recompute magnifiersOwned (picks up extra kalei from #72, mono from #91)
+    magnifiersOwned = computeMagnifiersOwned();
+
+    // Build magData pool, adding any extra mags from the level-up
+    magData = origMD.slice();
+    if (magnifiersOwned > origMO) {
+      let newType = 0; // default: regular magnifier
+      if (idx === 72) newType = 2; // kaleidoscope
+      else if (idx === 91) newType = 1; // monocle
+      for (let e = 0; e < magnifiersOwned - origMO; e++) {
+        const ni = origMO + e;
+        if (ni < magData.length) {
+          magData[ni] = { ...magData[ni], type: newType };
+        } else {
+          magData.push({ x: 0, y: 0, slot: -1, type: newType });
+        }
+      }
+    }
+
+    // Full magnifier re-optimization
+    magData = optimizeMagnifiers();
+
+    // Full shape re-optimization
+    const optShapes = optimizeShapePlacement();
+    shapeOverlay = optShapes.optimizedOverlay;
+
+    // Evaluate total EXP with optimized arrangement
+    const newTotal = simTotalExp().total;
+    const delta = newTotal - baseTotal;
+
+    results.push({
+      idx, name: info[0].replace(/_/g, ' '), currentLv: lv, maxLv: info[1],
+      delta, pctGain: baseTotal > 0 ? delta / baseTotal * 100 : 0,
+      isExpSquare: EXP_SQUARES.has(idx), category: EXPLAIN[idx] || 'Non-EXP utility',
+    });
+
+    // Restore globals before yielding to UI
+    gridLevels = origGL;
+    magData = origMD;
+    shapeOverlay = origSO;
+    magnifiersOwned = origMO;
+
+    // Yield to UI every few iterations for responsiveness
+    if (ci % 2 === 0) {
+      if (progressCb) progressCb(ci + 1, candidates.length);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  results.sort((a, b) => b.delta - a.delta);
+  return results;
+  } finally { _pointPriorityRunning = false; }
+}
+
+// ===== SHAPE PLACEMENT OPTIMIZER =====
+// Game coordinate system: grid starts at (15,24), cells are 30x30 pixels.
+// Each cell checks 4 corner points: offsets (3,3),(24,3),(3,24),(24,24) within the cell.
+// If any corner is inside the shape polygon, the cell is covered.
+
+function isPointInPolygon(px, py, polygon) {
+  // Ray-casting algorithm matching the game's IsPointInPolygon
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    if ((yi > py) !== (yj > py)) {
+      const intersectX = (xj - xi) * ((py - yi) / (yj - yi)) + xi;
+      if (px < intersectX) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function getShapePolygonAt(shapeIdx, x, y, rot) {
+  const verts = SHAPE_VERTICES[shapeIdx];
+  const dims = SHAPE_DIMS[shapeIdx];
+  if (!verts || !dims) return null;
+  const cx = dims[0] / 2, cy = dims[1] / 2;
+  const angle = (rot || 0) * Math.PI / 180;
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  return verts.map(([vx, vy]) => {
+    const dx = vx - cx, dy = vy - cy;
+    return [cx + x + dx * cosA - dy * sinA,
+            cy + y + dx * sinA + dy * cosA];
+  });
+}
+
+function getShapeCellCoverage(shapeIdx, x, y, rot, excludeCells) {
+  // Returns array of grid cell indices covered by this shape at (x,y,rot)
+  const polygon = getShapePolygonAt(shapeIdx, x, y, rot);
+  if (!polygon) return [];
+  const covered = [];
+  const cornerOffsets = [[3,3],[24,3],[3,24],[24,24]];
+
+  for (let cellIdx = 0; cellIdx < GRID_SIZE; cellIdx++) {
+    if (!RES_GRID_RAW[cellIdx]) continue; // skip empty cells
+    if (excludeCells && excludeCells.has(cellIdx)) continue;
+
+    const col = cellIdx % GRID_COLS;
+    const row = Math.floor(cellIdx / GRID_COLS);
+    const cellX = 15 + 30 * col;
+    const cellY = 24 + 30 * row;
+
+    for (const [ox, oy] of cornerOffsets) {
+      if (isPointInPolygon(cellX + ox, cellY + oy, polygon)) {
+        covered.push(cellIdx);
+        break;
+      }
+    }
+  }
+  return covered;
+}
+
+function computeCellValues() {
+  // Compute the value of putting a 25% shape bonus on each cell
+  // ALL leveled cells get a value  shapes boost all grid bonuses
+  const values = new Array(GRID_SIZE).fill(0);
+  const bareSO = new Array(GRID_SIZE).fill(-1); // no shapes
+  const bareTotal = simTotalExp({ shapeOverlay: bareSO }).total;
+
+  for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    const lv = gridLevels[idx] || 0;
+    if (lv === 0) continue;
+    const testSO = bareSO.slice();
+    testSO[idx] = 0; // 25% shape
+    const withShape = simTotalExp({ shapeOverlay: testSO }).total;
+    values[idx] = withShape - bareTotal;
+  }
+  return values;
+}
+
+function optimizeShapePlacement() {
+  const cellValues = computeCellValues();
+
+  // Use computed ShapesOwned (matches game formula) capped by available shape definitions
+  const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
+  if (numShapes === 0) return { placements: [], cellValues, message: 'No shapes unlocked.' };
+
+  // Sort cells by value descending  these are our target cells
+  const valuedCells = [];
+  for (let i = 0; i < GRID_SIZE; i++) {
+    if (cellValues[i] > 0 && RES_GRID_RAW[i] && (gridLevels[i] || 0) > 0) {
+      valuedCells.push({ idx: i, value: cellValues[i] });
+    }
+  }
+  valuedCells.sort((a, b) => b.value - a.value);
+
+  // Sort shapes by bonus% descending  place highest-bonus shapes first
+  const shapeOrder = [];
+  for (let s = 0; s < numShapes; s++) shapeOrder.push(s);
+  shapeOrder.sort((a, b) => SHAPE_BONUS_PCT[b] - SHAPE_BONUS_PCT[a]);
+
+  // For each shape, try discrete placements that center it over high-value cells
+  // Search: for each target cell, try centering shape there with rotations 0, 90, 180, 270
+  // Also try small offsets around cell centers to capture adjacent high-value cells
+  const coveredCells = new Set();
+  const placements = [];
+  const rotations = [0, 90, 180, 270];
+
+  for (const si of shapeOrder) {
+    const dims = SHAPE_DIMS[si];
+    if (!dims) continue;
+
+    let bestScore = -Infinity;
+    let bestPlacement = null;
+    let bestCells = [];
+
+    // Collect all uncovered leveled cells as anchor candidates
+    const uncovered = valuedCells.filter(c => !coveredCells.has(c.idx));
+    if (uncovered.length === 0) break;
+
+    // Generate a grid of positions that covers the entire grid area,
+    // stepping by half a cell (15 game px). For each position Ã— rotation,
+    // evaluate coverage of uncovered cells.
+    const step = 15;
+    const seen = new Set(); // deduplicate positions
+
+    for (const anchor of uncovered) {
+      const col = anchor.idx % GRID_COLS;
+      const row = Math.floor(anchor.idx / GRID_COLS);
+      const anchorX = 15 + 30 * col + 15;
+      const anchorY = 24 + 30 * row + 15;
+
+      // Try positions where shape overlaps this anchor cell
+      const halfW = Math.ceil(dims[0] / 2);
+      const halfH = Math.ceil(dims[1] / 2);
+
+      for (let ox = -halfW; ox <= halfW; ox += step) {
+        for (let oy = -halfH; oy <= halfH; oy += step) {
+          const px = anchorX - dims[0] / 2 + ox;
+          const py = anchorY - dims[1] / 2 + oy;
+          // Snap to grid alignment to reduce duplicate evals
+          const snapX = Math.round(px / step) * step;
+          const snapY = Math.round(py / step) * step;
+
+          for (const rot of rotations) {
+            const key = `${snapX},${snapY},${rot}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            // Get FULL coverage (no exclusion) to detect overlap
+            const allCells = getShapeCellCoverage(si, snapX, snapY, rot);
+            const newCells = allCells.filter(c => !coveredCells.has(c));
+            if (newCells.length === 0) continue;
+
+            let score = 0;
+            for (const c of newCells) {
+              score += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
+            }
+
+            // Penalize overlap: reduce score by the fraction of wasted area
+            // This pushes shapes away from already-covered regions
+            const overlap = allCells.length - newCells.length;
+            if (overlap > 0) {
+              score *= newCells.length / allCells.length;
+            }
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestPlacement = { shapeIdx: si, x: snapX, y: snapY, rot, score };
+              bestCells = newCells;
+            }
+          }
+        }
+      }
+    }
+
+    if (bestPlacement) {
+      for (const c of bestCells) coveredCells.add(c);
+      placements.push({
+        ...bestPlacement,
+        cells: bestCells,
+        shapeName: SHAPE_NAMES[si],
+        bonusPct: SHAPE_BONUS_PCT[si],
+      });
+    }
+  }
+
+  // Compare with current placement
+  const currentTotal = simTotalExp().total;
+  const optimizedSO = new Array(GRID_SIZE).fill(-1);
+  for (const p of placements) {
+    for (const c of p.cells) optimizedSO[c] = p.shapeIdx;
+  }
+  const optimizedTotal = simTotalExp({ shapeOverlay: optimizedSO }).total;
+  const improvement = optimizedTotal - currentTotal;
+  const improvPct = currentTotal > 0 ? improvement / currentTotal * 100 : 0;
+
+  return {
+    placements,
+    cellValues,
+    currentTotal,
+    optimizedTotal,
+    improvement,
+    improvPct,
+    optimizedOverlay: optimizedSO,
+  };
+}
+
+// ===== MAGNIFIER OPTIMIZER =====
+function evalMagScore(trialMags) {
+  const kalMap = {};
+  for (const m of trialMags) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  const kalBase = getKaleiMultiBase();
+  const gd101 = getGridBonusFinal(93);
+  let total = 0;
+  for (let i = 0; i < OCC_DATA.length; i++) {
+    if (occFound[i] < 1) continue;
+    let count = 0;
+    for (const m of trialMags) { if (m.type === 0 && m.slot === i) count++; }
+    if (count === 0) continue;
+    const t = i;
+    const base = obsBaseExp(t);
+    total += count * base * (1 + gd101 * (insightLvs[t] || 0) / 100) * (1 + (kalMap[t] || 0) * kalBase);
+  }
+  return total;
+}
+
+function optimizeMagnifiers() {
+  const availSlots = [];
+  for (let i = 0; i < OCC_DATA.length; i++) {
+    if (occFound[i] >= 1) availSlots.push(i);
+  }
+  const ownedMags = magData.slice(0, magnifiersOwned);
+  const numRegular = ownedMags.filter(m => m.type === 0).length;
+  const numKalei = ownedMags.filter(m => m.type === 2).length;
+
+  let assigned = [];
+  let pool = [];
+  for (let i = 0; i < numKalei; i++) pool.push(2);
+  for (let i = 0; i < numRegular; i++) pool.push(0);
+
+  while (pool.length > 0) {
+    let bestPoolIdx = -1, bestSlot = -1, bestScore = -Infinity;
+    const triedTypes = new Set();
+    for (let pi = 0; pi < pool.length; pi++) {
+      const magType = pool[pi];
+      if (triedTypes.has(magType)) continue;
+      triedTypes.add(magType);
+      for (const slot of availSlots) {
+        const inSlot = assigned.filter(a => a.slot === slot).length;
+        if (inSlot >= magMaxPerSlot) continue;
+        const trial = [...assigned, {type: magType, slot}];
+        const score = evalMagScore(trial);
+        if (score > bestScore) { bestScore = score; bestSlot = slot; bestPoolIdx = pi; }
+      }
+    }
+    if (bestPoolIdx >= 0) {
+      assigned.push({type: pool[bestPoolIdx], slot: bestSlot});
+      pool.splice(bestPoolIdx, 1);
+    } else break;
+  }
+  return assigned;
+}
+
+// ===== RESEARCH LEVEL EXP CURVE =====
+// Game: skill index 20 has its own branch in the inline ExpReq0 assignment
+// Formula: 10*max(0,t-1) + 10*(1+pow(t,1+t/10*0.4)/10)*pow(1.1,t)*pow(A_ResXP, max(0,t-20))
+function researchExpReq(lv) {
+  const t = lv;
+  const A = Math.max(0.01, serverVarResXP);
+  return 10 * Math.max(0, t - 1)
+    + 10 * (1 + Math.pow(t, 1 + t / 10 * 0.4) / 10)
+        * Math.pow(1.1, t)
+        * Math.pow(A, Math.max(0, t - 20));
+}
+
+function getResearchCurrentExp() {
+  return Number(exp0Data[20]) || 0;
+}
+
+function getResearchExpRequired() {
+  return researchExpReq(researchLevel);
+}
+
+// ===== UNIFIED SIMULATION ENGINE =====
+// Tick-based simulator that models research EXP + insight gains over time.
+// Supports dynamic reconfiguration (shape/mag/mono re-optimization at events).
+
+function simTotalExpWith(gl, so, md, il, occ) {
+  // Lightweight version of simTotalExp that takes all params directly (no global state access)
+  const kalMap = {};
+  for (const m of md) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
+  const gd101 = _gbWith(gl, so, 93);
+  const occTBF = computeOccurrencesToBeFound();
+  let obsTotal = 0;
+  for (let i = 0; i < occTBF; i++) {
+    let count = 0;
+    for (const m of md) { if (m.type === 0 && m.slot === i) count++; }
+    if (count === 0) continue;
+    const t = i;
+    const base = obsBaseExp(t);
+    const kalMulti = 1 + (kalMap[t] || 0) * kalBase;
+    obsTotal += count * base * (1 + gd101 * (il[t] || 0) / 100) * kalMulti;
+  }
+  let additive = _gbWith(gl, so, 50) + _gbWith(gl, so, 90) + _gbWith(gl, so, 110) + externalResearchPct;
+  let occFoundCount = 0;
+  for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
+  additive += _gbWith(gl, so, 112) * occFoundCount;
+  let totalObsLV = 0;
+  for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
+  additive += _gbWith(gl, so, 94) * totalObsLV;
+  const takinNotes = _gbWith(gl, so, 70);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * comp52TrueMulti;
+  return obsTotal * multi;
+}
+
+function _gbWith(gl, so, idx) {
+  const info = RES_GRID_RAW[idx];
+  if (!info) return 0;
+  const lv = gl[idx] || 0;
+  if (lv === 0) return 0;
+  let val = info[2] * lv;
+  const si = so[idx];
+  if (si >= 0 && si < SHAPE_BONUS_PCT.length) val *= (1 + SHAPE_BONUS_PCT[si] / 100);
+  val *= allBonusMulti;
+  return val;
+}
+
+function insightExpRate(obsIdx, md, il, gl, so) {
+  // Insight EXP/hr for a specific obs given magData and state
+  let count = 0;
+  for (const m of md) { if (m.type === 1 && m.slot === obsIdx) count++; }
+  if (count === 0) return 0;
+  const insightBonus = _gbWith(gl, so, 92) + _gbWith(gl, so, 91);
+  const kalMap = {};
+  for (const m of md) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
+  const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
+  return 3 * count * (1 + insightBonus / 100) * kalMulti;
+}
+
+function insightExpReqAt(obsIdx, lv) {
+  const t = obsIdx;
+  return (2 + 0.7*t) * Math.pow(1.75 + t/200, lv) * (1 + Math.pow(t, 2)/100) + lv;
+}
+
+function magMaxForLevel(rLv) {
+  return Math.min(4, Math.round(1 + Math.min(1, Math.floor(rLv/40)) + Math.min(1, Math.floor(rLv/70)) + Math.min(1, Math.floor(rLv/120))));
+}
+
+// Greedy point spending: spend available grid points one at a time on the best upgrade.
+// Uses short lookahead sims to capture indirect effects (insight rate, kaleidoscope, etc.)
+function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
+  const sq50 = gl[50] || 0;
+  const earned = Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
+  let spent = 0;
+  for (const idx of Object.keys(RES_GRID_RAW)) spent += gl[Number(idx)] || 0;
+  let avail = Math.max(0, earned - spent);
+  if (avail <= 0) return false;
+
+  let changed = false;
+  while (avail > 0) {
+    // Phase 1: quick filter — score all candidates by immediate EXP/hr, keep top 10
+    const curRate = simTotalExpWith(gl, so, md, il, occ);
+    const candidates = [];
+    for (const idxStr of Object.keys(RES_GRID_RAW)) {
+      const idx = Number(idxStr);
+      const info = RES_GRID_RAW[idx];
+      if ((gl[idx] || 0) >= info[1]) continue;
+      gl[idx] = (gl[idx] || 0) + 1;
+      const immediateGain = simTotalExpWith(gl, so, md, il, occ) - curRate;
+      gl[idx]--;
+      candidates.push({ idx, immediateGain });
+    }
+    if (candidates.length === 0) break;
+    candidates.sort((a, b) => b.immediateGain - a.immediateGain);
+    const top = candidates.slice(0, 10);
+
+    // Phase 2: lookahead sim on top candidates (2 hours forward)
+    // Captures insight rate improvements, kaleidoscope interactions, etc.
+    const LOOK_TICKS = 12; // 2 hours at 10-min ticks
+    const TICK_SEC = 600;
+    let bestIdx = -1, bestExp = -Infinity;
+
+    for (const { idx } of top) {
+      gl[idx] = (gl[idx] || 0) + 1;
+      // Run mini forward sim
+      let tIL = il.slice(), tIP = ip.slice();
+      let tMD = md.map(m => ({...m}));
+      let tSO = optimizeShapesFor(gl, so);
+      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, gl, tSO, mMax);
+      let tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ);
+      let totalExp = 0;
+      for (let t = 0; t < LOOK_TICKS; t++) {
+        totalExp += tRate / 3600 * TICK_SEC;
+        // Advance insight
+        let insUp = false;
+        const monoObsL = new Set();
+        for (const m of tMD) { if (m.type === 1 && m.slot >= 0) monoObsL.add(m.slot); }
+        for (const o of monoObsL) {
+          const iR = insightExpRate(o, tMD, tIL, gl, tSO);
+          tIP[o] = (tIP[o] || 0) + iR / 3600 * TICK_SEC;
+          const req = insightExpReqAt(o, tIL[o] || 0);
+          if (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; }
+        }
+        if (insUp && insightAffectsExp(gl, tSO)) {
+          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, gl, tSO, mMax);
+          tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ);
+        }
+      }
+      gl[idx]--;
+      if (totalExp > bestExp) { bestExp = totalExp; bestIdx = idx; }
+    }
+
+    if (bestIdx < 0) break;
+    gl[bestIdx] = (gl[bestIdx] || 0) + 1;
+    // Re-optimize shapes after grid change
+    so = optimizeShapesFor(gl, so);
+    avail--;
+    changed = true;
+  }
+  return changed;
+}
+
+function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot) {
+  // Greedy magnifier optimizer (like optimizeMagnifiers but uses explicit state)
+  const availSlots = [];
+  for (let i = 0; i < OCC_DATA.length; i++) {
+    if ((occ[i] || 0) >= 1) availSlots.push(i);
+  }
+  const pool = md.slice(0, ownedCount);
+  const numKalei = pool.filter(m => m.type === 2).length;
+  const numRegular = pool.filter(m => m.type === 0).length;
+  const numMono = pool.filter(m => m.type === 1).length;
+
+  // Place only kaleidoscopes and regular mags; monocles are assigned by chooseMonoTargets
+  let toPlace = [];
+  for (let i = 0; i < numKalei; i++) toPlace.push(2);
+  for (let i = 0; i < numRegular; i++) toPlace.push(0);
+
+  const assigned = [];
+  while (toPlace.length > 0) {
+    let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
+    const triedTypes = new Set();
+    for (let pi = 0; pi < toPlace.length; pi++) {
+      const magType = toPlace[pi];
+      if (triedTypes.has(magType)) continue;
+      triedTypes.add(magType);
+      for (const slot of availSlots) {
+        const inSlot = assigned.filter(a => a.slot === slot).length;
+        if (inSlot >= maxPerSlot) continue;
+        const trial = [...assigned, {type: magType, slot, x:0, y:0}];
+        // Score: use research EXP only (monocles won't produce research EXP, but we place them via monoTargets)
+        const score = _evalMagScoreWith(trial, gl, so, il, occ);
+        if (score > bestScore) { bestScore = score; bestSlot = slot; bestPI = pi; }
+      }
+    }
+    if (bestPI >= 0) {
+      assigned.push({type: toPlace[bestPI], slot: bestSlot, x:0, y:0});
+      toPlace.splice(bestPI, 1);
+    } else break;
+  }
+  // Append monocles unassigned (slot -1); chooseMonoTargets will place them
+  for (let i = 0; i < numMono; i++) assigned.push({type: 1, slot: -1, x:0, y:0});
+  return assigned;
+}
+
+function _evalMagScoreWith(trialMags, gl, so, il, occ) {
+  const kalMap = {};
+  for (const m of trialMags) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
+      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
+      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
+      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
+    }
+  }
+  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
+  const gd101 = _gbWith(gl, so, 93);
+  let total = 0;
+  for (let i = 0; i < OCC_DATA.length; i++) {
+    if ((occ[i] || 0) < 1) continue;
+    let count = 0;
+    for (const m of trialMags) { if (m.type === 0 && m.slot === i) count++; }
+    if (count === 0) continue;
+    total += count * obsBaseExp(i) * (1 + gd101 * (il[i] || 0) / 100) * (1 + (kalMap[i] || 0) * kalBase);
+  }
+  return total;
+}
+
+function optimizeShapesFor(gl, so) {
+  // Run shape optimizer using explicit gridLevels; temporarily swaps globals
+  const origGL = gridLevels, origSO = shapeOverlay;
+  gridLevels = gl; shapeOverlay = so;
+  const result = optimizeShapePlacement();
+  gridLevels = origGL; shapeOverlay = origSO;
+  return result.optimizedOverlay;
+}
+
+function insightAffectsExp(gl, so) {
+  // Insight levels only affect EXP via gd93 (Game Design 101) and gd94 (Game Design 102)
+  return _gbWith(gl, so, 93) > 0 || _gbWith(gl, so, 94) > 0;
+}
+
+// Estimate remaining sim hours from current state toward target
+function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr) {
+  if (config.target.type === 'hours') return Math.max(1, config.target.value - currentTime);
+  if (rLv >= config.target.value) return 1;
+  let expNeeded = -rExp;
+  for (let lv = rLv; lv < config.target.value; lv++) expNeeded += researchExpReq(lv);
+  return expHr > 0 ? Math.max(1, expNeeded / expHr) : 72;
+}
+
+function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs) {
+  // Two-tier monocle targeting:
+  //   Tier A — obs that already carry a regular mag (monocle cohabitation):
+  //            insight levels boost that obs's EXP via gd101, so forward-sim
+  //            to check if the recoup is worth it within the lookahead window.
+  //   Tier B — obs WITHOUT regular mags (spare monocle slots):
+  //            insight levels can't benefit gd101 here. If gd94 is active,
+  //            forward-sim captures the global boost from more total insight.
+  //            If gd94 = 0, just pick the fastest to level (banking for future gd94).
+  const monoCount = md.filter(m => m.type === 1).length;
+  if (monoCount === 0) return md;
+
+  const occTBF = computeOccurrencesToBeFound();
+  const laHrs = lookAheadHrs || 3;
+  const LOOK_TICKS = Math.ceil(laHrs * 6);
+  const TICK_SEC = 600;
+  const gd101 = _gbWith(gl, so, 93);
+  const gd94 = _gbWith(gl, so, 94);
+
+  // Identify obs with regular mags placed
+  const magObsSet = new Set();
+  for (const m of md) { if (m.type === 0 && m.slot >= 0) magObsSet.add(m.slot); }
+
+  // Build candidates, tagged by whether they have a regular mag
+  const magCands = [];   // Tier A: obs with regular mags (gd101 recoup)
+  const bankCands = [];  // Tier B: obs without mags (banking)
+  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
+    if ((occ[i] || 0) < 1) continue;
+    const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
+    if (inSlotNonMono + monoCount > maxPerSlot) continue;
+    const iRate = insightExpRate(i, _monoAssign(md, i), il, gl, so);
+    const req = insightExpReqAt(i, il[i] || 0);
+    const remaining = Math.max(0, req - (ip[i] || 0));
+    const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
+    const entry = { obs: i, hrsToLv };
+    if (magObsSet.has(i)) magCands.push(entry);
+    else bankCands.push(entry);
+  }
+
+  // ── Tier A: forward-sim mag-obs candidates for gd101 recoup ──
+  const simPool = [];
+  if (gd101 > 0 && magCands.length > 0) {
+    for (const c of magCands) simPool.push(c.obs);
+  }
+  // Also forward-sim bank candidates when gd94 is active (direct benefit)
+  if (gd94 > 0 && bankCands.length > 0) {
+    bankCands.sort((a, b) => a.hrsToLv - b.hrsToLv);
+    for (const c of bankCands.slice(0, 8)) simPool.push(c.obs);
+  }
+
+  if (simPool.length > 0) {
+    const baselineRate = simTotalExpWith(gl, so, md, il, occ);
+    const baselineTotalExp = baselineRate / 3600 * TICK_SEC * LOOK_TICKS;
+    let bestObs = -1, bestExp = -Infinity;
+
+    for (const obsTarget of simPool) {
+      const tMD = _monoAssign(md, obsTarget);
+      const tIL = il.slice();
+      const tIP = ip.slice();
+      let tRate = simTotalExpWith(gl, so, tMD, tIL, occ);
+      let totalExp = 0;
+      let curMD = tMD;
+
+      for (let t = 0; t < LOOK_TICKS; t++) {
+        totalExp += tRate / 3600 * TICK_SEC;
+        let insUp = false;
+        const monoObs = new Set();
+        for (const m of curMD) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+        for (const o of monoObs) {
+          const iR = insightExpRate(o, curMD, tIL, gl, so);
+          tIP[o] = (tIP[o] || 0) + iR / 3600 * TICK_SEC;
+          const req = insightExpReqAt(o, tIL[o] || 0);
+          if (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; }
+        }
+        if (insUp) {
+          curMD = _monoAssignBestQuick(curMD, tIL, tIP, occ, gl, so, maxPerSlot);
+          tRate = simTotalExpWith(gl, so, curMD, tIL, occ);
+        }
+      }
+      if (totalExp > bestExp) { bestExp = totalExp; bestObs = obsTarget; }
+    }
+
+    // If any forward-sim candidate beats the no-insight baseline, use it
+    if (bestObs >= 0 && bestExp > baselineTotalExp * 1.0001) {
+      return _monoAssign(md, bestObs);
+    }
+  }
+
+  // ── Tier B: banking mode — pick fastest to level ──
+  // No immediate EXP benefit (gd94=0 or no recoup won). Bank insight levels
+  // for future gd94 unlock by leveling the observation with shortest time to next level.
+  const allCands = [...magCands, ...bankCands].filter(c => c.hrsToLv < Infinity);
+  allCands.sort((a, b) => a.hrsToLv - b.hrsToLv);
+  if (allCands.length > 0) return _monoAssign(md, allCands[0].obs);
+
+  return md;
+}
+
+// Helper: assign all monocles to a specific obs
+function _monoAssign(md, obsIdx) {
+  return md.map(m => m.type === 1 ? {...m, slot: obsIdx} : {...m});
+}
+
+// Lightweight inner-loop monocle pick (1-step ahead, no forward sim)
+function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot) {
+  const monoCount = md.filter(m => m.type === 1).length;
+  if (monoCount === 0) return md;
+  const occTBF = computeOccurrencesToBeFound();
+  const insightHelps = _gbWith(gl, so, 93) > 0 || _gbWith(gl, so, 94) > 0;
+  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ) : 0;
+  let bestObs = -1, bestVal = -Infinity;
+  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
+    if ((occ[i] || 0) < 1) continue;
+    const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
+    if (inSlotNonMono + monoCount > maxPerSlot) continue;
+    const trialMD = _monoAssign(md, i);
+    const iRate = insightExpRate(i, trialMD, il, gl, so);
+    const req = insightExpReqAt(i, il[i] || 0);
+    const remaining = Math.max(0, req - (ip[i] || 0));
+    const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
+    if (hrsToLv <= 0 || hrsToLv === Infinity) continue;
+    let value;
+    if (insightHelps) {
+      const tempIL = il.slice(); tempIL[i] = (tempIL[i] || 0) + 1;
+      const rateGain = simTotalExpWith(gl, so, md, tempIL, occ) - baseTotRate;
+      value = rateGain > 0 ? rateGain / hrsToLv : 1 / hrsToLv;
+    } else {
+      value = 1 / hrsToLv;
+    }
+    if (value > bestVal) { bestVal = value; bestObs = i; }
+  }
+  return bestObs >= 0 ? _monoAssign(md, bestObs) : md;
+}
+
+function unifiedSim(config) {
+  // config: { target: {type:'level'|'hours', value}, tickMinutes, reoptimize }
+  const tickMin = config.tickMinutes || 10;
+  const tickSec = tickMin * 60;
+  const maxTicks = Math.ceil(168 * 3600 / tickSec); // 1 week
+
+  // Clone mutable state
+  let gl = gridLevels.slice();
+  let so = shapeOverlay.slice();
+  let il = insightLvs.slice();
+  let ip = insightProgress.slice();
+  let occ = occFound.slice();
+  let rLv = config.researchLevel !== undefined ? config.researchLevel : researchLevel;
+  let rExp = config.currentExp !== undefined ? config.currentExp : getResearchCurrentExp();
+  let mOwned = config.magnifiersOwned !== undefined ? config.magnifiersOwned : magnifiersOwned;
+  let mMax = magMaxForLevel(rLv);
+
+  // Override config state if provided (sandbox)
+  if (config.gridLevels) gl = config.gridLevels.slice();
+  if (config.shapeOverlay) so = config.shapeOverlay.slice();
+  if (config.insightLvs) il = config.insightLvs.slice();
+  if (config.insightProgress) ip = config.insightProgress.slice();
+  if (config.occFound) occ = config.occFound.slice();
+
+  // Initial mag assignment via greedy optimizer
+  let md;
+  if (config.magData) {
+    md = config.magData.map(m => ({...m}));
+  } else {
+    // Build pool from current owned types
+    const pool = magData.slice(0, mOwned).map(m => ({...m}));
+    md = optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax);
+  }
+
+  // Initial shape optimization
+  if (config.reoptimize !== false) {
+    so = optimizeShapesFor(gl, so);
+  }
+
+  // Assign monocles optimally — use full remaining sim time as lookahead
+  if (config.reoptimize !== false) {
+    const prelimRate = simTotalExpWith(gl, so, md, il, occ);
+    const monoLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, prelimRate), 72);
+    md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA);
+  }
+
+  let curExpHr = simTotalExpWith(gl, so, md, il, occ);
+  const phases = [{
+    time: 0, event: 'start', expHr: curExpHr,
+    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+    rLv, rExp,
+    preOptExpHr: config.preOptExpHr || curExpHr
+  }];
+
+  let currentTime = 0; // hours
+
+  for (let tick = 0; tick < maxTicks; tick++) {
+    // Check level target
+    if (config.target.type === 'level' && rLv >= config.target.value) break;
+    if (config.target.type === 'hours' && currentTime >= config.target.value) break;
+
+    // Accumulate research EXP
+    const expPerTick = curExpHr / 3600 * tickSec;
+    rExp += expPerTick;
+
+    // Check research level-ups
+    let rLeveledUp = false;
+    while (rExp >= researchExpReq(rLv)) {
+      rExp -= researchExpReq(rLv);
+      rLv++;
+      rLeveledUp = true;
+      const newMax = magMaxForLevel(rLv);
+      if (newMax > mMax) mMax = newMax;
+    }
+
+    // Spend newly earned grid points greedily on level-up
+    if (rLeveledUp && config.reoptimize !== false) {
+      greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax);
+    }
+
+    // Advance insight for obs with monocles
+    let insightLeveledUp = false;
+    const monoObs = new Set();
+    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so);
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
+      const req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      if (ip[obsIdx] >= req) {
+        ip[obsIdx] -= req;
+        il[obsIdx] = (il[obsIdx] || 0) + 1;
+        insightLeveledUp = true;
+      }
+    }
+
+    currentTime += tickMin / 60;
+
+    // Reconfig on events
+    const insightMatters = insightLeveledUp && insightAffectsExp(gl, so);
+    if ((rLeveledUp || insightMatters) && config.reoptimize !== false) {
+      // Full reconfig: mags, shapes, monocles
+      md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax);
+      so = optimizeShapesFor(gl, so);
+      const monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA);
+      curExpHr = simTotalExpWith(gl, so, md, il, occ);
+      const eventType = rLeveledUp && insightMatters ? 'level+insight' : rLeveledUp ? 'level-up' : 'insight-up';
+      phases.push({
+        time: currentTime, event: eventType, expHr: curExpHr,
+        config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+        rLv, rExp
+      });
+    } else if (insightLeveledUp && config.reoptimize !== false) {
+      // Insight leveled up but doesn't affect EXP — just reassign monocles to next target
+      const monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2);
+    }
+  }
+
+  // Final phase
+  phases.push({
+    time: currentTime, event: 'end', expHr: curExpHr,
+    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+    rLv, rExp
+  });
+
+  return { phases, totalTime: currentTime, finalLevel: rLv, finalExp: rExp, finalIL: il.slice() };
+}
+
+// ===== BEAM SEARCH OPTIMIZER =====
+// Tests multiple point-spending paths via beam search (top N), runs unifiedSim for each.
+
+async function runOptimizer(target, progressCb) {
+  const BEAM_WIDTH = 5;
+
+  // Baseline: current config, no changes
+  const preOptRate = simTotalExp().total;
+  const baseline = unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate });
+
+  // Find spendable points: grid squares that are below max
+  const spendable = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
+    const info = RES_GRID_RAW[idx];
+    return (gridLevels[idx] || 0) < info[1];
+  });
+
+  if (spendable.length === 0) {
+    return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
+  }
+
+  // Check how many unspent grid points the user actually has
+  const availPts = computeGridPointsAvailable();
+  if (availPts <= 0) {
+    return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
+  }
+
+  // Beam search: test +1 on each candidate, pick top BEAM_WIDTH, then optionally +1 again
+  const origGL = gridLevels.slice();
+
+  // Stage 1: Score each +1 candidate
+  const stage1 = [];
+  for (let ci = 0; ci < spendable.length; ci++) {
+    const idx = spendable[ci];
+    const gl1 = origGL.slice();
+    gl1[idx] = (gl1[idx] || 0) + 1;
+    const sim1 = unifiedSim({ target, reoptimize: true, gridLevels: gl1 });
+    stage1.push({ idx, sim: sim1, time: sim1.totalTime, gl: gl1 });
+    if (progressCb && ci % 5 === 0) {
+      progressCb(ci + 1, spendable.length, 'Testing grid upgrades...');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  // Sort by time (ascending = faster is better)
+  stage1.sort((a, b) => {
+    if (target.type === 'level') return a.time - b.time;
+    // For hours mode: maximize final EXP
+    return b.sim.finalExp - a.sim.finalExp;
+  });
+
+  // Take top BEAM_WIDTH paths
+  const beams = stage1.slice(0, BEAM_WIDTH);
+
+  // Stage 2: From each beam, try +1 again on remaining squares (only if user has 2+ points)
+  const stage2 = [];
+  if (availPts < 2) {
+    // Only 1 point — skip stage 2
+  } else {
+  for (let bi = 0; bi < beams.length; bi++) {
+    const beam = beams[bi];
+    const remaining = spendable.filter(idx => {
+      const info = RES_GRID_RAW[idx];
+      return (beam.gl[idx] || 0) < info[1];
+    });
+    for (const idx of remaining) {
+      const gl2 = beam.gl.slice();
+      gl2[idx] = (gl2[idx] || 0) + 1;
+      const sim2 = unifiedSim({ target, reoptimize: true, gridLevels: gl2 });
+      stage2.push({ steps: [beam.idx, idx], sim: sim2, time: sim2.totalTime, gl: gl2 });
+    }
+    if (progressCb) {
+      progressCb(spendable.length + bi + 1, spendable.length + BEAM_WIDTH, 'Deep search...');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  } // end availPts >= 2
+
+  // Combine all paths (limit bestSteps to available points)
+  const maxSteps = availPts;
+  const allPaths = [
+    { steps: [], sim: baseline, time: baseline.totalTime },
+    ...stage1.slice(0, BEAM_WIDTH).map(s => ({ steps: [s.idx], sim: s.sim, time: s.time })),
+    ...stage2,
+  ];
+
+  allPaths.sort((a, b) => {
+    if (target.type === 'level') return a.time - b.time;
+    return b.sim.finalExp - a.sim.finalExp;
+  });
+
+  const best = allPaths[0];
+  return { baseline, best: best.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps.slice(0, maxSteps) };
+}
+
+// ===== MAG TYPE BALANCE =====
+function computeMagTypeBalance() {
+  const ownedMags = magData.slice(0, magnifiersOwned);
+  const numR = ownedMags.filter(m => m.type === 0).length;
+  const numM = ownedMags.filter(m => m.type === 1).length;
+  const numK = ownedMags.filter(m => m.type === 2).length;
+  const results = [];
+
+  for (const addType of [0, 1, 2]) {
+    const testMags = ownedMags.map(m => ({...m}));
+    testMags.push({ x:0, y:0, slot:-1, type: addType });
+    const origOwned = magnifiersOwned, origMD = magData;
+    magnifiersOwned = magnifiersOwned + 1;
+    magData = testMags;
+    const optMags = optimizeMagnifiers();
+    const optScore = evalMagScore(optMags);
+    magnifiersOwned = origOwned;
+    magData = origMD;
+    const resMulti = simTotalExp().multi;
+    results.push({
+      type: addType,
+      typeName: ['Magnifier','Monocle','Kaleidoscope'][addType],
+      count: [numR,numM,numK][addType],
+      immediateExpHr: optScore * resMulti,
+    });
+  }
+  const currentScore = evalMagScore(magData) * simTotalExp().multi;
+  for (const r of results) r.deltaImmediate = r.immediateExpHr - currentScore;
+  results.sort((a, b) => b.deltaImmediate - a.deltaImmediate);
+  return results;
+}
+
+// ===== FORMATTING HELPERS =====
+function fmtTime(hrs) {
+  if (!isFinite(hrs) || hrs <= 0) return '\u2014';
+  if (hrs < 1) return Math.round(hrs * 60) + 'm';
+  if (hrs < 24) return hrs.toFixed(1) + 'h';
+  const d = Math.floor(hrs / 24);
+  const h = Math.round(hrs % 24);
+  if (d > 365) return (d / 365).toFixed(1) + 'y';
+  return d + 'd ' + h + 'h';
+}
+
+function fmtExp(n) {
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+
+function fmtVal(v) {
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return v.toFixed(1);
+}
+function fmtExact(v) {
+  return Math.round(v).toLocaleString();
+}
+
+// ===== SHAPE POLYGON =====
+function computeShapePolygon(shapeIdx) {
+  const pos = shapePositions[shapeIdx];
+  if (!pos) return null;
+  const verts = SHAPE_VERTICES[shapeIdx];
+  const dims = SHAPE_DIMS[shapeIdx];
+  if (!verts || !dims) return null;
+  const cx = dims[0] / 2, cy = dims[1] / 2;
+  const angle = (pos.rot || 0) * Math.PI / 180;
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  return verts.map(([vx, vy]) => {
+    const dx = vx - cx, dy = vy - cy;
+    return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
+            Math.round(cy + pos.y + dx * sinA + dy * cosA)];
+  });
+}
+
+function gridCoord(idx) {
+  const col = idx % GRID_COLS;
+  const row = Math.floor(idx / GRID_COLS);
+  return String.fromCharCode(65 + col) + (row + 1);
+}
+
+// ===== TOOLTIP HELPERS =====
+function showGridTooltip(e, idx) {
+  const tt = document.getElementById('tooltip');
+  const info = RES_GRID_RAW[idx];
+  if (!info) return;
+  const lv = gridLevels[idx] || 0;
+  const bonus = getGridBonus(idx);
+  const finalBonus = getGridBonusFinal(idx);
+  const si = shapeOverlay[idx];
+
+  let html = '<div class="tt-name">' + gridCoord(idx) + ' — ' + info[0].replace(/_/g,' ') + '</div>';
+  html += '<div class="tt-lv">Level: ' + lv + ' / ' + info[1] + '</div>';
+  html += '<div class="tt-bonus">Base: ' + bonus.toFixed(1) + '</div>';
+  if (si >= 0) {
+    const afterShape = bonus * (1 + SHAPE_BONUS_PCT[si] / 100);
+    html += '<div class="tt-shape">' + SHAPE_NAMES[si] + ' (+' + SHAPE_BONUS_PCT[si] + '%): ' + afterShape.toFixed(1) + '</div>';
+  }
+  if (allBonusMulti !== 1) {
+    html += '<div style="color:var(--cyan)">Grid AllMulti (x' + allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
+  } else if (si < 0 && bonus > 0) {
+    html += '<div style="color:var(--gold)">Final: ' + finalBonus.toFixed(1) + '</div>';
+  }
+  html += '<div class="tt-desc">' + info[3].replace(/_/g,' ') + '</div>';
+
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  moveTooltip(e);
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+function moveTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top = (e.clientY + 14) + 'px';
+}
+function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
+  const tt = document.getElementById('tooltip');
+  const occ = OCC_DATA[obsIdx];
+  const name = occ ? occ.name.replace(/_/g, ' ') : 'Obs #' + obsIdx;
+  const lv = insightLvs[obsIdx] || 0;
+  const t = obsIdx;
+
+  const basePerMag = obsBaseExp(t);
+  const gd101 = getGridBonusFinal(93);
+  const gd101Multi = 1 + gd101 * lv / 100;
+  const kalBase = getKaleiMultiBase();
+  const kalMulti = 1 + adjKal * kalBase;
+  const perMagFinal = basePerMag * gd101Multi * kalMulti;
+  const totalExp = perMagFinal * mags;
+
+  const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
+  const monoRate = 3 * (1 + insightBonus / 100) * kalMulti;
+
+  let html = '<div class="tt-name">' + name + ' (#' + obsIdx + ')</div>';
+  html += '<div class="tt-lv">Insight LV: ' + lv + '</div>';
+  html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
+  html += '<div style="color:#aaa">Base EXP/mag: <span style="color:var(--text)">' + basePerMag.toFixed(2) + '</span></div>';
+  if (gd101 > 0) html += '<div style="color:#aaa">GD101 (x' + gd101.toFixed(1) + '% x LV ' + lv + '): <span style="color:var(--text)">x' + gd101Multi.toFixed(3) + '</span></div>';
+  if (adjKal > 0) html += '<div style="color:#aaa">Kalei (' + adjKal + ' adj x ' + (kalBase*100).toFixed(1) + '%): <span style="color:var(--cyan)">x' + kalMulti.toFixed(3) + '</span></div>';
+  html += '<div style="color:#aaa">Per magnifier: <span style="color:var(--green)">' + perMagFinal.toFixed(2) + '</span></div>';
+  const resMulti = simTotalExp().multi;
+  const totalFinal = totalExp * resMulti;
+  if (mags > 0) {
+    html += '<div style="color:var(--green);font-weight:700">Obs EXP/hr: ' + totalExp.toFixed(1) + ' (' + mags + ' mag' + (mags>1?'s':'') + ')</div>';
+    html += '<div style="color:#aaa">ResearchEXPmulti: <span style="color:var(--cyan)">x' + resMulti.toFixed(2) + '</span></div>';
+    html += '<div style="color:var(--green);font-weight:700">Final EXP/hr: ' + totalFinal.toFixed(1) + '</div>';
+  } else html += '<div style="color:#666">No magnifiers assigned</div>';
+  html += '</div>';
+  if (monos > 0 || kaleis > 0) {
+    html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
+    if (monos > 0) html += '<div style="color:var(--purple)">Insight/hr: ' + (monoRate * monos).toFixed(2) + ' (' + monos + ' mono x ' + monoRate.toFixed(2) + ')</div>';
+    if (kaleis > 0) html += '<div style="color:var(--cyan)">Kaleidoscopes on slot: ' + kaleis + '</div>';
+    html += '</div>';
+  }
+
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  moveTooltip(e);
+}
+
+// ===== RENDER: DASHBOARD =====
+function renderDashboard() {
+  // Summary
+  const sumDiv = document.getElementById('dash-summary');
+  const curRate = simTotalExp();
+  const afkRate = computeAFKGainsRate();
+  const expReq = getResearchExpRequired();
+  const expCur = getResearchCurrentExp();
+  const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
+  sumDiv.innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:12px;">
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${researchLevel}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(curRate.total)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(curRate.total)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(timeToNext)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(afkRate.rate * 100).toFixed(1)}%</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magnifiersOwned}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magMaxPerSlot}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable()} free</div></div>
+    </div>`;
+
+  // Grid — DOM-based with shape overlays, coordinate names, tooltips
+  const gridDiv = document.getElementById('dash-grid');
+  gridDiv.innerHTML = '';
+
+  const COLS = GRID_COLS;
+  function sameShape(i, neighbor) {
+    if (neighbor < 0 || neighbor >= GRID_SIZE) return false;
+    return shapeOverlay[i] >= 0 && shapeOverlay[i] === shapeOverlay[neighbor];
+  }
+
+  for (let i = 0; i < GRID_SIZE; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    const info = RES_GRID_RAW[i];
+    if (info) {
+      const lv = gridLevels[i] || 0;
+      const maxLv = info[1];
+      cell.classList.add('active');
+      if (lv >= maxLv) cell.classList.add('maxed');
+      cell.innerHTML = '<div class="cell-name">' + gridCoord(i) + '</div>' +
+        '<div class="cell-lv">' + lv + '/' + maxLv + '</div>';
+      cell.addEventListener('mouseenter', (ev) => showGridTooltip(ev, i));
+      cell.addEventListener('mouseleave', hideTooltip);
+      cell.addEventListener('mousemove', moveTooltip);
+    } else {
+      cell.classList.add('empty');
+    }
+
+    // Shape overlay — connected borders
+    const si = shapeOverlay[i];
+    if (si >= 0) {
+      const color = SHAPE_COLORS[si];
+      const col = i % COLS;
+      const top = !sameShape(i, i - COLS);
+      const bottom = !sameShape(i, i + COLS);
+      const left = col > 0 ? !sameShape(i, i - 1) : true;
+      const right = col < COLS - 1 ? !sameShape(i, i + 1) : true;
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:.5;'
+        + 'background:' + color + '22;'
+        + 'border-top:' + (top ? '2px solid ' + color : 'none') + ';'
+        + 'border-bottom:' + (bottom ? '2px solid ' + color : 'none') + ';'
+        + 'border-left:' + (left ? '2px solid ' + color : 'none') + ';'
+        + 'border-right:' + (right ? '2px solid ' + color : 'none') + ';'
+        + 'border-radius:' + (top && left ? '3px' : '0') + ' ' + (top && right ? '3px' : '0') + ' ' + (bottom && right ? '3px' : '0') + ' ' + (bottom && left ? '3px' : '0') + ';';
+      cell.appendChild(overlay);
+    }
+
+    gridDiv.appendChild(cell);
+  }
+
+  // SVG shape polygon overlay
+  const activeShapes = new Set();
+  for (let i = 0; i < shapeOverlay.length; i++) {
+    if (shapeOverlay[i] >= 0) activeShapes.add(shapeOverlay[i]);
+  }
+  if (activeShapes.size > 0) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.classList.add('shape-svg');
+    svg.setAttribute('viewBox', '14 23 600 360');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    for (const si of activeShapes) {
+      const poly = computeShapePolygon(si);
+      if (!poly) continue;
+      const points = poly.map(([x,y]) => x + ',' + y).join(' ');
+      const el = document.createElementNS(svgNS, 'polygon');
+      el.setAttribute('points', points);
+      el.setAttribute('fill', 'none');
+      el.setAttribute('stroke', SHAPE_COLORS[si]);
+      el.setAttribute('stroke-width', '2');
+      el.setAttribute('stroke-linejoin', 'round');
+      el.setAttribute('opacity', '0.7');
+      svg.appendChild(el);
+    }
+    gridDiv.appendChild(svg);
+  }
+
+  // Observations — v1-style: 8 cols, full names, text mag indicators, EXP*multi, insight rate, hover tooltip
+  const obsDiv = document.getElementById('dash-obs');
+  obsDiv.innerHTML = '';
+  const occCount = getOccurrenceCount();
+  const kalMap = buildKaleiMap();
+  const resMulti = simTotalExp().multi;
+
+  for (let i = 0; i < Math.min(occCount, OCC_DATA.length); i++) {
+    const cell = document.createElement('div');
+    const found = occFound[i] >= 1;
+    cell.className = 'obs-cell ' + (found ? 'found' : 'not-found');
+
+    const name = OCC_DATA[i] ? OCC_DATA[i].name.replace(/_/g,' ') : 'Obs #' + i;
+    const lv = insightLvs[i] || 0;
+
+    let mags = 0, monos = 0, kaleis = 0;
+    for (const m of magData) {
+      if (m.slot === i) {
+        if (m.type === 0) mags++;
+        else if (m.type === 1) monos++;
+        else if (m.type === 2) kaleis++;
+      }
+    }
+
+    const adjKal = kalMap[i] || 0;
+    const expRate = getResearchExpPerObs(i);
+    const expFinal = expRate * resMulti;
+    const insightRate = getInsightExpPerObs(i);
+
+    let magStr = '';
+    if (mags) magStr += '<span style="color:#81c784">M:' + mags + '</span> ';
+    if (monos) magStr += '<span style="color:#ce93d8">O:' + monos + '</span> ';
+    if (kaleis) magStr += '<span style="color:#4dd0e1">K:' + kaleis + '</span> ';
+    if (adjKal) magStr += '<span style="color:#ff9800">Adj:' + adjKal + '</span>';
+
+    cell.innerHTML =
+      '<div class="obs-name">' + name + '</div>' +
+      '<div class="obs-lv">LV ' + lv + '</div>' +
+      '<div class="obs-mag">' + (magStr || '\u2014') + '</div>' +
+      '<div class="obs-rate">' + (expFinal > 0 ? fmtVal(expFinal) + ' exp <span style="color:var(--text2);font-size:.85em;">(' + fmtExact(expFinal) + ')</span>' : '') + (insightRate > 0 ? ' | ' + insightRate.toFixed(2) + ' ins' : '') + '</div>';
+    cell.addEventListener('mouseenter', (ev) => showObsTooltip(ev, i, mags, monos, kaleis, adjKal));
+    cell.addEventListener('mouseleave', hideTooltip);
+    cell.addEventListener('mousemove', moveTooltip);
+    obsDiv.appendChild(cell);
+  }
+
+  // EXP Rate Breakdown — full additive/multiplicative table (v1 style, external merged in)
+  const expDiv = document.getElementById('dash-exp-breakdown');
+  {
+    const ext = computeExternalBonuses();
+    const rate = simTotalExp();
+
+    // Build additive sources (external + grid)
+    const additiveSources = [];
+    const CARD_NAMES = { w7b1: 'Trench Fish', w7b4: 'Eggroll', w7b11: 'Pirate Deckhand' };
+    for (const k of Object.keys(ext).filter(k => !k.startsWith('_'))) {
+      const b = ext[k];
+      let label = b.label;
+      if (k === 'cardW7b1') label = 'Card: ' + CARD_NAMES.w7b1;
+      if (k === 'cardW7b4') label = 'Card: ' + CARD_NAMES.w7b4;
+      additiveSources.push({ label, val: b.val, source: 'External' });
+    }
+
+    // Grid-based additive EXP% bonuses
+    const gridExpSquares = [
+      { idx: 50, name: 'Pts Every Ten' },
+      { idx: 90, name: 'Observationalistic' },
+      { idx: 110, name: 'All Night Studying' }
+    ];
+    for (const sq of gridExpSquares) {
+      const val = getGridBonusFinal(sq.idx);
+      additiveSources.push({ label: 'Grid ' + gridCoord(sq.idx) + ': ' + sq.name, val, source: 'Grid' });
+    }
+    // Grid 112 (mode 2) — x TotalOccurrencesFound
+    let occFoundCount = 0;
+    const occTBF = computeOccurrencesToBeFound();
+    for (let i = 0; i < occTBF; i++) if ((occFound[i] || 0) >= 1) occFoundCount++;
+    const gb112raw = getGridBonusFinal(112);
+    const gb112 = gb112raw * occFoundCount;
+    additiveSources.push({ label: 'Grid ' + gridCoord(112) + ': See Em All x ' + occFoundCount + ' obs', val: gb112, source: 'Grid' });
+    // Grid 94 (mode 2) — x TotalObsLVs
+    const totalObsLV = getTotalObsLVs();
+    const gb94raw = getGridBonusFinal(94);
+    const gb94 = gb94raw * totalObsLV;
+    additiveSources.push({ label: 'Grid ' + gridCoord(94) + ': Game Design 102 x ' + totalObsLV + ' LVs', val: gb94, source: 'Grid' });
+
+    additiveSources.sort((a, b) => b.val - a.val);
+    let additiveTotal = 0;
+    for (const s of additiveSources) additiveTotal += s.val;
+
+    // Multiplicative sources
+    const multiSources = [];
+    const takinNotes = getGridBonusFinal(70);
+    multiSources.push({ label: "Grid " + gridCoord(70) + ": Takin' Notes", val: 1 + takinNotes / 100 });
+    const comp52val = ext._comp52?.val || 0;
+    multiSources.push({ label: 'Jellofish (Companion)', val: Math.max(1, 1 + comp52val) });
+
+    let eHtml = '<div style="margin-bottom:8px;font-size:.9em;display:flex;justify-content:space-between;padding:4px 0;">' +
+      '<span style="color:var(--text2);">Observation base total</span>' +
+      '<span style="color:var(--green);font-weight:600;">' + fmtVal(rate.obsBase) + '/hr <span style="color:var(--text2);font-size:.85em;">(' + fmtExact(rate.obsBase) + ')</span></span></div>';
+
+    eHtml += '<table class="opt-table"><thead><tr><th>Source</th><th>Value</th><th>Type</th></tr></thead><tbody>';
+    eHtml += '<tr><td colspan="3" style="color:var(--purple);font-weight:600;padding:8px 8px 4px;">Additive Group</td></tr>';
+    for (const s of additiveSources) {
+      eHtml += '<tr><td>' + s.label + '</td>' +
+        '<td style="color:var(--green);font-weight:600">' + (s.val > 0 ? '+' + s.val.toFixed(2) + '%' : '0') + '</td>' +
+        '<td style="color:var(--text2);font-size:.85em">' + s.source + '</td></tr>';
+    }
+    eHtml += '<tr style="border-top:2px solid #444;"><td style="font-weight:700;">Additive Total</td>' +
+      '<td style="color:var(--gold);font-weight:700;">' + additiveTotal.toFixed(1) + '%</td><td></td></tr>';
+
+    eHtml += '<tr><td colspan="3" style="color:var(--cyan);font-weight:600;padding:12px 8px 4px;">Multiplicative Group</td></tr>';
+    for (const s of multiSources) {
+      eHtml += '<tr><td>' + s.label + '</td>' +
+        '<td style="color:var(--cyan);font-weight:600">x' + s.val.toFixed(3) + '</td>' +
+        '<td style="color:var(--text2);font-size:.85em">Multiplier</td></tr>';
+    }
+
+    const finalMulti = (1 + additiveTotal / 100) * multiSources.reduce((a, s) => a * s.val, 1);
+    eHtml += '<tr style="border-top:2px solid #444;"><td style="font-weight:700;">Final EXP Multi</td>' +
+      '<td style="color:var(--gold);font-weight:700;font-size:1.1em;">x' + finalMulti.toFixed(2) + '</td><td></td></tr>';
+    eHtml += '</tbody></table>';
+
+    eHtml += '<div style="margin-top:8px;padding:6px 0;border-top:1px solid #444;font-size:1.05em;display:flex;justify-content:space-between;">' +
+      '<span style="color:var(--green);font-weight:700;">Total EXP/hr</span>' +
+      '<span style="color:var(--green);font-weight:700;">' + fmtVal(rate.total) + ' <span style="font-weight:400;color:var(--text2);font-size:.85em;">(' + fmtExact(rate.total) + ')</span></span></div>';
+
+    expDiv.innerHTML = eHtml;
+  }
+
+  // AFK Rate Breakdown — full source table
+  const afkDiv = document.getElementById('dash-afk');
+  {
+    const CARD_NAMES_AFK = { w7b11: 'Pirate Deckhand' };
+    const afkSources = Object.entries(afkRate.parts).map(([k, p]) => {
+      let label = p.label;
+      if (k === 'cardW7b11') label = 'Card: ' + CARD_NAMES_AFK.w7b11;
+      return { label, val: p.val };
+    });
+    afkSources.sort((a, b) => b.val - a.val);
+
+    let aHtml = '<table class="opt-table"><thead><tr><th>Source</th><th>Value</th></tr></thead><tbody>';
+    for (const s of afkSources) {
+      aHtml += '<tr><td>' + s.label + '</td>' +
+        '<td style="color:' + (s.val > 0 ? 'var(--green)' : 'var(--text2)') + ';font-weight:600">' + (s.val > 0 ? '+' + s.val + '%' : '0') + '</td></tr>';
+    }
+    aHtml += '<tr style="border-top:2px solid #444;">' +
+      '<td style="font-weight:700;">Total:</td>' +
+      '<td style="color:var(--gold);font-weight:700;font-size:1.1em;">' + afkRate.pct.toFixed(0) + '%</td></tr>';
+    aHtml += '</tbody></table>';
+    aHtml += '<div style="margin-top:6px;font-size:.85em;color:var(--text2);">Effective offline EXP/hr: <b style="color:var(--green);">' + fmtVal(curRate.total * Math.min(1, afkRate.rate)) + '</b></div>';
+    afkDiv.innerHTML = aHtml;
+  }
+}
+
+// ===== RENDER: OPTIMIZER =====
+let _optimizerResult = null;
+
+function renderOptimizerResults(result) {
+  _optimizerResult = result;
+  const { baseline, best, paths, bestSteps } = result;
+
+  // Show results sections
+  ['opt-comparison','opt-timeline-section','opt-chart-section','opt-actions-section'].forEach(id => {
+    document.getElementById(id).style.display = 'block';
+  });
+
+  // Strategy comparison
+  const compDiv = document.getElementById('opt-comparison-body');
+  const baseTime = baseline.totalTime;
+  const bestTime = best.totalTime;
+  const saved = baseTime - bestTime;
+  const savedPct = baseTime > 0 ? saved / baseTime * 100 : 0;
+  const maxTime = Math.max(baseTime, bestTime, 1);
+
+  let compHtml = '';
+  compHtml += `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">`;
+  compHtml += `<div style="flex:1;min-width:200px;">`;
+  compHtml += `<div style="margin-bottom:8px;"><span style="color:var(--text2);">Current path:</span> <span style="font-weight:700;">${fmtTime(baseTime)}</span></div>`;
+  compHtml += `<div style="height:20px;background:#333;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${(baseTime/maxTime*100).toFixed(1)}%;background:var(--accent);border-radius:4px;"></div></div>`;
+  compHtml += `</div>`;
+  compHtml += `<div style="flex:1;min-width:200px;">`;
+  compHtml += `<div style="margin-bottom:8px;"><span style="color:var(--text2);">Optimal:</span> <span style="font-weight:700;color:var(--green);">${fmtTime(bestTime)}</span></div>`;
+  compHtml += `<div style="height:20px;background:#333;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${(bestTime/maxTime*100).toFixed(1)}%;background:var(--green);border-radius:4px;"></div></div>`;
+  compHtml += `</div>`;
+  if (saved > 0) {
+    compHtml += `<div style="padding:12px 20px;background:rgba(76,175,80,.12);border:1px solid var(--green);border-radius:8px;text-align:center;">`;
+    compHtml += `<div style="font-size:.8em;color:var(--green);">Savings</div>`;
+    compHtml += `<div style="font-weight:700;color:var(--green);font-size:1.3em;">${fmtTime(saved)}</div>`;
+    compHtml += `<div style="font-size:.75em;color:var(--green);">${savedPct.toFixed(1)}% faster</div>`;
+    compHtml += `</div>`;
+  }
+  compHtml += `</div>`;
+  compDiv.innerHTML = compHtml;
+
+  // Timeline
+  renderTimeline(best);
+
+  // EXP chart
+  renderExpChart(best);
+
+  // Actions
+  renderActions(best, bestSteps);
+}
+
+function renderTimeline(sim) {
+  const timelineDiv = document.getElementById('opt-timeline');
+  const detailDiv = document.getElementById('opt-timeline-detail');
+  const phases = sim.phases;
+  const totalTime = Math.max(sim.totalTime, 0.01);
+
+  const colors = { 'start':'var(--accent)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--green)' };
+
+  // Build timeline bar + arrow marker container
+  let html = '';
+  for (let i = 0; i < phases.length - 1; i++) {
+    const p = phases[i];
+    const next = phases[i + 1];
+    const left = (p.time / totalTime * 100).toFixed(2);
+    const width = ((next.time - p.time) / totalTime * 100).toFixed(2);
+    const color = colors[p.event] || 'var(--text2)';
+    html += `<div data-phase="${i}" style="position:absolute;left:${left}%;width:${width}%;height:100%;background:${color}33;border-right:1px solid ${color};cursor:pointer;transition:background .15s;" title="${p.event} at ${fmtTime(p.time)} — ${fmtVal(p.expHr)}/hr"></div>`;
+  }
+  // Arrow marker (hidden by default)
+  html += `<div id="tl-arrow" style="display:none;position:absolute;top:-18px;transform:translateX(-50%);font-size:14px;color:var(--gold);pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,.8);">\u25bc</div>`;
+  timelineDiv.innerHTML = html;
+
+  // Click handler: scroll to corresponding action step
+  timelineDiv.onclick = (e) => {
+    const el = e.target.closest('[data-phase]');
+    if (!el) return;
+    const pi = parseInt(el.dataset.phase);
+    highlightTimelinePhase(pi, null, totalTime);
+    const actionEl = document.getElementById('action-step-' + pi);
+    if (actionEl) actionEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Auto-expand the detail
+    const det = document.getElementById('action-detail-' + pi);
+    if (det && det.style.display === 'none') toggleActionDetail(pi, phases.length, totalTime);
+  };
+
+  detailDiv.innerHTML = '';
+}
+
+function renderActions(sim, bestSteps) {
+  const actDiv = document.getElementById('opt-actions');
+  const phases = sim.phases;
+  const totalTime = Math.max(sim.totalTime, 0.01);
+  let html = '';
+
+  // Grid upgrades (immediate)
+  if (bestSteps && bestSteps.length > 0) {
+    html += `<div style="margin-bottom:12px;padding:8px;background:#1a1a2e;border-radius:6px;border-left:3px solid var(--gold);">`;
+    html += `<div style="font-weight:700;color:var(--gold);margin-bottom:4px;">\u2b50 Spend Research Points</div>`;
+    for (const idx of bestSteps) {
+      const info = RES_GRID_RAW[idx];
+      const name = info ? info[0].replace(/_/g,' ') : `#${idx}`;
+      const curLv = gridLevels[idx] || 0;
+      html += `<div style="font-size:.9em;color:var(--text);margin-left:16px;">\u2192 Upgrade <b>${name}</b> (LV ${curLv} \u2192 ${curLv+1})</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Synthetic "pre-optimization" config for start event diff
+  const preOptConfig = {
+    gl: gridLevels.slice(), so: shapeOverlay.slice(),
+    md: magData.slice(0, magnifiersOwned).map(m=>({...m})),
+    il: insightLvs.slice()
+  };
+
+  const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--text2)' };
+
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    let prev, eventLabel, icon;
+    if (p.event === 'start') {
+      prev = { expHr: p.preOptExpHr || p.expHr, config: preOptConfig, rLv: p.rLv };
+      eventLabel = 'Initial Optimization'; icon = '\u2699';
+    } else if (p.event === 'end') {
+      prev = phases[i - 1];
+      eventLabel = 'End State'; icon = '\u2714';
+    } else if (p.event === 'level-up') {
+      prev = phases[i - 1]; eventLabel = 'Level Up'; icon = '\u2b50';
+    } else if (p.event === 'insight-up') {
+      prev = phases[i - 1]; eventLabel = 'Insight Level Up'; icon = '\ud83d\udd0d';
+    } else if (p.event === 'level+insight') {
+      prev = phases[i - 1]; eventLabel = 'Level + Insight'; icon = '\u26a1';
+    } else {
+      prev = phases[i - 1]; eventLabel = 'Event'; icon = '\u25cf';
+    }
+
+    const borderColor = colors[p.event] || 'var(--text2)';
+    const delta = p.expHr - prev.expHr;
+    const deltaPct = prev.expHr > 0 ? (delta / prev.expHr * 100) : 0;
+    const deltaStr = Math.abs(delta) > 0.5
+      ? ` <span style="color:${delta>0?'var(--green)':'var(--red)'};font-size:.85em;">${delta>0?'+':''}${fmtVal(delta)}/hr (${delta>0?'+':''}${deltaPct.toFixed(1)}%)</span>`
+      : '';
+
+    // --- Build detail content (hidden by default) ---
+    const details = [];
+
+    if (p.rLv !== prev.rLv) details.push(`<div style="color:var(--gold);">Research LV ${prev.rLv} \u2192 ${p.rLv}</div>`);
+
+    // Grid upgrades
+    const gridUpgrades = [];
+    for (const idxStr of Object.keys(RES_GRID_RAW)) {
+      const idx = Number(idxStr);
+      const pgl = prev.config.gl[idx] || 0, cgl = p.config.gl[idx] || 0;
+      if (cgl > pgl) {
+        const name = RES_GRID_RAW[idx][0].replace(/_/g,' ');
+        gridUpgrades.push(`<span style="color:var(--gold);">${name}</span> ${pgl}\u2192${cgl}`);
+      }
+    }
+    if (gridUpgrades.length > 0) details.push(`<div>\u2b50 Grid: ${gridUpgrades.join(', ')}</div>`);
+
+    // Mag slot cap
+    const prevMax = magMaxForLevel(prev.rLv);
+    const curMax = magMaxForLevel(p.rLv);
+    if (curMax > prevMax) details.push(`<div style="color:var(--cyan);">Max mags/slot: ${prevMax} \u2192 ${curMax}</div>`);
+
+    // Magnifier moves
+    const prevSlots = {}, curSlots = {};
+    for (const m of prev.config.md) { if (m.type === 0) prevSlots[m.slot] = (prevSlots[m.slot]||0)+1; }
+    for (const m of p.config.md) { if (m.type === 0) curSlots[m.slot] = (curSlots[m.slot]||0)+1; }
+    const allSlots = new Set([...Object.keys(prevSlots), ...Object.keys(curSlots)]);
+    const magMoves = [];
+    for (const s of allSlots) {
+      const pv = prevSlots[s] || 0, cv = curSlots[s] || 0;
+      if (pv !== cv) {
+        const name = OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : `#${s}`;
+        if (cv > pv) magMoves.push(`<span style="color:var(--green);">+${cv-pv}</span> \u2192 ${name}`);
+        else magMoves.push(`<span style="color:var(--red);">-${pv-cv}</span> from ${name}`);
+      }
+    }
+    if (magMoves.length > 0) details.push(`<div>\ud83d\udd0d Mags: ${magMoves.join(' &nbsp; ')}</div>`);
+
+    // Monocle target
+    const prevMono = prev.config.md.filter(m=>m.type===1).map(m=>m.slot);
+    const curMono = p.config.md.filter(m=>m.type===1).map(m=>m.slot);
+    const prevTarget = prevMono.length > 0 ? prevMono[0] : -1;
+    const curTarget = curMono.length > 0 ? curMono[0] : -1;
+    if (prevTarget !== curTarget) {
+      const pName = prevTarget >= 0 && OCC_DATA[prevTarget] ? OCC_DATA[prevTarget].name.replace(/_/g,' ') : 'none';
+      const cName = curTarget >= 0 && OCC_DATA[curTarget] ? OCC_DATA[curTarget].name.replace(/_/g,' ') : 'none';
+      details.push(`<div style="color:var(--purple);">\ud83d\udd2e Monocle: ${pName} \u2192 ${cName}</div>`);
+    }
+
+    // Insight changes
+    const ilChanges = [];
+    for (let o = 0; o < Math.max(prev.config.il.length, p.config.il.length); o++) {
+      const pil = prev.config.il[o] || 0, cil = p.config.il[o] || 0;
+      if (cil > pil) {
+        const name = OCC_DATA[o] ? OCC_DATA[o].name.replace(/_/g,' ') : `#${o}`;
+        ilChanges.push(`${name} <span style="color:var(--purple);">${pil}\u2192${cil}</span>`);
+      }
+    }
+    if (ilChanges.length > 0) details.push(`<div>\u2728 Insight: ${ilChanges.join(', ')}</div>`);
+
+    // Shape changes
+    let shapeChanges = 0;
+    for (let s = 0; s < GRID_SIZE; s++) {
+      if ((p.config.so[s]||-1) !== (prev.config.so[s]||-1)) shapeChanges++;
+    }
+    if (shapeChanges > 0) details.push(`<div style="color:var(--cyan);">\u25a6 ${shapeChanges} shape cell(s) changed</div>`);
+
+    const detId = 'action-detail-' + i;
+    const gridId = 'action-grid-' + i;
+    const hasDetails = details.length > 0;
+
+    // --- Render step ---
+    html += `<div id="action-step-${i}" data-phase="${i}" style="margin-bottom:4px;border-radius:6px;border-left:3px solid ${borderColor};background:#111;cursor:pointer;transition:outline .15s;" onclick="toggleActionDetail(${i}, ${phases.length}, ${totalTime})">`;
+
+    // Header row: always visible
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;">`;
+    html += `<span style="color:var(--text2);min-width:48px;font-size:.85em;font-variant-numeric:tabular-nums;">${fmtTime(p.time)}</span>`;
+    html += `<span style="font-size:1em;">${icon}</span>`;
+    html += `<span style="font-weight:600;color:${borderColor};flex:1;">${eventLabel}</span>`;
+    html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(p.expHr)}/hr</span>`;
+    html += deltaStr;
+    if (hasDetails) html += `<span class="action-chevron" id="chevron-${i}" style="color:var(--text2);font-size:.7em;margin-left:4px;transition:transform .2s;">\u25b6</span>`;
+    html += `</div>`;
+
+    // Collapsible detail
+    if (hasDetails) {
+      html += `<div id="${detId}" style="display:none;padding:4px 10px 8px 66px;font-size:.82em;color:var(--text2);border-top:1px solid #1a1a2e;">`;
+      html += details.join('');
+      // Shape grid toggle
+      if (shapeChanges > 0) {
+        html += `<div style="margin-top:6px;"><a href="#" style="font-size:.85em;color:var(--cyan);text-decoration:none;" onclick="event.stopPropagation();event.preventDefault();var el=document.getElementById('${gridId}');el.style.display=el.style.display==='none'?'block':'none';">\u25b6 Show shape grid</a></div>`;
+        html += `<div id="${gridId}" style="display:none;margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl)}</div>`;
+      }
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  if (!html) html = '<div style="color:var(--text2);text-align:center;padding:16px;">No actions needed — current config is optimal.</div>';
+  actDiv.innerHTML = html;
+}
+
+function toggleActionDetail(phaseIdx, phaseCount, totalTime) {
+  const det = document.getElementById('action-detail-' + phaseIdx);
+  const chev = document.getElementById('chevron-' + phaseIdx);
+  if (det) {
+    const showing = det.style.display !== 'none';
+    det.style.display = showing ? 'none' : 'block';
+    if (chev) chev.style.transform = showing ? '' : 'rotate(90deg)';
+  }
+  // Highlight corresponding timeline segment
+  highlightTimelinePhase(phaseIdx, null, totalTime);
+}
+
+function highlightTimelinePhase(phaseIdx, _unused, totalTime) {
+  // Position arrow above the phase segment
+  const arrow = document.getElementById('tl-arrow');
+  const timelineDiv = document.getElementById('opt-timeline');
+  if (!arrow || !timelineDiv) return;
+
+  // Find the clicked segment to get its position
+  const seg = timelineDiv.querySelector('[data-phase="' + phaseIdx + '"]');
+  if (seg) {
+    const left = parseFloat(seg.style.left);
+    const width = parseFloat(seg.style.width);
+    arrow.style.display = 'block';
+    arrow.style.left = (left + width / 2).toFixed(2) + '%';
+  }
+
+  // Outline the segment
+  for (const child of timelineDiv.querySelectorAll('[data-phase]')) {
+    const ci = parseInt(child.dataset.phase);
+    child.style.outline = ci === phaseIdx ? '2px solid var(--gold)' : 'none';
+    child.style.zIndex = ci === phaseIdx ? '2' : '0';
+  }
+
+  // Outline the action step
+  const allSteps = document.querySelectorAll('[id^="action-step-"]');
+  for (const s of allSteps) {
+    s.style.outline = s.id === 'action-step-' + phaseIdx ? '1px solid var(--gold)' : 'none';
+  }
+}
+
+function renderExpChart(sim) {
+  const chartDiv = document.getElementById('opt-chart');
+  const phases = sim.phases;
+  if (phases.length < 2) { chartDiv.innerHTML = ''; return; }
+
+  const expValues = phases.map(p => p.expHr);
+  const rawMin = Math.min(...expValues);
+  const rawMax = Math.max(...expValues);
+  const range = rawMax - rawMin || 1;
+  const margin = range * 0.1;
+  const yMin = Math.max(0, rawMin - margin);
+  const yMax = rawMax + margin;
+  const yRange = yMax - yMin;
+  const totalTime = Math.max(sim.totalTime, 0.01);
+  const W = chartDiv.clientWidth || 600;
+  const H = 160;
+  const pad = { top: 12, right: 20, bottom: 24, left: 60 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  let svg = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;">`;
+  // Grid lines (4 lines)
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + plotH * (1 - i / 4);
+    const val = yMin + yRange * i / 4;
+    svg += `<line x1="${pad.left}" y1="${y}" x2="${W-pad.right}" y2="${y}" stroke="#333" stroke-width="1"/>`;
+    svg += `<text x="${pad.left-5}" y="${y+4}" fill="#888" font-size="10" text-anchor="end">${fmtVal(val)}</text>`;
+  }
+
+  // EXP line (step function)
+  let path = '';
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    const x = pad.left + (p.time / totalTime) * plotW;
+    const y = pad.top + plotH * (1 - (p.expHr - yMin) / yRange);
+    if (i === 0) path += `M ${x} ${y}`;
+    else {
+      const prevY = pad.top + plotH * (1 - (phases[i-1].expHr - yMin) / yRange);
+      path += ` L ${x} ${prevY} L ${x} ${y}`;
+    }
+  }
+  svg += `<path d="${path}" fill="none" stroke="var(--green)" stroke-width="2"/>`;
+
+  // Phase markers
+  for (const p of phases) {
+    if (p.event === 'start' || p.event === 'end') continue;
+    const x = pad.left + (p.time / totalTime) * plotW;
+    const y = pad.top + plotH * (1 - (p.expHr - yMin) / yRange);
+    svg += `<line x1="${x}" y1="${pad.top}" x2="${x}" y2="${pad.top+plotH}" stroke="var(--gold)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
+    svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--gold)"/>`;
+  }
+
+  // X axis labels
+  const steps = [0, 0.25, 0.5, 0.75, 1];
+  for (const s of steps) {
+    const x = pad.left + plotW * s;
+    svg += `<text x="${x}" y="${H-5}" fill="#888" font-size="10" text-anchor="middle">${fmtTime(totalTime * s)}</text>`;
+  }
+  svg += '</svg>';
+  chartDiv.innerHTML = svg;
+}
+
+function renderMiniGrid(overlay, gl) {
+  const usedGL = gl || gridLevels;
+  const cellSize = 24;
+  const COLS = GRID_COLS;
+  function sameShapeMini(i, neighbor) {
+    if (neighbor < 0 || neighbor >= GRID_SIZE) return false;
+    return overlay[i] >= 0 && overlay[i] === overlay[neighbor];
+  }
+  let html = `<div style="display:inline-grid;grid-template-columns:repeat(${COLS},${cellSize}px);gap:0;background:#111;padding:4px;border-radius:6px;position:relative;">`;
+  for (let i = 0; i < GRID_SIZE; i++) {
+    const info = RES_GRID_RAW[i];
+    const lv = usedGL[i] || 0;
+    const si = overlay[i];
+    let bg = '#0a0a15', label = '', labelColor = '#333';
+    let bT = '1px solid #222', bB = '1px solid #222', bL = '1px solid #222', bR = '1px solid #222';
+    if (info) {
+      if (lv > 0) {
+        label = gridCoord(i);
+        labelColor = lv >= info[1] ? '#4caf50' : '#aaa';
+        bg = '#1a1a2e';
+      } else if (isGridCellUnlocked(i, usedGL)) {
+        // Unlocked but not yet leveled — highlight as available
+        label = gridCoord(i);
+        labelColor = '#665522';
+        bg = 'rgba(255,215,0,.08)';
+        bT = '1px dashed #554400'; bB = bT; bL = bT; bR = bT;
+      } else {
+        label = '\u00b7';
+        labelColor = '#333';
+      }
+      // Shape overlay (connected borders) on all nodes
+      if (si >= 0) {
+        const c = SHAPE_COLORS[si];
+        bg = c + '22';
+        if (lv > 0) labelColor = c;
+        const col = i % COLS;
+        bT = !sameShapeMini(i, i - COLS) ? '2px solid ' + c : '1px solid transparent';
+        bB = !sameShapeMini(i, i + COLS) ? '2px solid ' + c : '1px solid transparent';
+        bL = col > 0 ? (!sameShapeMini(i, i - 1) ? '2px solid ' + c : '1px solid transparent') : '2px solid ' + c;
+        bR = col < COLS - 1 ? (!sameShapeMini(i, i + 1) ? '2px solid ' + c : '1px solid transparent') : '2px solid ' + c;
+      }
+    }
+    html += `<div style="width:${cellSize}px;height:${cellSize}px;background:${bg};border-top:${bT};border-bottom:${bB};border-left:${bL};border-right:${bR};display:flex;align-items:center;justify-content:center;font-size:.4em;color:${labelColor};font-weight:600;overflow:hidden;box-sizing:border-box;" title="${info?info[0].replace(/_/g,' ')+(lv>0?' LV'+lv:isGridCellUnlocked(i,usedGL)?' (available)':''):''} ${si>=0?'Shape '+si:''}">${label}</div>`;
+  }
+  // SVG shape polygon overlay (same as dashboard grid)
+  const activeShapes = new Set();
+  for (let i = 0; i < overlay.length; i++) {
+    if (overlay[i] >= 0) activeShapes.add(overlay[i]);
+  }
+  if (activeShapes.size > 0) {
+    const gw = COLS * cellSize, gh = GRID_ROWS * cellSize;
+    let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="14 23 600 360" preserveAspectRatio="none">`;
+    for (const si of activeShapes) {
+      const poly = computeShapePolygon(si);
+      if (!poly) continue;
+      svg += `<polygon points="${poly.map(([x,y])=>x+','+y).join(' ')}" fill="none" stroke="${SHAPE_COLORS[si]}" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>`;
+    }
+    svg += '</svg>';
+    html += svg;
+  }
+  html += '</div>';
+  return html;
+}
+
+// ===== RENDER: SANDBOX =====
+let _sandboxScenarios = [];
+let _scenarioNextId = 1;
+
+function addSandboxScenario(name, overrides) {
+  _sandboxScenarios.push({
+    id: _scenarioNextId++,
+    name: name || `Scenario ${_sandboxScenarios.length + 1}`,
+    overrides: overrides || {},
+    result: null,
+  });
+  renderSandboxList();
+}
+
+function renderSandboxList() {
+  const container = document.getElementById('sb-scenarios');
+  let html = '';
+  for (const sc of _sandboxScenarios) {
+    html += `<div class="opt-section" style="border:1px solid var(--purple);" id="sb-sc-${sc.id}">`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
+    html += `<input type="text" value="${sc.name}" onchange="renameSandboxScenario(${sc.id}, this.value)" style="background:#111;border:1px solid #444;border-radius:4px;padding:4px 8px;color:var(--text);font-weight:600;">`;
+    html += `<button class="btn btn-sm" style="background:#f44336;" onclick="removeSandboxScenario(${sc.id})">\u2716 Remove</button>`;
+    html += `</div>`;
+    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.85em;margin-bottom:8px;">`;
+    html += `<label style="color:var(--text2);">Overrides (JSON):</label>`;
+    html += `<textarea id="sb-ov-${sc.id}" rows="2" style="flex:1;min-width:200px;background:#111;border:1px solid #444;border-radius:4px;padding:4px 8px;color:var(--text);font-size:.85em;font-family:monospace;">${JSON.stringify(sc.overrides)}</textarea>`;
+    html += `</div>`;
+    if (sc.result) {
+      html += `<div style="padding:8px;background:#111;border-radius:6px;font-size:.85em;">`;
+      html += `<span style="color:var(--text2);">Time: </span><b style="color:var(--green);">${fmtTime(sc.result.totalTime)}</b>`;
+      html += `<span style="color:var(--text2);margin-left:16px;">Final LV: </span><b style="color:var(--gold);">${sc.result.finalLevel}</b>`;
+      html += `<span style="color:var(--text2);margin-left:16px;">Final EXP/hr: </span><b style="color:var(--green);">${fmtVal(sc.result.phases[sc.result.phases.length-1]?.expHr || 0)}</b>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renameSandboxScenario(id, newName) {
+  const sc = _sandboxScenarios.find(s => s.id === id);
+  if (sc) sc.name = newName;
+}
+
+function removeSandboxScenario(id) {
+  _sandboxScenarios = _sandboxScenarios.filter(s => s.id !== id);
+  renderSandboxList();
+}
+
+function runSandboxScenarios() {
+  const tickMin = parseInt(document.getElementById('sb-tick-interval')?.value || '10');
+  const mode = document.getElementById('sb-target-mode')?.value || 'level';
+  const val = parseInt(document.getElementById('sb-target-value')?.value || '0');
+  if (!val) return;
+
+  const target = { type: mode, value: val };
+
+  for (const sc of _sandboxScenarios) {
+    try {
+      const ov = JSON.parse(document.getElementById('sb-ov-' + sc.id)?.value || '{}');
+      sc.overrides = ov;
+    } catch(e) { /* keep existing */ }
+    sc.result = unifiedSim({ target, tickMinutes: tickMin, reoptimize: true, ...sc.overrides });
+  }
+
+  renderSandboxList();
+  renderSandboxComparison();
+}
+
+function renderSandboxComparison() {
+  const compDiv = document.getElementById('sb-comparison');
+  const bodyDiv = document.getElementById('sb-comparison-body');
+  const scenarios = _sandboxScenarios.filter(s => s.result);
+  if (scenarios.length < 2) { compDiv.style.display = 'none'; return; }
+  compDiv.style.display = 'block';
+
+  const maxTime = Math.max(...scenarios.map(s => s.result.totalTime), 1);
+  let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+  for (const sc of scenarios) {
+    const pct = (sc.result.totalTime / maxTime * 100).toFixed(1);
+    html += `<div style="padding:8px;background:#1a1a2e;border-radius:6px;">`;
+    html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-weight:600;">${sc.name}</span><span style="color:var(--green);font-weight:700;">${fmtTime(sc.result.totalTime)}</span></div>`;
+    html += `<div style="height:16px;background:#222;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px;"></div></div>`;
+    html += `</div>`;
+  }
+  html += '</div>';
+  bodyDiv.innerHTML = html;
+}
+
+// ===== MAIN RENDER =====
+function renderAll() {
+  renderDashboard();
+  // Set default target level for optimizer
+  const targetInput = document.getElementById('opt-target-level');
+  if (targetInput && !targetInput.value) {
+    targetInput.value = researchLevel + 1;
+  }
+  const sbTarget = document.getElementById('sb-target-value');
+  if (sbTarget && !sbTarget.value) {
+    sbTarget.value = researchLevel + 1;
+  }
+}
+
+// ===== EVENT HANDLERS =====
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Optimizer mode toggle
+document.getElementById('opt-mode-level')?.addEventListener('click', () => {
+  document.getElementById('opt-mode-level').style.opacity = '1';
+  document.getElementById('opt-mode-hours').style.opacity = '.5';
+  document.getElementById('opt-target-level-wrap').style.display = '';
+  document.getElementById('opt-target-hours-wrap').style.display = 'none';
+});
+document.getElementById('opt-mode-hours')?.addEventListener('click', () => {
+  document.getElementById('opt-mode-level').style.opacity = '.5';
+  document.getElementById('opt-mode-hours').style.opacity = '1';
+  document.getElementById('opt-target-level-wrap').style.display = 'none';
+  document.getElementById('opt-target-hours-wrap').style.display = '';
+});
+
+// Optimizer run button
+document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
+  const isLevelMode = document.getElementById('opt-mode-level').style.opacity === '1';
+  let target;
+  if (isLevelMode) {
+    const val = parseInt(document.getElementById('opt-target-level')?.value || '0');
+    if (!val || val <= researchLevel) {
+      alert('Enter a target level above your current level (' + researchLevel + ').');
+      return;
+    }
+    target = { type: 'level', value: val };
+  } else {
+    const val = parseInt(document.getElementById('opt-target-hours')?.value || '0');
+    if (!val || val <= 0) { alert('Enter a valid number of hours.'); return; }
+    target = { type: 'hours', value: val };
+  }
+
+  // Show progress
+  const progDiv = document.getElementById('opt-progress');
+  const progBar = document.getElementById('opt-progress-bar');
+  const progText = document.getElementById('opt-progress-text');
+  const runBtn = document.getElementById('opt-run-btn');
+  progDiv.style.display = 'block';
+  runBtn.disabled = true;
+  runBtn.textContent = 'Running...';
+
+  try {
+    const result = await runOptimizer(target, (done, total, msg) => {
+      const pct = (done / total * 100).toFixed(0);
+      progBar.style.width = pct + '%';
+      progText.textContent = msg || `${pct}%`;
+    });
+    progBar.style.width = '100%';
+    progText.textContent = 'Done!';
+    renderOptimizerResults(result);
+  } catch(e) {
+    console.error('Optimizer error:', e);
+    progText.textContent = 'Error: ' + e.message;
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run Optimizer';
+  }
+});
+
+// Sandbox buttons
+document.getElementById('sb-add-scenario')?.addEventListener('click', () => {
+  addSandboxScenario();
+});
+document.getElementById('sb-import-optimizer')?.addEventListener('click', () => {
+  if (_optimizerResult) {
+    const best = _optimizerResult.best;
+    const finalConfig = best.phases[best.phases.length - 1]?.config;
+    if (finalConfig) {
+      addSandboxScenario('From Optimizer', {
+        gridLevels: finalConfig.gl,
+        shapeOverlay: finalConfig.so,
+        insightLvs: finalConfig.il,
+      });
+    }
+  }
+});
+document.getElementById('sb-run-all')?.addEventListener('click', () => {
+  runSandboxScenarios();
+});
+
+// Initial render
+renderAll();
+</script>
+</body>
+</html>
