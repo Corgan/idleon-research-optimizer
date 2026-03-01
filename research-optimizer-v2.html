@@ -1029,6 +1029,13 @@ function computeShapesOwned() {
 
 // Game: OccurrencesToBeFound (N.formatted.js:91853)
 // min(43, 5*floor((lv+10)/10) - floor(lv/20) - floor(lv/30) - floor(lv/50)) or 0/1 edge cases
+
+// Game check for placing magnifiers: obs must be found AND research level >= obs roll requirement
+function isObsUsable(i, rLv, occ) {
+  if ((occ || occFound)[i] < 1) return false;
+  return (rLv || researchLevel) >= (OCC_DATA[i] ? OCC_DATA[i].roll : Infinity);
+}
+
 function computeOccurrencesToBeFound() {
   if (researchLevel < 1) return 0;
   if (occFound[0] === 0) return 1;
@@ -2564,7 +2571,7 @@ function evalMagScore(trialMags) {
   const gd101 = getGridBonusFinal(93);
   let total = 0;
   for (let i = 0; i < OCC_DATA.length; i++) {
-    if (occFound[i] < 1) continue;
+    if (!isObsUsable(i)) continue;
     let count = 0;
     for (const m of trialMags) { if (m.type === 0 && m.slot === i) count++; }
     if (count === 0) continue;
@@ -2578,7 +2585,7 @@ function evalMagScore(trialMags) {
 function optimizeMagnifiers() {
   const availSlots = [];
   for (let i = 0; i < OCC_DATA.length; i++) {
-    if (occFound[i] >= 1) availSlots.push(i);
+    if (isObsUsable(i)) availSlots.push(i);
   }
   const ownedMags = magData.slice(0, magnifiersOwned);
   const numRegular = ownedMags.filter(m => m.type === 0).length;
@@ -2756,7 +2763,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
       let tIL = il.slice(), tIP = ip.slice();
       let tMD = md.map(m => ({...m}));
       let tSO = optimizeShapesFor(gl, so).overlay;
-      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, gl, tSO, mMax);
+      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, gl, tSO, mMax, undefined, rLv);
       let tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ);
       let totalExp = 0;
       for (let t = 0; t < LOOK_TICKS; t++) {
@@ -2772,7 +2779,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
           if (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; }
         }
         if (insUp && insightAffectsExp(gl, tSO)) {
-          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, gl, tSO, mMax);
+          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, gl, tSO, mMax, rLv);
           tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ);
         }
       }
@@ -2790,11 +2797,11 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
   return changed;
 }
 
-function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot) {
+function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv) {
   // Greedy magnifier optimizer (like optimizeMagnifiers but uses explicit state)
   const availSlots = [];
   for (let i = 0; i < OCC_DATA.length; i++) {
-    if ((occ[i] || 0) >= 1) availSlots.push(i);
+    if (isObsUsable(i, rLv, occ)) availSlots.push(i);
   }
   const pool = md.slice(0, ownedCount);
   const numKalei = pool.filter(m => m.type === 2).length;
@@ -2819,7 +2826,7 @@ function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot) {
         if (inSlot >= maxPerSlot) continue;
         const trial = [...assigned, {type: magType, slot, x:0, y:0}];
         // Score: use research EXP only (monocles won't produce research EXP, but we place them via monoTargets)
-        const score = _evalMagScoreWith(trial, gl, so, il, occ);
+        const score = _evalMagScoreWith(trial, gl, so, il, occ, rLv);
         if (score > bestScore) { bestScore = score; bestSlot = slot; bestPI = pi; }
       }
     }
@@ -2833,7 +2840,7 @@ function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot) {
   return assigned;
 }
 
-function _evalMagScoreWith(trialMags, gl, so, il, occ) {
+function _evalMagScoreWith(trialMags, gl, so, il, occ, rLv) {
   const kalMap = {};
   for (const m of trialMags) {
     if (m.type === 2 && m.slot >= 0) {
@@ -2849,6 +2856,7 @@ function _evalMagScoreWith(trialMags, gl, so, il, occ) {
   let total = 0;
   for (let i = 0; i < OCC_DATA.length; i++) {
     if ((occ[i] || 0) < 1) continue;
+    if (!(OCC_DATA[i] && rLv >= OCC_DATA[i].roll)) continue;
     let count = 0;
     for (const m of trialMags) { if (m.type === 0 && m.slot === i) count++; }
     if (count === 0) continue;
@@ -2880,7 +2888,7 @@ function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr) {
   return expHr > 0 ? Math.max(1, expNeeded / expHr) : 72;
 }
 
-function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs) {
+function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rLv) {
   // Two-tier monocle targeting:
   //   Tier A — obs that already carry a regular mag (monocle cohabitation):
   //            insight levels boost that obs's EXP via gd101, so forward-sim
@@ -2955,7 +2963,7 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs) {
           if (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; }
         }
         if (insUp) {
-          curMD = _monoAssignBestQuick(curMD, tIL, tIP, occ, gl, so, maxPerSlot);
+          curMD = _monoAssignBestQuick(curMD, tIL, tIP, occ, gl, so, maxPerSlot, rLv);
           tRate = simTotalExpWith(gl, so, curMD, tIL, occ);
         }
       }
@@ -2984,7 +2992,7 @@ function _monoAssign(md, obsIdx) {
 }
 
 // Lightweight inner-loop monocle pick (1-step ahead, no forward sim)
-function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot) {
+function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
   const monoCount = md.filter(m => m.type === 1).length;
   if (monoCount === 0) return md;
   const occTBF = computeOccurrencesToBeFound();
@@ -2992,7 +3000,7 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot) {
   const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ) : 0;
   let bestObs = -1, bestVal = -Infinity;
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
-    if ((occ[i] || 0) < 1) continue;
+    if (!isObsUsable(i, rLv, occ)) continue;
     const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
     if (inSlotNonMono + monoCount > maxPerSlot) continue;
     const trialMD = _monoAssign(md, i);
@@ -3045,7 +3053,7 @@ function unifiedSim(config) {
   } else {
     // Build pool from current owned types
     const pool = magData.slice(0, mOwned).map(m => ({...m}));
-    md = optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax);
+    md = optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax, rLv);
   }
 
   // Initial shape optimization (sim-aware: captures insight cascading effects)
@@ -3068,7 +3076,7 @@ function unifiedSim(config) {
   if (config.reoptimize !== false) {
     const prelimRate = simTotalExpWith(gl, so, md, il, occ);
     const monoLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, prelimRate), 72);
-    md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA);
+    md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
   }
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ);
@@ -3126,12 +3134,12 @@ function unifiedSim(config) {
     const insightMatters = insightLeveledUp && insightAffectsExp(gl, so);
     if ((rLeveledUp || insightMatters) && config.reoptimize !== false) {
       // Full reconfig: mags, shapes, monocles
-      md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax);
+      md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
       const midShapeResult = optimizeShapesFor(gl, so);
       so = midShapeResult.overlay;
       sp = midShapeResult.positions;
       const monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
-      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA);
+      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
       curExpHr = simTotalExpWith(gl, so, md, il, occ);
       const eventType = rLeveledUp && insightMatters ? 'level+insight' : rLeveledUp ? 'level-up' : 'insight-up';
       phases.push({
@@ -3142,7 +3150,7 @@ function unifiedSim(config) {
     } else if (insightLeveledUp && config.reoptimize !== false) {
       // Insight leveled up but doesn't affect EXP — just reassign monocles to next target
       const monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
-      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2);
+      md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2, rLv);
     }
   }
 
