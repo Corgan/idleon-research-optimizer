@@ -124,7 +124,7 @@ h1 span { color: var(--accent); }
 </head>
 <body>
 
-<h1><span>Idleon</span> Research Optimizer v2</h1>
+<h1 style="display:flex;align-items:baseline;"><span style="flex:1;"><span>Idleon</span> Research Optimizer v2</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="Report issues on GitHub">GitHub</a></h1>
 
 <div id="save-area">
   <label>Load save (save.json or it.json):</label>
@@ -2154,7 +2154,7 @@ async function computePointPriority(progressCb) {
 
   const candidates = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
     const info = RES_GRID_RAW[idx];
-    return (gridLevels[idx] || 0) < info[1];
+    return (gridLevels[idx] || 0) < info[1] && isGridCellUnlocked(idx, gridLevels);
   });
   const results = [];
 
@@ -2280,26 +2280,118 @@ function getShapeCellCoverage(shapeIdx, x, y, rot, excludeCells) {
   return covered;
 }
 
-function computeCellValues() {
-  // Compute the value of putting a 25% shape bonus on each cell
-  // ALL leveled cells get a value  shapes boost all grid bonuses
+function simExpOverHorizon(config) {
+  // Lightweight sim: total EXP earned over a time horizon.
+  // Tracks insight level-ups and their cascading effect on research EXP rate,
+  // but does NOT re-optimize shapes, mags, or grid points (avoids recursion).
+  const tickMin = config.tickMinutes || 10;
+  const tickSec = tickMin * 60;
+  const maxHrs = config.target.type === 'hours' ? config.target.value : 168;
+  const maxTicks = Math.ceil(maxHrs * 3600 / tickSec);
+
+  const gl = config.gridLevels ? config.gridLevels.slice() : gridLevels.slice();
+  const so = config.shapeOverlay ? config.shapeOverlay.slice() : shapeOverlay.slice();
+  const md = config.magData ? config.magData.map(m => ({...m})) : magData.map(m => ({...m}));
+  const il = config.insightLvs ? config.insightLvs.slice() : insightLvs.slice();
+  const ip = config.insightProgress ? config.insightProgress.slice() : insightProgress.slice();
+  const occ = config.occFound ? config.occFound.slice() : occFound.slice();
+  let rLv = config.researchLevel !== undefined ? config.researchLevel : researchLevel;
+  let rExp = config.currentExp !== undefined ? config.currentExp : getResearchCurrentExp();
+
+  let curExpHr = simTotalExpWith(gl, so, md, il, occ);
+  let totalExpEarned = 0;
+  let currentTime = 0;
+
+  for (let tick = 0; tick < maxTicks; tick++) {
+    if (config.target.type === 'level' && rLv >= config.target.value) break;
+    if (config.target.type === 'hours' && currentTime >= config.target.value) break;
+
+    const expPerTick = curExpHr / 3600 * tickSec;
+    rExp += expPerTick;
+    totalExpEarned += expPerTick;
+
+    while (rExp >= researchExpReq(rLv)) {
+      rExp -= researchExpReq(rLv);
+      rLv++;
+    }
+
+    let insightChanged = false;
+    const monoObs = new Set();
+    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so);
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
+      const req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      if (ip[obsIdx] >= req) {
+        ip[obsIdx] -= req;
+        il[obsIdx] = (il[obsIdx] || 0) + 1;
+        insightChanged = true;
+      }
+    }
+
+    currentTime += tickMin / 60;
+
+    if (insightChanged && insightAffectsExp(gl, so)) {
+      curExpHr = simTotalExpWith(gl, so, md, il, occ);
+    }
+  }
+
+  return { totalExp: totalExpEarned, totalTime: currentTime, finalLevel: rLv };
+}
+
+function computeCellValues(simOpts) {
+  // Compute the value of putting a 25% shape bonus on each cell.
+  // If simOpts.target provided, uses sim-over-horizon scoring to capture
+  // insight cascading effects (insight EXP → insight levels → research EXP).
   const values = new Array(GRID_SIZE).fill(0);
   const bareSO = new Array(GRID_SIZE).fill(-1); // no shapes
-  const bareTotal = simTotalExp({ shapeOverlay: bareSO }).total;
 
-  for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
-    const lv = gridLevels[idx] || 0;
-    if (lv === 0) continue;
-    const testSO = bareSO.slice();
-    testSO[idx] = 0; // 25% shape
-    const withShape = simTotalExp({ shapeOverlay: testSO }).total;
-    values[idx] = withShape - bareTotal;
+  if (simOpts && simOpts.target) {
+    const baseCfg = {
+      target: simOpts.target,
+      gridLevels: gridLevels.slice(),
+      magData: simOpts.magData || magData.map(m => ({...m})),
+      insightLvs: simOpts.insightLvs || insightLvs.slice(),
+      insightProgress: simOpts.insightProgress || insightProgress.slice(),
+      occFound: simOpts.occFound || occFound.slice(),
+      researchLevel: simOpts.researchLevel !== undefined ? simOpts.researchLevel : researchLevel,
+      currentExp: simOpts.currentExp !== undefined ? simOpts.currentExp : getResearchCurrentExp(),
+    };
+    // For level mode: find bare time first, then use fixed-hours scoring
+    // so all cell tests run the same duration and totalExp is comparable
+    let effectiveTarget = simOpts.target;
+    if (simOpts.target.type === 'level') {
+      const barePreRun = simExpOverHorizon({ ...baseCfg, shapeOverlay: bareSO });
+      effectiveTarget = { type: 'hours', value: Math.max(1, barePreRun.totalTime) };
+    }
+    const scoreCfg = { ...baseCfg, target: effectiveTarget };
+    const bareResult = simExpOverHorizon({ ...scoreCfg, shapeOverlay: bareSO });
+
+    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+      const lv = gridLevels[idx] || 0;
+      if (lv === 0) continue;
+      const testSO = bareSO.slice();
+      testSO[idx] = 0; // 25% shape
+      const testResult = simExpOverHorizon({ ...scoreCfg, shapeOverlay: testSO });
+      values[idx] = testResult.totalExp - bareResult.totalExp;
+    }
+  } else {
+    // Static scoring (original: instantaneous EXP/hr delta)
+    const bareTotal = simTotalExp({ shapeOverlay: bareSO }).total;
+    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+      const lv = gridLevels[idx] || 0;
+      if (lv === 0) continue;
+      const testSO = bareSO.slice();
+      testSO[idx] = 0; // 25% shape
+      const withShape = simTotalExp({ shapeOverlay: testSO }).total;
+      values[idx] = withShape - bareTotal;
+    }
   }
   return values;
 }
 
-function optimizeShapePlacement() {
-  const cellValues = computeCellValues();
+function optimizeShapePlacement(simOpts) {
+  const cellValues = computeCellValues(simOpts);
 
   // Use computed ShapesOwned (matches game formula) capped by available shape definitions
   const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
@@ -2394,6 +2486,29 @@ function optimizeShapePlacement() {
       }
     }
 
+    // Fine refinement: 1px precision around coarse best (±14px neighborhood)
+    if (bestPlacement) {
+      const coarseX = bestPlacement.x, coarseY = bestPlacement.y, coarseRot = bestPlacement.rot;
+      for (let rx = -14; rx <= 14; rx++) {
+        for (let ry = -14; ry <= 14; ry++) {
+          if (rx === 0 && ry === 0) continue;
+          const fx = coarseX + rx, fy = coarseY + ry;
+          const allCells = getShapeCellCoverage(si, fx, fy, coarseRot);
+          const newCells = allCells.filter(c => !coveredCells.has(c));
+          if (newCells.length === 0) continue;
+          let score = 0;
+          for (const c of newCells) score += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
+          const overlap = allCells.length - newCells.length;
+          if (overlap > 0) score *= newCells.length / allCells.length;
+          if (score > bestScore) {
+            bestScore = score;
+            bestPlacement = { shapeIdx: si, x: fx, y: fy, rot: coarseRot, score };
+            bestCells = newCells;
+          }
+        }
+      }
+    }
+
     if (bestPlacement) {
       for (const c of bestCells) coveredCells.add(c);
       placements.push({
@@ -2415,6 +2530,12 @@ function optimizeShapePlacement() {
   const improvement = optimizedTotal - currentTotal;
   const improvPct = currentTotal > 0 ? improvement / currentTotal * 100 : 0;
 
+  // Build shape positions array for SVG rendering
+  const optimizedPositions = [];
+  for (const p of placements) {
+    optimizedPositions[p.shapeIdx] = { x: p.x, y: p.y, rot: p.rot };
+  }
+
   return {
     placements,
     cellValues,
@@ -2423,6 +2544,7 @@ function optimizeShapePlacement() {
     improvement,
     improvPct,
     optimizedOverlay: optimizedSO,
+    optimizedPositions,
   };
 }
 
@@ -2612,6 +2734,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
       const idx = Number(idxStr);
       const info = RES_GRID_RAW[idx];
       if ((gl[idx] || 0) >= info[1]) continue;
+      if (!isGridCellUnlocked(idx, gl)) continue;
       gl[idx] = (gl[idx] || 0) + 1;
       const immediateGain = simTotalExpWith(gl, so, md, il, occ) - curRate;
       gl[idx]--;
@@ -2632,7 +2755,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
       // Run mini forward sim
       let tIL = il.slice(), tIP = ip.slice();
       let tMD = md.map(m => ({...m}));
-      let tSO = optimizeShapesFor(gl, so);
+      let tSO = optimizeShapesFor(gl, so).overlay;
       tMD = chooseMonoTargets(tMD, tIL, tIP, occ, gl, tSO, mMax);
       let tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ);
       let totalExp = 0;
@@ -2660,7 +2783,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax) {
     if (bestIdx < 0) break;
     gl[bestIdx] = (gl[bestIdx] || 0) + 1;
     // Re-optimize shapes after grid change
-    so = optimizeShapesFor(gl, so);
+    so = optimizeShapesFor(gl, so).overlay;
     avail--;
     changed = true;
   }
@@ -2734,13 +2857,13 @@ function _evalMagScoreWith(trialMags, gl, so, il, occ) {
   return total;
 }
 
-function optimizeShapesFor(gl, so) {
+function optimizeShapesFor(gl, so, simOpts) {
   // Run shape optimizer using explicit gridLevels; temporarily swaps globals
   const origGL = gridLevels, origSO = shapeOverlay;
   gridLevels = gl; shapeOverlay = so;
-  const result = optimizeShapePlacement();
+  const result = optimizeShapePlacement(simOpts);
   gridLevels = origGL; shapeOverlay = origSO;
-  return result.optimizedOverlay;
+  return { overlay: result.optimizedOverlay, positions: result.optimizedPositions };
 }
 
 function insightAffectsExp(gl, so) {
@@ -2925,9 +3048,20 @@ function unifiedSim(config) {
     md = optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax);
   }
 
-  // Initial shape optimization
+  // Initial shape optimization (sim-aware: captures insight cascading effects)
+  let sp = [];
   if (config.reoptimize !== false) {
-    so = optimizeShapesFor(gl, so);
+    const shapeResult = optimizeShapesFor(gl, so, {
+      target: config.target,
+      magData: md.map(m=>({...m})),
+      insightLvs: il.slice(),
+      insightProgress: ip.slice(),
+      occFound: occ.slice(),
+      researchLevel: rLv,
+      currentExp: rExp,
+    });
+    so = shapeResult.overlay;
+    sp = shapeResult.positions;
   }
 
   // Assign monocles optimally — use full remaining sim time as lookahead
@@ -2940,7 +3074,7 @@ function unifiedSim(config) {
   let curExpHr = simTotalExpWith(gl, so, md, il, occ);
   const phases = [{
     time: 0, event: 'start', expHr: curExpHr,
-    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
     rLv, rExp,
     preOptExpHr: config.preOptExpHr || curExpHr
   }];
@@ -2993,14 +3127,16 @@ function unifiedSim(config) {
     if ((rLeveledUp || insightMatters) && config.reoptimize !== false) {
       // Full reconfig: mags, shapes, monocles
       md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax);
-      so = optimizeShapesFor(gl, so);
+      const midShapeResult = optimizeShapesFor(gl, so);
+      so = midShapeResult.overlay;
+      sp = midShapeResult.positions;
       const monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
       md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA);
       curExpHr = simTotalExpWith(gl, so, md, il, occ);
       const eventType = rLeveledUp && insightMatters ? 'level+insight' : rLeveledUp ? 'level-up' : 'insight-up';
       phases.push({
         time: currentTime, event: eventType, expHr: curExpHr,
-        config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+        config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
         rLv, rExp
       });
     } else if (insightLeveledUp && config.reoptimize !== false) {
@@ -3013,7 +3149,7 @@ function unifiedSim(config) {
   // Final phase
   phases.push({
     time: currentTime, event: 'end', expHr: curExpHr,
-    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice() },
+    config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
     rLv, rExp
   });
 
@@ -3030,10 +3166,10 @@ async function runOptimizer(target, progressCb) {
   const preOptRate = simTotalExp().total;
   const baseline = unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate });
 
-  // Find spendable points: grid squares that are below max
+  // Find spendable points: grid squares that are below max and unlocked (adjacent)
   const spendable = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
     const info = RES_GRID_RAW[idx];
-    return (gridLevels[idx] || 0) < info[1];
+    return (gridLevels[idx] || 0) < info[1] && isGridCellUnlocked(idx, gridLevels);
   });
 
   if (spendable.length === 0) {
@@ -3082,7 +3218,7 @@ async function runOptimizer(target, progressCb) {
     const beam = beams[bi];
     const remaining = spendable.filter(idx => {
       const info = RES_GRID_RAW[idx];
-      return (beam.gl[idx] || 0) < info[1];
+      return (beam.gl[idx] || 0) < info[1] && isGridCellUnlocked(idx, beam.gl);
     });
     for (const idx of remaining) {
       const gl2 = beam.gl.slice();
@@ -3359,7 +3495,7 @@ function renderDashboard() {
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.classList.add('shape-svg');
-    svg.setAttribute('viewBox', '14 23 600 360');
+    svg.setAttribute('viewBox', '15 24 600 360');
     svg.setAttribute('preserveAspectRatio', 'none');
     for (const si of activeShapes) {
       const poly = computeShapePolygon(si);
@@ -3380,11 +3516,11 @@ function renderDashboard() {
   // Observations — v1-style: 8 cols, full names, text mag indicators, EXP*multi, insight rate, hover tooltip
   const obsDiv = document.getElementById('dash-obs');
   obsDiv.innerHTML = '';
-  const occCount = getOccurrenceCount();
+  const occTBF = computeOccurrencesToBeFound();
   const kalMap = buildKaleiMap();
   const resMulti = simTotalExp().multi;
 
-  for (let i = 0; i < Math.min(occCount, OCC_DATA.length); i++) {
+  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     const cell = document.createElement('div');
     const found = occFound[i] >= 1;
     cell.className = 'obs-cell ' + (found ? 'found' : 'not-found');
@@ -3765,7 +3901,7 @@ function renderActions(sim, bestSteps) {
       // Shape grid toggle
       if (shapeChanges > 0) {
         html += `<div style="margin-top:6px;"><a href="#" style="font-size:.85em;color:var(--cyan);text-decoration:none;" onclick="event.stopPropagation();event.preventDefault();var el=document.getElementById('${gridId}');el.style.display=el.style.display==='none'?'block':'none';">\u25b6 Show shape grid</a></div>`;
-        html += `<div id="${gridId}" style="display:none;margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl)}</div>`;
+        html += `<div id="${gridId}" style="display:none;margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div>`;
       }
       html += `</div>`;
     }
@@ -3880,7 +4016,7 @@ function renderExpChart(sim) {
   chartDiv.innerHTML = svg;
 }
 
-function renderMiniGrid(overlay, gl) {
+function renderMiniGrid(overlay, gl, positions) {
   const usedGL = gl || gridLevels;
   const cellSize = 24;
   const COLS = GRID_COLS;
@@ -3924,17 +4060,29 @@ function renderMiniGrid(overlay, gl) {
     }
     html += `<div style="width:${cellSize}px;height:${cellSize}px;background:${bg};border-top:${bT};border-bottom:${bB};border-left:${bL};border-right:${bR};display:flex;align-items:center;justify-content:center;font-size:.4em;color:${labelColor};font-weight:600;overflow:hidden;box-sizing:border-box;" title="${info?info[0].replace(/_/g,' ')+(lv>0?' LV'+lv:isGridCellUnlocked(i,usedGL)?' (available)':''):''} ${si>=0?'Shape '+si:''}">${label}</div>`;
   }
-  // SVG shape polygon overlay (same as dashboard grid)
+  // SVG shape polygon overlay — use provided positions if available, else global
   const activeShapes = new Set();
   for (let i = 0; i < overlay.length; i++) {
     if (overlay[i] >= 0) activeShapes.add(overlay[i]);
   }
   if (activeShapes.size > 0) {
+    const usePos = positions || shapePositions;
     const gw = COLS * cellSize, gh = GRID_ROWS * cellSize;
-    let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="14 23 600 360" preserveAspectRatio="none">`;
+    let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="15 24 600 360" preserveAspectRatio="none">`;
     for (const si of activeShapes) {
-      const poly = computeShapePolygon(si);
-      if (!poly) continue;
+      const pos = usePos[si];
+      if (!pos) continue;
+      const verts = SHAPE_VERTICES[si];
+      const dims = SHAPE_DIMS[si];
+      if (!verts || !dims) continue;
+      const cx = dims[0] / 2, cy = dims[1] / 2;
+      const angle = (pos.rot || 0) * Math.PI / 180;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      const poly = verts.map(([vx, vy]) => {
+        const dx = vx - cx, dy = vy - cy;
+        return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
+                Math.round(cy + pos.y + dx * sinA + dy * cosA)];
+      });
       svg += `<polygon points="${poly.map(([x,y])=>x+','+y).join(' ')}" fill="none" stroke="${SHAPE_COLORS[si]}" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>`;
     }
     svg += '</svg>';
