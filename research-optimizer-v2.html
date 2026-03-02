@@ -5155,7 +5155,11 @@ function computeObsUnlockPriority() {
     });
   }
 
-  results.sort((a, b) => b.score - a.score);
+  results.sort((a, b) => {
+    // canUseNow entries always above "Wait" entries
+    if (a.canUseNow !== b.canUseNow) return a.canUseNow ? -1 : 1;
+    return b.score - a.score;
+  });
   return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
 }
 
