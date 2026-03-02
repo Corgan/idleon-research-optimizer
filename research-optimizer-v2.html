@@ -160,6 +160,8 @@ h1 span { color: var(--accent); }
 <div class="tabs">
   <div class="tab active" data-tab="dashboard">Dashboard</div>
   <div class="tab" data-tab="optimizer">Optimizer</div>
+  <div class="tab" data-tab="insight-roi">Insight ROI</div>
+  <div class="tab" data-tab="obs-unlock">Obs Unlock</div>
   <!-- <div class="tab" data-tab="sandbox">Sandbox</div> -->
 </div>
 
@@ -188,6 +190,7 @@ h1 span { color: var(--accent); }
 
 <!-- ===== OPTIMIZER TAB ===== -->
 <div id="tab-optimizer" class="tab-content">
+  <div style="text-align:center;margin:12px 16px 0;"><span style="display:inline-block;background:#4a3800;border:1px solid var(--gold);border-radius:6px;padding:6px 12px;font-size:.85em;color:var(--gold);">&#9888; WIP &mdash; These estimates are experimental. Use your best judgement!</span></div>
   <div class="optimizer" id="optimizer">
     <div class="opt-section" style="border:2px solid var(--accent);">
       <h3 style="color:var(--accent);">Optimization Target</h3>
@@ -273,6 +276,34 @@ h1 span { color: var(--accent); }
       <h3 style="color:var(--green);">Scenario Comparison</h3>
       <div id="sb-comparison-body"></div>
     </div>
+  </div>
+</div>
+
+<!-- ===== INSIGHT ROI TAB ===== -->
+<div id="tab-insight-roi" class="tab-content">
+  <div style="text-align:center;margin:12px 16px 0;"><span style="display:inline-block;background:#4a3800;border:1px solid var(--gold);border-radius:6px;padding:6px 12px;font-size:.85em;color:var(--gold);">&#9888; WIP &mdash; These estimates are experimental. Use your best judgement!</span></div>
+  <div class="info-panel" id="insight-roi-summary"></div>
+  <div style="max-width:1400px;margin:16px auto;">
+    <h3 style="color:var(--purple);margin-bottom:8px;">Insight Leveling ROI Analysis</h3>
+    <p style="color:var(--text2);font-size:.9em;margin-bottom:16px;">
+      For each observation, shows the time to level insight, research EXP lost during the grind,
+      the permanent rate gain after leveling, and how long it takes to recoup the lost EXP.
+    </p>
+    <div id="insight-roi-table"></div>
+  </div>
+</div>
+
+<!-- ===== OBS UNLOCK TAB ===== -->
+<div id="tab-obs-unlock" class="tab-content">
+  <div style="text-align:center;margin:12px 16px 0;"><span style="display:inline-block;background:#4a3800;border:1px solid var(--gold);border-radius:6px;padding:6px 12px;font-size:.85em;color:var(--gold);">&#9888; WIP &mdash; These estimates are experimental. Use your best judgement!</span></div>
+  <div class="info-panel" id="obs-unlock-summary"></div>
+  <div style="max-width:1400px;margin:16px auto;">
+    <h3 style="color:var(--gold);margin-bottom:8px;">Observation Unlock Priority</h3>
+    <p style="color:var(--text2);font-size:.9em;margin-bottom:16px;">
+      Ranks undiscovered observations by expected EXP/hr gain weighted by the probability of unlocking them per day.
+      Higher priority = bigger reward for easier rolls.
+    </p>
+    <div id="obs-unlock-table"></div>
   </div>
 </div>
 
@@ -368,21 +399,21 @@ const SHAPE_VERTICES = [
 const SHAPE_DIMS = [[33,60],[59,59],[33,33],[76,68],[111,83],[84,82],[142,64],[104,128],[71,64],[103,61]];
 
 const OCC_DATA = [
-  {name:"Bored_Tree",roll:1},{name:"Shopping_Oyster",roll:3},{name:"Bridge_Plank",roll:5},
-  {name:"Carrot_Patch",roll:6},{name:"Salty_Seawebs",roll:8},{name:"Dogbone_Tombstone",roll:10},
-  {name:"Ominous_Signage",roll:11},{name:"Canyon_Pointerino",roll:13},{name:"Corange_Coral",roll:15},
-  {name:"Oasis_Erosion",roll:17},{name:"Barnacle_Brothers",roll:20},{name:"Green_Shallowrock",roll:22},
-  {name:"Broken_Spacerocks",roll:24},{name:"Meenie_Cactus",roll:27},{name:"Coraltree_Branch",roll:30},
-  {name:"Useless_Anchor",roll:31},{name:"Oboe_Coral_Trio",roll:34},{name:"Spadespire",roll:37},
-  {name:"Seaswept_Ruins",roll:40},{name:"Tetrino_Stones",roll:42},{name:"Stalagtite",roll:45},
-  {name:"OG_Secret_Rock",roll:48},{name:"Happy_Piggy",roll:50},{name:"Treeception",roll:52},
-  {name:"Keymaster",roll:55},{name:"Space_Drip",roll:57},{name:"Coralcave_Coral",roll:60},
-  {name:"Unblinking_Eye",roll:63},{name:"Monster_Decoy",roll:66},{name:"Standard_Stump",roll:70},
-  {name:"Big_Ol_Reef",roll:72},{name:"Oasis_Palm",roll:74},{name:"Stalagmite",roll:76},
-  {name:"Rope_Lamp",roll:78},{name:"Unremarkable_Rock",roll:80},{name:"Standard_Mine",roll:82},
-  {name:"Ancient_Chainrope",roll:84},{name:"Birchtree_Bitty",roll:87},{name:"Unreachable_Grate",roll:90},
-  {name:"Genuine_Deadwood",roll:92},{name:"Rifty_Crystals",roll:94},{name:"Pirate_Flag",roll:97},
-  {name:"Happy_Tree",roll:100},
+  {name:"Bored_Tree",roll:1,rollReq:1},{name:"Shopping_Oyster",roll:3,rollReq:30},{name:"Bridge_Plank",roll:5,rollReq:50},
+  {name:"Carrot_Patch",roll:6,rollReq:60},{name:"Salty_Seawebs",roll:8,rollReq:70},{name:"Dogbone_Tombstone",roll:10,rollReq:75},
+  {name:"Ominous_Signage",roll:11,rollReq:80},{name:"Canyon_Pointerino",roll:13,rollReq:82},{name:"Corange_Coral",roll:15,rollReq:85},
+  {name:"Oasis_Erosion",roll:17,rollReq:90},{name:"Barnacle_Brothers",roll:20,rollReq:92},{name:"Green_Shallowrock",roll:22,rollReq:93},
+  {name:"Broken_Spacerocks",roll:24,rollReq:93},{name:"Meenie_Cactus",roll:27,rollReq:94},{name:"Coraltree_Branch",roll:30,rollReq:95},
+  {name:"Useless_Anchor",roll:31,rollReq:95},{name:"Oboe_Coral_Trio",roll:34,rollReq:96},{name:"Spadespire",roll:37,rollReq:96},
+  {name:"Seaswept_Ruins",roll:40,rollReq:97},{name:"Tetrino_Stones",roll:42,rollReq:97},{name:"Stalagtite",roll:45,rollReq:97},
+  {name:"OG_Secret_Rock",roll:48,rollReq:98},{name:"Happy_Piggy",roll:50,rollReq:98},{name:"Treeception",roll:52,rollReq:99},
+  {name:"Keymaster",roll:55,rollReq:100},{name:"Space_Drip",roll:57,rollReq:100},{name:"Coralcave_Coral",roll:60,rollReq:100},
+  {name:"Unblinking_Eye",roll:63,rollReq:100},{name:"Monster_Decoy",roll:66,rollReq:101},{name:"Standard_Stump",roll:70,rollReq:101},
+  {name:"Big_Ol_Reef",roll:72,rollReq:101},{name:"Oasis_Palm",roll:74,rollReq:101},{name:"Stalagmite",roll:76,rollReq:102},
+  {name:"Rope_Lamp",roll:78,rollReq:102},{name:"Unremarkable_Rock",roll:80,rollReq:102},{name:"Standard_Mine",roll:82,rollReq:103},
+  {name:"Ancient_Chainrope",roll:84,rollReq:103},{name:"Birchtree_Bitty",roll:87,rollReq:104},{name:"Unreachable_Grate",roll:90,rollReq:104},
+  {name:"Genuine_Deadwood",roll:92,rollReq:104},{name:"Rifty_Crystals",roll:94,rollReq:105},{name:"Pirate_Flag",roll:97,rollReq:105},
+  {name:"Happy_Tree",roll:100,rollReq:105},
 ];
 
 // Static data from game code
@@ -2511,11 +2542,47 @@ function optimizeShapePlacement(simOpts) {
   const canRotate = researchLevel >= 90;
   const rotations = canRotate ? [0, 90, 180, 270] : [0];
 
+  // Helper: score a placement candidate
+  function _scorePlacement(si, x, y, rot, coveredCells) {
+    const allCells = getShapeCellCoverage(si, x, y, rot);
+    const newCells = allCells.filter(c => !coveredCells.has(c));
+    if (newCells.length === 0) return null;
+    let expScore = 0;
+    for (const c of newCells) expScore += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
+    return { x, y, rot, expScore, nodeCount: newCells.length, newCells };
+  }
+
+  // Helper: true if candidate a is strictly better than b (EXP first, node count only as tiebreaker)
+  function _betterThan(a, b) {
+    if (a.expScore !== b.expScore) return a.expScore > b.expScore;
+    return a.nodeCount > b.nodeCount;
+  }
+
+  // Helper: keep a sorted top-K list, deduplicating by covered-cell-set
+  function _insertCandidate(list, cand, maxK) {
+    // Deduplicate: skip if an existing candidate covers the exact same cells
+    const key = cand.newCells.slice().sort((a,b) => a-b).join(',');
+    for (const c of list) {
+      if (c._cellKey === key) {
+        if (_betterThan(cand, c)) { Object.assign(c, cand); c._cellKey = key; }
+        return;
+      }
+    }
+    cand._cellKey = key;
+    list.push(cand);
+    list.sort((a, b) => {
+      if (a.expScore !== b.expScore) return b.expScore - a.expScore;
+      return b.nodeCount - a.nodeCount;
+    });
+    if (list.length > maxK) list.length = maxK;
+  }
+
   for (const si of shapeOrder) {
     const dims = SHAPE_DIMS[si];
     if (!dims) continue;
 
-    let bestScore = -Infinity;
+    let bestExpScore = -Infinity;
+    let bestNodeCount = -1;
     let bestPlacement = null;
     let bestCells = [];
 
@@ -2523,88 +2590,71 @@ function optimizeShapePlacement(simOpts) {
     const uncovered = valuedCells.filter(c => !coveredCells.has(c.idx));
     if (uncovered.length === 0) break;
 
-    // Coarse search: generate positions around each anchor cell.
-    // Use finer step (10px) for small shapes to avoid missing placements.
-    const step = Math.max(dims[0], dims[1]) < 70 ? 10 : 15;
-    const seen = new Set(); // deduplicate positions
-    // Keep top-K coarse candidates for fine refinement
-    const COARSE_TOP_K = 5;
-    const coarseTop = [];
+    // ── Stage 1: Coarse scan (step=15) ──
+    // Cast a wide net across all anchor positions
+    const seen1 = new Set();
+    const stage1Top = [];
+    const STAGE1_K = 12;
 
     for (const anchor of uncovered) {
       const col = anchor.idx % GRID_COLS;
       const row = Math.floor(anchor.idx / GRID_COLS);
       const anchorX = 15 + 30 * col + 15;
       const anchorY = 24 + 30 * row + 15;
-
-      // Try positions where shape overlaps this anchor cell
       const halfW = Math.ceil(dims[0] / 2);
       const halfH = Math.ceil(dims[1] / 2);
 
-      for (let ox = -halfW; ox <= halfW; ox += step) {
-        for (let oy = -halfH; oy <= halfH; oy += step) {
-          const px = anchorX - dims[0] / 2 + ox;
-          const py = anchorY - dims[1] / 2 + oy;
-          // Snap to grid alignment to reduce duplicate evals
-          const snapX = Math.round(px / step) * step;
-          const snapY = Math.round(py / step) * step;
-
+      for (let ox = -halfW; ox <= halfW; ox += 15) {
+        for (let oy = -halfH; oy <= halfH; oy += 15) {
+          const snapX = Math.round((anchorX - dims[0] / 2 + ox) / 15) * 15;
+          const snapY = Math.round((anchorY - dims[1] / 2 + oy) / 15) * 15;
           for (const rot of rotations) {
             const key = `${snapX},${snapY},${rot}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-
-            // Get FULL coverage (no exclusion) to detect overlap
-            const allCells = getShapeCellCoverage(si, snapX, snapY, rot);
-            const newCells = allCells.filter(c => !coveredCells.has(c));
-            if (newCells.length === 0) continue;
-
-            let score = 0;
-            for (const c of newCells) {
-              score += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
-            }
-            // Tiebreaker: prefer covering more grid nodes even if they have no research value
-            score += newCells.length * 1e-8;
-
-            // Track top-K coarse candidates
-            if (coarseTop.length < COARSE_TOP_K || score > coarseTop[coarseTop.length - 1].score) {
-              coarseTop.push({ x: snapX, y: snapY, rot, score, newCells });
-              coarseTop.sort((a, b) => b.score - a.score);
-              if (coarseTop.length > COARSE_TOP_K) coarseTop.length = COARSE_TOP_K;
-            }
+            if (seen1.has(key)) continue;
+            seen1.add(key);
+            const cand = _scorePlacement(si, snapX, snapY, rot, coveredCells);
+            if (cand) _insertCandidate(stage1Top, cand, STAGE1_K);
           }
         }
       }
     }
 
-    // Fine refinement: 1px precision around each top-K coarse candidate
-    // Try all rotations at each fine position (not just the coarse winner's rotation)
-    const fineRadius = step - 1;
-    for (const cand of coarseTop) {
-      for (let rx = -fineRadius; rx <= fineRadius; rx++) {
-        for (let ry = -fineRadius; ry <= fineRadius; ry++) {
+    // ── Stage 2: Medium refinement (step=5) around stage 1 winners ──
+    // Narrows in on the best regions with 5px precision
+    const seen2 = new Set();
+    const stage2Top = [];
+    const STAGE2_K = 8;
+    for (const c1 of stage1Top) {
+      for (let rx = -15; rx <= 15; rx += 5) {
+        for (let ry = -15; ry <= 15; ry += 5) {
           for (const rot of rotations) {
-            if (rx === 0 && ry === 0 && rot === cand.rot) continue;
-            const fx = cand.x + rx, fy = cand.y + ry;
-            const allCells = getShapeCellCoverage(si, fx, fy, rot);
-            const newCells = allCells.filter(c => !coveredCells.has(c));
-            if (newCells.length === 0) continue;
-            let score = 0;
-            for (const c of newCells) score += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
-            score += newCells.length * 1e-8;
-            if (score > bestScore) {
-              bestScore = score;
-              bestPlacement = { shapeIdx: si, x: fx, y: fy, rot, score };
-              bestCells = newCells;
-            }
+            const fx = c1.x + rx, fy = c1.y + ry;
+            const key = `${fx},${fy},${rot}`;
+            if (seen2.has(key)) continue;
+            seen2.add(key);
+            const cand = _scorePlacement(si, fx, fy, rot, coveredCells);
+            if (cand) _insertCandidate(stage2Top, cand, STAGE2_K);
           }
         }
       }
-      // Also evaluate the coarse candidate itself
-      if (cand.score > bestScore) {
-        bestScore = cand.score;
-        bestPlacement = { shapeIdx: si, x: cand.x, y: cand.y, rot: cand.rot, score: cand.score };
-        bestCells = cand.newCells;
+    }
+
+    // ── Stage 3: Fine refinement (step=1) around stage 2 winners ──
+    // Pixel-perfect placement to maximize coverage
+    for (const c2 of stage2Top) {
+      for (let rx = -5; rx <= 5; rx++) {
+        for (let ry = -5; ry <= 5; ry++) {
+          for (const rot of rotations) {
+            const fx = c2.x + rx, fy = c2.y + ry;
+            const cand = _scorePlacement(si, fx, fy, rot, coveredCells);
+            if (cand && _betterThan(cand, { expScore: bestExpScore, nodeCount: bestNodeCount })) {
+              bestExpScore = cand.expScore;
+              bestNodeCount = cand.nodeCount;
+              bestPlacement = { shapeIdx: si, x: fx, y: fy, rot, expScore: cand.expScore };
+              bestCells = cand.newCells;
+            }
+          }
+        }
       }
     }
 
@@ -2830,7 +2880,7 @@ function _gridPointsAvail(gl, rLv) {
   return Math.max(0, earned - spent);
 }
 
-function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs) {
+function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rExp) {
   let avail = _gridPointsAvail(gl, rLv);
   if (avail <= 0) return { changed: false, so };
 
@@ -2872,47 +2922,92 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs) {
     const top = candidates.slice(0, 10);
 
     // Phase 2: lookahead sim on top candidates using time horizon
-    // Captures insight rate improvements, kaleidoscope interactions, etc.
-    // Sets global ABM for deep calls (optimizeShapesFor, chooseMonoTargets) that can't take ctx yet
+    // Simulates level-ups and spends newly earned grid points during the lookahead
+    // so that EXP-boosting nodes get proper credit for accelerating to the next level.
     const laHrs = Math.max(1, Math.min(lookAheadHrs || 2, 72));
     const MAX_PHASE2_TICKS = 72;
     const TICK_SEC = Math.max(600, Math.ceil(laHrs * 3600 / MAX_PHASE2_TICKS));
     const LOOK_TICKS = Math.min(Math.ceil(laHrs * 3600 / TICK_SEC), MAX_PHASE2_TICKS);
     let bestIdx = -1, bestExp = -Infinity;
 
-    const lookHours = laHrs;
-    for (const { idx, pathBonus: pb } of top) {
-      gl[idx] = (gl[idx] || 0) + 1;
-      const p2Ctx = { ...ctx, abm: calcAllBonusMulti(gl) };
+    for (const { idx } of top) {
+      // Clone gl for this candidate since level-ups will mutate it
+      const tGL = gl.slice();
+      tGL[idx] = (tGL[idx] || 0) + 1;
+      const p2Ctx = { ...ctx, abm: calcAllBonusMulti(tGL) };
       allBonusMulti = p2Ctx.abm; // sync global for deep calls
-      // Run mini forward sim
+      // Run mini forward sim with level-up simulation
       let tIL = il.slice(), tIP = ip.slice();
       let tMD = md.map(m => ({...m}));
-      let tSO = optimizeShapesFor(gl, so, undefined, rLv).overlay;
-      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, gl, tSO, mMax, laHrs, rLv);
-      let tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ, rLv, p2Ctx);
+      let tSO = optimizeShapesFor(tGL, so, undefined, rLv).overlay;
+      let tMMax = mMax;
+      let tRLv = rLv, tRExp = rExp || 0;
+      let tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
+      _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
+      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
+      let tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
       let totalExp = 0;
       for (let t = 0; t < LOOK_TICKS; t++) {
         totalExp += tRate / 3600 * TICK_SEC;
+        tRExp += tRate / 3600 * TICK_SEC;
+
+        // Check for level-ups
+        let lvUp = false;
+        while (tRExp >= researchExpReq(tRLv)) {
+          tRExp -= researchExpReq(tRLv);
+          tRLv++;
+          lvUp = true;
+          const nm = magMaxForLevel(tRLv);
+          if (nm > tMMax) tMMax = nm;
+        }
+        if (lvUp) {
+          // Spend newly earned grid points with quick immediate-gain greedy
+          let newAvail = _gridPointsAvail(tGL, tRLv);
+          while (newAvail > 0) {
+            let bestQIdx = -1, bestQRate = -Infinity;
+            for (const nStr of Object.keys(RES_GRID_RAW)) {
+              const ni = Number(nStr);
+              if ((tGL[ni] || 0) >= RES_GRID_RAW[ni][1]) continue;
+              if (!isGridCellUnlocked(ni, tGL)) continue;
+              tGL[ni] = (tGL[ni] || 0) + 1;
+              const niCtx = { ...p2Ctx, abm: calcAllBonusMulti(tGL) };
+              const niRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, niCtx);
+              if (niRate > bestQRate) { bestQRate = niRate; bestQIdx = ni; }
+              tGL[ni]--;
+            }
+            if (bestQIdx >= 0) {
+              tGL[bestQIdx] = (tGL[bestQIdx] || 0) + 1;
+              p2Ctx.abm = calcAllBonusMulti(tGL);
+              allBonusMulti = p2Ctx.abm;
+              // Grow mag pool if new mags unlocked
+              tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
+              _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
+              newAvail--;
+            } else break;
+          }
+          // Re-optimize shapes and mags after grid changes from level-up
+          tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv).overlay;
+          tMD = optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
+          tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
+          tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
+        }
+
         // Advance insight
         let insUp = false;
         const monoObsL = new Set();
         for (const m of tMD) { if (m.type === 1 && m.slot >= 0) monoObsL.add(m.slot); }
         for (const o of monoObsL) {
-          const iR = insightExpRate(o, tMD, tIL, gl, tSO, p2Ctx);
+          const iR = insightExpRate(o, tMD, tIL, tGL, tSO, p2Ctx);
           tIP[o] = (tIP[o] || 0) + iR / 3600 * TICK_SEC;
           let req = insightExpReqAt(o, tIL[o] || 0);
           while (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; req = insightExpReqAt(o, tIL[o] || 0); }
         }
-        if (insUp && insightAffectsExp(gl, tSO)) {
-          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, gl, tSO, mMax, rLv);
-          tRate = simTotalExpWith(gl, tSO, tMD, tIL, occ, rLv, p2Ctx);
+        if (insUp && insightAffectsExp(tGL, tSO)) {
+          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, tGL, tSO, tMMax, tRLv);
+          tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
         }
       }
-      gl[idx]--;
-      // Include scaled path bonus: the neighbor value that becomes accessible
-      const adjusted = totalExp + (pb || 0) * 0.5 * lookHours;
-      if (adjusted > bestExp) { bestExp = adjusted; bestIdx = idx; }
+      if (totalExp > bestExp) { bestExp = totalExp; bestIdx = idx; }
     }
     allBonusMulti = ctx.abm; // restore global to pre-trial state after phase 2
 
@@ -3241,7 +3336,7 @@ function unifiedSim(config) {
   // Spend any pre-existing available grid points before the sim starts
   if (config.reoptimize !== false) {
     const initLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, simTotalExpWith(gl, so, md, il, occ, rLv, ctx)), 72);
-    so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA).so;
+    so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA, rExp).so;
     ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
     mOwned = computeMagnifiersOwnedWith(gl, rLv);
     // Grow md if new mags were earned but not yet tracked (with correct types)
@@ -3292,7 +3387,7 @@ function unifiedSim(config) {
     // Spend newly earned grid points greedily on level-up
     if (rLeveledUp && config.reoptimize !== false) {
       const spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
-      so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA).so;
+      so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp).so;
       ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
       // Update mOwned in case grid spending unlocked new magnifiers (#72, #91)
       // or rLv crossed a threshold (10, 100, 130, 140)
@@ -4597,6 +4692,555 @@ function renderSandboxComparison() {
   bodyDiv.innerHTML = html;
 }
 
+// ===== INSIGHT ROI ANALYSIS =====
+// For each observation, compute the cost/benefit of grinding insight levels.
+// "Insight layout" = all monocles assigned to the target observation.
+// "Research layout" = all monocles converted back to regular mags on optimal slots.
+// Recoup time = how long on the research layout to recover the EXP lost during insight grind.
+
+function computeInsightROI() {
+  const occTBF = computeOccurrencesToBeFound();
+  const pool = magData.slice(0, magnifiersOwned);
+  const monoCount = pool.filter(m => m.type === 1).length;
+  if (monoCount === 0) return { monoCount: 0, rows: [] };
+
+  const numKalei = pool.filter(m => m.type === 2).length;
+  const numRegular = pool.filter(m => m.type === 0).length;
+
+  // Current optimal research rate (baseline)
+  const baseRate = simTotalExp().total;
+
+  const gl = gridLevels, so = shapeOverlay, il = insightLvs, occ = occFound;
+  const rLv = researchLevel;
+  const mMax = magMaxPerSlot;
+
+  // Available observation slots
+  const availSlots = [];
+  for (let s = 0; s < Math.min(occTBF, OCC_DATA.length); s++) {
+    if (isObsUsable(s, rLv, occ)) availSlots.push(s);
+  }
+
+  // Build a mag layout with monocles locked on targetObs and nAdjKalei kaleidoscopes
+  // pre-placed on adjacent slots (to boost insight rate). Remaining mags greedily
+  // placed for maximum research EXP.
+  function buildLayout(targetObs, nAdjKalei) {
+    const assigned = [];
+
+    // Pre-assign monocles on target
+    for (let k = 0; k < monoCount; k++) {
+      assigned.push({ type: 1, slot: targetObs, x: 0, y: 0 });
+    }
+
+    // Pre-assign kaleidoscopes adjacent to target (for insight boost)
+    if (nAdjKalei > 0) {
+      const adj = [];
+      const t = targetObs;
+      if (t % 8 !== 0) adj.push(t - 1);
+      if (t % 8 !== 7) adj.push(t + 1);
+      if (t >= 8) adj.push(t - 8);
+      if (t + 8 < 80) adj.push(t + 8);
+      let placed = 0;
+      for (const s of adj) {
+        if (placed >= nAdjKalei) break;
+        if (s < 0 || s >= occTBF || !isObsUsable(s, rLv, occ)) continue;
+        const inSlot = assigned.filter(a => a.slot === s).length;
+        if (inSlot >= mMax) continue;
+        assigned.push({ type: 2, slot: s, x: 0, y: 0 });
+        placed++;
+      }
+    }
+
+    // Count pre-placed kaleidoscopes
+    const preKalei = assigned.filter(a => a.type === 2).length;
+    const remainKalei = numKalei - preKalei;
+
+    // Greedily place remaining mags for research EXP
+    const toPlace = [];
+    for (let k = 0; k < remainKalei; k++) toPlace.push(2);
+    for (let k = 0; k < numRegular; k++) toPlace.push(0);
+
+    while (toPlace.length > 0) {
+      let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
+      const triedTypes = new Set();
+      for (let pi = 0; pi < toPlace.length; pi++) {
+        const magType = toPlace[pi];
+        if (triedTypes.has(magType)) continue;
+        triedTypes.add(magType);
+        for (const slot of availSlots) {
+          const inSlot = assigned.filter(a => a.slot === slot).length;
+          if (inSlot >= mMax) continue;
+          const trial = [...assigned, { type: magType, slot, x: 0, y: 0 }];
+          const score = _evalMagScoreWith(trial, gl, so, il, occ, rLv);
+          if (score > bestScore) { bestScore = score; bestSlot = slot; bestPI = pi; }
+        }
+      }
+      if (bestPI >= 0) {
+        assigned.push({ type: toPlace[bestPI], slot: bestSlot, x: 0, y: 0 });
+        toPlace.splice(bestPI, 1);
+      } else break;
+    }
+    return assigned;
+  }
+
+  // Evaluate a layout for a given obs and level gain
+  function evalLayout(mdLayout, obsIdx, targetLvGain, currentProgress) {
+    let totalGrindHrs = 0;
+    let simIP = currentProgress;
+    let simLv = il[obsIdx] || 0;
+
+    for (let g = 0; g < targetLvGain; g++) {
+      const iRate = insightExpRate(obsIdx, mdLayout, il, gl, so);
+      if (iRate <= 0) { totalGrindHrs = Infinity; break; }
+      const req = insightExpReqAt(obsIdx, simLv);
+      const remaining = Math.max(0, req - simIP);
+      totalGrindHrs += remaining / iRate;
+      simIP = 0;
+      simLv++;
+    }
+
+    const grindRate = simTotalExp({ magData: mdLayout }).total;
+    const expLostPerHr = baseRate - grindRate;
+    const totalExpLost = expLostPerHr * totalGrindHrs;
+
+    const newIL = il.slice();
+    newIL[obsIdx] = (il[obsIdx] || 0) + targetLvGain;
+    const postRate = simTotalExp({ insightLvs: newIL }).total;
+    const rateGain = postRate - baseRate;
+
+    const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
+    const breakEvenHrs = totalGrindHrs + recoupHrs;
+
+    return {
+      grindHrs: totalGrindHrs,
+      grindRate,
+      expLostPerHr,
+      totalExpLost,
+      postRate,
+      rateGain,
+      recoupHrs,
+      breakEvenHrs,
+      worth: isFinite(breakEvenHrs) && rateGain > 0,
+      insightRate: insightExpRate(obsIdx, mdLayout, il, gl, so),
+    };
+  }
+
+  const rows = [];
+  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
+    if (!isObsUsable(i)) continue;
+
+    const name = OCC_DATA[i].name.replace(/_/g, ' ');
+    const lv = il[i] || 0;
+    const progress = insightProgress[i] || 0;
+
+    // Try 0..min(numKalei,4) adjacent kaleidoscopes and pick the layout with
+    // the shortest break-even time for +1 insight.
+    const maxAdj = Math.min(numKalei, 4);
+    const layouts = [];
+    for (let nAdj = 0; nAdj <= maxAdj; nAdj++) {
+      layouts.push({ nAdj, md: buildLayout(i, nAdj) });
+    }
+
+    // Find best layout by +1 break-even
+    let bestLayout = layouts[0];
+    let bestBE = Infinity;
+    for (const l of layouts) {
+      const ev = evalLayout(l.md, i, 1, progress);
+      if (ev.breakEvenHrs < bestBE) { bestBE = ev.breakEvenHrs; bestLayout = l; }
+    }
+
+    // Build scenarios for +1 and +2 using the best layout
+    const scenarios = [];
+    for (const targetLvGain of [1, 2]) {
+      const ev = evalLayout(bestLayout.md, i, targetLvGain, progress);
+      ev.lvGain = targetLvGain;
+      ev.adjKalei = bestLayout.nAdj;
+      scenarios.push(ev);
+    }
+
+    rows.push({ idx: i, name, lv, progress, scenarios, grindLayout: bestLayout.md });
+  }
+
+  // Sort by +1 break-even time ascending (best ROI first)
+  rows.sort((a, b) => {
+    const aT = a.scenarios[0]?.breakEvenHrs ?? Infinity;
+    const bT = b.scenarios[0]?.breakEvenHrs ?? Infinity;
+    return aT - bT;
+  });
+
+  return { monoCount, baseRate, rows, baselineLayout: pool.slice() };
+}
+
+function _fmtLayoutHTML(layout, label) {
+  // Aggregate layout by slot: {slot: {0:count, 1:count, 2:count}}
+  const bySlot = {};
+  for (const m of layout) {
+    if (!bySlot[m.slot]) bySlot[m.slot] = {0:0, 1:0, 2:0};
+    bySlot[m.slot][m.type]++;
+  }
+  const magNames = ['Mag','Mono','Kalei'];
+  const magColors = ['var(--text)','var(--purple)','var(--cyan)'];
+  const slots = Object.keys(bySlot).map(Number).sort((a,b) => a - b);
+  if (slots.length === 0) return `<em style="color:var(--text2);">No mags placed</em>`;
+  let h = `<div style="display:flex;flex-wrap:wrap;gap:4px 10px;">`;
+  for (const s of slots) {
+    const counts = bySlot[s];
+    const oName = s < OCC_DATA.length ? OCC_DATA[s].name.replace(/_/g,' ') : `Slot ${s}`;
+    const parts = [];
+    for (let t = 0; t < 3; t++) {
+      if (counts[t] > 0) parts.push(`<span style="color:${magColors[t]};">${counts[t]}${magNames[t]}</span>`);
+    }
+    h += `<span style="background:rgba(255,255,255,.04);border-radius:4px;padding:1px 5px;font-size:.82em;white-space:nowrap;"><span style="color:var(--text2);">${oName}:</span> ${parts.join(' ')}</span>`;
+  }
+  h += '</div>';
+  return h;
+}
+
+function _fmtLayoutDiff(before, after) {
+  // Show before/after with changed slots highlighted
+  const aggregate = (layout) => {
+    const bySlot = {};
+    for (const m of layout) {
+      if (!bySlot[m.slot]) bySlot[m.slot] = [0,0,0];
+      bySlot[m.slot][m.type]++;
+    }
+    return bySlot;
+  };
+  const bSlots = aggregate(before), aSlots = aggregate(after);
+  const allSlots = new Set([...Object.keys(bSlots), ...Object.keys(aSlots)]);
+  const sorted = [...allSlots].map(Number).sort((a,b) => a - b);
+  const magNames = ['Mag','Mono','Kalei'];
+  const magColors = ['var(--text)','var(--purple)','var(--cyan)'];
+
+  const fmtSlot = (counts) => {
+    const parts = [];
+    for (let t = 0; t < 3; t++) {
+      if (counts[t] > 0) parts.push(`<span style="color:${magColors[t]};">${counts[t]}${magNames[t]}</span>`);
+    }
+    return parts.join(' ') || '<span style="color:var(--text2);">—</span>';
+  };
+  const arrEq = (a, b) => a[0]===b[0] && a[1]===b[1] && a[2]===b[2];
+
+  let h = '<table style="border-collapse:collapse;font-size:.82em;width:100%;">';
+  h += '<thead><tr style="color:var(--text2);border-bottom:1px solid #333;">';
+  h += '<th style="text-align:left;padding:2px 6px;">Obs Slot</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">Before (Research)</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">During (Grind)</th>';
+  h += '</tr></thead><tbody>';
+
+  for (const s of sorted) {
+    const bc = bSlots[s] || [0,0,0], ac = aSlots[s] || [0,0,0];
+    const changed = !arrEq(bc, ac);
+    const oName = s < OCC_DATA.length ? OCC_DATA[s].name.replace(/_/g,' ') : `Slot ${s}`;
+    const bg = changed ? 'background:rgba(255,200,50,.07);' : '';
+    h += `<tr style="${bg}">`;
+    h += `<td style="padding:2px 6px;color:var(--text2);white-space:nowrap;">${oName}${changed ? ' <span style="color:var(--gold);">*</span>' : ''}</td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(bc)}</td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(ac)}</td>`;
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function renderInsightROI() {
+  const data = computeInsightROI();
+  const summaryDiv = document.getElementById('insight-roi-summary');
+  const tableDiv = document.getElementById('insight-roi-table');
+  if (!summaryDiv || !tableDiv) return;
+
+  if (data.monoCount === 0) {
+    summaryDiv.innerHTML = '<span style="color:var(--text2);">No Optical Monocles owned. Unlock grid node K5 (Optical Monocle) to use insight.</span>';
+    tableDiv.innerHTML = '';
+    return;
+  }
+
+  summaryDiv.innerHTML =
+    `<span style="color:var(--text2);">Monocles: </span><span style="color:var(--purple);font-weight:700;">${data.monoCount}</span>` +
+    `<span style="color:var(--text2);margin-left:16px;">Current Research EXP/hr: </span><span style="color:var(--green);font-weight:700;">${fmtVal(data.baseRate)} <span style="color:var(--text2);font-weight:400;font-size:.85em;">(${fmtExact(data.baseRate)})</span></span>`;
+
+  const NCOLS = 11;
+  let html = '<div style="overflow-x:auto;">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.85em;">';
+  html += '<thead><tr style="border-bottom:2px solid var(--accent);color:var(--text2);">';
+  html += '<th style="text-align:left;padding:8px 6px;">Observation</th>';
+  html += '<th style="padding:8px 4px;">Insight LV</th>';
+  html += '<th style="padding:8px 4px;">+LV</th>';
+  html += '<th style="padding:8px 4px;">Insight/hr</th>';
+  html += '<th style="padding:8px 4px;">Grind Time</th>';
+  html += '<th style="padding:8px 4px;">EXP/hr During</th>';
+  html += '<th style="padding:8px 4px;">EXP Lost</th>';
+  html += '<th style="padding:8px 4px;">Rate Gain</th>';
+  html += '<th style="padding:8px 4px;">Recoup</th>';
+  html += '<th style="padding:8px 4px;">Break-Even</th>';
+  html += '<th style="padding:8px 4px;">Verdict</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const row of data.rows) {
+    const nScenarios = row.scenarios.length;
+    for (let si = 0; si < nScenarios; si++) {
+      const sc = row.scenarios[si];
+      const isFirst = si === 0;
+      // +1 for the collapsible layout row
+      const rowSpan = isFirst ? ` rowspan="${nScenarios}"` : '';
+      const borderTop = isFirst ? 'border-top:1px solid #333;' : '';
+
+      html += `<tr style="${borderTop}">`;
+      if (isFirst) {
+        html += `<td${rowSpan} style="padding:6px;font-weight:600;color:var(--text);">${row.name}</td>`;
+        html += `<td${rowSpan} style="text-align:center;padding:6px;color:var(--purple);">${row.lv}</td>`;
+      }
+      html += `<td style="text-align:center;padding:6px;color:var(--gold);">+${sc.lvGain}</td>`;
+
+      html += `<td style="text-align:center;padding:6px;color:var(--purple);">${sc.insightRate.toFixed(1)}</td>`;
+      html += `<td style="text-align:center;padding:6px;">${fmtTime(sc.grindHrs)}</td>`;
+      html += `<td style="text-align:center;padding:6px;color:var(--text2);">${fmtVal(sc.grindRate)}</td>`;
+      html += `<td style="text-align:center;padding:6px;color:#ff6b6b;">${isFinite(sc.totalExpLost) && sc.totalExpLost > 0 ? fmtExp(sc.totalExpLost) : '\u2014'}</td>`;
+
+      const gainColor = sc.rateGain > 0 ? 'var(--green)' : sc.rateGain < 0 ? '#ff6b6b' : 'var(--text2)';
+      html += `<td style="text-align:center;padding:6px;color:${gainColor};">${sc.rateGain > 0 ? '+' : ''}${fmtVal(sc.rateGain)}</td>`;
+      html += `<td style="text-align:center;padding:6px;">${fmtTime(sc.recoupHrs)}</td>`;
+
+      const beColor = sc.worth
+        ? (sc.breakEvenHrs < 24 ? 'var(--green)' : sc.breakEvenHrs < 72 ? 'var(--gold)' : 'var(--text)')
+        : '#ff6b6b';
+      html += `<td style="text-align:center;padding:6px;color:${beColor};font-weight:600;">${fmtTime(sc.breakEvenHrs)}</td>`;
+
+      let verdict = '\u2014';
+      let verdictColor = 'var(--text2)';
+      if (!sc.worth) {
+        verdict = 'No gain';
+        verdictColor = '#ff6b6b';
+      } else if (sc.breakEvenHrs < 1) {
+        verdict = 'Instant';
+        verdictColor = 'var(--green)';
+      } else if (sc.breakEvenHrs < 24) {
+        verdict = 'Great';
+        verdictColor = 'var(--green)';
+      } else if (sc.breakEvenHrs < 72) {
+        verdict = 'Good';
+        verdictColor = 'var(--gold)';
+      } else if (sc.breakEvenHrs < 168) {
+        verdict = 'Slow';
+        verdictColor = 'var(--text2)';
+      } else {
+        verdict = 'Skip';
+        verdictColor = '#ff6b6b';
+      }
+      html += `<td style="text-align:center;padding:6px;color:${verdictColor};font-weight:700;">${verdict}</td>`;
+      html += '</tr>';
+    }
+    // Collapsible layout row after each observation
+    html += `<tr><td colspan="${NCOLS}" style="padding:0 6px 6px;">`;
+    html += `<details style="margin:0;"><summary style="cursor:pointer;color:var(--accent);font-size:.82em;padding:2px 0;">Show mag layout (before / during grind)</summary>`;
+    html += `<div style="margin-top:4px;">${_fmtLayoutDiff(data.baselineLayout, row.grindLayout)}</div>`;
+    html += '</details></td></tr>';
+  }
+
+  html += '</tbody></table></div>';
+  tableDiv.innerHTML = html;
+}
+
+// ===== OBSERVATION UNLOCK PRIORITY =====
+function computeObsUnlockPriority() {
+  const rLv = researchLevel;
+  const occTBF = computeOccurrencesToBeFound();
+  const currentTotal = simTotalExp().total;
+
+  // Roll parameters
+  const smartEyeLv = gridLevels[31] || 0;
+  const sharpEyeLv = gridLevels[51] || 0;
+  const obsLv = gridLevels[90] || 0;
+  const maxRoll = Math.floor(100 + sharpEyeLv);
+  const smartEyePerFail = smartEyeLv; // +lv per failed roll to min
+  const smartEyeCap = 25 * smartEyeLv;  // mode 2 for node 31
+  const rollsPerDay = Math.round(3 + obsLv + 3 * eventShopOwned(35));
+  const failedRolls = Number(optionsListData[514]) || 0;
+
+  // EXP gain from full mag re-optimization after adding a new obs
+  // We'll simulate: mark obs as found, re-optimize mags, compute new rate
+  const results = [];
+
+  for (let t = 0; t < OCC_DATA.length; t++) {
+    if ((occFound[t] || 0) >= 1) continue; // already found
+    const name = OCC_DATA[t].name.replace(/_/g, ' ');
+    const rollThreshold = OCC_DATA[t].rollReq;
+    const requiredRLv = OCC_DATA[t].roll; // research level needed to USE the obs
+
+    // -- Roll probability --
+    // P(success on a single roll) = P(roll >= threshold)
+    // Roll is uniform int from minRoll to maxRoll
+    // After each FAILED roll in a session, the min increases (pity)
+    // We compute the probability of unlocking within 1 day of rolls
+    // accounting for the pity mechanic resetting on success
+    //
+    // Current state: failedRolls consecutive failures so far
+    // On each roll: min = floor(1 + min(consecutiveFails * smartEyePerFail, smartEyeCap))
+    //               roll = uniform int [min, maxRoll]
+    //               success if roll >= threshold
+    //               fail: consecutiveFails++
+    //               success: consecutiveFails = 0 (but we only care about first success)
+
+    // Compute P(at least one success in rollsPerDay rolls) with pity counter starting at failedRolls
+    let pFailAll = 1; // P(all rolls fail)
+    let simFails = failedRolls;
+    for (let r = 0; r < rollsPerDay; r++) {
+      const minRoll = Math.floor(1 + Math.min(simFails * smartEyePerFail, smartEyeCap));
+      const range = maxRoll - minRoll + 1;
+      if (range <= 0) { pFailAll = 0; break; } // min > max = guaranteed success
+      const successRange = Math.max(0, maxRoll - rollThreshold + 1);
+      const pSuccess = Math.min(1, Math.max(0, successRange / range));
+      const pFail = 1 - pSuccess;
+      pFailAll *= pFail;
+      if (pFailAll <= 0) break;
+      simFails++;
+    }
+    const pUnlockToday = 1 - pFailAll;
+
+    // Expected days to unlock (geometric distribution with pity)
+    // For accuracy we simulate up to 365 days
+    let expectedDays = Infinity;
+    if (pUnlockToday >= 1) {
+      expectedDays = 1;
+    } else if (pUnlockToday > 0) {
+      // Simulate expected days with pity accumulating across days
+      let cumProb = 0;
+      let eDays = 0;
+      let simF = failedRolls;
+      for (let day = 1; day <= 365; day++) {
+        let pFailDay = 1;
+        for (let r = 0; r < rollsPerDay; r++) {
+          const minR = Math.floor(1 + Math.min(simF * smartEyePerFail, smartEyeCap));
+          const rng = maxRoll - minR + 1;
+          if (rng <= 0) { pFailDay = 0; break; }
+          const sr = Math.max(0, maxRoll - rollThreshold + 1);
+          const pS = Math.min(1, Math.max(0, sr / rng));
+          pFailDay *= (1 - pS);
+          if (pFailDay <= 0) break;
+          simF++;
+        }
+        const pSuccessDay = 1 - pFailDay;
+        const pFirstSuccess = (1 - cumProb) * pSuccessDay;
+        eDays += day * pFirstSuccess;
+        cumProb += pFirstSuccess;
+        if (cumProb >= 0.9999) break;
+        // Note: pity counter does NOT reset between days if all rolls fail
+        // It only resets on any success. Since we're computing E[days to first success],
+        // simF keeps accumulating on the fail path.
+      }
+      expectedDays = cumProb > 0 ? eDays / cumProb : Infinity;
+    }
+
+    // -- EXP gain from unlocking --
+    // Only useful if rLv >= requiredRLv (can assign mags/kalei to it)
+    const canUseNow = rLv >= requiredRLv;
+
+    // Compute EXP gain: add obs to occFound, re-optimize mags, measure delta
+    const tempOF = occFound.slice();
+    tempOF[t] = 1;
+    // Full sim: with the new obs found, re-optimize mags to see actual impact
+    const tempMD = optimizeMagsFor(gridLevels, shapeOverlay, magData, insightLvs, tempOF,
+      magnifiersOwned, magMaxPerSlot, rLv);
+    const newRate = simTotalExpWith(gridLevels, shapeOverlay, tempMD, insightLvs, tempOF, rLv);
+    const expGain = canUseNow ? newRate - currentTotal : 0;
+
+    // Score: expected EXP gain weighted by probability
+    // "EXP gain per expected day" = expGain / expectedDays
+    const score = expectedDays > 0 && isFinite(expectedDays) ? expGain / expectedDays : 0;
+
+    results.push({
+      idx: t, name, rollThreshold, requiredRLv, canUseNow,
+      maxRoll, rollsPerDay, failedRolls,
+      pUnlockToday, expectedDays,
+      expGain, newRate, score,
+    });
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
+}
+
+function renderObsUnlock() {
+  const data = computeObsUnlockPriority();
+  const summaryDiv = document.getElementById('obs-unlock-summary');
+  const tableDiv = document.getElementById('obs-unlock-table');
+  if (!summaryDiv || !tableDiv) return;
+
+  summaryDiv.innerHTML =
+    `<span style="color:var(--text2);">Roll range: </span><span style="color:var(--gold);font-weight:700;">1\u2013${data.maxRoll}</span>` +
+    (data.smartEyeLv > 0 ? `<span style="color:var(--text2);margin-left:8px;font-size:.85em;">(Smart Eye pity +${data.smartEyeLv}/fail, cap +${data.smartEyeCap})</span>` : '') +
+    `<span style="color:var(--text2);margin-left:16px;">Rolls/day: </span><span style="color:var(--gold);font-weight:700;">${data.rollsPerDay}</span>` +
+    `<span style="color:var(--text2);margin-left:16px;">Failed streak: </span><span style="color:var(--purple);font-weight:700;">${data.failedRolls}</span>` +
+    `<span style="color:var(--text2);margin-left:16px;">Current EXP/hr: </span><span style="color:var(--green);font-weight:700;">${fmtVal(data.currentTotal)}</span>`;
+
+  if (data.results.length === 0) {
+    tableDiv.innerHTML = '<p style="color:var(--text2);">All observations discovered!</p>';
+    return;
+  }
+
+  let html = '<div style="overflow-x:auto;">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.85em;">';
+  html += '<thead><tr style="border-bottom:2px solid var(--accent);color:var(--text2);">';
+  html += '<th style="text-align:left;padding:8px 6px;">Observation</th>';
+  html += '<th style="padding:8px 4px;">Roll Req</th>';
+  html += '<th style="padding:8px 4px;">Res LV Req</th>';
+  html += '<th style="padding:8px 4px;">P(unlock/day)</th>';
+  html += '<th style="padding:8px 4px;">E[days]</th>';
+  html += '<th style="padding:8px 4px;">EXP/hr Gain</th>';
+  html += '<th style="padding:8px 4px;">EXP/hr / E[day]</th>';
+  html += '<th style="padding:8px 4px;">Priority</th>';
+  html += '</tr></thead><tbody>';
+
+  const maxScore = data.results.length > 0 ? Math.max(...data.results.map(r => r.score)) : 1;
+
+  for (const row of data.results) {
+    const borderTop = 'border-top:1px solid #333;';
+
+    // Roll difficulty coloring
+    let rollColor = 'var(--green)';
+    if (row.pUnlockToday < 0.01) rollColor = '#ff6b6b';
+    else if (row.pUnlockToday < 0.1) rollColor = 'var(--text2)';
+    else if (row.pUnlockToday < 0.5) rollColor = 'var(--gold)';
+
+    // Res LV status
+    const lvOk = row.canUseNow;
+    const lvColor = lvOk ? 'var(--green)' : '#ff6b6b';
+    const lvNote = lvOk ? '' : ' \u26A0';
+
+    // EXP gain
+    const gainColor = row.expGain > 0 ? 'var(--green)' : 'var(--text2)';
+
+    // Priority label
+    let priority = '\u2014', prioColor = 'var(--text2)';
+    if (row.score <= 0 || !row.canUseNow) {
+      priority = row.canUseNow ? 'Low' : 'Wait';
+      prioColor = '#ff6b6b';
+    } else if (row.score >= maxScore * 0.7) {
+      priority = 'Best';
+      prioColor = 'var(--green)';
+    } else if (row.score >= maxScore * 0.3) {
+      priority = 'Good';
+      prioColor = 'var(--gold)';
+    } else {
+      priority = 'Low';
+      prioColor = 'var(--text2)';
+    }
+
+    html += `<tr style="${borderTop}">`;
+    html += `<td style="padding:6px;font-weight:600;color:var(--text);">${row.name}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:var(--gold);">${row.rollThreshold}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:${lvColor};">${row.requiredRLv}${lvNote}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:${rollColor};">${(row.pUnlockToday * 100).toFixed(1)}%</td>`;
+    html += `<td style="text-align:center;padding:6px;">${isFinite(row.expectedDays) ? row.expectedDays.toFixed(1) + 'd' : '\u2014'}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:${gainColor};">${row.expGain > 0 ? '+' + fmtVal(row.expGain) : '\u2014'}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:${row.score > 0 ? 'var(--cyan)' : 'var(--text2)'};">${row.score > 0 ? fmtVal(row.score) : '\u2014'}</td>`;
+    html += `<td style="text-align:center;padding:6px;color:${prioColor};font-weight:700;">${priority}</td>`;
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  tableDiv.innerHTML = html;
+}
+
 // ===== MAIN RENDER =====
 function renderAll() {
   renderDashboard();
@@ -4620,6 +5264,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'insight-roi') renderInsightROI();
+    if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
   });
 });
 
