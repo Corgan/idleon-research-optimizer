@@ -132,6 +132,16 @@ h1 span { color: var(--accent); }
   <span style="color:var(--text2);margin:0 4px;">or</span>
   <button class="btn btn-sm" onclick="document.getElementById('json-paste-wrap').style.display=document.getElementById('json-paste-wrap').style.display==='none'?'flex':'none'">Paste JSON</button>
   <span id="save-format-badge" style="font-size:.8em;padding:2px 8px;border-radius:4px;display:none;"></span>
+  <button class="btn btn-sm" id="export-state-btn" style="display:none;margin-left:8px;" onclick="toggleStateBox('export')">Copy State</button>
+  <button class="btn btn-sm" id="import-state-btn" style="margin-left:4px;" onclick="toggleStateBox('import')">Paste State</button>
+</div>
+<div id="state-box-wrap" style="display:none;padding:0 16px 12px;background:var(--bg2);gap:8px;align-items:flex-start;">
+  <textarea id="state-box" rows="3" placeholder="Paste state string here..." style="flex:1;min-width:0;background:#111;border:1px solid #444;border-radius:4px;padding:6px 8px;color:var(--text);font-size:.8em;font-family:monospace;resize:vertical;" spellcheck="false"></textarea>
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <button class="btn btn-sm" id="state-box-copy" onclick="copyStateBox()" style="display:none;">Copy</button>
+    <button class="btn btn-sm" id="state-box-load" onclick="loadStateBox()">Load</button>
+  </div>
+</div>
 </div>
 <div id="json-paste-wrap" style="display:none;padding:0 16px 12px;background:var(--bg2);gap:8px;align-items:flex-start;">
   <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..." style="flex:1;min-width:0;background:#111;border:1px solid #444;border-radius:4px;padding:6px 8px;color:var(--text);font-size:.8em;font-family:monospace;resize:vertical;"></textarea>
@@ -140,6 +150,8 @@ h1 span { color: var(--accent); }
 <div id="supplement-panel" style="display:none;padding:10px 16px;background:var(--bg2);border-top:1px solid #333;">
   <div style="font-size:.85em;color:var(--gold);margin-bottom:8px;">&#9888; save.json doesn't include companion/tome data. Set manually:</div>
   <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:.82em;">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="comp-select-all"> <span style="color:var(--accent);font-weight:600;">All</span></label>
+    <span style="color:#555;">|</span>
     <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="52"> <span style="color:#ce93d8;">Jellofish</span> <span style="color:var(--text2);">(1.5x Research EXP)</span></label>
     <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="55"> <span style="color:#ce93d8;">Pirate Deckhand</span> <span style="color:var(--text2);">(+15% grid multi)</span></label>
     <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(+5% grid multi)</span></label>
@@ -205,9 +217,14 @@ h1 span { color: var(--accent); }
         </div>
         <div id="opt-target-hours-wrap" style="display:none;">
           <label style="color:var(--text2);font-size:.9em;">Hours:</label>
-          <input type="number" id="opt-target-hours" min="1" max="168" value="24" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+          <input type="number" id="opt-target-hours" min="1" max="720" value="24" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
         </div>
         <button class="btn" id="opt-run-btn" style="padding:8px 24px;font-size:1em;">Run Optimizer</button>
+      </div>
+      <div style="margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85em;color:var(--text2);">
+          <input type="checkbox" id="opt-assume-obs" checked> Assume observations unlock at their research level requirement
+        </label>
       </div>
       <div id="opt-progress" style="display:none;">
         <div style="display:flex;align-items:center;gap:8px;">
@@ -587,9 +604,16 @@ let labJewelConnected = []; // connectivity for jewels (indices 0..23)
 let labMainBonusFull = [];  // built LAB_BONUS_BASE + dynamic entries
 let companionIds = new Set(); // owned companion DB indices from it.json
 let extBonusOverrides = {}; // manual overrides for runtime-only bonuses
-let exp0Data = []; // Exp0  current skill EXP values
+let extBonuses = null; // cached result of computeExternalBonuses()
 let serverVarResXP = 1.01; // A_ResXP server variable for Research EXP curve
 let loadedSaveFormat = ''; // 'it.json' or 'save.json'
+// Cached scalars extracted from raw save arrays (so raw arrays aren't needed after load)
+let cachedEventShopStr = ''; // String(olaData[311]) — used by eventShopOwned()
+let cachedResearchExp = 0;   // exp0Data[20] — current research EXP
+let cachedSpelunkyUpg7 = 0;  // spelunkData[0][7] — used by computeShapesOwned()
+let cachedFailedRolls = 0;   // optionsListData[514] — obs roller pity counter
+let cachedAFKRate = null;    // cached result of computeAFKGainsRate()
+let cachedComp0DivOk = false; // lv0AllData[0][14] >= 2 — for calcAllBonusMulti
 
 // ===== LOAD SAVE =====
 function parseSaveKey(save, key) {
@@ -601,7 +625,7 @@ function parseSaveKey(save, key) {
 
 function eventShopOwned(t) {
   if (t < 0 || t >= N2L.length) return 0;
-  return String(olaData[311] || '').includes(N2L[t]) ? 1 : 0;
+  return cachedEventShopStr.includes(N2L[t]) ? 1 : 0;
 }
 
 function superBitType(t) {
@@ -1038,7 +1062,7 @@ function getOverrideOrAuto(key, autoVal) {
 }
 
 function mineheadBonusQTY(t) {
-  const mineFloor = research ? (research[7]?.[4] || 0) : 0;
+  const mineFloor = stateR7[4] || 0;
   return mineFloor > t ? (MINEHEAD_BONUS_QTY[t] || 0) : 0;
 }
 
@@ -1098,7 +1122,7 @@ function computeShapesOwned() {
   return Math.min(10, Math.round(
     eventShopOwned(36)
     + Math.min(1, Math.max(0, Math.floor(lv / 20) * (companionIds.has(54) ? 1 : 0)))
-    + Math.min(1, Math.floor(lv / 20) * ((spelunkData?.[0]?.[7] || 0) >= 1 ? 1 : 0))
+    + Math.min(1, Math.floor(lv / 20) * (cachedSpelunkyUpg7 >= 1 ? 1 : 0))
     + Math.min(1, Math.floor(lv / 20))
     + Math.min(1, Math.floor(lv / 30))
     + Math.min(1, Math.floor(lv / 50))
@@ -1601,7 +1625,7 @@ function computeExternalBonuses() {
 // Mirrors the _allMulti computation from computeExternalBonuses but only needs gl[173].
 function calcAllBonusMulti(gl) {
   const comp55val = companionIds.has(55) ? 15 : 0;
-  const comp0val = companionIds.has(0) && (lv0AllData[0]?.[14] || 0) >= 2 && (gl[173] || 0) > 0 ? 5 : 0;
+  const comp0val = companionIds.has(0) && cachedComp0DivOk && (gl[173] || 0) > 0 ? 5 : 0;
   return 1 + (comp55val + comp0val) / 100;
 }
 
@@ -1674,6 +1698,129 @@ document.getElementById('file-input').addEventListener('change', async (e) => {
     console.error('Load error:', err);
   }
 });
+
+document.getElementById('comp-select-all').addEventListener('change', (e) => {
+  document.querySelectorAll('.comp-toggle').forEach(cb => { cb.checked = e.target.checked; });
+});
+
+// ===== STATE EXPORT / IMPORT (gzip + base64) =====
+const STATE_PREFIX = 'ROv2:';
+
+async function compressState(obj) {
+  const json = JSON.stringify(obj);
+  const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+  const buf = await new Response(stream).arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return STATE_PREFIX + btoa(binary);
+}
+
+async function decompressState(str) {
+  if (!str.startsWith(STATE_PREFIX)) throw new Error('Invalid state string');
+  const b64 = str.slice(STATE_PREFIX.length);
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const json = await new Response(stream).text();
+  return JSON.parse(json);
+}
+
+async function exportState() {
+  const state = {
+    _format: 'research-optimizer-state', _version: 2,
+    gridLevels, shapeOverlay, occFound, insightLvs, insightProgress, magData, shapePositions,
+    stateR7, researchLevel, magMaxPerSlot, magnifiersOwned,
+    externalResearchPct, comp52TrueMulti, allBonusMulti, extBonuses,
+    companionIds: [...companionIds], totalTomePoints, serverVarResXP,
+    cachedEventShopStr, cachedResearchExp, cachedSpelunkyUpg7, cachedFailedRolls, cachedAFKRate, cachedComp0DivOk,
+    extBonusOverrides, loadedSaveFormat,
+  };
+  return await compressState(state);
+}
+
+function toggleStateBox(mode) {
+  const wrap = document.getElementById('state-box-wrap');
+  const ta = document.getElementById('state-box');
+  const copyBtn = document.getElementById('state-box-copy');
+  const loadBtn = document.getElementById('state-box-load');
+  const isVisible = wrap.style.display !== 'none';
+  if (isVisible) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  if (mode === 'export') {
+    copyBtn.style.display = '';
+    loadBtn.style.display = 'none';
+    ta.value = 'Generating...';
+    ta.readOnly = true;
+    exportState().then(encoded => { ta.value = encoded; ta.select(); }).catch(err => { ta.value = 'Error: ' + err.message; });
+  } else {
+    copyBtn.style.display = 'none';
+    loadBtn.style.display = '';
+    ta.value = '';
+    ta.readOnly = false;
+    ta.placeholder = 'Paste state string here...';
+    ta.focus();
+  }
+}
+
+function copyStateBox() {
+  const ta = document.getElementById('state-box');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const btn = document.getElementById('state-box-copy');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  }).catch(() => {});
+}
+
+async function loadStateBox() {
+  const text = (document.getElementById('state-box').value || '').trim();
+  if (!text) { alert('Paste a state string first.'); return; }
+  try {
+    const raw = await decompressState(text);
+    importState(raw);
+    document.getElementById('state-box-wrap').style.display = 'none';
+  } catch (err) {
+    alert('Failed to import state: ' + err.message);
+  }
+}
+
+function importState(raw) {
+  if (raw._format !== 'research-optimizer-state') {
+    alert('Not a valid optimizer state file.');
+    return;
+  }
+  gridLevels = raw.gridLevels || new Array(GRID_SIZE).fill(0);
+  shapeOverlay = raw.shapeOverlay || new Array(GRID_SIZE).fill(-1);
+  occFound = raw.occFound || new Array(80).fill(0);
+  insightLvs = raw.insightLvs || new Array(80).fill(0);
+  insightProgress = raw.insightProgress || new Array(80).fill(0);
+  magData = raw.magData || [];
+  shapePositions = raw.shapePositions || [];
+  stateR7 = raw.stateR7 || new Array(20).fill(0);
+  researchLevel = raw.researchLevel || 0;
+  magMaxPerSlot = raw.magMaxPerSlot || 1;
+  magnifiersOwned = raw.magnifiersOwned || 0;
+  externalResearchPct = raw.externalResearchPct || 0;
+  comp52TrueMulti = raw.comp52TrueMulti || 1;
+  allBonusMulti = raw.allBonusMulti || 1;
+  companionIds = new Set(raw.companionIds || []);
+  totalTomePoints = raw.totalTomePoints || 0;
+  serverVarResXP = raw.serverVarResXP || 1.01;
+  cachedEventShopStr = raw.cachedEventShopStr || '';
+  cachedResearchExp = raw.cachedResearchExp || 0;
+  cachedSpelunkyUpg7 = raw.cachedSpelunkyUpg7 || 0;
+  cachedFailedRolls = raw.cachedFailedRolls || 0;
+  cachedAFKRate = raw.cachedAFKRate || null;
+  cachedComp0DivOk = raw.cachedComp0DivOk || false;
+  extBonusOverrides = raw.extBonusOverrides || {};
+  extBonuses = raw.extBonuses || null;
+  loadedSaveFormat = raw.loadedSaveFormat || 'state';
+  updateSaveFormatUI();
+  renderAll();
+}
 
 function loadSaveData(raw) {
     // Support both it.json (has .data + .companion) and plain save.json
@@ -1759,8 +1906,14 @@ function loadSaveData(raw) {
 
     researchLevel = Math.max(...lv0AllData.map(lv0 => lv0[20] || 0), 0);
     // Use highest research EXP across all characters (can desync from not logging in)
-    exp0Data[20] = Math.max(...exp0AllData.map(e => Number(e[20]) || 0), 0);
+    cachedResearchExp = Math.max(...exp0AllData.map(e => Number(e[20]) || 0), 0);
     magMaxPerSlot = Math.min(4, Math.round(1 + Math.min(1, Math.floor(researchLevel/40)) + Math.min(1, Math.floor(researchLevel/70)) + Math.min(1, Math.floor(researchLevel/120))));
+
+    // Cache scalar values extracted from raw arrays (avoids needing raw arrays after load)
+    cachedEventShopStr = String(olaData[311] || '');
+    cachedSpelunkyUpg7 = spelunkData?.[0]?.[7] || 0;
+    cachedFailedRolls = Number(optionsListData[514]) || 0;
+    cachedComp0DivOk = (lv0AllData[0]?.[14] || 0) >= 2;
 
     // Compute magnifiersOwned (for display/UI)
     magnifiersOwned = computeMagnifiersOwned();
@@ -1781,10 +1934,11 @@ function loadSaveData(raw) {
     computeLabConnectivity();
 
     // Compute external bonuses
-    const ext = computeExternalBonuses();
-    externalResearchPct = ext._total;
-    comp52TrueMulti = 1 + (ext._comp52?.val || 0);
-    allBonusMulti = ext._allMulti?.val || 1;
+    extBonuses = computeExternalBonuses();
+    externalResearchPct = extBonuses._total;
+    comp52TrueMulti = 1 + (extBonuses._comp52?.val || 0);
+    allBonusMulti = extBonuses._allMulti?.val || 1;
+    cachedAFKRate = computeAFKGainsRate();
 
     loadedSaveFormat = raw.data ? 'it.json' : 'save.json';
     updateSaveFormatUI();
@@ -1809,10 +1963,16 @@ function loadFromPaste() {
 function updateSaveFormatUI() {
   const badge = document.getElementById('save-format-badge');
   badge.style.display = 'inline';
+  document.getElementById('export-state-btn').style.display = 'inline';
   if (loadedSaveFormat === 'it.json') {
     badge.textContent = 'it.json';
     badge.style.background = 'rgba(76,175,80,.2)';
     badge.style.color = 'var(--green)';
+    document.getElementById('supplement-panel').style.display = 'none';
+  } else if (loadedSaveFormat === 'state') {
+    badge.textContent = 'state';
+    badge.style.background = 'rgba(100,181,246,.2)';
+    badge.style.color = 'var(--cyan)';
     document.getElementById('supplement-panel').style.display = 'none';
   } else {
     badge.textContent = 'save.json';
@@ -1824,6 +1984,9 @@ function updateSaveFormatUI() {
     sp.querySelectorAll('.comp-toggle').forEach(cb => {
       cb.checked = companionIds.has(Number(cb.dataset.id));
     });
+    const allCbs = sp.querySelectorAll('.comp-toggle');
+    const selAll = document.getElementById('comp-select-all');
+    if (selAll) selAll.checked = [...allCbs].every(cb => cb.checked);
     document.getElementById('supp-tome').value = totalTomePoints || 0;
     document.getElementById('supp-resxp').value = serverVarResXP || 1.01;
   }
@@ -1834,13 +1997,20 @@ function applySupplements() {
   document.querySelectorAll('.comp-toggle').forEach(cb => {
     if (cb.checked) companionIds.add(Number(cb.dataset.id));
   });
+  // Sync "select all" checkbox state
+  const allCbs = document.querySelectorAll('.comp-toggle');
+  const allEl = document.getElementById('comp-select-all');
+  if (allEl) allEl.checked = [...allCbs].every(cb => cb.checked);
   totalTomePoints = Number(document.getElementById('supp-tome').value) || 0;
   serverVarResXP = Number(document.getElementById('supp-resxp').value) || 1.01;
-  // Recompute derived state
-  const ext = computeExternalBonuses();
-  externalResearchPct = ext._total;
-  comp52TrueMulti = 1 + (ext._comp52?.val || 0);
-  allBonusMulti = ext._allMulti?.val || 1;
+  // Recompute derived state (only if real save loaded, not state snapshot)
+  if (loadedSaveFormat !== 'state') {
+    extBonuses = computeExternalBonuses();
+    externalResearchPct = extBonuses._total;
+    comp52TrueMulti = 1 + (extBonuses._comp52?.val || 0);
+    allBonusMulti = extBonuses._allMulti?.val || 1;
+    cachedAFKRate = computeAFKGainsRate();
+  }
   renderAll();
 }
 
@@ -2405,7 +2575,7 @@ function simExpOverHorizon(config) {
   // but does NOT re-optimize shapes, mags, or grid points (avoids recursion).
   const tickMin = config.tickMinutes || 10;
   const tickSec = tickMin * 60;
-  const maxHrs = config.target.type === 'hours' ? config.target.value : 168;
+  const maxHrs = config.target.type === 'hours' ? config.target.value : 720;
   const maxTicks = Math.ceil(maxHrs * 3600 / tickSec);
 
   const gl = config.gridLevels ? config.gridLevels.slice() : gridLevels.slice();
@@ -2776,7 +2946,7 @@ function researchExpReq(lv) {
 }
 
 function getResearchCurrentExp() {
-  return Number(exp0Data[20]) || 0;
+  return cachedResearchExp;
 }
 
 function getResearchExpRequired() {
@@ -3278,7 +3448,7 @@ function unifiedSim(config) {
   // config: { target: {type:'level'|'hours', value}, tickMinutes, reoptimize }
   const tickMin = config.tickMinutes || 10;
   const tickSec = tickMin * 60;
-  const maxTicks = Math.ceil(168 * 3600 / tickSec); // 1 week
+  const maxTicks = Math.ceil(720 * 3600 / tickSec); // 30 days
 
   // Clone mutable state
   let gl = gridLevels.slice();
@@ -3386,6 +3556,21 @@ function unifiedSim(config) {
 
     // Spend newly earned grid points greedily on level-up
     if (rLeveledUp && config.reoptimize !== false) {
+      // Assume observations unlocked at their research level requirement
+      if (config.assumeObsUnlocked) {
+        let obsChanged = false;
+        for (let oi = 0; oi < OCC_DATA.length; oi++) {
+          if ((occ[oi] || 0) < 1 && OCC_DATA[oi].roll <= rLv) {
+            occ[oi] = 1;
+            obsChanged = true;
+          }
+        }
+        if (obsChanged) {
+          mOwned = computeMagnifiersOwnedWith(gl, rLv);
+          _growMagPoolTyped(md, gl, rLv, mOwned);
+          md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
+        }
+      }
       const spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
       so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp).so;
       ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
@@ -3457,7 +3642,8 @@ async function runOptimizer(target, progressCb) {
 
   // Baseline: current config, no changes
   const preOptRate = simTotalExp().total;
-  const baseline = unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate });
+  const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
+  const baseline = unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs });
 
   // Find spendable points: grid squares that are below max and unlocked (adjacent)
   const spendable = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
@@ -3484,7 +3670,7 @@ async function runOptimizer(target, progressCb) {
     const idx = spendable[ci];
     const gl1 = origGL.slice();
     gl1[idx] = (gl1[idx] || 0) + 1;
-    const sim1 = unifiedSim({ target, reoptimize: true, gridLevels: gl1 });
+    const sim1 = unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs });
     stage1.push({ idx, sim: sim1, time: sim1.totalTime, gl: gl1 });
     if (progressCb && ci % 5 === 0) {
       progressCb(ci + 1, spendable.length, 'Testing grid upgrades...');
@@ -3517,7 +3703,7 @@ async function runOptimizer(target, progressCb) {
     for (const idx of remaining) {
       const gl2 = beam.gl.slice();
       gl2[idx] = (gl2[idx] || 0) + 1;
-      const sim2 = unifiedSim({ target, reoptimize: true, gridLevels: gl2 });
+      const sim2 = unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs });
       stage2.push({ steps: [beam.idx, idx], sim: sim2, time: sim2.totalTime, gl: gl2 });
     }
     if (progressCb) {
@@ -3715,7 +3901,7 @@ function renderDashboard() {
   // Summary
   const sumDiv = document.getElementById('dash-summary');
   const curRate = simTotalExp();
-  const afkRate = computeAFKGainsRate();
+  const afkRate = cachedAFKRate || computeAFKGainsRate();
   const expReq = getResearchExpRequired();
   const expCur = getResearchCurrentExp();
   const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
@@ -3857,7 +4043,7 @@ function renderDashboard() {
   // EXP Rate Breakdown — full additive/multiplicative table (v1 style, external merged in)
   const expDiv = document.getElementById('dash-exp-breakdown');
   {
-    const ext = computeExternalBonuses();
+    const ext = extBonuses || computeExternalBonuses();
     const rate = simTotalExp();
 
     // Build additive sources (external + grid)
@@ -5054,7 +5240,7 @@ function computeObsUnlockPriority() {
   const smartEyePerFail = smartEyeLv; // +lv per failed roll to min
   const smartEyeCap = 25 * smartEyeLv;  // mode 2 for node 31
   const rollsPerDay = Math.round(3 + obsLv + 3 * eventShopOwned(35));
-  const failedRolls = Number(optionsListData[514]) || 0;
+  const failedRolls = cachedFailedRolls;
 
   // EXP gain from full mag re-optimization after adding a new obs
   // We'll simulate: mark obs as found, re-optimize mags, compute new rate
