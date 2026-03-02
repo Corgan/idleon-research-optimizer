@@ -227,11 +227,11 @@ h1 span { color: var(--accent); }
         </label>
       </div>
       <div id="opt-progress" style="display:none;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="flex:1;height:8px;background:#333;border-radius:4px;overflow:hidden;">
-            <div id="opt-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .3s;"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:120px;height:8px;background:#333;border-radius:4px;overflow:hidden;">
+            <div id="opt-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .15s;"></div>
           </div>
-          <span id="opt-progress-text" style="font-size:.8em;color:var(--text2);min-width:60px;"></span>
+          <span id="opt-progress-text" style="font-size:.8em;color:var(--text2);min-width:200px;"></span>
         </div>
       </div>
     </div>
@@ -327,6 +327,7 @@ h1 span { color: var(--accent); }
 <div class="tooltip" id="tooltip"></div>
 
 <script>
+// __WORKER_ENGINE_START__
 // ===== GAME DATA =====
 const GRID_COLS = 20;
 const GRID_ROWS = 12;
@@ -1686,6 +1687,7 @@ function computeAFKGainsRate() {
 
   return { rate, pct: rate * 100, sum, parts };
 }
+// __WORKER_ENGINE_PAUSE__
 
 document.getElementById('file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -2013,6 +2015,7 @@ function applySupplements() {
   }
   renderAll();
 }
+// __WORKER_ENGINE_RESUME__
 
 // ===== CALCULATIONS =====
 function getGridBonus(idx) {
@@ -2426,7 +2429,7 @@ async function computePointPriority(progressCb) {
   magData = origMD.slice();
   magnifiersOwned = origMO;
   shapeOverlay = origSO.slice();
-  const baseMags = optimizeMagnifiers();
+  const baseMags = await optimizeMagnifiers();
   magData = baseMags;
   const baseShapes = optimizeShapePlacement();
   shapeOverlay = baseShapes.optimizedOverlay;
@@ -2475,7 +2478,7 @@ async function computePointPriority(progressCb) {
     }
 
     // Full magnifier re-optimization
-    magData = optimizeMagnifiers();
+    magData = await optimizeMagnifiers();
 
     // Full shape re-optimization
     const optShapes = optimizeShapePlacement();
@@ -2868,6 +2871,94 @@ function optimizeShapePlacement(simOpts) {
 }
 
 // ===== MAGNIFIER OPTIMIZER =====
+// Enumerate kaleidoscope placements (bounded multiset), greedily assign regular mags for each.
+// Handles maxPerSlot >= 1. Always finds optimal arrangement.
+async function _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il, maxPerSlot) {
+  const S = availSlots.length;
+
+  if (numKalei === 0) {
+    // No kaleidos — just pick top regular-mag slots (greedy is optimal here)
+    const cands = [];
+    for (const s of availSlots) {
+      const v = obsBaseExp(s) * (1 + gd101 * (il[s] || 0) / 100);
+      for (let c = 0; c < maxPerSlot; c++) cands.push({ s, v });
+    }
+    cands.sort((a, b) => b.v - a.v);
+    const result = [];
+    for (let i = 0; i < Math.min(numRegular, cands.length); i++) {
+      result.push({type: 0, slot: cands[i].s, x:0, y:0});
+    }
+    return result;
+  }
+
+  let bestScore = -Infinity, bestKal = null, bestReg = null;
+
+  // slotCounts[i] = how many kaleidos assigned to availSlots[i] so far
+  const slotCounts = new Array(S).fill(0);
+
+  // Synchronous recursive enumerate — no async overhead per call.
+  // For typical counts (C(14,5)=2002) this finishes in <1ms.
+  const enumerate = (si, remaining) => {
+    if (remaining === 0) {
+      // Build kal adjacency map from slotCounts
+      const km = {};
+      for (let i = 0; i < S; i++) {
+        const cnt = slotCounts[i];
+        if (cnt === 0) continue;
+        const s = availSlots[i];
+        if (s % 8 !== 7) km[s+1] = (km[s+1] || 0) + cnt;
+        if (s % 8 !== 0) km[s-1] = (km[s-1] || 0) + cnt;
+        if (s > 7) km[s-8] = (km[s-8] || 0) + cnt;
+        if (s < 72) km[s+8] = (km[s+8] || 0) + cnt;
+      }
+      // Score each slot for regular mags (each regular mag independently valued)
+      const cands = [];
+      for (let i = 0; i < S; i++) {
+        const s = availSlots[i];
+        const regRoom = maxPerSlot - slotCounts[i];
+        if (regRoom <= 0) continue;
+        const v = obsBaseExp(s) * (1 + gd101 * (il[s] || 0) / 100) * (1 + (km[s] || 0) * kalBase);
+        for (let c = 0; c < regRoom; c++) cands.push({ s, v });
+      }
+      cands.sort((a, b) => b.v - a.v);
+      let total = 0;
+      const regs = [];
+      for (let i = 0; i < Math.min(numRegular, cands.length); i++) {
+        total += cands[i].v;
+        regs.push(cands[i].s);
+      }
+      if (total > bestScore) {
+        bestScore = total;
+        bestKal = slotCounts.slice();
+        bestReg = regs;
+      }
+      return;
+    }
+    // Prune: not enough room left in remaining slots
+    let roomLeft = 0;
+    for (let i = si; i < S; i++) roomLeft += maxPerSlot - slotCounts[i];
+    if (roomLeft < remaining) return;
+
+    for (let i = si; i < S; i++) {
+      const maxAdd = Math.min(remaining, maxPerSlot - slotCounts[i]);
+      for (let add = 1; add <= maxAdd; add++) {
+        slotCounts[i] += add;
+        enumerate(i + 1, remaining - add);
+        slotCounts[i] -= add;
+      }
+    }
+  };
+
+  enumerate(0, numKalei);
+
+  const result = [];
+  for (let i = 0; i < S; i++) {
+    for (let c = 0; c < bestKal[i]; c++) result.push({type: 2, slot: availSlots[i], x:0, y:0});
+  }
+  for (const s of bestReg) result.push({type: 0, slot: s, x:0, y:0});
+  return result;
+}
+
 function evalMagScore(trialMags) {
   const kalMap = {};
   for (const m of trialMags) {
@@ -2895,7 +2986,7 @@ function evalMagScore(trialMags) {
   return total;
 }
 
-function optimizeMagnifiers() {
+async function optimizeMagnifiers() {
   const occTBF = computeOccurrencesToBeFound();
   const availSlots = [];
   for (let i = 0; i < occTBF; i++) {
@@ -2904,32 +2995,13 @@ function optimizeMagnifiers() {
   const ownedMags = magData.slice(0, magnifiersOwned);
   const numRegular = ownedMags.filter(m => m.type === 0).length;
   const numKalei = ownedMags.filter(m => m.type === 2).length;
+  const numMono = ownedMags.filter(m => m.type === 1).length;
 
-  let assigned = [];
-  let pool = [];
-  for (let i = 0; i < numKalei; i++) pool.push(2);
-  for (let i = 0; i < numRegular; i++) pool.push(0);
+  let assigned = await _enumKalMags(availSlots, numKalei, numRegular,
+    getKaleiMultiBase(), getGridBonusFinal(93), insightLvs, magMaxPerSlot);
 
-  while (pool.length > 0) {
-    let bestPoolIdx = -1, bestSlot = -1, bestScore = -Infinity;
-    const triedTypes = new Set();
-    for (let pi = 0; pi < pool.length; pi++) {
-      const magType = pool[pi];
-      if (triedTypes.has(magType)) continue;
-      triedTypes.add(magType);
-      for (const slot of availSlots) {
-        const inSlot = assigned.filter(a => a.slot === slot).length;
-        if (inSlot >= magMaxPerSlot) continue;
-        const trial = [...assigned, {type: magType, slot}];
-        const score = evalMagScore(trial);
-        if (score > bestScore) { bestScore = score; bestSlot = slot; bestPoolIdx = pi; }
-      }
-    }
-    if (bestPoolIdx >= 0) {
-      assigned.push({type: pool[bestPoolIdx], slot: bestSlot});
-      pool.splice(bestPoolIdx, 1);
-    } else break;
-  }
+  // Append monocles unassigned
+  for (let i = 0; i < numMono; i++) assigned.push({type: 1, slot: -1, x:0, y:0});
   return assigned;
 }
 
@@ -3050,13 +3122,16 @@ function _gridPointsAvail(gl, rLv) {
   return Math.max(0, earned - spent);
 }
 
-function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rExp) {
+async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rExp) {
   let avail = _gridPointsAvail(gl, rLv);
   if (avail <= 0) return { changed: false, so };
 
   const origABM = allBonusMulti;
   let changed = false;
   while (avail > 0) {
+    // Yield to event loop each iteration so UI stays responsive
+    await new Promise(r => setTimeout(r, 0));
+
     // Phase 1: quick filter — score all candidates by immediate EXP/hr, keep top 10
     // Pure ctx — no global ABM mutation needed here
     const baseAbm = calcAllBonusMulti(gl);
@@ -3157,7 +3232,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rEx
           }
           // Re-optimize shapes and mags after grid changes from level-up
           tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv).overlay;
-          tMD = optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
+          tMD = await optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
           tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
           tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
         }
@@ -3194,7 +3269,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rEx
           md.push({ x: 0, y: 0, slot: -1, type: newType });
         }
         // Assign the newly added magnifiers optimally (mutate in-place so caller sees changes)
-        const optResult = optimizeMagsFor(gl, so, md, il, occ, newMOwned, mMax, rLv);
+        const optResult = await optimizeMagsFor(gl, so, md, il, occ, newMOwned, mMax, rLv);
         md.length = 0;
         for (const m of optResult) md.push(m);
       }
@@ -3210,8 +3285,7 @@ function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rEx
   return { changed, so };
 }
 
-function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv) {
-  // Greedy magnifier optimizer (like optimizeMagnifiers but uses explicit state)
+async function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv) {
   const occTBF = computeOccurrencesToBeFound(rLv);
   const availSlots = [];
   for (let i = 0; i < occTBF; i++) {
@@ -3221,35 +3295,12 @@ function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv) {
   const numKalei = pool.filter(m => m.type === 2).length;
   const numRegular = pool.filter(m => m.type === 0).length;
   const numMono = pool.filter(m => m.type === 1).length;
+  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
+  const gd101 = _gbWith(gl, so, 93);
 
-  // Place only kaleidoscopes and regular mags; monocles are assigned by chooseMonoTargets
-  let toPlace = [];
-  for (let i = 0; i < numKalei; i++) toPlace.push(2);
-  for (let i = 0; i < numRegular; i++) toPlace.push(0);
+  let assigned = await _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il, maxPerSlot);
 
-  const assigned = [];
-  while (toPlace.length > 0) {
-    let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
-    const triedTypes = new Set();
-    for (let pi = 0; pi < toPlace.length; pi++) {
-      const magType = toPlace[pi];
-      if (triedTypes.has(magType)) continue;
-      triedTypes.add(magType);
-      for (const slot of availSlots) {
-        const inSlot = assigned.filter(a => a.slot === slot).length;
-        if (inSlot >= maxPerSlot) continue;
-        const trial = [...assigned, {type: magType, slot, x:0, y:0}];
-        // Score: use research EXP only (monocles won't produce research EXP, but we place them via monoTargets)
-        const score = _evalMagScoreWith(trial, gl, so, il, occ, rLv);
-        if (score > bestScore) { bestScore = score; bestSlot = slot; bestPI = pi; }
-      }
-    }
-    if (bestPI >= 0) {
-      assigned.push({type: toPlace[bestPI], slot: bestSlot, x:0, y:0});
-      toPlace.splice(bestPI, 1);
-    } else break;
-  }
-  // Append monocles unassigned (slot -1); chooseMonoTargets will place them
+  // Append monocles unassigned; chooseMonoTargets will place them
   for (let i = 0; i < numMono; i++) assigned.push({type: 1, slot: -1, x:0, y:0});
   return assigned;
 }
@@ -3444,7 +3495,7 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
   return bestObs >= 0 ? _monoAssign(md, bestObs) : md;
 }
 
-function unifiedSim(config) {
+async function unifiedSim(config) {
   // config: { target: {type:'level'|'hours', value}, tickMinutes, reoptimize }
   const tickMin = config.tickMinutes || 10;
   const tickSec = tickMin * 60;
@@ -3484,7 +3535,7 @@ function unifiedSim(config) {
     // Build pool from current owned types, then grow with correct types if gl increased the count
     const pool = magData.slice(0, Math.min(magnifiersOwned, mOwned)).map(m => ({...m}));
     _growMagPoolTyped(pool, gl, rLv, mOwned);
-    md = optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax, rLv);
+    md = await optimizeMagsFor(gl, so, pool, il, occ, mOwned, mMax, rLv);
   }
 
   // Initial shape optimization (sim-aware: captures insight cascading effects)
@@ -3506,7 +3557,7 @@ function unifiedSim(config) {
   // Spend any pre-existing available grid points before the sim starts
   if (config.reoptimize !== false) {
     const initLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, simTotalExpWith(gl, so, md, il, occ, rLv, ctx)), 72);
-    so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA, rExp).so;
+    so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA, rExp)).so;
     ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
     mOwned = computeMagnifiersOwnedWith(gl, rLv);
     // Grow md if new mags were earned but not yet tracked (with correct types)
@@ -3515,7 +3566,7 @@ function unifiedSim(config) {
     const reShapes = optimizeShapesFor(gl, so, undefined, rLv);
     so = reShapes.overlay;
     sp = reShapes.positions;
-    md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
+    md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
   }
 
   // Assign monocles optimally — use full remaining sim time as lookahead
@@ -3536,6 +3587,12 @@ function unifiedSim(config) {
   let currentTime = 0; // hours
 
   for (let tick = 0; tick < maxTicks; tick++) {
+    // Yield to event loop periodically so UI stays responsive
+    if (tick % 200 === 0 && tick > 0) {
+      await new Promise(r => setTimeout(r, 0));
+      if (config.onProgress) config.onProgress({ tick, maxTicks, rLv, expHr: curExpHr, currentTime });
+    }
+
     // Check level target
     if (config.target.type === 'level' && rLv >= config.target.value) break;
     if (config.target.type === 'hours' && currentTime >= config.target.value) break;
@@ -3568,11 +3625,11 @@ function unifiedSim(config) {
         if (obsChanged) {
           mOwned = computeMagnifiersOwnedWith(gl, rLv);
           _growMagPoolTyped(md, gl, rLv, mOwned);
-          md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
+          md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
         }
       }
       const spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
-      so = greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp).so;
+      so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp)).so;
       ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
       // Update mOwned in case grid spending unlocked new magnifiers (#72, #91)
       // or rLv crossed a threshold (10, 100, 130, 140)
@@ -3606,7 +3663,7 @@ function unifiedSim(config) {
       const midShapeResult = optimizeShapesFor(gl, so, undefined, rLv);
       so = midShapeResult.overlay;
       sp = midShapeResult.positions;
-      md = optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
+      md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
       const monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
       md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
@@ -3637,13 +3694,45 @@ function unifiedSim(config) {
 // ===== BEAM SEARCH OPTIMIZER =====
 // Tests multiple point-spending paths via beam search (top N), runs unifiedSim for each.
 
-async function runOptimizer(target, progressCb) {
+async function runOptimizer(target, progressCb, opts) {
   const BEAM_WIDTH = 5;
+  // Local rate formatter (not available in worker from main-thread helpers)
+  function _fmtR(n) {
+    if (n >= 1e12) return (n/1e12).toFixed(1) + 'T/hr';
+    if (n >= 1e9) return (n/1e9).toFixed(1) + 'B/hr';
+    if (n >= 1e6) return (n/1e6).toFixed(1) + 'M/hr';
+    if (n >= 1e3) return (n/1e3).toFixed(1) + 'K/hr';
+    return n.toFixed(0) + '/hr';
+  }
+  function _fmtHrs(h) {
+    if (h < 1) return Math.round(h * 60) + 'm';
+    if (h < 24) return h.toFixed(1) + 'h';
+    return Math.floor(h / 24) + 'd ' + Math.round(h % 24) + 'h';
+  }
+
+  // Smooth progress: track completed sim-units out of estimated total
+  const assumeObs = !!(opts && opts.assumeObs);
+  let _completedSims = 0, _totalEstSims = 1; // start with baseline only
+  function _emitProgress(stageLabel, simSub) {
+    if (!progressCb) return;
+    const simFrac = simSub ? simSub.tick / Math.max(simSub.maxTicks, 1) : 0;
+    const pct = Math.min((_completedSims + simFrac) / Math.max(_totalEstSims, 1), 0.999);
+    let detail = '';
+    if (simSub) {
+      detail = ' \u2014 Lv ' + simSub.rLv + ', ' + _fmtR(simSub.expHr);
+      if (simSub.currentTime > 0) detail += ', ' + _fmtHrs(simSub.currentTime) + ' simulated';
+    }
+    progressCb(Math.floor(pct * 1000), 1000, stageLabel + detail);
+  }
+  function _makeSimCb(stageLabel) {
+    return function(sub) { _emitProgress(stageLabel, sub); };
+  }
 
   // Baseline: current config, no changes
   const preOptRate = simTotalExp().total;
-  const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
-  const baseline = unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs });
+  _emitProgress('Computing baseline...');
+  const baseline = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb('Computing baseline') });
+  _completedSims = 1;
 
   // Find spendable points: grid squares that are below max and unlocked (adjacent)
   const spendable = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
@@ -3652,30 +3741,36 @@ async function runOptimizer(target, progressCb) {
   });
 
   if (spendable.length === 0) {
+    if (progressCb) progressCb(1000, 1000, 'Done — no upgradeable grid points');
     return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
   }
 
   // Check how many unspent grid points the user actually has
   const availPts = computeGridPointsAvailable();
   if (availPts <= 0) {
+    if (progressCb) progressCb(1000, 1000, 'Done — no available grid points');
     return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
   }
+
+  // Update total estimate now that we know spendable count
+  _totalEstSims = 1 + spendable.length + (availPts >= 2 ? BEAM_WIDTH * spendable.length : 0);
 
   // Beam search: test +1 on each candidate, pick top BEAM_WIDTH, then optionally +1 again
   const origGL = gridLevels.slice();
 
   // Stage 1: Score each +1 candidate
+  _emitProgress('Stage 1: evaluating grid points...');
   const stage1 = [];
   for (let ci = 0; ci < spendable.length; ci++) {
     const idx = spendable[ci];
     const gl1 = origGL.slice();
     gl1[idx] = (gl1[idx] || 0) + 1;
-    const sim1 = unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs });
+    const label = 'Stage 1: point ' + (ci+1) + '/' + spendable.length;
+    const sim1 = await unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb(label) });
     stage1.push({ idx, sim: sim1, time: sim1.totalTime, gl: gl1 });
-    if (progressCb && ci % 5 === 0) {
-      progressCb(ci + 1, spendable.length, 'Testing grid upgrades...');
-      await new Promise(r => setTimeout(r, 0));
-    }
+    _completedSims = 1 + ci + 1;
+    _emitProgress(label + ' \u2714');
+    await new Promise(r => setTimeout(r, 0));
   }
 
   // Sort by time (ascending = faster is better)
@@ -3691,23 +3786,28 @@ async function runOptimizer(target, progressCb) {
 
   // Stage 2: From each beam, try +1 again on remaining squares (only if user has 2+ points)
   const stage2 = [];
+  const stage1Sims = 1 + spendable.length;
   if (availPts < 2) {
     // Only 1 point — skip stage 2
   } else {
+  _emitProgress('Stage 2: testing combinations...');
+  let s2Count = 0;
   for (let bi = 0; bi < beams.length; bi++) {
     const beam = beams[bi];
     const remaining = spendable.filter(idx => {
       const info = RES_GRID_RAW[idx];
       return (beam.gl[idx] || 0) < info[1] && isGridCellUnlocked(idx, beam.gl);
     });
-    for (const idx of remaining) {
+    for (let ri = 0; ri < remaining.length; ri++) {
+      const idx = remaining[ri];
       const gl2 = beam.gl.slice();
       gl2[idx] = (gl2[idx] || 0) + 1;
-      const sim2 = unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs });
+      const label = 'Stage 2: beam ' + (bi+1) + '/' + beams.length + ', point ' + (ri+1) + '/' + remaining.length;
+      const sim2 = await unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb(label) });
       stage2.push({ steps: [beam.idx, idx], sim: sim2, time: sim2.totalTime, gl: gl2 });
-    }
-    if (progressCb) {
-      progressCb(spendable.length + bi + 1, spendable.length + BEAM_WIDTH, 'Deep search...');
+      s2Count++;
+      _completedSims = stage1Sims + s2Count;
+      _emitProgress(label + ' \u2714');
       await new Promise(r => setTimeout(r, 0));
     }
   }
@@ -3728,11 +3828,12 @@ async function runOptimizer(target, progressCb) {
   });
 
   const best = allPaths[0];
+  if (progressCb) progressCb(1000, 1000, 'Optimization complete!');
   return { baseline, best: best.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps.slice(0, maxSteps) };
 }
 
 // ===== MAG TYPE BALANCE =====
-function computeMagTypeBalance() {
+async function computeMagTypeBalance() {
   const ownedMags = magData.slice(0, magnifiersOwned);
   const numR = ownedMags.filter(m => m.type === 0).length;
   const numM = ownedMags.filter(m => m.type === 1).length;
@@ -3745,7 +3846,7 @@ function computeMagTypeBalance() {
     const origOwned = magnifiersOwned, origMD = magData;
     magnifiersOwned = magnifiersOwned + 1;
     magData = testMags;
-    const optMags = optimizeMagnifiers();
+    const optMags = await optimizeMagnifiers();
     const optScore = evalMagScore(optMags);
     magnifiersOwned = origOwned;
     magData = origMD;
@@ -3762,6 +3863,8 @@ function computeMagTypeBalance() {
   results.sort((a, b) => b.deltaImmediate - a.deltaImmediate);
   return results;
 }
+
+// __WORKER_ENGINE_END__
 
 // ===== FORMATTING HELPERS =====
 function fmtTime(hrs) {
@@ -4838,7 +4941,7 @@ function removeSandboxScenario(id) {
   renderSandboxList();
 }
 
-function runSandboxScenarios() {
+async function runSandboxScenarios() {
   const tickMin = parseInt(document.getElementById('sb-tick-interval')?.value || '10');
   const mode = document.getElementById('sb-target-mode')?.value || 'level';
   const val = parseInt(document.getElementById('sb-target-value')?.value || '0');
@@ -4851,7 +4954,7 @@ function runSandboxScenarios() {
       const ov = JSON.parse(document.getElementById('sb-ov-' + sc.id)?.value || '{}');
       sc.overrides = ov;
     } catch(e) { /* keep existing */ }
-    sc.result = unifiedSim({ target, tickMinutes: tickMin, reoptimize: true, ...sc.overrides });
+    sc.result = await unifiedSim({ target, tickMinutes: tickMin, reoptimize: true, ...sc.overrides });
   }
 
   renderSandboxList();
@@ -5227,7 +5330,7 @@ function renderInsightROI() {
 }
 
 // ===== OBSERVATION UNLOCK PRIORITY =====
-function computeObsUnlockPriority() {
+async function computeObsUnlockPriority() {
   const rLv = researchLevel;
   const occTBF = computeOccurrencesToBeFound();
   const currentTotal = simTotalExp().total;
@@ -5324,7 +5427,7 @@ function computeObsUnlockPriority() {
     const tempOF = occFound.slice();
     tempOF[t] = 1;
     // Full sim: with the new obs found, re-optimize mags to see actual impact
-    const tempMD = optimizeMagsFor(gridLevels, shapeOverlay, magData, insightLvs, tempOF,
+    const tempMD = await optimizeMagsFor(gridLevels, shapeOverlay, magData, insightLvs, tempOF,
       magnifiersOwned, magMaxPerSlot, rLv);
     const newRate = simTotalExpWith(gridLevels, shapeOverlay, tempMD, insightLvs, tempOF, rLv);
     const expGain = canUseNow ? newRate - currentTotal : 0;
@@ -5349,8 +5452,8 @@ function computeObsUnlockPriority() {
   return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
 }
 
-function renderObsUnlock() {
-  const data = computeObsUnlockPriority();
+async function renderObsUnlock() {
+  const data = await computeObsUnlockPriority();
   const summaryDiv = document.getElementById('obs-unlock-summary');
   const tableDiv = document.getElementById('obs-unlock-table');
   if (!summaryDiv || !tableDiv) return;
@@ -5445,6 +5548,184 @@ function renderAll() {
   }
 }
 
+// ===== WEB WORKER HELPERS =====
+let _optWorker = null;
+
+function _createOptWorker() {
+  const scripts = document.querySelectorAll('script:not([src])');
+  for (const sc of scripts) {
+    const text = sc.textContent;
+    const si = text.indexOf('// __WORKER_ENGINE_START__');
+    const ei = text.indexOf('// __WORKER_ENGINE_END__');
+    if (si < 0 || ei < 0) continue;
+    const pi = text.indexOf('// __WORKER_ENGINE_PAUSE__');
+    const ri = text.indexOf('// __WORKER_ENGINE_RESUME__');
+    let engineCode;
+    if (pi > 0 && ri > 0 && pi > si && ri > pi && ri < ei) {
+      // Two sections: START→PAUSE + RESUME→END
+      engineCode = text.substring(si + '// __WORKER_ENGINE_START__'.length, pi)
+                 + '\n'
+                 + text.substring(ri + '// __WORKER_ENGINE_RESUME__'.length, ei);
+    } else {
+      engineCode = text.substring(si + '// __WORKER_ENGINE_START__'.length, ei);
+    }
+    const handler = `
+onmessage = async function(e) {
+  var d = e.data, s = d.state;
+  // Restore all mutable state from main thread
+  research = s.research;
+  gridLevels = s.gridLevels;
+  shapeOverlay = s.shapeOverlay;
+  occFound = s.occFound;
+  insightLvs = s.insightLvs;
+  insightProgress = s.insightProgress;
+  magData = s.magData;
+  shapePositions = s.shapePositions || [];
+  stateR7 = s.stateR7 || new Array(20).fill(0);
+  researchLevel = s.researchLevel;
+  magMaxPerSlot = s.magMaxPerSlot;
+  externalResearchPct = s.externalResearchPct;
+  comp52TrueMulti = s.comp52TrueMulti;
+  allBonusMulti = s.allBonusMulti;
+  magnifiersOwned = s.magnifiersOwned;
+  olaData = s.olaData || [];
+  towerData = s.towerData || [];
+  spelunkData = s.spelunkData || [];
+  arcadeUpgData = s.arcadeUpgData || [];
+  cards0Data = s.cards0Data || {};
+  cards1Data = s.cards1Data || [];
+  sailingData = s.sailingData || [];
+  lv0Data = s.lv0Data || [];
+  totemInfoData = s.totemInfoData || [];
+  gamingData = s.gamingData || [];
+  ninjaData = s.ninjaData || [];
+  ribbonData = s.ribbonData || [];
+  mealsData = s.mealsData || [];
+  farmCropCount = s.farmCropCount || 0;
+  grimoireData = s.grimoireData || [];
+  farmUpgData = s.farmUpgData || [];
+  totalTomePoints = s.totalTomePoints || 0;
+  holesData = s.holesData || [];
+  riftData = s.riftData || [];
+  breedingData = s.breedingData || [];
+  summonData = s.summonData || [];
+  arcaneData = s.arcaneData || [];
+  gemItemsData = s.gemItemsData || [];
+  achieveRegData = s.achieveRegData || [];
+  tasksGlobalData = s.tasksGlobalData || [];
+  lv0AllData = s.lv0AllData || [];
+  labBonusConnected = s.labBonusConnected || [];
+  labJewelConnected = s.labJewelConnected || [];
+  labMainBonusFull = s.labMainBonusFull || [];
+  companionIds = new Set(s.companionIds || []);
+  extBonusOverrides = s.extBonusOverrides || {};
+  extBonuses = s.extBonuses;
+  serverVarResXP = s.serverVarResXP;
+  cachedEventShopStr = s.cachedEventShopStr || '';
+  cachedResearchExp = s.cachedResearchExp || 0;
+  cachedSpelunkyUpg7 = s.cachedSpelunkyUpg7 || 0;
+  cachedComp0DivOk = s.cachedComp0DivOk || false;
+  if (d.type === 'runOptimizer') {
+    try {
+      var result = await runOptimizer(d.args.target, function(done, total, msg) {
+        postMessage({type:'progress', done:done, total:total, msg:msg});
+      }, d.args.opts);
+      postMessage({type:'done', result:result});
+    } catch(err) {
+      postMessage({type:'error', message: err.message, stack: err.stack});
+    }
+  }
+};
+`;
+    const blob = new Blob([engineCode + '\n' + handler], {type: 'text/javascript'});
+    return new Worker(URL.createObjectURL(blob));
+  }
+  throw new Error('Worker engine markers not found');
+}
+
+function _runOptimizerViaWorker(target, progressCb, opts) {
+  return new Promise(function(resolve, reject) {
+    try {
+      if (_optWorker) { _optWorker.terminate(); _optWorker = null; }
+      _optWorker = _createOptWorker();
+    } catch(e) { reject(e); return; }
+    _optWorker.onmessage = function(ev) {
+      var d = ev.data;
+      if (d.type === 'progress' && progressCb) {
+        progressCb(d.done, d.total, d.msg);
+      } else if (d.type === 'done') {
+        resolve(d.result);
+        _optWorker.terminate(); _optWorker = null;
+      } else if (d.type === 'error') {
+        reject(new Error(d.message));
+        _optWorker.terminate(); _optWorker = null;
+      }
+    };
+    _optWorker.onerror = function(ev) {
+      reject(new Error(ev.message));
+      _optWorker.terminate(); _optWorker = null;
+    };
+    _optWorker.postMessage({
+      type: 'runOptimizer',
+      state: {
+        research: research,
+        gridLevels: gridLevels.slice(),
+        shapeOverlay: shapeOverlay.slice(),
+        occFound: occFound.slice(),
+        insightLvs: insightLvs.slice(),
+        insightProgress: insightProgress.slice(),
+        magData: magData.map(function(m){ return {x:m.x,y:m.y,slot:m.slot,type:m.type}; }),
+        shapePositions: shapePositions.slice(),
+        stateR7: stateR7.slice(),
+        researchLevel: researchLevel,
+        magMaxPerSlot: magMaxPerSlot,
+        externalResearchPct: externalResearchPct,
+        comp52TrueMulti: comp52TrueMulti,
+        allBonusMulti: allBonusMulti,
+        magnifiersOwned: magnifiersOwned,
+        olaData: olaData,
+        towerData: towerData,
+        spelunkData: spelunkData,
+        arcadeUpgData: arcadeUpgData,
+        cards0Data: cards0Data,
+        cards1Data: cards1Data,
+        sailingData: sailingData,
+        lv0Data: lv0Data,
+        totemInfoData: totemInfoData,
+        gamingData: gamingData,
+        ninjaData: ninjaData,
+        ribbonData: ribbonData,
+        mealsData: mealsData,
+        farmCropCount: farmCropCount,
+        grimoireData: grimoireData,
+        farmUpgData: farmUpgData,
+        totalTomePoints: totalTomePoints,
+        holesData: holesData,
+        riftData: riftData,
+        breedingData: breedingData,
+        summonData: summonData,
+        arcaneData: arcaneData,
+        gemItemsData: gemItemsData,
+        achieveRegData: achieveRegData,
+        tasksGlobalData: tasksGlobalData,
+        lv0AllData: lv0AllData,
+        labBonusConnected: labBonusConnected,
+        labJewelConnected: labJewelConnected,
+        labMainBonusFull: labMainBonusFull,
+        companionIds: Array.from(companionIds),
+        extBonusOverrides: extBonusOverrides,
+        extBonuses: extBonuses,
+        serverVarResXP: serverVarResXP,
+        cachedEventShopStr: cachedEventShopStr,
+        cachedResearchExp: cachedResearchExp,
+        cachedSpelunkyUpg7: cachedSpelunkyUpg7,
+        cachedComp0DivOk: cachedComp0DivOk,
+      },
+      args: { target: target, opts: opts || {} }
+    });
+  });
+}
+
 // ===== EVENT HANDLERS =====
 
 // Tab switching
@@ -5500,11 +5781,12 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   runBtn.textContent = 'Running...';
 
   try {
-    const result = await runOptimizer(target, (done, total, msg) => {
+    const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
+    const result = await _runOptimizerViaWorker(target, (done, total, msg) => {
       const pct = (done / total * 100).toFixed(0);
       progBar.style.width = pct + '%';
       progText.textContent = msg || `${pct}%`;
-    });
+    }, { assumeObs });
     progBar.style.width = '100%';
     progText.textContent = 'Done!';
     renderOptimizerResults(result);
