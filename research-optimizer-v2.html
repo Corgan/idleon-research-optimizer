@@ -4521,6 +4521,7 @@ function renderActions(sim, bestSteps) {
       if ((p.config.so[s] ?? -1) !== (prev.config.so[s] ?? -1)) shapeChanges++;
     }
     if (shapeChanges > 0) {
+      // Build per-shape node breakdown
       const curShapes = {};
       for (let s = 0; s < GRID_SIZE; s++) {
         const si = p.config.so[s] ?? -1;
@@ -4529,31 +4530,20 @@ function renderActions(sim, bestSteps) {
           curShapes[si].push(s);
         }
       }
-      let shapeHtml = '<div style="color:var(--cyan);margin-top:2px;">';
+      let bkHtml = '';
       const shapeKeys = Object.keys(curShapes).map(Number)
         .sort((a,b) => (SHAPE_BONUS_PCT[b]||0) - (SHAPE_BONUS_PCT[a]||0));
       for (const si of shapeKeys) {
         const cells = curShapes[si];
-        const upgrades = cells.map(c => ({
-          name: gridCoord(c) + ' ' + RES_GRID_RAW[c][0].replace(/_/g,' '),
-          goal: NODE_GOAL[c] || 'Other',
-          lv: p.config.gl[c] || 0,
-        }));
-        const goalCounts = {};
-        for (const u of upgrades) goalCounts[u.goal] = (goalCounts[u.goal]||0) + 1;
-        const topGoal = Object.entries(goalCounts).sort((a,b)=>b[1]-a[1])[0];
-        const goalLabel = topGoal ? topGoal[0] : 'Other';
-        const goalColor = NODE_GOAL_COLORS[goalLabel] || 'var(--text2)';
-        const upgradeStrs = upgrades.map(u => {
-          return `<b>${u.name}</b><span style="opacity:.5;font-size:.9em;"> LV${u.lv}</span>`;
-        });
-        shapeHtml += `<div style="margin-left:8px;font-size:.9em;margin-bottom:2px;">` +
-          `${SHAPE_NAMES[si]} (${SHAPE_BONUS_PCT[si]}%) ` +
-          `<span style="color:${goalColor};font-weight:600;font-size:.85em;">[${goalLabel}]</span>` +
-          `<span style="opacity:.7;"> \u2192 </span>${upgradeStrs.join(', ')}</div>`;
+        const sc = SHAPE_COLORS[si] || 'var(--text2)';
+        const coordStrs = cells.map(c => gridCoord(c));
+        bkHtml += `<div style="margin-left:8px;font-size:.9em;margin-bottom:2px;">` +
+          `<span style="color:${sc};font-weight:600;">${SHAPE_NAMES[si]}</span>` +
+          ` <span style="opacity:.6;">(${SHAPE_BONUS_PCT[si]}%)</span>` +
+          `<span style="opacity:.7;"> \u2192 </span>${coordStrs.join(', ')}</div>`;
       }
-      shapeHtml += '</div>';
-      shapeDetails.push(shapeHtml);
+      // Single collapsible with grid + breakdown, onclick stops propagation to parent step
+      shapeDetails.push(`<details style="margin-bottom:4px;" onclick="event.stopPropagation();"><summary style="cursor:pointer;color:var(--cyan);font-size:.85em;">Shape grid &amp; breakdown</summary><div style="margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div><div style="margin-top:6px;">${bkHtml}</div></details>`);
     }
 
     // ─── Magnifier & Kaleidoscope changes ───
@@ -4696,7 +4686,6 @@ function renderActions(sim, bestSteps) {
     }
 
     const detId = 'action-detail-' + i;
-    const gridId = 'action-grid-' + i;
     const hasDetails = details.length > 0;
 
     // --- Render step ---
@@ -4739,11 +4728,6 @@ function renderActions(sim, bestSteps) {
     if (hasDetails) {
       html += `<div id="${detId}" style="display:none;padding:4px 10px 8px 66px;font-size:.82em;color:var(--text2);border-top:1px solid #1a1a2e;">`;
       html += details.join('');
-      // Shape grid toggle
-      if (shapeChanges > 0) {
-        html += `<div style="margin-top:6px;"><a href="#" style="font-size:.85em;color:var(--cyan);text-decoration:none;" onclick="event.stopPropagation();event.preventDefault();var el=document.getElementById('${gridId}');el.style.display=el.style.display==='none'?'block':'none';">\u25b6 Show shape grid</a></div>`;
-        html += `<div id="${gridId}" style="display:none;margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div>`;
-      }
       html += `</div>`;
     }
 
