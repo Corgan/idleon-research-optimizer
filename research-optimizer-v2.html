@@ -1905,19 +1905,20 @@ function loadSaveData(raw) {
     }
 
     // Parse companion ownership from it.json companion.l array
-    companionIds = new Set();
+    // Only overwrite if the incoming data has companion info; preserve existing on re-paste
     if (companionRaw && Array.isArray(companionRaw.l)) {
+      companionIds = new Set();
       for (const entry of companionRaw.l) {
         const id = parseInt(String(entry).split(',')[0]);
         if (!isNaN(id)) companionIds.add(id);
       }
     }
 
-    // Parse TomePTS from it.json extraData
-    totalTomePoints = raw.extraData?.totalTomePoints || 0;
+    // Parse TomePTS from it.json extraData — preserve existing if not present
+    if (raw.extraData?.totalTomePoints != null) totalTomePoints = raw.extraData.totalTomePoints;
 
-    // Parse A_ResXP server variable for Research EXP curve
-    serverVarResXP = Number(raw.serverVars?.A_ResXP) || 1.01;
+    // Parse A_ResXP server variable for Research EXP curve — preserve existing if not present
+    if (raw.serverVars?.A_ResXP != null) serverVarResXP = Number(raw.serverVars.A_ResXP) || 1.01;
 
     researchLevel = Math.max(...lv0AllData.map(lv0 => lv0[20] || 0), 0);
     // Use highest research EXP across all characters (can desync from not logging in)
