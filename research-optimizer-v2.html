@@ -148,24 +148,37 @@ h1 span { color: var(--accent); }
   <button class="btn" onclick="loadFromPaste()">Load</button>
 </div>
 <div id="supplement-panel" style="display:none;padding:10px 16px;background:var(--bg2);border-top:1px solid #333;">
-  <div style="font-size:.85em;color:var(--gold);margin-bottom:8px;">&#9888; save.json doesn't include companion/tome data. Set manually:</div>
-  <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:.82em;">
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="comp-select-all"> <span style="color:var(--accent);font-weight:600;">All</span></label>
-    <span style="color:#555;">|</span>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="52"> <span style="color:#ce93d8;">Jellofish</span> <span style="color:var(--text2);">(1.5x Research EXP)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="55"> <span style="color:#ce93d8;">Pirate Deckhand</span> <span style="color:var(--text2);">(+15% grid multi)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(+5% grid multi)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="54"> <span style="color:#ce93d8;">Neonscale</span> <span style="color:var(--text2);">(+1 shape owned)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="28"> <span style="color:#ce93d8;">RIP Tide</span> <span style="color:var(--text2);">(+30% AFK rate)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="39"> <span style="color:#ce93d8;">Pufferblob</span> <span style="color:var(--text2);">(meritoc +50%)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="1"> <span style="color:#ce93d8;">Rift Slug</span> <span style="color:var(--text2);">(+25 talent)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="4"> <span style="color:#ce93d8;">Sheepie</span> <span style="color:var(--text2);">(all bubbles)</span></label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="27"> <span style="color:#ce93d8;">Spirit Reindeer</span> <span style="color:var(--text2);">(arcade 2x)</span></label>
-    <span style="margin-left:8px;">Tome Score:</span>
-    <input type="number" id="supp-tome" value="0" min="0" step="1000" style="width:80px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;">
-    <span style="margin-left:8px;">A_ResXP:</span>
-    <input type="number" id="supp-resxp" value="1.01" min="1" step="0.01" style="width:70px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;" title="Server variable A_ResXP (EXP curve scaling for levels 21+)">
-    <button class="btn btn-sm" onclick="applySupplements()">Apply</button>
+  <div style="font-size:.85em;color:var(--gold);margin-bottom:10px;">&#9888; save.json doesn't include companion/tome data. Set manually:</div>
+
+  <!-- Companions -->
+  <div style="margin-bottom:10px;">
+    <div style="font-size:.78em;color:var(--cyan);font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Companions</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:.82em;">
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="comp-select-all"> <span style="color:var(--accent);font-weight:600;">All</span></label>
+      <span style="color:#555;">|</span>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="52"> <span style="color:#ce93d8;">Jellofish</span> <span style="color:var(--text2);">(1.5x Research EXP)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="55"> <span style="color:#ce93d8;">Pirate Deckhand</span> <span style="color:var(--text2);">(+15% grid multi)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(+5% grid multi)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="54"> <span style="color:#ce93d8;">Neonscale</span> <span style="color:var(--text2);">(+1 shape owned)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="28"> <span style="color:#ce93d8;">RIP Tide</span> <span style="color:var(--text2);">(+30% AFK rate)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="39"> <span style="color:#ce93d8;">Pufferblob</span> <span style="color:var(--text2);">(meritoc +50%)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="1"> <span style="color:#ce93d8;">Rift Slug</span> <span style="color:var(--text2);">(+25 talent)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="4"> <span style="color:#ce93d8;">Sheepie</span> <span style="color:var(--text2);">(all bubbles)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="27"> <span style="color:#ce93d8;">Spirit Reindeer</span> <span style="color:var(--text2);">(arcade 2x)</span></label>
+    </div>
+  </div>
+
+  <!-- Other Settings -->
+  <div style="border-top:1px solid #333;padding-top:10px;">
+    <div style="font-size:.78em;color:var(--cyan);font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Other Settings</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:.82em;">
+      <span>Tome Score:</span>
+      <input type="number" id="supp-tome" value="0" min="0" step="1000" style="width:80px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;">
+      <span style="margin-left:8px;">A_ResXP:</span>
+      <input type="number" id="supp-resxp" value="1.01" min="1" step="0.01" style="width:70px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;" title="Server variable A_ResXP (EXP curve scaling for levels 21+)">
+      <span style="margin-left:4px;color:#888;font-size:.8em;font-style:italic;">No need to change unless told to</span>
+      <button class="btn btn-sm" onclick="applySupplements()">Apply</button>
+    </div>
   </div>
 </div>
 
@@ -3361,22 +3374,13 @@ function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr) {
 }
 
 function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rLv) {
-  // Two-tier monocle targeting:
-  //   Tier A — obs that already carry a regular mag (monocle cohabitation):
-  //            insight levels boost that obs's EXP via gd101, so forward-sim
-  //            to check if the recoup is worth it within the lookahead window.
-  //   Tier B — obs WITHOUT regular mags (spare monocle slots):
-  //            insight levels can't benefit gd101 here. If gd94 is active,
-  //            forward-sim captures the global boost from more total insight.
-  //            If gd94 = 0, just pick the fastest to level (banking for future gd94).
+  // Monocle targeting: assign each monocle to the best observation for insight gain.
+  // Monocles can now be spread across multiple observations when maxPerSlot is too small
+  // to fit them all on one obs.
   const monoCount = md.filter(m => m.type === 1).length;
   if (monoCount === 0) return md;
 
   const occTBF = computeOccurrencesToBeFound(rLv);
-  const laHrs = lookAheadHrs || 3;
-  const MAX_MONO_TICKS = 72;
-  const TICK_SEC = Math.max(600, Math.ceil(laHrs * 3600 / MAX_MONO_TICKS));
-  const LOOK_TICKS = Math.min(Math.ceil(laHrs * 3600 / TICK_SEC), MAX_MONO_TICKS);
   const gd101 = _gbWith(gl, so, 93);
   const gd94 = _gbWith(gl, so, 94);
 
@@ -3384,79 +3388,91 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
   const magObsSet = new Set();
   for (const m of md) { if (m.type === 0 && m.slot >= 0) magObsSet.add(m.slot); }
 
-  // Build candidates, tagged by whether they have a regular mag
-  const magCands = [];   // Tier A: obs with regular mags (gd101 recoup)
-  const bankCands = [];  // Tier B: obs without mags (banking)
+  // Build candidates — any found obs with room for at least 1 monocle
+  const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     if ((occ[i] || 0) < 1) continue;
     const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
-    if (inSlotNonMono + monoCount > maxPerSlot) continue;
-    const iRate = insightExpRate(i, _monoAssign(md, i), il, gl, so);
+    const monoRoom = maxPerSlot - inSlotNonMono;
+    if (monoRoom < 1) continue;
+    // Compute insight rate assuming 1 monocle placed here
+    const testMD = md.map(m => m.type === 1 ? {...m} : {...m});
+    // Place 1 test monocle
+    const oneMonoMD = [...testMD.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
     const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
-    const entry = { obs: i, hrsToLv };
-    if (magObsSet.has(i)) magCands.push(entry);
-    else bankCands.push(entry);
+    const hasMag = magObsSet.has(i);
+    candidates.push({ obs: i, hrsToLv, monoRoom, hasMag, iRate });
   }
 
-  // ── Tier A: forward-sim mag-obs candidates for gd101 recoup ──
-  const simPool = [];
-  if (gd101 > 0 && magCands.length > 0) {
-    for (const c of magCands) simPool.push(c.obs);
+  // Also scan beyond occTBF for any found obs (fallback for edge cases)
+  for (let i = Math.min(occTBF, OCC_DATA.length); i < OCC_DATA.length; i++) {
+    if ((occ[i] || 0) < 1) continue;
+    const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
+    const monoRoom = maxPerSlot - inSlotNonMono;
+    if (monoRoom < 1) continue;
+    const oneMonoMD = [...md.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
+    const req = insightExpReqAt(i, il[i] || 0);
+    const remaining = Math.max(0, req - (ip[i] || 0));
+    const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
+    candidates.push({ obs: i, hrsToLv, monoRoom, hasMag: false, iRate });
   }
-  // Also forward-sim bank candidates when gd94 is active (direct benefit)
-  if (gd94 > 0 && bankCands.length > 0) {
-    bankCands.sort((a, b) => a.hrsToLv - b.hrsToLv);
-    for (const c of bankCands.slice(0, 8)) simPool.push(c.obs);
+
+  if (candidates.length === 0) return md;
+
+  // Greedy assignment: assign monocles one at a time to the best obs
+  // Score by: insight EXP value (gd101 recoup for mag obs, or fastest level-up for banking)
+  const insightHelps = gd101 > 0 || gd94 > 0;
+  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
+
+  // Strip all monocles from md, then assign them greedily
+  let result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
+  const monoIndices = [];
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].type === 1) monoIndices.push(i);
   }
 
-  if (simPool.length > 0) {
-    const baselineRate = simTotalExpWith(gl, so, md, il, occ, rLv);
-    const baselineTotalExp = baselineRate / 3600 * TICK_SEC * LOOK_TICKS;
-    let bestObs = -1, bestExp = -Infinity;
-
-    for (const obsTarget of simPool) {
-      const tMD = _monoAssign(md, obsTarget);
-      const tIL = il.slice();
-      const tIP = ip.slice();
-      let tRate = simTotalExpWith(gl, so, tMD, tIL, occ, rLv);
-      let totalExp = 0;
-      let curMD = tMD;
-
-      for (let t = 0; t < LOOK_TICKS; t++) {
-        totalExp += tRate / 3600 * TICK_SEC;
-        let insUp = false;
-        const monoObs = new Set();
-        for (const m of curMD) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
-        for (const o of monoObs) {
-          const iR = insightExpRate(o, curMD, tIL, gl, so);
-          tIP[o] = (tIP[o] || 0) + iR / 3600 * TICK_SEC;
-          let req = insightExpReqAt(o, tIL[o] || 0);
-          while (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; req = insightExpReqAt(o, tIL[o] || 0); }
-        }
-        if (insUp) {
-          curMD = _monoAssignBestQuick(curMD, tIL, tIP, occ, gl, so, maxPerSlot, rLv);
-          tRate = simTotalExpWith(gl, so, curMD, tIL, occ, rLv);
-        }
+  const assigned = {}; // obs -> count of monocles assigned
+  for (let m = 0; m < monoCount; m++) {
+    let bestObs = -1, bestScore = -Infinity;
+    for (const c of candidates) {
+      const curAssigned = assigned[c.obs] || 0;
+      if (curAssigned >= c.monoRoom) continue; // this obs is full
+      let score;
+      if (insightHelps) {
+        // Score: how much faster does this obs level up insight, weighted by benefit
+        const tempIL = il.slice();
+        tempIL[c.obs] = (tempIL[c.obs] || 0) + 1;
+        const rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+        score = rateGain > 0 ? rateGain / Math.max(0.01, c.hrsToLv) : 1 / Math.max(0.01, c.hrsToLv);
+      } else {
+        score = 1 / Math.max(0.01, c.hrsToLv); // fastest to level
       }
-      if (totalExp > bestExp) { bestExp = totalExp; bestObs = obsTarget; }
+      if (score > bestScore) { bestScore = score; bestObs = c.obs; }
     }
-
-    // If any forward-sim candidate beats the no-insight baseline, use it
-    if (bestObs >= 0 && bestExp > baselineTotalExp * 1.0001) {
-      return _monoAssign(md, bestObs);
+    if (bestObs >= 0) {
+      result[monoIndices[m]] = {...result[monoIndices[m]], slot: bestObs};
+      assigned[bestObs] = (assigned[bestObs] || 0) + 1;
     }
   }
 
-  // ── Tier B: banking mode — pick fastest to level ──
-  // No immediate EXP benefit (gd94=0 or no recoup won). Bank insight levels
-  // for future gd94 unlock by leveling the observation with shortest time to next level.
-  const allCands = [...magCands, ...bankCands].filter(c => c.hrsToLv < Infinity);
-  allCands.sort((a, b) => a.hrsToLv - b.hrsToLv);
-  if (allCands.length > 0) return _monoAssign(md, allCands[0].obs);
+  // If any monocles still unassigned, force them to first available obs
+  for (const mi of monoIndices) {
+    if (result[mi].slot >= 0) continue;
+    for (const c of candidates) {
+      const curAssigned = assigned[c.obs] || 0;
+      if (curAssigned < c.monoRoom) {
+        result[mi] = {...result[mi], slot: c.obs};
+        assigned[c.obs] = curAssigned + 1;
+        break;
+      }
+    }
+  }
 
-  return md;
+  return result;
 }
 
 // Helper: assign all monocles to a specific obs
@@ -3471,13 +3487,16 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
   const occTBF = computeOccurrencesToBeFound(rLv);
   const insightHelps = _gbWith(gl, so, 93) > 0 || _gbWith(gl, so, 94) > 0;
   const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
-  let bestObs = -1, bestVal = -Infinity;
+
+  // Build scored candidates with room for at least 1 monocle
+  const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     if (!isObsUsable(i, rLv, occ)) continue;
     const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
-    if (inSlotNonMono + monoCount > maxPerSlot) continue;
-    const trialMD = _monoAssign(md, i);
-    const iRate = insightExpRate(i, trialMD, il, gl, so);
+    const monoRoom = maxPerSlot - inSlotNonMono;
+    if (monoRoom < 1) continue;
+    const oneMonoMD = [...md.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
     const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
@@ -3490,9 +3509,28 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
     } else {
       value = 1 / hrsToLv;
     }
-    if (value > bestVal) { bestVal = value; bestObs = i; }
+    candidates.push({ obs: i, value, monoRoom });
   }
-  return bestObs >= 0 ? _monoAssign(md, bestObs) : md;
+  candidates.sort((a, b) => b.value - a.value);
+
+  // Greedy assign monocles across obs respecting per-slot room
+  let result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
+  const monoIndices = [];
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].type === 1) monoIndices.push(i);
+  }
+  const assigned = {};
+  for (let m = 0; m < monoCount; m++) {
+    for (const c of candidates) {
+      const cur = assigned[c.obs] || 0;
+      if (cur < c.monoRoom) {
+        result[monoIndices[m]] = {...result[monoIndices[m]], slot: c.obs};
+        assigned[c.obs] = cur + 1;
+        break;
+      }
+    }
+  }
+  return result;
 }
 
 async function unifiedSim(config) {
@@ -4570,23 +4608,35 @@ function renderActions(sim, bestSteps) {
 
     // ─── Monocle target ───
     const monoDetails = [];
-    const prevMono = prev.config.md.filter(m=>m.type===1).map(m=>m.slot);
-    const curMono = p.config.md.filter(m=>m.type===1).map(m=>m.slot);
-    const prevTarget = prevMono.length > 0 ? prevMono[0] : -1;
-    const curTarget = curMono.length > 0 ? curMono[0] : -1;
-    if (prevTarget !== curTarget) {
-      const pName = prevTarget >= 0 && OCC_DATA[prevTarget] ? OCC_DATA[prevTarget].name.replace(/_/g,' ') : 'none';
-      const cName = curTarget >= 0 && OCC_DATA[curTarget] ? OCC_DATA[curTarget].name.replace(/_/g,' ') : 'none';
+    const prevMono = prev.config.md.filter(m=>m.type===1).map(m=>m.slot).sort((a,b)=>a-b);
+    const curMono = p.config.md.filter(m=>m.type===1).map(m=>m.slot).sort((a,b)=>a-b);
+    const monoChanged = prevMono.length !== curMono.length || prevMono.some((s,i) => s !== curMono[i]);
+    if (monoChanged) {
       const gd93m = _gbWith(p.config.gl, p.config.so, 93);
       const gd94m = _gbWith(p.config.gl, p.config.so, 94);
-      const hasMagOnTarget = curTarget >= 0 && p.config.md.some(m => m.type === 0 && m.slot === curTarget);
       const gd101name = gridCoord(93) + ' ' + (RES_GRID_RAW[93]?.[0]||'').replace(/_/g,' ');
       const gd102name = gridCoord(94) + ' ' + (RES_GRID_RAW[94]?.[0]||'').replace(/_/g,' ');
+      // Group current monocles by target obs
+      const curGroups = {};
+      for (const s of curMono) { curGroups[s] = (curGroups[s] || 0) + 1; }
+      const prevGroups = {};
+      for (const s of prevMono) { prevGroups[s] = (prevGroups[s] || 0) + 1; }
+      const allObs = new Set([...Object.keys(curGroups), ...Object.keys(prevGroups)].map(Number));
+      const changes = [];
+      for (const obs of [...allObs].sort((a,b) => a - b)) {
+        const pc = prevGroups[obs] || 0, cc = curGroups[obs] || 0;
+        if (pc === cc) continue;
+        const name = obs >= 0 && OCC_DATA[obs] ? OCC_DATA[obs].name.replace(/_/g,' ') : 'none';
+        if (cc > pc) changes.push(`+${cc - pc} \u2192 ${name}`);
+        else changes.push(`-${pc - cc} from ${name}`);
+      }
       let monoReason = 'fastest insight level-up';
-      if (hasMagOnTarget && gd93m > 0) monoReason = 'boosting obs EXP via insight (' + gd101name + ')';
+      const anyMagOnCur = curMono.some(s => s >= 0 && p.config.md.some(m => m.type === 0 && m.slot === s));
+      if (anyMagOnCur && gd93m > 0) monoReason = 'boosting obs EXP via insight (' + gd101name + ')';
       else if (gd94m > 0) monoReason = 'total insight LVs \u2192 research EXP (' + gd102name + ')';
       else monoReason = 'banking insight for future ' + gd102name;
-      monoDetails.push(`<div style="color:var(--purple);">Monocle <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${pName} \u2192 ${cName}</div>`);
+      const summary = changes.length > 0 ? changes.join(', ') : curMono.map(s => s >= 0 && OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : 'none').join(', ');
+      monoDetails.push(`<div style="color:var(--purple);">Monocle${curMono.length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${summary}</div>`);
     }
 
     // ─── Insight changes (informational — happens over time) ───
@@ -4618,7 +4668,7 @@ function renderActions(sim, bestSteps) {
       if (gridDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Spend Grid Points')); details.push(...gridDetails); }
       if (shapeDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Place Shapes')); details.push(...shapeDetails); }
       if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
-      if (monoDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Point Monocle')); details.push(...monoDetails); }
+      if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
       if (insightDetails.length) details.push(...insightDetails);
     } else {
       // Non-start phases: original order (grid → mags → mono → insight → shapes)
@@ -4656,7 +4706,20 @@ function renderActions(sim, bestSteps) {
     if (i < phases.length - 1) {
       const segDur = phases[i+1].time - p.time;
       const segExp = p.expHr * segDur;
-      if (segDur > 0) segInfo = `<span style="color:var(--text2);font-size:.75em;margin-left:2px;" title="EXP earned in this segment: ${fmtVal(p.expHr)}/hr \u00d7 ${fmtTime(segDur)} = ${fmtExp(segExp)}">${fmtExp(segExp)} in ${fmtTime(segDur)}</span>`;
+      if (segDur > 0) segInfo = `<span style="color:var(--text2);font-size:.75em;margin-left:2px;" title="EXP earned in this segment: ${fmtVal(p.expHr)}/hr \u00d7 ${fmtTime(segDur)} = ${fmtExp(segExp)}">earns ${fmtExp(segExp)} over ${fmtTime(segDur)}</span>`;
+    }
+
+    // For level-up phases, show the actual level-up EXP requirement
+    let lvReqInfo = '';
+    if (p.event === 'level-up' || p.event === 'level+insight') {
+      // Show EXP required for each level gained
+      const prevLv = prev.rLv, curLv = p.rLv;
+      if (curLv > prevLv) {
+        const reqs = [];
+        for (let lv = prevLv; lv < curLv; lv++) reqs.push(researchExpReq(lv));
+        const totalReq = reqs.reduce((a,b) => a + b, 0);
+        lvReqInfo = `<span style="color:var(--gold);font-size:.75em;margin-left:2px;" title="Total EXP required: ${reqs.map((r,i) => 'LV'+(prevLv+i)+'\u2192'+(prevLv+i+1)+': '+fmtExp(r)).join(', ')}">(${fmtExp(totalReq)} req)</span>`;
+      }
     }
 
     // Header row: always visible
@@ -4666,6 +4729,7 @@ function renderActions(sim, bestSteps) {
     html += `<span style="font-weight:600;color:${borderColor};flex:1;">${eventLabel}</span>`;
     html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(p.expHr)}/hr</span>`;
     html += deltaStr;
+    html += lvReqInfo;
     html += segInfo;
     if (hasDetails) html += `<span class="action-chevron" id="chevron-${i}" style="color:var(--text2);font-size:.7em;margin-left:4px;transition:transform .2s;">\u25b6</span>`;
     html += `</div>`;
