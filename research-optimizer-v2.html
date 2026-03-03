@@ -49,6 +49,41 @@ h1 span { color: var(--accent); }
 .grid-cell.maxed { border-color: var(--gold); box-shadow: 0 0 4px rgba(255,215,0,.3); }
 .grid-cell .cell-name { font-weight: 600; font-size: .85em; line-height: 1.1; word-break: break-word; }
 .grid-cell .cell-lv { color: var(--gold); font-weight: 700; margin-top: 2px; }
+/* Eval grid heatmap */
+.eval-grid .grid-cell.eval-active { border-color: #555; cursor: pointer; }
+.eval-grid .grid-cell .cell-delta { font-weight: 700; margin-top: 1px; font-size: .85em; }
+.eval-grid .grid-cell .cell-goal { font-size: .7em; opacity: .7; margin-top: 1px; }
+/* Tier list */
+.tier-list { min-height: 120px; }
+.tier-zone { display: flex; flex-wrap: wrap; gap: 4px; min-height: 36px; padding: 6px; border-radius: 4px; margin-bottom: 2px; transition: background .15s; }
+.tier-zone.drag-over { background: rgba(255,255,255,.08); }
+.tier-zone-label { font-size: .7em; color: var(--text2); text-align: center; padding: 2px; user-select: none; width: 100%; }
+.tier-divider { display: flex; align-items: center; gap: 6px; margin: 4px 0; user-select: none; }
+.tier-divider hr { flex: 1; border: none; border-top: 2px solid var(--green); }
+.tier-divider span { color: var(--green); font-weight: 700; font-size: .8em; white-space: nowrap; }
+.tier-sq { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 2px solid #555; background: var(--bg3); cursor: grab; font-size: .75em; font-weight: 700; color: #eee; user-select: none; transition: opacity .15s, border-color .15s, transform .1s; position: relative; }
+.tier-sq:hover { border-color: var(--accent); transform: scale(1.1); z-index: 2; }
+.tier-sq:active { cursor: grabbing; }
+.tier-sq.dragging { opacity: .3; }
+.tier-sq.tier-exp { cursor: default; }
+
+/* Shape preset sidebar */
+.sp-wrap { display: flex; gap: 0; }
+.sp-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 6px 6px 6px 0; min-width: 120px; max-width: 140px; border-right: 1px solid #444; margin-right: 10px; overflow: hidden; }
+.sp-preset { padding: 4px 8px; border-radius: 4px; background: var(--bg3); border: 1px solid #555; color: var(--text); font-size: .75em; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .12s, border-color .12s; }
+.sp-preset:hover { border-color: var(--accent); background: #333; }
+.sp-preset.sp-active { border-color: var(--cyan); background: rgba(0,188,212,.12); }
+.sp-btn { padding: 3px 8px; border-radius: 4px; background: var(--bg3); border: 1px solid #555; color: var(--text2); font-size: .7em; cursor: pointer; text-align: center; transition: background .12s; }
+.sp-btn:hover { background: #333; color: var(--text); }
+.sp-io { width: 100%; font-size: .7em; background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; padding: 3px 6px; font-family: monospace; resize: vertical; min-height: 28px; max-height: 80px; }
+
+.tier-tt { display: none; position: fixed; background: #1a1a1a; border: 1px solid #666; border-radius: 6px; padding: 8px 12px; max-width: 320px; z-index: 1001; font-size: .82em; line-height: 1.4; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.5); }
+.tier-tt .tt-coord { color: var(--cyan); font-weight: 700; font-size: 1.1em; }
+.tier-tt .tt-name { color: var(--gold); font-weight: 600; }
+.tier-tt .tt-lv { color: var(--text2); font-size: .9em; }
+.tier-tt .tt-desc { margin-top: 4px; color: #ccc; }
+.tier-tt .tt-shape { margin-top: 4px; font-size: .9em; }
+.tier-tt .tt-bonus { margin-top: 2px; color: var(--green); font-size: .9em; }
 /* Tooltip */
 .tooltip { display: none; position: fixed; background: #222; border: 1px solid #555; border-radius: 6px; padding: 10px 14px; max-width: 350px; z-index: 1000; font-size: .85em; line-height: 1.4; pointer-events: none; }
 .tooltip .tt-name { color: var(--gold); font-weight: 700; font-size: 1.1em; }
@@ -187,6 +222,7 @@ h1 span { color: var(--accent); }
   <div class="tab" data-tab="optimizer">Optimizer</div>
   <div class="tab" data-tab="insight-roi">Insight ROI</div>
   <div class="tab" data-tab="obs-unlock">Obs Unlock</div>
+  <div class="tab" data-tab="shape-opt">Shape Opt</div>
   <!-- <div class="tab" data-tab="sandbox">Sandbox</div> -->
 </div>
 
@@ -337,6 +373,32 @@ h1 span { color: var(--accent); }
   </div>
 </div>
 
+<!-- ===== SHAPE OPTIMIZATION TAB ===== -->
+<div id="tab-shape-opt" class="tab-content">
+  <div style="max-width:1200px;margin:16px auto;">
+    <h3 style="color:var(--green);margin-bottom:8px;">Shape Optimization</h3>
+    <p style="color:var(--text2);font-size:.9em;margin-bottom:12px;">
+      Drag nodes above or below the Res EXP divider to control where shapes are placed.
+      The grid below shows the optimized shape placement based on your priority list.
+    </p>
+    <div id="ue-tier-panel" style="background:var(--bg2);border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+      <details open>
+        <summary style="cursor:pointer;color:var(--cyan);font-weight:600;font-size:.9em;user-select:none;">Shape Priority Tiers</summary>
+        <div id="ue-warn-above" style="display:none;background:rgba(255,165,0,.12);border:1px solid var(--gold);border-radius:6px;padding:8px 12px;margin:8px 0;color:var(--gold);font-size:.8em;">
+          <strong>&#9888;</strong> Nodes above Res EXP will <em>always</em> have shapes placed on them before any EXP nodes.
+        </div>
+        <div class="sp-wrap">
+          <div id="sp-sidebar" class="sp-sidebar"></div>
+          <div id="ue-tier-shape" class="tier-list" style="flex:1;min-width:0;"></div>
+        </div>
+      </details>
+    </div>
+
+    <div id="ue-shape-summary"></div>
+    <div class="research-grid" id="ue-grid"></div>
+  </div>
+</div>
+
 <div class="tooltip" id="tooltip"></div>
 
 <script>
@@ -348,52 +410,52 @@ const GRID_SIZE = 240;
 
 // ResGridSquares: [name, maxLV, bonusPerLV, ?, ?, description...]
 const RES_GRID_RAW = {
-  31: ["Smart_Eye",3,5,"Raises_the_minimum_possible_Roll_by_+1_for_each_failed_Roll,_up_to_+$._Also_+{%_Research_EXP_Gain."],
-  47: ["Sticker-it_To_Em!",2,1,"Unlocks_TRUE_Damage_Multi_from_Sticker_Depot"],
-  48: ["Materials_Science",4,25,"Reduces_Polymerization_cycle_time_by_{%"],
-  49: ["Polymer_Refinery",2,5,"Unlocks_Polymerization_tab._+{%_faster_refinery_cycles"],
-  50: ["Pts_Every_Ten",1,5,"+1_extra_Research_PTS_per_10_LVs._+{%_Research_EXP"],
-  51: ["Sharp_Eye",4,5,"+max_roll._+{%_Research_EXP"],
-  52: ["Holding_Onto_You",3,10,"+{%_Kaleidoscope_effect"],
-  67: ["Sticky_Crowns",3,25,"{%_Megacrop_growth_per_King_Rat_Crown"],
-  68: ["Boony_Crowns",1,1,"{%_sticker_bonus_per_King_Rat_Crown"],
-  69: ["Adequate_Sized",2,50,"{%_Tiny_Cog_tier_upgrade_chance"],
-  70: ["Takin'_Notes",4,12,"}x_Research_EXP_(TRUE_multi)"],
-  71: ["Powered_Down_Research",2,1,"+{%_Research_AFK_Gains"],
-  72: ["Kaleidoscope",4,5,"+1_Kaleidoscope._+{%_Kaleidoscope_effect"],
-  87: ["Gaming_Zuperbits",2,200,"Unlocks_Zuperbits._}x_Gaming_Bit_Multi"],
-  88: ["Sticker_Depot",3,50,"Unlocks_Stickers._}x_Megacrop_growth"],
-  89: ["Tiny_Cogs",4,200,"Unlocks_Tiny_Cog_board._}x_Flaggy_Rate"],
-  90: ["Observationalistic",4,1,"+1_daily_rolls._+{%_Research_EXP"],
-  91: ["Optical_Monocle",4,1,"+1_Optical_Monocle._+{%_Insight_EXP"],
-  92: ["Oracular_Spectacular",2,25,"+{%_Insight_from_Monocles"],
-  93: ["Game_Design_101",3,4,"Observations_give_}x_more_EXP_per_LV"],
-  94: ["Game_Design_102",4,1,"+{%_Research_EXP_per_TOTAL_Obs_LV"],
-  107: ["Palettable_Crowns",1,3,"+{%_Palette_Luck_per_Crown"],
-  108: ["Rat_King_of_Olde",2,25,"Unlocks_Rat_King._+{%_King_Tokens/hr"],
-  109: ["Transcendent_Artifacts",1,25,"Unlocks_Transcendent_Artifacts._+{%_Artifact_Find"],
-  110: ["All_Night_Studying",2,50,"+{%_Research_EXP"],
-  111: ["Research_AFK_Gains",2,5,"+{%_Research_AFK_Gains"],
-  112: ["See_'Em_All",1,5,"+{%_Research_EXP_per_Obs_found"],
-  127: ["Eclectoplasmaticism",1,1,"+{%_TRUE_DMG_Multi_per_Eclectic_Sigil"],
-  128: ["Eclectic_Sigils",1,10,"5th_sigil_upgrade_(Eclectic)"],
-  129: ["Mr_Minehead_Linguistics",4,10,"Unlocks_Depth_Charge._+{_base_Minehead_Currency/hr"],
-  130: ["Legendary_Yellow_Fever",3,5,"+max_LV_Yellow_Legend_Talents._}x_Class_EXP"],
-  131: ["Legendary_Red_Fever",3,5,"+max_LV_Red_Legend_Talents._}x_Class_EXP"],
-  132: ["Legendary_Brown_Fever",3,5,"+max_LV_Brown_Legend_Talents._}x_Class_EXP"],
-  147: ["Depth_Charge_Rematch!",4,25,"+daily_Depth_Charge_tries._+{%_Minehead_Currency/hr"],
-  148: ["More_Minehead_Money",4,25,"}x_Minehead_Currency/hr"],
-  149: ["Glimbo_Linguistics",1,15,"Unlocks_Glimbo._}x_coins"],
-  150: ["Masterclass_Research",2,10,"-{%_Masterclass_cost_daily,_FOREVER"],
-  151: ["Spelunking_Research",2,25,"+{%_Spelunking_POW_daily,_FOREVER"],
-  152: ["Legendary_Green_Fever",3,5,"+max_LV_Green_Legend_Talents._}x_Class_EXP"],
-  167: ["Minehead_Damagio",3,15,"}x_Depth_Charge_damage"],
-  168: ["Glimbo_Insider_Trading",1,1,"+{%_DR_TRUE_Multi_per_100_Glimbo_Trades"],
-  169: ["Glimbo_BOGO_Offer",2,10,"Some_Glimbo_trades_give_+LVs._}x_Coins"],
-  170: ["All_Quick_All_Done",3,50,"}x_more_Souls/EXP_from_first_daily_All_Quick"],
-  171: ["Day_'N'_Nite",4,50,"+{_Max_LV_Day/Night_Market_upgrades"],
-  172: ["Well_Dressed",2,25,"}x_first_MISC_bonus_on_Clothing"],
-  173: ["Divine_Design",1,25,"+{%_Drop_Rate"],
+  31: ["Smart_Eye",3,5,"Raises_the_minimum_possible_Roll_by_+1_for_each_failed_Roll,_up_to_+$._This_resets_back_to_0_upon_a_successful_Roll._Also_+{%_Research_EXP_Gain."],
+  47: ["Sticker-it_To_Em!",2,1,"Unlocks_a_new_TRUE_Damage_Multiplier_as_shown_in_the_Sticker_Depot,_which_goes_up_by_+{%_for_every_Sticker_you_find!"],
+  48: ["Materials_Science",4,25,"Reduces_the_Cycle_Time_for_the_Polymerization_tab_in_the_Refinery_by_{%"],
+  49: ["Polymer_Refinery",2,5,"Unlocks_a_new_tab_in_the_Refinery,_POLYMERIZATION!_Also,_+{%_faster_refinery_cycles_for_ALL_tabs!"],
+  50: ["Pts_Every_Ten",1,5,"Get_+|_extra_Research_PTS_every_10_Research_LVs!_Also,_+{%_Research_EXP_Gain!"],
+  51: ["Sharp_Eye",4,5,"Increase_the_max_possible_Roll_while_searching_for_new_observations_by_+|,_and_+{%_Research_EXP_gain!"],
+  52: ["Holding_Onto_You",3,10,"Twists_the_Kaleidoscope_behind_both_of_your_eyes,_increasing_their_effect_by_+{%"],
+  67: ["Sticky_Crowns",3,25,"For_every_King_Rat_Crown_you_reclaim,_your_Megacrop_growth_chance_goes_up_by_{%._Total_Bonus:^x"],
+  68: ["Boony_Crowns",1,1,"For_every_King_Rat_Crown_you_reclaim,_all_your_stickers_gives_{%_higher_bonuses._Total_Bonus:$%"],
+  69: ["Adequate_Sized,_Actually",2,50,"All_Tiny_Cogs_you_get_have_a_{%_chance_be_1_Tier_higher_than_they_otherwise_would've_been!_Huge,_honestly!"],
+  70: ["Takin'_Notes",4,12,"Multiplies_Research_EXP_gain_by_}x,_TRUE_multiplier_style!_So_this_bonus_will_never_be_additive!"],
+  71: ["Powered_Down_Research",2,1,"Further_increases_your_Research_AFK_Gains_rate_by_+{%,_in_your_unending_quest_for_100%"],
+  72: ["Kaleidoscope",4,5,"Gives_+|_Kaleidoscopes_to_use_for_Observations!_Also,_+{%_Kaleidoscope_effect!"],
+  87: ["Gaming_Zuperbits",2,200,"Unlocks_the_Zuperbits_page_of_Superbits_in_Gaming!_Yea,_you_ain't_done_with_those_just_yet!_Also_gives_}x_Gaming_Bit_Multi!"],
+  88: ["Sticker_Depot",3,50,"Unlocks_the_Sticker_mechanic_for_Farming!_Also,_boosts_Megacrop_growth_chance_by_}x"],
+  89: ["Tiny_Cogs",4,200,"Unlocks_the_Tiny_Cog_board,_and_generates_a_single_Tiny_Cog_per_day!_Also_boosts_Flaggy_Rate_by_}x"],
+  90: ["Observationalistic",4,1,"Gives_you_+|_more_Daily_Rolls_for_getting_new_Observations!_Also,_+{%_Research_EXP_gain!"],
+  91: ["Optical_Monocle",4,1,"Gives_+|_Optical_Monocles_to_use_for_Observations!_Also_+{%_Insight_EXP_gain,_to_level_up_your_Observations_faster_with!"],
+  92: ["Oracular_Spectacular",2,25,"Taking_only_what_you_need_from_it,_your_Optical_Monocles_generate_+{%_more_Insight!"],
+  93: ["Game_Design_101",3,4,"Psst..._you_forgot_to_give_Observation_LV_a_purpose_while_helping_Lava_research_new_content!_How_about_you_do..._Observations_give_}x_more_EXP_per_LV!"],
+  94: ["Game_Design_102",4,1,"Design_problem,_why_would_players_level_up_old_Observations?_How_about..._+{%_Research_EXP_per_TOTAL_Observation_LV!_@_Total_Bonus:$%"],
+  107: ["Palettable_Crowns",1,3,"+{%_Palette_Luck_for_every_King_Rat_Crown_you_reclaim._@_Total_Bonus:$%"],
+  108: ["Rat_King_of_Olde",2,25,"You_can_now_buy_the_Rat_King_from_the_Import_Shop_in_Gaming!_Also,_+{%_King_Tokens_per_hour!"],
+  109: ["Transcendent_Artifacts",1,25,"Unlocks_Transcendent_Sailing_Artifacts_tier,_and_boosts_Artifact_Find_Chance_by_a_smol_+{%"],
+  110: ["All_Night_Studying",2,50,"Boosts_Research_EXP_gain_by_+{%_@_You'll_be_filling_out_this_Grid_in_no_time_at_all!"],
+  111: ["Research_AFK_Gains",2,5,"+{%_Research_AFK_Gains._This_affects_OFFLINE_gains_for_Research,_Minehead,_Insight..._everything_Research_related!"],
+  112: ["See_'Em_All",1,5,"+{%_Research_EXP_gain_per_Observation_found!_@_Total_Bonus:+$%"],
+  127: ["Eclectoplasmaticism",1,1,"What_kind_of_word_is_Eclectopl..._whatever,_this_gives_you_+{%_TRUE_DMG_Multi_per_Eclectic_Sigil!"],
+  128: ["Eclectic_Sigils",1,10,"Sigils_can_be_upgraded_a_5th_time_to_Eclectic!_@_NOTE:You_must_defeat_Lore_Boss_7_in_Spelunking_first!"],
+  129: ["Mr_Minehead_Linguistics",4,10,"You_can_now_speak_to_Mr_Minehead_and_play_his_Depth_Charge_game!_Also,_+{_base_Minehead_Currency/hr"],
+  130: ["Legendary_Yellow_Fever",3,5,"Raises_the_Max_LV_of_certain_Yellow_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
+  131: ["Legendary_Red_Fever",3,5,"Raises_the_Max_LV_of_certain_Red_Legend_Talents_by_+|._@_Also,_}x_Class_EXP_gain!"],
+  132: ["Legendary_Brown_Fever",3,5,"Raises_the_Max_LV_of_certain_Brown_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
+  147: ["Depth_Charge_Rematch!",4,25,"Gives_you_+|_more_tries_every_day_at_Mr_Minehead's_Depth_Charge!_Also,_+{%_Minehead_Currency/hr"],
+  148: ["More_of_that_Minehead_Money_Pls",4,25,"Multiplies_Minehead_Currency/hr_by_}x"],
+  149: ["Glimbo_Linguistics",1,15,"You_can_now_speak_to_Glimbo,_and_make_trades_with_him!_Also_boosts_coins_dropped_by_monsters_by_}x!"],
+  150: ["Masterclass_Research",2,10,"Reduces_the_cost_of_all_Masterclass_upgrades_by_{%_every_day,_FOREVER!_Total_Reduction:-&%"],
+  151: ["Spelunking_Research",2,25,"Boosts_Spelunking_POW_by_+{%_every_day,_FOREVER!_@_Total_Boost:^x_POW"],
+  152: ["Legendary_Green_Fever",3,5,"Raises_the_Max_LV_of_certain_Green_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
+  167: ["Minehead_Damagio",3,15,"Multiplies_all_damage_you_deal_in_Mr_Minehead's_Depth_Charge_by_}x"],
+  168: ["Glimbo_Insider_Trading_Secrets",1,1,"+{%_Drop_Rate_TRUE_Multi_per_100_Glimbo_Trades!_@_Total_Bonus:^x_DR"],
+  169: ["Glimbo_BOGO_Offer",2,10,"Some_of_Glimbo's_trades_give_+|_additional_LVs!_This_works_retroactively._Also,_}x_Coin_gain"],
+  170: ["All_Quick_All_Done",3,50,"Every_day,_the_first_'All_Quick'_use_at_the_MSA_in_World_3_gives_}x_more_Souls_and_EXP!"],
+  171: ["Day_'N'_Nite",4,50,"Increases_the_Max_LV_of_all_Day_and_Night_Market_upgrades_by_+{"],
+  172: ["Well_Dressed",2,25,"The_first_MISC_Bonus_on_your_Attire_Equipment_(i.e._Clothing)_gives_}x_more_bonus!"],
+  173: ["Divine_Design",1,25,"<._Also,_+{%_Drop_Rate."],
 };
 
 const SHAPE_NAMES = ["Purple Diamond","Blue Circle","Green Microsquare","Cyan Hexagon",
@@ -415,6 +477,19 @@ const NODE_GOAL_COLORS = {
   'Res EXP':'var(--green)', 'Res True\u00d7':'#ff6b6b', 'Obs\u00d7Insight':'var(--gold)',
   'Insight':'var(--purple)', 'Kaleido':'var(--cyan)', 'Rolls':'#aaa', 'AFK':'#888',
 };
+// Tier priority for shapes — populated from UI or state import
+// Each: { above: [nodeIdx,...], below: [nodeIdx,...] }
+// Default: all non-EXP nodes below EXP (= pure EXP shape optimization)
+let upgradeTiers = { above: [], below: [] };
+let shapeTiers   = { above: [], below: [] };
+function tierEffectiveScore(goal, isExp, delta, maxExpDelta, tiers) {
+  if (isExp) return delta;
+  const aboveIdx = tiers.above.indexOf(goal);
+  if (aboveIdx >= 0) return maxExpDelta * (2 + (tiers.above.length - aboveIdx) * 0.5);
+  const belowIdx = tiers.below.indexOf(goal);
+  if (belowIdx >= 0) return maxExpDelta * Math.pow(0.4, belowIdx + 1);
+  return 0;
+}
 const SHAPE_VERTICES = [
   [[16,0],[32,29],[16,59],[0,30]],
   [[29,0],[45,5],[55,16],[58,28],[54,44],[47,52],[31,58],[15,54],[4,44],[0,30],[3,16],[14,4]],
@@ -628,6 +703,11 @@ let cachedSpelunkyUpg7 = 0;  // spelunkData[0][7] — used by computeShapesOwned
 let cachedFailedRolls = 0;   // optionsListData[514] — obs roller pity counter
 let cachedAFKRate = null;    // cached result of computeAFKGainsRate()
 let cachedComp0DivOk = false; // lv0AllData[0][14] >= 2 — for calcAllBonusMulti
+// Sticker bonus components for dynamic recalculation in sim (node I9 = grid 68)
+let cachedStickerFixed = 0;  // stkSuperbit62 * stkLv * stkBase (constant during sim)
+let cachedBoonyCount = 0;    // research[11].length (rat king crown count)
+let cachedEvShop37 = 0;      // eventShopOwned(37) (constant during sim)
+let cachedExtPctExSticker = 0; // externalResearchPct minus sticker bonus
 
 // ===== LOAD SAVE =====
 function parseSaveKey(save, key) {
@@ -1525,6 +1605,10 @@ function computeExternalBonuses() {
   const stkSuperbit62 = 1 + 20 * superBitType(62) / 100;
   const autoSticker = stkCrownMulti * stkSuperbit62 * stkLv * stkBase;
   b.sticker = { val: autoSticker, label: 'Sticker Bonus', note: `LV${stkLv}x${stkBase}xcrown(${stkCrownMulti.toFixed(2)})xsb62(${stkSuperbit62.toFixed(2)})` };
+  // Cache components for dynamic recalculation in sim
+  cachedStickerFixed = stkSuperbit62 * stkLv * stkBase;
+  cachedBoonyCount = boonyCount;
+  cachedEvShop37 = eventShopOwned(37);
 
   // 2. Dancing Coral (index 4 = Research EXP)
   const tower22 = towerData[22] || 0;
@@ -1618,6 +1702,7 @@ function computeExternalBonuses() {
   let totalAdd = 0;
   for (const k of Object.keys(b)) totalAdd += b[k].val;
   b._total = totalAdd;
+  cachedExtPctExSticker = totalAdd - (b.sticker?.val || 0);
 
   // --- TRUE multipliers (not additive) ---
   // Companion ownership auto-detected from it.json companion.l data
@@ -1750,7 +1835,9 @@ async function exportState() {
     externalResearchPct, comp52TrueMulti, allBonusMulti, extBonuses,
     companionIds: [...companionIds], totalTomePoints, serverVarResXP,
     cachedEventShopStr, cachedResearchExp, cachedSpelunkyUpg7, cachedFailedRolls, cachedAFKRate, cachedComp0DivOk,
+    cachedStickerFixed, cachedBoonyCount, cachedEvShop37, cachedExtPctExSticker,
     extBonusOverrides, loadedSaveFormat,
+    shapeTiers: { above: shapeTiers.above.slice(), below: shapeTiers.below.slice() },
   };
   return await compressState(state);
 }
@@ -1830,9 +1917,30 @@ function importState(raw) {
   cachedFailedRolls = raw.cachedFailedRolls || 0;
   cachedAFKRate = raw.cachedAFKRate || null;
   cachedComp0DivOk = raw.cachedComp0DivOk || false;
+  // Backward compat: old state exports lack sticker cache fields — derive from extBonuses
+  if ('cachedStickerFixed' in raw) {
+    cachedStickerFixed = raw.cachedStickerFixed || 0;
+    cachedBoonyCount = raw.cachedBoonyCount || 0;
+    cachedEvShop37 = raw.cachedEvShop37 || 0;
+    cachedExtPctExSticker = raw.cachedExtPctExSticker || 0;
+  } else {
+    // Old format: treat entire externalResearchPct as non-sticker (sticker stays static)
+    cachedStickerFixed = 0;
+    cachedBoonyCount = 0;
+    cachedEvShop37 = 0;
+    cachedExtPctExSticker = externalResearchPct;
+  }
   extBonusOverrides = raw.extBonusOverrides || {};
   extBonuses = raw.extBonuses || null;
   loadedSaveFormat = raw.loadedSaveFormat || 'state';
+  const defaultShapeTiers = { above: [], below: UE_NON_EXP_NODES.slice() };
+  if (raw.shapeTiers && Array.isArray(raw.shapeTiers.below) && typeof raw.shapeTiers.below[0] === 'number') {
+    shapeTiers.above = raw.shapeTiers.above || [];
+    shapeTiers.below = [...(raw.shapeTiers.below || []), ...(raw.shapeTiers.disabled || [])];
+  } else {
+    shapeTiers.above = []; shapeTiers.below = defaultShapeTiers.below.slice();
+  }
+  _saveShapeTiers();
   updateSaveFormatUI();
   renderAll();
 }
@@ -2271,7 +2379,6 @@ function simTotalExp(opts = {}) {
   const md = opts.magData || magData;
   const il = opts.insightLvs || insightLvs;
   const occ = opts.occFound || occFound;
-  const extPct = opts.externalPct !== undefined ? opts.externalPct : externalResearchPct;
 
   function gb(idx) {
     const info = RES_GRID_RAW[idx];
@@ -2315,7 +2422,11 @@ function simTotalExp(opts = {}) {
   }
 
   // Game: ResearchEXPmulti additive (N.formatted.js:91894)
-  let additive = gb(50) + gb(90) + gb(110) + extPct;
+  // Dynamically recalculate sticker bonus from gl[68] so leveling I9 shows benefit
+  const dynSticker = cachedStickerFixed > 0
+    ? (1 + (gb(68) * cachedBoonyCount + 30 * cachedEvShop37) / 100) * cachedStickerFixed
+    : 0;
+  let additive = gb(50) + gb(90) + gb(110) + cachedExtPctExSticker + dynSticker;
   // Game: TotalOccurrencesFound loops i=0..OccurrencesToBeFound-1, counts Research[2][i]>=1
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
@@ -2700,37 +2811,38 @@ function computeCellValues(simOpts) {
 }
 
 function optimizeShapePlacement(simOpts) {
+  const useTiers = simOpts && simOpts.useTiers;
   const cellValues = computeCellValues(simOpts);
 
   // Use computed ShapesOwned (matches game formula) capped by available shape definitions
   const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
-  if (numShapes === 0) return { placements: [], cellValues, message: 'No shapes unlocked.' };
+  if (numShapes === 0) return { placements: [], cellValues, pureExpTotal: 0, message: 'No shapes unlocked.' };
 
-  // Sort cells by value descending  these are our target cells
-  const valuedCells = [];
-  for (let i = 0; i < GRID_SIZE; i++) {
-    if (cellValues[i] > 0 && RES_GRID_RAW[i] && (gridLevels[i] || 0) > 0) {
-      valuedCells.push({ idx: i, value: cellValues[i] });
+  // Sort cells by value descending — these are our target cells
+  let valuedCells = [];
+  function _rebuildValuedCells() {
+    valuedCells = [];
+    for (let i = 0; i < GRID_SIZE; i++) {
+      if (cellValues[i] > 0 && RES_GRID_RAW[i] && (gridLevels[i] || 0) > 0) {
+        valuedCells.push({ idx: i, value: cellValues[i] });
+      }
     }
+    valuedCells.sort((a, b) => b.value - a.value);
   }
-  valuedCells.sort((a, b) => b.value - a.value);
+  _rebuildValuedCells();
 
-  // Sort shapes by bonus% descending  place highest-bonus shapes first
+  // Sort shapes by bonus% descending — place highest-bonus shapes first
   const shapeOrder = [];
   for (let s = 0; s < numShapes; s++) shapeOrder.push(s);
   shapeOrder.sort((a, b) => SHAPE_BONUS_PCT[b] - SHAPE_BONUS_PCT[a]);
 
-  // For each shape, try discrete placements that center it over high-value cells
-  // Search: for each target cell, try centering shape there with rotations
-  // Also try small offsets around cell centers to capture adjacent high-value cells
-  // Game unlocks shape rotation at research level 90
   const coveredCells = new Set();
   const placements = [];
   const canRotate = researchLevel >= 90;
   const rotations = canRotate ? [0, 90, 180, 270] : [0];
 
   // Helper: score a placement candidate
-  function _scorePlacement(si, x, y, rot, coveredCells) {
+  function _scorePlacement(si, x, y, rot) {
     const allCells = getShapeCellCoverage(si, x, y, rot);
     const newCells = allCells.filter(c => !coveredCells.has(c));
     if (newCells.length === 0) return null;
@@ -2739,7 +2851,7 @@ function optimizeShapePlacement(simOpts) {
     return { x, y, rot, expScore, nodeCount: newCells.length, newCells };
   }
 
-  // Helper: true if candidate a is strictly better than b (EXP first, node count only as tiebreaker)
+  // Helper: true if candidate a is strictly better than b
   function _betterThan(a, b) {
     if (a.expScore !== b.expScore) return a.expScore > b.expScore;
     return a.nodeCount > b.nodeCount;
@@ -2747,7 +2859,6 @@ function optimizeShapePlacement(simOpts) {
 
   // Helper: keep a sorted top-K list, deduplicating by covered-cell-set
   function _insertCandidate(list, cand, maxK) {
-    // Deduplicate: skip if an existing candidate covers the exact same cells
     const key = cand.newCells.slice().sort((a,b) => a-b).join(',');
     for (const c of list) {
       if (c._cellKey === key) {
@@ -2764,25 +2875,23 @@ function optimizeShapePlacement(simOpts) {
     if (list.length > maxK) list.length = maxK;
   }
 
-  for (const si of shapeOrder) {
+  // Greedy 3-stage placement for one shape — returns placement object or null
+  function _placeShape(si) {
     const dims = SHAPE_DIMS[si];
-    if (!dims) continue;
+    if (!dims) return null;
 
     let bestExpScore = -Infinity;
     let bestNodeCount = -1;
     let bestPlacement = null;
     let bestCells = [];
 
-    // Collect all uncovered leveled cells as anchor candidates
     const uncovered = valuedCells.filter(c => !coveredCells.has(c.idx));
-    if (uncovered.length === 0) break;
+    if (uncovered.length === 0) return null;
 
-    // ── Stage 1: Coarse scan (step=15) ──
-    // Cast a wide net across all anchor positions
+    // Stage 1: Coarse scan (step=15)
     const seen1 = new Set();
     const stage1Top = [];
     const STAGE1_K = 12;
-
     for (const anchor of uncovered) {
       const col = anchor.idx % GRID_COLS;
       const row = Math.floor(anchor.idx / GRID_COLS);
@@ -2790,7 +2899,6 @@ function optimizeShapePlacement(simOpts) {
       const anchorY = 24 + 30 * row + 15;
       const halfW = Math.ceil(dims[0] / 2);
       const halfH = Math.ceil(dims[1] / 2);
-
       for (let ox = -halfW; ox <= halfW; ox += 15) {
         for (let oy = -halfH; oy <= halfH; oy += 15) {
           const snapX = Math.round((anchorX - dims[0] / 2 + ox) / 15) * 15;
@@ -2799,15 +2907,14 @@ function optimizeShapePlacement(simOpts) {
             const key = `${snapX},${snapY},${rot}`;
             if (seen1.has(key)) continue;
             seen1.add(key);
-            const cand = _scorePlacement(si, snapX, snapY, rot, coveredCells);
+            const cand = _scorePlacement(si, snapX, snapY, rot);
             if (cand) _insertCandidate(stage1Top, cand, STAGE1_K);
           }
         }
       }
     }
 
-    // ── Stage 2: Medium refinement (step=5) around stage 1 winners ──
-    // Narrows in on the best regions with 5px precision
+    // Stage 2: Medium refinement (step=5) around stage 1 winners
     const seen2 = new Set();
     const stage2Top = [];
     const STAGE2_K = 8;
@@ -2819,21 +2926,20 @@ function optimizeShapePlacement(simOpts) {
             const key = `${fx},${fy},${rot}`;
             if (seen2.has(key)) continue;
             seen2.add(key);
-            const cand = _scorePlacement(si, fx, fy, rot, coveredCells);
+            const cand = _scorePlacement(si, fx, fy, rot);
             if (cand) _insertCandidate(stage2Top, cand, STAGE2_K);
           }
         }
       }
     }
 
-    // ── Stage 3: Fine refinement (step=1) around stage 2 winners ──
-    // Pixel-perfect placement to maximize coverage
+    // Stage 3: Fine refinement (step=1) around stage 2 winners
     for (const c2 of stage2Top) {
       for (let rx = -5; rx <= 5; rx++) {
         for (let ry = -5; ry <= 5; ry++) {
           for (const rot of rotations) {
             const fx = c2.x + rx, fy = c2.y + ry;
-            const cand = _scorePlacement(si, fx, fy, rot, coveredCells);
+            const cand = _scorePlacement(si, fx, fy, rot);
             if (cand && _betterThan(cand, { expScore: bestExpScore, nodeCount: bestNodeCount })) {
               bestExpScore = cand.expScore;
               bestNodeCount = cand.nodeCount;
@@ -2847,12 +2953,74 @@ function optimizeShapePlacement(simOpts) {
 
     if (bestPlacement) {
       for (const c of bestCells) coveredCells.add(c);
-      placements.push({
+      return {
         ...bestPlacement,
         cells: bestCells,
         shapeName: SHAPE_NAMES[si],
         bonusPct: SHAPE_BONUS_PCT[si],
-      });
+      };
+    }
+    return null;
+  }
+
+  // ── Phase 1: EXP + "above" nodes ──
+  // Boost "above" tier nodes so shapes actively target them alongside EXP.
+  // Zero out "below" nodes — they can still get hit incidentally
+  // by shapes positioned for nearby EXP/above cells.
+  if (useTiers) {
+    const maxExpVal = Math.max(0.001, ...cellValues.filter(v => v > 0));
+    const aboveSet = new Set(shapeTiers.above);
+    // Boost EXP nodes in "above" tier (e.g., Insight preset)
+    for (const idx of shapeTiers.above) {
+      const goal = NODE_GOAL[idx];
+      if (goal && NODE_GOAL_COLORS[goal] && (gridLevels[idx] || 0) > 0) {
+        const rank = shapeTiers.above.indexOf(idx);
+        cellValues[idx] = maxExpVal * (2 + (shapeTiers.above.length - rank) * 0.5);
+      }
+    }
+    // Handle non-EXP nodes: boost above, zero out below
+    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+      const lv = gridLevels[idx] || 0;
+      if (lv === 0) continue;
+      const goal = NODE_GOAL[idx];
+      if (!goal || NODE_GOAL_COLORS[goal]) continue; // skip EXP-related nodes (handled above if in tier)
+      if (aboveSet.has(idx)) {
+        const rank = shapeTiers.above.indexOf(idx);
+        cellValues[idx] = maxExpVal * (2 + (shapeTiers.above.length - rank) * 0.5);
+      } else {
+        cellValues[idx] = 0; // below: don't target, but may hit incidentally
+      }
+    }
+    _rebuildValuedCells();
+  }
+
+  const placedSet = new Set();
+  for (const si of shapeOrder) {
+    const p = _placeShape(si);
+    if (p) { placements.push(p); placedSet.add(si); }
+  }
+
+  // Record phase-1 EXP total (includes "above" influence)
+  const pureExpSO = new Array(GRID_SIZE).fill(-1);
+  for (const p of placements) for (const c of p.cells) pureExpSO[c] = p.shapeIdx;
+  const phase1ExpTotal = simTotalExp({ shapeOverlay: pureExpSO }).total;
+
+  // ── Phase 2: Place leftover shapes on "below" tier nodes ──
+  if (useTiers) {
+    const leftover = shapeOrder.filter(s => !placedSet.has(s));
+    if (leftover.length > 0) {
+      // Give "below" nodes ordered values so leftover shapes cover them by priority
+      for (let i = 0; i < shapeTiers.below.length; i++) {
+        const idx = shapeTiers.below[i];
+        if ((gridLevels[idx] || 0) > 0) {
+          cellValues[idx] = 1000 * (shapeTiers.below.length - i);
+        }
+      }
+      _rebuildValuedCells();
+      for (const si of leftover) {
+        const p = _placeShape(si);
+        if (p) { placements.push(p); placedSet.add(si); }
+      }
     }
   }
 
@@ -2881,6 +3049,7 @@ function optimizeShapePlacement(simOpts) {
     improvPct,
     optimizedOverlay: optimizedSO,
     optimizedPositions,
+    phase1ExpTotal,
   };
 }
 
@@ -3045,8 +3214,7 @@ function getResearchExpRequired() {
 
 function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   // Lightweight version of simTotalExp — all mutable state via params.
-  // ctx = { abm, extPct, c52 } — defaults to globals when omitted.
-  const _extPct = ctx ? ctx.extPct : externalResearchPct;
+  // ctx = { abm, c52 } — defaults to globals when omitted.
   const _c52 = ctx ? ctx.c52 : comp52TrueMulti;
   const kalMap = {};
   for (const m of md) {
@@ -3071,7 +3239,11 @@ function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
     const kalMulti = 1 + (kalMap[t] || 0) * kalBase;
     obsTotal += count * base * (1 + gd101 * (il[t] || 0) / 100) * kalMulti;
   }
-  let additive = _gbWith(gl, so, 50, ctx) + _gbWith(gl, so, 90, ctx) + _gbWith(gl, so, 110, ctx) + _extPct;
+  // Dynamically recalculate sticker bonus from gl[68]
+  const dynSticker = cachedStickerFixed > 0
+    ? (1 + (_gbWith(gl, so, 68, ctx) * cachedBoonyCount + 30 * cachedEvShop37) / 100) * cachedStickerFixed
+    : 0;
+  let additive = _gbWith(gl, so, 50, ctx) + _gbWith(gl, so, 90, ctx) + _gbWith(gl, so, 110, ctx) + cachedExtPctExSticker + dynSticker;
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
   additive += _gbWith(gl, so, 112, ctx) * occFoundCount;
@@ -3083,7 +3255,7 @@ function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   return obsTotal * multi;
 }
 
-// ctx = { abm, extPct, c52 } — defaults to globals when omitted
+// ctx = { abm, c52 } — defaults to globals when omitted
 function _gbWith(gl, so, idx, ctx) {
   const info = RES_GRID_RAW[idx];
   if (!info) return 0;
@@ -3149,7 +3321,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
     // Phase 1: quick filter — score all candidates by immediate EXP/hr, keep top 10
     // Pure ctx — no global ABM mutation needed here
     const baseAbm = calcAllBonusMulti(gl);
-    const ctx = { abm: baseAbm, extPct: externalResearchPct, c52: comp52TrueMulti };
+    const ctx = { abm: baseAbm, c52: comp52TrueMulti };
     const curRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
     const candidates = [];
     for (const idxStr of Object.keys(RES_GRID_RAW)) {
@@ -3174,7 +3346,10 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
       }
       gl[idx]--;
       // Score: immediate gain + discounted path potential (0.5 accounts for 2-point cost)
-      candidates.push({ idx, immediateGain: immediateGain + pathBonus * 0.5, pathBonus });
+      const rawScore = immediateGain + pathBonus * 0.5;
+      const goal = NODE_GOAL[idx] || '';
+      const isExpNode = !!NODE_GOAL_COLORS[goal];
+      candidates.push({ idx, immediateGain: rawScore, pathBonus, goal, isExpNode });
     }
     if (candidates.length === 0) break;
     candidates.sort((a, b) => b.immediateGain - a.immediateGain);
@@ -3220,10 +3395,11 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
           if (nm > tMMax) tMMax = nm;
         }
         if (lvUp) {
-          // Spend newly earned grid points with quick immediate-gain greedy
+          // Spend newly earned grid points with tier-aware greedy
           let newAvail = _gridPointsAvail(tGL, tRLv);
           while (newAvail > 0) {
-            let bestQIdx = -1, bestQRate = -Infinity;
+            const innerCands = [];
+            const innerBaseRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
             for (const nStr of Object.keys(RES_GRID_RAW)) {
               const ni = Number(nStr);
               if ((tGL[ni] || 0) >= RES_GRID_RAW[ni][1]) continue;
@@ -3231,18 +3407,22 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
               tGL[ni] = (tGL[ni] || 0) + 1;
               const niCtx = { ...p2Ctx, abm: calcAllBonusMulti(tGL) };
               const niRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, niCtx);
-              if (niRate > bestQRate) { bestQRate = niRate; bestQIdx = ni; }
+              const niGoal = NODE_GOAL[ni] || '';
+              const niIsExp = !!NODE_GOAL_COLORS[niGoal];
+              innerCands.push({ idx: ni, gain: niRate - innerBaseRate, goal: niGoal, isExp: niIsExp });
               tGL[ni]--;
             }
-            if (bestQIdx >= 0) {
-              tGL[bestQIdx] = (tGL[bestQIdx] || 0) + 1;
-              p2Ctx.abm = calcAllBonusMulti(tGL);
-              allBonusMulti = p2Ctx.abm;
-              // Grow mag pool if new mags unlocked
-              tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
-              _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
-              newAvail--;
-            } else break;
+            if (innerCands.length === 0) break;
+            innerCands.sort((a, b) => b.gain - a.gain);
+            const bestQIdx = innerCands[0].idx;
+            if (innerCands[0].gain <= 0) break;
+            tGL[bestQIdx] = (tGL[bestQIdx] || 0) + 1;
+            p2Ctx.abm = calcAllBonusMulti(tGL);
+            allBonusMulti = p2Ctx.abm;
+            // Grow mag pool if new mags unlocked
+            tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
+            _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
+            newAvail--;
           }
           // Re-optimize shapes and mags after grid changes from level-up
           tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv).overlay;
@@ -3561,7 +3741,7 @@ async function unifiedSim(config) {
   // Sync allBonusMulti to match the (possibly overridden) gl state
   const origABM = allBonusMulti;
   allBonusMulti = calcAllBonusMulti(gl);
-  const ctx = { abm: allBonusMulti, extPct: externalResearchPct, c52: comp52TrueMulti };
+  const ctx = { abm: allBonusMulti, c52: comp52TrueMulti };
 
   // Recompute mOwned from (possibly overridden) gl/rLv so beam search +1 on #72/#91 is reflected
   mOwned = computeMagnifiersOwnedWith(gl, rLv);
@@ -3957,28 +4137,29 @@ function gridCoord(idx) {
 }
 
 // ===== TOOLTIP HELPERS =====
-function showGridTooltip(e, idx) {
+function showGridTooltip(e, idx, overlayOverride) {
   const tt = document.getElementById('tooltip');
   const info = RES_GRID_RAW[idx];
   if (!info) return;
   const lv = gridLevels[idx] || 0;
   const bonus = getGridBonus(idx);
   const finalBonus = getGridBonusFinal(idx);
-  const si = shapeOverlay[idx];
+  const ov = overlayOverride || shapeOverlay;
+  const si = ov[idx];
 
   let html = '<div class="tt-name">' + gridCoord(idx) + ' — ' + info[0].replace(/_/g,' ') + '</div>';
   html += '<div class="tt-lv">Level: ' + lv + ' / ' + info[1] + '</div>';
   html += '<div class="tt-bonus">Base: ' + bonus.toFixed(1) + '</div>';
   if (si >= 0) {
     const afterShape = bonus * (1 + SHAPE_BONUS_PCT[si] / 100);
-    html += '<div class="tt-shape">' + SHAPE_NAMES[si] + ' (+' + SHAPE_BONUS_PCT[si] + '%): ' + afterShape.toFixed(1) + '</div>';
+    html += '<div class="tt-shape" style="color:' + SHAPE_COLORS[si] + '">' + SHAPE_NAMES[si] + ' (+' + SHAPE_BONUS_PCT[si] + '%): ' + afterShape.toFixed(1) + '</div>';
   }
   if (allBonusMulti !== 1) {
     html += '<div style="color:var(--cyan)">Grid AllMulti (x' + allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
   } else if (si < 0 && bonus > 0) {
     html += '<div style="color:var(--gold)">Final: ' + finalBonus.toFixed(1) + '</div>';
   }
-  html += '<div class="tt-desc">' + info[3].replace(/_/g,' ') + '</div>';
+  html += '<div class="tt-desc">' + _formatDesc(idx) + '</div>';
 
   tt.innerHTML = html;
   tt.style.display = 'block';
@@ -5064,8 +5245,9 @@ function computeInsightROI() {
   function buildLayout(targetObs, nAdjKalei) {
     const assigned = [];
 
-    // Pre-assign monocles on target
-    for (let k = 0; k < monoCount; k++) {
+    // Pre-assign monocles on target (capped to slot capacity)
+    const monoOnTarget = Math.min(monoCount, mMax);
+    for (let k = 0; k < monoOnTarget; k++) {
       assigned.push({ type: 1, slot: targetObs, x: 0, y: 0 });
     }
 
@@ -5094,6 +5276,7 @@ function computeInsightROI() {
 
     // Greedily place remaining mags for research EXP
     const toPlace = [];
+    for (let k = 0; k < monoCount - monoOnTarget; k++) toPlace.push(1);
     for (let k = 0; k < remainKalei; k++) toPlace.push(2);
     for (let k = 0; k < numRegular; k++) toPlace.push(0);
 
@@ -5280,6 +5463,9 @@ function _fmtLayoutDiff(before, after) {
   return h;
 }
 
+let _insightROISortMode = 'breakeven'; // 'grindtime' | 'rategain' | 'recoup' | 'breakeven'
+let _insightROIHideFree = false;
+
 function renderInsightROI() {
   const data = computeInsightROI();
   const summaryDiv = document.getElementById('insight-roi-summary');
@@ -5296,8 +5482,37 @@ function renderInsightROI() {
     `<span style="color:var(--text2);">Monocles: </span><span style="color:var(--purple);font-weight:700;">${data.monoCount}</span>` +
     `<span style="color:var(--text2);margin-left:16px;">Current Research EXP/hr: </span><span style="color:var(--green);font-weight:700;">${fmtVal(data.baseRate)} <span style="color:var(--text2);font-weight:400;font-size:.85em;">(${fmtExact(data.baseRate)})</span></span>`;
 
+  // Sort buttons
+  const sm = _insightROISortMode;
+  function sortBtn(mode, label) {
+    const active = sm === mode;
+    return `<button onclick="_insightROISortMode='${mode}';renderInsightROI();" style="padding:3px 10px;border-radius:4px;border:1px solid ${active ? 'var(--cyan)' : '#555'};background:${active ? 'rgba(0,188,212,.12)' : 'var(--bg3)'};color:${active ? 'var(--cyan)' : 'var(--text2)'};font-size:.78em;cursor:pointer;">${label}</button>`;
+  }
+  let html = '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center;"><span style="color:var(--text2);font-size:.82em;">Sort by:</span>';
+  html += sortBtn('grindtime', 'Grind Time');
+  html += sortBtn('rategain', 'Rate Gain');
+  html += sortBtn('breakeven', 'Break-Even');
+  html += `<label style="margin-left:12px;font-size:.78em;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${_insightROIHideFree ? 'checked' : ''} onchange="_insightROIHideFree=this.checked;renderInsightROI();"> Hide free</label>`;
+  html += '</div>';
+
+  // Sort rows based on current sort mode
+  data.rows.sort((a, b) => {
+    const as = a.scenarios[0], bs = b.scenarios[0];
+    if (sm === 'grindtime') return (as?.grindHrs ?? Infinity) - (bs?.grindHrs ?? Infinity);
+    if (sm === 'rategain') return (bs?.rateGain ?? -Infinity) - (as?.rateGain ?? -Infinity);
+    return (as?.breakEvenHrs ?? Infinity) - (bs?.breakEvenHrs ?? Infinity);
+  });
+
+  // Filter out "free" observations (no EXP loss) if checkbox is on
+  if (_insightROIHideFree) {
+    data.rows = data.rows.filter(r => {
+      const sc = r.scenarios[0];
+      return sc && isFinite(sc.totalExpLost) && sc.totalExpLost > 0;
+    });
+  }
+
   const NCOLS = 11;
-  let html = '<div style="overflow-x:auto;">';
+  html += '<div style="overflow-x:auto;">';
   html += '<table style="width:100%;border-collapse:collapse;font-size:.85em;">';
   html += '<thead><tr style="border-bottom:2px solid var(--accent);color:var(--text2);">';
   html += '<th style="text-align:left;padding:8px 6px;">Observation</th>';
@@ -5475,6 +5690,8 @@ async function computeObsUnlockPriority() {
     // Compute EXP gain: add obs to occFound, re-optimize mags, measure delta
     const tempOF = occFound.slice();
     tempOF[t] = 1;
+    // Yield to event loop periodically to avoid freezing the UI
+    await new Promise(r => setTimeout(r, 0));
     // Full sim: with the new obs found, re-optimize mags to see actual impact
     const tempMD = await optimizeMagsFor(gridLevels, shapeOverlay, magData, insightLvs, tempOF,
       magnifiersOwned, magMaxPerSlot, rLv);
@@ -5502,10 +5719,14 @@ async function computeObsUnlockPriority() {
 }
 
 async function renderObsUnlock() {
-  const data = await computeObsUnlockPriority();
   const summaryDiv = document.getElementById('obs-unlock-summary');
   const tableDiv = document.getElementById('obs-unlock-table');
   if (!summaryDiv || !tableDiv) return;
+  summaryDiv.innerHTML = '<span style="color:var(--text2);">Computing observation priorities...</span>';
+  tableDiv.innerHTML = '';
+  // Yield to let the loading message paint
+  await new Promise(r => setTimeout(r, 0));
+  const data = await computeObsUnlockPriority();
 
   summaryDiv.innerHTML =
     `<span style="color:var(--text2);">Roll range: </span><span style="color:var(--gold);font-weight:700;">1\u2013${data.maxRoll}</span>` +
@@ -5583,9 +5804,774 @@ async function renderObsUnlock() {
   tableDiv.innerHTML = html;
 }
 
+// ===== UPGRADE EVAL — SHAPE PRIORITY SYSTEM =====
+// All non-EXP node indices that can appear in shape tier lists
+const UE_NON_EXP_NODES = (() => {
+  const nodes = [];
+  for (const idxStr of Object.keys(NODE_GOAL)) {
+    const idx = Number(idxStr);
+    if (!NODE_GOAL_COLORS[NODE_GOAL[idx]]) nodes.push(idx);
+  }
+  return nodes.sort((a, b) => a - b);
+})();
+
+// Tier format: { above: [idx,...], below: [idx,...] }
+// 'above' = shapes always placed here alongside EXP nodes
+// 'below' = shapes placed here only with leftover shapes
+// Initialize with all non-EXP nodes in 'below' (pure EXP optimization default)
+upgradeTiers.above = []; upgradeTiers.below = [];
+shapeTiers.above = []; shapeTiers.below = UE_NON_EXP_NODES.slice();
+
+function _saveShapeTiers() {
+  _dedupTiers();
+  try { localStorage.setItem('idleon_shapeTiers', JSON.stringify({ above: shapeTiers.above, below: shapeTiers.below })); } catch(_) {}
+}
+function _loadShapeTiers() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('idleon_shapeTiers'));
+    if (raw && Array.isArray(raw.below)) {
+      shapeTiers.above = raw.above || [];
+      shapeTiers.below = [...(raw.below || []), ...(raw.disabled || [])];
+    }
+  } catch(_) {}
+  _dedupTiers();
+  // Reconcile: ensure every non-EXP node appears in exactly one tier
+  const allTiered = new Set([...shapeTiers.above, ...shapeTiers.below]);
+  for (const idx of UE_NON_EXP_NODES) {
+    if (!allTiered.has(idx)) shapeTiers.below.push(idx);
+  }
+  // Remove stale nodes
+  const validNonExp = new Set(UE_NON_EXP_NODES);
+  const allNodes = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  // Above allows any valid node (including EXP nodes for presets like Insight)
+  for (let i = shapeTiers.above.length - 1; i >= 0; i--) {
+    if (!allNodes.has(shapeTiers.above[i])) shapeTiers.above.splice(i, 1);
+  }
+  // Below only allows non-EXP nodes
+  for (let i = shapeTiers.below.length - 1; i >= 0; i--) {
+    if (!validNonExp.has(shapeTiers.below[i])) shapeTiers.below.splice(i, 1);
+  }
+}
+function _dedupTiers() {
+  const seen = new Set();
+  for (const list of [shapeTiers.above, shapeTiers.below]) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (seen.has(list[i])) list.splice(i, 1); else seen.add(list[i]);
+    }
+  }
+}
+_loadShapeTiers();
+
+// ===== SHAPE PRESET SYSTEM =====
+const SP_STORAGE_KEY = 'idleon_shapePresets';
+const SP_ACTIVE_KEY = 'idleon_shapePresetActive';
+
+const SP_BASE_PRESETS = [
+  { id: '_none',     name: 'Res EXP',   data: '|' },
+  { id: '_minehead', name: 'Minehead',  data: 'J6,H5,I5,H4|' },
+  { id: '_dr',       name: 'DR',        data: 'N4,M4,I4|' },
+  { id: '_daily',    name: 'Daily',     data: 'K5,L5|' },
+  { id: '_classexp', name: 'Class EXP', data: 'K6,L6,M6,M5|' },
+  { id: '_insight',  name: 'Insight',   data: 'L8,M8|' },
+];
+
+function _coordToIdx(coord) {
+  const m = coord.match(/^([A-T])(\d{1,2})$/i);
+  if (!m) return -1;
+  const col = m[1].toUpperCase().charCodeAt(0) - 65;
+  const row = GRID_ROWS - parseInt(m[2], 10);
+  if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return -1;
+  return row * GRID_COLS + col;
+}
+
+function _tiersToString(tiers) {
+  const above = tiers.above.map(i => gridCoord(i)).join(',');
+  const below = tiers.below.map(i => gridCoord(i)).join(',');
+  return above + '|' + below;
+}
+
+function _stringToTiers(str) {
+  const parts = str.split('|');
+  if (parts.length !== 2) return null;
+  const nonExp = new Set(UE_NON_EXP_NODES);
+  const allNodes = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  const above = parts[0] ? parts[0].split(',').map(s => _coordToIdx(s.trim())).filter(i => i >= 0 && allNodes.has(i)) : [];
+  const below = parts[1] ? parts[1].split(',').map(s => _coordToIdx(s.trim())).filter(i => i >= 0 && nonExp.has(i)) : [];
+  // Add any missing non-EXP nodes to below
+  const seen = new Set([...above, ...below]);
+  for (const idx of UE_NON_EXP_NODES) {
+    if (!seen.has(idx)) below.push(idx);
+  }
+  return { above, below };
+}
+
+function _loadPresets() {
+  try { return JSON.parse(localStorage.getItem(SP_STORAGE_KEY)) || []; } catch(_) { return []; }
+}
+function _savePresets(presets) {
+  try { localStorage.setItem(SP_STORAGE_KEY, JSON.stringify(presets)); } catch(_) {}
+}
+function _getActivePresetId() {
+  return localStorage.getItem(SP_ACTIVE_KEY) || '';
+}
+function _setActivePresetId(id) {
+  try { localStorage.setItem(SP_ACTIVE_KEY, id); } catch(_) {}
+}
+function _isBasePreset(id) { return id && id.startsWith('_'); }
+
+function _applyPreset(preset) {
+  const tiers = _stringToTiers(preset.data);
+  if (!tiers) return;
+  shapeTiers.above = tiers.above;
+  shapeTiers.below = tiers.below;
+  _dedupTiers();
+  // Base presets don't save tiers to localStorage
+  if (!_isBasePreset(preset.id)) _saveShapeTiers();
+}
+
+// On load: if a base preset is active, apply it from the constant (not localStorage)
+(function _applyBaseOnLoad() {
+  const activeId = localStorage.getItem(SP_ACTIVE_KEY) || '';
+  if (activeId && activeId.startsWith('_')) {
+    const bp = SP_BASE_PRESETS.find(p => p.id === activeId);
+    if (bp) {
+      const tiers = _stringToTiers(bp.data);
+      if (tiers) { shapeTiers.above = tiers.above; shapeTiers.below = tiers.below; }
+    }
+  }
+})();
+
+function _renderPresetSidebar() {
+  const sidebar = document.getElementById('sp-sidebar');
+  if (!sidebar) return;
+  sidebar.innerHTML = '';
+  const presets = _loadPresets();
+  const activeId = _getActivePresetId();
+
+  function _clickPreset(p) {
+    _applyPreset(p);
+    _setActivePresetId(p.id);
+    _renderPresetSidebar();
+    _recomputeOpt();
+    _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked: _isBasePreset(p.id) });
+    _updateAboveWarning();
+    renderUEGrid();
+  }
+
+  function _makeInlineInput(current, onConfirm) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:2px;max-width:100%;box-sizing:border-box;';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = current;
+    inp.style.cssText = 'flex:1;min-width:0;font-size:.7em;padding:2px 4px;background:var(--bg3);color:var(--text);border:1px solid var(--cyan);border-radius:3px;outline:none;';
+    const ok = document.createElement('button');
+    ok.className = 'sp-btn';
+    ok.textContent = '\u2713';
+    ok.style.cssText = 'padding:2px 5px;font-size:.7em;color:var(--green);';
+    const cancel = document.createElement('button');
+    cancel.className = 'sp-btn';
+    cancel.textContent = '\u2717';
+    cancel.style.cssText = 'padding:2px 5px;font-size:.7em;color:#e74c3c;';
+    ok.addEventListener('click', () => { if (inp.value.trim()) onConfirm(inp.value.trim()); });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && inp.value.trim()) onConfirm(inp.value.trim());
+      if (e.key === 'Escape') _renderPresetSidebar();
+    });
+    cancel.addEventListener('click', () => _renderPresetSidebar());
+    wrap.appendChild(inp);
+    wrap.appendChild(ok);
+    wrap.appendChild(cancel);
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    return wrap;
+  }
+
+  // Base presets (non-editable)
+  SP_BASE_PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'sp-preset' + (p.id === activeId ? ' sp-active' : '');
+    btn.textContent = p.name;
+    btn.title = p.name;
+    btn.addEventListener('click', () => _clickPreset(p));
+    sidebar.appendChild(btn);
+  });
+
+  // Separator between base and user presets
+  if (presets.length > 0) {
+    const sep = document.createElement('hr');
+    sep.style.cssText = 'border:none;border-top:1px solid #444;margin:4px 0;';
+    sidebar.appendChild(sep);
+  }
+
+  // User preset buttons
+  presets.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:2px;align-items:stretch;';
+    const btn = document.createElement('button');
+    btn.className = 'sp-preset' + (p.id === activeId ? ' sp-active' : '');
+    btn.style.cssText = 'flex:1;min-width:0;';
+    btn.textContent = p.name;
+    btn.title = p.name;
+    btn.addEventListener('click', () => _clickPreset(p));
+    row.appendChild(btn);
+
+    // Rename button
+    const renBtn = document.createElement('button');
+    renBtn.className = 'sp-btn';
+    renBtn.textContent = '\u270E';
+    renBtn.title = 'Rename';
+    renBtn.style.cssText = 'padding:2px 4px;font-size:.65em;line-height:1;';
+    renBtn.addEventListener('click', () => {
+      row.innerHTML = '';
+      row.appendChild(_makeInlineInput(p.name, (name) => {
+        p.name = name;
+        _savePresets(presets);
+        _renderPresetSidebar();
+      }));
+    });
+    row.appendChild(renBtn);
+
+    // Delete button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'sp-btn';
+    delBtn.textContent = '\u2715';
+    delBtn.title = 'Delete';
+    delBtn.style.cssText = 'padding:2px 4px;font-size:.65em;line-height:1;color:#e74c3c;';
+    delBtn.addEventListener('click', () => {
+      presets.splice(i, 1);
+      _savePresets(presets);
+      if (activeId === p.id) _setActivePresetId('');
+      _renderPresetSidebar();
+    });
+    row.appendChild(delBtn);
+
+    sidebar.appendChild(row);
+  });
+
+  // Save / overwrite button
+  const isUserPreset = activeId && !activeId.startsWith('_') && presets.find(p => p.id === activeId);
+  if (isUserPreset) {
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'sp-btn';
+    saveBtn.textContent = '\uD83D\uDCBE Save';
+    saveBtn.title = 'Overwrite current preset';
+    saveBtn.addEventListener('click', () => {
+      const existing = presets.find(p => p.id === activeId);
+      existing.data = _tiersToString(shapeTiers);
+      _savePresets(presets);
+      _renderPresetSidebar();
+    });
+    sidebar.appendChild(saveBtn);
+  }
+
+  // "+ Save" — inline input for name
+  const newWrap = document.createElement('div');
+  let newInputOpen = false;
+  const newBtn = document.createElement('button');
+  newBtn.className = 'sp-btn';
+  newBtn.textContent = '+ Save';
+  newBtn.title = 'Save current tiers as new preset';
+  newBtn.addEventListener('click', () => {
+    if (newInputOpen) return;
+    newInputOpen = true;
+    newBtn.style.display = 'none';
+    const inp = _makeInlineInput('', (name) => {
+      const id = Date.now().toString(36);
+      presets.push({ id, name, data: _tiersToString(shapeTiers) });
+      _savePresets(presets);
+      _setActivePresetId(id);
+      _renderPresetSidebar();
+    });
+    newWrap.appendChild(inp);
+  });
+  newWrap.appendChild(newBtn);
+  sidebar.appendChild(newWrap);
+
+  // Separator
+  const sep2 = document.createElement('hr');
+  sep2.style.cssText = 'border:none;border-top:1px solid #444;margin:4px 0;';
+  sidebar.appendChild(sep2);
+
+  // Import/Export
+  const ioBox = document.createElement('textarea');
+  ioBox.className = 'sp-io';
+  ioBox.placeholder = 'Import/Export';
+  ioBox.rows = 2;
+  sidebar.appendChild(ioBox);
+
+  const ioRow = document.createElement('div');
+  ioRow.style.cssText = 'display:flex;gap:4px;';
+  const expBtn = document.createElement('button');
+  expBtn.className = 'sp-btn';
+  expBtn.style.flex = '1';
+  expBtn.textContent = 'Export';
+  expBtn.addEventListener('click', () => {
+    // Include preset name if one is active
+    const aid = _getActivePresetId();
+    let name = '';
+    if (aid) {
+      const bp = SP_BASE_PRESETS.find(p => p.id === aid);
+      if (bp) name = bp.name;
+      else { const up = presets.find(p => p.id === aid); if (up) name = up.name; }
+    }
+    ioBox.value = (name ? name + ':' : '') + _tiersToString(shapeTiers);
+    ioBox.select();
+  });
+  const impBtn = document.createElement('button');
+  impBtn.className = 'sp-btn';
+  impBtn.style.flex = '1';
+  impBtn.textContent = 'Import';
+  impBtn.addEventListener('click', () => {
+    let raw = ioBox.value.trim();
+    let presetName = '';
+    // Parse optional name prefix: "Name:above|below"
+    const colonIdx = raw.indexOf(':');
+    const pipeIdx = raw.indexOf('|');
+    if (colonIdx > 0 && (pipeIdx < 0 || colonIdx < pipeIdx)) {
+      presetName = raw.slice(0, colonIdx).trim();
+      raw = raw.slice(colonIdx + 1);
+    }
+    const tiers = _stringToTiers(raw);
+    if (!tiers) { ioBox.style.borderColor = '#e74c3c'; setTimeout(() => ioBox.style.borderColor = '', 1000); return; }
+    shapeTiers.above = tiers.above;
+    shapeTiers.below = tiers.below;
+    _dedupTiers();
+    _saveShapeTiers();
+    // Create a new user preset if name was included
+    if (presetName) {
+      const existingNames = new Set(presets.map(p => p.name));
+      let finalName = presetName;
+      if (existingNames.has(finalName) || SP_BASE_PRESETS.some(p => p.name === finalName)) {
+        let suffix = 2;
+        while (existingNames.has(finalName + ' ' + suffix) || SP_BASE_PRESETS.some(p => p.name === finalName + ' ' + suffix)) suffix++;
+        finalName = finalName + ' ' + suffix;
+      }
+      const id = Date.now().toString(36);
+      presets.push({ id, name: finalName, data: _tiersToString(shapeTiers) });
+      _savePresets(presets);
+      _setActivePresetId(id);
+    } else {
+      _setActivePresetId('');
+    }
+    _renderPresetSidebar();
+    _recomputeOpt();
+    _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked: false });
+    _updateAboveWarning();
+    renderUEGrid();
+  });
+  ioRow.appendChild(expBtn);
+  ioRow.appendChild(impBtn);
+  sidebar.appendChild(ioRow);
+}
+
+function _tierOnChange() {
+  _saveShapeTiers();
+  _updateAboveWarning();
+  // Drag modified tiers — deselect any base preset since they're immutable
+  const activeId = _getActivePresetId();
+  if (_isBasePreset(activeId)) {
+    _setActivePresetId('');
+  }
+  _recomputeOpt();
+  _renderPresetSidebar();
+  renderUEGrid();
+}
+
+// Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders)
+function _gridBonusMode2(nodeIdx, curBonus) {
+  switch (nodeIdx) {
+    case 31: return 25 * (gridLevels[31] || 0);
+    case 67: case 68: case 107: return curBonus * cachedBoonyCount;
+    case 94: {
+      let t = 0; for (let i = 0; i < insightLvs.length; i++) t += insightLvs[i] || 0;
+      return curBonus * t;
+    }
+    case 112: {
+      let f = 0; for (let i = 0; i < occFound.length; i++) if (occFound[i] >= 1) f++;
+      return curBonus * f;
+    }
+    case 151: return Number(optionsListData?.[500]) || 0;
+    case 168: return curBonus; // Glimbo trades not tracked
+    default: return curBonus;
+  }
+}
+// Format description with all game placeholders resolved
+function _formatDesc(nodeIdx) {
+  const info = RES_GRID_RAW[nodeIdx];
+  if (!info) return '';
+  const lv = gridLevels[nodeIdx] || 0;
+  const bonusPerLv = info[2];
+  const curBonus = bonusPerLv * lv;
+  const multiStr = (1 + curBonus / 100).toFixed(2) + 'x';
+  const g = v => '<b style="color:var(--green)">' + v + '</b>';
+
+  let desc = (info[3] || '').replace(/_/g, ' ');
+  desc = desc.replace(/ ?@ ?/g, ' \u2014 ');
+  if (nodeIdx === 173) desc = desc.replace('<', 'Arctis grid bonus');
+  desc = desc.replace(/\|/g, g(lv));
+  desc = desc.replace(/\{/g, g(curBonus));
+  desc = desc.replace(/\}/g, g(multiStr));
+  if (desc.includes('$')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus);
+    desc = desc.replace(/\$/g, g(Math.round(v * 100) / 100));
+  }
+  if (desc.includes('^')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus);
+    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2) + 'x'));
+  }
+  if (desc.includes('&')) {
+    const olaVal = Number(optionsListData?.[499]) || 0;
+    desc = desc.replace(/&/g, g(Math.floor(1e4 * (1 - 1 / (1 + olaVal / 100))) / 100));
+  }
+  return desc;
+}
+// Build shape-bonus tooltip info for a node (uses optimized overlay)
+function _shapeInfo(nodeIdx) {
+  const ov = _lastOpt ? _lastOpt.optimizedOverlay : shapeOverlay;
+  const si = ov[nodeIdx];
+  if (si < 0) return '';
+  const info = RES_GRID_RAW[nodeIdx];
+  if (!info) return '';
+  const lv = gridLevels[nodeIdx] || 0;
+  const baseBonus = info[2] * lv;
+  const shapePct = SHAPE_BONUS_PCT[si];
+  const boosted = baseBonus * (1 + shapePct / 100);
+  return '<div class="tt-shape" style="color:' + SHAPE_COLORS[si] + '">' + SHAPE_NAMES[si]
+    + ' (+' + shapePct + '%): ' + boosted.toFixed(1) + '</div>';
+}
+function _renderTierList(containerId, tiers, onChange, opts) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const locked = opts && opts.locked;
+
+  // Shared tooltip element
+  let tierTT = document.getElementById('tier-tt');
+  if (!tierTT) {
+    tierTT = document.createElement('div');
+    tierTT.id = 'tier-tt';
+    tierTT.className = 'tier-tt';
+    document.body.appendChild(tierTT);
+  }
+
+  // Collect leveled EXP nodes for the immutable mid-section, sorted by cell value (optimized order)
+  const aboveSet = new Set(tiers.above);
+  const expNodes = [];
+  for (const idxStr of Object.keys(RES_GRID_RAW)) {
+    const idx = Number(idxStr);
+    if ((gridLevels[idx] || 0) < 1) continue;
+    if (aboveSet.has(idx)) continue; // shown in above zone instead
+    const goal = NODE_GOAL[idx] || '';
+    if (NODE_GOAL_COLORS[goal]) expNodes.push(idx);
+  }
+  const _cv = computeCellValues();
+  expNodes.sort((a, b) => (_cv[b] || 0) - (_cv[a] || 0));
+
+  function showTierTooltip(e, nodeIdx) {
+    const info = RES_GRID_RAW[nodeIdx];
+    if (!info) return;
+    const lv = gridLevels[nodeIdx] || 0;
+    const baseBonus = info[2] * lv;
+    let html = '<span class="tt-coord">' + gridCoord(nodeIdx) + '</span> ';
+    html += '<span class="tt-name">' + info[0].replace(/_/g, ' ') + '</span><br>';
+    html += '<span class="tt-lv">Level: ' + lv + ' / ' + info[1] + '</span>';
+    html += '<div class="tt-bonus">Base bonus: ' + baseBonus.toFixed(1) + '</div>';
+    html += _shapeInfo(nodeIdx);
+    html += '<div class="tt-desc">' + _formatDesc(nodeIdx) + '</div>';
+    tierTT.innerHTML = html;
+    tierTT.style.display = 'block';
+    tierTT.style.left = (e.clientX + 12) + 'px';
+    tierTT.style.top = (e.clientY + 12) + 'px';
+  }
+  function moveTierTT(e) {
+    tierTT.style.left = (e.clientX + 12) + 'px';
+    tierTT.style.top = (e.clientY + 12) + 'px';
+  }
+  function hideTierTT() { tierTT.style.display = 'none'; }
+
+  function rebuild() {
+    container.innerHTML = '';
+    let dragSrc = null, dragTier = null;
+
+    const aboveFiltered = tiers.above.filter(n => (gridLevels[n] || 0) >= 1);
+    const belowFiltered = tiers.below.filter(n => (gridLevels[n] || 0) >= 1);
+
+
+    function sqColor(nodeIdx) {
+      const ov = _lastOpt ? _lastOpt.optimizedOverlay : shapeOverlay;
+      const si = ov[nodeIdx];
+      if (si >= 0) return SHAPE_COLORS[si];
+      return '#555';
+    }
+
+    function makeSq(nodeIdx, tierName) {
+      const div = document.createElement('div');
+      div.className = 'tier-sq';
+      div.draggable = !locked && tierName !== 'exp';
+      div.dataset.node = nodeIdx;
+      div.dataset.tier = tierName;
+      div.textContent = gridCoord(nodeIdx);
+      div.style.borderColor = sqColor(nodeIdx);
+      if (locked) div.style.opacity = '0.7';
+      if (tierName === 'exp') {
+        div.classList.add('tier-exp');
+      }
+      // Tooltip
+      div.addEventListener('mouseenter', (e) => showTierTooltip(e, nodeIdx));
+      div.addEventListener('mousemove', moveTierTT);
+      div.addEventListener('mouseleave', hideTierTT);
+
+      if (tierName === 'exp' || locked) return div;
+      // Drag
+      div.addEventListener('dragstart', (e) => {
+        dragSrc = nodeIdx; dragTier = tierName;
+        div.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      div.addEventListener('dragend', () => { div.classList.remove('dragging'); });
+      div.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        div.style.outline = '2px solid var(--accent)';
+      });
+      div.addEventListener('dragleave', () => { div.style.outline = ''; });
+      div.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        div.style.outline = '';
+        if (dragSrc === null || dragSrc === nodeIdx) return;
+        tiers[dragTier].splice(tiers[dragTier].indexOf(dragSrc), 1);
+        const destPos = tiers[tierName].indexOf(nodeIdx);
+        tiers[tierName].splice(destPos, 0, dragSrc);
+        hideTierTT();
+        onChange();
+        rebuild();
+      });
+      return div;
+    }
+
+    function makeZone(tierName, label) {
+      const zone = document.createElement('div');
+      zone.className = 'tier-zone';
+      zone.dataset.tier = tierName;
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        if (dragSrc === null) return;
+        if (tiers[dragTier].indexOf(dragSrc) < 0) { dragSrc = null; return; } // already handled by child
+        tiers[dragTier].splice(tiers[dragTier].indexOf(dragSrc), 1);
+        tiers[tierName].push(dragSrc);
+        hideTierTT();
+        onChange();
+        rebuild();
+      });
+      const filtered = tierName === 'above' ? aboveFiltered : belowFiltered;
+      if (filtered.length === 0) {
+        const lbl = document.createElement('div');
+        lbl.className = 'tier-zone-label';
+        lbl.textContent = label;
+        zone.appendChild(lbl);
+      }
+      return zone;
+    }
+
+    // Above section
+    const aboveZone = makeZone('above', 'drag here to prioritize over EXP');
+    aboveFiltered.forEach(n => aboveZone.appendChild(makeSq(n, 'above')));
+    container.appendChild(aboveZone);
+
+    // EXP divider + immutable squares
+    const expDiv = document.createElement('div');
+    expDiv.className = 'tier-divider';
+    expDiv.innerHTML = '<hr><span>\u2501 Res EXP \u2501</span><hr>';
+    container.appendChild(expDiv);
+    if (expNodes.length > 0) {
+      const expZone = document.createElement('div');
+      expZone.className = 'tier-zone';
+
+      for (const idx of expNodes) expZone.appendChild(makeSq(idx, 'exp'));
+      container.appendChild(expZone);
+    }
+
+    // Below section
+    const belowDiv = document.createElement('div');
+    belowDiv.className = 'tier-divider';
+    belowDiv.innerHTML = '<hr><span>\u2501 Below EXP \u2501</span><hr>';
+    container.appendChild(belowDiv);
+    const belowZone = makeZone('below', 'drag here for below EXP');
+    belowFiltered.forEach(n => belowZone.appendChild(makeSq(n, 'below')));
+    container.appendChild(belowZone);
+
+
+  }
+  rebuild();
+}
+
+function _updateAboveWarning() {
+  const warn = document.getElementById('ue-warn-above');
+  if (!warn) return;
+  warn.style.display = shapeTiers.above.length > 0 ? '' : 'none';
+}
+
+let _lastOpt = null; // cached optimizeShapePlacement result for current render cycle
+let _pureExpTotal = 0; // EXP/hr from pure EXP-only optimization (no tiers)
+function _recomputeOpt() {
+  _lastOpt = optimizeShapePlacement({ useTiers: true });
+  if (shapeTiers.above.length > 0) {
+    // "above" nodes shift shapes away from pure EXP — compute true pure-EXP baseline
+    const pureOpt = optimizeShapePlacement();
+    _pureExpTotal = pureOpt.optimizedTotal;
+  } else {
+    // No "above" nodes — phase 1 IS pure EXP
+    _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
+  }
+}
+
+function renderUpgradeEval() {
+  _recomputeOpt();
+  const locked = _isBasePreset(_getActivePresetId());
+  _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked });
+  _updateAboveWarning();
+  _renderPresetSidebar();
+  renderUEGrid();
+}
+
+function renderUEGrid() {
+  const gridDiv = document.getElementById('ue-grid');
+  if (!gridDiv) return;
+  gridDiv.innerHTML = '';
+
+  // Use cached optimizer result
+  const opt = _lastOpt || optimizeShapePlacement({ useTiers: true });
+  const optOverlay = opt.optimizedOverlay || new Array(GRID_SIZE).fill(-1);
+  const COLS = GRID_COLS;
+
+  function sameShape(i, neighbor) {
+    if (neighbor < 0 || neighbor >= GRID_SIZE) return false;
+    return optOverlay[i] >= 0 && optOverlay[i] === optOverlay[neighbor];
+  }
+
+  // Summary bar
+  const sumEl = document.getElementById('ue-shape-summary');
+  if (sumEl) {
+    if (opt.placements && opt.placements.length > 0) {
+      const tierCost = _pureExpTotal - opt.optimizedTotal;
+      const tierCostPct = _pureExpTotal > 0 ? tierCost / _pureExpTotal * 100 : 0;
+      let html = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:6px 10px;background:var(--bg2);border-radius:6px;font-size:.85em;">'
+        + '<span style="color:var(--text2);">Optimized EXP/hr:</span> '
+        + '<span style="color:var(--green);font-weight:700;">' + fmtVal(opt.optimizedTotal) + '</span>'
+        + (opt.improvPct > 0.01 ? ' <span style="color:var(--cyan);">(+' + opt.improvPct.toFixed(2) + '% vs current)</span>' : '');
+      if (tierCost > 0.01) {
+        html += ' <span style="color:#e74c3c;">(\u2212' + fmtVal(tierCost) + ' / \u2212' + tierCostPct.toFixed(2) + '% vs pure EXP)</span>';
+      }
+      html += ' <span style="color:var(--text2);margin-left:auto;">' + opt.placements.length + ' shapes placed</span>'
+        + '</div>';
+      sumEl.innerHTML = html;
+    } else {
+      sumEl.innerHTML = '';
+    }
+  }
+
+  for (let i = 0; i < GRID_SIZE; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    const info = RES_GRID_RAW[i];
+
+    if (!info) {
+      cell.classList.add('empty');
+      gridDiv.appendChild(cell);
+      continue;
+    }
+
+    const lv = gridLevels[i] || 0;
+    const maxLv = info[1];
+    cell.classList.add('active');
+    if (lv >= maxLv) cell.classList.add('maxed');
+    cell.innerHTML = '<div class="cell-name">' + gridCoord(i) + '</div>'
+      + '<div class="cell-lv">' + lv + '/' + maxLv + '</div>';
+    cell.addEventListener('mouseenter', (ev) => showGridTooltip(ev, i, optOverlay));
+    cell.addEventListener('mouseleave', hideTooltip);
+    cell.addEventListener('mousemove', moveTooltip);
+
+    // Shape overlay — connected borders (same pattern as dashboard)
+    const si = optOverlay[i];
+    if (si >= 0) {
+      const color = SHAPE_COLORS[si];
+      const col = i % COLS;
+      const top = !sameShape(i, i - COLS);
+      const bottom = !sameShape(i, i + COLS);
+      const left = col > 0 ? !sameShape(i, i - 1) : true;
+      const right = col < COLS - 1 ? !sameShape(i, i + 1) : true;
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:.5;'
+        + 'background:' + color + '22;'
+        + 'border-top:' + (top ? '2px solid ' + color : 'none') + ';'
+        + 'border-bottom:' + (bottom ? '2px solid ' + color : 'none') + ';'
+        + 'border-left:' + (left ? '2px solid ' + color : 'none') + ';'
+        + 'border-right:' + (right ? '2px solid ' + color : 'none') + ';'
+        + 'border-radius:' + (top && left ? '3px' : '0') + ' ' + (top && right ? '3px' : '0') + ' ' + (bottom && right ? '3px' : '0') + ' ' + (bottom && left ? '3px' : '0') + ';';
+      cell.appendChild(overlay);
+    }
+
+    gridDiv.appendChild(cell);
+  }
+
+  // SVG shape polygon overlay
+  const activeShapes = new Set();
+  for (let i = 0; i < optOverlay.length; i++) {
+    if (optOverlay[i] >= 0) activeShapes.add(optOverlay[i]);
+  }
+  if (activeShapes.size > 0) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.classList.add('shape-svg');
+    svg.setAttribute('viewBox', '15 24 600 360');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    for (const si of activeShapes) {
+      const pos = opt.optimizedPositions[si];
+      if (!pos) continue;
+      const verts = SHAPE_VERTICES[si];
+      const dims = SHAPE_DIMS[si];
+      if (!verts || !dims) continue;
+      const cx = dims[0] / 2, cy = dims[1] / 2;
+      const angle = (pos.rot || 0) * Math.PI / 180;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      const polyPts = verts.map(([vx, vy]) => {
+        const dx = vx - cx, dy = vy - cy;
+        return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
+                Math.round(cy + pos.y + dx * sinA + dy * cosA)];
+      });
+      const points = polyPts.map(([x,y]) => x + ',' + y).join(' ');
+      const el = document.createElementNS(svgNS, 'polygon');
+      el.setAttribute('points', points);
+      el.setAttribute('fill', 'none');
+      el.setAttribute('stroke', SHAPE_COLORS[si]);
+      el.setAttribute('stroke-width', '2');
+      el.setAttribute('stroke-linejoin', 'round');
+      el.setAttribute('opacity', '0.7');
+      svg.appendChild(el);
+    }
+    gridDiv.appendChild(svg);
+  }
+}
+
+
+
 // ===== MAIN RENDER =====
 function renderAll() {
   renderDashboard();
+  // Re-render the currently active tab
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab) {
+    const t = activeTab.dataset.tab;
+    if (t === 'insight-roi') renderInsightROI();
+    else if (t === 'obs-unlock') renderObsUnlock();
+    else if (t === 'shape-opt') renderUpgradeEval();
+  }
   // Set default target level for optimizer
   const targetInput = document.getElementById('opt-target-level');
   if (targetInput && !targetInput.value) {
@@ -5637,6 +6623,10 @@ onmessage = async function(e) {
   comp52TrueMulti = s.comp52TrueMulti;
   allBonusMulti = s.allBonusMulti;
   magnifiersOwned = s.magnifiersOwned;
+  cachedStickerFixed = s.cachedStickerFixed || 0;
+  cachedBoonyCount = s.cachedBoonyCount || 0;
+  cachedEvShop37 = s.cachedEvShop37 || 0;
+  cachedExtPctExSticker = s.cachedExtPctExSticker || 0;
   olaData = s.olaData || [];
   towerData = s.towerData || [];
   spelunkData = s.spelunkData || [];
@@ -5674,6 +6664,7 @@ onmessage = async function(e) {
   cachedResearchExp = s.cachedResearchExp || 0;
   cachedSpelunkyUpg7 = s.cachedSpelunkyUpg7 || 0;
   cachedComp0DivOk = s.cachedComp0DivOk || false;
+  if (s.shapeTiers) { shapeTiers.above = s.shapeTiers.above || []; shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])]; }
   if (d.type === 'runOptimizer') {
     try {
       var result = await runOptimizer(d.args.target, function(done, total, msg) {
@@ -5769,6 +6760,11 @@ function _runOptimizerViaWorker(target, progressCb, opts) {
         cachedResearchExp: cachedResearchExp,
         cachedSpelunkyUpg7: cachedSpelunkyUpg7,
         cachedComp0DivOk: cachedComp0DivOk,
+        cachedStickerFixed: cachedStickerFixed,
+        cachedBoonyCount: cachedBoonyCount,
+        cachedEvShop37: cachedEvShop37,
+        cachedExtPctExSticker: cachedExtPctExSticker,
+        shapeTiers: { above: shapeTiers.above.slice(), below: shapeTiers.below.slice() },
       },
       args: { target: target, opts: opts || {} }
     });
@@ -5786,6 +6782,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'insight-roi') renderInsightROI();
     if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
+    if (tab.dataset.tab === 'shape-opt') renderUpgradeEval();
   });
 });
 
