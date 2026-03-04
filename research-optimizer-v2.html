@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -124,6 +124,19 @@ h1 span { color: var(--accent); }
 .opt-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
 .opt-table tr:hover td { background: rgba(255,255,255,.03); }
 .rate-bar { height: 6px; border-radius: 3px; background: var(--green); transition: width .3s; }
+
+/* Breakdown Tree */
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #444; }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-note { display: none; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; }
 
 /* Optimizer sub-tabs */
 .opt-subtabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -262,17 +275,22 @@ h1 span { color: var(--accent); }
         </div>
         <div id="opt-target-level-wrap">
           <label style="color:var(--text2);font-size:.9em;">Target:</label>
-          <input type="number" id="opt-target-level" min="1" max="200" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+          <input type="number" id="opt-target-level" min="1" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
         </div>
         <div id="opt-target-hours-wrap" style="display:none;">
           <label style="color:var(--text2);font-size:.9em;">Hours:</label>
-          <input type="number" id="opt-target-hours" min="1" max="720" value="24" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
+          <input type="number" id="opt-target-hours" min="1" value="24" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
         </div>
         <button class="btn" id="opt-run-btn" style="padding:8px 24px;font-size:1em;">Run Optimizer</button>
       </div>
       <div style="margin-bottom:8px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85em;color:var(--text2);">
           <input type="checkbox" id="opt-assume-obs" checked> Assume observations unlock at their research level requirement
+        </label>
+      </div>
+      <div style="margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85em;color:var(--text2);">
+          <input type="checkbox" id="opt-insight-la" checked> Extend lookahead window for insight break-even
         </label>
       </div>
       <div id="opt-progress" style="display:none;">
@@ -2029,8 +2047,13 @@ function loadSaveData(raw) {
     if (raw.serverVars?.A_ResXP != null) serverVarResXP = Number(raw.serverVars.A_ResXP) || 1.01;
 
     researchLevel = Math.max(...lv0AllData.map(lv0 => lv0[20] || 0), 0);
-    // Use highest research EXP across all characters (can desync from not logging in)
-    cachedResearchExp = Math.max(...exp0AllData.map(e => Number(e[20]) || 0), 0);
+    // Use highest research EXP from characters at the highest level (lower-level chars may have more EXP pre-levelup)
+    cachedResearchExp = 0;
+    for (let ci = 0; ci < lv0AllData.length; ci++) {
+      if ((lv0AllData[ci][20] || 0) === researchLevel) {
+        cachedResearchExp = Math.max(cachedResearchExp, Number(exp0AllData[ci]?.[20]) || 0);
+      }
+    }
     magMaxPerSlot = Math.min(4, Math.round(1 + Math.min(1, Math.floor(researchLevel/40)) + Math.min(1, Math.floor(researchLevel/70)) + Math.min(1, Math.floor(researchLevel/120))));
 
     // Cache scalar values extracted from raw arrays (avoids needing raw arrays after load)
@@ -2053,6 +2076,10 @@ function loadSaveData(raw) {
     for (let i = 0; i < R[6].length; i += 4) {
       shapePositions.push({ x: R[6][i], y: R[6][i+1], rot: R[6][i+2], unk: R[6][i+3] });
     }
+
+    // Recompute shapeOverlay from positions using LUT for consistent accuracy
+    // (the game's R[1] may disagree at polygon-edge pixels due to float precision)
+    shapeOverlay = rebuildShapeOverlay(shapePositions);
 
     // Compute lab connectivity BFS (needed for MainframeBonus)
     computeLabConnectivity();
@@ -2139,6 +2166,20 @@ function applySupplements() {
 }
 // __WORKER_ENGINE_RESUME__
 
+function _buildKalMap(mags) {
+  const km = {};
+  for (const m of mags) {
+    if (m.type === 2 && m.slot >= 0) {
+      const s = m.slot;
+      if (s % 8 !== 7) km[s+1] = (km[s+1] || 0) + 1;
+      if (s % 8 !== 0) km[s-1] = (km[s-1] || 0) + 1;
+      if (s > 7) km[s-8] = (km[s-8] || 0) + 1;
+      if (s < 72) km[s+8] = (km[s+8] || 0) + 1;
+    }
+  }
+  return km;
+}
+
 // ===== CALCULATIONS =====
 function getGridBonus(idx) {
   const info = RES_GRID_RAW[idx];
@@ -2181,18 +2222,7 @@ function getKaleiMultiBase() {
 }
 
 function buildKaleiMap() {
-  // Build adjacency count map for kaleidoscope magnifiers
-  const kalMap = {};
-  for (const m of magData) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
-  return kalMap;
+  return _buildKalMap(magData);
 }
 
 function getKaleiMultiTot(obsIdx) {
@@ -2239,6 +2269,10 @@ function getInsightExpPerObs(obsIdx) {
 function getInsightExpReq(obsIdx) {
   const t = obsIdx;
   const lv = insightLvs[t] || 0;
+  return (2 + 0.7*t) * Math.pow(1.75 + t/200, lv) * (1 + Math.pow(t, 2)/100) + lv;
+}
+function insightExpReqAt(obsIdx, lv) {
+  const t = obsIdx;
   return (2 + 0.7*t) * Math.pow(1.75 + t/200, lv) * (1 + Math.pow(t, 2)/100) + lv;
 }
 
@@ -2393,16 +2427,7 @@ function simTotalExp(opts = {}) {
   }
 
   // Kaleidoscope adjacency
-  const kalMap = {};
-  for (const m of md) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
+  const kalMap = _buildKalMap(md);
   const kalBase = (30 + gb(52) + gb(72)) / 100;
   const gd101 = gb(93);
 
@@ -2697,13 +2722,111 @@ function getShapeCellCoverage(shapeIdx, x, y, rot, excludeCells) {
   return covered;
 }
 
+// Precompute coverage for all shapes × rotations × pixel offsets within one 30×30 cell.
+// Grid cells are 30×30, so coverage is periodic: shape at (x,y) covers the same relative
+// cells as at (x+30,y) shifted one column right. Only (x%30, y%30) matters.
+function buildCoverageLUT(numShapes) {
+  const cornerOffsets = [[3,3],[24,3],[3,24],[24,24]];
+  const lut = new Array(numShapes * 72);
+  for (let si = 0; si < numShapes; si++) {
+    const verts = SHAPE_VERTICES[si];
+    const dims = SHAPE_DIMS[si];
+    if (!verts || !dims) { for (let ri = 0; ri < 72; ri++) lut[si * 72 + ri] = null; continue; }
+    const cx = dims[0] / 2, cy = dims[1] / 2;
+    for (let ri = 0; ri < 72; ri++) {
+      const angle = ri * 5 * Math.PI / 180;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      // Base polygon at position (0,0)
+      const basePoly = verts.map(([vx, vy]) => {
+        const dx = vx - cx, dy = vy - cy;
+        return [cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA];
+      });
+      // Bounding box of base polygon
+      let bMinX = Infinity, bMaxX = -Infinity, bMinY = Infinity, bMaxY = -Infinity;
+      for (const [px, py] of basePoly) {
+        if (px < bMinX) bMinX = px; if (px > bMaxX) bMaxX = px;
+        if (py < bMinY) bMinY = py; if (py > bMaxY) bMaxY = py;
+      }
+      // Range of relative cells that could possibly be hit at any phase offset
+      const dcolMin = Math.floor((bMinX - 39) / 30);
+      const dcolMax = Math.floor((bMaxX + 11) / 30);
+      const drowMin = Math.floor((bMinY - 48) / 30);
+      const drowMax = Math.floor((bMaxY + 2) / 30);
+      const allPairs = [];
+      const starts = new Uint32Array(901);
+      for (let s = 0; s < 30; s++) {       // phaseY
+        for (let r = 0; r < 30; r++) {     // phaseX
+          starts[s * 30 + r] = allPairs.length;
+          for (let drow = drowMin; drow <= drowMax; drow++) {
+            for (let dcol = dcolMin; dcol <= dcolMax; dcol++) {
+              let hit = false;
+              for (const [ox, oy] of cornerOffsets) {
+                if (isPointInPolygon(15 + 30 * dcol + ox - r, 24 + 30 * drow + oy - s, basePoly)) {
+                  hit = true; break;
+                }
+              }
+              if (hit) allPairs.push(dcol, drow);
+            }
+          }
+        }
+      }
+      starts[900] = allPairs.length;
+      lut[si * 72 + ri] = { data: new Int8Array(allPairs), starts };
+    }
+  }
+  return lut;
+}
+
+// Fast coverage lookup via precomputed LUT. Returns array of valid cell indices.
+function lookupCoverage(lut, si, x, y, rot) {
+  const ri = Math.round(((rot % 360) + 360) % 360 / 5) % 72;
+  const entry = lut[si * 72 + ri];
+  if (!entry) return [];
+  const r = ((x % 30) + 30) % 30;
+  const s = ((y % 30) + 30) % 30;
+  const phaseKey = s * 30 + r;
+  const start = entry.starts[phaseKey];
+  const end = entry.starts[phaseKey + 1];
+  const data = entry.data;
+  const baseCol = (x - r) / 30;
+  const baseRow = (y - s) / 30;
+  const result = [];
+  for (let i = start; i < end; i += 2) {
+    const col = data[i] + baseCol;
+    const row = data[i + 1] + baseRow;
+    if (col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS) {
+      const idx = row * GRID_COLS + col;
+      if (RES_GRID_RAW[idx]) result.push(idx);
+    }
+  }
+  return result;
+}
+
+// Rebuild shapeOverlay from shapePositions using direct PIP.
+// Only called for a handful of known positions (not search), so no LUT needed.
+function rebuildShapeOverlay(positions) {
+  const pos = positions || shapePositions;
+  const numShapes = Math.min(pos.length, SHAPE_VERTICES.length);
+  if (numShapes === 0) return new Array(GRID_SIZE).fill(-1);
+  const so = new Array(GRID_SIZE).fill(-1);
+  for (let si = 0; si < numShapes; si++) {
+    const p = pos[si];
+    if (!p || p.x == null || p.y == null) continue;
+    const cells = getShapeCellCoverage(si, p.x, p.y, p.rot || 0);
+    for (const c of cells) {
+      if (so[c] < 0) so[c] = si;
+    }
+  }
+  return so;
+}
+
 function simExpOverHorizon(config) {
   // Lightweight sim: total EXP earned over a time horizon.
   // Tracks insight level-ups and their cascading effect on research EXP rate,
   // but does NOT re-optimize shapes, mags, or grid points (avoids recursion).
   const tickMin = config.tickMinutes || 10;
   const tickSec = tickMin * 60;
-  const maxHrs = config.target.type === 'hours' ? config.target.value : 720;
+  const maxHrs = config.target.type === 'hours' ? config.target.value : 1e8;
   const maxTicks = Math.ceil(maxHrs * 3600 / tickSec);
 
   const gl = config.gridLevels ? config.gridLevels.slice() : gridLevels.slice();
@@ -2810,7 +2933,9 @@ function computeCellValues(simOpts) {
   return values;
 }
 
-function optimizeShapePlacement(simOpts) {
+let _covLUTCache = null, _covLUTCacheN = -1;
+
+function optimizeShapePlacement(simOpts, progressCb) {
   const useTiers = simOpts && simOpts.useTiers;
   const cellValues = computeCellValues(simOpts);
 
@@ -2839,112 +2964,132 @@ function optimizeShapePlacement(simOpts) {
   const coveredCells = new Set();
   const placements = [];
   const canRotate = researchLevel >= 90;
-  const rotations = canRotate ? [0, 90, 180, 270] : [0];
-
-  // Helper: score a placement candidate
-  function _scorePlacement(si, x, y, rot) {
-    const allCells = getShapeCellCoverage(si, x, y, rot);
-    const newCells = allCells.filter(c => !coveredCells.has(c));
-    if (newCells.length === 0) return null;
-    let expScore = 0;
-    for (const c of newCells) expScore += cellValues[c] * (SHAPE_BONUS_PCT[si] / 25);
-    return { x, y, rot, expScore, nodeCount: newCells.length, newCells };
+  const rotations = canRotate ? Array.from({length: 72}, (_, i) => i * 5) : [0];
+  if (_covLUTCacheN !== numShapes) {
+    if (progressCb) progressCb(0, numShapes + 1, 'Building coverage LUT\u2026');
+    _covLUTCache = buildCoverageLUT(numShapes);
+    _covLUTCacheN = numShapes;
   }
+  const covLUT = _covLUTCache;
+  if (progressCb) progressCb(1, numShapes + 1, 'LUT built. Placing shapes\u2026');
 
-  // Helper: true if candidate a is strictly better than b
-  function _betterThan(a, b) {
-    if (a.expScore !== b.expScore) return a.expScore > b.expScore;
-    return a.nodeCount > b.nodeCount;
-  }
-
-  // Helper: keep a sorted top-K list, deduplicating by covered-cell-set
-  function _insertCandidate(list, cand, maxK) {
-    const key = cand.newCells.slice().sort((a,b) => a-b).join(',');
-    for (const c of list) {
-      if (c._cellKey === key) {
-        if (_betterThan(cand, c)) { Object.assign(c, cand); c._cellKey = key; }
-        return;
-      }
-    }
-    cand._cellKey = key;
-    list.push(cand);
-    list.sort((a, b) => {
-      if (a.expScore !== b.expScore) return b.expScore - a.expScore;
-      return b.nodeCount - a.nodeCount;
-    });
-    if (list.length > maxK) list.length = maxK;
-  }
-
-  // Greedy 3-stage placement for one shape — returns placement object or null
   function _placeShape(si) {
     const dims = SHAPE_DIMS[si];
     if (!dims) return null;
 
     let bestExpScore = -Infinity;
     let bestNodeCount = -1;
+    let bestCenterDist = Infinity;
     let bestPlacement = null;
     let bestCells = [];
 
     const uncovered = valuedCells.filter(c => !coveredCells.has(c.idx));
     if (uncovered.length === 0) return null;
 
-    // Stage 1: Coarse scan (step=15)
-    const seen1 = new Set();
-    const stage1Top = [];
-    const STAGE1_K = 12;
-    for (const anchor of uncovered) {
-      const col = anchor.idx % GRID_COLS;
-      const row = Math.floor(anchor.idx / GRID_COLS);
-      const anchorX = 15 + 30 * col + 15;
-      const anchorY = 24 + 30 * row + 15;
-      const halfW = Math.ceil(dims[0] / 2);
-      const halfH = Math.ceil(dims[1] / 2);
-      for (let ox = -halfW; ox <= halfW; ox += 15) {
-        for (let oy = -halfH; oy <= halfH; oy += 15) {
-          const snapX = Math.round((anchorX - dims[0] / 2 + ox) / 15) * 15;
-          const snapY = Math.round((anchorY - dims[1] / 2 + oy) / 15) * 15;
-          for (const rot of rotations) {
-            const key = `${snapX},${snapY},${rot}`;
-            if (seen1.has(key)) continue;
-            seen1.add(key);
-            const cand = _scorePlacement(si, snapX, snapY, rot);
-            if (cand) _insertCandidate(stage1Top, cand, STAGE1_K);
-          }
-        }
-      }
+    // Pre-index uncovered valued cells by (col, row) for fast anchor lookup
+    const uncoveredByPos = new Map();
+    for (const u of uncovered) {
+      const col = u.idx % GRID_COLS;
+      const row = Math.floor(u.idx / GRID_COLS);
+      uncoveredByPos.set(row * GRID_COLS + col, u);
     }
 
-    // Stage 2: Medium refinement (step=5) around stage 1 winners
-    const seen2 = new Set();
-    const stage2Top = [];
-    const STAGE2_K = 8;
-    for (const c1 of stage1Top) {
-      for (let rx = -15; rx <= 15; rx += 5) {
-        for (let ry = -15; ry <= 15; ry += 5) {
-          for (const rot of rotations) {
-            const fx = c1.x + rx, fy = c1.y + ry;
-            const key = `${fx},${fy},${rot}`;
-            if (seen2.has(key)) continue;
-            seen2.add(key);
-            const cand = _scorePlacement(si, fx, fy, rot);
-            if (cand) _insertCandidate(stage2Top, cand, STAGE2_K);
+    for (const rot of rotations) {
+      const ri = Math.round(((rot % 360) + 360) % 360 / 5) % 72;
+      const entry = covLUT[si * 72 + ri];
+      if (!entry) continue;
+
+      // Group the 900 phase offsets by their relative-cell pattern
+      const patterns = new Map(); // relKey -> { relPairs, phases }
+      for (let s = 0; s < 30; s++) {
+        for (let r = 0; r < 30; r++) {
+          const pk = s * 30 + r;
+          const start = entry.starts[pk];
+          const end = entry.starts[pk + 1];
+          if (start === end) continue;
+          let key = '';
+          for (let i = start; i < end; i += 2) {
+            if (i > start) key += ',';
+            key += entry.data[i] + ',' + entry.data[i + 1];
           }
+          let pat = patterns.get(key);
+          if (!pat) {
+            const relPairs = [];
+            for (let i = start; i < end; i += 2) {
+              relPairs.push(entry.data[i], entry.data[i + 1]);
+            }
+            pat = { relPairs, phases: [] };
+            patterns.set(key, pat);
+          }
+          pat.phases.push(r, s); // flat pairs for speed
         }
       }
-    }
 
-    // Stage 3: Fine refinement (step=1) around stage 2 winners
-    for (const c2 of stage2Top) {
-      for (let rx = -5; rx <= 5; rx++) {
-        for (let ry = -5; ry <= 5; ry++) {
-          for (const rot of rotations) {
-            const fx = c2.x + rx, fy = c2.y + ry;
-            const cand = _scorePlacement(si, fx, fy, rot);
-            if (cand && _betterThan(cand, { expScore: bestExpScore, nodeCount: bestNodeCount })) {
-              bestExpScore = cand.expScore;
-              bestNodeCount = cand.nodeCount;
-              bestPlacement = { shapeIdx: si, x: fx, y: fy, rot, expScore: cand.expScore };
-              bestCells = cand.newCells;
+      // For each unique pattern, try all valid base positions
+      for (const pat of patterns.values()) {
+        const relPairs = pat.relPairs;
+        const nRel = relPairs.length >> 1;
+        const triedBases = new Set();
+
+        // Anchor: for each uncovered valued cell, each relative pair could
+        // align the pattern so that pair lands on that cell
+        for (const u of uncovered) {
+          const aCol = u.idx % GRID_COLS;
+          const aRow = Math.floor(u.idx / GRID_COLS);
+          for (let k = 0; k < nRel; k++) {
+            const baseCol = aCol - relPairs[k * 2];
+            const baseRow = aRow - relPairs[k * 2 + 1];
+            const bk = (baseCol + 20) * 50 + (baseRow + 20);
+            if (triedBases.has(bk)) continue;
+            triedBases.add(bk);
+
+            // Score: which uncovered valued cells does this pattern hit?
+            const newCells = [];
+            let expScore = 0;
+            for (let j = 0; j < nRel; j++) {
+              const col = baseCol + relPairs[j * 2];
+              const row = baseRow + relPairs[j * 2 + 1];
+              if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) continue;
+              const idx = row * GRID_COLS + col;
+              if (!RES_GRID_RAW[idx]) continue;
+              if (coveredCells.has(idx)) continue;
+              newCells.push(idx);
+              expScore += cellValues[idx] * (SHAPE_BONUS_PCT[si] / 25);
+            }
+            if (newCells.length === 0) continue;
+
+            // Quick reject: can't beat current best on score/nodes
+            if (expScore < bestExpScore) continue;
+            if (expScore === bestExpScore && newCells.length < bestNodeCount) continue;
+
+            // Compute centroid of covered cells
+            let ccx = 0, ccy = 0;
+            for (const c of newCells) {
+              ccx += 30 + 30 * (c % GRID_COLS);
+              ccy += 39 + 30 * Math.floor(c / GRID_COLS);
+            }
+            ccx /= newCells.length;
+            ccy /= newCells.length;
+
+            // Find the phase that centers the shape best over these cells
+            let bestPDist = Infinity, bestR = pat.phases[0], bestS = pat.phases[1];
+            const pLen = pat.phases.length;
+            for (let pi = 0; pi < pLen; pi += 2) {
+              const pr = pat.phases[pi], ps = pat.phases[pi + 1];
+              const scx = baseCol * 30 + pr + dims[0] / 2;
+              const scy = baseRow * 30 + ps + dims[1] / 2;
+              const d = (scx - ccx) ** 2 + (scy - ccy) ** 2;
+              if (d < bestPDist) { bestPDist = d; bestR = pr; bestS = ps; }
+            }
+
+            if (expScore > bestExpScore ||
+                (expScore === bestExpScore && newCells.length > bestNodeCount) ||
+                (expScore === bestExpScore && newCells.length === bestNodeCount && bestPDist < bestCenterDist)) {
+              bestExpScore = expScore;
+              bestNodeCount = newCells.length;
+              bestCenterDist = bestPDist;
+              bestPlacement = { shapeIdx: si, x: baseCol * 30 + bestR, y: baseRow * 30 + bestS, rot, expScore };
+              bestCells = newCells;
             }
           }
         }
@@ -2995,9 +3140,12 @@ function optimizeShapePlacement(simOpts) {
   }
 
   const placedSet = new Set();
+  let _shapesPlaced = 0;
   for (const si of shapeOrder) {
     const p = _placeShape(si);
     if (p) { placements.push(p); placedSet.add(si); }
+    _shapesPlaced++;
+    if (progressCb) progressCb(1 + _shapesPlaced, numShapes + 1, `Placed ${_shapesPlaced}/${numShapes} shapes\u2026`);
   }
 
   // Record phase-1 EXP total (includes "above" influence)
@@ -3143,16 +3291,7 @@ async function _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il
 }
 
 function evalMagScore(trialMags) {
-  const kalMap = {};
-  for (const m of trialMags) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
+  const kalMap = _buildKalMap(trialMags);
   const kalBase = getKaleiMultiBase();
   const gd101 = getGridBonusFinal(93);
   const occTBF = computeOccurrencesToBeFound();
@@ -3216,19 +3355,10 @@ function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   // Lightweight version of simTotalExp — all mutable state via params.
   // ctx = { abm, c52 } — defaults to globals when omitted.
   const _c52 = ctx ? ctx.c52 : comp52TrueMulti;
-  const kalMap = {};
-  for (const m of md) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
+  const kalMap = _buildKalMap(md);
   const kalBase = (30 + _gbWith(gl, so, 52, ctx) + _gbWith(gl, so, 72, ctx)) / 100;
   const gd101 = _gbWith(gl, so, 93, ctx);
-  const occTBF = computeOccurrencesToBeFound(rLv);
+  const occTBF = computeOccurrencesToBeFound();
   let obsTotal = 0;
   for (let i = 0; i < occTBF; i++) {
     let count = 0;
@@ -3274,24 +3404,10 @@ function insightExpRate(obsIdx, md, il, gl, so, ctx) {
   for (const m of md) { if (m.type === 1 && m.slot === obsIdx) count++; }
   if (count === 0) return 0;
   const insightBonus = _gbWith(gl, so, 92, ctx) + _gbWith(gl, so, 91, ctx);
-  const kalMap = {};
-  for (const m of md) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
+  const kalMap = _buildKalMap(md);
   const kalBase = (30 + _gbWith(gl, so, 52, ctx) + _gbWith(gl, so, 72, ctx)) / 100;
   const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
   return 3 * count * (1 + insightBonus / 100) * kalMulti;
-}
-
-function insightExpReqAt(obsIdx, lv) {
-  const t = obsIdx;
-  return (2 + 0.7*t) * Math.pow(1.75 + t/200, lv) * (1 + Math.pow(t, 2)/100) + lv;
 }
 
 function magMaxForLevel(rLv) {
@@ -3358,7 +3474,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
     // Phase 2: lookahead sim on top candidates using time horizon
     // Simulates level-ups and spends newly earned grid points during the lookahead
     // so that EXP-boosting nodes get proper credit for accelerating to the next level.
-    const laHrs = Math.max(1, Math.min(lookAheadHrs || 2, 72));
+    const laHrs = Math.max(1, Math.min(lookAheadHrs || 2, 168));
     const MAX_PHASE2_TICKS = 72;
     const TICK_SEC = Math.max(600, Math.ceil(laHrs * 3600 / MAX_PHASE2_TICKS));
     const LOOK_TICKS = Math.min(Math.ceil(laHrs * 3600 / TICK_SEC), MAX_PHASE2_TICKS);
@@ -3500,16 +3616,7 @@ async function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv)
 }
 
 function _evalMagScoreWith(trialMags, gl, so, il, occ, rLv) {
-  const kalMap = {};
-  for (const m of trialMags) {
-    if (m.type === 2 && m.slot >= 0) {
-      const s = m.slot;
-      if (s % 8 !== 7) kalMap[s+1] = (kalMap[s+1] || 0) + 1;
-      if (s % 8 !== 0) kalMap[s-1] = (kalMap[s-1] || 0) + 1;
-      if (s > 7) kalMap[s-8] = (kalMap[s-8] || 0) + 1;
-      if (s < 72) kalMap[s+8] = (kalMap[s+8] || 0) + 1;
-    }
-  }
+  const kalMap = _buildKalMap(trialMags);
   const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
   const gd101 = _gbWith(gl, so, 93);
   const occTBF = computeOccurrencesToBeFound(rLv);
@@ -3520,14 +3627,15 @@ function _evalMagScoreWith(trialMags, gl, so, il, occ, rLv) {
     let count = 0;
     for (const m of trialMags) { if (m.type === 0 && m.slot === i) count++; }
     if (count === 0) continue;
-    total += count * obsBaseExp(i) * (1 + gd101 * (il[i] || 0) / 100) * (1 + (kalMap[i] || 0) * kalBase);
+    const t = i;
+    const base = obsBaseExp(t);
+    total += count * base * (1 + gd101 * (il[t] || 0) / 100) * (1 + (kalMap[t] || 0) * kalBase);
   }
   return total;
 }
 
-function optimizeShapesFor(gl, so, simOpts, rLv) {
-  // Run shape optimizer using explicit gridLevels; temporarily swaps globals.
-  // Requires allBonusMulti to be set by caller (used by optimizeShapePlacement chain).
+// Requires allBonusMulti to be set by caller (used by optimizeShapePlacement chain).
+function _simulateShapeOptFor(gl, so, rLv, simOpts) {
   const origGL = gridLevels, origSO = shapeOverlay, origRL = researchLevel;
   gridLevels = gl; shapeOverlay = so;
   if (rLv !== undefined) researchLevel = rLv;
@@ -3539,6 +3647,7 @@ function optimizeShapesFor(gl, so, simOpts, rLv) {
   }
   return { overlay: result.optimizedOverlay, positions: result.optimizedPositions };
 }
+function optimizeShapesFor(gl, so, simOpts, rLv) { return _simulateShapeOptFor(gl, so, rLv, simOpts); }
 
 function insightAffectsExp(gl, so) {
   // Insight levels only affect EXP via gd93 (Game Design 101) and gd94 (Game Design 102)
@@ -3714,18 +3823,35 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
   return result;
 }
 
+// Compute the max hours to next insight level-up across all monocle-targeted observations
+function _insightBreakEvenHrs(md, il, ip, gl, so, ctx) {
+  const monoObs = new Set();
+  for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+  let maxHrs = 0;
+  for (const obs of monoObs) {
+    const iRate = insightExpRate(obs, md, il, gl, so, ctx);
+    if (iRate <= 0) continue;
+    const req = insightExpReqAt(obs, il[obs] || 0);
+    const remaining = Math.max(0, req - (ip[obs] || 0));
+    const hrs = remaining / iRate;
+    if (hrs > maxHrs) maxHrs = hrs;
+  }
+  return maxHrs;
+}
+
 async function unifiedSim(config) {
   // config: { target: {type:'level'|'hours', value}, tickMinutes, reoptimize }
   const tickMin = config.tickMinutes || 10;
   const tickSec = tickMin * 60;
-  const maxTicks = Math.ceil(720 * 3600 / tickSec); // 30 days
-
+  const maxTicks = config.target.type === 'hours' ? Math.ceil(config.target.value * 3600 / tickSec) : 1e9;
   // Clone mutable state
   let gl = gridLevels.slice();
   let so = shapeOverlay.slice();
   let il = insightLvs.slice();
   let ip = insightProgress.slice();
   let occ = occFound.slice();
+  const _extendInsightLA = !!config.extendInsightLA;
+  let _insightLAExtHrs = 0; // track max extension for reporting
   let rLv = config.researchLevel !== undefined ? config.researchLevel : researchLevel;
   let rExp = config.currentExp !== undefined ? config.currentExp : getResearchCurrentExp();
   let mOwned = config.magnifiersOwned !== undefined ? config.magnifiersOwned : magnifiersOwned;
@@ -3773,9 +3899,12 @@ async function unifiedSim(config) {
     sp = shapeResult.positions;
   }
 
-  // Spend any pre-existing available grid points before the sim starts
   if (config.reoptimize !== false) {
-    const initLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, simTotalExpWith(gl, so, md, il, occ, rLv, ctx)), 72);
+    let initLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, simTotalExpWith(gl, so, md, il, occ, rLv, ctx)), 72);
+    if (_extendInsightLA) {
+      const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
+      if (beHrs > initLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - initLA); initLA = Math.min(beHrs * 1.25, 168); }
+    }
     so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA, rExp)).so;
     ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
     mOwned = computeMagnifiersOwnedWith(gl, rLv);
@@ -3785,13 +3914,16 @@ async function unifiedSim(config) {
     const reShapes = optimizeShapesFor(gl, so, undefined, rLv);
     so = reShapes.overlay;
     sp = reShapes.positions;
-    md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
   }
 
   // Assign monocles optimally — use full remaining sim time as lookahead
   if (config.reoptimize !== false) {
     const prelimRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
-    const monoLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, prelimRate), 72);
+    let monoLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, prelimRate), 72);
+    if (_extendInsightLA) {
+      const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
+      if (beHrs > monoLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA); monoLA = Math.min(beHrs * 1.25, 168); }
+    }
     md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
   }
 
@@ -3847,7 +3979,11 @@ async function unifiedSim(config) {
           md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
         }
       }
-      const spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      let spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      if (_extendInsightLA) {
+        const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
+        if (beHrs > spendLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - spendLA); spendLA = Math.min(beHrs * 1.25, 168); }
+      }
       so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp)).so;
       ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
       // Update mOwned in case grid spending unlocked new magnifiers (#72, #91)
@@ -3883,7 +4019,11 @@ async function unifiedSim(config) {
       so = midShapeResult.overlay;
       sp = midShapeResult.positions;
       md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
-      const monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      let monoLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      if (_extendInsightLA) {
+        const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
+        if (beHrs > monoLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA); monoLA = Math.min(beHrs * 1.25, 168); }
+      }
       md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
       const eventType = rLeveledUp && insightMatters ? 'level+insight' : rLeveledUp ? 'level-up' : 'insight-up';
@@ -3893,8 +4033,12 @@ async function unifiedSim(config) {
         rLv, rExp
       });
     } else if (insightLeveledUp && config.reoptimize !== false) {
-      // Insight leveled up but doesn't affect EXP — just reassign monocles to next target
-      const monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      // Insight leveled up but doesn't affect EXP - just reassign monocles to next target
+      let monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
+      if (_extendInsightLA) {
+        const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
+        if (beHrs > monoLA2) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA2); monoLA2 = Math.min(beHrs * 1.25, 168); }
+      }
       md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2, rLv);
     }
   }
@@ -3931,10 +4075,11 @@ async function runOptimizer(target, progressCb, opts) {
 
   // Smooth progress: track completed sim-units out of estimated total
   const assumeObs = !!(opts && opts.assumeObs);
+  const extendInsightLA = !!(opts && opts.extendInsightLA);
   let _completedSims = 0, _totalEstSims = 1; // start with baseline only
   function _emitProgress(stageLabel, simSub) {
     if (!progressCb) return;
-    const simFrac = simSub ? simSub.tick / Math.max(simSub.maxTicks, 1) : 0;
+    const simFrac = simSub ? (target.type === 'level' ? Math.min((simSub.rLv - researchLevel) / Math.max(target.value - researchLevel, 1), 1) : Math.min(simSub.currentTime / Math.max(target.value, 1), 1)) : 0;
     const pct = Math.min((_completedSims + simFrac) / Math.max(_totalEstSims, 1), 0.999);
     let detail = '';
     if (simSub) {
@@ -3950,7 +4095,7 @@ async function runOptimizer(target, progressCb, opts) {
   // Baseline: current config, no changes
   const preOptRate = simTotalExp().total;
   _emitProgress('Computing baseline...');
-  const baseline = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb('Computing baseline') });
+  const baseline = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb('Computing baseline') });
   _completedSims = 1;
 
   // Find spendable points: grid squares that are below max and unlocked (adjacent)
@@ -3985,7 +4130,7 @@ async function runOptimizer(target, progressCb, opts) {
     const gl1 = origGL.slice();
     gl1[idx] = (gl1[idx] || 0) + 1;
     const label = 'Stage 1: point ' + (ci+1) + '/' + spendable.length;
-    const sim1 = await unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb(label) });
+    const sim1 = await unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb(label) });
     stage1.push({ idx, sim: sim1, time: sim1.totalTime, gl: gl1 });
     _completedSims = 1 + ci + 1;
     _emitProgress(label + ' \u2714');
@@ -4022,7 +4167,7 @@ async function runOptimizer(target, progressCb, opts) {
       const gl2 = beam.gl.slice();
       gl2[idx] = (gl2[idx] || 0) + 1;
       const label = 'Stage 2: beam ' + (bi+1) + '/' + beams.length + ', point ' + (ri+1) + '/' + remaining.length;
-      const sim2 = await unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs, onProgress: _makeSimCb(label) });
+      const sim2 = await unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb(label) });
       stage2.push({ steps: [beam.idx, idx], sim: sim2, time: sim2.totalTime, gl: gl2 });
       s2Count++;
       _completedSims = stage1Sims + s2Count;
@@ -4047,8 +4192,10 @@ async function runOptimizer(target, progressCb, opts) {
   });
 
   const best = allPaths[0];
+  // Collect max insight LA extension across baseline + best
+  const maxLAExt = Math.max(baseline.insightLAExtension || 0, best.sim.insightLAExtension || 0);
   if (progressCb) progressCb(1000, 1000, 'Optimization complete!');
-  return { baseline, best: best.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps.slice(0, maxSteps) };
+  return { baseline, best: best.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps.slice(0, maxSteps), insightLAExtension: maxLAExt };
 }
 
 // ===== MAG TYPE BALANCE =====
@@ -4082,7 +4229,168 @@ async function computeMagTypeBalance() {
   results.sort((a, b) => b.deltaImmediate - a.deltaImmediate);
   return results;
 }
+// 
+// ===== INSIGHT ROI (worker-side) =====
+async function computeInsightROI(onProgress) {
+  const occTBF = computeOccurrencesToBeFound();
+  const pool = magData.slice(0, magnifiersOwned);
+  const monoCount = pool.filter(m => m.type === 1).length;
+  if (monoCount === 0) return { monoCount: 0, rows: [] };
+  const numKalei = pool.filter(m => m.type === 2).length;
+  const numRegular = pool.filter(m => m.type === 0).length;
+  const baseRate = simTotalExp().total;
+  const gl = gridLevels, so = shapeOverlay, il = insightLvs, occ = occFound;
+  const rLv = researchLevel, mMax = magMaxPerSlot;
+  const availSlots = [];
+  for (let s = 0; s < Math.min(occTBF, OCC_DATA.length); s++) {
+    if (isObsUsable(s, rLv, occ)) availSlots.push(s);
+  }
+  function buildLayout(targetObs, nAdjKalei) {
+    const assigned = [], slotCounts = new Map();
+    function _assign(type, slot) { assigned.push({ type, slot, x:0, y:0 }); slotCounts.set(slot, (slotCounts.get(slot)||0)+1); }
+    const monoOnTarget = Math.min(monoCount, mMax);
+    for (let k = 0; k < monoOnTarget; k++) _assign(1, targetObs);
+    if (nAdjKalei > 0) {
+      const adj = [], t = targetObs;
+      if (t%8!==0) adj.push(t-1); if (t%8!==7) adj.push(t+1);
+      if (t>=8) adj.push(t-8); if (t+8<80) adj.push(t+8);
+      let placed = 0;
+      for (const s of adj) {
+        if (placed >= nAdjKalei) break;
+        if (s<0||s>=occTBF||!isObsUsable(s,rLv,occ)) continue;
+        if ((slotCounts.get(s)||0)>=mMax) continue;
+        _assign(2, s); placed++;
+      }
+    }
+    const preKalei = assigned.filter(a=>a.type===2).length;
+    const remainKalei = numKalei - preKalei;
+    const toPlace = [];
+    for (let k=0;k<monoCount-monoOnTarget;k++) toPlace.push(1);
+    for (let k=0;k<remainKalei;k++) toPlace.push(2);
+    for (let k=0;k<numRegular;k++) toPlace.push(0);
+    while (toPlace.length > 0) {
+      let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
+      const triedTypes = new Set();
+      for (let pi=0;pi<toPlace.length;pi++) {
+        const magType = toPlace[pi]; if (triedTypes.has(magType)) continue; triedTypes.add(magType);
+        for (const slot of availSlots) {
+          if ((slotCounts.get(slot)||0)>=mMax) continue;
+          const trial = [...assigned, {type:magType,slot,x:0,y:0}];
+          const score = _evalMagScoreWith(trial,gl,so,il,occ,rLv);
+          if (score > bestScore) { bestScore=score; bestSlot=slot; bestPI=pi; }
+        }
+      }
+      if (bestPI >= 0) { _assign(toPlace[bestPI], bestSlot); toPlace.splice(bestPI,1); } else break;
+    }
+    return assigned;
+  }
+  function evalLayout(mdLayout, obsIdx, targetLvGain, currentProgress) {
+    let totalGrindHrs = 0, simIP = currentProgress, simLv = il[obsIdx]||0;
+    for (let g=0;g<targetLvGain;g++) {
+      const iRate = insightExpRate(obsIdx,mdLayout,il,gl,so);
+      if (iRate<=0) { totalGrindHrs=Infinity; break; }
+      totalGrindHrs += Math.max(0, insightExpReqAt(obsIdx,simLv)-simIP)/iRate;
+      simIP=0; simLv++;
+    }
+    const grindRate = simTotalExp({magData:mdLayout}).total;
+    const expLostPerHr = baseRate - grindRate;
+    const totalExpLost = expLostPerHr * totalGrindHrs;
+    const newIL = il.slice(); newIL[obsIdx] = (il[obsIdx]||0)+targetLvGain;
+    const postRate = simTotalExp({insightLvs:newIL}).total;
+    const rateGain = postRate - baseRate;
+    const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
+    const breakEvenHrs = totalGrindHrs + recoupHrs;
+    return { grindHrs:totalGrindHrs, grindRate, expLostPerHr, totalExpLost,
+      postRate, rateGain, recoupHrs, breakEvenHrs,
+      worth:isFinite(breakEvenHrs)&&rateGain>0,
+      insightRate:insightExpRate(obsIdx,mdLayout,il,gl,so) };
+  }
+  const usableIndices = [];
+  for (let i=0;i<Math.min(occTBF,OCC_DATA.length);i++) if (isObsUsable(i)) usableIndices.push(i);
+  const totalUsable = usableIndices.length;
+  const rows = []; let processed = 0;
+  for (const i of usableIndices) {
+    const name = OCC_DATA[i].name.replace(/_/g,' ');
+    const lv = il[i]||0, progress = insightProgress[i]||0;
+    const maxAdj = Math.min(numKalei, 4), layouts = [];
+    for (let nAdj=0;nAdj<=maxAdj;nAdj++) layouts.push({nAdj,md:buildLayout(i,nAdj)});
+    let bestLayout = layouts[0], bestBE = Infinity;
+    for (const l of layouts) { const ev = evalLayout(l.md,i,1,progress); if (ev.breakEvenHrs<bestBE) { bestBE=ev.breakEvenHrs; bestLayout=l; } }
+    const scenarios = [];
+    for (const targetLvGain of [1,2]) { const ev = evalLayout(bestLayout.md,i,targetLvGain,progress); ev.lvGain=targetLvGain; ev.adjKalei=bestLayout.nAdj; scenarios.push(ev); }
+    rows.push({idx:i,name,lv,progress,scenarios,grindLayout:bestLayout.md});
+    processed++;
+    if (onProgress) onProgress(processed, totalUsable);
+    if (processed%3===0) await new Promise(r=>setTimeout(r,0));
+  }
+  rows.sort((a,b)=>(a.scenarios[0]?.breakEvenHrs??Infinity)-(b.scenarios[0]?.breakEvenHrs??Infinity));
+  return { monoCount, baseRate, rows, baselineLayout:pool.slice() };
+}
 
+// ===== OBS UNLOCK PRIORITY (worker-side) =====
+async function computeObsUnlockPriority(onProgress) {
+  const rLv = researchLevel, occTBF = computeOccurrencesToBeFound();
+  const currentTotal = simTotalExp().total;
+  const smartEyeLv = gridLevels[31]||0, sharpEyeLv = gridLevels[51]||0, obsLv = gridLevels[90]||0;
+  const maxRoll = Math.floor(100 + sharpEyeLv);
+  const smartEyePerFail = smartEyeLv, smartEyeCap = 25*smartEyeLv;
+  const rollsPerDay = Math.round(3 + obsLv + 3*eventShopOwned(35));
+  const failedRolls = cachedFailedRolls;
+  const results = [], undiscovered = [];
+  for (let t=0;t<OCC_DATA.length;t++) if ((occFound[t]||0)<1) undiscovered.push(t);
+  const totalUndiscovered = undiscovered.length;
+  let processed = 0;
+  for (const t of undiscovered) {
+    const name = OCC_DATA[t].name.replace(/_/g,' ');
+    const rollThreshold = OCC_DATA[t].rollReq, requiredRLv = OCC_DATA[t].roll;
+    let pFailAll = 1, simFails = failedRolls;
+    for (let r=0;r<rollsPerDay;r++) {
+      const minRoll = Math.floor(1 + Math.min(simFails*smartEyePerFail, smartEyeCap));
+      const range = maxRoll - minRoll + 1;
+      if (range <= 0) { pFailAll=0; break; }
+      const successRange = Math.max(0, maxRoll - rollThreshold + 1);
+      pFailAll *= (1 - Math.min(1, Math.max(0, successRange / range)));
+      if (pFailAll <= 0) break;
+      simFails++;
+    }
+    const pUnlockToday = 1 - pFailAll;
+    let expectedDays = Infinity;
+    if (pUnlockToday >= 1) { expectedDays = 1; }
+    else if (pUnlockToday > 0) {
+      let cumProb=0, eDays=0, simF=failedRolls;
+      for (let day=1;day<=365;day++) {
+        let pFailDay = 1;
+        for (let r=0;r<rollsPerDay;r++) {
+          const minR = Math.floor(1 + Math.min(simF*smartEyePerFail, smartEyeCap));
+          const rng = maxRoll - minR + 1;
+          if (rng <= 0) { pFailDay=0; break; }
+          const sr = Math.max(0, maxRoll - rollThreshold + 1);
+          pFailDay *= (1 - Math.min(1, Math.max(0, sr / rng)));
+          if (pFailDay <= 0) break;
+          simF++;
+        }
+        const pFirstSuccess = (1-cumProb)*(1-pFailDay);
+        eDays += day*pFirstSuccess; cumProb += pFirstSuccess;
+        if (cumProb >= 0.9999) break;
+      }
+      expectedDays = cumProb > 0 ? eDays/cumProb : Infinity;
+    }
+    const canUseNow = rLv >= requiredRLv;
+    const tempOF = occFound.slice(); tempOF[t] = 1;
+    await new Promise(r=>setTimeout(r,0));
+    const tempMD = await optimizeMagsFor(gridLevels,shapeOverlay,magData,insightLvs,tempOF,magnifiersOwned,magMaxPerSlot,rLv);
+    const newRate = simTotalExpWith(gridLevels,shapeOverlay,tempMD,insightLvs,tempOF,rLv);
+    const expGain = canUseNow ? newRate - currentTotal : 0;
+    const score = expectedDays > 0 && isFinite(expectedDays) ? expGain / expectedDays : 0;
+    results.push({ idx:t, name, rollThreshold, requiredRLv, canUseNow,
+      maxRoll, rollsPerDay, failedRolls,
+      pUnlockToday, expectedDays, expGain, newRate, score });
+    processed++;
+    if (onProgress) onProgress(processed, totalUndiscovered);
+  }
+  results.sort((a,b)=>{ if (a.canUseNow!==b.canUseNow) return a.canUseNow?-1:1; return b.score-a.score; });
+  return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
+}
 // __WORKER_ENGINE_END__
 
 // ===== FORMATTING HELPERS =====
@@ -4219,6 +4527,382 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   moveTooltip(e);
 }
 
+// ===== EXP BREAKDOWN TREE =====
+function _bNode(label, val, children, opts) {
+  return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '' };
+}
+
+function _gbNode(idx, label, opts) {
+  const info = RES_GRID_RAW[idx];
+  if (!info) return _bNode(label || 'Grid #' + idx, 0, null, opts);
+  const lv = gridLevels[idx] || 0;
+  const bonusPerLv = info[2];
+  const base = bonusPerLv * lv;
+  const si = shapeOverlay[idx];
+  const hasShape = si >= 0 && si < SHAPE_BONUS_PCT.length;
+  const shapePct = hasShape ? SHAPE_BONUS_PCT[si] : 0;
+  const shapeMult = 1 + shapePct / 100;
+  const final = base * shapeMult * allBonusMulti;
+  const coord = gridCoord(idx);
+  const comp55val = companionIds.has(55) ? 15 : 0;
+  const comp0owned = companionIds.has(0);
+  const comp0val = comp0owned && cachedComp0DivOk && (gridLevels[173] || 0) > 0 ? 5 : 0;
+  return _bNode(label || 'Grid ' + coord + ': ' + (info[1] || '#' + idx), final, [
+    _bNode('Bonus', base, [
+      _bNode('Base', bonusPerLv, null, { fmt: '%' }),
+      _bNode('Level', lv, null, { fmt: 'x' })
+    ], { fmt: '%' }),
+    _bNode('Shape Bonus' + (hasShape ? ' (' + SHAPE_NAMES[si] + ')' : ''), shapeMult, null, { fmt: 'x', note: hasShape ? '' : 'No shape' }),
+    _bNode('All Bonus Multi', allBonusMulti, [
+      _bNode('Jellofish', comp55val, null, { fmt: '%' }),
+      _bNode('King Doot', comp0val, null, { fmt: '%' })
+    ], { fmt: 'x' })
+  ], opts);
+}
+
+function buildExpBreakdownTree() {
+  const ext = extBonuses || computeExternalBonuses();
+  const rate = simTotalExp();
+  const occTBF = computeOccurrencesToBeFound();
+
+  // ---- Additive group ----
+  const addChildren = [];
+
+  // Grid-based additive bonuses
+  const gridExpSquares = [
+    { idx: 50, name: 'Pts Every Ten' },
+    { idx: 90, name: 'Observationalistic' },
+    { idx: 110, name: 'All Night Studying' }
+  ];
+  for (const sq of gridExpSquares) {
+    addChildren.push(_gbNode(sq.idx, 'Grid ' + gridCoord(sq.idx) + ': ' + sq.name, { fmt: '%' }));
+  }
+
+  // Grid 112 x occFoundCount
+  let occFoundCount = 0;
+  for (let i = 0; i < occTBF; i++) if ((occFound[i] || 0) >= 1) occFoundCount++;
+  const gb112raw = getGridBonusFinal(112);
+  addChildren.push(_bNode('Grid ' + gridCoord(112) + ': See Em All', gb112raw * occFoundCount, [
+    _gbNode(112, 'Per-Insight Level', { fmt: '%' }),
+    _bNode('Total Insight Level', occFoundCount, null, { fmt: 'x' })
+  ], { fmt: '%' }));
+
+  // Grid 94 x totalObsLV
+  const totalObsLV = getTotalObsLVs();
+  const gb94raw = getGridBonusFinal(94);
+  addChildren.push(_bNode('Grid ' + gridCoord(94) + ': Game Design 102', gb94raw * totalObsLV, [
+    _gbNode(94, 'Per-Level Value', { fmt: '%' }),
+    _bNode('Total Obs Levels', totalObsLV, null, { fmt: 'x' })
+  ], { fmt: '%' }));
+
+  // ---- External sources ----
+  // Sticker
+  const stkLv = research?.[9]?.[1] || 0;
+  const stkBase = STICKER_BASE[1] || 5;
+  const boonyCount = research?.[11]?.length || 0;
+  const gb68val = getGridBonusFinal(68);
+  const gb68mode2 = gb68val * boonyCount;
+  const evShop37 = eventShopOwned(37);
+  const stkCrownMulti = 1 + (gb68mode2 + 30 * evShop37) / 100;
+  const stkSB62 = 1 + 20 * superBitType(62) / 100;
+  addChildren.push(_bNode('Farming: Laissez Maize Sticker', ext.sticker?.val || 0, [
+    _bNode('Sticker', stkBase * stkLv, [
+      _bNode('Base', stkBase, null, { fmt: '%' }),
+      _bNode('Count', stkLv, null, { fmt: 'x' })
+    ], { fmt: '%', note: 'Base x Count' }),
+    _bNode('Crown Multi', stkCrownMulti, [
+      _bNode('Grid I4: Boony Crowns x King Rat Crowns', gb68mode2, [
+        _gbNode(68, 'Grid I4: Boony Crowns'),
+        _bNode('King Rat Crowns', boonyCount)
+      ]),
+      _bNode('Rift Guy Sticker', 30 * evShop37, null, { fmt: '%' })
+    ], { fmt: 'x' }),
+    _bNode('Event Shop: Bettah Stickahs', stkSB62, null, { fmt: 'x' }),
+  ], { fmt: '%' }));
+
+  // Dancing Coral
+  const tower22 = towerData[22] || 0;
+  const dcBase = DANCING_CORAL_BASE[4] || 3;
+  const dcProgress = Math.max(0, tower22 - 200);
+  addChildren.push(_bNode('Clover Shrine', ext.dancingCoral?.val || 0, [
+    _bNode('Base', dcBase, null, { fmt: '%' }),
+    _bNode('Level', dcProgress, null, { fmt: 'x' })
+  ], { fmt: '%' }));
+
+  // Zenith Market
+  const zmLevel = spelunkData?.[45]?.[8] || 0;
+  addChildren.push(_bNode('Zenith Market', ext.zenithMarket?.val || 0, null, { fmt: '%' }));
+
+  // Cards
+  const clvW7b1 = computeCardLv('w7b1');
+  const clvW7b4 = computeCardLv('w7b4');
+  addChildren.push(_bNode('Card: Trench Fish', ext.cardW7b1?.val || 0, null, { fmt: '%' }));
+  addChildren.push(_bNode('Card: Eggroll', ext.cardW7b4?.val || 0, null, { fmt: '%' }));
+
+  // Prehistoric Set
+  addChildren.push(_bNode('Prehistoric Set', ext.prehistoricSet?.val || 0, null, { fmt: '%' }));
+
+  // Slabbo
+  const hasSB34 = superBitType(34);
+  const c1len = cards1Data.length || 0;
+  const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
+  const slabboMF15 = mainframeBonus(15);
+  const slabboMeritoc23 = computeMeritocBonusz(23);
+  const slabboLegend28 = legendPTSbonus(28);
+  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100);
+  addChildren.push(_bNode('Slab Bonus', ext.slabbo?.val || 0, hasSB34 ? [
+    _bNode('Base (' + c1len + ')', slabboBase * 0.1, null, { fmt: '%', note: 'floor((Item Count - 1300) / 5) x 0.1' }),
+    _bNode('Multiplier', slabboMult, [
+      _bNode('Slab Sovereignty', 1 + slabboMF15 / 100, null, { fmt: 'x' }),
+      _bNode('Slab Meritocracy', 1 + slabboMeritoc23 / 100, null, { fmt: 'x' }),
+      _bNode('+1 Slab', 1 + slabboLegend28 / 100, null, { fmt: 'x' })
+    ], { fmt: 'x' })
+  ] : null, { fmt: '%', note: hasSB34 ? '' : 'Slabby Research locked' }));
+
+  // Arcade
+  addChildren.push(_bNode('Arcade: Research XP', ext.arcade?.val || 0, null, { fmt: '%' }));
+
+  // Meal (Giga Chip) - deep decomposition
+  const mealLv = mealsData?.[0]?.[72] || 0;
+  const ribT = ribbonData[100] || 0;
+  const ribBon = ribbonBonusAt(100);
+  const mfb116 = mainframeBonus(116);
+  const shinyS20 = computeShinyBonusS(20);
+  const winBon26 = computeWinBonus(26);
+  const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+
+  // WinBonus(26) decomposition
+  const swb = computeSummWinBonus();
+  const swbRaw = swb[26] || 0;
+  const pristine8 = (ninjaData?.[107]?.[8] === 1) ? 30 : 0;
+  const gemItems11 = Number(gemItemsData[11]) || 0;
+  const artRarity = Number(sailingData?.[3]?.[32]) || 0;
+  const artBonus32 = artRarity > 0 ? (ARTIFACT_BASE[32] || 25) * artRarity : 0;
+  const taskVal = Math.min(10, Number(tasksGlobalData?.[2]?.[5]?.[4]) || 0);
+  const wb31 = swb[31] || 0;
+  const empBon8 = computeEmperorBon(8);
+  const godshardSet = String(olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
+  const ach379 = achieveStatus(379);
+  const ach373 = achieveStatus(373);
+
+  const winBonNode = _bNode('Summoning Win Bonus', 1 + winBon26 / 100, [
+    _bNode('Summon Wins', swbRaw, null, { fmt: '%' }),
+    _bNode('Sneaking: Crystal Comb', 1 + pristine8 / 100, null, { fmt: 'x' }),
+    _bNode('Gem Shop: King of All Winners', 1 + 10 * gemItems11 / 100, null, { fmt: 'x' }),
+    _bNode('Winner Multi', 1 + (artBonus32 + taskVal + ach379 + ach373 + wb31 + empBon8 + godshardSet) / 100, [
+      _bNode('Sailing: The Winz Lantern', artBonus32, null, { fmt: '%' }),
+      _bNode('Task Shop', taskVal, null, { fmt: '%' }),
+      _bNode('Achievement: Spectre Stars', ach379, null, { fmt: '%' }),
+      _bNode('Achievement: Regalis My Beloved', ach373, null, { fmt: '%' }),
+      _bNode('Win Bonus: xN Winner Bonuses', wb31, null, { fmt: '%' }),
+      _bNode('Emperor: Winner Bonuses', empBon8, null, { fmt: '%' }),
+      _bNode('Godshard Set', godshardSet, null, { fmt: '%' })
+    ], { fmt: 'x' })
+  ], { fmt: 'x' });
+
+  const hasEmpSet = String(olaData[379] || '').includes('EMPEROR_SET');
+  const empTermVal = hasEmpSet ? Math.floor(ribT / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
+
+  const ribBase = ribT > 0 ? Math.floor(5 * ribT + Math.floor(ribT / 2) * (4 + 6.5 * Math.floor(ribT / 5))) : 0;
+
+  addChildren.push(_bNode('Meal: Giga Chip', ext.meal?.val || 0, [
+    _bNode('Meal Value', 0.01 * mealLv, [
+      _bNode('Base', 0.01, null, { fmt: '%' }),
+      _bNode('Levels', mealLv, null, { fmt: 'x' })
+    ], { fmt: '%' }),
+    _bNode('Ribbon', ribBon, [
+      _bNode('Ribbon Base (T' + ribT + ')', ribBase, null, { fmt: '%', note: 'floor(5T + floor(T/2) x (4 + 6.5 x floor(T/5)))' }),
+      _bNode('Emperor Set', empTermVal, null, { fmt: '%' })
+    ], { fmt: 'x' }),
+    _bNode('Meal Multi', cookMulti, [
+      _bNode('Cooking Multi', 1 + (mfb116 + shinyS20) / 100, [
+        _bNode('Black Diamond Rhinestone', mfb116, null, { fmt: '%' }),
+        _bNode('Shiny: Meal Bonus', shinyS20, null, { fmt: '%' })
+      ], { fmt: 'x' }),
+      winBonNode
+    ], { fmt: 'x' })
+  ], { fmt: '%' }));
+
+  // Crop Scientist
+  const hasEmp44 = emporiumBonus(44);
+  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (farmCropCount - 200) / 10)) : 0;
+  const mf17 = mainframeBonus(17);
+  const gub22 = grimoireUpgBonus22();
+  const exo40 = exoticBonusQTY40();
+  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40) / 100);
+  addChildren.push(_bNode('Crop Scientist', ext.cropSC?.val || 0, hasEmp44 ? [
+    _bNode('Base (' + farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
+    _bNode('Multi', cropSCmulti, [
+      _bNode('Depot Studies PhD', 1 + mf17 / 100, null, { fmt: 'x' }),
+      _bNode('Crop Research Multi', 1 + (gub22 + exo40) / 100, [
+        _bNode('Superior Crop Research', gub22, null, { fmt: '%' }),
+        _bNode('Scienterrific', exo40, null, { fmt: '%' })
+      ], { fmt: 'x' })
+    ], { fmt: 'x' })
+  ] : null, { fmt: '%', note: hasEmp44 ? '' : 'Science Chalk locked' }));
+
+  // MSA
+  const hasSB44 = superBitType(44);
+  const tdWaves = Array.isArray(totemInfoData[0]) ? totemInfoData[0] : [];
+  const tdNames = ['W1: Forest Outskirts', 'W2: Up Up Down Down', 'W1: The Roots', 'W3: Rollin\' Tundra', 'W4: Mountainous Deugh', 'W5: OJ Bay', 'W6: Above the Clouds', 'W7: Puffpuff Overpass'];
+  const gamingStars = tdWaves.reduce(function(a,v) { return a + (Number(v)||0); }, 0);
+  const msaEff = Math.max(0, Math.floor((gamingStars - 300) / 10));
+  const tdChildren = [];
+  for (var ti = 0; ti < tdWaves.length; ti++) {
+    if (!tdNames[ti]) continue;
+    tdChildren.push(_bNode(tdNames[ti], Number(tdWaves[ti]) || 0));
+  }
+  addChildren.push(_bNode('MSA Bonus', ext.msa?.val || 0, hasSB44 ? [
+    _bNode('Total Waves', gamingStars, tdChildren)
+  ] : null, { fmt: '%', note: hasSB44 ? 'floor((Total Waves - 300) / 10) x 0.3' : 'MSA Research locked' }));
+
+  // Lore / Tome
+  const loreEpisodes = spelunkData?.[13]?.[2] || 0;
+  if (loreEpisodes > 7 && totalTomePoints > 0) {
+    const g17 = grimoireData?.[17] || 0;
+    const trollSet = String(olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
+    const loreMult = 1 + (g17 + trollSet) / 100;
+    const x = Math.floor(Math.max(0, totalTomePoints - 16000) / 100);
+    const xp = Math.pow(x, 0.7);
+    const decayVal = 20 * Math.max(0, xp / (25 + xp));
+    addChildren.push(_bNode('Tome Bonus', ext.loreEpi?.val || 0, [
+      _bNode('Base', decayVal, [
+        _bNode('Scaled Points (' + totalTomePoints + ')', x, null, { note: 'floor((Tome Points - 16000) / 100)' })
+      ], { fmt: '%', note: '20 x Scaled^0.7 / (25 + Scaled^0.7)' }),
+      _bNode('Tome Multi', loreMult, [
+        _bNode('DB: Grey Tome Book', g17, null, { fmt: '%' }),
+        _bNode('Troll Set', trollSet, null, { fmt: '%' })
+      ], { fmt: 'x' })
+    ], { fmt: '%' }));
+  } else {
+    addChildren.push(_bNode('Tome Bonus', ext.loreEpi?.val || 0, null, {
+      fmt: '%', note: loreEpisodes <= 7 ? 'Need 8+ lore episodes' : 'No tome points'
+    }));
+  }
+
+  // Sort additive by value descending
+  addChildren.sort(function(a, b) { return b.val - a.val; });
+  let additiveTotal = 0;
+  for (const c of addChildren) additiveTotal += c.val;
+  const additiveNode = _bNode('Additive Bonus', additiveTotal, addChildren, { fmt: '%' });
+
+  // ---- Multiplicative ----
+  const takinNotesVal = getGridBonusFinal(70);
+
+  const comp52val = ext._comp52?.val || 0;
+  const jellyNode = _bNode('Jellofish', 1 + comp52val, null, { fmt: 'x', note: comp52val > 0 ? 'Owned' : 'Not owned' });
+
+  // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, 1 + comp52val);
+
+  // Root children: obs base summary, then additive sources, then multipliers
+  const rootChildren = [];
+  rootChildren.push(_bNode('Observation Base', rate.obsBase, null, { fmt: '/hr' }));
+  rootChildren.push(additiveNode);
+  var tnNode = _gbNode(70, "Takin' Notes");
+  tnNode.val = 1 + takinNotesVal / 100;
+  tnNode.fmt = 'x';
+  rootChildren.push(tnNode);
+  rootChildren.push(jellyNode);
+  rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
+
+  return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });
+}
+
+function renderBreakdownTree(root, container) {
+  var idCounter = 0;
+
+  function fmtNodeVal(node) {
+    var v = node.val;
+    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">(' + fmtExact(v) + ')</span>';
+    if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
+    if (node.fmt === 'x') return '\u00d7' + parseFloat(v.toFixed(4));
+    if (Number.isInteger(v)) return String(v);
+    return parseFloat(v.toFixed(4));
+  }
+
+  function valColor(node) {
+    if (node.fmt === '/hr') return 'var(--green)';
+    if (node.fmt === '%') return 'var(--purple)';
+    if (node.fmt === 'x') return 'var(--cyan)';
+    return 'var(--text1)';
+  }
+
+  function buildHtml(node, depth) {
+    var id = 'bt-' + (idCounter++);
+    var has = node.children && node.children.length > 0;
+    var pad = depth * 18;
+    // depth 0 = root (Total), depth 1 = additive group / multipliers — start expanded
+    var startOpen = depth <= 1;
+    var arrow = has ? '<span class="bt-arrow" data-id="' + id + '">' + (startOpen ? '\u25be' : '\u25b8') + '</span>' : '<span style="display:inline-block;width:14px;"></span>';
+    var cls = 'bt-row';
+    if (depth === 0) cls += ' bt-root';
+    var noteAttr = node.note ? ' data-bt-note="' + node.note.replace(/"/g, '&quot;') + '"' : '';
+    var html = '<div class="' + cls + '"' + noteAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
+    html += arrow;
+    html += '<span class="bt-label">' + node.label + '</span>';
+    if (node.note) html += '';
+    html += '<span class="bt-val" style="color:' + valColor(node) + '">' + fmtNodeVal(node) + '</span>';
+    html += '</div>';
+    if (has) {
+      html += '<div class="bt-children" id="' + id + '" style="' + (startOpen ? '' : 'display:none;') + '">';
+      for (var ci = 0; ci < node.children.length; ci++) {
+        html += buildHtml(node.children[ci], depth + 1);
+      }
+      html += '</div>';
+    }
+    return html;
+  }
+
+  var html = '<div class="bt-controls"><button class="btn btn-sm bt-expand-all">Expand All</button><button class="btn btn-sm bt-collapse-all">Collapse All</button></div>';
+  html += '<div class="bt-tree">' + buildHtml(root, 0) + '</div>';
+  container.innerHTML = html;
+
+  // Toggle handlers — use onclick to avoid stacking on re-render
+  container.onmouseover = function(e) {
+    var row = e.target.closest('.bt-row[data-bt-note]');
+    if (!row) return;
+    var tt = document.getElementById('tooltip');
+    tt.innerHTML = '<div class="tt-desc">' + row.getAttribute('data-bt-note') + '</div>';
+    tt.style.display = 'block';
+    moveTooltip(e);
+  };
+  container.onmousemove = function(e) {
+    var row = e.target.closest('.bt-row[data-bt-note]');
+    if (row) moveTooltip(e);
+  };
+  container.onmouseout = function(e) {
+    var row = e.target.closest('.bt-row[data-bt-note]');
+    if (row && !row.contains(e.relatedTarget)) hideTooltip();
+  };
+  container.onclick = function(e) {
+    if (e.target.closest('.bt-controls')) return;
+    var row = e.target.closest('.bt-row');
+    if (!row) return;
+    var arrow = row.querySelector('.bt-arrow');
+    if (!arrow) return;
+    var targetId = arrow.dataset.id;
+    var childDiv = document.getElementById(targetId);
+    if (!childDiv) return;
+    var open = childDiv.style.display !== 'none';
+    childDiv.style.display = open ? 'none' : '';
+    arrow.textContent = open ? '\u25b8' : '\u25be';
+  };
+
+  var expandBtn = container.querySelector('.bt-expand-all');
+  var collapseBtn = container.querySelector('.bt-collapse-all');
+  if (expandBtn) expandBtn.onclick = function(e) {
+    e.stopPropagation();
+    container.querySelectorAll('.bt-children').forEach(function(el) { el.style.display = ''; });
+    container.querySelectorAll('.bt-arrow').forEach(function(el) { el.textContent = '\u25be'; });
+  };
+  if (collapseBtn) collapseBtn.onclick = function(e) {
+    e.stopPropagation();
+    container.querySelectorAll('.bt-children').forEach(function(el) { el.style.display = 'none'; });
+    container.querySelectorAll('.bt-arrow').forEach(function(el) { el.textContent = '\u25b8'; });
+  };
+}
+
 // ===== RENDER: DASHBOARD =====
 function renderDashboard() {
   // Summary
@@ -4237,6 +4921,12 @@ function renderDashboard() {
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magnifiersOwned}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magMaxPerSlot}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable()} free</div></div>
+    </div>
+    <div style="max-width:420px;margin:8px auto 4px;padding:0 12px;">
+      <div style="height:22px;background:#1a1a2e;border-radius:11px;overflow:hidden;border:1px solid #333;">
+        <div style="height:100%;width:${expReq > 0 ? Math.min(100, expCur / expReq * 100) : 0}%;background:linear-gradient(90deg,#e0e0e0,#fff);border-radius:11px;transition:width .3s;"></div>
+      </div>
+      <div style="text-align:center;font-size:.8em;font-weight:600;color:#fff;margin-top:4px;">Exp ${fmtVal(expCur)} / ${fmtVal(expReq)}</div>
     </div>`;
 
   // Grid — DOM-based with shape overlays, coordinate names, tooltips
@@ -4363,88 +5053,11 @@ function renderDashboard() {
     obsDiv.appendChild(cell);
   }
 
-  // EXP Rate Breakdown — full additive/multiplicative table (v1 style, external merged in)
+  // EXP Rate Breakdown — nested tree
   const expDiv = document.getElementById('dash-exp-breakdown');
   {
-    const ext = extBonuses || computeExternalBonuses();
-    const rate = simTotalExp();
-
-    // Build additive sources (external + grid)
-    const additiveSources = [];
-    const CARD_NAMES = { w7b1: 'Trench Fish', w7b4: 'Eggroll', w7b11: 'Pirate Deckhand' };
-    for (const k of Object.keys(ext).filter(k => !k.startsWith('_'))) {
-      const b = ext[k];
-      let label = b.label;
-      if (k === 'cardW7b1') label = 'Card: ' + CARD_NAMES.w7b1;
-      if (k === 'cardW7b4') label = 'Card: ' + CARD_NAMES.w7b4;
-      additiveSources.push({ label, val: b.val, source: 'External' });
-    }
-
-    // Grid-based additive EXP% bonuses
-    const gridExpSquares = [
-      { idx: 50, name: 'Pts Every Ten' },
-      { idx: 90, name: 'Observationalistic' },
-      { idx: 110, name: 'All Night Studying' }
-    ];
-    for (const sq of gridExpSquares) {
-      const val = getGridBonusFinal(sq.idx);
-      additiveSources.push({ label: 'Grid ' + gridCoord(sq.idx) + ': ' + sq.name, val, source: 'Grid' });
-    }
-    // Grid 112 (mode 2) — x TotalOccurrencesFound
-    let occFoundCount = 0;
-    const occTBF = computeOccurrencesToBeFound();
-    for (let i = 0; i < occTBF; i++) if ((occFound[i] || 0) >= 1) occFoundCount++;
-    const gb112raw = getGridBonusFinal(112);
-    const gb112 = gb112raw * occFoundCount;
-    additiveSources.push({ label: 'Grid ' + gridCoord(112) + ': See Em All x ' + occFoundCount + ' obs', val: gb112, source: 'Grid' });
-    // Grid 94 (mode 2) — x TotalObsLVs
-    const totalObsLV = getTotalObsLVs();
-    const gb94raw = getGridBonusFinal(94);
-    const gb94 = gb94raw * totalObsLV;
-    additiveSources.push({ label: 'Grid ' + gridCoord(94) + ': Game Design 102 x ' + totalObsLV + ' LVs', val: gb94, source: 'Grid' });
-
-    additiveSources.sort((a, b) => b.val - a.val);
-    let additiveTotal = 0;
-    for (const s of additiveSources) additiveTotal += s.val;
-
-    // Multiplicative sources
-    const multiSources = [];
-    const takinNotes = getGridBonusFinal(70);
-    multiSources.push({ label: "Grid " + gridCoord(70) + ": Takin' Notes", val: 1 + takinNotes / 100 });
-    const comp52val = ext._comp52?.val || 0;
-    multiSources.push({ label: 'Jellofish (Companion)', val: Math.max(1, 1 + comp52val) });
-
-    let eHtml = '<div style="margin-bottom:8px;font-size:.9em;display:flex;justify-content:space-between;padding:4px 0;">' +
-      '<span style="color:var(--text2);">Observation base total</span>' +
-      '<span style="color:var(--green);font-weight:600;">' + fmtVal(rate.obsBase) + '/hr <span style="color:var(--text2);font-size:.85em;">(' + fmtExact(rate.obsBase) + ')</span></span></div>';
-
-    eHtml += '<table class="opt-table"><thead><tr><th>Source</th><th>Value</th><th>Type</th></tr></thead><tbody>';
-    eHtml += '<tr><td colspan="3" style="color:var(--purple);font-weight:600;padding:8px 8px 4px;">Additive Group</td></tr>';
-    for (const s of additiveSources) {
-      eHtml += '<tr><td>' + s.label + '</td>' +
-        '<td style="color:var(--green);font-weight:600">' + (s.val > 0 ? '+' + s.val.toFixed(2) + '%' : '0') + '</td>' +
-        '<td style="color:var(--text2);font-size:.85em">' + s.source + '</td></tr>';
-    }
-    eHtml += '<tr style="border-top:2px solid #444;"><td style="font-weight:700;">Additive Total</td>' +
-      '<td style="color:var(--gold);font-weight:700;">' + additiveTotal.toFixed(1) + '%</td><td></td></tr>';
-
-    eHtml += '<tr><td colspan="3" style="color:var(--cyan);font-weight:600;padding:12px 8px 4px;">Multiplicative Group</td></tr>';
-    for (const s of multiSources) {
-      eHtml += '<tr><td>' + s.label + '</td>' +
-        '<td style="color:var(--cyan);font-weight:600">x' + s.val.toFixed(3) + '</td>' +
-        '<td style="color:var(--text2);font-size:.85em">Multiplier</td></tr>';
-    }
-
-    const finalMulti = (1 + additiveTotal / 100) * multiSources.reduce((a, s) => a * s.val, 1);
-    eHtml += '<tr style="border-top:2px solid #444;"><td style="font-weight:700;">Final EXP Multi</td>' +
-      '<td style="color:var(--gold);font-weight:700;font-size:1.1em;">x' + finalMulti.toFixed(2) + '</td><td></td></tr>';
-    eHtml += '</tbody></table>';
-
-    eHtml += '<div style="margin-top:8px;padding:6px 0;border-top:1px solid #444;font-size:1.05em;display:flex;justify-content:space-between;">' +
-      '<span style="color:var(--green);font-weight:700;">Total EXP/hr</span>' +
-      '<span style="color:var(--green);font-weight:700;">' + fmtVal(rate.total) + ' <span style="font-weight:400;color:var(--text2);font-size:.85em;">(' + fmtExact(rate.total) + ')</span></span></div>';
-
-    expDiv.innerHTML = eHtml;
+    const tree = buildExpBreakdownTree();
+    renderBreakdownTree(tree, expDiv);
   }
 
   // AFK Rate Breakdown — full source table
@@ -5211,185 +5824,6 @@ function renderSandboxComparison() {
   bodyDiv.innerHTML = html;
 }
 
-// ===== INSIGHT ROI ANALYSIS =====
-// For each observation, compute the cost/benefit of grinding insight levels.
-// "Insight layout" = all monocles assigned to the target observation.
-// "Research layout" = all monocles converted back to regular mags on optimal slots.
-// Recoup time = how long on the research layout to recover the EXP lost during insight grind.
-
-function computeInsightROI() {
-  const occTBF = computeOccurrencesToBeFound();
-  const pool = magData.slice(0, magnifiersOwned);
-  const monoCount = pool.filter(m => m.type === 1).length;
-  if (monoCount === 0) return { monoCount: 0, rows: [] };
-
-  const numKalei = pool.filter(m => m.type === 2).length;
-  const numRegular = pool.filter(m => m.type === 0).length;
-
-  // Current optimal research rate (baseline)
-  const baseRate = simTotalExp().total;
-
-  const gl = gridLevels, so = shapeOverlay, il = insightLvs, occ = occFound;
-  const rLv = researchLevel;
-  const mMax = magMaxPerSlot;
-
-  // Available observation slots
-  const availSlots = [];
-  for (let s = 0; s < Math.min(occTBF, OCC_DATA.length); s++) {
-    if (isObsUsable(s, rLv, occ)) availSlots.push(s);
-  }
-
-  // Build a mag layout with monocles locked on targetObs and nAdjKalei kaleidoscopes
-  // pre-placed on adjacent slots (to boost insight rate). Remaining mags greedily
-  // placed for maximum research EXP.
-  function buildLayout(targetObs, nAdjKalei) {
-    const assigned = [];
-
-    // Pre-assign monocles on target (capped to slot capacity)
-    const monoOnTarget = Math.min(monoCount, mMax);
-    for (let k = 0; k < monoOnTarget; k++) {
-      assigned.push({ type: 1, slot: targetObs, x: 0, y: 0 });
-    }
-
-    // Pre-assign kaleidoscopes adjacent to target (for insight boost)
-    if (nAdjKalei > 0) {
-      const adj = [];
-      const t = targetObs;
-      if (t % 8 !== 0) adj.push(t - 1);
-      if (t % 8 !== 7) adj.push(t + 1);
-      if (t >= 8) adj.push(t - 8);
-      if (t + 8 < 80) adj.push(t + 8);
-      let placed = 0;
-      for (const s of adj) {
-        if (placed >= nAdjKalei) break;
-        if (s < 0 || s >= occTBF || !isObsUsable(s, rLv, occ)) continue;
-        const inSlot = assigned.filter(a => a.slot === s).length;
-        if (inSlot >= mMax) continue;
-        assigned.push({ type: 2, slot: s, x: 0, y: 0 });
-        placed++;
-      }
-    }
-
-    // Count pre-placed kaleidoscopes
-    const preKalei = assigned.filter(a => a.type === 2).length;
-    const remainKalei = numKalei - preKalei;
-
-    // Greedily place remaining mags for research EXP
-    const toPlace = [];
-    for (let k = 0; k < monoCount - monoOnTarget; k++) toPlace.push(1);
-    for (let k = 0; k < remainKalei; k++) toPlace.push(2);
-    for (let k = 0; k < numRegular; k++) toPlace.push(0);
-
-    while (toPlace.length > 0) {
-      let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
-      const triedTypes = new Set();
-      for (let pi = 0; pi < toPlace.length; pi++) {
-        const magType = toPlace[pi];
-        if (triedTypes.has(magType)) continue;
-        triedTypes.add(magType);
-        for (const slot of availSlots) {
-          const inSlot = assigned.filter(a => a.slot === slot).length;
-          if (inSlot >= mMax) continue;
-          const trial = [...assigned, { type: magType, slot, x: 0, y: 0 }];
-          const score = _evalMagScoreWith(trial, gl, so, il, occ, rLv);
-          if (score > bestScore) { bestScore = score; bestSlot = slot; bestPI = pi; }
-        }
-      }
-      if (bestPI >= 0) {
-        assigned.push({ type: toPlace[bestPI], slot: bestSlot, x: 0, y: 0 });
-        toPlace.splice(bestPI, 1);
-      } else break;
-    }
-    return assigned;
-  }
-
-  // Evaluate a layout for a given obs and level gain
-  function evalLayout(mdLayout, obsIdx, targetLvGain, currentProgress) {
-    let totalGrindHrs = 0;
-    let simIP = currentProgress;
-    let simLv = il[obsIdx] || 0;
-
-    for (let g = 0; g < targetLvGain; g++) {
-      const iRate = insightExpRate(obsIdx, mdLayout, il, gl, so);
-      if (iRate <= 0) { totalGrindHrs = Infinity; break; }
-      const req = insightExpReqAt(obsIdx, simLv);
-      const remaining = Math.max(0, req - simIP);
-      totalGrindHrs += remaining / iRate;
-      simIP = 0;
-      simLv++;
-    }
-
-    const grindRate = simTotalExp({ magData: mdLayout }).total;
-    const expLostPerHr = baseRate - grindRate;
-    const totalExpLost = expLostPerHr * totalGrindHrs;
-
-    const newIL = il.slice();
-    newIL[obsIdx] = (il[obsIdx] || 0) + targetLvGain;
-    const postRate = simTotalExp({ insightLvs: newIL }).total;
-    const rateGain = postRate - baseRate;
-
-    const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
-    const breakEvenHrs = totalGrindHrs + recoupHrs;
-
-    return {
-      grindHrs: totalGrindHrs,
-      grindRate,
-      expLostPerHr,
-      totalExpLost,
-      postRate,
-      rateGain,
-      recoupHrs,
-      breakEvenHrs,
-      worth: isFinite(breakEvenHrs) && rateGain > 0,
-      insightRate: insightExpRate(obsIdx, mdLayout, il, gl, so),
-    };
-  }
-
-  const rows = [];
-  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
-    if (!isObsUsable(i)) continue;
-
-    const name = OCC_DATA[i].name.replace(/_/g, ' ');
-    const lv = il[i] || 0;
-    const progress = insightProgress[i] || 0;
-
-    // Try 0..min(numKalei,4) adjacent kaleidoscopes and pick the layout with
-    // the shortest break-even time for +1 insight.
-    const maxAdj = Math.min(numKalei, 4);
-    const layouts = [];
-    for (let nAdj = 0; nAdj <= maxAdj; nAdj++) {
-      layouts.push({ nAdj, md: buildLayout(i, nAdj) });
-    }
-
-    // Find best layout by +1 break-even
-    let bestLayout = layouts[0];
-    let bestBE = Infinity;
-    for (const l of layouts) {
-      const ev = evalLayout(l.md, i, 1, progress);
-      if (ev.breakEvenHrs < bestBE) { bestBE = ev.breakEvenHrs; bestLayout = l; }
-    }
-
-    // Build scenarios for +1 and +2 using the best layout
-    const scenarios = [];
-    for (const targetLvGain of [1, 2]) {
-      const ev = evalLayout(bestLayout.md, i, targetLvGain, progress);
-      ev.lvGain = targetLvGain;
-      ev.adjKalei = bestLayout.nAdj;
-      scenarios.push(ev);
-    }
-
-    rows.push({ idx: i, name, lv, progress, scenarios, grindLayout: bestLayout.md });
-  }
-
-  // Sort by +1 break-even time ascending (best ROI first)
-  rows.sort((a, b) => {
-    const aT = a.scenarios[0]?.breakEvenHrs ?? Infinity;
-    const bT = b.scenarios[0]?.breakEvenHrs ?? Infinity;
-    return aT - bT;
-  });
-
-  return { monoCount, baseRate, rows, baselineLayout: pool.slice() };
-}
 
 function _fmtLayoutHTML(layout, label) {
   // Aggregate layout by slot: {slot: {0:count, 1:count, 2:count}}
@@ -5465,9 +5899,44 @@ function _fmtLayoutDiff(before, after) {
 
 let _insightROISortMode = 'breakeven'; // 'grindtime' | 'rategain' | 'recoup' | 'breakeven'
 let _insightROIHideFree = false;
+let _insightROIPending = false;
+let _insightROICachedData = null;
 
-function renderInsightROI() {
-  const data = computeInsightROI();
+// Full recompute + render (called on tab switch / data change)
+async function renderInsightROI() {
+  if (_insightROIPending) return;
+  _insightROIPending = true;
+
+  const summaryDiv = document.getElementById('insight-roi-summary');
+  const tableDiv = document.getElementById('insight-roi-table');
+  if (!summaryDiv || !tableDiv) { _insightROIPending = false; return; }
+
+  summaryDiv.innerHTML = '<span style="color:var(--text2);">Computing insight ROI\u2026 <span id="insight-roi-progress">0/\u2026</span></span>';
+  tableDiv.innerHTML = '';
+
+  // Yield to let the browser paint the loading state
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  let data;
+  try {
+    const progEl = document.getElementById('insight-roi-progress');
+    data = await _runInsightROIViaWorker((done, total) => {
+      if (progEl) progEl.textContent = `${done}/${total} observations`;
+    });
+  } finally {
+    _insightROIPending = false;
+  }
+
+  _insightROICachedData = data;
+  _renderInsightROITable(data);
+}
+
+// Lightweight re-render using cached data (for sort/filter changes)
+function _rerenderInsightROI() {
+  if (_insightROICachedData) _renderInsightROITable(_insightROICachedData);
+}
+
+function _renderInsightROITable(data) {
   const summaryDiv = document.getElementById('insight-roi-summary');
   const tableDiv = document.getElementById('insight-roi-table');
   if (!summaryDiv || !tableDiv) return;
@@ -5486,17 +5955,17 @@ function renderInsightROI() {
   const sm = _insightROISortMode;
   function sortBtn(mode, label) {
     const active = sm === mode;
-    return `<button onclick="_insightROISortMode='${mode}';renderInsightROI();" style="padding:3px 10px;border-radius:4px;border:1px solid ${active ? 'var(--cyan)' : '#555'};background:${active ? 'rgba(0,188,212,.12)' : 'var(--bg3)'};color:${active ? 'var(--cyan)' : 'var(--text2)'};font-size:.78em;cursor:pointer;">${label}</button>`;
+    return `<button onclick="_insightROISortMode='${mode}';_rerenderInsightROI();" style="padding:3px 10px;border-radius:4px;border:1px solid ${active ? 'var(--cyan)' : '#555'};background:${active ? 'rgba(0,188,212,.12)' : 'var(--bg3)'};color:${active ? 'var(--cyan)' : 'var(--text2)'};font-size:.78em;cursor:pointer;">${label}</button>`;
   }
   let html = '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center;"><span style="color:var(--text2);font-size:.82em;">Sort by:</span>';
   html += sortBtn('grindtime', 'Grind Time');
   html += sortBtn('rategain', 'Rate Gain');
   html += sortBtn('breakeven', 'Break-Even');
-  html += `<label style="margin-left:12px;font-size:.78em;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${_insightROIHideFree ? 'checked' : ''} onchange="_insightROIHideFree=this.checked;renderInsightROI();"> Hide free</label>`;
+  html += `<label style="margin-left:12px;font-size:.78em;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${_insightROIHideFree ? 'checked' : ''} onchange="_insightROIHideFree=this.checked;_rerenderInsightROI();"> Hide free</label>`;
   html += '</div>';
 
   // Sort rows based on current sort mode
-  data.rows.sort((a, b) => {
+  const sortedRows = data.rows.slice().sort((a, b) => {
     const as = a.scenarios[0], bs = b.scenarios[0];
     if (sm === 'grindtime') return (as?.grindHrs ?? Infinity) - (bs?.grindHrs ?? Infinity);
     if (sm === 'rategain') return (bs?.rateGain ?? -Infinity) - (as?.rateGain ?? -Infinity);
@@ -5504,12 +5973,12 @@ function renderInsightROI() {
   });
 
   // Filter out "free" observations (no EXP loss) if checkbox is on
-  if (_insightROIHideFree) {
-    data.rows = data.rows.filter(r => {
-      const sc = r.scenarios[0];
-      return sc && isFinite(sc.totalExpLost) && sc.totalExpLost > 0;
-    });
-  }
+  const displayRows = _insightROIHideFree
+    ? sortedRows.filter(r => {
+        const sc = r.scenarios[0];
+        return sc && isFinite(sc.totalExpLost) && sc.totalExpLost > 0;
+      })
+    : sortedRows;
 
   const NCOLS = 11;
   html += '<div style="overflow-x:auto;">';
@@ -5528,7 +5997,7 @@ function renderInsightROI() {
   html += '<th style="padding:8px 4px;">Verdict</th>';
   html += '</tr></thead><tbody>';
 
-  for (const row of data.rows) {
+  for (const row of displayRows) {
     const nScenarios = row.scenarios.length;
     for (let si = 0; si < nScenarios; si++) {
       const sc = row.scenarios[si];
@@ -5593,140 +6062,30 @@ function renderInsightROI() {
   tableDiv.innerHTML = html;
 }
 
-// ===== OBSERVATION UNLOCK PRIORITY =====
-async function computeObsUnlockPriority() {
-  const rLv = researchLevel;
-  const occTBF = computeOccurrencesToBeFound();
-  const currentTotal = simTotalExp().total;
 
-  // Roll parameters
-  const smartEyeLv = gridLevels[31] || 0;
-  const sharpEyeLv = gridLevels[51] || 0;
-  const obsLv = gridLevels[90] || 0;
-  const maxRoll = Math.floor(100 + sharpEyeLv);
-  const smartEyePerFail = smartEyeLv; // +lv per failed roll to min
-  const smartEyeCap = 25 * smartEyeLv;  // mode 2 for node 31
-  const rollsPerDay = Math.round(3 + obsLv + 3 * eventShopOwned(35));
-  const failedRolls = cachedFailedRolls;
-
-  // EXP gain from full mag re-optimization after adding a new obs
-  // We'll simulate: mark obs as found, re-optimize mags, compute new rate
-  const results = [];
-
-  for (let t = 0; t < OCC_DATA.length; t++) {
-    if ((occFound[t] || 0) >= 1) continue; // already found
-    const name = OCC_DATA[t].name.replace(/_/g, ' ');
-    const rollThreshold = OCC_DATA[t].rollReq;
-    const requiredRLv = OCC_DATA[t].roll; // research level needed to USE the obs
-
-    // -- Roll probability --
-    // P(success on a single roll) = P(roll >= threshold)
-    // Roll is uniform int from minRoll to maxRoll
-    // After each FAILED roll in a session, the min increases (pity)
-    // We compute the probability of unlocking within 1 day of rolls
-    // accounting for the pity mechanic resetting on success
-    //
-    // Current state: failedRolls consecutive failures so far
-    // On each roll: min = floor(1 + min(consecutiveFails * smartEyePerFail, smartEyeCap))
-    //               roll = uniform int [min, maxRoll]
-    //               success if roll >= threshold
-    //               fail: consecutiveFails++
-    //               success: consecutiveFails = 0 (but we only care about first success)
-
-    // Compute P(at least one success in rollsPerDay rolls) with pity counter starting at failedRolls
-    let pFailAll = 1; // P(all rolls fail)
-    let simFails = failedRolls;
-    for (let r = 0; r < rollsPerDay; r++) {
-      const minRoll = Math.floor(1 + Math.min(simFails * smartEyePerFail, smartEyeCap));
-      const range = maxRoll - minRoll + 1;
-      if (range <= 0) { pFailAll = 0; break; } // min > max = guaranteed success
-      const successRange = Math.max(0, maxRoll - rollThreshold + 1);
-      const pSuccess = Math.min(1, Math.max(0, successRange / range));
-      const pFail = 1 - pSuccess;
-      pFailAll *= pFail;
-      if (pFailAll <= 0) break;
-      simFails++;
-    }
-    const pUnlockToday = 1 - pFailAll;
-
-    // Expected days to unlock (geometric distribution with pity)
-    // For accuracy we simulate up to 365 days
-    let expectedDays = Infinity;
-    if (pUnlockToday >= 1) {
-      expectedDays = 1;
-    } else if (pUnlockToday > 0) {
-      // Simulate expected days with pity accumulating across days
-      let cumProb = 0;
-      let eDays = 0;
-      let simF = failedRolls;
-      for (let day = 1; day <= 365; day++) {
-        let pFailDay = 1;
-        for (let r = 0; r < rollsPerDay; r++) {
-          const minR = Math.floor(1 + Math.min(simF * smartEyePerFail, smartEyeCap));
-          const rng = maxRoll - minR + 1;
-          if (rng <= 0) { pFailDay = 0; break; }
-          const sr = Math.max(0, maxRoll - rollThreshold + 1);
-          const pS = Math.min(1, Math.max(0, sr / rng));
-          pFailDay *= (1 - pS);
-          if (pFailDay <= 0) break;
-          simF++;
-        }
-        const pSuccessDay = 1 - pFailDay;
-        const pFirstSuccess = (1 - cumProb) * pSuccessDay;
-        eDays += day * pFirstSuccess;
-        cumProb += pFirstSuccess;
-        if (cumProb >= 0.9999) break;
-        // Note: pity counter does NOT reset between days if all rolls fail
-        // It only resets on any success. Since we're computing E[days to first success],
-        // simF keeps accumulating on the fail path.
-      }
-      expectedDays = cumProb > 0 ? eDays / cumProb : Infinity;
-    }
-
-    // -- EXP gain from unlocking --
-    // Only useful if rLv >= requiredRLv (can assign mags/kalei to it)
-    const canUseNow = rLv >= requiredRLv;
-
-    // Compute EXP gain: add obs to occFound, re-optimize mags, measure delta
-    const tempOF = occFound.slice();
-    tempOF[t] = 1;
-    // Yield to event loop periodically to avoid freezing the UI
-    await new Promise(r => setTimeout(r, 0));
-    // Full sim: with the new obs found, re-optimize mags to see actual impact
-    const tempMD = await optimizeMagsFor(gridLevels, shapeOverlay, magData, insightLvs, tempOF,
-      magnifiersOwned, magMaxPerSlot, rLv);
-    const newRate = simTotalExpWith(gridLevels, shapeOverlay, tempMD, insightLvs, tempOF, rLv);
-    const expGain = canUseNow ? newRate - currentTotal : 0;
-
-    // Score: expected EXP gain weighted by probability
-    // "EXP gain per expected day" = expGain / expectedDays
-    const score = expectedDays > 0 && isFinite(expectedDays) ? expGain / expectedDays : 0;
-
-    results.push({
-      idx: t, name, rollThreshold, requiredRLv, canUseNow,
-      maxRoll, rollsPerDay, failedRolls,
-      pUnlockToday, expectedDays,
-      expGain, newRate, score,
-    });
-  }
-
-  results.sort((a, b) => {
-    // canUseNow entries always above "Wait" entries
-    if (a.canUseNow !== b.canUseNow) return a.canUseNow ? -1 : 1;
-    return b.score - a.score;
-  });
-  return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
-}
+let _obsUnlockPending = false;
 
 async function renderObsUnlock() {
+  if (_obsUnlockPending) return;
+  _obsUnlockPending = true;
+
   const summaryDiv = document.getElementById('obs-unlock-summary');
   const tableDiv = document.getElementById('obs-unlock-table');
-  if (!summaryDiv || !tableDiv) return;
-  summaryDiv.innerHTML = '<span style="color:var(--text2);">Computing observation priorities...</span>';
+  if (!summaryDiv || !tableDiv) { _obsUnlockPending = false; return; }
+  summaryDiv.innerHTML = '<span style="color:var(--text2);">Computing observation priorities\u2026 <span id="obs-unlock-progress">0/\u2026</span></span>';
   tableDiv.innerHTML = '';
   // Yield to let the loading message paint
   await new Promise(r => setTimeout(r, 0));
-  const data = await computeObsUnlockPriority();
+
+  let data;
+  try {
+    const progEl = document.getElementById('obs-unlock-progress');
+    data = await _runObsUnlockViaWorker((done, total) => {
+      if (progEl) progEl.textContent = `${done}/${total} observations`;
+    });
+  } finally {
+    _obsUnlockPending = false;
+  }
 
   summaryDiv.innerHTML =
     `<span style="color:var(--text2);">Roll range: </span><span style="color:var(--gold);font-weight:700;">1\u2013${data.maxRoll}</span>` +
@@ -5952,10 +6311,7 @@ function _renderPresetSidebar() {
     _applyPreset(p);
     _setActivePresetId(p.id);
     _renderPresetSidebar();
-    _recomputeOpt();
-    _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked: _isBasePreset(p.id) });
-    _updateAboveWarning();
-    renderUEGrid();
+    renderUpgradeEval();
   }
 
   function _makeInlineInput(current, onConfirm) {
@@ -6154,10 +6510,7 @@ function _renderPresetSidebar() {
       _setActivePresetId('');
     }
     _renderPresetSidebar();
-    _recomputeOpt();
-    _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked: false });
-    _updateAboveWarning();
-    renderUEGrid();
+    renderUpgradeEval();
   });
   ioRow.appendChild(expBtn);
   ioRow.appendChild(impBtn);
@@ -6172,9 +6525,7 @@ function _tierOnChange() {
   if (_isBasePreset(activeId)) {
     _setActivePresetId('');
   }
-  _recomputeOpt();
-  _renderPresetSidebar();
-  renderUEGrid();
+  renderUpgradeEval();
 }
 
 // Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders)
@@ -6419,24 +6770,58 @@ function _updateAboveWarning() {
 
 let _lastOpt = null; // cached optimizeShapePlacement result for current render cycle
 let _pureExpTotal = 0; // EXP/hr from pure EXP-only optimization (no tiers)
-function _recomputeOpt() {
-  _lastOpt = optimizeShapePlacement({ useTiers: true });
-  if (shapeTiers.above.length > 0) {
-    // "above" nodes shift shapes away from pure EXP — compute true pure-EXP baseline
-    const pureOpt = optimizeShapePlacement();
-    _pureExpTotal = pureOpt.optimizedTotal;
-  } else {
-    // No "above" nodes — phase 1 IS pure EXP
-    _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
-  }
-}
 
-function renderUpgradeEval() {
-  _recomputeOpt();
+let _shapeOptPending = false;
+async function renderUpgradeEval() {
+  if (_shapeOptPending) return;
+  _shapeOptPending = true;
+
+  // Render the tier list and sidebar immediately (cheap)
   const locked = _isBasePreset(_getActivePresetId());
   _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked });
   _updateAboveWarning();
   _renderPresetSidebar();
+
+  // Show loading indicator with progress bar
+  const sumEl = document.getElementById('ue-shape-summary');
+  const gridDiv = document.getElementById('ue-grid');
+  if (sumEl) sumEl.innerHTML =
+    '<div style="padding:10px;color:var(--text2);font-size:.9em;">' +
+    '<div id="shape-opt-status">Computing optimal shapes\u2026</div>' +
+    '<div style="margin-top:6px;height:6px;background:#333;border-radius:3px;overflow:hidden;">' +
+    '<div id="shape-opt-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .15s;"></div>' +
+    '</div></div>';
+  if (gridDiv) gridDiv.style.opacity = '0.4';
+
+  // Yield to let the browser paint the loading state
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  try {
+    const statusEl = document.getElementById('shape-opt-status');
+    const barEl = document.getElementById('shape-opt-bar');
+    const result = await _runShapeOptViaWorker(function(done, total, msg) {
+      if (statusEl) statusEl.textContent = msg || ('Computing\u2026 ' + done + '/' + total);
+      if (barEl) barEl.style.width = (total > 0 ? Math.round(done / total * 100) : 0) + '%';
+    });
+    _lastOpt = result.primary;
+    if (result.pure) {
+      _pureExpTotal = result.pure.optimizedTotal;
+    } else {
+      _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
+    }
+  } catch(err) {
+    console.error('Shape opt worker error:', err);
+    // Fallback to synchronous computation
+    _lastOpt = optimizeShapePlacement({ useTiers: true });
+    if (shapeTiers.above.length > 0) {
+      _pureExpTotal = optimizeShapePlacement().optimizedTotal;
+    } else {
+      _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
+    }
+  } finally {
+    _shapeOptPending = false;
+  }
+  if (gridDiv) gridDiv.style.opacity = '';
   renderUEGrid();
 }
 
@@ -6445,8 +6830,9 @@ function renderUEGrid() {
   if (!gridDiv) return;
   gridDiv.innerHTML = '';
 
-  // Use cached optimizer result
-  const opt = _lastOpt || optimizeShapePlacement({ useTiers: true });
+  // Use cached optimizer result (set by renderUpgradeEval before this is called)
+  if (!_lastOpt) return;
+  const opt = _lastOpt;
   const optOverlay = opt.optimizedOverlay || new Array(GRID_SIZE).fill(-1);
   const COLS = GRID_COLS;
 
@@ -6586,6 +6972,70 @@ function renderAll() {
 // ===== WEB WORKER HELPERS =====
 let _optWorker = null;
 
+let _optReject = null;
+function _snapshotState() {
+  return {
+    research: research,
+    gridLevels: gridLevels.slice(),
+    shapeOverlay: shapeOverlay.slice(),
+    occFound: occFound.slice(),
+    insightLvs: insightLvs.slice(),
+    insightProgress: insightProgress.slice(),
+    magData: magData.map(function(m){ return {x:m.x,y:m.y,slot:m.slot,type:m.type}; }),
+    shapePositions: shapePositions.slice(),
+    stateR7: stateR7.slice(),
+    researchLevel: researchLevel,
+    magMaxPerSlot: magMaxPerSlot,
+    externalResearchPct: externalResearchPct,
+    comp52TrueMulti: comp52TrueMulti,
+    allBonusMulti: allBonusMulti,
+    magnifiersOwned: magnifiersOwned,
+    olaData: olaData,
+    towerData: towerData,
+    spelunkData: spelunkData,
+    arcadeUpgData: arcadeUpgData,
+    cards0Data: cards0Data,
+    cards1Data: cards1Data,
+    sailingData: sailingData,
+    lv0Data: lv0Data,
+    totemInfoData: totemInfoData,
+    gamingData: gamingData,
+    ninjaData: ninjaData,
+    ribbonData: ribbonData,
+    mealsData: mealsData,
+    farmCropCount: farmCropCount,
+    grimoireData: grimoireData,
+    farmUpgData: farmUpgData,
+    totalTomePoints: totalTomePoints,
+    holesData: holesData,
+    riftData: riftData,
+    breedingData: breedingData,
+    summonData: summonData,
+    arcaneData: arcaneData,
+    gemItemsData: gemItemsData,
+    achieveRegData: achieveRegData,
+    tasksGlobalData: tasksGlobalData,
+    lv0AllData: lv0AllData,
+    labBonusConnected: labBonusConnected,
+    labJewelConnected: labJewelConnected,
+    labMainBonusFull: labMainBonusFull,
+    companionIds: Array.from(companionIds),
+    extBonusOverrides: extBonusOverrides,
+    extBonuses: extBonuses,
+    serverVarResXP: serverVarResXP,
+    cachedEventShopStr: cachedEventShopStr,
+    cachedResearchExp: cachedResearchExp,
+    cachedSpelunkyUpg7: cachedSpelunkyUpg7,
+    cachedComp0DivOk: cachedComp0DivOk,
+    cachedStickerFixed: cachedStickerFixed,
+    cachedBoonyCount: cachedBoonyCount,
+    cachedEvShop37: cachedEvShop37,
+    cachedExtPctExSticker: cachedExtPctExSticker,
+    cachedFailedRolls: cachedFailedRolls,
+    shapeTiers: { above: shapeTiers.above.slice(), below: shapeTiers.below.slice() },
+  };
+}
+
 function _createOptWorker() {
   const scripts = document.querySelectorAll('script:not([src])');
   for (const sc of scripts) {
@@ -6605,9 +7055,7 @@ function _createOptWorker() {
       engineCode = text.substring(si + '// __WORKER_ENGINE_START__'.length, ei);
     }
     const handler = `
-onmessage = async function(e) {
-  var d = e.data, s = d.state;
-  // Restore all mutable state from main thread
+function _restoreState(s) {
   research = s.research;
   gridLevels = s.gridLevels;
   shapeOverlay = s.shapeOverlay;
@@ -6664,19 +7112,60 @@ onmessage = async function(e) {
   cachedResearchExp = s.cachedResearchExp || 0;
   cachedSpelunkyUpg7 = s.cachedSpelunkyUpg7 || 0;
   cachedComp0DivOk = s.cachedComp0DivOk || false;
+  cachedFailedRolls = s.cachedFailedRolls || 0;
   if (s.shapeTiers) { shapeTiers.above = s.shapeTiers.above || []; shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])]; }
+}
+onmessage = async function(e) {
+  var d = e.data;
+  _restoreState(d.state);
+  var progressFn = function(done, total, msg) {
+    postMessage({type:'progress', done:done, total:total, msg:msg});
+  };
   if (d.type === 'runOptimizer') {
     try {
-      var result = await runOptimizer(d.args.target, function(done, total, msg) {
-        postMessage({type:'progress', done:done, total:total, msg:msg});
-      }, d.args.opts);
+      var result = await runOptimizer(d.args.target, progressFn, d.args.opts);
       postMessage({type:'done', result:result});
     } catch(err) {
       postMessage({type:'error', message: err.message, stack: err.stack});
     }
   }
-};
-`;
+  else if (d.type === 'shapeOpt') {
+    try {
+      var r1 = optimizeShapePlacement(d.args.opts || {}, progressFn);
+      var r2 = null;
+      if (d.args.needPure) {
+        r2 = optimizeShapePlacement({}, progressFn);
+      }
+      postMessage({type:'done', result: {primary: r1, pure: r2}});
+    } catch(err) {
+      postMessage({type:'error', message: err.message, stack: err.stack});
+    }
+  }
+  else if (d.type === 'insightROI') {
+    try {
+      var result = await computeInsightROI(progressFn);
+      postMessage({type:'done', result:result});
+    } catch(err) {
+      postMessage({type:'error', message: err.message, stack: err.stack});
+    }
+  }
+  else if (d.type === 'obsUnlock') {
+    try {
+      var result = await computeObsUnlockPriority(progressFn);
+      postMessage({type:'done', result:result});
+    } catch(err) {
+      postMessage({type:'error', message: err.message, stack: err.stack});
+    }
+  }
+  else if (d.type === 'pointPriority') {
+    try {
+      var result = await computePointPriority(progressFn);
+      postMessage({type:'done', result:result});
+    } catch(err) {
+      postMessage({type:'error', message: err.message, stack: err.stack});
+    }
+  }
+};`;
     const blob = new Blob([engineCode + '\n' + handler], {type: 'text/javascript'});
     return new Worker(URL.createObjectURL(blob));
   }
@@ -6685,6 +7174,7 @@ onmessage = async function(e) {
 
 function _runOptimizerViaWorker(target, progressCb, opts) {
   return new Promise(function(resolve, reject) {
+    _optReject = reject;
     try {
       if (_optWorker) { _optWorker.terminate(); _optWorker = null; }
       _optWorker = _createOptWorker();
@@ -6694,79 +7184,148 @@ function _runOptimizerViaWorker(target, progressCb, opts) {
       if (d.type === 'progress' && progressCb) {
         progressCb(d.done, d.total, d.msg);
       } else if (d.type === 'done') {
-        resolve(d.result);
+        resolve(d.result); _optReject = null;
         _optWorker.terminate(); _optWorker = null;
       } else if (d.type === 'error') {
-        reject(new Error(d.message));
+        reject(new Error(d.message)); _optReject = null;
         _optWorker.terminate(); _optWorker = null;
       }
     };
     _optWorker.onerror = function(ev) {
-      reject(new Error(ev.message));
+      reject(new Error(ev.message)); _optReject = null;
       _optWorker.terminate(); _optWorker = null;
     };
     _optWorker.postMessage({
       type: 'runOptimizer',
-      state: {
-        research: research,
-        gridLevels: gridLevels.slice(),
-        shapeOverlay: shapeOverlay.slice(),
-        occFound: occFound.slice(),
-        insightLvs: insightLvs.slice(),
-        insightProgress: insightProgress.slice(),
-        magData: magData.map(function(m){ return {x:m.x,y:m.y,slot:m.slot,type:m.type}; }),
-        shapePositions: shapePositions.slice(),
-        stateR7: stateR7.slice(),
-        researchLevel: researchLevel,
-        magMaxPerSlot: magMaxPerSlot,
-        externalResearchPct: externalResearchPct,
-        comp52TrueMulti: comp52TrueMulti,
-        allBonusMulti: allBonusMulti,
-        magnifiersOwned: magnifiersOwned,
-        olaData: olaData,
-        towerData: towerData,
-        spelunkData: spelunkData,
-        arcadeUpgData: arcadeUpgData,
-        cards0Data: cards0Data,
-        cards1Data: cards1Data,
-        sailingData: sailingData,
-        lv0Data: lv0Data,
-        totemInfoData: totemInfoData,
-        gamingData: gamingData,
-        ninjaData: ninjaData,
-        ribbonData: ribbonData,
-        mealsData: mealsData,
-        farmCropCount: farmCropCount,
-        grimoireData: grimoireData,
-        farmUpgData: farmUpgData,
-        totalTomePoints: totalTomePoints,
-        holesData: holesData,
-        riftData: riftData,
-        breedingData: breedingData,
-        summonData: summonData,
-        arcaneData: arcaneData,
-        gemItemsData: gemItemsData,
-        achieveRegData: achieveRegData,
-        tasksGlobalData: tasksGlobalData,
-        lv0AllData: lv0AllData,
-        labBonusConnected: labBonusConnected,
-        labJewelConnected: labJewelConnected,
-        labMainBonusFull: labMainBonusFull,
-        companionIds: Array.from(companionIds),
-        extBonusOverrides: extBonusOverrides,
-        extBonuses: extBonuses,
-        serverVarResXP: serverVarResXP,
-        cachedEventShopStr: cachedEventShopStr,
-        cachedResearchExp: cachedResearchExp,
-        cachedSpelunkyUpg7: cachedSpelunkyUpg7,
-        cachedComp0DivOk: cachedComp0DivOk,
-        cachedStickerFixed: cachedStickerFixed,
-        cachedBoonyCount: cachedBoonyCount,
-        cachedEvShop37: cachedEvShop37,
-        cachedExtPctExSticker: cachedExtPctExSticker,
-        shapeTiers: { above: shapeTiers.above.slice(), below: shapeTiers.below.slice() },
-      },
+      state: _snapshotState(),
       args: { target: target, opts: opts || {} }
+    });
+  });
+}
+
+
+function _cancelOptimizer() {
+  if (_optWorker) { _optWorker.terminate(); _optWorker = null; }
+  if (_optReject) { _optReject(new Error('Cancelled')); _optReject = null; }
+}
+
+let _shapeOptWorker = null;
+function _runShapeOptViaWorker(progressCb) {
+  return new Promise(function(resolve, reject) {
+    try {
+      if (_shapeOptWorker) { _shapeOptWorker.terminate(); _shapeOptWorker = null; }
+      _shapeOptWorker = _createOptWorker();
+    } catch(e) { reject(e); return; }
+    _shapeOptWorker.onmessage = function(ev) {
+      var d = ev.data;
+      if (d.type === 'progress' && progressCb) {
+        progressCb(d.done, d.total, d.msg);
+      } else if (d.type === 'done') {
+        resolve(d.result);
+        _shapeOptWorker.terminate(); _shapeOptWorker = null;
+      } else if (d.type === 'error') {
+        reject(new Error(d.message));
+        _shapeOptWorker.terminate(); _shapeOptWorker = null;
+      }
+    };
+    _shapeOptWorker.onerror = function(ev) {
+      reject(new Error(ev.message));
+      _shapeOptWorker.terminate(); _shapeOptWorker = null;
+    };
+    _shapeOptWorker.postMessage({
+      type: 'shapeOpt',
+      state: _snapshotState(),
+      args: { opts: { useTiers: true }, needPure: shapeTiers.above.length > 0 }
+    });
+  });
+}
+
+let _insightROIWorker = null;
+function _runInsightROIViaWorker(progressCb) {
+  return new Promise(function(resolve, reject) {
+    try {
+      if (_insightROIWorker) { _insightROIWorker.terminate(); _insightROIWorker = null; }
+      _insightROIWorker = _createOptWorker();
+    } catch(e) { reject(e); return; }
+    _insightROIWorker.onmessage = function(ev) {
+      var d = ev.data;
+      if (d.type === 'progress' && progressCb) {
+        progressCb(d.done, d.total, d.msg);
+      } else if (d.type === 'done') {
+        resolve(d.result);
+        _insightROIWorker.terminate(); _insightROIWorker = null;
+      } else if (d.type === 'error') {
+        reject(new Error(d.message));
+        _insightROIWorker.terminate(); _insightROIWorker = null;
+      }
+    };
+    _insightROIWorker.onerror = function(ev) {
+      reject(new Error(ev.message));
+      _insightROIWorker.terminate(); _insightROIWorker = null;
+    };
+    _insightROIWorker.postMessage({
+      type: 'insightROI',
+      state: _snapshotState()
+    });
+  });
+}
+
+let _obsUnlockWorker = null;
+function _runObsUnlockViaWorker(progressCb) {
+  return new Promise(function(resolve, reject) {
+    try {
+      if (_obsUnlockWorker) { _obsUnlockWorker.terminate(); _obsUnlockWorker = null; }
+      _obsUnlockWorker = _createOptWorker();
+    } catch(e) { reject(e); return; }
+    _obsUnlockWorker.onmessage = function(ev) {
+      var d = ev.data;
+      if (d.type === 'progress' && progressCb) {
+        progressCb(d.done, d.total, d.msg);
+      } else if (d.type === 'done') {
+        resolve(d.result);
+        _obsUnlockWorker.terminate(); _obsUnlockWorker = null;
+      } else if (d.type === 'error') {
+        reject(new Error(d.message));
+        _obsUnlockWorker.terminate(); _obsUnlockWorker = null;
+      }
+    };
+    _obsUnlockWorker.onerror = function(ev) {
+      reject(new Error(ev.message));
+      _obsUnlockWorker.terminate(); _obsUnlockWorker = null;
+    };
+    _obsUnlockWorker.postMessage({
+      type: 'obsUnlock',
+      state: _snapshotState()
+    });
+  });
+}
+
+let _pointPriorityWorker = null;
+function _runPointPriorityViaWorker(progressCb) {
+  return new Promise(function(resolve, reject) {
+    try {
+      if (_pointPriorityWorker) { _pointPriorityWorker.terminate(); _pointPriorityWorker = null; }
+      _pointPriorityWorker = _createOptWorker();
+    } catch(e) { reject(e); return; }
+    _pointPriorityWorker.onmessage = function(ev) {
+      var d = ev.data;
+      if (d.type === 'progress' && progressCb) {
+        progressCb(d.done, d.total, d.msg);
+      } else if (d.type === 'done') {
+        resolve(d.result);
+        _pointPriorityWorker.terminate(); _pointPriorityWorker = null;
+      } else if (d.type === 'error') {
+        reject(new Error(d.message));
+        _pointPriorityWorker.terminate(); _pointPriorityWorker = null;
+      }
+    };
+    _pointPriorityWorker.onerror = function(ev) {
+      reject(new Error(ev.message));
+      _pointPriorityWorker.terminate(); _pointPriorityWorker = null;
+    };
+    _pointPriorityWorker.postMessage({
+      type: 'pointPriority',
+      state: _snapshotState()
     });
   });
 }
@@ -6801,7 +7360,16 @@ document.getElementById('opt-mode-hours')?.addEventListener('click', () => {
 });
 
 // Optimizer run button
+let _optRunning = false;
 document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
+  const runBtn = document.getElementById('opt-run-btn');
+
+  // If already running, cancel
+  if (_optRunning) {
+    _cancelOptimizer();
+    return;
+  }
+
   const isLevelMode = document.getElementById('opt-mode-level').style.opacity === '1';
   let target;
   if (isLevelMode) {
@@ -6821,27 +7389,52 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   const progDiv = document.getElementById('opt-progress');
   const progBar = document.getElementById('opt-progress-bar');
   const progText = document.getElementById('opt-progress-text');
-  const runBtn = document.getElementById('opt-run-btn');
   progDiv.style.display = 'block';
-  runBtn.disabled = true;
-  runBtn.textContent = 'Running...';
+  progBar.style.width = '0%';
+  _optRunning = true;
+  runBtn.textContent = '\u274C Cancel';
+  runBtn.style.background = '#a33';
 
   try {
     const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
+    const extendInsightLA = !!document.getElementById('opt-insight-la')?.checked;
+    let _prevT = performance.now(), _prevFrac = 0, _emaRate = 0;
     const result = await _runOptimizerViaWorker(target, (done, total, msg) => {
-      const pct = (done / total * 100).toFixed(0);
+      const frac = done / total;
+      const pct = (frac * 100).toFixed(0);
       progBar.style.width = pct + '%';
-      progText.textContent = msg || `${pct}%`;
-    }, { assumeObs });
+      let eta = '';
+      const now = performance.now();
+      const dt = (now - _prevT) / 1000;
+      const df = frac - _prevFrac;
+      if (dt > 0.05 && df > 0) {
+        const localRate = df / dt; // fraction per second
+        _emaRate = _emaRate > 0 ? 0.3 * localRate + 0.7 * _emaRate : localRate;
+        _prevT = now; _prevFrac = frac;
+      }
+      if (_emaRate > 0 && frac > 0.005) {
+        const remaining = (1 - frac) / _emaRate;
+        if (remaining < 60) eta = ' \u2014 ETA ' + Math.ceil(remaining) + 's';
+        else if (remaining < 3600) eta = ' \u2014 ETA ' + Math.ceil(remaining / 60) + 'm';
+        else eta = ' \u2014 ETA ' + (remaining / 3600).toFixed(1) + 'h';
+      }
+      progText.textContent = (msg || `${pct}%`) + eta;
+    }, { assumeObs, extendInsightLA });
     progBar.style.width = '100%';
     progText.textContent = 'Done!';
     renderOptimizerResults(result);
   } catch(e) {
-    console.error('Optimizer error:', e);
-    progText.textContent = 'Error: ' + e.message;
+    if (e.message === 'Cancelled') {
+      progText.textContent = 'Cancelled.';
+      progBar.style.width = '0%';
+    } else {
+      console.error('Optimizer error:', e);
+      progText.textContent = 'Error: ' + e.message;
+    }
   } finally {
-    runBtn.disabled = false;
+    _optRunning = false;
     runBtn.textContent = 'Run Optimizer';
+    runBtn.style.background = '';
   }
 });
 
