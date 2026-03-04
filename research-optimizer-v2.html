@@ -206,7 +206,7 @@ h1 span { color: var(--accent); }
       <span style="color:#555;">|</span>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="52"> <span style="color:#ce93d8;">Jellofish</span> <span style="color:var(--text2);">(1.5x Research EXP)</span></label>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="55"> <span style="color:#ce93d8;">Pirate Deckhand</span> <span style="color:var(--text2);">(+15% grid multi)</span></label>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(+5% grid multi)</span></label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="0"> <span style="color:#ce93d8;">King Doot</span> <span style="color:var(--text2);">(Divine Design +5% grid multi)</span></label>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="54"> <span style="color:#ce93d8;">Neonscale</span> <span style="color:var(--text2);">(+1 shape owned)</span></label>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="28"> <span style="color:#ce93d8;">RIP Tide</span> <span style="color:var(--text2);">(+30% AFK rate)</span></label>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="comp-toggle" data-id="39"> <span style="color:#ce93d8;">Pufferblob</span> <span style="color:var(--text2);">(meritoc +50%)</span></label>
@@ -2806,7 +2806,7 @@ function lookupCoverage(lut, si, x, y, rot) {
 // Only called for a handful of known positions (not search), so no LUT needed.
 function rebuildShapeOverlay(positions) {
   const pos = positions || shapePositions;
-  const numShapes = Math.min(pos.length, SHAPE_VERTICES.length);
+  const numShapes = Math.min(pos.length, SHAPE_VERTICES.length, computeShapesOwned());
   if (numShapes === 0) return new Array(GRID_SIZE).fill(-1);
   const so = new Array(GRID_SIZE).fill(-1);
   for (let si = 0; si < numShapes; si++) {
@@ -3358,7 +3358,7 @@ function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   const kalMap = _buildKalMap(md);
   const kalBase = (30 + _gbWith(gl, so, 52, ctx) + _gbWith(gl, so, 72, ctx)) / 100;
   const gd101 = _gbWith(gl, so, 93, ctx);
-  const occTBF = computeOccurrencesToBeFound();
+  const occTBF = computeOccurrencesToBeFound(rLv);
   let obsTotal = 0;
   for (let i = 0; i < occTBF; i++) {
     let count = 0;
@@ -3489,7 +3489,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
       // Run mini forward sim with level-up simulation
       let tIL = il.slice(), tIP = ip.slice();
       let tMD = md.map(m => ({...m}));
-      let tSO = optimizeShapesFor(tGL, so, undefined, rLv).overlay;
+      let tSO = optimizeShapesFor(tGL, so, undefined, rLv, tMD, tIL, occ).overlay;
       let tMMax = mMax;
       let tRLv = rLv, tRExp = rExp || 0;
       let tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
@@ -3541,7 +3541,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
             newAvail--;
           }
           // Re-optimize shapes and mags after grid changes from level-up
-          tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv).overlay;
+          tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv, tMD, tIL, occ).overlay;
           tMD = await optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
           tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
           tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
@@ -3585,7 +3585,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
       }
     }
     // Re-optimize shapes after grid change
-    so = optimizeShapesFor(gl, so, undefined, rLv).overlay;
+    so = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ).overlay;
     // Recalculate avail (node #50 can grant extra points when upgraded)
     avail = _gridPointsAvail(gl, rLv);
     changed = true;
@@ -3635,19 +3635,25 @@ function _evalMagScoreWith(trialMags, gl, so, il, occ, rLv) {
 }
 
 // Requires allBonusMulti to be set by caller (used by optimizeShapePlacement chain).
-function _simulateShapeOptFor(gl, so, rLv, simOpts) {
+// md/il/occ: optional sim-local state — swapped into globals so computeCellValues/simTotalExp see current data.
+function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ) {
   const origGL = gridLevels, origSO = shapeOverlay, origRL = researchLevel;
+  const origMD = magData, origIL = insightLvs, origOcc = occFound;
   gridLevels = gl; shapeOverlay = so;
   if (rLv !== undefined) researchLevel = rLv;
+  if (md) magData = md;
+  if (il) insightLvs = il;
+  if (occ) occFound = occ;
   const result = optimizeShapePlacement(simOpts);
   gridLevels = origGL; shapeOverlay = origSO; researchLevel = origRL;
+  magData = origMD; insightLvs = origIL; occFound = origOcc;
   // Keep existing overlay if improvement is negligible (<0%) — avoids cosmetic churn
   if (result.currentTotal > 0 && result.improvPct <= 0) {
     return { overlay: so.slice(), positions: result.optimizedPositions };
   }
   return { overlay: result.optimizedOverlay, positions: result.optimizedPositions };
 }
-function optimizeShapesFor(gl, so, simOpts, rLv) { return _simulateShapeOptFor(gl, so, rLv, simOpts); }
+function optimizeShapesFor(gl, so, simOpts, rLv, md, il, occ) { return _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ); }
 
 function insightAffectsExp(gl, so) {
   // Insight levels only affect EXP via gd93 (Game Design 101) and gd94 (Game Design 102)
@@ -3911,7 +3917,7 @@ async function unifiedSim(config) {
     // Grow md if new mags were earned but not yet tracked (with correct types)
     _growMagPoolTyped(md, gl, rLv, mOwned);
     // Shapes first (so mag scoring sees correct shape overlay)
-    const reShapes = optimizeShapesFor(gl, so, undefined, rLv);
+    const reShapes = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ);
     so = reShapes.overlay;
     sp = reShapes.positions;
   }
@@ -4015,7 +4021,7 @@ async function unifiedSim(config) {
     const insightMatters = insightLeveledUp && insightAffectsExp(gl, so);
     if ((rLeveledUp || insightMatters) && config.reoptimize !== false) {
       // Full reconfig: shapes first (so mag scoring sees correct overlay), then mags
-      const midShapeResult = optimizeShapesFor(gl, so, undefined, rLv);
+      const midShapeResult = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ);
       so = midShapeResult.overlay;
       sp = midShapeResult.positions;
       md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
@@ -4555,7 +4561,7 @@ function _gbNode(idx, label, opts) {
     _bNode('Shape Bonus' + (hasShape ? ' (' + SHAPE_NAMES[si] + ')' : ''), shapeMult, null, { fmt: 'x', note: hasShape ? '' : 'No shape' }),
     _bNode('All Bonus Multi', allBonusMulti, [
       _bNode('Jellofish', comp55val, null, { fmt: '%' }),
-      _bNode('King Doot', comp0val, null, { fmt: '%' })
+      _bNode('Grid ' + gridCoord(173) + ': Divine Design', comp0val, null, { fmt: '%', note: comp0owned ? (cachedComp0DivOk ? ((gridLevels[173]||0) > 0 ? '' : 'Node LV 0') : 'Doot divine < 2') : 'Doot not owned' })
     ], { fmt: 'x' })
   ], opts);
 }
@@ -6771,10 +6777,12 @@ function _updateAboveWarning() {
 let _lastOpt = null; // cached optimizeShapePlacement result for current render cycle
 let _pureExpTotal = 0; // EXP/hr from pure EXP-only optimization (no tiers)
 
-let _shapeOptPending = false;
+let _shapeOptGen = 0;
 async function renderUpgradeEval() {
-  if (_shapeOptPending) return;
-  _shapeOptPending = true;
+  // Cancel any in-flight shape optimization worker
+  if (_shapeOptWorker) { _shapeOptWorker.terminate(); _shapeOptWorker = null; }
+  if (_shapeOptReject) { _shapeOptReject(new Error('Cancelled')); _shapeOptReject = null; }
+  const gen = ++_shapeOptGen;
 
   // Render the tier list and sidebar immediately (cheap)
   const locked = _isBasePreset(_getActivePresetId());
@@ -6795,6 +6803,7 @@ async function renderUpgradeEval() {
 
   // Yield to let the browser paint the loading state
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  if (gen !== _shapeOptGen) return; // preempted by newer call
 
   try {
     const statusEl = document.getElementById('shape-opt-status');
@@ -6803,6 +6812,7 @@ async function renderUpgradeEval() {
       if (statusEl) statusEl.textContent = msg || ('Computing\u2026 ' + done + '/' + total);
       if (barEl) barEl.style.width = (total > 0 ? Math.round(done / total * 100) : 0) + '%';
     });
+    if (gen !== _shapeOptGen) return; // preempted by newer call
     _lastOpt = result.primary;
     if (result.pure) {
       _pureExpTotal = result.pure.optimizedTotal;
@@ -6810,6 +6820,7 @@ async function renderUpgradeEval() {
       _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
     }
   } catch(err) {
+    if (gen !== _shapeOptGen) return; // preempted — don't fallback for stale call
     console.error('Shape opt worker error:', err);
     // Fallback to synchronous computation
     _lastOpt = optimizeShapePlacement({ useTiers: true });
@@ -6818,8 +6829,6 @@ async function renderUpgradeEval() {
     } else {
       _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
     }
-  } finally {
-    _shapeOptPending = false;
   }
   if (gridDiv) gridDiv.style.opacity = '';
   renderUEGrid();
@@ -7210,26 +7219,28 @@ function _cancelOptimizer() {
 }
 
 let _shapeOptWorker = null;
+let _shapeOptReject = null;
 function _runShapeOptViaWorker(progressCb) {
   return new Promise(function(resolve, reject) {
+    _shapeOptReject = reject;
     try {
       if (_shapeOptWorker) { _shapeOptWorker.terminate(); _shapeOptWorker = null; }
       _shapeOptWorker = _createOptWorker();
-    } catch(e) { reject(e); return; }
+    } catch(e) { reject(e); _shapeOptReject = null; return; }
     _shapeOptWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
         progressCb(d.done, d.total, d.msg);
       } else if (d.type === 'done') {
-        resolve(d.result);
+        resolve(d.result); _shapeOptReject = null;
         _shapeOptWorker.terminate(); _shapeOptWorker = null;
       } else if (d.type === 'error') {
-        reject(new Error(d.message));
+        reject(new Error(d.message)); _shapeOptReject = null;
         _shapeOptWorker.terminate(); _shapeOptWorker = null;
       }
     };
     _shapeOptWorker.onerror = function(ev) {
-      reject(new Error(ev.message));
+      reject(new Error(ev.message)); _shapeOptReject = null;
       _shapeOptWorker.terminate(); _shapeOptWorker = null;
     };
     _shapeOptWorker.postMessage({
