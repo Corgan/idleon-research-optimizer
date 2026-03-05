@@ -168,6 +168,35 @@ h1 span { color: var(--accent); }
 .info-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
 .info-row .lbl { color: var(--text2); }
 .info-row .val { color: var(--gold); font-weight: 600; }
+
+/* Decision Tree */
+/* dt-tree-wrap uses drag-to-pan, no scrollbar */
+/* --- Grid canvas --- */
+.dt-gv-tooltip { position:fixed;padding:5px 8px;background:#000e;border:1px solid #555;border-radius:5px;font-size:.78em;color:#eee;pointer-events:none;z-index:1200;max-width:280px;white-space:pre-wrap; }
+#dt-grid-canvas { border:1px solid #333;border-radius:6px;display:block;cursor:pointer; }
+#dt-grid-canvas.dt-shape-dragging { cursor:grabbing; }
+/* --- Obs grid (square cells, up to 4 mags) --- */
+.dt-obs-grid { display:grid;grid-template-columns:repeat(8,1fr);gap:3px; }
+.dt-obs-slot { aspect-ratio:1;background:#1a1a2e;border:1.5px solid #333;border-radius:4px;padding:3px;font-size:.68em;color:var(--text2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;position:relative;transition:border-color .15s,background .15s;min-width:0; }
+.dt-obs-slot.dt-obs-usable { border-color:#444; }
+.dt-obs-slot.dt-obs-usable:hover { border-color:#888; }
+.dt-obs-slot.dt-obs-noslot { opacity:.12;pointer-events:none; }
+.dt-obs-slot.dt-obs-dragover { border-color:var(--gold);background:#252540; }
+.dt-obs-slot .dt-obs-sname { font-size:.65em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;text-align:center;line-height:1.1; }
+.dt-obs-slot .dt-obs-mags { display:grid;grid-template-columns:repeat(2,1fr);gap:2px;justify-items:center; }
+.dt-obs-mag { width:14px;height:14px;border-radius:50%;border:1.5px solid #555;cursor:grab;transition:border-color .15s,transform .1s;flex-shrink:0; }
+.dt-obs-mag:hover { border-color:#fff;transform:scale(1.15); }
+.dt-obs-mag.type-0 { background:#81c784; }
+.dt-obs-mag.type-1 { background:#ce93d8; }
+.dt-obs-mag.type-2 { background:#4dd0e1; }
+.dt-obs-mag.dt-obs-mag-dragging { opacity:.4; }
+.dt-obs-pool-row { display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;font-size:.8em; }
+.dt-obs-pool-group { display:flex;gap:3px;align-items:center;padding:2px 6px;background:#111;border-radius:4px; }
+.dt-obs-pool-group .dt-obs-mag { cursor:grab; }
+.dt-obs-pool-group .dt-obs-pool-label { margin-right:4px;font-weight:600; }
+/* --- Shape rotate popup --- */
+.dt-sh-btn { padding:2px 6px;background:#222;border:1px solid #444;border-radius:3px;color:var(--text);cursor:pointer;font-size:.78em;line-height:1.2; }
+.dt-sh-btn:hover { border-color:var(--green);background:#2a2a3e; }
 </style>
 </head>
 <body>
@@ -236,7 +265,7 @@ h1 span { color: var(--accent); }
   <div class="tab" data-tab="insight-roi">Insight ROI</div>
   <div class="tab" data-tab="obs-unlock">Obs Unlock</div>
   <div class="tab" data-tab="shape-opt">Shape Opt</div>
-  <!-- <div class="tab" data-tab="sandbox">Sandbox</div> -->
+  <div class="tab" data-tab="sandbox">Decision Tree</div>
 </div>
 
 <!-- ===== DASHBOARD TAB ===== -->
@@ -293,6 +322,15 @@ h1 span { color: var(--accent); }
           <input type="checkbox" id="opt-insight-la" checked> Extend lookahead window for insight break-even
         </label>
       </div>
+      <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:.85em;color:var(--text2);">Thoroughness:</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm opt-beam-btn" data-beam="3" style="opacity:.5;font-size:.78em;">Quick (3)</button>
+          <button class="btn btn-sm opt-beam-btn" data-beam="5" style="opacity:1;font-size:.78em;">Normal (5)</button>
+          <button class="btn btn-sm opt-beam-btn" data-beam="10" style="opacity:.5;font-size:.78em;">Thorough (10)</button>
+        </div>
+        <span style="font-size:.75em;color:#666;font-style:italic;">Beam width &mdash; more = slower but better</span>
+      </div>
       <div id="opt-progress" style="display:none;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <div style="flex:1;min-width:120px;height:8px;background:#333;border-radius:4px;overflow:hidden;">
@@ -305,7 +343,7 @@ h1 span { color: var(--accent); }
 
     <!-- Results: Time comparison -->
     <div class="opt-section" id="opt-comparison" style="display:none;border:2px solid var(--green);">
-      <h3 style="color:var(--green);">Strategy Comparison</h3>
+      <h3 style="color:var(--green);margin:0;">Strategy Comparison</h3>
       <div id="opt-comparison-body"></div>
     </div>
 
@@ -330,35 +368,78 @@ h1 span { color: var(--accent); }
   </div>
 </div>
 
-<!-- ===== SANDBOX TAB ===== -->
-<div id="tab-sandbox" class="tab-content">
-  <div class="optimizer">
-    <div class="opt-section" style="border:2px solid var(--purple);">
-      <h3 style="color:var(--purple);">Sandbox  What-If Scenarios</h3>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-        <button class="btn btn-sm" id="sb-add-scenario">+ New Scenario</button>
-        <button class="btn btn-sm" id="sb-import-optimizer" style="background:var(--cyan);">Import from Optimizer</button>
-        <span style="color:var(--text2);font-size:.8em;">Create scenarios to compare different configurations.</span>
+<!-- ===== SANDBOX TAB (Interactive Decision Tree) ===== -->
+<div id="tab-sandbox" class="tab-content" style="padding:0;overflow:hidden;">
+  <div id="dt-viewport-sizer" style="overflow:hidden;">
+    <!-- Tree canvas container -->
+    <div id="dt-tree-wrap" style="position:relative;overflow:hidden;width:100%;height:100%;background:#0d0d1a;display:none;cursor:grab;">
+      <div id="dt-top-controls" style="position:absolute;top:8px;right:8px;display:flex;gap:6px;align-items:center;z-index:5;">
+        <button id="dt-lvl-toggle" onclick="_dtToggleLevelUpsOnly()" style="height:28px;padding:0 10px;border:1px solid #555;background:#1a1a2e;color:#ccc;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;" title="Toggle: show only level-up events">Lvl Only</button>
+        <span class="dt-info-icon" onmouseenter="_dtShowInfoTip(event)" onmouseleave="_dtHideInfoTip()" onmousemove="_dtMoveInfoTip(event)" style="width:24px;height:24px;border:1px solid #555;background:#1a1a2e;color:#aaa;border-radius:50%;cursor:help;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-style:italic;font-family:serif;">i</span>
+        <button id="dt-reset" onclick="if(_dtNodes.length>0&&!confirm('Reset the entire decision tree?'))return;_dtReset();_dtStart();" style="height:28px;padding:0 10px;border:1px solid #555;background:#1a1a2e;color:#ccc;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;" title="Reset Tree">&#8635; Reset</button>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-        <label style="color:var(--text2);font-size:.9em;">Tick interval:</label>
-        <select id="sb-tick-interval" style="padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--text);">
-          <option value="10">10 min</option>
-          <option value="5">5 min</option>
-        </select>
-        <label style="color:var(--text2);font-size:.9em;margin-left:16px;">Target:</label>
-        <select id="sb-target-mode" style="padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--text);">
-          <option value="level">Reach Level</option>
-          <option value="hours">Hours</option>
-        </select>
-        <input type="number" id="sb-target-value" min="1" max="200" style="width:70px;padding:4px 8px;background:#111;border:1px solid #444;border-radius:4px;color:var(--gold);font-weight:700;">
-        <button class="btn" id="sb-run-all">Run All Scenarios</button>
+      <canvas id="dt-tree-canvas" style="position:absolute;left:0;top:0;"></canvas>
+      <div id="dt-zoom-controls" style="position:absolute;bottom:8px;right:8px;display:flex;gap:4px;align-items:center;z-index:5;">
+        <button onclick="_dtTreeZoomOut()" style="width:28px;height:28px;border:1px solid #555;background:#1a1a2e;color:#ccc;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;" title="Zoom out">&minus;</button>
+        <span id="dt-zoom-label" style="color:#aaa;font-size:11px;min-width:36px;text-align:center;">100%</span>
+        <button onclick="_dtTreeZoomIn()" style="width:28px;height:28px;border:1px solid #555;background:#1a1a2e;color:#ccc;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;" title="Zoom in">+</button>
+        <button onclick="_dtTreeZoomReset()" style="width:28px;height:28px;border:1px solid #555;background:#1a1a2e;color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;line-height:1;" title="Reset zoom">1:1</button>
+      </div>
+    <!-- Inline detail panel (inside tree-wrap for absolute positioning) -->
+    <div id="dt-detail" class="opt-section" style="display:none;position:absolute;z-index:100;border:2px solid var(--purple);padding:16px;background:#12121e;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.7);max-height:60vh;overflow-y:auto;width:auto;max-width:90%;">
+      <!-- Header row: title + actions -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span id="dt-detail-title" style="color:var(--purple);font-weight:700;font-size:1.05em;"></span>
+          <span id="dt-detail-status" style="font-size:.85em;color:var(--text2);"></span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="dt-auto-insight" onclick="_dtToggleAutoInsight()" style="background:#1a1a2e;color:#ccc;border:1px solid #555;font-size:.72em;padding:2px 7px;" title="Auto-optimize insight level-ups until next research level-up">Auto Insight</button>
+          <button class="btn btn-sm" id="dt-save" style="background:#4a6a3a;color:#c8e6c0;">&#128190; Save &amp; Next</button>
+          <button class="btn btn-sm" id="dt-branch" style="background:#4a4a6a;color:#c0c0e6;">&#128256; Branch</button>
+          <button class="btn btn-sm" id="dt-delete" style="background:#5a3a3a;color:#e6c0c0;">&#128465; Delete</button>
+        </div>
+      </div>
+      <!-- Two-column layout: grid+shapes left, obs right -->
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;">
+        <!-- Left: grid canvas -->
+        <div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="color:var(--gold);font-weight:600;font-size:.85em;">Grid</span>
+            <span id="dt-grid-pts" style="font-size:.8em;color:var(--text2);"></span>
+            <span id="dt-shape-coverage" style="font-size:.8em;color:var(--text2);"></span>
+            <span id="dt-grid-mode-pill" style="display:inline-flex;border:1px solid #555;border-radius:10px;overflow:hidden;font-size:.72em;margin-left:2px;">
+              <button class="dt-mode-btn active" data-mode="upgrades" style="padding:2px 8px;border:none;cursor:pointer;background:var(--gold);color:#000;font-weight:600;">Upgrades</button>
+              <button class="dt-mode-btn" data-mode="shapes" style="padding:2px 8px;border:none;cursor:pointer;background:#222;color:#888;">Shapes</button>
+            </span>
+            <button class="btn btn-sm" id="dt-shape-optimize" style="background:var(--green);font-size:.72em;padding:2px 6px;">Opt Shapes</button>
+            <span style="font-size:.7em;color:var(--text2);display:inline-flex;align-items:center;gap:3px;">Shape
+              <input type="range" id="dt-shape-opacity" min="0" max="100" value="40" style="width:50px;height:12px;accent-color:var(--purple);">
+            </span>
+          </div>
+          <canvas id="dt-grid-canvas" width="640" height="400"></canvas>
+          <!-- Shape rotate popup (shown on shape click) -->
+          <div id="dt-shape-rotate-popup" style="display:none;position:absolute;z-index:100;background:#1a1a2e;border:1px solid #555;border-radius:6px;padding:4px 6px;"></div>
+        </div>
+        <!-- Right: obs layout -->
+        <div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="color:var(--cyan);font-weight:600;font-size:.85em;">Observations</span>
+            <span id="dt-obs-summary" style="font-size:.8em;color:var(--text2);"></span>
+            <button class="btn btn-sm" id="dt-mag-optimize" style="background:var(--cyan);font-size:.72em;padding:2px 6px;">Opt Mags</button>
+          </div>
+          <div id="dt-obs-pool" style="margin-bottom:4px;"></div>
+          <div id="dt-obs-editor" style="overflow-x:auto;"></div>
+        </div>
       </div>
     </div>
-    <div id="sb-scenarios"></div>
-    <div class="opt-section" id="sb-comparison" style="display:none;">
-      <h3 style="color:var(--green);">Scenario Comparison</h3>
-      <div id="sb-comparison-body"></div>
+    <!-- Comparison panel (inside tree-wrap) -->
+    <div class="opt-section" id="dt-comparison" style="display:none;position:absolute;z-index:90;bottom:40px;left:50%;transform:translateX(-50%);border:2px solid var(--green);background:#12121e;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.7);max-height:40vh;overflow-y:auto;max-width:90%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="color:var(--green);margin:0;">Branch Comparison</h3>
+        <button class="btn btn-sm" id="dt-compare-clear" style="background:#444;font-size:.78em;">Clear</button>
+      </div>
+      <div id="dt-comparison-body"></div>
     </div>
   </div>
 </div>
@@ -1229,8 +1310,7 @@ function _growMagPoolTyped(md, gl, rLv, targetCount) {
 }
 
 // Game: ShapesOwned (N.formatted.js:91912)
-function computeShapesOwned() {
-  const lv = researchLevel;
+function computeShapesOwnedAt(lv) {
   return Math.min(10, Math.round(
     eventShopOwned(36)
     + Math.min(1, Math.max(0, Math.floor(lv / 20) * (companionIds.has(54) ? 1 : 0)))
@@ -1242,6 +1322,7 @@ function computeShapesOwned() {
     + Math.min(1, Math.floor(lv / 110))
   ));
 }
+function computeShapesOwned() { return computeShapesOwnedAt(researchLevel); }
 
 // Game: OccurrencesToBeFound (N.formatted.js:91853)
 // min(43, 5*floor((lv+10)/10) - floor(lv/20) - floor(lv/30) - floor(lv/50)) or 0/1 edge cases
@@ -2093,6 +2174,7 @@ function loadSaveData(raw) {
 
     loadedSaveFormat = raw.data ? 'it.json' : 'save.json';
     updateSaveFormatUI();
+    _dtReset();
     renderAll();
 }
 
@@ -2440,8 +2522,7 @@ function simTotalExp(opts = {}) {
     for (const m of md) { if (m.type === 0 && m.slot === i) count++; }
     if (count === 0) continue;
     const t = i;
-    // Game: (4+(t/2+floor(t/4)))*(1+pow(t,1+t/15*0.4)/10)+(pow(t,1.5)+1.5*t) (N.formatted.js:91883)
-    const base = (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
+    const base = OBS_BASE_EXP[t] || 0;
     const kalMulti = 1 + (kalMap[t] || 0) * kalBase;
     obsTotal += count * base * (1 + gd101 * (il[t] || 0) / 100) * kalMulti;
   }
@@ -2466,10 +2547,12 @@ function simTotalExp(opts = {}) {
   return { total: obsTotal * multi, multi, obsBase: obsTotal };
 }
 
-// Per-observation base EXP with 1 magnifier (for comparison)
-function obsBaseExp(t) {
-  return (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
+// Per-observation base EXP with 1 magnifier — precomputed static table
+const OBS_BASE_EXP = new Float64Array(43);
+for (let _t = 0; _t < 43; _t++) {
+  OBS_BASE_EXP[_t] = (4 + (_t/2 + Math.floor(_t/4))) * (1 + Math.pow(_t, 1 + _t/15*0.4) / 10) + (Math.pow(_t, 1.5) + 1.5*_t);
 }
+function obsBaseExp(t) { return OBS_BASE_EXP[t] || 0; }
 
 // ===== DISCOVERY PRIORITY =====
 function computeDiscoveryPriority() {
@@ -4064,7 +4147,7 @@ async function unifiedSim(config) {
 // Tests multiple point-spending paths via beam search (top N), runs unifiedSim for each.
 
 async function runOptimizer(target, progressCb, opts) {
-  const BEAM_WIDTH = 5;
+  const BEAM_WIDTH = (opts && opts.beamWidth) || 5;
   // Local rate formatter (not available in worker from main-thread helpers)
   function _fmtR(n) {
     if (n >= 1e12) return (n/1e12).toFixed(1) + 'T/hr';
@@ -5741,93 +5824,2208 @@ function renderMiniGrid(overlay, gl, positions) {
   return html;
 }
 
-// ===== RENDER: SANDBOX =====
-let _sandboxScenarios = [];
-let _scenarioNextId = 1;
+// ===== INTERACTIVE DECISION TREE =====
+const _dtNodes = [];       // all nodes
+let _dtNextId = 1;
+let _dtCompareSet = new Set(); // node IDs selected for comparison
+let _dtModalNodeId = null;     // which node the modal is editing
+let _dtEditState = null;       // cloned state being edited in modal
+const _DT_COL_W = 140;
+const _DT_ROW_H = 70;
+const _DT_NODE_W = 120;
+const _DT_NODE_H = 58;
+const _DT_PAD = 30;
+const _DT_BRANCH_COLORS = ['#9c27b0','#00bcd4','#ffd700','#e94560','#4caf50','#ff9800','#2196f3','#e91e63','#8bc34a','#795548'];
 
-function addSandboxScenario(name, overrides) {
-  _sandboxScenarios.push({
-    id: _scenarioNextId++,
-    name: name || `Scenario ${_sandboxScenarios.length + 1}`,
-    overrides: overrides || {},
-    result: null,
-  });
-  renderSandboxList();
+function _dtGetNode(id) { return _dtNodes.find(n => n.id === id); }
+function _dtGetChildren(id) { return _dtNodes.filter(n => n.parentId === id); }
+function _dtGetRoot() { return _dtNodes.find(n => n.parentId === null); }
+
+// Build initial state from current globals
+function _dtBuildInitState() {
+  const rLv = researchLevel;
+  const gl = gridLevels.slice();
+  const so = shapeOverlay.slice();
+  const md = magData.slice(0, magnifiersOwned).map(m => ({...m}));
+  const il = insightLvs.slice();
+  const ip = insightProgress.slice();
+  const occ = occFound.slice();
+  const sp = shapePositions.map(s => ({...s}));
+  const ctx = { abm: calcAllBonusMulti(gl), c52: comp52TrueMulti };
+  const expHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  return {
+    gl, so, md, il, ip, occ, sp, rLv, rExp: getResearchCurrentExp(), expHr
+  };
 }
 
-function renderSandboxList() {
-  const container = document.getElementById('sb-scenarios');
-  let html = '';
-  for (const sc of _sandboxScenarios) {
-    html += `<div class="opt-section" style="border:1px solid var(--purple);" id="sb-sc-${sc.id}">`;
-    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
-    html += `<input type="text" value="${sc.name}" onchange="renameSandboxScenario(${sc.id}, this.value)" style="background:#111;border:1px solid #444;border-radius:4px;padding:4px 8px;color:var(--text);font-weight:600;">`;
-    html += `<button class="btn btn-sm" style="background:#f44336;" onclick="removeSandboxScenario(${sc.id})">\u2716 Remove</button>`;
-    html += `</div>`;
-    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.85em;margin-bottom:8px;">`;
-    html += `<label style="color:var(--text2);">Overrides (JSON):</label>`;
-    html += `<textarea id="sb-ov-${sc.id}" rows="2" style="flex:1;min-width:200px;background:#111;border:1px solid #444;border-radius:4px;padding:4px 8px;color:var(--text);font-size:.85em;font-family:monospace;">${JSON.stringify(sc.overrides)}</textarea>`;
-    html += `</div>`;
-    if (sc.result) {
-      html += `<div style="padding:8px;background:#111;border-radius:6px;font-size:.85em;">`;
-      html += `<span style="color:var(--text2);">Time: </span><b style="color:var(--green);">${fmtTime(sc.result.totalTime)}</b>`;
-      html += `<span style="color:var(--text2);margin-left:16px;">Final LV: </span><b style="color:var(--gold);">${sc.result.finalLevel}</b>`;
-      html += `<span style="color:var(--text2);margin-left:16px;">Final EXP/hr: </span><b style="color:var(--green);">${fmtVal(sc.result.phases[sc.result.phases.length-1]?.expHr || 0)}</b>`;
-      html += `</div>`;
+// Create a node and add to tree
+function _dtCreateNode(parentId, event, time, state) {
+  const node = {
+    id: _dtNextId++,
+    parentId,
+    childIds: [],
+    event,             // 'start' | 'level-up' | 'insight-up' | 'level+insight'
+    time,              // cumulative hours from root of this node's branch
+    rLv: state.rLv,
+    rExp: state.rExp,
+    expHr: state.expHr,
+    baseState: {
+      gl: state.gl.slice(),
+      so: state.so.slice(),
+      md: state.md.map(m => ({...m})),
+      il: state.il.slice(),
+      ip: state.ip.slice(),
+      occ: state.occ.slice(),
+      sp: state.sp.map(s => ({...s})),
+    },
+    autoInsight: false,         // user toggle: auto-optimize insight until next research level-up
+    _autoInsightChild: false,   // auto-generated by parent's autoInsight chain
+    insightTimeline: null,      // [{time, obs, prevIL, newIL, monoTargets}] on the final level-up node
+    _x: 0, _y: 0, _depth: 0,
+    _branchIdx: 0,
+  };
+  _dtNodes.push(node);
+  if (parentId !== null) {
+    const parent = _dtGetNode(parentId);
+    if (parent) parent.childIds.push(node.id);
+  }
+  return node;
+}
+
+// Step sim: run from a state to the next event, return event info + new state
+function _dtStepSim(state) {
+  const tickMin = 10;
+  const tickSec = tickMin * 60;
+  let gl = state.gl.slice();
+  let so = state.so.slice();
+  let md = state.md.map(m => ({...m}));
+  let il = state.il.slice();
+  let ip = state.ip.slice();
+  let occ = state.occ.slice();
+  let rLv = state.rLv;
+  let rExp = state.rExp;
+  const ctx = { abm: calcAllBonusMulti(gl), c52: comp52TrueMulti };
+  let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  let currentTime = 0;
+
+  for (let tick = 0; tick < 1e7; tick++) {
+    const expPerTick = curExpHr / 3600 * tickSec;
+    rExp += expPerTick;
+
+    let rLeveledUp = false;
+    while (rExp >= researchExpReq(rLv)) {
+      rExp -= researchExpReq(rLv);
+      rLv++;
+      rLeveledUp = true;
+    }
+
+    // Auto-unlock obs at their research level gate
+    if (rLeveledUp) {
+      for (let oi = 0; oi < OCC_DATA.length; oi++) {
+        if ((occ[oi] || 0) < 1 && OCC_DATA[oi].roll <= rLv) occ[oi] = 1;
+      }
+    }
+
+    // Advance insight for monocle obs
+    let insightLeveledUp = false;
+    const monoObs = new Set();
+    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
+      let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      while (ip[obsIdx] >= req) {
+        ip[obsIdx] -= req;
+        il[obsIdx] = (il[obsIdx] || 0) + 1;
+        insightLeveledUp = true;
+        req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      }
+    }
+
+    currentTime += tickMin / 60;
+
+    if (rLeveledUp || insightLeveledUp) {
+      curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+      const eventType = rLeveledUp && insightLeveledUp ? 'level+insight'
+        : rLeveledUp ? 'level-up' : 'insight-up';
+      return {
+        event: eventType,
+        time: currentTime,
+        state: { gl, so, md, il, ip, occ, sp: state.sp.map(s => ({...s})), rLv, rExp, expHr: curExpHr }
+      };
+    }
+  }
+  return null;
+}
+
+// Auto-advance through insight level-ups, applying monocle reopt at each,
+// until we hit a research level-up (or level+insight). Creates intermediate
+// hidden nodes and records a timeline of insight switches.
+function _dtAdvanceAutoInsight(parentNode) {
+  const timeline = [];
+  let curParentId = parentNode.id;
+  let cumTime = 0;
+  let curState = {
+    gl: parentNode.baseState.gl.slice(),
+    so: parentNode.baseState.so.slice(),
+    md: parentNode.baseState.md.map(m => ({...m})),
+    il: parentNode.baseState.il.slice(),
+    ip: parentNode.baseState.ip.slice(),
+    occ: parentNode.baseState.occ.slice(),
+    sp: parentNode.baseState.sp.map(s => ({...s})),
+    rLv: parentNode.rLv, rExp: parentNode.rExp, expHr: parentNode.expHr,
+  };
+
+  for (let safety = 0; safety < 500; safety++) {
+    const result = _dtStepSim(curState);
+    if (!result) return null; // sim didn't find any event
+
+    cumTime += result.time;
+
+    if (result.event === 'level-up' || result.event === 'level+insight') {
+      // Final node — this is the one the user sees
+      const finalNode = _dtCreateNode(curParentId, result.event, result.time, result.state);
+      finalNode.insightTimeline = timeline.length > 0 ? timeline : null;
+      finalNode.autoInsight = true; // propagate so next advance also auto-optimizes
+      return finalNode;
+    }
+
+    // insight-up: create hidden intermediate, apply monocle reopt, continue
+    const mMax = magMaxForLevel(result.state.rLv);
+    const prevMD = result.state.md.map(m => ({...m}));
+
+    // Figure out which obs leveled up (compare to curState before this step)
+    const insightChanges = [];
+    for (let i = 0; i < result.state.il.length; i++) {
+      const prev = curState.il[i] || 0;
+      const now = result.state.il[i] || 0;
+      if (now > prev) insightChanges.push({ obs: i, prevIL: prev, newIL: now });
+    }
+
+    // Apply monocle reoptimization
+    result.state.md = chooseMonoTargets(
+      result.state.md, result.state.il, result.state.ip, result.state.occ,
+      result.state.gl, result.state.so, mMax, 72, result.state.rLv
+    );
+    const ctx = { abm: calcAllBonusMulti(result.state.gl), c52: comp52TrueMulti };
+    result.state.expHr = simTotalExpWith(
+      result.state.gl, result.state.so, result.state.md, result.state.il,
+      result.state.occ, result.state.rLv, ctx
+    );
+
+    // Record what monocles are targeting now
+    const monoTargets = [];
+    for (const m of result.state.md) {
+      if (m.type === 1 && m.slot >= 0) monoTargets.push(m.slot);
+    }
+
+    // Record timeline entry
+    for (const ic of insightChanges) {
+      timeline.push({
+        time: cumTime,
+        obs: ic.obs,
+        prevIL: ic.prevIL,
+        newIL: ic.newIL,
+        monoTargets: [...new Set(monoTargets)],
+        expHr: result.state.expHr,
+      });
+    }
+
+    // Create hidden intermediate node
+    const interNode = _dtCreateNode(curParentId, result.event, result.time, result.state);
+    interNode._autoInsightChild = true;
+
+    // Advance
+    curParentId = interNode.id;
+    curState = {
+      gl: result.state.gl.slice(),
+      so: result.state.so.slice(),
+      md: result.state.md.map(m => ({...m})),
+      il: result.state.il.slice(),
+      ip: result.state.ip.slice(),
+      occ: result.state.occ.slice(),
+      sp: result.state.sp.map(s => ({...s})),
+      rLv: result.state.rLv, rExp: result.state.rExp, expHr: result.state.expHr,
+    };
+  }
+  return null; // safety limit reached
+}
+
+// ===== TREE LAYOUT =====
+let _dtShowLevelUpsOnly = false;
+function _dtIsNodeVisible(node) {
+  if (node._autoInsightChild) return false; // always hidden (overrides global toggle)
+  if (!_dtShowLevelUpsOnly) return true;
+  return node.event !== 'insight-up';
+}
+function _dtVisibleParent(node) {
+  // Walk up to find nearest visible ancestor
+  let cur = node.parentId !== null ? _dtGetNode(node.parentId) : null;
+  while (cur && !_dtIsNodeVisible(cur)) cur = cur.parentId !== null ? _dtGetNode(cur.parentId) : null;
+  return cur;
+}
+function _dtVisibleChildren(nodeId) {
+  // Get all visible descendants reachable through hidden intermediate nodes
+  const result = [];
+  function collect(id) {
+    for (const ch of _dtGetChildren(id)) {
+      if (_dtIsNodeVisible(ch)) result.push(ch);
+      else collect(ch.id);
+    }
+  }
+  collect(nodeId);
+  return result;
+}
+function _dtToggleLevelUpsOnly() {
+  _dtShowLevelUpsOnly = !_dtShowLevelUpsOnly;
+  const btn = document.getElementById('dt-lvl-toggle');
+  if (btn) {
+    btn.style.background = _dtShowLevelUpsOnly ? '#4a6a3a' : '#1a1a2e';
+    btn.style.color = _dtShowLevelUpsOnly ? '#c8e6c0' : '#ccc';
+  }
+  // If currently editing a hidden node, deselect
+  if (_dtModalNodeId !== null) {
+    const node = _dtGetNode(_dtModalNodeId);
+    if (node && !_dtIsNodeVisible(node)) {
+      _dtCloseModal();
+      document.getElementById('dt-detail').style.display = 'none';
+    }
+  }
+  _dtRenderTree();
+}
+function _dtToggleAutoInsight() {
+  if (_dtModalNodeId === null) return;
+  const node = _dtGetNode(_dtModalNodeId);
+  if (!node) return;
+  node.autoInsight = !node.autoInsight;
+  _dtUpdateAutoInsightBtn(node);
+  // Update save button label to reflect new mode
+  const saveBtn = document.getElementById('dt-save');
+  if (saveBtn && _dtGetChildren(node.id).length === 0) {
+    if (node.event === 'start') {
+      saveBtn.innerHTML = '&#128190; New Branch';
+    } else {
+      saveBtn.innerHTML = node.autoInsight ? '&#128190; Save &amp; Auto-Ins' : '&#128190; Save &amp; Next';
+    }
+  }
+  _dtRenderTree();
+}
+function _dtUpdateAutoInsightBtn(node) {
+  const btn = document.getElementById('dt-auto-insight');
+  if (!btn) return;
+  const on = node && node.autoInsight;
+  btn.style.background = on ? '#4a3a6a' : '#1a1a2e';
+  btn.style.color = on ? '#d4b8f0' : '#ccc';
+  btn.style.borderColor = on ? '#ce93d8' : '#555';
+}
+function _dtLayout() {
+  if (_dtNodes.length === 0) return;
+  const root = _dtGetRoot();
+  if (!root) return;
+
+  // Assign branch indices for coloring
+  let branchCounter = 0;
+  function assignBranch(node, brIdx) {
+    node._branchIdx = brIdx;
+    const children = _dtGetChildren(node.id);
+    for (let i = 0; i < children.length; i++) {
+      assignBranch(children[i], i === 0 ? brIdx : ++branchCounter);
+    }
+  }
+  assignBranch(root, branchCounter++);
+
+  // Compute total time for every node
+  for (const n of _dtNodes) n._totalTime = _dtGetTotalTime(n);
+
+  // Start's direct children (decision edits at t=0) get a small offset
+  // so they don't overlap the start node visually.
+  for (const n of _dtNodes) {
+    if (n.parentId !== null && _dtGetNode(n.parentId)?.event === 'start' && n._totalTime === 0) {
+      n._totalTime = -0.001; // tiny negative → will sort right after start
+    }
+  }
+  // Ensure start itself is the earliest
+  if (root._totalTime === 0) root._totalTime = -0.002;
+
+  // Collect all unique total-times from VISIBLE nodes and sort them to build time columns
+  const visibleNodes = _dtNodes.filter(n => _dtIsNodeVisible(n));
+  const timeSet = [...new Set(visibleNodes.map(n => n._totalTime))].sort((a, b) => a - b);
+  const minColW = _DT_COL_W;
+  const timeToX = new Map();
+  let cumX = 0;
+  for (let i = 0; i < timeSet.length; i++) {
+    timeToX.set(timeSet[i], cumX);
+    if (i < timeSet.length - 1) {
+      const gap = timeSet[i + 1] - timeSet[i];
+      // Synthetic gaps (start → edit) get just minimum spacing
+      if (gap < 0.01) {
+        cumX += minColW;
+      } else {
+        // Square-root scale: compresses large gaps, preserves small ones
+        // sqrt(gap_in_hours) * scale + minimum
+        cumX += minColW + Math.sqrt(gap) * 50;
+      }
+    }
+  }
+
+  // Recursive layout: depth-first, only visible nodes get positions
+  let nextLeafY = 0;
+  function layout(node) {
+    if (!_dtIsNodeVisible(node)) {
+      // Skip hidden nodes, layout their children directly
+      for (const ch of _dtGetChildren(node.id)) layout(ch);
+      return;
+    }
+    node._x = _DT_PAD + (timeToX.get(node._totalTime) || 0);
+    // Visible children = own visible children + visible descendants of hidden children
+    const visChildren = _dtVisibleChildren(node.id);
+    if (visChildren.length === 0) {
+      node._y = _DT_PAD + nextLeafY * _DT_ROW_H;
+      nextLeafY++;
+    } else {
+      for (const ch of visChildren) layout(ch);
+      const ys = visChildren.map(c => c._y);
+      node._y = (Math.min(...ys) + Math.max(...ys)) / 2;
+    }
+  }
+  layout(root);
+}
+
+// Build compact change summary lines for a tree node card
+function _dtNodeChangeSummary(node) {
+  if (!node || node.parentId === null) return [];
+  const parent = _dtGetNode(node.parentId);
+  if (!parent) return [];
+  const lines = [];
+  const pgl = parent.baseState.gl, ngl = node.baseState.gl;
+
+  // Grid changes — show abbreviated upgrade names
+  const gridParts = [];
+  for (const idx of Object.keys(RES_GRID_RAW)) {
+    const i = Number(idx);
+    const pv = pgl[i] || 0, nv = ngl[i] || 0;
+    if (nv !== pv) {
+      let name = RES_GRID_RAW[i][0].replace(/_/g, ' ');
+      if (name.length > 12) name = name.slice(0, 11) + '\u2026';
+      gridParts.push(name + ' +' + (nv - pv));
+    }
+  }
+  if (gridParts.length > 0) {
+    // Fit as many as we can in ~160px at 9px font
+    let text = gridParts[0];
+    for (let i = 1; i < gridParts.length; i++) {
+      const next = text + ', ' + gridParts[i];
+      if (next.length > 28) { text += ' +' + (gridParts.length - i) + ' more'; break; }
+      text = next;
+    }
+    lines.push({ text, color: '#8cf' });
+  }
+
+  // Shape changes
+  const psp = parent.baseState.sp, nsp = node.baseState.sp;
+  const movedShapes = [];
+  for (let i = 0; i < Math.max(psp.length, nsp.length); i++) {
+    const ps = psp[i] || {}, ns = nsp[i] || {};
+    if (ps.x !== ns.x || ps.y !== ns.y || ps.rot !== ns.rot) {
+      movedShapes.push(SHAPE_NAMES?.[i] || ('S' + (i + 1)));
+    }
+  }
+  if (movedShapes.length > 0) {
+    let text = movedShapes.slice(0, 3).join(', ');
+    if (movedShapes.length > 3) text += ' +' + (movedShapes.length - 3);
+    lines.push({ text: '\u25C6 ' + text, color: '#c9a' });
+  }
+
+  // Mag changes
+  const pmd = parent.baseState.md, nmd = node.baseState.md;
+  let magDiffs = 0;
+  const slotCheck = Math.max(pmd.length, nmd.length);
+  for (let i = 0; i < slotCheck; i++) {
+    const pm = pmd[i] || {}, nm = nmd[i] || {};
+    if (pm.slot !== nm.slot || pm.type !== nm.type) magDiffs++;
+  }
+  if (magDiffs > 0) {
+    lines.push({ text: '\uD83D\uDD2C ' + magDiffs + ' mag' + (magDiffs > 1 ? 's' : '') + ' changed', color: '#ad8' });
+  }
+
+  return lines;
+}
+
+// ===== CANVAS RENDERER =====
+function _dtRenderTree() {
+  const wrap = document.getElementById('dt-tree-wrap');
+  const canvas = document.getElementById('dt-tree-canvas');
+  if (!canvas || _dtNodes.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  _dtLayout();
+
+  const dpr = window.devicePixelRatio || 1;
+  const visNodes = _dtNodes.filter(n => _dtIsNodeVisible(n));
+  const maxX = Math.max(...visNodes.map(n => n._x)) + _DT_NODE_W + _DT_PAD * 2;
+  const maxY = Math.max(...visNodes.map(n => n._y)) + _DT_NODE_H + _DT_PAD * 2;
+  // Bake zoom into canvas so text renders at native resolution
+  const z = _dtTreeZoom;
+  canvas.width = maxX * z * dpr;
+  canvas.height = maxY * z * dpr;
+  canvas.style.width = (maxX * z) + 'px';
+  canvas.style.height = (maxY * z) + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(z * dpr, z * dpr);
+  ctx.clearRect(0, 0, maxX, maxY);
+
+  // Draw connection lines (between visible nodes)
+  for (const node of visNodes) {
+    const vParent = _dtVisibleParent(node);
+    if (!vParent) continue;
+    const x1 = vParent._x + _DT_NODE_W;
+    const y1 = vParent._y + _DT_NODE_H / 2;
+    const x2 = node._x;
+    const y2 = node._y + _DT_NODE_H / 2;
+    const lineEvColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
+    ctx.strokeStyle = lineEvColors[node.event] || '#888';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const cpx = (x1 + x2) / 2;
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(cpx, y1, cpx, y2, x2, y2);
+    ctx.stroke();
+  }
+
+  // Draw nodes (only visible)
+  for (const node of visNodes) {
+    const x = node._x, y = node._y;
+    const isSelected = _dtCompareSet.has(node.id);
+    const isActive = node.id === _dtModalNodeId;
+    const isLeaf = _dtVisibleChildren(node.id).length === 0;
+    const nodeEvColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
+    const evColor = nodeEvColors[node.event] || '#888';
+
+    // Card background
+    ctx.fillStyle = isSelected ? '#1a2a1a' : isActive ? '#1e1e3a' : '#1a1a2e';
+    ctx.strokeStyle = isSelected ? '#4caf50' : isActive ? '#64b5f6' : evColor;
+    ctx.lineWidth = isSelected ? 2.5 : isActive ? 2.5 : isLeaf ? 2 : 1.4;
+    _dtRoundRect(ctx, x, y, _DT_NODE_W, _DT_NODE_H, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Event badge
+    const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'insight-up': '\uD83D\uDD2E Insight', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = evColor;
+    ctx.fillText(evLabels[node.event] || node.event, x + 8, y + 13);
+
+    // Level + Exp/hr
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillStyle = '#eee';
+    ctx.fillText('Lv ' + node.rLv, x + 8, y + 28);
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = '#81c784';
+    ctx.fillText(fmtVal(node.expHr) + '/hr', x + 55, y + 28);
+
+    // Exp/hr diff from visible parent
+    const vPar = _dtVisibleParent(node);
+    if (vPar) {
+      if (vPar.expHr > 0) {
+        const diff = node.expHr - vPar.expHr;
+        if (diff !== 0) {
+          const pct = ((diff / vPar.expHr) * 100).toFixed(1);
+          const sign = diff >= 0 ? '+' : '';
+          ctx.font = '9px system-ui, sans-serif';
+          ctx.fillStyle = diff >= 0 ? '#81c784' : '#e57373';
+          ctx.fillText(sign + fmtVal(diff) + ' (' + sign + pct + '%)', x + 8, y + 39);
+        }
+      }
+    }
+
+    // Time from start
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = '#888';
+    const totalTimeFromRoot = _dtGetTotalTime(node);
+    ctx.fillText(fmtTime(totalTimeFromRoot), x + 8, y + 52);
+
+    // Grid points indicator
+    const avail = _dtGridPointsAvail(node.baseState.gl, node.rLv);
+    if (avail > 0) {
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('+' + avail + 'pts', x + 80, y + 52);
+    }
+
+    // Leaf indicator
+    if (isLeaf) {
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillStyle = evColor;
+      ctx.fillText('\u25BA', x + _DT_NODE_W - 14, y + _DT_NODE_H / 2 + 3);
+    }
+
+    // Auto-insight indicator
+    if (node.autoInsight) {
+      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.fillStyle = '#ce93d8';
+      ctx.fillText('AI\u25B8', x + _DT_NODE_W - 22, y + 13);
+    }
+
+  }
+}
+
+function _dtRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Get cumulative time from root to a node by walking up the parent chain
+function _dtGetTotalTime(node) {
+  let total = 0;
+  let cur = node;
+  while (cur) {
+    total += cur.time;
+    cur = cur.parentId !== null ? _dtGetNode(cur.parentId) : null;
+  }
+  return total;
+}
+
+function _dtGridPointsAvail(gl, rLv) {
+  const sq50 = gl[50] || 0;
+  const earned = Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
+  let spent = 0;
+  for (const idx of Object.keys(RES_GRID_RAW)) spent += gl[Number(idx)] || 0;
+  return Math.max(0, earned - spent);
+}
+
+// ===== TREE CANVAS PAN + CLICK + ZOOM =====
+let _dtTreePan = { x: 0, y: 0 };
+let _dtTreeZoom = 1;
+let _dtTreeDrag = null; // { startX, startY, panX, panY }
+let _dtTreeHoverNode = null; // node under mouse for tooltip
+
+function _dtTreeMouseDown(e) {
+  if (e.button !== 0) return;
+  // Ignore events from UI overlays inside the wrap
+  if (e.target.closest('#dt-detail, #dt-comparison, #dt-top-controls, #dt-zoom-controls')) return;
+  e.preventDefault(); // prevent text selection
+  _dtTreeDrag = { startX: e.clientX, startY: e.clientY, panX: _dtTreePan.x, panY: _dtTreePan.y, moved: false };
+  e.currentTarget.style.cursor = 'grabbing';
+  // Pointer capture keeps events flowing to the wrap even when cursor leaves it
+  e.currentTarget.setPointerCapture(e.pointerId);
+}
+function _dtTreeMouseMove(e) {
+  if (_dtTreeDrag) {
+    const dx = e.clientX - _dtTreeDrag.startX;
+    const dy = e.clientY - _dtTreeDrag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) _dtTreeDrag.moved = true;
+    _dtTreePan.x = _dtTreeDrag.panX + dx;
+    _dtTreePan.y = _dtTreeDrag.panY + dy;
+    const canvas = document.getElementById('dt-tree-canvas');
+    if (canvas) _dtApplyTreeTransform(canvas);
+    _dtHideTreeTooltip();
+    return;
+  }
+  // Hover detection for tooltip
+  const canvas = document.getElementById('dt-tree-canvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width * (parseFloat(canvas.style.width) / _dtTreeZoom);
+  const my = (e.clientY - rect.top) / rect.height * (parseFloat(canvas.style.height) / _dtTreeZoom);
+  let found = null;
+  for (const node of _dtNodes) {
+    if (!_dtIsNodeVisible(node)) continue;
+    if (mx >= node._x && mx <= node._x + _DT_NODE_W && my >= node._y && my <= node._y + _DT_NODE_H) {
+      found = node; break;
+    }
+  }
+  if (found !== _dtTreeHoverNode) {
+    _dtTreeHoverNode = found;
+    if (found) _dtShowTreeTooltip(found, e.clientX, e.clientY);
+    else _dtHideTreeTooltip();
+  } else if (found) {
+    // Update position
+    const tip = document.getElementById('dt-tree-tooltip');
+    if (tip) { tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px'; }
+  }
+}
+function _dtTreeMouseUp(e) {
+  const wasDrag = _dtTreeDrag && _dtTreeDrag.moved;
+  _dtTreeDrag = null;
+  const wrap = document.getElementById('dt-tree-wrap');
+  if (wrap) {
+    wrap.style.cursor = 'grab';
+    if (wrap.hasPointerCapture(e.pointerId)) wrap.releasePointerCapture(e.pointerId);
+  }
+  if (wasDrag) return;
+  // Ignore events from UI overlays inside the wrap
+  if (e.target.closest('#dt-detail, #dt-comparison, #dt-top-controls, #dt-zoom-controls')) return;
+  // Click — find node
+  const canvas = document.getElementById('dt-tree-canvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width * (parseFloat(canvas.style.width) / _dtTreeZoom);
+  const my = (e.clientY - rect.top) / rect.height * (parseFloat(canvas.style.height) / _dtTreeZoom);
+  for (const node of _dtNodes) {
+    if (!_dtIsNodeVisible(node)) continue;
+    if (mx >= node._x && mx <= node._x + _DT_NODE_W && my >= node._y && my <= node._y + _DT_NODE_H) {
+      _dtOpenModal(node.id);
+      return;
+    }
+  }
+  // Clicked empty space — deselect
+  _dtCloseModal();
+  document.getElementById('dt-detail').style.display = 'none';
+  _dtRenderTree();
+}
+function _dtTreeMouseLeave() {
+  // Only clear hover state, not drag (drag is handled globally now)
+  _dtTreeHoverNode = null;
+  _dtHideTreeTooltip();
+  if (!_dtTreeDrag) {
+    const wrap = document.getElementById('dt-tree-wrap');
+    if (wrap) wrap.style.cursor = 'grab';
+  }
+}
+
+function _dtApplyTreeTransform(canvas) {
+  if (!canvas) canvas = document.getElementById('dt-tree-canvas');
+  if (!canvas) return;
+  canvas.style.transformOrigin = '0 0';
+  canvas.style.transform = `translate(${_dtTreePan.x}px, ${_dtTreePan.y}px)`;
+  // Reposition editor overlay if open
+  if (_dtModalNodeId !== null) {
+    const node = _dtGetNode(_dtModalNodeId);
+    if (node) _dtPositionEditor(node);
+  }
+}
+
+function _dtTreeWheel(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  const newZoom = Math.max(0.2, Math.min(2, _dtTreeZoom + delta));
+  // Zoom toward mouse pointer
+  const wrap = document.getElementById('dt-tree-wrap');
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    _dtTreePan.x = mx - (mx - _dtTreePan.x) * (newZoom / _dtTreeZoom);
+    _dtTreePan.y = my - (my - _dtTreePan.y) * (newZoom / _dtTreeZoom);
+  }
+  _dtTreeZoom = newZoom;
+  _dtRenderTree();
+  _dtApplyTreeTransform();
+  _dtUpdateZoomLabel();
+}
+
+function _dtTreeZoomIn() {
+  _dtTreeZoom = Math.min(2, _dtTreeZoom + 0.15);
+  _dtRenderTree();
+  _dtApplyTreeTransform();
+  _dtUpdateZoomLabel();
+}
+
+function _dtTreeZoomOut() {
+  _dtTreeZoom = Math.max(0.2, _dtTreeZoom - 0.15);
+  _dtRenderTree();
+  _dtApplyTreeTransform();
+  _dtUpdateZoomLabel();
+}
+
+function _dtTreeZoomReset() {
+  _dtTreeZoom = 1;
+  _dtTreePan = { x: 0, y: 0 };
+  _dtRenderTree();
+  _dtApplyTreeTransform();
+  _dtUpdateZoomLabel();
+}
+
+function _dtUpdateZoomLabel() {
+  const lbl = document.getElementById('dt-zoom-label');
+  if (lbl) lbl.textContent = Math.round(_dtTreeZoom * 100) + '%';
+}
+
+// ===== TREE NODE TOOLTIP =====
+function _dtShowTreeTooltip(node, cx, cy) {
+  let tip = document.getElementById('dt-tree-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'dt-tree-tooltip';
+    tip.style.cssText = 'position:fixed;z-index:9999;background:#16162a;border:1px solid #555;border-radius:6px;padding:8px 10px;font-size:12px;color:#ddd;pointer-events:none;max-width:360px;line-height:1.5;white-space:pre-wrap;max-height:60vh;overflow-y:auto;';
+    document.body.appendChild(tip);
+  }
+  const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Level Up', 'insight-up': '\uD83D\uDD2E Insight Up', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
+  const evColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
+  const totalTime = _dtGetTotalTime(node);
+  const avail = _dtGridPointsAvail(node.baseState.gl, node.rLv);
+
+  let html = `<div style="color:${evColors[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${evLabels[node.event] || node.event}</div>`;
+  html += `<div><span style="color:#aaa;">Level:</span> <b style="color:#eee;">${node.rLv}</b></div>`;
+  html += `<div><span style="color:#aaa;">EXP/hr:</span> <b style="color:#81c784;">${fmtVal(node.expHr)}</b>`;
+  if (node.parentId !== null) {
+    const parent = _dtGetNode(node.parentId);
+    if (parent && parent.expHr > 0) {
+      const diff = node.expHr - parent.expHr;
+      if (diff !== 0) {
+        const pct = ((diff / parent.expHr) * 100).toFixed(1);
+        const sign = diff >= 0 ? '+' : '';
+        const color = diff >= 0 ? '#81c784' : '#e57373';
+        html += ` <span style="color:${color};font-size:11px;">(${sign}${fmtVal(diff)}, ${sign}${pct}%)</span>`;
+      }
+    }
+  }
+  html += `</div>`;
+  html += `<div><span style="color:#aaa;">Time:</span> <b>${fmtTime(totalTime)}</b></div>`;
+  if (avail > 0) html += `<div><span style="color:#aaa;">Grid pts:</span> <b style="color:#ffd700;">+${avail}</b></div>`;
+
+  // Changes from parent
+  const changes = _dtNodeChangeSummary(node);
+  if (changes.length > 0) {
+    html += `<div style="margin-top:5px;padding-top:5px;border-top:1px solid #333;font-size:11px;">`;
+    html += `<div style="color:#aaa;margin-bottom:2px;">Changes from parent:</div>`;
+    for (const ch of changes) {
+      html += `<div style="color:${ch.color || '#aaa'};">${ch.text}</div>`;
     }
     html += `</div>`;
   }
-  container.innerHTML = html;
-}
 
-function renameSandboxScenario(id, newName) {
-  const sc = _sandboxScenarios.find(s => s.id === id);
-  if (sc) sc.name = newName;
-}
-
-function removeSandboxScenario(id) {
-  _sandboxScenarios = _sandboxScenarios.filter(s => s.id !== id);
-  renderSandboxList();
-}
-
-async function runSandboxScenarios() {
-  const tickMin = parseInt(document.getElementById('sb-tick-interval')?.value || '10');
-  const mode = document.getElementById('sb-target-mode')?.value || 'level';
-  const val = parseInt(document.getElementById('sb-target-value')?.value || '0');
-  if (!val) return;
-
-  const target = { type: mode, value: val };
-
-  for (const sc of _sandboxScenarios) {
-    try {
-      const ov = JSON.parse(document.getElementById('sb-ov-' + sc.id)?.value || '{}');
-      sc.overrides = ov;
-    } catch(e) { /* keep existing */ }
-    sc.result = await unifiedSim({ target, tickMinutes: tickMin, reoptimize: true, ...sc.overrides });
+  // Insight timeline (from auto-insight chain)
+  if (node.insightTimeline && node.insightTimeline.length > 0) {
+    html += `<div style="margin-top:5px;padding-top:5px;border-top:1px solid #555;font-size:11px;">`;
+    html += `<div style="color:#ce93d8;font-weight:600;margin-bottom:3px;">Auto-Insight Timeline (${node.insightTimeline.length})</div>`;
+    for (const entry of node.insightTimeline) {
+      const obsName = (OCC_DATA[entry.obs] ? OCC_DATA[entry.obs].name.replace(/_/g, ' ') : 'Obs ' + entry.obs);
+      const monoStr = entry.monoTargets.map(t => OCC_DATA[t] ? OCC_DATA[t].name.replace(/_/g, ' ') : 'Obs ' + t).join(', ');
+      html += `<div style="color:#ddd;"><span style="color:#888;">${fmtTime(entry.time)}</span> ${obsName} Lv ${entry.prevIL} &rarr; ${entry.newIL}</div>`;
+      html += `<div style="color:#ad8;margin-left:12px;font-size:10px;">Mono &rarr; ${monoStr} <span style="color:#81c784;">${fmtVal(entry.expHr)}/hr</span></div>`;
+    }
+    html += `</div>`;
   }
 
-  renderSandboxList();
-  renderSandboxComparison();
+  tip.innerHTML = html;
+  tip.style.left = (cx + 12) + 'px';
+  tip.style.top = (cy + 12) + 'px';
+  tip.style.display = 'block';
 }
 
-function renderSandboxComparison() {
-  const compDiv = document.getElementById('sb-comparison');
-  const bodyDiv = document.getElementById('sb-comparison-body');
-  const scenarios = _sandboxScenarios.filter(s => s.result);
-  if (scenarios.length < 2) { compDiv.style.display = 'none'; return; }
-  compDiv.style.display = 'block';
+function _dtHideTreeTooltip() {
+  const tip = document.getElementById('dt-tree-tooltip');
+  if (tip) tip.style.display = 'none';
+}
 
-  const maxTime = Math.max(...scenarios.map(s => s.result.totalTime), 1);
-  let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
-  for (const sc of scenarios) {
-    const pct = (sc.result.totalTime / maxTime * 100).toFixed(1);
-    html += `<div style="padding:8px;background:#1a1a2e;border-radius:6px;">`;
-    html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-weight:600;">${sc.name}</span><span style="color:var(--green);font-weight:700;">${fmtTime(sc.result.totalTime)}</span></div>`;
-    html += `<div style="height:16px;background:#222;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px;"></div></div>`;
+// Info icon tooltip
+let _dtInfoTip = null;
+function _dtShowInfoTip(e) {
+  if (!_dtInfoTip) {
+    _dtInfoTip = document.createElement('div');
+    _dtInfoTip.style.cssText = 'position:fixed;z-index:9999;background:#16162a;border:1px solid #555;border-radius:6px;padding:8px 10px;font-size:12px;color:#ddd;pointer-events:none;max-width:280px;line-height:1.5;white-space:pre-wrap;';
+    document.body.appendChild(_dtInfoTip);
+  }
+  _dtInfoTip.innerHTML = `<div style="color:var(--purple);font-weight:700;margin-bottom:4px;">Interactive Decision Tree</div>`
+    + `<div style="color:#bbb;">Step through research events one at a time. Make choices at each node, then advance to the next event.</div>`
+    + `<div style="color:#bbb;margin-top:4px;">Branch from any node to explore alternative paths and compare outcomes.</div>`;
+  _dtInfoTip.style.left = (e.clientX + 12) + 'px';
+  _dtInfoTip.style.top = (e.clientY + 12) + 'px';
+  _dtInfoTip.style.display = 'block';
+}
+function _dtMoveInfoTip(e) {
+  if (_dtInfoTip) { _dtInfoTip.style.left = (e.clientX + 12) + 'px'; _dtInfoTip.style.top = (e.clientY + 12) + 'px'; }
+}
+function _dtHideInfoTip() {
+  if (_dtInfoTip) _dtInfoTip.style.display = 'none';
+}
+
+// ===== INLINE DETAIL PANEL =====
+function _dtOpenModal(nodeId) {
+  const node = _dtGetNode(nodeId);
+  if (!node) return;
+  _dtModalNodeId = nodeId;
+  _dtEditState = {
+    gl: node.baseState.gl.slice(),
+    so: node.baseState.so.slice(),
+    md: node.baseState.md.map(m => ({...m})),
+    il: node.baseState.il.slice(),
+    ip: node.baseState.ip.slice(),
+    occ: node.baseState.occ.slice(),
+    sp: node.baseState.sp.map(s => ({...s})),
+    rLv: node.rLv,
+    rExp: node.rExp,
+    expHr: node.expHr,
+  };
+  _dtRenderModal();
+  _dtRenderTree();
+  const detail = document.getElementById('dt-detail');
+  detail.style.display = 'block';
+  _dtPositionEditor(node);
+}
+
+function _dtPositionEditor(node) {
+  const wrap = document.getElementById('dt-tree-wrap');
+  const detail = document.getElementById('dt-detail');
+  if (!wrap || !detail || !node) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  // Node position in screen coords (account for pan + zoom)
+  const nodeScreenX = node._x * _dtTreeZoom + _dtTreePan.x;
+  const nodeScreenY = node._y * _dtTreeZoom + _dtTreePan.y;
+  const nodeScreenW = _DT_NODE_W * _dtTreeZoom;
+  const nodeScreenH = _DT_NODE_H * _dtTreeZoom;
+  const detailW = detail.offsetWidth;
+  const detailH = detail.offsetHeight;
+  const gap = 12;
+  // Prefer below the node; if not enough room, put above
+  let top, left;
+  const spaceBelow = wrapRect.height - (nodeScreenY + nodeScreenH + gap);
+  const spaceAbove = nodeScreenY - gap;
+  if (spaceBelow >= detailH || spaceBelow >= spaceAbove) {
+    top = nodeScreenY + nodeScreenH + gap;
+  } else {
+    top = nodeScreenY - detailH - gap;
+  }
+  // Center horizontally on the node, clamp to wrap bounds
+  left = nodeScreenX + nodeScreenW / 2 - detailW / 2;
+  left = Math.max(8, Math.min(left, wrapRect.width - detailW - 8));
+  top = Math.max(8, Math.min(top, wrapRect.height - detailH - 8));
+  detail.style.left = left + 'px';
+  detail.style.top = top + 'px';
+}
+
+function _dtCloseModal() {
+  const popup = document.getElementById('dt-shape-rotate-popup');
+  if (popup) popup.style.display = 'none';
+  _dtModalNodeId = null;
+  _dtEditState = null;
+  _dtShapeDrag = null;
+  if (_dtGridTooltip) { _dtGridTooltip.style.display = 'none'; }
+}
+
+function _dtRecalcExpHr() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const ctx = { abm: calcAllBonusMulti(s.gl), c52: comp52TrueMulti };
+  s.expHr = simTotalExpWith(s.gl, s.so, s.md, s.il, s.occ, s.rLv, ctx);
+}
+
+function _dtRenderModal() {
+  if (!_dtEditState || _dtModalNodeId === null) return;
+  const node = _dtGetNode(_dtModalNodeId);
+  const s = _dtEditState;
+  const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'insight-up': '\uD83D\uDD2E Insight', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
+
+  // Title + inline status
+  document.getElementById('dt-detail-title').textContent = (evLabels[node.event] || node.event) + ' — Lv ' + s.rLv;
+  const totalTime = _dtGetTotalTime(node);
+  const avail = _dtGridPointsAvail(s.gl, s.rLv);
+  document.getElementById('dt-detail-status').innerHTML =
+    `<b style="color:var(--green);">${fmtVal(s.expHr)}/hr</b> · ` +
+    `${fmtTime(totalTime)} · ` +
+    `<span style="color:${avail > 0 ? 'var(--gold)' : 'var(--text2)'};">${avail} pts</span> · ` +
+    `${computeOccurrencesToBeFound(s.rLv)} obs · ` +
+    `${computeMagnifiersOwnedWith(s.gl, s.rLv)} mags`;
+
+  // Grid pts label
+  document.getElementById('dt-grid-pts').textContent = `(${avail} pts)`;
+
+  // Unified grid + shape canvas
+  _dtRenderGridCanvas();
+
+  // Obs editor
+  _dtRenderObsEditor();
+
+  // Show/hide buttons based on node type
+  const delBtn = document.getElementById('dt-delete');
+  const branchBtn = document.getElementById('dt-branch');
+  const saveBtn = document.getElementById('dt-save');
+  const autoInsBtn = document.getElementById('dt-auto-insight');
+  if (delBtn) delBtn.style.display = node.parentId === null ? 'none' : '';
+  if (branchBtn) branchBtn.style.display = node.event === 'start' ? 'none' : '';
+  // Show auto-insight toggle only for leaves (nodes that will advance)
+  const isLeaf = _dtGetChildren(node.id).length === 0;
+  if (autoInsBtn) autoInsBtn.style.display = (isLeaf || node.event === 'start') ? '' : 'none';
+  _dtUpdateAutoInsightBtn(node);
+  if (saveBtn) {
+    if (node.event === 'start') {
+      saveBtn.innerHTML = '&#128190; New Branch';
+    } else if (!isLeaf) {
+      saveBtn.innerHTML = '&#128190; Save &amp; Resim';
+    } else {
+      saveBtn.innerHTML = node.autoInsight ? '&#128190; Save &amp; Auto-Ins' : '&#128190; Save &amp; Next';
+    }
+  }
+}
+
+// ===== UNIFIED GRID + SHAPE CANVAS =====
+let _dtGridTooltip = null;
+let _dtShapeDrag = null; // {shapeIdx, startX, startY, origX, origY}
+let _dtHoverCell = -1;   // cell index under mouse (for tooltip + highlight)
+let _dtGridMode = 'upgrades'; // 'upgrades' | 'shapes'
+let _dtShapeOpacity = 0.4;    // 0..1 from slider
+const _DT_CELL = 30;     // px per grid cell on canvas
+const _DT_GRID_PAD = 16; // canvas padding
+
+function _dtRenderGridCanvas() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const numOwned = Math.min(computeShapesOwnedAt(s.rLv), s.sp.length, SHAPE_VERTICES.length, 10);
+  const avail = _dtGridPointsAvail(s.gl, s.rLv);
+
+  // Coverage summary
+  const nodesInGrid = Object.keys(RES_GRID_RAW).length;
+  let coveredNodes = 0;
+  for (const idx of Object.keys(RES_GRID_RAW)) { if (s.so[Number(idx)] >= 0) coveredNodes++; }
+  document.getElementById('dt-shape-coverage').textContent = `(${coveredNodes}/${nodesInGrid} covered)`;
+
+  const canvas = document.getElementById('dt-grid-canvas');
+  if (!canvas) return;
+  const C = _DT_CELL, P = _DT_GRID_PAD;
+  const cw = P * 2 + GRID_COLS * C;
+  const ch = P * 2 + GRID_ROWS * C;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cw * dpr;
+  canvas.height = ch * dpr;
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Canvas background: medium grey like in-game
+  ctx.fillStyle = '#888898';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // --- Draw grid cells ---
+  for (let idx = 0; idx < GRID_SIZE; idx++) {
+    const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
+    const cx = P + col * C, cy = P + row * C;
+    const info = RES_GRID_RAW[idx];
+    if (!info) continue;
+    const curLv = s.gl[idx] || 0;
+    const maxLv = info[1];
+    const unlocked = _dtIsGridCellUnlocked(idx, s.gl);
+    if (curLv === 0 && !unlocked) continue; // hide locked cells entirely
+    const si = s.so[idx];
+    const goalCat = NODE_GOAL[idx] || '';
+    const goalColor = NODE_GOAL_COLORS[goalCat] || '#555';
+    const inset = 1;
+    const iw = C - inset * 2, ih = C - inset * 2;
+    const x0 = cx + inset, y0 = cy + inset;
+
+    // Cell base: light background
+    ctx.fillStyle = '#707084';
+    ctx.fillRect(x0, y0, iw, ih);
+
+    // Upgrade fill: shade from edges inward (drawn before shape so shape sits on top)
+    if (curLv > 0 && maxLv > 0) {
+      ctx.fillStyle = '#1a1a28';
+      if (maxLv === 1) {
+        ctx.fillRect(x0, y0, iw, ih);
+      } else if (maxLv === 2) {
+        if (curLv >= 1) {
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x0 + iw, y0);
+          ctx.lineTo(x0, y0 + ih);
+          ctx.closePath();
+          ctx.fill();
+        }
+        if (curLv >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(x0 + iw, y0);
+          ctx.lineTo(x0 + iw, y0 + ih);
+          ctx.lineTo(x0, y0 + ih);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (maxLv === 3) {
+        const h3 = Math.round(ih / 3);
+        if (curLv >= 1) ctx.fillRect(x0, y0, iw, h3);
+        if (curLv >= 2) ctx.fillRect(x0, y0 + h3, Math.round(iw / 2), ih - h3);
+        if (curLv >= 3) ctx.fillRect(x0 + Math.round(iw / 2), y0 + h3, iw - Math.round(iw / 2), ih - h3);
+      } else if (maxLv === 4) {
+        for (let q = 0; q < Math.min(curLv, 4); q++) {
+          const qy = Math.round(ih * q / 4);
+          const qh = Math.round(ih * (q + 1) / 4) - qy;
+          ctx.fillRect(x0, y0 + qy, iw, qh);
+        }
+      } else {
+        for (let q = 0; q < Math.min(curLv, maxLv); q++) {
+          const qy = Math.round(ih * q / maxLv);
+          const qh = Math.round(ih * (q + 1) / maxLv) - qy;
+          ctx.fillRect(x0, y0 + qy, iw, qh);
+        }
+      }
+    }
+
+    // Shape color fill: solid miniature shape silhouette (on top of upgrade fill)
+    if (si >= 0 && si < numOwned) {
+      const shapeColor = SHAPE_COLORS[si] || '#888';
+      const frame = 5;
+      const verts = SHAPE_VERTICES[si];
+      const dims = SHAPE_DIMS[si];
+      ctx.fillStyle = shapeColor;
+      if (verts && dims) {
+        const aw = iw - frame * 2, ah = ih - frame * 2;
+        const sc = Math.min(aw / dims[0], ah / dims[1]);
+        const ox = x0 + frame + (aw - dims[0] * sc) / 2;
+        const oy = y0 + frame + (ah - dims[1] * sc) / 2;
+        ctx.beginPath();
+        for (let vi = 0; vi < verts.length; vi++) {
+          const px = ox + verts[vi][0] * sc;
+          const py = oy + verts[vi][1] * sc;
+          if (vi === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(x0 + frame, y0 + frame, iw - frame * 2, ih - frame * 2);
+      }
+    }
+
+    // Border: match shape color if covered, otherwise dark
+    ctx.strokeStyle = (si >= 0 && si < numOwned) ? (SHAPE_COLORS[si] || '#222') : '#222';
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(x0, y0, iw, ih);
+
+    // Inner shape border (1px black)
+    if (si >= 0 && si < numOwned && SHAPE_VERTICES[si] && SHAPE_DIMS[si]) {
+      const frame = 5;
+      const verts = SHAPE_VERTICES[si];
+      const dims = SHAPE_DIMS[si];
+      const aw = iw - frame * 2, ah = ih - frame * 2;
+      const sc = Math.min(aw / dims[0], ah / dims[1]);
+      const ox = x0 + frame + (aw - dims[0] * sc) / 2;
+      const oy = y0 + frame + (ah - dims[1] * sc) / 2;
+      ctx.beginPath();
+      for (let vi = 0; vi < verts.length; vi++) {
+        const px = ox + verts[vi][0] * sc;
+        const py = oy + verts[vi][1] * sc;
+        if (vi === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Hover highlight
+  if (_dtHoverCell >= 0 && RES_GRID_RAW[_dtHoverCell]) {
+    const hCol = _dtHoverCell % GRID_COLS, hRow = Math.floor(_dtHoverCell / GRID_COLS);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(P + hCol * C, P + hRow * C, C, C);
+  }
+
+  // --- Draw shape polygons (only unlocked shapes) ---
+  for (let si = 0; si < numOwned; si++) {
+    const p = s.sp[si];
+    if (!p || p.x == null || p.y == null) continue;
+    const verts = SHAPE_VERTICES[si];
+    const dims = SHAPE_DIMS[si];
+    if (!verts || !dims) continue;
+    const color = SHAPE_COLORS[si] || '#888';
+    const cxOff = dims[0] / 2, cyOff = dims[1] / 2;
+    const angle = (p.rot || 0) * Math.PI / 180;
+    const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+    ctx.beginPath();
+    for (let vi = 0; vi < verts.length; vi++) {
+      const dx = verts[vi][0] - cxOff, dy = verts[vi][1] - cyOff;
+      const rx = cxOff + p.x + dx * cosA - dy * sinA;
+      const ry = cyOff + p.y + dx * sinA + dy * cosA;
+      if (vi === 0) ctx.moveTo(_dtGameToCanvasX(rx), _dtGameToCanvasY(ry));
+      else ctx.lineTo(_dtGameToCanvasX(rx), _dtGameToCanvasY(ry));
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = _dtShapeOpacity * 0.3;
+    ctx.fill();
+    ctx.globalAlpha = _dtShapeOpacity;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4.5;
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Wire canvas events (only once)
+  if (!canvas._dtWired) {
+    canvas._dtWired = true;
+    canvas.addEventListener('mousedown', _dtCanvasMouseDown);
+    canvas.addEventListener('mousemove', _dtCanvasMouseMove);
+    canvas.addEventListener('mouseup', _dtCanvasMouseUp);
+    canvas.addEventListener('mouseleave', _dtCanvasMouseLeave);
+    canvas.addEventListener('contextmenu', _dtCanvasRightClick);
+    canvas.addEventListener('wheel', _dtCanvasWheel, { passive: false });
+  }
+}
+
+// --- Coordinate transforms ---
+function _dtGameToCanvasX(gx) { return _DT_GRID_PAD + (gx - 15) / 30 * _DT_CELL; }
+function _dtGameToCanvasY(gy) { return _DT_GRID_PAD + (gy - 24) / 30 * _DT_CELL; }
+function _dtCanvasToGameX(cx) { return 15 + (cx - _DT_GRID_PAD) / _DT_CELL * 30; }
+function _dtCanvasToGameY(cy) { return 24 + (cy - _DT_GRID_PAD) / _DT_CELL * 30; }
+
+// --- Hit testing ---
+function _dtCanvasCellAt(cx, cy) {
+  const col = Math.floor((cx - _DT_GRID_PAD) / _DT_CELL);
+  const row = Math.floor((cy - _DT_GRID_PAD) / _DT_CELL);
+  if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return -1;
+  return row * GRID_COLS + col;
+}
+
+function _dtShapeHitTest(canvasX, canvasY) {
+  if (!_dtEditState) return -1;
+  const s = _dtEditState;
+  const numOwned = Math.min(computeShapesOwnedAt(s.rLv), s.sp.length, SHAPE_VERTICES.length, 10);
+  const gx = _dtCanvasToGameX(canvasX);
+  const gy = _dtCanvasToGameY(canvasY);
+  for (let si = numOwned - 1; si >= 0; si--) {
+    const p = s.sp[si];
+    if (!p || p.x == null || p.y == null) continue;
+    const polygon = getShapePolygonAt(si, p.x, p.y, p.rot || 0);
+    if (polygon && isPointInPolygon(gx, gy, polygon)) return si;
+  }
+  return -1;
+}
+
+// --- Canvas event handlers ---
+let _dtShapeClickTimeout = null;
+function _dtCanvasMouseDown(e) {
+  if (e.button !== 0) return;
+  const canvas = e.target;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+
+  if (_dtGridMode === 'shapes') {
+    // Check shape hit
+    const si = _dtShapeHitTest(cx, cy);
+    if (si >= 0) {
+      const p = _dtEditState.sp[si];
+      _dtShapeDrag = { shapeIdx: si, startX: e.clientX, startY: e.clientY, origX: p.x || 0, origY: p.y || 0, moved: false };
+      canvas.classList.add('dt-shape-dragging');
+      e.preventDefault();
+      return;
+    }
+    // Hide shape rotate popup when clicking elsewhere
+    const popup = document.getElementById('dt-shape-rotate-popup');
+    if (popup) popup.style.display = 'none';
+  } else {
+    // Upgrades mode: grid cell click = upgrade
+    const idx = _dtCanvasCellAt(cx, cy);
+    if (idx >= 0 && RES_GRID_RAW[idx]) {
+      _dtGridUp(idx);
+    }
+  }
+}
+
+function _dtCanvasMouseMove(e) {
+  const canvas = e.target;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+
+  // Shape drag
+  if (_dtShapeDrag && _dtEditState) {
+    const d = _dtShapeDrag;
+    const dx = (e.clientX - d.startX) / _DT_CELL * 30;
+    const dy = (e.clientY - d.startY) / _DT_CELL * 30;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) d.moved = true;
+    const p = _dtEditState.sp[d.shapeIdx];
+    if (p) {
+      p.x = d.origX + dx;
+      p.y = d.origY + dy;
+      _dtRebuildOverlay();
+      _dtRenderGridCanvas();
+    }
+    return;
+  }
+
+  // Hover: tooltip for grid cells
+  const idx = _dtCanvasCellAt(cx, cy);
+  if (idx !== _dtHoverCell) {
+    _dtHoverCell = idx;
+    if (idx >= 0 && RES_GRID_RAW[idx]) {
+      _dtShowGridTip(e, idx);
+    } else {
+      _dtHideGridTip();
+    }
+    _dtRenderGridCanvas();
+  } else if (idx >= 0 && _dtGridTooltip && _dtGridTooltip.style.display !== 'none') {
+    _dtGridTooltip.style.left = (e.clientX + 14) + 'px';
+    _dtGridTooltip.style.top = (e.clientY + 14) + 'px';
+  }
+
+  // Cursor
+  if (_dtGridMode === 'shapes') {
+    const si2 = _dtShapeHitTest(cx, cy);
+    canvas.style.cursor = si2 >= 0 ? 'grab' : 'default';
+  } else {
+    canvas.style.cursor = (idx >= 0 && RES_GRID_RAW[idx]) ? 'pointer' : 'default';
+  }
+}
+
+function _dtCanvasMouseUp(e) {
+  if (!_dtShapeDrag) return;
+  const d = _dtShapeDrag;
+  const canvas = document.getElementById('dt-grid-canvas');
+  if (canvas) canvas.classList.remove('dt-shape-dragging');
+  _dtShapeDrag = null;
+  if (!d.moved) {
+    // Click without drag → show rotate popup
+    _dtShowShapeRotatePopup(d.shapeIdx, e.clientX, e.clientY);
+  }
+  if (_dtEditState) {
+    _dtRecalcExpHr();
+    _dtRenderModal();
+  }
+}
+
+function _dtShowShapeRotatePopup(si, clientX, clientY) {
+  const popup = document.getElementById('dt-shape-rotate-popup');
+  if (!popup || !_dtEditState) return;
+  const p = _dtEditState.sp[si];
+  if (!p) return;
+  const color = SHAPE_COLORS[si] || '#888';
+  const rot = Math.round(p.rot || 0);
+  popup.innerHTML =
+    `<span style="display:inline-flex;align-items:center;gap:3px;">` +
+    `<button class="dt-sh-btn" onclick="_dtShapeRotate(${si},-15)">&#8630;15</button>` +
+    `<button class="dt-sh-btn" onclick="_dtShapeRotate(${si},-5)">&#8630;5</button>` +
+    `<span style="color:${color};font-weight:600;min-width:32px;text-align:center;">${rot}\u00b0</span>` +
+    `<button class="dt-sh-btn" onclick="_dtShapeRotate(${si},5)">5&#8631;</button>` +
+    `<button class="dt-sh-btn" onclick="_dtShapeRotate(${si},15)">15&#8631;</button>` +
+    `</span>`;
+  popup.style.display = 'block';
+  // Position near canvas click
+  const detail = document.getElementById('dt-detail');
+  const detailRect = detail.getBoundingClientRect();
+  popup.style.left = Math.max(0, clientX - detailRect.left - 60) + 'px';
+  popup.style.top = Math.max(0, clientY - detailRect.top + 10) + 'px';
+}
+
+function _dtCanvasMouseLeave(e) {
+  _dtHoverCell = -1;
+  _dtHideGridTip();
+  _dtCanvasMouseUp(e);
+  _dtRenderGridCanvas();
+}
+
+function _dtCanvasRightClick(e) {
+  e.preventDefault();
+  if (_dtGridMode !== 'upgrades') return;
+  const canvas = e.target;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const idx = _dtCanvasCellAt(cx, cy);
+  if (idx >= 0 && RES_GRID_RAW[idx]) {
+    _dtGridDown(idx);
+  }
+}
+
+function _dtCanvasWheel(e) {
+  if (!_dtEditState || _dtGridMode !== 'shapes') return;
+  const canvas = e.target;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const si = _dtShapeHitTest(cx, cy);
+  if (si < 0) return;
+  e.preventDefault();
+  _dtShapeRotate(si, e.deltaY > 0 ? 5 : -5);
+}
+
+// --- Tooltip ---
+function _dtShowGridTip(e, idx) {
+  const info = RES_GRID_RAW[idx];
+  if (!info || !_dtEditState) return;
+  if (!_dtGridTooltip) {
+    _dtGridTooltip = document.createElement('div');
+    _dtGridTooltip.className = 'dt-gv-tooltip';
+    document.body.appendChild(_dtGridTooltip);
+  }
+  const s = _dtEditState;
+  const name = info[0].replace(/_/g, ' ');
+  const curLv = s.gl[idx] || 0;
+  const maxLv = info[1];
+  const goalCat = NODE_GOAL[idx] || '';
+  const bonusPer = info[2];
+  const baseBonus = bonusPer * curLv;
+  const si = s.so[idx];
+  const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
+  const coord = String.fromCharCode(65 + row) + (col + 1);
+  const abm = calcAllBonusMulti(s.gl);
+
+  let html = `<span style="color:var(--cyan);font-weight:700;font-size:1.1em">${coord}</span> `;
+  html += `<span style="color:var(--gold);font-weight:600">${name}</span><br>`;
+  html += `<span style="color:var(--text2);font-size:.9em">Level: ${curLv} / ${maxLv}</span>`;
+  if (goalCat) html += ` <span style="color:${NODE_GOAL_COLORS[goalCat] || '#888'};">[${goalCat}]</span>`;
+  html += `<div style="color:var(--green);margin-top:2px;font-size:.9em">Base bonus: ${baseBonus.toFixed(1)}</div>`;
+
+  // Shape multi
+  if (si >= 0 && si < SHAPE_BONUS_PCT.length) {
+    const shapePct = SHAPE_BONUS_PCT[si];
+    const boosted = baseBonus * (1 + shapePct / 100);
+    html += `<div style="color:${SHAPE_COLORS[si]||'#888'};margin-top:4px;font-size:.9em">${SHAPE_NAMES[si]} (+${shapePct}%): ${boosted.toFixed(1)}</div>`;
+  }
+
+  // All multi
+  if (abm > 1) {
+    let finalVal = baseBonus;
+    if (si >= 0 && si < SHAPE_BONUS_PCT.length) finalVal *= (1 + SHAPE_BONUS_PCT[si] / 100);
+    finalVal *= abm;
+    html += `<div style="color:#aaf;font-size:.85em">All multi (${abm.toFixed(2)}x): ${finalVal.toFixed(1)}</div>`;
+  }
+
+  // Description with placeholders
+  html += `<div style="color:#ccc;margin-top:4px;font-size:.9em">${_dtFormatDesc(idx, s)}</div>`;
+  html += `<div style="color:#888;margin-top:4px;font-size:.8em">Click +1 · Right-click -1</div>`;
+
+  _dtGridTooltip.innerHTML = html;
+  _dtGridTooltip.style.display = 'block';
+  const tipW = 260, tipH = 80;
+  let tx = e.clientX + 14, ty = e.clientY + 14;
+  if (tx + tipW > window.innerWidth) tx = e.clientX - tipW - 10;
+  if (ty + tipH > window.innerHeight) ty = e.clientY - tipH - 10;
+  _dtGridTooltip.style.left = tx + 'px';
+  _dtGridTooltip.style.top = ty + 'px';
+}
+
+function _dtFormatDesc(nodeIdx, s) {
+  const info = RES_GRID_RAW[nodeIdx];
+  if (!info) return '';
+  const lv = s.gl[nodeIdx] || 0;
+  const bonusPerLv = info[2];
+  const curBonus = bonusPerLv * lv;
+  const multiStr = (1 + curBonus / 100).toFixed(2) + 'x';
+  const g = v => '<b style="color:var(--green)">' + v + '</b>';
+
+  let desc = (info[3] || '').replace(/_/g, ' ');
+  desc = desc.replace(/ ?@ ?/g, ' \u2014 ');
+  if (nodeIdx === 173) desc = desc.replace('<', 'Arctis grid bonus');
+  desc = desc.replace(/\|/g, g(lv));
+  desc = desc.replace(/\{/g, g(curBonus));
+  desc = desc.replace(/\}/g, g(multiStr));
+  if (desc.includes('$')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus);
+    desc = desc.replace(/\$/g, g(Math.round(v * 100) / 100));
+  }
+  if (desc.includes('^')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus);
+    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2) + 'x'));
+  }
+  if (desc.includes('&')) {
+    const olaVal = Number(optionsListData?.[499]) || 0;
+    desc = desc.replace(/&/g, g(Math.floor(1e4 * (1 - 1 / (1 + olaVal / 100))) / 100));
+  }
+  return desc;
+}
+
+function _dtHideGridTip() {
+  if (_dtGridTooltip) _dtGridTooltip.style.display = 'none';
+}
+
+// --- Grid cell unlock / upgrade / downgrade ---
+function _dtIsGridCellUnlocked(idx, gl) {
+  if (!RES_GRID_RAW[idx]) return false;
+  if ((gl[idx] || 0) >= 1) return true;
+  const col = idx % GRID_COLS;
+  if ((col === 9 || col === 10) && idx >= 100 && idx <= 140) return true;
+  const neighbors = [];
+  if (idx >= GRID_COLS) neighbors.push(idx - GRID_COLS);
+  if (idx < GRID_SIZE - GRID_COLS) neighbors.push(idx + GRID_COLS);
+  if (col > 0) neighbors.push(idx - 1);
+  if (col < GRID_COLS - 1) neighbors.push(idx + 1);
+  for (const ni of neighbors) {
+    if ((gl[ni] || 0) >= 1) return true;
+  }
+  return false;
+}
+
+function _dtGridUp(idx) {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const info = RES_GRID_RAW[idx];
+  if (!info) return;
+  const avail = _dtGridPointsAvail(s.gl, s.rLv);
+  const unlocked = _dtIsGridCellUnlocked(idx, s.gl);
+  if (!unlocked || avail <= 0 || (s.gl[idx] || 0) >= info[1]) return;
+  s.gl[idx] = (s.gl[idx] || 0) + 1;
+  const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+  _growMagPoolTyped(s.md, s.gl, s.rLv, newOwned);
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+function _dtGridDown(idx) {
+  if (!_dtEditState || _dtModalNodeId === null) return;
+  const s = _dtEditState;
+  if ((s.gl[idx] || 0) <= 0) return;
+  // Can only remove points added beyond what the parent already had
+  const node = _dtGetNode(_dtModalNodeId);
+  if (node && node.parentId !== null) {
+    const parent = _dtGetNode(node.parentId);
+    if (parent) {
+      const parentLv = parent.baseState.gl[idx] || 0;
+      if ((s.gl[idx] || 0) <= parentLv) return; // locked from parent
+    }
+  }
+  s.gl[idx]--;
+  const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+  while (s.md.length > newOwned) {
+    const unIdx = s.md.findIndex(m => m.slot < 0);
+    if (unIdx >= 0) s.md.splice(unIdx, 1);
+    else s.md.pop();
+  }
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+// --- Shape manipulation ---
+function _dtShapeRotate(si, dRot) {
+  if (!_dtEditState) return;
+  const p = _dtEditState.sp[si];
+  if (!p) return;
+  p.rot = ((p.rot || 0) + dRot + 360) % 360;
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+function _dtShapeNudge(si, dx, dy) {
+  if (!_dtEditState) return;
+  const p = _dtEditState.sp[si];
+  if (!p) return;
+  p.x = (p.x || 0) + dx;
+  p.y = (p.y || 0) + dy;
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+function _dtRebuildOverlay() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const numOwned = Math.min(computeShapesOwnedAt(s.rLv), s.sp.length, SHAPE_VERTICES.length, 10);
+  const so = new Array(GRID_SIZE).fill(-1);
+  for (let si = 0; si < numOwned; si++) {
+    const p = s.sp[si];
+    if (!p || p.x == null || p.y == null) continue;
+    const cells = getShapeCellCoverage(si, p.x, p.y, p.rot || 0);
+    for (const c of cells) {
+      if (so[c] < 0) so[c] = si;
+    }
+  }
+  s.so = so;
+}
+const _DT_OBS_COLS = 8;
+let _dtObsDragData = null; // {magIdx, fromSlot} or {poolType}
+
+function _dtRenderObsEditor() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const occTBF = computeOccurrencesToBeFound(s.rLv);
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+  const mMax = magMaxForLevel(s.rLv);
+
+  // Pool counts
+  let usedByType = [0, 0, 0];
+  for (const m of s.md) { if (m.slot >= 0) usedByType[m.type]++; }
+  const expectedK = Math.round((s.gl[72] || 0) + eventShopOwned(33));
+  const expectedM = Math.round(s.gl[91] || 0);
+  const expectedR = mOwned - expectedK - expectedM;
+  const freeR = expectedR - usedByType[0];
+  const freeM = expectedM - usedByType[1];
+  const freeK = expectedK - usedByType[2];
+
+  // Pool: draggable mag tokens for unplaced mags
+  let poolHtml = '<div class="dt-obs-pool-row">';
+  const poolTypes = [
+    { type: 0, label: 'Mag', color: '#81c784', free: freeR },
+    { type: 1, label: 'Mono', color: '#ce93d8', free: freeM },
+    { type: 2, label: 'Kalei', color: '#4dd0e1', free: freeK },
+  ];
+  for (const pt of poolTypes) {
+    poolHtml += `<div class="dt-obs-pool-group">`;
+    poolHtml += `<span class="dt-obs-pool-label" style="color:${pt.color};">${pt.label}: ${pt.free}</span>`;
+    if (pt.free > 0) {
+      poolHtml += `<span class="dt-obs-mag type-${pt.type}" draggable="true" data-pool-type="${pt.type}"></span>`;
+    }
+    poolHtml += `</div>`;
+  }
+  poolHtml += `<span style="color:var(--text2);font-size:.8em;">Total: ${usedByType[0]+usedByType[1]+usedByType[2]}/${mOwned} · Max/slot: ${mMax}</span>`;
+  poolHtml += '</div>';
+  document.getElementById('dt-obs-pool').innerHTML = poolHtml;
+
+  // Build per-slot mag lookup & kalei map (once, not per-slot)
+  const bySlot = {};
+  for (let i = 0; i < s.md.length; i++) {
+    const m = s.md[i];
+    if (m.slot >= 0) {
+      if (!bySlot[m.slot]) bySlot[m.slot] = [];
+      bySlot[m.slot].push(i);
+    }
+  }
+  const kalMap = _buildKalMap(s.md);
+
+  // 8-col grid of obs slots
+  const rows = Math.ceil(occTBF / _DT_OBS_COLS);
+  let html = '<div class="dt-obs-grid">';
+  for (let oi = 0; oi < rows * _DT_OBS_COLS; oi++) {
+    if (oi >= 80 || oi >= occTBF) {
+      html += '<div class="dt-obs-slot dt-obs-noslot"></div>';
+      continue;
+    }
+    const usable = isObsUsable(oi, s.rLv, s.occ);
+    if (!usable) {
+      const name = OCC_DATA[oi] ? OCC_DATA[oi].name.replace(/_/g, ' ') : `#${oi}`;
+      html += `<div class="dt-obs-slot" style="opacity:.3;"></div>`;
+      continue;
+    }
+    const name = OCC_DATA[oi] ? OCC_DATA[oi].name.replace(/_/g, ' ') : `Slot ${oi}`;
+    const slotMags = bySlot[oi] || [];
+    html += `<div class="dt-obs-slot dt-obs-usable" data-obs="${oi}">`;
+    html += `<span class="dt-obs-mags">`;
+    for (const mi of slotMags) {
+      const t = s.md[mi].type;
+      html += `<span class="dt-obs-mag type-${t}" draggable="true" data-mag-idx="${mi}" title="Drag to move, right-click to remove"></span>`;
+    }
+    // Empty slots up to mMax
+    for (let ei = slotMags.length; ei < mMax; ei++) {
+      html += `<span style="width:14px;height:14px;border-radius:50%;border:1px dashed #444;opacity:.3;"></span>`;
+    }
+    html += `</span>`;
     html += `</div>`;
   }
   html += '</div>';
-  bodyDiv.innerHTML = html;
+  document.getElementById('dt-obs-editor').innerHTML = html;
+
+  // Wire up drag events + hover tooltips
+  _dtObsWireDrag();
+  _dtObsWireTooltips(bySlot, kalMap);
+}
+
+function _dtObsWireTooltips(bySlot, kalMap) {
+  const editor = document.getElementById('dt-obs-editor');
+  if (!editor || !_dtEditState) return;
+  const s = _dtEditState;
+  const tt = document.getElementById('tooltip');
+
+  editor.querySelectorAll('.dt-obs-slot.dt-obs-usable').forEach(slot => {
+    const oi = parseInt(slot.dataset.obs);
+    slot.addEventListener('mouseenter', (ev) => {
+      const occ = OCC_DATA[oi];
+      const name = occ ? occ.name.replace(/_/g, ' ') : 'Obs #' + oi;
+      const lv = (s.iLv && s.iLv[oi]) || (typeof insightLvs !== 'undefined' ? insightLvs[oi] : 0) || 0;
+      let mags = 0, monos = 0, kaleis = 0;
+      const slotMags = bySlot[oi] || [];
+      for (const mi of slotMags) {
+        const t = s.md[mi].type;
+        if (t === 0) mags++;
+        else if (t === 1) monos++;
+        else if (t === 2) kaleis++;
+      }
+      const adjKal = kalMap[oi] || 0;
+
+      // DT-aware grid bonus: uses s.gl and s.so instead of globals
+      const dtAbm = calcAllBonusMulti(s.gl);
+      function dtGb(idx) {
+        const inf = RES_GRID_RAW[idx];
+        if (!inf) return 0;
+        const l = s.gl[idx] || 0;
+        if (l === 0) return 0;
+        let v = inf[2] * l;
+        const si2 = s.so[idx];
+        if (si2 >= 0 && si2 < SHAPE_BONUS_PCT.length) v *= (1 + SHAPE_BONUS_PCT[si2] / 100);
+        v *= dtAbm;
+        return v;
+      }
+
+      const basePerMag = obsBaseExp(oi);
+      const gd101 = dtGb(93);
+      const gd101Multi = 1 + gd101 * lv / 100;
+      const kalBase = (30 + dtGb(52) + dtGb(72)) / 100;
+      const kalMulti = 1 + adjKal * kalBase;
+      const perMagFinal = basePerMag * gd101Multi * kalMulti;
+      const totalExp = perMagFinal * mags;
+      const insightBonus = dtGb(92) + dtGb(91);
+      const monoRate = 3 * (1 + insightBonus / 100) * kalMulti;
+      const resMulti = simTotalExp({ gridLevels: s.gl, shapeOverlay: s.so, magData: s.md, insightLvs: s.iLv || insightLvs, occFound: occFound }).multi;
+      const totalFinal = totalExp * resMulti;
+
+      let h = '<div style="color:var(--gold);font-weight:600">' + name + ' (#' + oi + ')</div>';
+      h += '<div style="color:var(--text2);font-size:.9em">Insight LV: ' + lv + '</div>';
+      h += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
+      h += '<div style="color:#aaa">Base EXP/mag: <span style="color:var(--text)">' + basePerMag.toFixed(2) + '</span></div>';
+      if (gd101 > 0) h += '<div style="color:#aaa">GD101 (x' + gd101.toFixed(1) + '% x LV ' + lv + '): <span style="color:var(--text)">x' + gd101Multi.toFixed(3) + '</span></div>';
+      if (adjKal > 0) h += '<div style="color:#aaa">Kalei (' + adjKal + ' adj x ' + (kalBase*100).toFixed(1) + '%): <span style="color:var(--cyan)">x' + kalMulti.toFixed(3) + '</span></div>';
+      h += '<div style="color:#aaa">Per magnifier: <span style="color:var(--green)">' + perMagFinal.toFixed(2) + '</span></div>';
+      if (mags > 0) {
+        h += '<div style="color:var(--green);font-weight:700">Obs EXP/hr: ' + totalExp.toFixed(1) + ' (' + mags + ' mag' + (mags>1?'s':'') + ')</div>';
+        h += '<div style="color:#aaa">ResearchEXPmulti: <span style="color:var(--cyan)">x' + resMulti.toFixed(2) + '</span></div>';
+        h += '<div style="color:var(--green);font-weight:700">Final EXP/hr: ' + totalFinal.toFixed(1) + '</div>';
+      } else h += '<div style="color:#666">No magnifiers assigned</div>';
+      h += '</div>';
+      if (monos > 0 || kaleis > 0) {
+        h += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
+        if (monos > 0) h += '<div style="color:var(--purple)">Insight/hr: ' + (monoRate * monos).toFixed(2) + ' (' + monos + ' mono x ' + monoRate.toFixed(2) + ')</div>';
+        if (kaleis > 0) h += '<div style="color:var(--cyan)">Kaleidoscopes on slot: ' + kaleis + '</div>';
+        h += '</div>';
+      }
+      tt.innerHTML = h;
+      tt.style.display = 'block';
+      moveTooltip(ev);
+    });
+    slot.addEventListener('mouseleave', () => { tt.style.display = 'none'; });
+    slot.addEventListener('mousemove', moveTooltip);
+  });
+}
+
+function _dtObsWireDrag() {
+  const pool = document.getElementById('dt-obs-pool');
+  const editor = document.getElementById('dt-obs-editor');
+  if (!pool || !editor) return;
+
+  // Pool mag drag start
+  pool.querySelectorAll('.dt-obs-mag[data-pool-type]').forEach(el => {
+    el.addEventListener('dragstart', (e) => {
+      const type = parseInt(el.dataset.poolType);
+      _dtObsDragData = { poolType: type };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'mag');
+    });
+  });
+
+  // Slot mag drag start + right-click remove
+  editor.querySelectorAll('.dt-obs-mag[data-mag-idx]').forEach(el => {
+    el.addEventListener('dragstart', (e) => {
+      const magIdx = parseInt(el.dataset.magIdx);
+      const s = _dtEditState;
+      _dtObsDragData = { magIdx, fromSlot: s.md[magIdx].slot };
+      el.classList.add('dt-obs-mag-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'mag');
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('dt-obs-mag-dragging'); _dtObsDragData = null; });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const magIdx = parseInt(el.dataset.magIdx);
+      _dtRemoveMagFromSlotDirect(magIdx);
+    });
+  });
+
+  // Slot drop targets
+  editor.querySelectorAll('.dt-obs-slot.dt-obs-usable').forEach(slot => {
+    slot.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('dt-obs-dragover'); });
+    slot.addEventListener('dragleave', () => { slot.classList.remove('dt-obs-dragover'); });
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('dt-obs-dragover');
+      const oi = parseInt(slot.dataset.obs);
+      if (isNaN(oi) || !_dtObsDragData) return;
+      _dtObsDrop(oi, _dtObsDragData);
+      _dtObsDragData = null;
+    });
+  });
+
+  // Drop on pool area = remove from slot
+  pool.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+  pool.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (_dtObsDragData && _dtObsDragData.magIdx != null) {
+      _dtRemoveMagFromSlotDirect(_dtObsDragData.magIdx);
+    }
+    _dtObsDragData = null;
+  });
+}
+
+function _dtObsDrop(targetSlot, data) {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const mMax = magMaxForLevel(s.rLv);
+  // Count mags on target
+  let targetCount = 0;
+  for (const m of s.md) { if (m.slot === targetSlot) targetCount++; }
+
+  if (data.magIdx != null) {
+    // Moving an existing mag
+    if (targetCount >= mMax) return;
+    s.md[data.magIdx].slot = targetSlot;
+  } else if (data.poolType != null) {
+    // Placing from pool
+    if (targetCount >= mMax) return;
+    // Find an unassigned mag of this type
+    for (const m of s.md) {
+      if (m.slot < 0 && m.type === data.poolType) {
+        m.slot = targetSlot;
+        break;
+      }
+    }
+  }
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+function _dtRemoveMagFromSlotDirect(magIdx) {
+  if (!_dtEditState) return;
+  const m = _dtEditState.md[magIdx];
+  if (m && m.slot >= 0) {
+    m.slot = -1;
+    _dtRecalcExpHr();
+    _dtRenderModal();
+  }
+}
+
+function _dtCycleMagType(magIdx) {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const m = s.md[magIdx];
+  if (!m || m.slot < 0) return;
+  const expectedK = Math.round((s.gl[72] || 0) + eventShopOwned(33));
+  const expectedM = Math.round(s.gl[91] || 0);
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+  const expectedR = mOwned - expectedK - expectedM;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const nextType = (m.type + 1 + attempt) % 3;
+    let used = 0;
+    for (const om of s.md) { if (om !== m && om.type === nextType) used++; }
+    const limit = nextType === 0 ? expectedR : nextType === 1 ? expectedM : expectedK;
+    if (used < limit) {
+      m.type = nextType;
+      break;
+    }
+  }
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+function _dtAddMagToSlot(slotIdx) {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+  const mMax = magMaxForLevel(s.rLv);
+  let slotCount = 0, totalPlaced = 0;
+  for (const m of s.md) {
+    if (m.slot >= 0) totalPlaced++;
+    if (m.slot === slotIdx) slotCount++;
+  }
+  if (slotCount >= mMax || totalPlaced >= mOwned) return;
+  for (const m of s.md) {
+    if (m.slot < 0) {
+      m.slot = slotIdx;
+      _dtRecalcExpHr();
+      _dtRenderModal();
+      return;
+    }
+  }
+}
+
+function _dtRemoveMagFromSlot(slotIdx) {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  for (let i = s.md.length - 1; i >= 0; i--) {
+    if (s.md[i].slot === slotIdx) {
+      s.md[i].slot = -1;
+      _dtRecalcExpHr();
+      _dtRenderModal();
+      return;
+    }
+  }
+}
+
+// ===== SAVE CHANGES (update in-place, then advance or resim) =====
+function _dtSaveChanges() {
+  if (!_dtEditState || _dtModalNodeId === null) return;
+  const node = _dtGetNode(_dtModalNodeId);
+  if (!node) return;
+  const s = _dtEditState;
+
+  // Start node: never edited in-place — always fork a new branch
+  if (node.event === 'start') {
+    const editState = {
+      gl: s.gl.slice(), so: s.so.slice(), md: s.md.map(m => ({...m})),
+      il: s.il.slice(), ip: s.ip.slice(), occ: s.occ.slice(),
+      sp: s.sp.map(sp => ({...sp})),
+      rLv: s.rLv, rExp: s.rExp, expHr: s.expHr,
+    };
+    // Decision child captures user's edits at t=0
+    const decNode = _dtCreateNode(node.id, 'decision', 0, editState);
+    decNode.autoInsight = node.autoInsight; // propagate toggle to decision node
+    // Sim forward from that decision
+    if (decNode.autoInsight) {
+      const finalNode = _dtAdvanceAutoInsight(decNode);
+      if (!finalNode) {
+        alert('Could not advance (sim did not find a research level-up within limit).');
+        _dtRenderTree();
+        return;
+      }
+      _dtRenderTree();
+      _dtOpenModal(finalNode.id);
+      return;
+    }
+    const simState = {
+      gl: editState.gl.slice(), so: editState.so.slice(),
+      md: editState.md.map(m => ({...m})), il: editState.il.slice(),
+      ip: editState.ip.slice(), occ: editState.occ.slice(),
+      sp: editState.sp.map(sp => ({...sp})),
+      rLv: editState.rLv, rExp: editState.rExp, expHr: editState.expHr,
+    };
+    const result = _dtStepSim(simState);
+    if (!result) {
+      alert('Could not advance (sim did not find an event within limit).');
+      _dtRenderTree();
+      return;
+    }
+    const eventNode = _dtCreateNode(decNode.id, result.event, result.time, result.state);
+    _dtRenderTree();
+    _dtOpenModal(eventNode.id);
+    return;
+  }
+
+  // Update current node's state in-place
+  node.baseState = {
+    gl: s.gl.slice(), so: s.so.slice(), md: s.md.map(m => ({...m})),
+    il: s.il.slice(), ip: s.ip.slice(), occ: s.occ.slice(),
+    sp: s.sp.map(sp => ({...sp})),
+  };
+  node.rLv = s.rLv;
+  node.rExp = s.rExp;
+  node.expHr = s.expHr;
+
+  const children = _dtGetChildren(node.id);
+  if (children.length === 0) {
+    // No children yet → auto-advance: sim to next event, create child, open it
+    if (node.autoInsight) {
+      // Auto-insight: loop through insight-ups, create hidden nodes, stop at research level-up
+      const finalNode = _dtAdvanceAutoInsight(node);
+      if (!finalNode) {
+        alert('Could not advance (sim did not find a research level-up within limit).');
+        _dtRenderTree();
+        return;
+      }
+      _dtRenderTree();
+      _dtOpenModal(finalNode.id);
+    } else {
+      const simState = {
+        gl: node.baseState.gl.slice(), so: node.baseState.so.slice(),
+        md: node.baseState.md.map(m => ({...m})), il: node.baseState.il.slice(),
+        ip: node.baseState.ip.slice(), occ: node.baseState.occ.slice(),
+        sp: node.baseState.sp.map(sp => ({...sp})),
+        rLv: node.rLv, rExp: node.rExp, expHr: node.expHr,
+      };
+      const result = _dtStepSim(simState);
+      if (!result) {
+        alert('Could not advance (sim did not find an event within limit).');
+        _dtRenderTree();
+        return;
+      }
+      const newNode = _dtCreateNode(node.id, result.event, result.time, result.state);
+      _dtRenderTree();
+      _dtOpenModal(newNode.id);
+    }
+  } else {
+    // Has children → re-sim all descendants
+    _dtResimChildrenOf(node);
+    _dtRenderTree();
+    _dtRenderModal();
+  }
+}
+
+// Compute changes between a node and its parent
+function _dtComputeChanges(node) {
+  if (!node || node.parentId === null) return [];
+  const parent = _dtGetNode(node.parentId);
+  if (!parent) return [];
+  const changes = [];
+  const pgl = parent.baseState.gl, ngl = node.baseState.gl;
+  // Grid changes
+  const gridChanges = [];
+  for (const idx of Object.keys(RES_GRID_RAW)) {
+    const i = Number(idx);
+    const pv = pgl[i] || 0, nv = ngl[i] || 0;
+    if (nv !== pv) {
+      const name = RES_GRID_RAW[i][0].replace(/_/g, ' ');
+      gridChanges.push(`${name} ${pv}\u2192${nv}`);
+    }
+  }
+  if (gridChanges.length > 0) changes.push('Grid: ' + gridChanges.join(', '));
+  // Mag changes: count by slot+type
+  const magKey = (md) => {
+    const m = {};
+    for (const mag of md) { const k = mag.slot + ':' + mag.type; m[k] = (m[k]||0)+1; }
+    return m;
+  };
+  const pmk = magKey(parent.baseState.md), nmk = magKey(node.baseState.md);
+  const allMagKeys = new Set([...Object.keys(pmk), ...Object.keys(nmk)]);
+  let magDiffs = 0;
+  for (const k of allMagKeys) { if ((pmk[k]||0) !== (nmk[k]||0)) magDiffs++; }
+  if (magDiffs > 0) changes.push(`Mags: ${magDiffs} change${magDiffs>1?'s':''}`);
+  // Shape changes
+  const psp = parent.baseState.sp, nsp = node.baseState.sp;
+  let shapeDiffs = 0;
+  for (let i = 0; i < Math.max(psp.length, nsp.length); i++) {
+    const ps = psp[i] || {}, ns = nsp[i] || {};
+    if (ps.x !== ns.x || ps.y !== ns.y || ps.rot !== ns.rot) shapeDiffs++;
+  }
+  if (shapeDiffs > 0) changes.push(`Shapes: ${shapeDiffs} moved`);
+  return changes;
+}
+
+// ===== COMPARISON =====
+function _dtToggleCompare(nodeId) {
+  if (_dtCompareSet.has(nodeId)) _dtCompareSet.delete(nodeId);
+  else _dtCompareSet.add(nodeId);
+  _dtRenderTree();
+  _dtRenderComparison();
+}
+
+function _dtRenderComparison() {
+  const panel = document.getElementById('dt-comparison');
+  const body = document.getElementById('dt-comparison-body');
+  if (_dtCompareSet.size < 1) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  const nodes = [..._dtCompareSet].map(id => _dtGetNode(id)).filter(Boolean);
+  let html = '<div style="display:grid;grid-template-columns:repeat(' + Math.min(nodes.length, 4) + ',1fr);gap:10px;">';
+  for (const n of nodes) {
+    const totalTime = _dtGetTotalTime(n);
+    const brColor = _DT_BRANCH_COLORS[n._branchIdx % _DT_BRANCH_COLORS.length];
+    const avail = _dtGridPointsAvail(n.baseState.gl, n.rLv);
+    const changes = _dtComputeChanges(n);
+    html += `<div style="background:#1a1a2e;border:2px solid ${brColor};border-radius:8px;padding:12px;">`;
+    html += `<div style="color:${brColor};font-weight:700;margin-bottom:6px;">Node #${n.id} <span style="color:var(--text2);font-weight:400;font-size:.8em;">${n.event}</span></div>`;
+    html += `<div style="font-size:.85em;">`;
+    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Level</span><b style="color:var(--gold);">${n.rLv}</b></div>`;
+    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">EXP/hr</span><b style="color:var(--green);">${fmtVal(n.expHr)}</b></div>`;
+    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Time</span><b>${fmtTime(totalTime)}</b></div>`;
+    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Grid pts avail</span><b style="color:var(--gold);">${avail}</b></div>`;
+    if (changes.length > 0) {
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #333;">`;
+      for (const c of changes) html += `<div style="color:#ffa726;font-size:.82em;">\u270F ${c}</div>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+    html += `<div style="display:flex;gap:4px;margin-top:8px;">`;
+    html += `<button class="btn btn-sm" style="background:#335;flex:1;" onclick="_dtOpenModal(${n.id})">Open</button>`;
+    html += `<button class="btn btn-sm" style="background:#f44336;flex:1;" onclick="_dtDeleteNode(${n.id});_dtRenderComparison()">Delete</button>`;
+    html += `<button class="btn btn-sm" style="background:#444;flex:1;" onclick="_dtToggleCompare(${n.id})">Remove</button>`;
+    html += `</div>`;
+    html += `</div>`;
+  }
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+// ===== DELETE NODE + DESCENDANTS =====
+function _dtDeleteNode(nodeId) {
+  const targetId = nodeId != null ? nodeId : _dtModalNodeId;
+  if (targetId === null) return;
+  const node = _dtGetNode(targetId);
+  if (!node || node.parentId === null) return; // can't delete root
+
+  // Collect all descendant IDs
+  const toDelete = new Set();
+  function collect(id) {
+    toDelete.add(id);
+    const n = _dtGetNode(id);
+    if (n) for (const cid of n.childIds) collect(cid);
+  }
+  collect(node.id);
+
+  // Remove from parent's childIds
+  const parent = _dtGetNode(node.parentId);
+  if (parent) parent.childIds = parent.childIds.filter(cid => !toDelete.has(cid));
+
+  // Remove from compare set
+  for (const id of toDelete) _dtCompareSet.delete(id);
+
+  // Remove from nodes array
+  for (let i = _dtNodes.length - 1; i >= 0; i--) {
+    if (toDelete.has(_dtNodes[i].id)) _dtNodes.splice(i, 1);
+  }
+
+  // If the deleted node was being edited, open parent instead
+  if (_dtModalNodeId !== null && toDelete.has(_dtModalNodeId)) {
+    _dtCloseModal();
+    if (parent) _dtOpenModal(parent.id);
+  }
+  _dtRenderTree();
+  _dtRenderComparison();
+}
+
+// ===== RE-SIM DOWNSTREAM (helper) =====
+function _dtResimChildrenOf(parentNode) {
+  for (const childId of parentNode.childIds) {
+    const child = _dtGetNode(childId);
+    if (!child) continue;
+    const parentState = {
+      gl: parentNode.baseState.gl.slice(),
+      so: parentNode.baseState.so.slice(),
+      md: parentNode.baseState.md.map(m => ({...m})),
+      il: parentNode.baseState.il.slice(),
+      ip: parentNode.baseState.ip.slice(),
+      occ: parentNode.baseState.occ.slice(),
+      sp: parentNode.baseState.sp.map(sp => ({...sp})),
+      rLv: parentNode.rLv,
+      rExp: parentNode.rExp,
+      expHr: parentNode.expHr,
+    };
+    const result = _dtStepSim(parentState);
+    if (result) {
+      child.event = result.event;
+      child.time = result.time;
+      child.rLv = result.state.rLv;
+      child.rExp = result.state.rExp;
+
+      // If this is an auto-insight child, reapply monocle optimization
+      if (child._autoInsightChild) {
+        const mMax = magMaxForLevel(result.state.rLv);
+        result.state.md = chooseMonoTargets(
+          result.state.md, result.state.il, result.state.ip, result.state.occ,
+          result.state.gl, result.state.so, mMax, 72, result.state.rLv
+        );
+        const ctx = { abm: calcAllBonusMulti(result.state.gl), c52: comp52TrueMulti };
+        result.state.expHr = simTotalExpWith(
+          result.state.gl, result.state.so, result.state.md, result.state.il,
+          result.state.occ, result.state.rLv, ctx
+        );
+      }
+
+      child.expHr = result.state.expHr;
+      child.baseState = {
+        gl: result.state.gl.slice(), so: result.state.so.slice(),
+        md: result.state.md.map(m => ({...m})), il: result.state.il.slice(),
+        ip: result.state.ip.slice(), occ: result.state.occ.slice(),
+        sp: result.state.sp.map(sp => ({...sp})),
+      };
+    }
+    _dtResimChildrenOf(child);
+  }
+}
+
+// ===== RESET =====
+function _dtReset() {
+  _dtNodes.length = 0;
+  _dtNextId = 1;
+  _dtCompareSet.clear();
+  _dtCloseModal();
+  document.getElementById('dt-detail').style.display = 'none';
+  document.getElementById('dt-tree-wrap').style.display = 'none';
+  document.getElementById('dt-comparison').style.display = 'none';
+  _dtTreePan = { x: 0, y: 0 };
+  _dtTreeZoom = 1;
+  const tc = document.getElementById('dt-tree-canvas');
+  if (tc) _dtApplyTreeTransform(tc);
+  _dtUpdateZoomLabel();
+}
+
+// ===== BRANCH =====
+// Creates a sibling copy of the current node (same event, same time),
+// applies the current edit state, sims forward to the next event,
+// then reverts the original node and opens the sim result.
+function _dtBranch() {
+  if (!_dtEditState || _dtModalNodeId === null) return;
+  const node = _dtGetNode(_dtModalNodeId);
+  if (!node || node.parentId === null) return; // can't branch from root
+  const parent = _dtGetNode(node.parentId);
+  if (!parent) return;
+  const s = _dtEditState;
+
+  // Create a sibling copy of the current node with the edit state applied
+  const forkState = {
+    gl: s.gl.slice(), so: s.so.slice(),
+    md: s.md.map(m => ({...m})), il: s.il.slice(),
+    ip: s.ip.slice(), occ: s.occ.slice(),
+    sp: s.sp.map(sp => ({...sp})),
+    rLv: s.rLv, rExp: s.rExp, expHr: s.expHr,
+  };
+  const newNode = _dtCreateNode(parent.id, node.event, node.time, forkState);
+  newNode.autoInsight = node.autoInsight;
+
+  // Sim forward from the sibling to find next event
+  if (newNode.autoInsight) {
+    const finalNode = _dtAdvanceAutoInsight(newNode);
+    if (!finalNode) {
+      alert('Could not advance (sim did not find a research level-up within limit).');
+      _dtOpenModal(node.id);
+      _dtRenderTree();
+      _dtOpenModal(newNode.id);
+      return;
+    }
+    _dtOpenModal(node.id);
+    _dtRenderTree();
+    _dtOpenModal(finalNode.id);
+    return;
+  }
+  const simState = {
+    gl: forkState.gl.slice(), so: forkState.so.slice(),
+    md: forkState.md.map(m => ({...m})), il: forkState.il.slice(),
+    ip: forkState.ip.slice(), occ: forkState.occ.slice(),
+    sp: forkState.sp.map(sp => ({...sp})),
+    rLv: forkState.rLv, rExp: forkState.rExp, expHr: forkState.expHr,
+  };
+  const result = _dtStepSim(simState);
+  if (!result) {
+    alert('Could not advance (sim did not find an event within limit).');
+    _dtOpenModal(node.id);
+    _dtRenderTree();
+    _dtOpenModal(newNode.id);
+    return;
+  }
+  const eventNode = _dtCreateNode(newNode.id, result.event, result.time, result.state);
+
+  // Revert current node, render, then open the sim result
+  _dtOpenModal(node.id);
+  _dtRenderTree();
+  _dtOpenModal(eventNode.id);
+}
+
+// ===== START =====
+function _dtStart() {
+  _dtReset();
+  const initState = _dtBuildInitState();
+  const root = _dtCreateNode(null, 'start', 0, initState);
+  _dtRenderTree();
+  _dtOpenModal(root.id);
+}
+
+// Auto-optimize mags for current edit state
+async function _dtAutoOptMags() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const origABM = allBonusMulti;
+  allBonusMulti = calcAllBonusMulti(s.gl);
+  try {
+    const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv);
+    const mMax = magMaxForLevel(s.rLv);
+    const optimized = await optimizeMagsFor(s.gl, s.so, s.md, s.il, s.occ, mOwned, mMax, s.rLv);
+    s.md = optimized;
+    s.md = chooseMonoTargets(s.md, s.il, s.ip, s.occ, s.gl, s.so, mMax, 72, s.rLv);
+  } finally { allBonusMulti = origABM; }
+  _dtRecalcExpHr();
+  _dtRenderModal();
+}
+
+// Auto-optimize shapes for current edit state
+function _dtAutoOptShapes() {
+  if (!_dtEditState) return;
+  const s = _dtEditState;
+  const origABM = allBonusMulti;
+  allBonusMulti = calcAllBonusMulti(s.gl);
+  try {
+    const result = optimizeShapesFor(s.gl, s.so, undefined, s.rLv, s.md, s.il, s.occ);
+    s.so = result.overlay;
+    s.sp = result.positions;
+  } finally { allBonusMulti = origABM; }
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 
@@ -6983,6 +9181,12 @@ let _optWorker = null;
 
 let _optReject = null;
 function _snapshotState() {
+  // Eagerly build coverage LUT if not yet cached, so workers receive it pre-built
+  const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
+  if (_covLUTCacheN !== numShapes && numShapes > 0) {
+    _covLUTCache = buildCoverageLUT(numShapes);
+    _covLUTCacheN = numShapes;
+  }
   return {
     research: research,
     gridLevels: gridLevels.slice(),
@@ -7042,6 +9246,8 @@ function _snapshotState() {
     cachedExtPctExSticker: cachedExtPctExSticker,
     cachedFailedRolls: cachedFailedRolls,
     shapeTiers: { above: shapeTiers.above.slice(), below: shapeTiers.below.slice() },
+    _covLUT: _covLUTCache,
+    _covLUTN: _covLUTCacheN,
   };
 }
 
@@ -7123,6 +9329,7 @@ function _restoreState(s) {
   cachedComp0DivOk = s.cachedComp0DivOk || false;
   cachedFailedRolls = s.cachedFailedRolls || 0;
   if (s.shapeTiers) { shapeTiers.above = s.shapeTiers.above || []; shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])]; }
+  if (s._covLUT && s._covLUTN >= 0) { _covLUTCache = s._covLUT; _covLUTCacheN = s._covLUTN; }
 }
 onmessage = async function(e) {
   var d = e.data;
@@ -7353,7 +9560,18 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'insight-roi') renderInsightROI();
     if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
     if (tab.dataset.tab === 'shape-opt') renderUpgradeEval();
+    if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (_dtNodes.length === 0) _dtStart(); }
   });
+});
+
+function _dtSizeViewport() {
+  const sizer = document.getElementById('dt-viewport-sizer');
+  if (!sizer) return;
+  const top = sizer.getBoundingClientRect().top;
+  sizer.style.height = (window.innerHeight - top) + 'px';
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('tab-sandbox')?.classList.contains('active')) _dtSizeViewport();
 });
 
 // Optimizer mode toggle
@@ -7369,6 +9587,19 @@ document.getElementById('opt-mode-hours')?.addEventListener('click', () => {
   document.getElementById('opt-target-level-wrap').style.display = 'none';
   document.getElementById('opt-target-hours-wrap').style.display = '';
 });
+
+// Beam width toggle
+let _selectedBeamWidth = 5;
+document.querySelectorAll('.opt-beam-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.opt-beam-btn').forEach(b => b.style.opacity = '.5');
+    btn.style.opacity = '1';
+    _selectedBeamWidth = parseInt(btn.dataset.beam) || 5;
+  });
+});
+function _getSelectedBeamWidth() {
+  return _selectedBeamWidth;
+}
 
 // Optimizer run button
 let _optRunning = false;
@@ -7409,6 +9640,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   try {
     const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
     const extendInsightLA = !!document.getElementById('opt-insight-la')?.checked;
+    const beamWidth = _getSelectedBeamWidth();
     let _prevT = performance.now(), _prevFrac = 0, _emaRate = 0;
     const result = await _runOptimizerViaWorker(target, (done, total, msg) => {
       const frac = done / total;
@@ -7430,7 +9662,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
         else eta = ' \u2014 ETA ' + (remaining / 3600).toFixed(1) + 'h';
       }
       progText.textContent = (msg || `${pct}%`) + eta;
-    }, { assumeObs, extendInsightLA });
+    }, { assumeObs, extendInsightLA, beamWidth });
     progBar.style.width = '100%';
     progText.textContent = 'Done!';
     renderOptimizerResults(result);
@@ -7449,26 +9681,49 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   }
 });
 
-// Sandbox buttons
-document.getElementById('sb-add-scenario')?.addEventListener('click', () => {
-  addSandboxScenario();
+// Decision Tree buttons
+// dt-reset handler is now inline onclick on the button inside dt-tree-wrap
+document.getElementById('dt-save')?.addEventListener('click', () => _dtSaveChanges());
+document.getElementById('dt-branch')?.addEventListener('click', () => _dtBranch());
+document.getElementById('dt-compare-clear')?.addEventListener('click', () => {
+  _dtCompareSet.clear();
+  _dtRenderTree();
+  _dtRenderComparison();
 });
-document.getElementById('sb-import-optimizer')?.addEventListener('click', () => {
-  if (_optimizerResult) {
-    const best = _optimizerResult.best;
-    const finalConfig = best.phases[best.phases.length - 1]?.config;
-    if (finalConfig) {
-      addSandboxScenario('From Optimizer', {
-        gridLevels: finalConfig.gl,
-        shapeOverlay: finalConfig.so,
-        insightLvs: finalConfig.il,
-      });
-    }
+document.getElementById('dt-delete')?.addEventListener('click', () => _dtDeleteNode());
+document.getElementById('dt-shape-optimize')?.addEventListener('click', () => _dtAutoOptShapes());
+document.getElementById('dt-mag-optimize')?.addEventListener('click', () => _dtAutoOptMags());
+document.getElementById('dt-grid-mode-pill')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.dt-mode-btn');
+  if (!btn) return;
+  _dtGridMode = btn.dataset.mode;
+  document.querySelectorAll('#dt-grid-mode-pill .dt-mode-btn').forEach(b => {
+    const active = b.dataset.mode === _dtGridMode;
+    b.style.background = active ? (_dtGridMode === 'upgrades' ? 'var(--gold)' : 'var(--purple)') : '#222';
+    b.style.color = active ? '#000' : '#888';
+    b.style.fontWeight = active ? '600' : '400';
+  });
+  // Hide shape popup when switching to upgrades
+  if (_dtGridMode === 'upgrades') {
+    const popup = document.getElementById('dt-shape-rotate-popup');
+    if (popup) popup.style.display = 'none';
   }
 });
-document.getElementById('sb-run-all')?.addEventListener('click', () => {
-  runSandboxScenarios();
+document.getElementById('dt-shape-opacity')?.addEventListener('input', (e) => {
+  _dtShapeOpacity = parseInt(e.target.value) / 100;
+  _dtRenderGridCanvas();
 });
+{
+  const wrap = document.getElementById('dt-tree-wrap');
+  if (wrap) {
+    wrap.addEventListener('pointerdown', _dtTreeMouseDown);
+    wrap.addEventListener('pointermove', _dtTreeMouseMove);
+    wrap.addEventListener('pointerup', _dtTreeMouseUp);
+    wrap.addEventListener('pointerleave', _dtTreeMouseLeave);
+    wrap.addEventListener('wheel', _dtTreeWheel, { passive: false });
+  }
+}
+
 
 // Initial render
 renderAll();
