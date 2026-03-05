@@ -5992,7 +5992,6 @@ function _dtAdvanceAutoInsight(parentNode) {
 
     // insight-up: create hidden intermediate, apply monocle reopt, continue
     const mMax = magMaxForLevel(result.state.rLv);
-    const prevMD = result.state.md.map(m => ({...m}));
 
     // Figure out which obs leveled up (compare to curState before this step)
     const insightChanges = [];
@@ -6742,9 +6741,10 @@ function _dtRenderModal() {
   const autoInsBtn = document.getElementById('dt-auto-insight');
   if (delBtn) delBtn.style.display = node.parentId === null ? 'none' : '';
   if (branchBtn) branchBtn.style.display = node.event === 'start' ? 'none' : '';
-  // Show auto-insight toggle only for leaves (nodes that will advance)
+  // Show auto-insight toggle only for leaves (nodes that will advance) or nodes with auto-insight chains
   const isLeaf = _dtGetChildren(node.id).length === 0;
-  if (autoInsBtn) autoInsBtn.style.display = (isLeaf || node.event === 'start') ? '' : 'none';
+  const hasAutoChain = _dtGetChildren(node.id).some(c => c._autoInsightChild);
+  if (autoInsBtn) autoInsBtn.style.display = (isLeaf || node.event === 'start' || hasAutoChain) ? '' : 'none';
   _dtUpdateAutoInsightBtn(node);
   if (saveBtn) {
     if (node.event === 'start') {
@@ -7733,6 +7733,7 @@ function _dtSaveChanges() {
   } else {
     // Has children → re-sim all descendants
     _dtResimChildrenOf(node);
+    _dtRebuildInsightTimelines();
     _dtRenderTree();
     _dtRenderModal();
   }
@@ -7862,9 +7863,77 @@ function _dtDeleteNode(nodeId) {
 
 // ===== RE-SIM DOWNSTREAM (helper) =====
 function _dtResimChildrenOf(parentNode) {
-  for (const childId of parentNode.childIds) {
+  // Copy childIds since auto-insight rebuild may modify the array
+  const origChildIds = parentNode.childIds.slice();
+  for (const childId of origChildIds) {
     const child = _dtGetNode(childId);
     if (!child) continue;
+
+    if (child._autoInsightChild) {
+      // Auto-insight chain detected — tear down and rebuild so node count/events stay correct
+      // 1. Walk the chain to collect all hidden nodes + the final visible node
+      const chainIds = [];
+      let cur = child;
+      while (cur && cur._autoInsightChild) {
+        chainIds.push(cur.id);
+        const kids = _dtGetChildren(cur.id);
+        cur = kids.length > 0 ? kids[0] : null;
+      }
+      // cur = final visible node at end of chain (or null if chain ends abruptly)
+      let savedChildIds = [];
+      if (cur) {
+        chainIds.push(cur.id);
+        savedChildIds = cur.childIds.slice();
+      }
+      // 2. Clean up compare set for deleted nodes
+      const chainSet = new Set(chainIds);
+      for (const cid of chainIds) _dtCompareSet.delete(cid);
+      // 3. Remove chain start from parent's childIds
+      parentNode.childIds = parentNode.childIds.filter(id => id !== childId);
+      // 4. Remove all chain nodes from _dtNodes
+      for (let i = _dtNodes.length - 1; i >= 0; i--) {
+        if (chainSet.has(_dtNodes[i].id)) _dtNodes.splice(i, 1);
+      }
+      // 5. Rebuild chain if auto-insight still enabled, otherwise single normal step
+      let newTail = null;
+      if (parentNode.autoInsight) {
+        newTail = _dtAdvanceAutoInsight(parentNode);
+      } else {
+        // Auto-insight was turned off — replace chain with a single sim step
+        const ps = {
+          gl: parentNode.baseState.gl.slice(), so: parentNode.baseState.so.slice(),
+          md: parentNode.baseState.md.map(m => ({...m})), il: parentNode.baseState.il.slice(),
+          ip: parentNode.baseState.ip.slice(), occ: parentNode.baseState.occ.slice(),
+          sp: parentNode.baseState.sp.map(sp => ({...sp})),
+          rLv: parentNode.rLv, rExp: parentNode.rExp, expHr: parentNode.expHr,
+        };
+        const r = _dtStepSim(ps);
+        if (r) newTail = _dtCreateNode(parentNode.id, r.event, r.time, r.state);
+      }
+      // 6. Re-attach saved children to the new tail node and continue resimming
+      if (newTail && savedChildIds.length > 0) {
+        for (const scId of savedChildIds) {
+          const sc = _dtGetNode(scId);
+          if (sc) sc.parentId = newTail.id;
+        }
+        newTail.childIds.push(...savedChildIds);
+        _dtResimChildrenOf(newTail);
+      } else if (!newTail && savedChildIds.length > 0) {
+        // Fallback: re-attach to parent and resim normally
+        for (const scId of savedChildIds) {
+          const sc = _dtGetNode(scId);
+          if (sc) sc.parentId = parentNode.id;
+        }
+        parentNode.childIds.push(...savedChildIds);
+        for (const scId of savedChildIds) {
+          const sc = _dtGetNode(scId);
+          if (sc) _dtResimChildrenOf(sc);
+        }
+      }
+      continue;
+    }
+
+    // Normal resim for non-auto-insight children
     const parentState = {
       gl: parentNode.baseState.gl.slice(),
       so: parentNode.baseState.so.slice(),
@@ -7883,21 +7952,6 @@ function _dtResimChildrenOf(parentNode) {
       child.time = result.time;
       child.rLv = result.state.rLv;
       child.rExp = result.state.rExp;
-
-      // If this is an auto-insight child, reapply monocle optimization
-      if (child._autoInsightChild) {
-        const mMax = magMaxForLevel(result.state.rLv);
-        result.state.md = chooseMonoTargets(
-          result.state.md, result.state.il, result.state.ip, result.state.occ,
-          result.state.gl, result.state.so, mMax, 72, result.state.rLv
-        );
-        const ctx = { abm: calcAllBonusMulti(result.state.gl), c52: comp52TrueMulti };
-        result.state.expHr = simTotalExpWith(
-          result.state.gl, result.state.so, result.state.md, result.state.il,
-          result.state.occ, result.state.rLv, ctx
-        );
-      }
-
       child.expHr = result.state.expHr;
       child.baseState = {
         gl: result.state.gl.slice(), so: result.state.so.slice(),
@@ -7907,6 +7961,40 @@ function _dtResimChildrenOf(parentNode) {
       };
     }
     _dtResimChildrenOf(child);
+  }
+}
+
+// Rebuild insightTimeline on a node by walking back through its auto-insight ancestors
+function _dtRebuildInsightTimelines() {
+  for (const node of _dtNodes) {
+    if (node._autoInsightChild || !node.insightTimeline) continue;
+    // Walk backwards to collect the auto-insight chain
+    const chain = [];
+    let cur = node;
+    while (cur.parentId !== null) {
+      const p = _dtGetNode(cur.parentId);
+      if (p && p._autoInsightChild) { chain.unshift(p); cur = p; }
+      else break;
+    }
+    if (chain.length === 0) { node.insightTimeline = null; continue; }
+    // cur is now the first auto-insight child; its parent is the chain origin
+    const originParent = cur.parentId !== null ? _dtGetNode(cur.parentId) : null;
+    let prevILArr = originParent ? originParent.baseState.il : [];
+    const timeline = [];
+    let cumT = 0;
+    for (const cn of chain) {
+      cumT += cn.time;
+      for (let i = 0; i < cn.baseState.il.length; i++) {
+        const prev = prevILArr[i] || 0;
+        const now = cn.baseState.il[i] || 0;
+        if (now > prev) {
+          const monoTargets = [...new Set(cn.baseState.md.filter(m => m.type === 1 && m.slot >= 0).map(m => m.slot))];
+          timeline.push({ time: cumT, obs: i, prevIL: prev, newIL: now, monoTargets, expHr: cn.expHr });
+        }
+      }
+      prevILArr = cn.baseState.il;
+    }
+    node.insightTimeline = timeline.length > 0 ? timeline : null;
   }
 }
 
@@ -8023,6 +8111,13 @@ function _dtAutoOptShapes() {
     const result = optimizeShapesFor(s.gl, s.so, undefined, s.rLv, s.md, s.il, s.occ);
     s.so = result.overlay;
     s.sp = result.positions;
+    // Ensure unplaced shapes still have a position on the board (stacked at top-left)
+    const numOwned = Math.min(computeShapesOwnedAt(s.rLv), SHAPE_VERTICES.length, 10);
+    for (let si = 0; si < numOwned; si++) {
+      if (!s.sp[si] || s.sp[si].x == null) {
+        s.sp[si] = { x: 0, y: si * 5, rot: 0 };
+      }
+    }
   } finally { allBonusMulti = origABM; }
   _dtRecalcExpHr();
   _dtRenderModal();
