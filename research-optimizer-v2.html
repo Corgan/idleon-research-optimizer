@@ -443,6 +443,7 @@ h1 span { color: var(--accent); }
     </div>
   </div>
 </div>
+</div>
 
 <!-- ===== INSIGHT ROI TAB ===== -->
 <div id="tab-insight-roi" class="tab-content">
@@ -4643,7 +4644,7 @@ function _gbNode(idx, label, opts) {
     ], { fmt: '%' }),
     _bNode('Shape Bonus' + (hasShape ? ' (' + SHAPE_NAMES[si] + ')' : ''), shapeMult, null, { fmt: 'x', note: hasShape ? '' : 'No shape' }),
     _bNode('All Bonus Multi', allBonusMulti, [
-      _bNode('Jellofish', comp55val, null, { fmt: '%' }),
+      _bNode('Pirate Deckhand', comp55val, null, { fmt: '%' }),
       _bNode('Grid ' + gridCoord(173) + ': Divine Design', comp0val, null, { fmt: '%', note: comp0owned ? (cachedComp0DivOk ? ((gridLevels[173]||0) > 0 ? '' : 'Node LV 0') : 'Doot divine < 2') : 'Doot not owned' })
     ], { fmt: 'x' })
   ], opts);
