@@ -444,7 +444,7 @@ h1 span { color: var(--accent); }
   </div>
 </div>
 </div>
- 
+
 <!-- ===== INSIGHT ROI TAB ===== -->
 <div id="tab-insight-roi" class="tab-content">
   <div style="text-align:center;margin:12px 16px 0;"><span style="display:inline-block;background:#4a3800;border:1px solid var(--gold);border-radius:6px;padding:6px 12px;font-size:.85em;color:var(--gold);">&#9888; WIP &mdash; These estimates are experimental. Use your best judgement!</span></div>
@@ -1695,6 +1695,12 @@ function computeGambitPTSmulti() {
 
 function computeExternalBonuses() {
   const b = {};
+
+  // Compute allBonusMulti early so getGridBonusFinal calls below use the correct value
+  const _comp55val = companionIds.has(55) ? 15 : 0;
+  const _comp0val = companionIds.has(0) && cachedComp0DivOk && (gridLevels[173] || 0) > 0 ? 5 : 0;
+  allBonusMulti = 1 + (_comp55val + _comp0val) / 100;
+
   // 1. StickerBonus(1) = (1 + (Grid_Bonus(68,2) + 30*EventShop(37))/100) * (1 + 20*SuperBit(62)/100) * R[9][1] * base
   const stkLv = research?.[9]?.[1] || 0;
   const stkBase = STICKER_BASE[1] || 5;
@@ -2041,6 +2047,8 @@ function importState(raw) {
     shapeTiers.above = []; shapeTiers.below = defaultShapeTiers.below.slice();
   }
   _saveShapeTiers();
+  // Rebuild shape overlay from positions (stored overlay may be stale)
+  shapeOverlay = rebuildShapeOverlay(shapePositions);
   updateSaveFormatUI();
   renderAll();
 }
@@ -2237,6 +2245,8 @@ function applySupplements() {
   if (allEl) allEl.checked = [...allCbs].every(cb => cb.checked);
   totalTomePoints = Number(document.getElementById('supp-tome').value) || 0;
   serverVarResXP = Number(document.getElementById('supp-resxp').value) || 1.01;
+  // Rebuild shape overlay (companion 54 affects shapes owned count)
+  shapeOverlay = rebuildShapeOverlay(shapePositions);
   // Recompute derived state (only if real save loaded, not state snapshot)
   if (loadedSaveFormat !== 'state') {
     extBonuses = computeExternalBonuses();
@@ -4707,7 +4717,7 @@ function buildExpBreakdownTree() {
       ]),
       _bNode('Rift Guy Sticker', 30 * evShop37, null, { fmt: '%' })
     ], { fmt: 'x' }),
-    _bNode('Event Shop: Bettah Stickahs', stkSB62, null, { fmt: 'x' }),
+    _bNode('Super Bit: Bettah Stickahs', stkSB62, null, { fmt: 'x' }),
   ], { fmt: '%' }));
 
   // Dancing Coral
