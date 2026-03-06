@@ -4441,6 +4441,11 @@ function _expandSpendable(gl, totalPoints, so, md, il, occ, rLv) {
   return { spendable: spendable, freePoints: freePoints, notice: notice };
 }
 
+function _isSeedCell(idx) {
+  var col = idx % GRID_COLS;
+  return (col === 9 || col === 10) && idx >= 100 && idx <= 140;
+}
+
 // Enumerate all ways to distribute numPoints across spendable squares, respecting max levels.
 function _enumGridCombos(spendable, baseGL, numPoints) {
   var results = [];
@@ -4455,11 +4460,45 @@ function _enumGridCombos(spendable, baseGL, numPoints) {
     if (remaining === 0) {
       var gl = baseGL.slice();
       var steps = [];
+      var newNodes = [];
       for (var i = 0; i < spendable.length; i++) {
         if (alloc[i] > 0) {
           gl[spendable[i]] = (gl[spendable[i]] || 0) + alloc[i];
           for (var r = 0; r < alloc[i]; r++) steps.push(spendable[i]);
+          if ((baseGL[spendable[i]] || 0) === 0) newNodes.push(spendable[i]);
         }
+      }
+      // Validate: every newly-leveled node must be reachable from existing grid.
+      // Flood-fill from seed cells + baseGL owned cells through gl lv>=1 nodes.
+      if (newNodes.length > 0) {
+        var reachable = new Set();
+        var queue = [];
+        for (var si = 0; si < GRID_SIZE; si++) {
+          if ((baseGL[si] || 0) >= 1 || _isSeedCell(si)) {
+            reachable.add(si);
+            queue.push(si);
+          }
+        }
+        while (queue.length > 0) {
+          var cur = queue.pop();
+          var cc = cur % GRID_COLS;
+          var neighbors = [];
+          if (cur >= GRID_COLS) neighbors.push(cur - GRID_COLS);
+          if (cur < GRID_SIZE - GRID_COLS) neighbors.push(cur + GRID_COLS);
+          if (cc > 0) neighbors.push(cur - 1);
+          if (cc < GRID_COLS - 1) neighbors.push(cur + 1);
+          for (var ni = 0; ni < neighbors.length; ni++) {
+            var n = neighbors[ni];
+            if (reachable.has(n)) continue;
+            if (!RES_GRID_RAW[n]) continue;
+            if ((gl[n] || 0) >= 1) { reachable.add(n); queue.push(n); }
+          }
+        }
+        var valid = true;
+        for (var vi = 0; vi < newNodes.length; vi++) {
+          if (!reachable.has(newNodes[vi])) { valid = false; break; }
+        }
+        if (!valid) return;
       }
       results.push({ steps: steps, gl: gl });
       return;
@@ -8509,7 +8548,7 @@ function _fmtLayoutDiff(before, after) {
 }
 
 let _insightROISortMode = 'breakeven'; // 'grindtime' | 'rategain' | 'recoup' | 'breakeven'
-let _insightROIHideFree = false;
+let _insightROIHideFree = true;
 let _insightROIPending = false;
 let _insightROICachedData = null;
 
