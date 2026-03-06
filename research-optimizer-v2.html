@@ -322,15 +322,6 @@ h1 span { color: var(--accent); }
           <input type="checkbox" id="opt-insight-la" checked> Extend lookahead window for insight break-even
         </label>
       </div>
-      <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:.85em;color:var(--text2);">Thoroughness:</span>
-        <div style="display:flex;gap:4px;">
-          <button class="btn btn-sm opt-beam-btn" data-beam="3" style="opacity:.5;font-size:.78em;">Quick (3)</button>
-          <button class="btn btn-sm opt-beam-btn" data-beam="5" style="opacity:1;font-size:.78em;">Normal (5)</button>
-          <button class="btn btn-sm opt-beam-btn" data-beam="10" style="opacity:.5;font-size:.78em;">Thorough (10)</button>
-        </div>
-        <span style="font-size:.75em;color:#666;font-style:italic;">Beam width &mdash; more = slower but better</span>
-      </div>
       <div id="opt-progress" style="display:none;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <div style="flex:1;min-width:120px;height:8px;background:#333;border-radius:4px;overflow:hidden;">
@@ -338,6 +329,7 @@ h1 span { color: var(--accent); }
           </div>
           <span id="opt-progress-text" style="font-size:.8em;color:var(--text2);min-width:200px;"></span>
         </div>
+        <div id="opt-progress-detail" style="font-size:.75em;color:#888;margin-top:2px;min-height:1.2em;white-space:pre;font-family:monospace;"></div>
       </div>
     </div>
 
@@ -2918,10 +2910,8 @@ function simExpOverHorizon(config) {
   // Lightweight sim: total EXP earned over a time horizon.
   // Tracks insight level-ups and their cascading effect on research EXP rate,
   // but does NOT re-optimize shapes, mags, or grid points (avoids recursion).
-  const tickMin = config.tickMinutes || 10;
-  const tickSec = tickMin * 60;
+  // Uses event-driven jumps (jumps directly to next level-up or insight-up).
   const maxHrs = config.target.type === 'hours' ? config.target.value : 1e8;
-  const maxTicks = Math.ceil(maxHrs * 3600 / tickSec);
 
   const gl = config.gridLevels ? config.gridLevels.slice() : gridLevels.slice();
   const so = config.shapeOverlay ? config.shapeOverlay.slice() : shapeOverlay.slice();
@@ -2936,39 +2926,74 @@ function simExpOverHorizon(config) {
   let totalExpEarned = 0;
   let currentTime = 0;
 
-  for (let tick = 0; tick < maxTicks; tick++) {
+  // Collect monocle observatory slots once
+  const monoObs = new Set();
+  for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+  const monoObsArr = Array.from(monoObs);
+
+  const MAX_JUMPS = 50000;
+  for (let jump = 0; jump < MAX_JUMPS; jump++) {
     if (config.target.type === 'level' && rLv >= config.target.value) break;
-    if (config.target.type === 'hours' && currentTime >= config.target.value) break;
+    if (config.target.type === 'hours' && currentTime >= maxHrs - 1e-9) break;
+    if (curExpHr <= 0) break;
 
-    const expPerTick = curExpHr / 3600 * tickSec;
-    rExp += expPerTick;
-    totalExpEarned += expPerTick;
+    // Time to next research level-up
+    const expToNextLv = researchExpReq(rLv) - rExp;
+    const hrsToNextLv = expToNextLv / curExpHr;
 
+    // Time to next insight level-up (any observatory)
+    let hrsToNextInsight = Infinity;
+    for (let oi = 0; oi < monoObsArr.length; oi++) {
+      const obsIdx = monoObsArr[oi];
+      const iRate = insightExpRate(obsIdx, md, il, gl, so);
+      if (iRate <= 0) continue;
+      const iReq = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      const iProgress = ip[obsIdx] || 0;
+      const iHrs = (iReq - iProgress) / iRate;
+      if (iHrs < hrsToNextInsight) hrsToNextInsight = iHrs;
+    }
+
+    // Jump to earliest event, clamped to remaining time
+    let jumpHrs = hrsToNextLv;
+    if (hrsToNextInsight < jumpHrs) jumpHrs = hrsToNextInsight;
+    const remainHrs = maxHrs - currentTime;
+    if (jumpHrs > remainHrs) jumpHrs = remainHrs;
+    if (jumpHrs <= 0) jumpHrs = 1e-9;
+
+    // Advance EXP
+    const expGained = curExpHr * jumpHrs;
+    rExp += expGained;
+    totalExpEarned += expGained;
+    currentTime += jumpHrs;
+
+    // Process research level-ups
     let rLeveledUp = false;
-    while (rExp >= researchExpReq(rLv)) {
+    while (rExp >= researchExpReq(rLv) - 1e-9) {
       rExp -= researchExpReq(rLv);
+      if (rExp < 0) rExp = 0;
       rLv++;
       rLeveledUp = true;
     }
 
+    // Process insight level-ups
     let insightChanged = false;
-    const monoObs = new Set();
-    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
-    for (const obsIdx of monoObs) {
+    for (let oi = 0; oi < monoObsArr.length; oi++) {
+      const obsIdx = monoObsArr[oi];
       const iRate = insightExpRate(obsIdx, md, il, gl, so);
-      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
+      if (iRate <= 0) continue;
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate * jumpHrs;
       let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
-      while (ip[obsIdx] >= req) {
+      while (ip[obsIdx] >= req - 1e-9) {
         ip[obsIdx] -= req;
+        if (ip[obsIdx] < 0) ip[obsIdx] = 0;
         il[obsIdx] = (il[obsIdx] || 0) + 1;
         insightChanged = true;
         req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
       }
     }
 
-    currentTime += tickMin / 60;
-
-    if ((insightChanged && insightAffectsExp(gl, so)) || rLeveledUp) {
+    // Recalculate rate if anything changed
+    if (rLeveledUp || (insightChanged && insightAffectsExp(gl, so))) {
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv);
     }
   }
@@ -3518,15 +3543,17 @@ function _gridPointsAvail(gl, rLv) {
   return Math.max(0, earned - spent);
 }
 
-async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rExp) {
+async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHrs, rExp, onProgress, skipLookahead) {
   let avail = _gridPointsAvail(gl, rLv);
   if (avail <= 0) return { changed: false, so };
 
   const origABM = allBonusMulti;
   let changed = false;
+  let spent = 0;
   while (avail > 0) {
     // Yield to event loop each iteration so UI stays responsive
     await new Promise(r => setTimeout(r, 0));
+    if (onProgress) onProgress({ subStage: 'Spending grid points (' + (spent + 1) + ' of ' + (spent + avail) + ')\u2026' });
 
     // Phase 1: quick filter — score all candidates by immediate EXP/hr, keep top 10
     // Pure ctx — no global ABM mutation needed here
@@ -3534,11 +3561,22 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
     const ctx = { abm: baseAbm, c52: comp52TrueMulti };
     const curRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
     const candidates = [];
+    // Detect EXP-relevant nodes dynamically for current state
+    const _expNodes = _detectExpRelevantNodes(gl, so, md, il, ip, occ, rLv);
     for (const idxStr of Object.keys(RES_GRID_RAW)) {
       const idx = Number(idxStr);
       const info = RES_GRID_RAW[idx];
       if ((gl[idx] || 0) >= info[1]) continue;
       if (!isGridCellUnlocked(idx, gl)) continue;
+      // Only consider EXP-relevant nodes or gateways that unlock EXP-relevant neighbors
+      if (!_expNodes.has(idx)) {
+        var isGateway = false;
+        var newUnlocksCheck = findNewlyUnlockable(idx, gl);
+        for (var nui = 0; nui < newUnlocksCheck.length; nui++) {
+          if (_expNodes.has(newUnlocksCheck[nui])) { isGateway = true; break; }
+        }
+        if (!isGateway) continue;
+      }
       // Find neighbors that would become newly reachable by leveling this node
       const newUnlocks = findNewlyUnlockable(idx, gl);
       gl[idx] = (gl[idx] || 0) + 1;
@@ -3563,24 +3601,43 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
     }
     if (candidates.length === 0) break;
     candidates.sort((a, b) => b.immediateGain - a.immediateGain);
+
+    // Fast path: skip expensive Phase 2 lookahead (used during mid-sim level-ups)
+    if (skipLookahead) {
+      const bestC = candidates[0];
+      if (!bestC || bestC.immediateGain <= 0) break;
+      gl[bestC.idx] = (gl[bestC.idx] || 0) + 1;
+      allBonusMulti = calcAllBonusMulti(gl);
+      if (bestC.idx === 72 || bestC.idx === 91) {
+        const newMOwned = computeMagnifiersOwnedWith(gl, rLv);
+        const curMCount = md.length;
+        if (newMOwned > curMCount) {
+          const newType = bestC.idx === 72 ? 2 : 1;
+          for (let e = 0; e < newMOwned - curMCount; e++) md.push({ x: 0, y: 0, slot: -1, type: newType });
+          const optResult = await optimizeMagsFor(gl, so, md, il, occ, newMOwned, mMax, rLv);
+          md.length = 0;
+          for (const m of optResult) md.push(m);
+        }
+      }
+      so = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ).overlay;
+      avail = _gridPointsAvail(gl, rLv);
+      changed = true;
+      spent++;
+      continue;
+    }
+
     const top = candidates.slice(0, 10);
 
-    // Phase 2: lookahead sim on top candidates using time horizon
-    // Simulates level-ups and spends newly earned grid points during the lookahead
-    // so that EXP-boosting nodes get proper credit for accelerating to the next level.
+    // Phase 2: event-driven lookahead sim on top candidates
+    // Jumps directly between events (level-ups / insight-ups) instead of ticking.
     const laHrs = Math.max(1, Math.min(lookAheadHrs || 2, 168));
-    const MAX_PHASE2_TICKS = 72;
-    const TICK_SEC = Math.max(600, Math.ceil(laHrs * 3600 / MAX_PHASE2_TICKS));
-    const LOOK_TICKS = Math.min(Math.ceil(laHrs * 3600 / TICK_SEC), MAX_PHASE2_TICKS);
     let bestIdx = -1, bestExp = -Infinity;
 
     for (const { idx } of top) {
-      // Clone gl for this candidate since level-ups will mutate it
       const tGL = gl.slice();
       tGL[idx] = (tGL[idx] || 0) + 1;
       const p2Ctx = { ...ctx, abm: calcAllBonusMulti(tGL) };
-      allBonusMulti = p2Ctx.abm; // sync global for deep calls
-      // Run mini forward sim with level-up simulation
+      allBonusMulti = p2Ctx.abm;
       let tIL = il.slice(), tIP = ip.slice();
       let tMD = md.map(m => ({...m}));
       let tSO = optimizeShapesFor(tGL, so, undefined, rLv, tMD, tIL, occ).overlay;
@@ -3591,25 +3648,56 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
       tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
       let tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
       let totalExp = 0;
-      for (let t = 0; t < LOOK_TICKS; t++) {
-        totalExp += tRate / 3600 * TICK_SEC;
-        tRExp += tRate / 3600 * TICK_SEC;
+      let elapsedHrs = 0;
 
-        // Check for level-ups
+      for (let jump = 0; jump < 5000 && elapsedHrs < laHrs; jump++) {
+        if (tRate <= 0) break;
+        // Time to next research level-up
+        const expToLv = researchExpReq(tRLv) - tRExp;
+        let jumpHrs = expToLv / tRate;
+        // Time to next insight level-up
+        const tMonoObs = new Set();
+        for (const m of tMD) { if (m.type === 1 && m.slot >= 0) tMonoObs.add(m.slot); }
+        for (const o of tMonoObs) {
+          const iR = insightExpRate(o, tMD, tIL, tGL, tSO, p2Ctx);
+          if (iR <= 0) continue;
+          const iReq = insightExpReqAt(o, tIL[o] || 0);
+          const iRem = iReq - (tIP[o] || 0);
+          const iHrs = iRem / iR;
+          if (iHrs < jumpHrs) jumpHrs = iHrs;
+        }
+        // Clamp to remaining lookahead
+        if (elapsedHrs + jumpHrs > laHrs) jumpHrs = laHrs - elapsedHrs;
+        if (jumpHrs <= 0) jumpHrs = 1e-9;
+
+        const jumpSec = jumpHrs * 3600;
+        totalExp += tRate / 3600 * jumpSec;
+        tRExp += tRate / 3600 * jumpSec;
+        elapsedHrs += jumpHrs;
+
+        // Advance insight
+        let insUp = false;
+        for (const o of tMonoObs) {
+          const iR = insightExpRate(o, tMD, tIL, tGL, tSO, p2Ctx);
+          if (iR <= 0) continue;
+          tIP[o] = (tIP[o] || 0) + iR / 3600 * jumpSec;
+          let req = insightExpReqAt(o, tIL[o] || 0);
+          while (tIP[o] >= req - 1e-9) { tIP[o] -= req; if (tIP[o] < 0) tIP[o] = 0; tIL[o] = (tIL[o] || 0) + 1; insUp = true; req = insightExpReqAt(o, tIL[o] || 0); }
+        }
+
+        // Check level-ups
         let lvUp = false;
-        while (tRExp >= researchExpReq(tRLv)) {
-          tRExp -= researchExpReq(tRLv);
-          tRLv++;
-          lvUp = true;
+        while (tRExp >= researchExpReq(tRLv) - 1e-9) {
+          tRExp -= researchExpReq(tRLv); if (tRExp < 0) tRExp = 0;
+          tRLv++; lvUp = true;
           const nm = magMaxForLevel(tRLv);
           if (nm > tMMax) tMMax = nm;
         }
         if (lvUp) {
-          // Spend newly earned grid points with tier-aware greedy
           let newAvail = _gridPointsAvail(tGL, tRLv);
           while (newAvail > 0) {
-            const innerCands = [];
             const innerBaseRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
+            let bestQIdx = -1, bestQGain = 0;
             for (const nStr of Object.keys(RES_GRID_RAW)) {
               const ni = Number(nStr);
               if ((tGL[ni] || 0) >= RES_GRID_RAW[ni][1]) continue;
@@ -3617,39 +3705,22 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
               tGL[ni] = (tGL[ni] || 0) + 1;
               const niCtx = { ...p2Ctx, abm: calcAllBonusMulti(tGL) };
               const niRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, niCtx);
-              const niGoal = NODE_GOAL[ni] || '';
-              const niIsExp = !!NODE_GOAL_COLORS[niGoal];
-              innerCands.push({ idx: ni, gain: niRate - innerBaseRate, goal: niGoal, isExp: niIsExp });
+              const gain = niRate - innerBaseRate;
+              if (gain > bestQGain) { bestQGain = gain; bestQIdx = ni; }
               tGL[ni]--;
             }
-            if (innerCands.length === 0) break;
-            innerCands.sort((a, b) => b.gain - a.gain);
-            const bestQIdx = innerCands[0].idx;
-            if (innerCands[0].gain <= 0) break;
+            if (bestQIdx < 0) break;
             tGL[bestQIdx] = (tGL[bestQIdx] || 0) + 1;
             p2Ctx.abm = calcAllBonusMulti(tGL);
             allBonusMulti = p2Ctx.abm;
-            // Grow mag pool if new mags unlocked
             tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
             _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
             newAvail--;
           }
-          // Re-optimize shapes and mags after grid changes from level-up
           tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv, tMD, tIL, occ).overlay;
           tMD = await optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
-          tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
+          tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs - elapsedHrs, tRLv);
           tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
-        }
-
-        // Advance insight
-        let insUp = false;
-        const monoObsL = new Set();
-        for (const m of tMD) { if (m.type === 1 && m.slot >= 0) monoObsL.add(m.slot); }
-        for (const o of monoObsL) {
-          const iR = insightExpRate(o, tMD, tIL, tGL, tSO, p2Ctx);
-          tIP[o] = (tIP[o] || 0) + iR / 3600 * TICK_SEC;
-          let req = insightExpReqAt(o, tIL[o] || 0);
-          while (tIP[o] >= req) { tIP[o] -= req; tIL[o] = (tIL[o] || 0) + 1; insUp = true; req = insightExpReqAt(o, tIL[o] || 0); }
         }
         if (insUp && insightAffectsExp(tGL, tSO)) {
           tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, tGL, tSO, tMMax, tRLv);
@@ -3683,6 +3754,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
     // Recalculate avail (node #50 can grant extra points when upgraded)
     avail = _gridPointsAvail(gl, rLv);
     changed = true;
+    spent++;
   }
   // allBonusMulti left matching final gl state (or origABM if unchanged)
   if (!changed) allBonusMulti = origABM;
@@ -3778,10 +3850,10 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
   const magObsSet = new Set();
   for (const m of md) { if (m.type === 0 && m.slot >= 0) magObsSet.add(m.slot); }
 
-  // Build candidates — any found obs with room for at least 1 monocle
+  // Build candidates — any usable obs with room for at least 1 monocle
   const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
-    if ((occ[i] || 0) < 1) continue;
+    if (!isObsUsable(i, rLv, occ)) continue;
     const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
     const monoRoom = maxPerSlot - inSlotNonMono;
     if (monoRoom < 1) continue;
@@ -3797,9 +3869,9 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
     candidates.push({ obs: i, hrsToLv, monoRoom, hasMag, iRate });
   }
 
-  // Also scan beyond occTBF for any found obs (fallback for edge cases)
+  // Also scan beyond occTBF for any usable obs (fallback for edge cases)
   for (let i = Math.min(occTBF, OCC_DATA.length); i < OCC_DATA.length; i++) {
-    if ((occ[i] || 0) < 1) continue;
+    if (!isObsUsable(i, rLv, occ)) continue;
     const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
     const monoRoom = maxPerSlot - inSlotNonMono;
     if (monoRoom < 1) continue;
@@ -3940,10 +4012,7 @@ function _insightBreakEvenHrs(md, il, ip, gl, so, ctx) {
 }
 
 async function unifiedSim(config) {
-  // config: { target: {type:'level'|'hours', value}, tickMinutes, reoptimize }
-  const tickMin = config.tickMinutes || 10;
-  const tickSec = tickMin * 60;
-  const maxTicks = config.target.type === 'hours' ? Math.ceil(config.target.value * 3600 / tickSec) : 1e9;
+  // config: { target: {type:'level'|'hours', value}, reoptimize }
   // Clone mutable state
   let gl = gridLevels.slice();
   let so = shapeOverlay.slice();
@@ -3986,6 +4055,7 @@ async function unifiedSim(config) {
   // Initial shape optimization (sim-aware: captures insight cascading effects)
   let sp = [];
   if (config.reoptimize !== false) {
+    if (config.onProgress) config.onProgress({ subStage: 'Optimizing shapes\u2026' });
     const shapeResult = optimizeShapesFor(gl, so, {
       target: config.target,
       magData: md.map(m=>({...m})),
@@ -3999,18 +4069,15 @@ async function unifiedSim(config) {
     sp = shapeResult.positions;
   }
 
+  let _initFreePoints = 0;
   if (config.reoptimize !== false) {
-    let initLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, simTotalExpWith(gl, so, md, il, occ, rLv, ctx)), 72);
-    if (_extendInsightLA) {
-      const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
-      if (beHrs > initLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - initLA); initLA = Math.min(beHrs * 1.25, 168); }
-    }
-    so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, initLA, rExp)).so;
-    ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
+    if (config.onProgress) config.onProgress({ subStage: 'Spending grid points\u2026' });
+    var _initSpend = _exhaustiveSpendAtLevel(gl, so, md, il, ip, occ, rLv, mMax, ctx);
+    _initFreePoints = _initSpend.freePoints || 0;
     mOwned = computeMagnifiersOwnedWith(gl, rLv);
-    // Grow md if new mags were earned but not yet tracked (with correct types)
     _growMagPoolTyped(md, gl, rLv, mOwned);
     // Shapes first (so mag scoring sees correct shape overlay)
+    if (config.onProgress) config.onProgress({ subStage: 'Re-optimizing shapes\u2026' });
     const reShapes = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ);
     so = reShapes.overlay;
     sp = reShapes.positions;
@@ -4018,6 +4085,7 @@ async function unifiedSim(config) {
 
   // Assign monocles optimally — use full remaining sim time as lookahead
   if (config.reoptimize !== false) {
+    if (config.onProgress) config.onProgress({ subStage: 'Assigning monocles\u2026' });
     const prelimRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
     let monoLA = Math.min(_estimateRemainingHrs(config, 0, rLv, rExp, prelimRate), 72);
     if (_extendInsightLA) {
@@ -4032,39 +4100,99 @@ async function unifiedSim(config) {
     time: 0, event: 'start', expHr: curExpHr,
     config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
     rLv, rExp,
-    preOptExpHr: config.preOptExpHr || curExpHr
+    preOptExpHr: config.preOptExpHr || curExpHr,
+    freePoints: _initFreePoints
   }];
 
   let currentTime = 0; // hours
+  const maxTime = config.target.type === 'hours' ? config.target.value : 1e9; // hours cap
 
-  for (let tick = 0; tick < maxTicks; tick++) {
-    // Yield to event loop periodically so UI stays responsive
-    if (tick % 200 === 0 && tick > 0) {
+  if (config.onProgress) config.onProgress({ subStage: 'Simulating\u2026', rLv, expHr: curExpHr, currentTime: 0 });
+
+  // Event-driven simulation: instead of ticking every 10 minutes, jump directly to
+  // the next event (research level-up or insight level-up) since EXP rate is constant
+  // between events.  Mathematically identical to the old tick loop, but O(levels)
+  // instead of O(total_minutes / 10).
+  let jumpCount = 0;
+  const MAX_JUMPS = 50000; // safety cap
+  while (jumpCount < MAX_JUMPS) {
+    // Yield periodically
+    if (jumpCount % 40 === 0 && jumpCount > 0) {
       await new Promise(r => setTimeout(r, 0));
-      if (config.onProgress) config.onProgress({ tick, maxTicks, rLv, expHr: curExpHr, currentTime });
+      if (config.onProgress) config.onProgress({ rLv, expHr: curExpHr, currentTime });
     }
+    jumpCount++;
 
-    // Check level target
+    // Check stop conditions
     if (config.target.type === 'level' && rLv >= config.target.value) break;
     if (config.target.type === 'hours' && currentTime >= config.target.value) break;
+    if (curExpHr <= 0) break; // no progress possible
 
-    // Accumulate research EXP
-    const expPerTick = curExpHr / 3600 * tickSec;
-    rExp += expPerTick;
+    // --- Compute time to next research level-up ---
+    const expToNextLv = researchExpReq(rLv) - rExp;
+    const hrsToNextLv = expToNextLv / curExpHr; // hours
 
-    // Check research level-ups
+    // --- Compute time to next insight level-up (across all monocle obs) ---
+    let hrsToNextInsight = Infinity;
+    let nextInsightObs = -1;
+    const monoObs = new Set();
+    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
+      if (iRate <= 0) continue;
+      const iReq = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      const iRemaining = iReq - (ip[obsIdx] || 0);
+      const iHrs = iRemaining / iRate;
+      if (iHrs < hrsToNextInsight) {
+        hrsToNextInsight = iHrs;
+        nextInsightObs = obsIdx;
+      }
+    }
+
+    // --- Determine the jump: smallest of (nextLevelUp, nextInsight, remainingTime) ---
+    let jumpHrs = hrsToNextLv;
+    if (hrsToNextInsight < jumpHrs) jumpHrs = hrsToNextInsight;
+    // Clamp to target
+    const remainingTime = maxTime - currentTime;
+    if (config.target.type === 'hours' && remainingTime < jumpHrs) jumpHrs = remainingTime;
+    // For level target, also cap at some reasonable maximum per jump
+    if (jumpHrs <= 0) jumpHrs = 1e-9; // avoid infinite loops from floating point
+    if (jumpHrs > 1e8) break; // unreachable — would take forever
+
+    // --- Advance time and accumulate EXP ---
+    const jumpSec = jumpHrs * 3600;
+    rExp += curExpHr / 3600 * jumpSec;
+    currentTime += jumpHrs;
+
+    // --- Advance insight EXP for all monocle obs ---
+    let insightLeveledUp = false;
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
+      if (iRate <= 0) continue;
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * jumpSec;
+      let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      while (ip[obsIdx] >= req - 1e-9) {
+        ip[obsIdx] -= req;
+        if (ip[obsIdx] < 0) ip[obsIdx] = 0;
+        il[obsIdx] = (il[obsIdx] || 0) + 1;
+        insightLeveledUp = true;
+        req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      }
+    }
+
+    // --- Check research level-ups ---
     let rLeveledUp = false;
-    while (rExp >= researchExpReq(rLv)) {
+    while (rExp >= researchExpReq(rLv) - 1e-9) {
       rExp -= researchExpReq(rLv);
+      if (rExp < 0) rExp = 0;
       rLv++;
       rLeveledUp = true;
       const newMax = magMaxForLevel(rLv);
       if (newMax > mMax) mMax = newMax;
     }
 
-    // Spend newly earned grid points greedily on level-up
+    // --- Handle research level-up side effects ---
     if (rLeveledUp && config.reoptimize !== false) {
-      // Assume observations unlocked at their research level requirement
       if (config.assumeObsUnlocked) {
         let obsChanged = false;
         for (let oi = 0; oi < OCC_DATA.length; oi++) {
@@ -4079,42 +4207,18 @@ async function unifiedSim(config) {
           md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
         }
       }
-      let spendLA = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
-      if (_extendInsightLA) {
-        const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
-        if (beHrs > spendLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - spendLA); spendLA = Math.min(beHrs * 1.25, 168); }
-      }
-      so = (await greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, spendLA, rExp)).so;
-      ctx.abm = allBonusMulti; // greedySpendPoints leaves global matching final gl
-      // Update mOwned in case grid spending unlocked new magnifiers (#72, #91)
-      // or rLv crossed a threshold (10, 100, 130, 140)
+      if (config.onProgress) config.onProgress({ subStage: 'Level ' + rLv + ' \u2014 spending grid points\u2026', rLv, expHr: curExpHr, currentTime });
+      var _spendResult = _exhaustiveSpendAtLevel(gl, so, md, il, ip, occ, rLv, mMax, ctx);
+      if (_spendResult.changed) so = _spendResult.so;
+      var _lvFreePoints = _spendResult.freePoints || 0;
       mOwned = computeMagnifiersOwnedWith(gl, rLv);
-      // Grow md if new mags were earned but not yet tracked (with correct types)
       _growMagPoolTyped(md, gl, rLv, mOwned);
     }
 
-    // Advance insight for obs with monocles
-    let insightLeveledUp = false;
-    const monoObs = new Set();
-    for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
-    for (const obsIdx of monoObs) {
-      const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
-      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
-      let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
-      while (ip[obsIdx] >= req) {
-        ip[obsIdx] -= req;
-        il[obsIdx] = (il[obsIdx] || 0) + 1;
-        insightLeveledUp = true;
-        req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
-      }
-    }
-
-    currentTime += tickMin / 60;
-
-    // Reconfig on events
+    // --- Reconfig on events ---
     const insightMatters = insightLeveledUp && insightAffectsExp(gl, so);
     if ((rLeveledUp || insightMatters) && config.reoptimize !== false) {
-      // Full reconfig: shapes first (so mag scoring sees correct overlay), then mags
+      if (config.onProgress) config.onProgress({ subStage: 'Reconfiguring (Lv ' + rLv + ')\u2026', rLv, expHr: curExpHr, currentTime });
       const midShapeResult = optimizeShapesFor(gl, so, undefined, rLv, md, il, occ);
       so = midShapeResult.overlay;
       sp = midShapeResult.positions;
@@ -4130,10 +4234,10 @@ async function unifiedSim(config) {
       phases.push({
         time: currentTime, event: eventType, expHr: curExpHr,
         config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
-        rLv, rExp
+        rLv, rExp,
+        freePoints: _lvFreePoints || 0
       });
     } else if (insightLeveledUp && config.reoptimize !== false) {
-      // Insight leveled up but doesn't affect EXP - just reassign monocles to next target
       let monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
       if (_extendInsightLA) {
         const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
@@ -4151,15 +4255,285 @@ async function unifiedSim(config) {
   });
 
   allBonusMulti = origABM;
-  return { phases, totalTime: currentTime, finalLevel: rLv, finalExp: rExp, finalIL: il.slice() };
+  return { phases, totalTime: currentTime, finalLevel: rLv, finalExp: rExp, finalIL: il.slice(), insightLAExtension: _insightLAExtHrs };
 }
 
-// ===== BEAM SEARCH OPTIMIZER =====
-// Tests multiple point-spending paths via beam search (top N), runs unifiedSim for each.
+// Dynamically detect which grid nodes affect Research EXP at any rank.
+// Tests every node at every rank against simTotalExpWith, insightExpRate, and magnifier count.
+// Returns a Set of node indices.
+function _detectExpRelevantNodes(gl, so, md, il, occ, rLv) {
+  var relevant = new Set();
+  var ctx = { abm: calcAllBonusMulti(gl), c52: comp52TrueMulti };
+  var baseExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  var baseMagCount = computeMagnifiersOwnedWith(gl, rLv);
+
+  // Compute baseline insight rates for all monocle obs
+  var monoObs = [];
+  for (var mi = 0; mi < md.length; mi++) {
+    if (md[mi].type === 1 && md[mi].slot >= 0 && monoObs.indexOf(md[mi].slot) < 0) monoObs.push(md[mi].slot);
+  }
+  var baseInsightRates = [];
+  for (var oi = 0; oi < monoObs.length; oi++) {
+    baseInsightRates.push(insightExpRate(monoObs[oi], md, il, gl, so, ctx));
+  }
+
+  var allSquares = Object.keys(RES_GRID_RAW).map(Number);
+  for (var i = 0; i < allSquares.length; i++) {
+    var idx = allSquares[i];
+    var maxLv = RES_GRID_RAW[idx][1];
+    var origLv = gl[idx] || 0;
+
+    // Test each rank from 1 to maxLv
+    for (var rank = 1; rank <= maxLv; rank++) {
+      if (rank <= origLv) continue; // already at or past this rank
+      gl[idx] = rank;
+      var testCtx = { abm: calcAllBonusMulti(gl), c52: comp52TrueMulti };
+
+      // Check 1: does research EXP rate change?
+      var testExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, testCtx);
+      if (Math.abs(testExpHr - baseExpHr) > 1e-6) {
+        relevant.add(idx);
+        break;
+      }
+
+      // Check 2: does magnifier count change? (more mags = more obs coverage = more EXP)
+      var testMagCount = computeMagnifiersOwnedWith(gl, rLv);
+      if (testMagCount !== baseMagCount) {
+        relevant.add(idx);
+        break;
+      }
+
+      // Check 3: does any insight rate change?
+      var insightChanged = false;
+      for (var oi2 = 0; oi2 < monoObs.length; oi2++) {
+        var testIR = insightExpRate(monoObs[oi2], md, il, gl, so, testCtx);
+        if (Math.abs(testIR - baseInsightRates[oi2]) > 1e-6) { insightChanged = true; break; }
+      }
+      if (insightChanged) {
+        relevant.add(idx);
+        break;
+      }
+    }
+    // Restore original level
+    gl[idx] = origLv;
+  }
+  return relevant;
+}
+
+// Find the shortest unlock path (gateway nodes) from current gl to reach targetIdx.
+// Returns array of gateway node indices (NOT including targetIdx), or null if unreachable within maxCost.
+function _findGatewayPath(gl, targetIdx, maxCost) {
+  if (isGridCellUnlocked(targetIdx, gl)) return []; // already reachable, no gateways needed
+  // BFS backwards from target through adjacency, looking for a path to an already-unlocked cell.
+  // Each node on the path that isn't already owned is a gateway cost of 1.
+  var allSquares = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  var COLS = GRID_COLS;
+
+  function adj(idx) {
+    var col = idx % COLS, result = [];
+    if (idx >= COLS) result.push(idx - COLS);
+    if (idx < GRID_SIZE - COLS) result.push(idx + COLS);
+    if (col > 0) result.push(idx - 1);
+    if (col < COLS - 1) result.push(idx + 1);
+    return result;
+  }
+
+  // BFS from targetIdx outward, looking for a node that's already unlocked
+  // Cost = number of unowned nodes traversed (each needs 1 point to unlock)
+  var queue = [{ idx: targetIdx, path: [], cost: 0 }];
+  var visited = new Set([targetIdx]);
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    var neighbors = adj(cur.idx);
+    for (var ni = 0; ni < neighbors.length; ni++) {
+      var n = neighbors[ni];
+      if (visited.has(n)) continue;
+      visited.add(n);
+      if (!allSquares.has(n)) continue; // not a grid node
+      var owned = (gl[n] || 0) >= 1;
+      var newCost = cur.cost + (owned ? 0 : 1);
+      var newPath = cur.path.concat(owned ? [] : [n]);
+      if (owned && isGridCellUnlocked(cur.idx, (function() {
+        // Check: if n is owned, would cur.idx be unlockable via n?
+        // Since n is adjacent to cur.idx and n is owned, cur.idx is unlockable.
+        return gl;
+      })())) {
+        // Found a connected owned node! But we need to check the full chain.
+        // Actually — if n is owned, then cur.idx is adjacent to an owned node,
+        // so cur.idx is unlockable if we own everything in newPath.
+        if (newCost <= maxCost) return newPath;
+        continue;
+      }
+      if (newCost > maxCost) continue;
+      queue.push({ idx: n, path: newPath, cost: newCost });
+    }
+  }
+  return null; // unreachable within maxCost
+}
+
+// Expand spendable set: only EXP-relevant nodes + gateways needed to reach them.
+// Returns { spendable: [idx,...], freePoints: N, notice: string|null }
+//   spendable = indices to include in exhaustive combos
+//   freePoints = number of points that can't help EXP (user can spend freely)
+//   notice = message for user if there are free points
+function _expandSpendable(gl, totalPoints, so, md, il, occ, rLv) {
+  var allSquares = Object.keys(RES_GRID_RAW).map(Number);
+
+  // Dynamically detect which nodes affect EXP at any rank
+  var expNodes = _detectExpRelevantNodes(gl, so || shapeOverlay, md || magData, il || insightLvs, occ || occFound, rLv !== undefined ? rLv : researchLevel);
+
+  // Phase 1: Find directly reachable EXP-relevant nodes (already unlocked, not maxed)
+  var directExpNodes = [];
+  for (var i = 0; i < allSquares.length; i++) {
+    var idx = allSquares[i];
+    if ((gl[idx] || 0) >= RES_GRID_RAW[idx][1]) continue; // maxed
+    if (!expNodes.has(idx)) continue;
+    if (isGridCellUnlocked(idx, gl)) directExpNodes.push(idx);
+  }
+
+  // Phase 2: Find unreachable EXP-relevant nodes and their gateway paths
+  var gatewayPaths = []; // { target, gateways: [idx,...], cost }
+  for (var j = 0; j < allSquares.length; j++) {
+    var tidx = allSquares[j];
+    if ((gl[tidx] || 0) >= RES_GRID_RAW[tidx][1]) continue; // maxed
+    if (!expNodes.has(tidx)) continue;
+    if (isGridCellUnlocked(tidx, gl)) continue; // already directly reachable
+    var path = _findGatewayPath(gl, tidx, totalPoints);
+    if (path) {
+      gatewayPaths.push({ target: tidx, gateways: path, cost: path.length });
+    }
+  }
+
+  // Sort gateway paths by cost (cheapest first)
+  gatewayPaths.sort(function(a, b) { return a.cost - b.cost; });
+
+  // Phase 3: Greedily include gateway paths that fit within budget
+  var spendableSet = new Set(directExpNodes);
+  var gatewayBudget = totalPoints;
+  // Subtract 1 per direct EXP node (minimum 1 point to be useful)
+  // Actually, don't subtract — the combo enumerator handles allocation. Just include all reachable.
+  for (var k = 0; k < gatewayPaths.length; k++) {
+    var gp = gatewayPaths[k];
+    // Include this target + its gateways
+    spendableSet.add(gp.target);
+    for (var g = 0; g < gp.gateways.length; g++) {
+      spendableSet.add(gp.gateways[g]);
+    }
+  }
+
+  var spendable = Array.from(spendableSet).sort(function(a, b) { return a - b; });
+
+  // Compute how many total upgrade levels are possible across all spendable nodes
+  var maxSpendable = 0;
+  for (var s = 0; s < spendable.length; s++) {
+    maxSpendable += RES_GRID_RAW[spendable[s]][1] - (gl[spendable[s]] || 0);
+  }
+
+  var freePoints = Math.max(0, totalPoints - maxSpendable);
+  var notice = null;
+  if (freePoints > 0) {
+    notice = freePoints + ' point' + (freePoints > 1 ? 's' : '') + ' won\'t affect Research EXP — spend freely on other upgrades!';
+  }
+  if (spendable.length === 0 && totalPoints > 0) {
+    notice = 'All ' + totalPoints + ' point' + (totalPoints > 1 ? 's' : '') + ' are free to spend — no remaining grid upgrades affect Research EXP!';
+  }
+
+  return { spendable: spendable, freePoints: freePoints, notice: notice };
+}
+
+// Enumerate all ways to distribute numPoints across spendable squares, respecting max levels.
+function _enumGridCombos(spendable, baseGL, numPoints) {
+  var results = [];
+  var caps = [];
+  for (var i = 0; i < spendable.length; i++) {
+    var idx = spendable[i];
+    caps[i] = RES_GRID_RAW[idx][1] - (baseGL[idx] || 0);
+  }
+  var alloc = new Array(spendable.length).fill(0);
+
+  function recurse(sqIdx, remaining) {
+    if (remaining === 0) {
+      var gl = baseGL.slice();
+      var steps = [];
+      for (var i = 0; i < spendable.length; i++) {
+        if (alloc[i] > 0) {
+          gl[spendable[i]] = (gl[spendable[i]] || 0) + alloc[i];
+          for (var r = 0; r < alloc[i]; r++) steps.push(spendable[i]);
+        }
+      }
+      results.push({ steps: steps, gl: gl });
+      return;
+    }
+    if (sqIdx >= spendable.length) return;
+    var maxAdd = Math.min(remaining, caps[sqIdx]);
+    for (var add = maxAdd; add >= 0; add--) {
+      alloc[sqIdx] = add;
+      recurse(sqIdx + 1, remaining - add);
+    }
+    alloc[sqIdx] = 0;
+  }
+
+  recurse(0, numPoints);
+  return results;
+}
+
+// ===== EXHAUSTIVE GRID SPEND (per earn-event) =====
+// At each level-up where grid points become available, enumerate all ways to
+// spend them across EXP-relevant nodes, score each by immediate rate, pick best.
+function _exhaustiveSpendAtLevel(gl, so, md, il, ip, occ, rLv, mMax, ctx) {
+  var avail = _gridPointsAvail(gl, rLv);
+  if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
+
+  var expandResult = _expandSpendable(gl, avail, so, md, il, occ, rLv);
+  var spendable = expandResult.spendable;
+  var freePoints = expandResult.freePoints;
+
+  if (spendable.length === 0) return { changed: false, so: so, freePoints: avail };
+
+  var usefulPoints = Math.min(avail, avail - freePoints);
+  if (usefulPoints <= 0) return { changed: false, so: so, freePoints: avail };
+
+  var combos = _enumGridCombos(spendable, gl, usefulPoints);
+  if (combos.length === 0) return { changed: false, so: so, freePoints: avail };
+
+  // Single combo — apply directly
+  if (combos.length === 1) {
+    for (var s0 = 0; s0 < combos[0].steps.length; s0++) gl[combos[0].steps[s0]] = (gl[combos[0].steps[s0]] || 0) + 1;
+    allBonusMulti = calcAllBonusMulti(gl);
+    ctx.abm = allBonusMulti;
+    var m0 = computeMagnifiersOwnedWith(gl, rLv);
+    _growMagPoolTyped(md, gl, rLv, m0);
+    return { changed: true, so: so, steps: combos[0].steps, freePoints: freePoints };
+  }
+
+  // Score each combo by simTotalExpWith (immediate EXP/hr rate)
+  var bestCombo = null, bestRate = -Infinity;
+  for (var ci = 0; ci < combos.length; ci++) {
+    var trialABM = calcAllBonusMulti(combos[ci].gl);
+    var rate = simTotalExpWith(combos[ci].gl, so, md, il, occ, rLv, { abm: trialABM, c52: ctx.c52 });
+    if (rate > bestRate) { bestRate = rate; bestCombo = combos[ci]; }
+  }
+
+  if (!bestCombo) return { changed: false, so: so };
+
+  // Apply winning allocation to live gl array
+  for (var si = 0; si < bestCombo.steps.length; si++) {
+    gl[bestCombo.steps[si]] = (gl[bestCombo.steps[si]] || 0) + 1;
+  }
+  allBonusMulti = calcAllBonusMulti(gl);
+  ctx.abm = allBonusMulti;
+
+  // Handle magnifier pool growth (for #72 kaleidoscope or #91 monocle)
+  var mOwned = computeMagnifiersOwnedWith(gl, rLv);
+  _growMagPoolTyped(md, gl, rLv, mOwned);
+
+  return { changed: true, so: so, steps: bestCombo.steps, freePoints: freePoints };
+}
+
+// ===== EXHAUSTIVE OPTIMIZER (SEQUENTIAL) =====
+// Tests all possible grid point allocations via unifiedSim.
 
 async function runOptimizer(target, progressCb, opts) {
-  const BEAM_WIDTH = (opts && opts.beamWidth) || 5;
-  // Local rate formatter (not available in worker from main-thread helpers)
   function _fmtR(n) {
     if (n >= 1e12) return (n/1e12).toFixed(1) + 'T/hr';
     if (n >= 1e9) return (n/1e9).toFixed(1) + 'B/hr';
@@ -4173,129 +4547,79 @@ async function runOptimizer(target, progressCb, opts) {
     return Math.floor(h / 24) + 'd ' + Math.round(h % 24) + 'h';
   }
 
-  // Smooth progress: track completed sim-units out of estimated total
   const assumeObs = !!(opts && opts.assumeObs);
   const extendInsightLA = !!(opts && opts.extendInsightLA);
-  let _completedSims = 0, _totalEstSims = 1; // start with baseline only
+  let _completedSims = 0, _totalEstSims = 1;
   function _emitProgress(stageLabel, simSub) {
     if (!progressCb) return;
-    const simFrac = simSub ? (target.type === 'level' ? Math.min((simSub.rLv - researchLevel) / Math.max(target.value - researchLevel, 1), 1) : Math.min(simSub.currentTime / Math.max(target.value, 1), 1)) : 0;
-    const pct = Math.min((_completedSims + simFrac) / Math.max(_totalEstSims, 1), 0.999);
+    const pct = Math.min(_completedSims / Math.max(_totalEstSims, 1), 0.999);
     let detail = '';
-    if (simSub) {
+    if (simSub && simSub.subStage) detail = ' \u2014 ' + simSub.subStage;
+    else if (simSub && simSub.rLv != null) {
       detail = ' \u2014 Lv ' + simSub.rLv + ', ' + _fmtR(simSub.expHr);
-      if (simSub.currentTime > 0) detail += ', ' + _fmtHrs(simSub.currentTime) + ' simulated';
+      if (simSub.currentTime > 0) detail += ', ' + _fmtHrs(simSub.currentTime);
     }
-    progressCb(Math.floor(pct * 1000), 1000, stageLabel + detail);
-  }
-  function _makeSimCb(stageLabel) {
-    return function(sub) { _emitProgress(stageLabel, sub); };
+    progressCb(Math.floor(pct * 1000), 1000, stageLabel + detail, '');
   }
 
-  // Baseline: current config, no changes
   const preOptRate = simTotalExp().total;
-  _emitProgress('Computing baseline...');
-  const baseline = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb('Computing baseline') });
-  _completedSims = 1;
 
-  // Find spendable points: grid squares that are below max and unlocked (adjacent)
-  const spendable = Object.keys(RES_GRID_RAW).map(Number).filter(idx => {
-    const info = RES_GRID_RAW[idx];
-    return (gridLevels[idx] || 0) < info[1] && isGridCellUnlocked(idx, gridLevels);
-  });
+  const availPts = computeGridPointsAvailable();
+  const futureEarned = target.type === 'level'
+    ? Math.max(0, computeGridPointsEarned(target.value) - computeGridPointsEarned())
+    : Math.max(0, computeGridPointsEarned(researchLevel + 20) - computeGridPointsEarned());
+  console.log('[Optimizer] availPts:', availPts, '| futureEarned:', futureEarned);
+
+  if (availPts <= 0) {
+    // No points to spend now — run one sim (future points handled per level-up)
+    _emitProgress('Simulating\u2026');
+    const sim = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: function(sub) { _emitProgress('Simulating', sub); } });
+    if (progressCb) progressCb(1000, 1000, 'Simulation complete');
+    return { best: sim, paths: [{ steps: [], sim: sim }], bestSteps: [], preOptRate: preOptRate };
+  }
+
+  const expandResult = _expandSpendable(gridLevels, availPts);
+  const spendable = expandResult.spendable;
+  const freePoints = expandResult.freePoints;
+  const freeNotice = expandResult.notice;
 
   if (spendable.length === 0) {
-    if (progressCb) progressCb(1000, 1000, 'Done — no upgradeable grid points');
-    return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
+    _emitProgress('Simulating\u2026');
+    const sim = await unifiedSim({ target, reoptimize: true, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: function(sub) { _emitProgress('Simulating', sub); } });
+    const msg = freeNotice || 'No upgradeable grid points found';
+    if (progressCb) progressCb(1000, 1000, msg);
+    return { best: sim, paths: [{ steps: [], sim: sim }], bestSteps: [], preOptRate: preOptRate, notice: msg, freePoints: availPts };
   }
 
-  // Check how many unspent grid points the user actually has
-  const availPts = computeGridPointsAvailable();
-  if (availPts <= 0) {
-    if (progressCb) progressCb(1000, 1000, 'Done — no available grid points');
-    return { baseline, best: baseline, paths: [{ steps: [], sim: baseline }], bestSteps: [] };
-  }
+  // Only distribute currently-available points; future-earned handled by mid-sim branching
+  const usefulPoints = Math.min(availPts, availPts - freePoints);
+  const combos = _enumGridCombos(spendable, gridLevels, usefulPoints);
+  _totalEstSims = combos.length;
 
-  // Update total estimate now that we know spendable count
-  _totalEstSims = 1 + spendable.length + (availPts >= 2 ? BEAM_WIDTH * spendable.length : 0);
-
-  // Beam search: test +1 on each candidate, pick top BEAM_WIDTH, then optionally +1 again
-  const origGL = gridLevels.slice();
-
-  // Stage 1: Score each +1 candidate
-  _emitProgress('Stage 1: evaluating grid points...');
-  const stage1 = [];
-  for (let ci = 0; ci < spendable.length; ci++) {
-    const idx = spendable[ci];
-    const gl1 = origGL.slice();
-    gl1[idx] = (gl1[idx] || 0) + 1;
-    const label = 'Stage 1: point ' + (ci+1) + '/' + spendable.length;
-    const sim1 = await unifiedSim({ target, reoptimize: true, gridLevels: gl1, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb(label) });
-    stage1.push({ idx, sim: sim1, time: sim1.totalTime, gl: gl1 });
-    _completedSims = 1 + ci + 1;
+  // Test each combo sequentially
+  const allPaths = [];
+  for (let ci = 0; ci < combos.length; ci++) {
+    const combo = combos[ci];
+    const label = 'Combo ' + (ci + 1) + '/' + combos.length;
+    const sim = await unifiedSim({ target, reoptimize: true, gridLevels: combo.gl, preOptExpHr: preOptRate, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: function(sub) { _emitProgress(label, sub); } });
+    allPaths.push({ steps: combo.steps, sim: sim, time: sim.totalTime, gl: combo.gl });
+    _completedSims = ci + 1;
     _emitProgress(label + ' \u2714');
     await new Promise(r => setTimeout(r, 0));
   }
 
-  // Sort by time (ascending = faster is better)
-  stage1.sort((a, b) => {
-    if (target.type === 'level') return a.time - b.time;
-    // For hours mode: maximize final level, then EXP toward next level
-    if (b.sim.finalLevel !== a.sim.finalLevel) return b.sim.finalLevel - a.sim.finalLevel;
-    return b.sim.finalExp - a.sim.finalExp;
-  });
-
-  // Take top BEAM_WIDTH paths
-  const beams = stage1.slice(0, BEAM_WIDTH);
-
-  // Stage 2: From each beam, try +1 again on remaining squares (only if user has 2+ points)
-  const stage2 = [];
-  const stage1Sims = 1 + spendable.length;
-  if (availPts < 2) {
-    // Only 1 point — skip stage 2
-  } else {
-  _emitProgress('Stage 2: testing combinations...');
-  let s2Count = 0;
-  for (let bi = 0; bi < beams.length; bi++) {
-    const beam = beams[bi];
-    const remaining = spendable.filter(idx => {
-      const info = RES_GRID_RAW[idx];
-      return (beam.gl[idx] || 0) < info[1] && isGridCellUnlocked(idx, beam.gl);
-    });
-    for (let ri = 0; ri < remaining.length; ri++) {
-      const idx = remaining[ri];
-      const gl2 = beam.gl.slice();
-      gl2[idx] = (gl2[idx] || 0) + 1;
-      const label = 'Stage 2: beam ' + (bi+1) + '/' + beams.length + ', point ' + (ri+1) + '/' + remaining.length;
-      const sim2 = await unifiedSim({ target, reoptimize: true, gridLevels: gl2, assumeObsUnlocked: assumeObs, extendInsightLA, onProgress: _makeSimCb(label) });
-      stage2.push({ steps: [beam.idx, idx], sim: sim2, time: sim2.totalTime, gl: gl2 });
-      s2Count++;
-      _completedSims = stage1Sims + s2Count;
-      _emitProgress(label + ' \u2714');
-      await new Promise(r => setTimeout(r, 0));
-    }
-  }
-  } // end availPts >= 2
-
-  // Combine all paths (limit bestSteps to available points)
-  const maxSteps = availPts;
-  const allPaths = [
-    { steps: [], sim: baseline, time: baseline.totalTime },
-    ...stage1.slice(0, BEAM_WIDTH).map(s => ({ steps: [s.idx], sim: s.sim, time: s.time })),
-    ...stage2,
-  ];
-
-  allPaths.sort((a, b) => {
+  allPaths.sort(function(a, b) {
     if (target.type === 'level') return a.time - b.time;
     if (b.sim.finalLevel !== a.sim.finalLevel) return b.sim.finalLevel - a.sim.finalLevel;
     return b.sim.finalExp - a.sim.finalExp;
   });
 
   const best = allPaths[0];
-  // Collect max insight LA extension across baseline + best
-  const maxLAExt = Math.max(baseline.insightLAExtension || 0, best.sim.insightLAExtension || 0);
-  if (progressCb) progressCb(1000, 1000, 'Optimization complete!');
-  return { baseline, best: best.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps.slice(0, maxSteps), insightLAExtension: maxLAExt };
+  const worst = allPaths[allPaths.length - 1];
+  let doneMsg = 'Optimization complete! (' + combos.length + ' combos tested)';
+  if (freeNotice) doneMsg += ' \u2014 ' + freeNotice;
+  if (progressCb) progressCb(1000, 1000, doneMsg);
+  return { best: best.sim, worst: worst.sim, paths: allPaths.slice(0, 10), bestSteps: best.steps, preOptRate: preOptRate, insightLAExtension: best.sim.insightLAExtension || 0, notice: freeNotice, freePoints: freePoints };
 }
 
 // ===== MAG TYPE BALANCE =====
@@ -5190,7 +5514,7 @@ let _optimizerResult = null;
 
 function renderOptimizerResults(result) {
   _optimizerResult = result;
-  const { baseline, best, paths, bestSteps } = result;
+  const { best, worst, paths, bestSteps } = result;
 
   // Show results sections
   ['opt-comparison','opt-timeline-section','opt-chart-section','opt-actions-section'].forEach(id => {
@@ -5216,33 +5540,28 @@ function renderOptimizerResults(result) {
 
   // Strategy comparison
   const compDiv = document.getElementById('opt-comparison-body');
-  const baseTime = baseline.totalTime;
-  const bestTime = best.totalTime;
-  const saved = baseTime - bestTime;
-  const savedPct = baseTime > 0 ? saved / baseTime * 100 : 0;
-  const maxTime = Math.max(baseTime, bestTime, 1);
-
-  const baseStats = simSegmentStats(baseline);
   const bestStats = simSegmentStats(best);
+  const bestTime = best.totalTime;
+  const preRate = result.preOptRate || 0;
 
   let compHtml = '';
   compHtml += `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">`;
   compHtml += `<div style="flex:1;min-width:200px;">`;
-  compHtml += `<div style="margin-bottom:8px;"><span style="color:var(--text2);">Current path:</span> <span style="font-weight:700;">${fmtTime(baseTime)}</span></div>`;
-  compHtml += `<div style="font-size:.8em;color:var(--text2);margin-bottom:4px;">Avg: ${fmtVal(baseStats.avgRate)}/hr (${fmtVal(baseStats.startRate)} \u2192 ${fmtVal(baseStats.endRate)})</div>`;
-  compHtml += `<div style="height:20px;background:#333;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${(baseTime/maxTime*100).toFixed(1)}%;background:var(--accent);border-radius:4px;"></div></div>`;
-  compHtml += `</div>`;
-  compHtml += `<div style="flex:1;min-width:200px;">`;
-  compHtml += `<div style="margin-bottom:8px;"><span style="color:var(--text2);">Optimal:</span> <span style="font-weight:700;color:var(--green);">${fmtTime(bestTime)}</span></div>`;
+  compHtml += `<div style="margin-bottom:8px;"><span style="color:var(--text2);">Optimal result:</span> <span style="font-weight:700;color:var(--green);">${fmtTime(bestTime)}</span></div>`;
   compHtml += `<div style="font-size:.8em;color:var(--text2);margin-bottom:4px;">Avg: <span style="color:var(--green);">${fmtVal(bestStats.avgRate)}/hr</span> (${fmtVal(bestStats.startRate)} \u2192 ${fmtVal(bestStats.endRate)})</div>`;
-  compHtml += `<div style="height:20px;background:#333;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${(bestTime/maxTime*100).toFixed(1)}%;background:var(--green);border-radius:4px;"></div></div>`;
+  compHtml += `<div style="font-size:.8em;color:var(--text2);margin-bottom:2px;">Pre-optimization: ${fmtVal(preRate)}/hr</div>`;
   compHtml += `</div>`;
-  if (saved > 0) {
-    compHtml += `<div style="padding:12px 20px;background:rgba(76,175,80,.12);border:1px solid var(--green);border-radius:8px;text-align:center;">`;
-    compHtml += `<div style="font-size:.8em;color:var(--green);">Savings</div>`;
-    compHtml += `<div style="font-weight:700;color:var(--green);font-size:1.3em;">${fmtTime(saved)}</div>`;
-    compHtml += `<div style="font-size:.75em;color:var(--green);">${savedPct.toFixed(1)}% faster</div>`;
-    compHtml += `</div>`;
+  if (worst && worst !== best) {
+    const worstStats = simSegmentStats(worst);
+    const spread = worst.totalTime - bestTime;
+    const spreadPct = worst.totalTime > 0 ? (spread / worst.totalTime * 100) : 0;
+    if (spread > 0.01) {
+      compHtml += `<div style="padding:12px 20px;background:rgba(76,175,80,.12);border:1px solid var(--green);border-radius:8px;text-align:center;">`;
+      compHtml += `<div style="font-size:.8em;color:var(--green);">Best vs Worst Combo</div>`;
+      compHtml += `<div style="font-weight:700;color:var(--green);font-size:1.3em;">${fmtTime(spread)} faster</div>`;
+      compHtml += `<div style="font-size:.75em;color:var(--text2);">${spreadPct.toFixed(1)}% \u2014 ${paths ? paths.length : '?'} combos tested</div>`;
+      compHtml += `</div>`;
+    }
   }
   compHtml += `</div>`;
   compDiv.innerHTML = compHtml;
@@ -5300,44 +5619,6 @@ function renderActions(sim, bestSteps) {
   const phases = sim.phases;
   const totalTime = Math.max(sim.totalTime, 0.01);
   let html = '';
-
-  // Grid upgrades — show ALL upgrades from start phase (not just beam search picks)
-  const startPhase = phases.length > 0 && phases[0].event === 'start' ? phases[0] : null;
-  if (startPhase) {
-    const startGL = startPhase.config.gl;
-    const allGridUpgrades = [];
-    for (const idxStr of Object.keys(RES_GRID_RAW)) {
-      const idx = Number(idxStr);
-      const curLv = gridLevels[idx] || 0;
-      const newLv = startGL[idx] || 0;
-      if (newLv > curLv) allGridUpgrades.push({ idx, from: curLv, to: newLv });
-    }
-    if (allGridUpgrades.length > 0) {
-      html += `<div style="margin-bottom:12px;padding:8px;background:#1a1a2e;border-radius:6px;border-left:3px solid var(--gold);">`;
-      html += `<div style="font-weight:700;color:var(--gold);margin-bottom:4px;">\u2b50 Spend Research Points</div>`;
-      const gpByGoal = {};
-      for (const u of allGridUpgrades) {
-        const goal = NODE_GOAL[u.idx] || 'Other';
-        if (!gpByGoal[goal]) gpByGoal[goal] = [];
-        gpByGoal[goal].push(u);
-      }
-      const goalOrder0 = ['Res EXP','Res True\u00d7','Obs\u00d7Insight','Insight','Kaleido','Rolls','AFK'];
-      const sortedGoals = Object.keys(gpByGoal).sort((a,b) => {
-        const ai = goalOrder0.indexOf(a), bi = goalOrder0.indexOf(b);
-        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-      });
-      for (const goal of sortedGoals) {
-        const gc = NODE_GOAL_COLORS[goal] || 'var(--text2)';
-        for (const u of gpByGoal[goal]) {
-          const info = RES_GRID_RAW[u.idx];
-          const name = info ? info[0].replace(/_/g,' ') : `#${u.idx}`;
-          const coord = gridCoord(u.idx);
-          html += `<div style="font-size:.9em;color:var(--text);margin-left:16px;">\u2192 Upgrade <b>${coord}</b> <b>${name}</b> (LV ${u.from} \u2192 ${u.to}) <span style="color:${gc};font-weight:600;font-size:.85em;">[${goal}]</span></div>`;
-        }
-      }
-      html += `</div>`;
-    }
-  }
 
   // Synthetic "pre-optimization" config for start event diff
   const preOptConfig = {
@@ -5551,13 +5832,16 @@ function renderActions(sim, bestSteps) {
     if (isStart) {
       let stepNum = 0;
       if (gridDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Spend Grid Points')); details.push(...gridDetails); }
+      if (p.freePoints > 0) details.push(`<div style="color:var(--green);margin-top:2px;font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely on any upgrade!</div>`);
       if (shapeDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Place Shapes')); details.push(...shapeDetails); }
       if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
       if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
       if (insightDetails.length) details.push(...insightDetails);
     } else {
       // Non-start phases: original order (grid → mags → mono → insight → shapes)
-      details.push(...gridDetails, ...magDetails, ...monoDetails, ...insightDetails, ...shapeDetails);
+      details.push(...gridDetails);
+      if (p.freePoints > 0) details.push(`<div style="color:var(--green);font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely!</div>`);
+      details.push(...magDetails, ...monoDetails, ...insightDetails, ...shapeDetails);
     }
 
     // Goal summary — prepend a one-line explanation of WHY this phase exists
@@ -5904,9 +6188,8 @@ function _dtCreateNode(parentId, event, time, state) {
 }
 
 // Step sim: run from a state to the next event, return event info + new state
+// Uses event-driven jumps instead of fixed ticks.
 function _dtStepSim(state) {
-  const tickMin = 10;
-  const tickSec = tickMin * 60;
   let gl = state.gl.slice();
   let so = state.so.slice();
   let md = state.md.map(m => ({...m}));
@@ -5919,41 +6202,59 @@ function _dtStepSim(state) {
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   let currentTime = 0;
 
-  for (let tick = 0; tick < 1e7; tick++) {
-    const expPerTick = curExpHr / 3600 * tickSec;
-    rExp += expPerTick;
+  for (let jump = 0; jump < 50000; jump++) {
+    if (curExpHr <= 0) return null;
 
-    let rLeveledUp = false;
-    while (rExp >= researchExpReq(rLv)) {
-      rExp -= researchExpReq(rLv);
-      rLv++;
-      rLeveledUp = true;
-    }
+    // Time to next research level-up
+    const expToLv = researchExpReq(rLv) - rExp;
+    let jumpHrs = expToLv / curExpHr;
 
-    // Auto-unlock obs at their research level gate
-    if (rLeveledUp) {
-      for (let oi = 0; oi < OCC_DATA.length; oi++) {
-        if ((occ[oi] || 0) < 1 && OCC_DATA[oi].roll <= rLv) occ[oi] = 1;
-      }
-    }
-
-    // Advance insight for monocle obs
-    let insightLeveledUp = false;
+    // Time to next insight level-up
     const monoObs = new Set();
     for (const m of md) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
     for (const obsIdx of monoObs) {
       const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
-      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * tickSec;
+      if (iRate <= 0) continue;
+      const iReq = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+      const iRem = iReq - (ip[obsIdx] || 0);
+      const iHrs = iRem / iRate;
+      if (iHrs < jumpHrs) jumpHrs = iHrs;
+    }
+    if (jumpHrs <= 0) jumpHrs = 1e-9;
+    if (jumpHrs > 1e8) return null;
+
+    const jumpSec = jumpHrs * 3600;
+    rExp += curExpHr / 3600 * jumpSec;
+    currentTime += jumpHrs;
+
+    // Advance insight
+    let insightLeveledUp = false;
+    for (const obsIdx of monoObs) {
+      const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
+      if (iRate <= 0) continue;
+      ip[obsIdx] = (ip[obsIdx] || 0) + iRate / 3600 * jumpSec;
       let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
-      while (ip[obsIdx] >= req) {
-        ip[obsIdx] -= req;
+      while (ip[obsIdx] >= req - 1e-9) {
+        ip[obsIdx] -= req; if (ip[obsIdx] < 0) ip[obsIdx] = 0;
         il[obsIdx] = (il[obsIdx] || 0) + 1;
         insightLeveledUp = true;
         req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
       }
     }
 
-    currentTime += tickMin / 60;
+    // Check level-ups
+    let rLeveledUp = false;
+    while (rExp >= researchExpReq(rLv) - 1e-9) {
+      rExp -= researchExpReq(rLv); if (rExp < 0) rExp = 0;
+      rLv++; rLeveledUp = true;
+    }
+
+    // Auto-unlock obs
+    if (rLeveledUp) {
+      for (let oi = 0; oi < OCC_DATA.length; oi++) {
+        if ((occ[oi] || 0) < 1 && OCC_DATA[oi].roll <= rLv) occ[oi] = 1;
+      }
+    }
 
     if (rLeveledUp || insightLeveledUp) {
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
@@ -7214,7 +7515,7 @@ function _dtFormatDesc(nodeIdx, s) {
   const lv = s.gl[nodeIdx] || 0;
   const bonusPerLv = info[2];
   const curBonus = bonusPerLv * lv;
-  const multiStr = (1 + curBonus / 100).toFixed(2) + 'x';
+  const multiStr = (1 + curBonus / 100).toFixed(2);
   const g = v => '<b style="color:var(--green)">' + v + '</b>';
 
   let desc = (info[3] || '').replace(/_/g, ' ');
@@ -7229,7 +7530,7 @@ function _dtFormatDesc(nodeIdx, s) {
   }
   if (desc.includes('^')) {
     const v = _gridBonusMode2(nodeIdx, curBonus);
-    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2) + 'x'));
+    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2)));
   }
   if (desc.includes('&')) {
     const olaVal = Number(optionsListData?.[499]) || 0;
@@ -8863,14 +9164,15 @@ function _formatDesc(nodeIdx) {
   const lv = gridLevels[nodeIdx] || 0;
   const bonusPerLv = info[2];
   const curBonus = bonusPerLv * lv;
-  const multiStr = (1 + curBonus / 100).toFixed(2) + 'x';
+  const curBonusClean = parseFloat(curBonus.toFixed(4));
+  const multiStr = (1 + curBonus / 100).toFixed(2);
   const g = v => '<b style="color:var(--green)">' + v + '</b>';
 
   let desc = (info[3] || '').replace(/_/g, ' ');
   desc = desc.replace(/ ?@ ?/g, ' \u2014 ');
   if (nodeIdx === 173) desc = desc.replace('<', 'Arctis grid bonus');
   desc = desc.replace(/\|/g, g(lv));
-  desc = desc.replace(/\{/g, g(curBonus));
+  desc = desc.replace(/\{/g, g(curBonusClean));
   desc = desc.replace(/\}/g, g(multiStr));
   if (desc.includes('$')) {
     const v = _gridBonusMode2(nodeIdx, curBonus);
@@ -8878,7 +9180,7 @@ function _formatDesc(nodeIdx) {
   }
   if (desc.includes('^')) {
     const v = _gridBonusMode2(nodeIdx, curBonus);
-    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2) + 'x'));
+    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2)));
   }
   if (desc.includes('&')) {
     const olaVal = Number(optionsListData?.[499]) || 0;
@@ -9437,11 +9739,34 @@ function _restoreState(s) {
   if (s.shapeTiers) { shapeTiers.above = s.shapeTiers.above || []; shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])]; }
   if (s._covLUT && s._covLUTN >= 0) { _covLUTCache = s._covLUT; _covLUTCacheN = s._covLUTN; }
 }
+var _baseState = null;
 onmessage = async function(e) {
   var d = e.data;
+  if (d.type === 'init') {
+    _baseState = d.state;
+    _restoreState(_baseState);
+    postMessage({type:'ready'});
+    return;
+  }
+  if (d.type === 'runSim') {
+    if (_baseState) _restoreState(_baseState);
+    var simId = d.simId;
+    var simProgressFn = function(sub) {
+      postMessage({type:'simProgress', simId:simId, sub:sub});
+    };
+    try {
+      var cfg = d.config;
+      cfg.onProgress = simProgressFn;
+      var result = await unifiedSim(cfg);
+      postMessage({type:'simDone', simId:simId, result:result});
+    } catch(err) {
+      postMessage({type:'simError', simId:simId, message:err.message, stack:err.stack});
+    }
+    return;
+  }
   _restoreState(d.state);
-  var progressFn = function(done, total, msg) {
-    postMessage({type:'progress', done:done, total:total, msg:msg});
+  var progressFn = function(done, total, msg, detail) {
+    postMessage({type:'progress', done:done, total:total, msg:msg, detail:detail||''});
   };
   if (d.type === 'runOptimizer') {
     try {
@@ -9504,7 +9829,7 @@ function _runOptimizerViaWorker(target, progressCb, opts) {
     _optWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
-        progressCb(d.done, d.total, d.msg);
+        progressCb(d.done, d.total, d.msg, d.detail);
       } else if (d.type === 'done') {
         resolve(d.result); _optReject = null;
         _optWorker.terminate(); _optWorker = null;
@@ -9529,6 +9854,249 @@ function _runOptimizerViaWorker(target, progressCb, opts) {
 function _cancelOptimizer() {
   if (_optWorker) { _optWorker.terminate(); _optWorker = null; }
   if (_optReject) { _optReject(new Error('Cancelled')); _optReject = null; }
+  if (_optWorkerPool) { _optWorkerPool.terminate(); _optWorkerPool = null; }
+}
+
+// ===== PARALLEL WORKER POOL =====
+let _optWorkerPool = null;
+
+function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
+  const workers = [];
+  const idle = [];
+  const queue = []; // { simId, config, resolve, reject }
+  let readyCount = 0;
+  let terminated = false;
+  let _readyResolve = null;
+  const readyPromise = new Promise(function(r) { _readyResolve = r; });
+
+  for (let i = 0; i < poolSize; i++) {
+    const w = _createOptWorker();
+    w._currentTask = null;
+    w._wIdx = i;
+    w.onmessage = function(ev) {
+      if (terminated) return;
+      const d = ev.data;
+      if (d.type === 'ready') {
+        readyCount++;
+        idle.push(w);
+        if (readyCount === poolSize && _readyResolve) { _readyResolve(); _readyResolve = null; }
+        return;
+      }
+      if (d.type === 'simDone' && w._currentTask) {
+        const task = w._currentTask;
+        w._currentTask = null;
+        idle.push(w);
+        task.resolve(d.result);
+        _pumpQueue();
+        return;
+      }
+      if (d.type === 'simError' && w._currentTask) {
+        const task = w._currentTask;
+        w._currentTask = null;
+        idle.push(w);
+        task.reject(new Error(d.message));
+        _pumpQueue();
+        return;
+      }
+      if (d.type === 'simProgress' && onSimProgress) {
+        onSimProgress(d.simId, d.sub, w._wIdx);
+      }
+    };
+    w.onerror = function(ev) {
+      if (w._currentTask) {
+        const task = w._currentTask;
+        w._currentTask = null;
+        task.reject(new Error(ev.message));
+      }
+    };
+    w.postMessage({ type: 'init', state: snapshot });
+    workers.push(w);
+  }
+
+  function _pumpQueue() {
+    while (idle.length > 0 && queue.length > 0) {
+      const w = idle.shift();
+      const task = queue.shift();
+      w._currentTask = task;
+      w.postMessage({ type: 'runSim', simId: task.simId, config: task.config });
+    }
+  }
+
+  return {
+    ready: readyPromise,
+    runSim: function(simId, config) {
+      if (terminated) return Promise.reject(new Error('Cancelled'));
+      return new Promise(function(resolve, reject) {
+        queue.push({ simId: simId, config: config, resolve: resolve, reject: reject });
+        _pumpQueue();
+      });
+    },
+    terminate: function() {
+      terminated = true;
+      while (queue.length > 0) { queue.shift().reject(new Error('Cancelled')); }
+      for (const w of workers) {
+        if (w._currentTask) { w._currentTask.reject(new Error('Cancelled')); w._currentTask = null; }
+        w.terminate();
+      }
+      workers.length = 0;
+      idle.length = 0;
+    },
+    size: poolSize
+  };
+}
+
+async function _runParallelOptimizer(target, progressCb, opts) {
+  const assumeObs = !!(opts && opts.assumeObs);
+  const extendInsightLA = !!(opts && opts.extendInsightLA);
+  const snapshot = _snapshotState();
+  const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
+
+  // Formatting helpers (main-thread copies)
+  function _fmtR(n) {
+    if (n >= 1e12) return (n/1e12).toFixed(1) + 'T/hr';
+    if (n >= 1e9) return (n/1e9).toFixed(1) + 'B/hr';
+    if (n >= 1e6) return (n/1e6).toFixed(1) + 'M/hr';
+    if (n >= 1e3) return (n/1e3).toFixed(1) + 'K/hr';
+    return n.toFixed(0) + '/hr';
+  }
+  function _fmtHrs(h) {
+    if (h < 1) return Math.round(h * 60) + 'm';
+    if (h < 24) return h.toFixed(1) + 'h';
+    return Math.floor(h / 24) + 'd ' + Math.round(h % 24) + 'h';
+  }
+
+  // Progress tracking
+  let completedSims = 0;
+  let totalEstSims = 1;
+  let currentStage = 'Initializing';
+  const workerSubs = new Array(poolSize).fill(null);
+
+  function _reportProgress() {
+    if (!progressCb) return;
+    const pct = Math.min(completedSims / Math.max(totalEstSims, 1), 0.999);
+    const msg = currentStage + ' \u2014 ' + completedSims + '/' + totalEstSims + (poolSize > 1 ? ' (' + poolSize + '\u00D7 parallel)' : '');
+    const lines = [];
+    for (let wi = 0; wi < poolSize; wi++) {
+      const sub = workerSubs[wi];
+      if (!sub) continue;
+      let line = 'W' + (wi + 1) + ': ';
+      if (sub.rLv != null) {
+        line += 'Lv ' + sub.rLv + ' | ' + _fmtR(sub.expHr || 0);
+        if (sub.currentTime > 0) line += ' | ' + _fmtHrs(sub.currentTime);
+      } else if (sub.subStage) {
+        line += sub.subStage;
+      } else {
+        line += 'starting\u2026';
+      }
+      lines.push(line);
+    }
+    progressCb(Math.floor(pct * 1000), 1000, msg, lines.join('\n'));
+  }
+
+  // Create pool
+  const pool = _createSimWorkerPool(snapshot, poolSize, function(simId, sub, wIdx) {
+    workerSubs[wIdx] = sub;
+    _reportProgress();
+  });
+  _optWorkerPool = pool;
+  _optReject = function() { pool.terminate(); };
+
+  try {
+    await pool.ready;
+
+    const preOptRate = simTotalExp().total;
+
+    const availPts = computeGridPointsAvailable();
+    const futureEarned = target.type === 'level'
+      ? Math.max(0, computeGridPointsEarned(target.value) - computeGridPointsEarned())
+      : Math.max(0, computeGridPointsEarned(researchLevel + 20) - computeGridPointsEarned());
+    console.log('[Optimizer] availPts:', availPts, '| futureEarned:', futureEarned);
+
+    if (availPts <= 0) {
+      // No points to spend now — run one sim (future points handled per level-up)
+      currentStage = 'Simulating';
+      _reportProgress();
+      const sim = await pool.runSim(0, {
+        target: target, reoptimize: true, preOptExpHr: preOptRate,
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+      });
+      if (progressCb) progressCb(1000, 1000, 'Simulation complete');
+      pool.terminate(); _optWorkerPool = null;
+      return { best: sim, paths: [{ steps: [], sim: sim }], bestSteps: [], preOptRate: preOptRate };
+    }
+
+    // Expand spendable set — only EXP-relevant nodes + gateways (only currently-available points)
+    const expandResult = _expandSpendable(gridLevels, availPts);
+    const spendable = expandResult.spendable;
+    const freePoints = expandResult.freePoints;
+    const freeNotice = expandResult.notice;
+    console.log('[Optimizer] EXP-relevant spendable:', spendable.length, 'squares | freePoints:', freePoints);
+
+    if (spendable.length === 0) {
+      currentStage = 'Simulating';
+      _reportProgress();
+      const sim = await pool.runSim(0, {
+        target: target, reoptimize: true, preOptExpHr: preOptRate,
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+      });
+      const msg = freeNotice || 'No upgradeable grid points found.';
+      if (progressCb) progressCb(1000, 1000, msg);
+      pool.terminate(); _optWorkerPool = null;
+      return { best: sim, paths: [{ steps: [], sim: sim }], bestSteps: [], preOptRate: preOptRate, notice: msg, freePoints: availPts };
+    }
+
+    // Only distribute currently-available points; future-earned handled by mid-sim branching
+    const usefulPoints = Math.min(availPts, availPts - freePoints);
+    const combos = _enumGridCombos(spendable, gridLevels, usefulPoints);
+    console.log('[Optimizer] Exhaustive combos:', combos.length, '(' + usefulPoints + ' useful points across ' + spendable.length + ' EXP-relevant squares)');
+
+    totalEstSims = combos.length;
+    currentStage = 'Testing ' + combos.length + ' combination' + (combos.length > 1 ? 's' : '');
+    _reportProgress();
+
+    // Dispatch ALL combos to worker pool in parallel
+    const comboPromises = combos.map(function(combo, ci) {
+      const simId = ci;
+      return pool.runSim(simId, {
+        target: target, reoptimize: true, gridLevels: combo.gl, preOptExpHr: preOptRate,
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+      }).then(function(sim) {
+        completedSims++;
+        _reportProgress();
+        return { steps: combo.steps, sim: sim, time: sim.totalTime, gl: combo.gl };
+      });
+    });
+
+    const allPaths = await Promise.all(comboPromises);
+    workerSubs.fill(null);
+
+    allPaths.sort(function(a, b) {
+      if (target.type === 'level') return a.time - b.time;
+      if (b.sim.finalLevel !== a.sim.finalLevel) return b.sim.finalLevel - a.sim.finalLevel;
+      return b.sim.finalExp - a.sim.finalExp;
+    });
+
+    const best = allPaths[0];
+    const worst = allPaths[allPaths.length - 1];
+
+    let doneMsg = 'Optimization complete! (' + combos.length + ' combos tested)';
+    if (freeNotice) doneMsg += ' \u2014 ' + freeNotice;
+    if (progressCb) progressCb(1000, 1000, doneMsg);
+    pool.terminate(); _optWorkerPool = null; _optReject = null;
+    return {
+      best: best.sim,
+      worst: worst.sim,
+      paths: allPaths.slice(0, 10),
+      bestSteps: best.steps,
+      preOptRate: preOptRate,
+      insightLAExtension: best.sim.insightLAExtension || 0,
+      notice: freeNotice,
+      freePoints: freePoints
+    };
+  } catch(err) {
+    pool.terminate(); _optWorkerPool = null; _optReject = null;
+    throw err;
+  }
 }
 
 let _shapeOptWorker = null;
@@ -9543,7 +10111,7 @@ function _runShapeOptViaWorker(progressCb) {
     _shapeOptWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
-        progressCb(d.done, d.total, d.msg);
+        progressCb(d.done, d.total, d.msg, d.detail);
       } else if (d.type === 'done') {
         resolve(d.result); _shapeOptReject = null;
         _shapeOptWorker.terminate(); _shapeOptWorker = null;
@@ -9574,7 +10142,7 @@ function _runInsightROIViaWorker(progressCb) {
     _insightROIWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
-        progressCb(d.done, d.total, d.msg);
+        progressCb(d.done, d.total, d.msg, d.detail);
       } else if (d.type === 'done') {
         resolve(d.result);
         _insightROIWorker.terminate(); _insightROIWorker = null;
@@ -9604,7 +10172,7 @@ function _runObsUnlockViaWorker(progressCb) {
     _obsUnlockWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
-        progressCb(d.done, d.total, d.msg);
+        progressCb(d.done, d.total, d.msg, d.detail);
       } else if (d.type === 'done') {
         resolve(d.result);
         _obsUnlockWorker.terminate(); _obsUnlockWorker = null;
@@ -9634,7 +10202,7 @@ function _runPointPriorityViaWorker(progressCb) {
     _pointPriorityWorker.onmessage = function(ev) {
       var d = ev.data;
       if (d.type === 'progress' && progressCb) {
-        progressCb(d.done, d.total, d.msg);
+        progressCb(d.done, d.total, d.msg, d.detail);
       } else if (d.type === 'done') {
         resolve(d.result);
         _pointPriorityWorker.terminate(); _pointPriorityWorker = null;
@@ -9694,19 +10262,6 @@ document.getElementById('opt-mode-hours')?.addEventListener('click', () => {
   document.getElementById('opt-target-hours-wrap').style.display = '';
 });
 
-// Beam width toggle
-let _selectedBeamWidth = 5;
-document.querySelectorAll('.opt-beam-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.opt-beam-btn').forEach(b => b.style.opacity = '.5');
-    btn.style.opacity = '1';
-    _selectedBeamWidth = parseInt(btn.dataset.beam) || 5;
-  });
-});
-function _getSelectedBeamWidth() {
-  return _selectedBeamWidth;
-}
-
 // Optimizer run button
 let _optRunning = false;
 document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
@@ -9737,8 +10292,10 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   const progDiv = document.getElementById('opt-progress');
   const progBar = document.getElementById('opt-progress-bar');
   const progText = document.getElementById('opt-progress-text');
+  const progDetail = document.getElementById('opt-progress-detail');
   progDiv.style.display = 'block';
   progBar.style.width = '0%';
+  progDetail.textContent = '';
   _optRunning = true;
   runBtn.textContent = '\u274C Cancel';
   runBtn.style.background = '#a33';
@@ -9746,31 +10303,16 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   try {
     const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
     const extendInsightLA = !!document.getElementById('opt-insight-la')?.checked;
-    const beamWidth = _getSelectedBeamWidth();
-    let _prevT = performance.now(), _prevFrac = 0, _emaRate = 0;
-    const result = await _runOptimizerViaWorker(target, (done, total, msg) => {
+    const result = await _runParallelOptimizer(target, (done, total, msg, detail) => {
       const frac = done / total;
       const pct = (frac * 100).toFixed(0);
       progBar.style.width = pct + '%';
-      let eta = '';
-      const now = performance.now();
-      const dt = (now - _prevT) / 1000;
-      const df = frac - _prevFrac;
-      if (dt > 0.05 && df > 0) {
-        const localRate = df / dt; // fraction per second
-        _emaRate = _emaRate > 0 ? 0.3 * localRate + 0.7 * _emaRate : localRate;
-        _prevT = now; _prevFrac = frac;
-      }
-      if (_emaRate > 0 && frac > 0.005) {
-        const remaining = (1 - frac) / _emaRate;
-        if (remaining < 60) eta = ' \u2014 ETA ' + Math.ceil(remaining) + 's';
-        else if (remaining < 3600) eta = ' \u2014 ETA ' + Math.ceil(remaining / 60) + 'm';
-        else eta = ' \u2014 ETA ' + (remaining / 3600).toFixed(1) + 'h';
-      }
-      progText.textContent = (msg || `${pct}%`) + eta;
-    }, { assumeObs, extendInsightLA, beamWidth });
+      progText.textContent = msg || (pct + '%');
+      progDetail.innerText = detail || '';
+    }, { assumeObs, extendInsightLA });
     progBar.style.width = '100%';
-    progText.textContent = 'Done!';
+    progText.textContent = result.notice || 'Done!';
+    progDetail.textContent = '';
     renderOptimizerResults(result);
   } catch(e) {
     if (e.message === 'Cancelled') {
@@ -9780,6 +10322,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
       console.error('Optimizer error:', e);
       progText.textContent = 'Error: ' + e.message;
     }
+    progDetail.textContent = '';
   } finally {
     _optRunning = false;
     runBtn.textContent = 'Run Optimizer';
