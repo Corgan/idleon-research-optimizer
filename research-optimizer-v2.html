@@ -556,7 +556,7 @@ const SHAPE_BONUS_PCT = [25,15,50,20,20,35,25,30,35,60];
 const SHAPE_COLORS = ["#9b59b6","#3498db","#2ecc71","#00bcd4","#f1c40f","#e67e22","#800000","#ecf0f1","#ff69b4","#555"];
 // Goal category for each grid node — used in step-by-step annotations
 const NODE_GOAL = {
-  31:'Rolls', 47:'Stickers', 48:'Polymer', 49:'Polymer',
+  31:'Res EXP', 47:'Stickers', 48:'Polymer', 49:'Polymer',
   50:'Res EXP', 51:'Res EXP', 52:'Kaleido',
   67:'Crowns', 68:'Crowns', 69:'Cogs', 70:'Res True\u00d7', 71:'AFK', 72:'Kaleido',
   87:'Gaming', 88:'Stickers', 89:'Cogs', 90:'Res EXP', 91:'Insight', 92:'Insight', 93:'Obs\u00d7Insight', 94:'Res EXP',
@@ -2535,7 +2535,7 @@ function simTotalExp(opts = {}) {
   const dynSticker = cachedStickerFixed > 0
     ? (1 + (gb(68) * cachedBoonyCount + 30 * cachedEvShop37) / 100) * cachedStickerFixed
     : 0;
-  let additive = gb(50) + gb(90) + gb(110) + cachedExtPctExSticker + dynSticker;
+  let additive = gb(50) + gb(90) + gb(110) + gb(31) + cachedExtPctExSticker + dynSticker;
   // Game: TotalOccurrencesFound loops i=0..OccurrencesToBeFound-1, counts Research[2][i]>=1
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
@@ -3492,7 +3492,7 @@ function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   const dynSticker = cachedStickerFixed > 0
     ? (1 + (_gbWith(gl, so, 68, ctx) * cachedBoonyCount + 30 * cachedEvShop37) / 100) * cachedStickerFixed
     : 0;
-  let additive = _gbWith(gl, so, 50, ctx) + _gbWith(gl, so, 90, ctx) + _gbWith(gl, so, 110, ctx) + cachedExtPctExSticker + dynSticker;
+  let additive = _gbWith(gl, so, 50, ctx) + _gbWith(gl, so, 90, ctx) + _gbWith(gl, so, 110, ctx) + _gbWith(gl, so, 31, ctx) + cachedExtPctExSticker + dynSticker;
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
   additive += _gbWith(gl, so, 112, ctx) * occFoundCount;
@@ -5035,7 +5035,8 @@ function buildExpBreakdownTree() {
   const gridExpSquares = [
     { idx: 50, name: 'Pts Every Ten' },
     { idx: 90, name: 'Observationalistic' },
-    { idx: 110, name: 'All Night Studying' }
+    { idx: 110, name: 'All Night Studying' },
+    { idx: 31, name: 'Smart Eye' }
   ];
   for (const sq of gridExpSquares) {
     addChildren.push(_gbNode(sq.idx, 'Grid ' + gridCoord(sq.idx) + ': ' + sq.name, { fmt: '%' }));
