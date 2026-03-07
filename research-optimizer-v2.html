@@ -4018,24 +4018,53 @@ function _buildInsightGrindLayout(md, targetObs, mMax, gl, so, il, occ, rLv) {
   const result = md.map(m => ({...m}));
   const monoCount = result.filter(m => m.type === 1).length;
   if (monoCount === 0) return result;
-  const wantMonos = Math.min(monoCount, mMax);
-  // Evict regular mags from target slot to make room for monocles
+  // Goal: pack as many monocles as possible on targetObs (up to mMax total items on that slot)
+  // First, count existing non-mono items on target
   const nonMonoOnTarget = result.filter(m => m.type !== 1 && m.slot === targetObs).length;
-  const maxKeepNonMono = mMax - wantMonos;
-  const needToEvict = Math.max(0, nonMonoOnTarget - maxKeepNonMono);
+  const roomForMonos = Math.max(0, mMax - nonMonoOnTarget);
+  const wantMonosOnTarget = Math.min(monoCount, mMax); // ideally fill target with monocles
+  // Evict non-monos if we need more room
   const evictedIndices = [];
-  for (let mi = 0; mi < result.length; mi++) {
-    if (evictedIndices.length >= needToEvict) break;
-    if (result[mi].type !== 1 && result[mi].slot === targetObs) {
-      result[mi].slot = -1;
-      evictedIndices.push(mi);
+  if (wantMonosOnTarget > roomForMonos) {
+    const needToEvict = wantMonosOnTarget - roomForMonos;
+    for (let mi = 0; mi < result.length; mi++) {
+      if (evictedIndices.length >= needToEvict) break;
+      if (result[mi].type !== 1 && result[mi].slot === targetObs) {
+        result[mi].slot = -1;
+        evictedIndices.push(mi);
+      }
     }
   }
-  // Place all monocles on target
+  const actualMonosOnTarget = Math.min(wantMonosOnTarget, roomForMonos + evictedIndices.length);
+  // Place monocles: first batch on target, overflow to other obs
   let placed = 0;
-  for (const m of result) {
-    if (m.type !== 1) continue;
-    if (placed < wantMonos) { m.slot = targetObs; placed++; }
+  const overflowMonoIndices = [];
+  for (let mi = 0; mi < result.length; mi++) {
+    if (result[mi].type !== 1) continue;
+    if (placed < actualMonosOnTarget) {
+      result[mi].slot = targetObs;
+      placed++;
+    } else {
+      result[mi].slot = -1; // will be reassigned below
+      overflowMonoIndices.push(mi);
+    }
+  }
+  // Reassign overflow monocles to best alternate obs (respect mMax)
+  if (overflowMonoIndices.length > 0 && gl) {
+    const occTBF = computeOccurrencesToBeFound(rLv);
+    for (const mi of overflowMonoIndices) {
+      let bestSlot = -1, bestRate = -1;
+      for (let s = 0; s < Math.min(occTBF, OCC_DATA.length); s++) {
+        if (s === targetObs) continue;
+        if (!isObsUsable(s, rLv, occ)) continue;
+        const slotCount = result.filter(r => r.slot === s).length;
+        if (slotCount >= mMax) continue;
+        result[mi].slot = s;
+        const rate = insightExpRate(s, result, il, gl, so);
+        if (rate > bestRate) { bestRate = rate; bestSlot = s; }
+      }
+      result[mi].slot = bestSlot >= 0 ? bestSlot : -1;
+    }
   }
   // Reassign evicted mags to best available slots (greedy by score)
   if (evictedIndices.length > 0 && gl) {
