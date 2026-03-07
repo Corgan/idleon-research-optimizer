@@ -3054,9 +3054,9 @@ function computeCellValues(simOpts) {
 
 let _covLUTCache = null, _covLUTCacheN = -1;
 
-function optimizeShapePlacement(simOpts, progressCb) {
+function optimizeShapePlacement(simOpts, progressCb, precomputedCellValues) {
   const useTiers = simOpts && simOpts.useTiers;
-  const cellValues = computeCellValues(simOpts);
+  const cellValues = precomputedCellValues || computeCellValues(simOpts);
 
   // Use computed ShapesOwned (matches game formula) capped by available shape definitions
   const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
@@ -3802,7 +3802,7 @@ function _evalMagScoreWith(trialMags, gl, so, il, occ, rLv) {
 
 // Requires allBonusMulti to be set by caller (used by optimizeShapePlacement chain).
 // md/il/occ: optional sim-local state — swapped into globals so computeCellValues/simTotalExp see current data.
-function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ) {
+function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ, precomputedCellValues) {
   const origGL = gridLevels, origSO = shapeOverlay, origRL = researchLevel;
   const origMD = magData, origIL = insightLvs, origOcc = occFound;
   gridLevels = gl; shapeOverlay = so;
@@ -3810,7 +3810,7 @@ function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ) {
   if (md) magData = md;
   if (il) insightLvs = il;
   if (occ) occFound = occ;
-  const result = optimizeShapePlacement(simOpts);
+  const result = optimizeShapePlacement(simOpts, undefined, precomputedCellValues);
   gridLevels = origGL; shapeOverlay = origSO; researchLevel = origRL;
   magData = origMD; insightLvs = origIL; occFound = origOcc;
   // Keep existing overlay if improvement is negligible (<0%) — avoids cosmetic churn
@@ -3819,7 +3819,7 @@ function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ) {
   }
   return { overlay: result.optimizedOverlay, positions: result.optimizedPositions };
 }
-function optimizeShapesFor(gl, so, simOpts, rLv, md, il, occ) { return _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ); }
+function optimizeShapesFor(gl, so, simOpts, rLv, md, il, occ, precomputedCellValues) { return _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ, precomputedCellValues); }
 
 function insightAffectsExp(gl, so) {
   // Insight levels only affect EXP via gd93 (Game Design 101) and gd94 (Game Design 102)
@@ -4694,6 +4694,22 @@ async function computeMagTypeBalance() {
 }
 // 
 // ===== INSIGHT ROI (worker-side) =====
+// Compute cell values optimized for insight rate of a specific obs.
+function _computeInsightCellValues(obsIdx, md, il, gl, so) {
+  const bareSO = new Array(GRID_SIZE).fill(-1);
+  const baseIR = insightExpRate(obsIdx, md, il, gl, bareSO);
+  const values = new Array(GRID_SIZE).fill(0);
+  for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    const lv = gl[idx] || 0;
+    if (lv === 0) continue;
+    const testSO = bareSO.slice();
+    testSO[idx] = 0; // 25% shape
+    const testIR = insightExpRate(obsIdx, md, il, gl, testSO);
+    values[idx] = testIR - baseIR;
+  }
+  return values;
+}
+
 async function computeInsightROI(onProgress) {
   const occTBF = computeOccurrencesToBeFound();
   const pool = magData.slice(0, magnifiersOwned);
@@ -4704,6 +4720,7 @@ async function computeInsightROI(onProgress) {
   const baseRate = simTotalExp().total;
   const gl = gridLevels, so = shapeOverlay, il = insightLvs, occ = occFound;
   const rLv = researchLevel, mMax = magMaxPerSlot;
+  const mOwned = magnifiersOwned;
   const availSlots = [];
   for (let s = 0; s < Math.min(occTBF, OCC_DATA.length); s++) {
     if (isObsUsable(s, rLv, occ)) availSlots.push(s);
@@ -4747,26 +4764,33 @@ async function computeInsightROI(onProgress) {
     }
     return assigned;
   }
-  function evalLayout(mdLayout, obsIdx, targetLvGain, currentProgress) {
+  // evalLayout: compute break-even for a grind scenario.
+  // grindSO: optional shape overlay to use during the grind (null = use current so).
+  // afterMD/afterSO: optional post-grind layouts for computing the "after" rate.
+  function evalLayout(mdLayout, obsIdx, targetLvGain, currentProgress, grindSO, afterMD, afterSO) {
+    const useSO = grindSO || so;
     let totalGrindHrs = 0, simIP = currentProgress, simLv = il[obsIdx]||0;
     for (let g=0;g<targetLvGain;g++) {
-      const iRate = insightExpRate(obsIdx,mdLayout,il,gl,so);
+      const iRate = insightExpRate(obsIdx,mdLayout,il,gl,useSO);
       if (iRate<=0) { totalGrindHrs=Infinity; break; }
       totalGrindHrs += Math.max(0, insightExpReqAt(obsIdx,simLv)-simIP)/iRate;
       simIP=0; simLv++;
     }
-    const grindRate = simTotalExp({magData:mdLayout}).total;
+    const grindRate = simTotalExp({magData:mdLayout, shapeOverlay:useSO}).total;
     const expLostPerHr = baseRate - grindRate;
     const totalExpLost = expLostPerHr * totalGrindHrs;
     const newIL = il.slice(); newIL[obsIdx] = (il[obsIdx]||0)+targetLvGain;
-    const postRate = simTotalExp({insightLvs:newIL}).total;
+    // Post-grind rate: use after layouts if provided, otherwise baseline with new insight
+    const postRate = afterMD && afterSO
+      ? simTotalExp({magData:afterMD, shapeOverlay:afterSO, insightLvs:newIL}).total
+      : simTotalExp({insightLvs:newIL}).total;
     const rateGain = postRate - baseRate;
     const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
     const breakEvenHrs = totalGrindHrs + recoupHrs;
     return { grindHrs:totalGrindHrs, grindRate, expLostPerHr, totalExpLost,
       postRate, rateGain, recoupHrs, breakEvenHrs,
       worth:isFinite(breakEvenHrs)&&rateGain>0,
-      insightRate:insightExpRate(obsIdx,mdLayout,il,gl,so) };
+      insightRate:insightExpRate(obsIdx,mdLayout,il,gl,useSO) };
   }
   const usableIndices = [];
   for (let i=0;i<Math.min(occTBF,OCC_DATA.length);i++) if (isObsUsable(i)) usableIndices.push(i);
@@ -4777,17 +4801,80 @@ async function computeInsightROI(onProgress) {
     const lv = il[i]||0, progress = insightProgress[i]||0;
     const maxAdj = Math.min(numKalei, 4), layouts = [];
     for (let nAdj=0;nAdj<=maxAdj;nAdj++) layouts.push({nAdj,md:buildLayout(i,nAdj)});
+
+    // Find best mag layout (by break-even with current shapes)
     let bestLayout = layouts[0], bestBE = Infinity;
     for (const l of layouts) { const ev = evalLayout(l.md,i,1,progress); if (ev.breakEvenHrs<bestBE) { bestBE=ev.breakEvenHrs; bestLayout=l; } }
+
+    // Optimize shapes for insight grind: boost cells that affect insight rate
+    const insightCV = _computeInsightCellValues(i, bestLayout.md, il, gl, so);
+    // Blend: primarily insight rate, secondarily research EXP (to avoid tanking EXP more than needed)
+    const researchCV = computeCellValues();
+    const maxInsight = Math.max(0.001, ...insightCV.filter(v => v > 0));
+    const maxResearch = Math.max(0.001, ...researchCV.filter(v => v > 0));
+    const blendedCV = new Array(GRID_SIZE).fill(0);
+    for (let ci = 0; ci < GRID_SIZE; ci++) {
+      // 70% insight priority, 30% research to avoid unnecessary EXP loss
+      blendedCV[ci] = 0.7 * (insightCV[ci] / maxInsight) + 0.3 * (researchCV[ci] / maxResearch);
+    }
+    const insightShapeResult = optimizeShapesFor(gl, so, undefined, rLv, bestLayout.md, il, occ, blendedCV);
+    const insightSO = insightShapeResult.overlay;
+
+    // Also re-find best mag layout with insight shapes (kaleidoscope effect may differ)
+    let bestLayoutIS = bestLayout, bestBE_IS = Infinity;
+    for (const l of layouts) {
+      const ev = evalLayout(l.md, i, 1, progress, insightSO);
+      if (ev.breakEvenHrs < bestBE_IS) { bestBE_IS = ev.breakEvenHrs; bestLayoutIS = l; }
+    }
+
+    // Compute after-grind layouts (re-optimized mags + shapes with new insight levels)
+    const newIL = il.slice(); newIL[i] = (il[i]||0)+1;
+    const afterMDRaw = await optimizeMagsFor(gl, so, pool, newIL, occ, mOwned, mMax, rLv);
+    const afterMD = chooseMonoTargets(afterMDRaw, newIL, insightProgress, occ, gl, so, mMax, 24, rLv);
+    const afterShapeResult = optimizeShapesFor(gl, so, undefined, rLv, afterMD, newIL, occ);
+    const afterSO = afterShapeResult.overlay;
+
+    // Decide: use insight shapes or current shapes? Pick whichever gives better break-even.
+    const evCurrent = evalLayout(bestLayout.md, i, 1, progress, null, afterMD, afterSO);
+    const evInsight = evalLayout(bestLayoutIS.md, i, 1, progress, insightSO, afterMD, afterSO);
+    let useInsightShapes = false;
+    if (evInsight.breakEvenHrs < evCurrent.breakEvenHrs) useInsightShapes = true;
+
+    const chosenMagLayout = useInsightShapes ? bestLayoutIS : bestLayout;
+    const chosenSO = useInsightShapes ? insightSO : null;
+
     const scenarios = [];
-    for (const targetLvGain of [1,2]) { const ev = evalLayout(bestLayout.md,i,targetLvGain,progress); ev.lvGain=targetLvGain; ev.adjKalei=bestLayout.nAdj; scenarios.push(ev); }
-    rows.push({idx:i,name,lv,progress,scenarios,grindLayout:bestLayout.md});
+    for (const targetLvGain of [1,2]) {
+      // For +2, recompute after layouts
+      let aftMD2 = afterMD, aftSO2 = afterSO;
+      if (targetLvGain > 1) {
+        const newIL2 = il.slice(); newIL2[i] = (il[i]||0)+targetLvGain;
+        const aftMD2Raw = await optimizeMagsFor(gl, so, pool, newIL2, occ, mOwned, mMax, rLv);
+        aftMD2 = chooseMonoTargets(aftMD2Raw, newIL2, insightProgress, occ, gl, so, mMax, 24, rLv);
+        const aftShape2 = optimizeShapesFor(gl, so, undefined, rLv, aftMD2, newIL2, occ);
+        aftSO2 = aftShape2.overlay;
+      }
+      const ev = evalLayout(chosenMagLayout.md, i, targetLvGain, progress, chosenSO, aftMD2, aftSO2);
+      ev.lvGain = targetLvGain;
+      ev.adjKalei = chosenMagLayout.nAdj;
+      ev.afterMD = aftMD2;
+      ev.afterSO = aftSO2;
+      scenarios.push(ev);
+    }
+    rows.push({
+      idx:i, name, lv, progress, scenarios,
+      grindLayout: chosenMagLayout.md,
+      grindSO: chosenSO,
+      useInsightShapes,
+      afterLayout: afterMD,
+      afterSO,
+    });
     processed++;
     if (onProgress) onProgress(processed, totalUsable);
     if (processed%3===0) await new Promise(r=>setTimeout(r,0));
   }
   rows.sort((a,b)=>(a.scenarios[0]?.breakEvenHrs??Infinity)-(b.scenarios[0]?.breakEvenHrs??Infinity));
-  return { monoCount, baseRate, rows, baselineLayout:pool.slice() };
+  return { monoCount, baseRate, rows, baselineLayout:pool.slice(), baselineSO:so.slice() };
 }
 
 // ===== OBS UNLOCK PRIORITY (worker-side) =====
@@ -8490,7 +8577,8 @@ function _fmtLayoutHTML(layout, label) {
   let h = `<div style="display:flex;flex-wrap:wrap;gap:4px 10px;">`;
   for (const s of slots) {
     const counts = bySlot[s];
-    const oName = s < OCC_DATA.length ? OCC_DATA[s].name.replace(/_/g,' ') : `Slot ${s}`;
+    const oData = s >= 0 && s < OCC_DATA.length ? OCC_DATA[s] : null;
+    const oName = oData ? oData.name.replace(/_/g,' ') : `Slot ${s}`;
     const parts = [];
     for (let t = 0; t < 3; t++) {
       if (counts[t] > 0) parts.push(`<span style="color:${magColors[t]};">${counts[t]}${magNames[t]}</span>`);
@@ -8501,8 +8589,8 @@ function _fmtLayoutHTML(layout, label) {
   return h;
 }
 
-function _fmtLayoutDiff(before, after) {
-  // Show before/after with changed slots highlighted
+function _fmtLayoutDiff(before, during, after) {
+  // Show before/during/after mag layouts with changed slots highlighted
   const aggregate = (layout) => {
     const bySlot = {};
     for (const m of layout) {
@@ -8511,8 +8599,8 @@ function _fmtLayoutDiff(before, after) {
     }
     return bySlot;
   };
-  const bSlots = aggregate(before), aSlots = aggregate(after);
-  const allSlots = new Set([...Object.keys(bSlots), ...Object.keys(aSlots)]);
+  const bSlots = aggregate(before), dSlots = aggregate(during), aSlots = aggregate(after);
+  const allSlots = new Set([...Object.keys(bSlots), ...Object.keys(dSlots), ...Object.keys(aSlots)]);
   const sorted = [...allSlots].map(Number).sort((a,b) => a - b);
   const magNames = ['Mag','Mono','Kalei'];
   const magColors = ['var(--text)','var(--purple)','var(--cyan)'];
@@ -8522,26 +8610,72 @@ function _fmtLayoutDiff(before, after) {
     for (let t = 0; t < 3; t++) {
       if (counts[t] > 0) parts.push(`<span style="color:${magColors[t]};">${counts[t]}${magNames[t]}</span>`);
     }
-    return parts.join(' ') || '<span style="color:var(--text2);">—</span>';
+    return parts.join(' ') || '<span style="color:var(--text2);">&mdash;</span>';
   };
   const arrEq = (a, b) => a[0]===b[0] && a[1]===b[1] && a[2]===b[2];
 
   let h = '<table style="border-collapse:collapse;font-size:.82em;width:100%;">';
   h += '<thead><tr style="color:var(--text2);border-bottom:1px solid #333;">';
   h += '<th style="text-align:left;padding:2px 6px;">Obs Slot</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">Before (Research)</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">During (Grind)</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">Before</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">During Grind</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">After Grind</th>';
   h += '</tr></thead><tbody>';
 
   for (const s of sorted) {
-    const bc = bSlots[s] || [0,0,0], ac = aSlots[s] || [0,0,0];
-    const changed = !arrEq(bc, ac);
-    const oName = s < OCC_DATA.length ? OCC_DATA[s].name.replace(/_/g,' ') : `Slot ${s}`;
+    const bc = bSlots[s] || [0,0,0], dc = dSlots[s] || [0,0,0], ac = aSlots[s] || [0,0,0];
+    const changed = !arrEq(bc, dc) || !arrEq(bc, ac);
+    const oData = s >= 0 && s < OCC_DATA.length ? OCC_DATA[s] : null;
+    const oName = oData ? oData.name.replace(/_/g,' ') : `Slot ${s}`;
     const bg = changed ? 'background:rgba(255,200,50,.07);' : '';
     h += `<tr style="${bg}">`;
     h += `<td style="padding:2px 6px;color:var(--text2);white-space:nowrap;">${oName}${changed ? ' <span style="color:var(--gold);">*</span>' : ''}</td>`;
     h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(bc)}</td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(dc)}</td>`;
     h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(ac)}</td>`;
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function _fmtShapeDiff(beforeSO, duringSO, afterSO) {
+  // Show which grid nodes gained/lost shape coverage across phases
+  const allIdx = Object.keys(RES_GRID_RAW).map(Number).sort((a,b) => a - b);
+
+  // Only show nodes where coverage changes
+  let hasChanges = false;
+  const rows = [];
+  for (const idx of allIdx) {
+    const b = beforeSO[idx] !== undefined ? beforeSO[idx] : -1;
+    const d = duringSO[idx] !== undefined ? duringSO[idx] : -1;
+    const a = afterSO[idx] !== undefined ? afterSO[idx] : -1;
+    if (b === d && d === a) continue;
+    hasChanges = true;
+    const raw = RES_GRID_RAW[idx];
+    const name = raw ? raw[0].replace(/_/g,' ') : `Node ${idx}`;
+    rows.push({ idx, name, b, d, a });
+  }
+  if (!hasChanges) return '<span style="color:var(--text2);font-size:.82em;">No shape changes across phases.</span>';
+
+  const fmtCell = (si) => {
+    if (si < 0) return '<span style="color:var(--text2);">&mdash;</span>';
+    return '<span style="color:var(--green);">covered</span>';
+  };
+
+  let h = '<table style="border-collapse:collapse;font-size:.82em;width:100%;margin-top:4px;">';
+  h += '<thead><tr style="color:var(--text2);border-bottom:1px solid #333;">';
+  h += '<th style="text-align:left;padding:2px 6px;">Grid Node</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">Before</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">During Grind</th>';
+  h += '<th style="text-align:center;padding:2px 6px;">After Grind</th>';
+  h += '</tr></thead><tbody>';
+  for (const r of rows) {
+    h += '<tr style="background:rgba(255,200,50,.07);">';
+    h += `<td style="padding:2px 6px;color:var(--text2);white-space:nowrap;">${r.name} <span style="color:var(--gold);">*</span></td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.b)}</td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.d)}</td>`;
+    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.a)}</td>`;
     h += '</tr>';
   }
   h += '</tbody></table>';
@@ -8704,8 +8838,17 @@ function _renderInsightROITable(data) {
     }
     // Collapsible layout row after each observation
     html += `<tr><td colspan="${NCOLS}" style="padding:0 6px 6px;">`;
-    html += `<details style="margin:0;"><summary style="cursor:pointer;color:var(--accent);font-size:.82em;padding:2px 0;">Show mag layout (before / during grind)</summary>`;
-    html += `<div style="margin-top:4px;">${_fmtLayoutDiff(data.baselineLayout, row.grindLayout)}</div>`;
+    html += `<details style="margin:0;"><summary style="cursor:pointer;color:var(--accent);font-size:.82em;padding:2px 0;">Show layouts (before / during / after grind)${row.useInsightShapes ? ' <span style="color:var(--purple);">\u2728 insight-optimized shapes</span>' : ''}</summary>`;
+    html += `<div style="margin-top:4px;"><strong style="color:var(--text2);font-size:.82em;">Magnifier Layout</strong>`;
+    html += _fmtLayoutDiff(data.baselineLayout, row.grindLayout, row.afterLayout || data.baselineLayout);
+    html += `</div>`;
+    const duringSO = row.grindSO || data.baselineSO;
+    const afterSO = row.afterSO || data.baselineSO;
+    if (data.baselineSO) {
+      html += `<div style="margin-top:8px;"><strong style="color:var(--text2);font-size:.82em;">Shape Coverage</strong><br>`;
+      html += _fmtShapeDiff(data.baselineSO, duringSO, afterSO);
+      html += `</div>`;
+    }
     html += '</details></td></tr>';
   }
 
