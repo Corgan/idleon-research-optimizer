@@ -4306,8 +4306,10 @@ async function unifiedSim(config) {
         md = _grindCandidate.grindMD;
         curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
         // Attach grind info to the last phase (the event that triggered this grind)
+        // Update config.md to reflect the grind layout — this is what the user should set up
         const lastPhase = phases[phases.length - 1];
         lastPhase.grindInfo = _grindCandidate;
+        lastPhase.config.md = md.map(m => ({...m}));
       }
     }
 
@@ -6128,7 +6130,10 @@ function renderActions(sim, bestSteps) {
       }
       const newMonoCount = curMono.length - prevMono.length;
       let monoReason = 'fastest insight level-up';
-      if (newMonoCount > 0) monoReason = `+${newMonoCount} new monocle${newMonoCount > 1 ? 's' : ''} from grid`;
+      if (p.grindInfo) {
+        const gName = OCC_DATA[p.grindInfo.obs] ? OCC_DATA[p.grindInfo.obs].name.replace(/_/g,' ') : `obs #${p.grindInfo.obs}`;
+        monoReason = 'insight grind \u2192 ' + gName;
+      } else if (newMonoCount > 0) monoReason = `+${newMonoCount} new monocle${newMonoCount > 1 ? 's' : ''} from grid`;
       else {
         const anyMagOnCur = curMono.some(s => s >= 0 && p.config.md.some(m => m.type === 0 && m.slot === s));
         if (anyMagOnCur && gd93m > 0) monoReason = 'boosting obs EXP via insight (' + gd101name + ')';
@@ -6188,16 +6193,7 @@ function renderActions(sim, bestSteps) {
     // ─── Insight grind annotation (attached to the event that decided to grind) ───
     if (p.grindInfo) {
       const gi = p.grindInfo;
-      // Show monocle targeting for grind
-      const grindMonos = gi.grindMD.filter(m => m.type === 1 && m.slot >= 0);
-      const monoGroups = {};
-      for (const m of grindMonos) monoGroups[m.slot] = (monoGroups[m.slot] || 0) + 1;
-      const monoTargets = Object.entries(monoGroups).map(([s, c]) => {
-        const name = OCC_DATA[+s] ? OCC_DATA[+s].name.replace(/_/g, ' ') : '#' + s;
-        return c > 1 ? `${c}\u00d7 ${name}` : name;
-      }).join(', ');
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      if (monoTargets) details.push(`<div style="margin-left:8px;">Point monocle${grindMonos.length > 1 ? 's' : ''} at: <b style="color:var(--purple);">${monoTargets}</b></div>`);
       details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b>` +
         (gi.expLostPerHr > 0 ? ` &nbsp; <span style="color:var(--red);font-size:.9em;">(${fmtVal(gi.grindExpHr)}/hr during grind, ${fmtVal(gi.expLostPerHr)} lower)</span>` : '') +
         `</div>`);
