@@ -788,6 +788,7 @@ let extBonusOverrides = {}; // manual overrides for runtime-only bonuses
 let extBonuses = null; // cached result of computeExternalBonuses()
 let serverVarResXP = 1.01; // A_ResXP server variable for Research EXP curve
 let loadedSaveFormat = ''; // 'it.json' or 'save.json'
+let saveGlobalTime = 0; // Unix epoch (seconds) from TimeAway.GlobalTime
 // Cached scalars extracted from raw save arrays (so raw arrays aren't needed after load)
 let cachedEventShopStr = ''; // String(olaData[311]) — used by eventShopOwned()
 let cachedResearchExp = 0;   // exp0Data[20] — current research EXP
@@ -2127,6 +2128,13 @@ function loadSaveData(raw) {
 
     // Parse A_ResXP server variable for Research EXP curve — preserve existing if not present
     if (raw.serverVars?.A_ResXP != null) serverVarResXP = Number(raw.serverVars.A_ResXP) || 1.01;
+
+    // Parse TimeAway.GlobalTime for real-time display
+    const timeAwayRaw = parseSaveKey(save, 'TimeAway');
+    if (timeAwayRaw) {
+      const ta = typeof timeAwayRaw === 'string' ? JSON.parse(timeAwayRaw) : timeAwayRaw;
+      if (ta?.GlobalTime) saveGlobalTime = Number(ta.GlobalTime) || 0;
+    }
 
     researchLevel = Math.max(...lv0AllData.map(lv0 => lv0[20] || 0), 0);
     // Use highest research EXP from characters at the highest level (lower-level chars may have more EXP pre-levelup)
@@ -5380,6 +5388,29 @@ function fmtTime(hrs) {
   return d + 'd ' + h + 'h';
 }
 
+// Convert sim hours-offset to a real date string, relative to now.
+// Shows "X ago" / "in X" relative label + short date/time.
+function fmtRealTime(simHrs) {
+  if (!saveGlobalTime || !isFinite(simHrs)) return '';
+  const now = Date.now() / 1000; // current epoch seconds
+  // Save was taken at saveGlobalTime; sim hour 0 = save time.
+  // Event real time = saveGlobalTime + simHrs * 3600
+  const eventEpoch = saveGlobalTime + simHrs * 3600;
+  const diffSec = eventEpoch - now;
+  const diffHrs = diffSec / 3600;
+  // Relative label
+  let rel;
+  if (Math.abs(diffHrs) < 1/60) rel = 'now';
+  else if (diffHrs < 0) rel = fmtTime(-diffHrs) + ' ago';
+  else rel = 'in ' + fmtTime(diffHrs);
+  // Short time (12hr am/pm)
+  const d = new Date(eventEpoch * 1000);
+  let hr = d.getHours(), ampm = hr >= 12 ? 'pm' : 'am';
+  hr = hr % 12 || 12;
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${rel} (${hr}:${mm}${ampm})`;
+}
+
 function fmtExp(n) {
   if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
   if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
@@ -6155,7 +6186,9 @@ function renderTimeline(sim) {
     const left = (p.time / totalTime * 100).toFixed(2);
     const width = ((phases[nextIdx].time - p.time) / totalTime * 100).toFixed(2);
     const color = colors[p.event] || 'var(--text2)';
-    html += `<div data-phase="${i}" style="position:absolute;left:${left}%;width:${width}%;height:100%;background:${color}33;border-right:1px solid ${color};cursor:pointer;transition:background .15s;" title="${p.event} at ${fmtTime(p.time)} — ${fmtVal(p.expHr)}/hr"></div>`;
+    const tlReal = fmtRealTime(p.time);
+    const tlTitle = `${p.event} at ${fmtTime(p.time)}${tlReal ? ' \u2014 ' + tlReal : ''} \u2014 ${fmtVal(p.expHr)}/hr`;
+    html += `<div data-phase="${i}" style="position:absolute;left:${left}%;width:${width}%;height:100%;background:${color}33;border-right:1px solid ${color};cursor:pointer;transition:background .15s;" title="${tlTitle}"></div>`;
   }
   // Arrow marker (hidden by default)
   html += `<div id="tl-arrow" style="display:none;position:absolute;top:-18px;transform:translateX(-50%);font-size:14px;color:var(--gold);pointer-events:none;text-shadow:0 0 4px rgba(0,0,0,.8);">\u25bc</div>`;
@@ -6501,7 +6534,10 @@ function renderActions(sim, bestSteps) {
 
     // Header row: always visible
     html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;">`;
-    html += `<span style="color:var(--text2);min-width:48px;font-size:.85em;font-variant-numeric:tabular-nums;">${fmtTime(p.time)}</span>`;
+    const realTimeStr = fmtRealTime(p.time);
+    const timeTitle = realTimeStr ? ` title="${realTimeStr}"` : '';
+    html += `<span style="color:var(--text2);min-width:48px;font-size:.85em;font-variant-numeric:tabular-nums;"${timeTitle}>${fmtTime(p.time)}</span>`;
+    if (realTimeStr) html += `<span style="color:var(--text2);font-size:.7em;opacity:.7;min-width:0;white-space:nowrap;">${realTimeStr}</span>`;
     html += `<span style="font-size:1em;">${icon}</span>`;
     html += `<span style="font-weight:600;color:${borderColor};flex:1;">${eventLabel}</span>`;
     html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(displayExpHr)}/hr</span>`;
@@ -6539,6 +6575,8 @@ function renderActions(sim, bestSteps) {
     html += `EXP earned: <b style="color:var(--green);">${fmtExp(simExpTotal)}</b>`;
     html += ` &middot; Avg rate: <b style="color:var(--green);">${fmtVal(avgRate)}/hr</b>`;
     html += ` &middot; Start: ${fmtVal(phases[0].expHr)}/hr \u2192 End: ${fmtVal(phases[phases.length-2].expHr)}/hr`;
+    const endReal = fmtRealTime(sim.totalTime);
+    if (endReal) html += ` &middot; <span style="color:var(--text2);font-size:.95em;">Finishes: ${endReal}</span>`;
     if (Math.abs(simExpTotal - expNeeded) > simExpTotal * 0.01) {
       html += ` <span style="color:var(--red);">(mismatch: needed ${fmtExp(expNeeded)})</span>`;
     }
@@ -10638,8 +10676,25 @@ async function _runParallelOptimizer(target, progressCb, opts) {
 
   function _reportProgress() {
     if (!progressCb) return;
-    const pct = Math.min(completedSims / Math.max(totalEstSims, 1), 0.999);
+    // Bar fill: target-oriented (levels or hours) from best worker
+    let barPct;
+    if (target.type === 'level') {
+      let bestLv = researchLevel;
+      for (const sub of workerSubs) {
+        if (sub && sub.rLv != null && sub.rLv > bestLv) bestLv = sub.rLv;
+      }
+      const span = target.value - researchLevel;
+      barPct = span > 0 ? Math.min((bestLv - researchLevel) / span, 0.999) : 0;
+    } else {
+      let bestTime = 0;
+      for (const sub of workerSubs) {
+        if (sub && sub.currentTime > 0 && sub.currentTime > bestTime) bestTime = sub.currentTime;
+      }
+      barPct = target.value > 0 ? Math.min(bestTime / target.value, 0.999) : 0;
+    }
+    // Status text: original detailed format
     const msg = currentStage + ' \u2014 ' + completedSims + '/' + totalEstSims + (poolSize > 1 ? ' (' + poolSize + '\u00D7 parallel)' : '');
+    // Per-worker detail: only show if multiple workers are active
     const lines = [];
     for (let wi = 0; wi < poolSize; wi++) {
       const sub = workerSubs[wi];
@@ -10655,7 +10710,21 @@ async function _runParallelOptimizer(target, progressCb, opts) {
       }
       lines.push(line);
     }
-    progressCb(Math.floor(pct * 1000), 1000, msg, lines.join('\n'));
+    // If only 1 worker is active, show its status inline (no "W1:" prefix)
+    let detail;
+    if (lines.length === 1) {
+      const sub = workerSubs.find(s => s != null);
+      if (sub && sub.rLv != null) {
+        detail = 'Lv ' + sub.rLv + ' | ' + _fmtR(sub.expHr || 0) + (sub.currentTime > 0 ? ' | ' + _fmtHrs(sub.currentTime) : '');
+      } else if (sub && sub.subStage) {
+        detail = sub.subStage;
+      } else {
+        detail = '';
+      }
+    } else {
+      detail = lines.join('\n');
+    }
+    progressCb(Math.floor(barPct * 1000), 1000, msg, detail);
   }
 
   // Create pool
