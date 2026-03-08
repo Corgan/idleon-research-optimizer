@@ -3830,7 +3830,7 @@ function _simulateShapeOptFor(gl, so, rLv, simOpts, md, il, occ, precomputedCell
   const result = optimizeShapePlacement(simOpts, undefined, precomputedCellValues);
   gridLevels = origGL; shapeOverlay = origSO; researchLevel = origRL;
   magData = origMD; insightLvs = origIL; occFound = origOcc;
-  // Keep existing overlay if improvement is negligible (<0%) — avoids cosmetic churn
+  // Keep existing overlay if no improvement — avoids cosmetic churn
   if (result.currentTotal > 0 && result.improvPct <= 0) {
     return { overlay: so.slice(), positions: result.optimizedPositions };
   }
@@ -4232,7 +4232,7 @@ async function unifiedSim(config) {
       occFound: occ.slice(),
       researchLevel: rLv,
       currentExp: rExp,
-    }, rLv);
+    }, rLv, md, il, occ);
     so = shapeResult.overlay;
     sp = shapeResult.positions;
   }
