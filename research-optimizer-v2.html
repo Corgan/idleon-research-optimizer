@@ -3438,7 +3438,14 @@ async function optimizeMagnifiers() {
   const numKalei = ownedMags.filter(m => m.type === 2).length;
   const numMono = ownedMags.filter(m => m.type === 1).length;
 
-  let assigned = await _enumKalMags(availSlots, numKalei, numRegular,
+  // Reserve room for monocles (same logic as optimizeMagsFor)
+  const totalSlotRoom = availSlots.length * magMaxPerSlot;
+  const magKalCount = numKalei + numRegular;
+  const regsToPlace = (magKalCount + numMono > totalSlotRoom)
+    ? Math.max(0, numRegular - Math.max(0, magKalCount + numMono - totalSlotRoom))
+    : numRegular;
+
+  let assigned = await _enumKalMags(availSlots, numKalei, regsToPlace,
     getKaleiMultiBase(), getGridBonusFinal(93), insightLvs, magMaxPerSlot);
 
   // Append monocles unassigned
@@ -3774,7 +3781,17 @@ async function optimizeMagsFor(gl, so, md, il, occ, ownedCount, maxPerSlot, rLv)
   const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
   const gd101 = _gbWith(gl, so, 93);
 
-  let assigned = await _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il, maxPerSlot);
+  // Reserve room for monocles: reduce regular mags so total slots used
+  // by mags+kaleidos leaves enough room for monocles to be placed.
+  // Without this, _enumKalMags fills all slots to maxPerSlot, leaving
+  // monoRoom=0 everywhere and monocles can't be assigned.
+  const totalSlotRoom = availSlots.length * maxPerSlot;
+  const magKalCount = numKalei + numRegular;
+  const regsToPlace = (magKalCount + numMono > totalSlotRoom)
+    ? Math.max(0, numRegular - Math.max(0, magKalCount + numMono - totalSlotRoom))
+    : numRegular;
+
+  let assigned = await _enumKalMags(availSlots, numKalei, regsToPlace, kalBase, gd101, il, maxPerSlot);
 
   // Append monocles unassigned; chooseMonoTargets will place them
   for (let i = 0; i < numMono; i++) assigned.push({type: 1, slot: -1, x:0, y:0});
