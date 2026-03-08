@@ -5387,6 +5387,16 @@ function showGridTooltip(e, idx, overlayOverride) {
   }
   html += '<div class="tt-desc">' + _formatDesc(idx) + '</div>';
 
+  // Next level preview
+  const maxLv = info[1];
+  if (lv < maxLv) {
+    html += '<div style="margin-top:4px;border-top:1px solid #444;padding-top:4px;color:#aaa;font-size:.9em;">';
+    html += '<span style="color:var(--cyan)">LV ' + (lv+1) + ':</span> ' + _formatDesc(idx, lv + 1);
+    html += '</div>';
+  } else if (lv > 0) {
+    html += '<div style="margin-top:4px;border-top:1px solid #444;padding-top:4px;color:#666;font-size:.9em;">Max level</div>';
+  }
+
   tt.innerHTML = html;
   tt.style.display = 'block';
   moveTooltip(e);
@@ -9747,9 +9757,9 @@ function _tierOnChange() {
 }
 
 // Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders)
-function _gridBonusMode2(nodeIdx, curBonus) {
+function _gridBonusMode2(nodeIdx, curBonus, lvOverride) {
   switch (nodeIdx) {
-    case 31: return 25 * (gridLevels[31] || 0);
+    case 31: return 25 * (lvOverride != null ? lvOverride : (gridLevels[31] || 0));
     case 67: case 68: case 107: return curBonus * cachedBoonyCount;
     case 94: {
       let t = 0; for (let i = 0; i < insightLvs.length; i++) t += insightLvs[i] || 0;
@@ -9765,10 +9775,10 @@ function _gridBonusMode2(nodeIdx, curBonus) {
   }
 }
 // Format description with all game placeholders resolved
-function _formatDesc(nodeIdx) {
+function _formatDesc(nodeIdx, lvOverride) {
   const info = RES_GRID_RAW[nodeIdx];
   if (!info) return '';
-  const lv = gridLevels[nodeIdx] || 0;
+  const lv = lvOverride != null ? lvOverride : (gridLevels[nodeIdx] || 0);
   const bonusPerLv = info[2];
   const curBonus = bonusPerLv * lv;
   const curBonusClean = parseFloat(curBonus.toFixed(4));
@@ -9782,11 +9792,11 @@ function _formatDesc(nodeIdx) {
   desc = desc.replace(/\{/g, g(curBonusClean));
   desc = desc.replace(/\}/g, g(multiStr));
   if (desc.includes('$')) {
-    const v = _gridBonusMode2(nodeIdx, curBonus);
+    const v = _gridBonusMode2(nodeIdx, curBonus, lvOverride);
     desc = desc.replace(/\$/g, g(Math.round(v * 100) / 100));
   }
   if (desc.includes('^')) {
-    const v = _gridBonusMode2(nodeIdx, curBonus);
+    const v = _gridBonusMode2(nodeIdx, curBonus, lvOverride);
     desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2)));
   }
   if (desc.includes('&')) {
