@@ -6125,14 +6125,13 @@ function renderActions(sim, bestSteps) {
         const pc = prevGroups[obs] || 0, cc = curGroups[obs] || 0;
         if (pc === cc) continue;
         const name = obs >= 0 && OCC_DATA[obs] ? OCC_DATA[obs].name.replace(/_/g,' ') : 'none';
-        if (cc > pc) changes.push(`+${cc - pc} \u2192 ${name}`);
-        else changes.push(`-${pc - cc} from ${name}`);
+        if (cc > pc) changes.push(`<span style="color:var(--green);">+${cc - pc}</span> \u2192 ${name}`);
+        else changes.push(`<span style="color:var(--red);">-${pc - cc}</span> from ${name}`);
       }
       const newMonoCount = curMono.length - prevMono.length;
       let monoReason = 'fastest insight level-up';
       if (p.grindInfo) {
-        const gName = OCC_DATA[p.grindInfo.obs] ? OCC_DATA[p.grindInfo.obs].name.replace(/_/g,' ') : `obs #${p.grindInfo.obs}`;
-        monoReason = 'insight grind \u2192 ' + gName;
+        monoReason = 'insight grind \u2192 ' + p.grindInfo.obsName;
       } else if (newMonoCount > 0) monoReason = `+${newMonoCount} new monocle${newMonoCount > 1 ? 's' : ''} from grid`;
       else {
         const anyMagOnCur = curMono.some(s => s >= 0 && p.config.md.some(m => m.type === 0 && m.slot === s));
@@ -6140,15 +6139,18 @@ function renderActions(sim, bestSteps) {
         else if (gd94m > 0) monoReason = 'total insight LVs \u2192 research EXP (' + gd102name + ')';
         else monoReason = 'banking insight for future ' + gd102name;
       }
-      // Show current targets (e.g. "2× Bridge Plank, 1× Oboe Coral Trio")
-      const targetParts = [];
-      for (const obs of Object.keys(curGroups).map(Number).sort((a,b) => a - b)) {
-        const name = obs >= 0 && OCC_DATA[obs] ? OCC_DATA[obs].name.replace(/_/g,' ') : 'none';
-        const cnt = curGroups[obs];
-        targetParts.push(cnt > 1 ? `${cnt}\u00d7 ${name}` : name);
+      // Show moves (from → to) like mags, plus current targets summary
+      if (changes.length > 0) {
+        monoDetails.push(`<div style="color:var(--purple);">Monocle${curMono.length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${changes.join(' &nbsp; ')}</div>`);
+      } else {
+        const targetParts = [];
+        for (const obs of Object.keys(curGroups).map(Number).sort((a,b) => a - b)) {
+          const name = obs >= 0 && OCC_DATA[obs] ? OCC_DATA[obs].name.replace(/_/g,' ') : 'none';
+          const cnt = curGroups[obs];
+          targetParts.push(cnt > 1 ? `${cnt}\u00d7 ${name}` : name);
+        }
+        monoDetails.push(`<div style="color:var(--purple);">Monocle${curMono.length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${targetParts.join(', ')}</div>`);
       }
-      const summary = targetParts.join(', ');
-      monoDetails.push(`<div style="color:var(--purple);">Monocle${curMono.length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${summary}</div>`);
     }
 
     // ─── Insight changes (informational — happens over time) ───
