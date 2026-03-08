@@ -4113,37 +4113,40 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
   const occTBF = computeOccurrencesToBeFound(rLv);
 
   // Phase 1: cheap screening — quick rate delta check per obs
-  const _dbg = [];
   const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     if (!isObsUsable(i, rLv, occ)) continue;
-    const obsName = OCC_DATA[i] ? OCC_DATA[i].name.replace(/_/g, ' ') : '#' + i;
     const grindMD = _buildInsightGrindLayout(md, i, mMax, gl, so, il, occ, rLv);
     const iRate = insightExpRate(i, grindMD, il, gl, so, ctx);
-    if (iRate <= 0) { _dbg.push(`  [${obsName}] skip: iRate=0`); continue; }
+    if (iRate <= 0) continue;
     const iReq = insightExpReqAt(i, il[i] || 0);
     const iProgress = ip[i] || 0;
     const grindHrs = Math.max(0, iReq - iProgress) / iRate;
-    if (grindHrs <= 0 || grindHrs > remainingHrs * 0.8) { _dbg.push(`  [${obsName}] skip: grindHrs=${grindHrs.toFixed(2)} (remaining=${remainingHrs.toFixed(2)})`); continue; }
+    if (grindHrs <= 0 || grindHrs > remainingHrs * 0.8) continue;
     const grindExpHr = simTotalExpWith(gl, so, grindMD, il, occ, rLv, ctx);
     // Quick estimate: post-grind rate with current mag layout + new insight
     const newIL = il.slice(); newIL[i] = (il[i] || 0) + 1;
     const quickPostExpHr = simTotalExpWith(gl, so, md, newIL, occ, rLv, ctx);
     const quickRateGain = quickPostExpHr - curExpHr;
-    if (quickRateGain <= 0) { _dbg.push(`  [${obsName}] skip: quickRateGain=${quickRateGain.toFixed(2)} (quickPost=${quickPostExpHr.toFixed(2)}, cur=${curExpHr.toFixed(2)})`); continue; }
-    _dbg.push(`  [${obsName}] P1 pass: grindHrs=${grindHrs.toFixed(2)}, grindExpHr=${grindExpHr.toFixed(2)}, quickRateGain=${quickRateGain.toFixed(2)}, IL ${il[i]||0}→${(il[i]||0)+1}`);
+    if (quickRateGain <= 0) continue;
     candidates.push({ obsIdx: i, grindMD, grindHrs, grindExpHr, newIL, quickRateGain });
   }
-  console.log(`[InsightGrind] Phase 1: ${candidates.length} candidates from ${occTBF} obs, curExpHr=${curExpHr.toFixed(2)}, remainingHrs=${remainingHrs.toFixed(2)}, mOwned=${mOwned}`);
-  _dbg.forEach(d => console.log(d));
+
   if (candidates.length === 0) return null;
 
-  // Phase 2: full mag reopt for top candidates (sorted by quick rate gain, cap at 5)
+  // Phase 2: full mag reopt + 2-step sequence evaluation
+  // For each candidate X as first grind, compute:
+  //   (a) total EXP doing X alone: grindExp_X + postExp_X × tail
+  //   (b) total EXP doing X then best Y: grindExp_X + grindExp_Y(with X's insight) + postExp_XY × tail
+  // Pick the first grind from the path with highest total EXP.
   candidates.sort((a, b) => b.quickRateGain - a.quickRateGain);
   const topN = candidates.slice(0, 5);
-  console.log(`[InsightGrind] Phase 2: evaluating top ${topN.length} candidates`);
 
-  let bestCandidate = null;
+
+  const noGrindExp = curExpHr * remainingHrs;
+
+  // Phase 2a: compute full post-grind stats for each candidate (expensive mag reopt)
+  const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
     const postMD = await optimizeMagsFor(gl, so, md, c.newIL, occ, mOwned, mMax, rLv);
@@ -4151,32 +4154,158 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
     const postExpHr = simTotalExpWith(gl, so, postMDFull, c.newIL, occ, rLv, ctx);
     const rateGain = postExpHr - curExpHr;
     if (rateGain <= 0) {
-      console.log(`  [${obsName}] P2 skip: rateGain=${rateGain.toFixed(2)} (postExpHr=${postExpHr.toFixed(2)}, curExpHr=${curExpHr.toFixed(2)})`);
+      console.log(`  [${obsName}] P2a skip: rateGain=${rateGain.toFixed(2)}`);
       continue;
     }
     const expLostPerHr = Math.max(0, curExpHr - c.grindExpHr);
     const totalExpLost = expLostPerHr * c.grindHrs;
     const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
     const breakEvenHrs = c.grindHrs + recoupHrs;
-    const netGain = rateGain * (remainingHrs - breakEvenHrs);
-    console.log(`  [${obsName}] P2: postExpHr=${postExpHr.toFixed(2)}, rateGain=${rateGain.toFixed(2)}, grindHrs=${c.grindHrs.toFixed(2)}, breakEven=${breakEvenHrs.toFixed(2)}, netGain=${netGain.toFixed(2)}${breakEvenHrs >= remainingHrs ? ' (EXCEEDS REMAINING)' : ''}`);
-    if (breakEvenHrs >= remainingHrs) continue;
-    if (!bestCandidate || netGain > bestCandidate.netGain) {
-      bestCandidate = {
-        obsIdx: c.obsIdx,
-        obsName,
-        grindMD: c.grindMD, grindHrs: c.grindHrs, grindExpHr: c.grindExpHr, postExpHr,
-        rateGain, breakEvenHrs, netGain, expLostPerHr, totalExpLost,
-        newInsightLv: (il[c.obsIdx] || 0) + 1,
-      };
+    if (breakEvenHrs >= remainingHrs) {
+      console.log(`  [${obsName}] P2a skip: breakEven=${breakEvenHrs.toFixed(2)} >= remaining=${remainingHrs.toFixed(2)}`);
+      continue;
+    }
+    viable.push({ ...c, obsName, postExpHr, rateGain, breakEvenHrs, expLostPerHr, totalExpLost });
+
+  }
+  if (viable.length === 0) return null;
+
+  // Phase 2b: exhaustive permutation evaluation using adaptive-tick sims
+  // For N viable candidates, enumerate all ordered subsets (up to N! permutations).
+  // Each permutation simulates: grind A layout → grind B layout → ... → optimal layout for remainder.
+  // Adaptive-tick sim jumps to next insight/level event, capturing cascading effects accurately.
+
+  // Lightweight adaptive-tick sim that chains grind layouts then runs optimal layout for remainder
+  function _simGrindSequence(seq, afterMD, baseIL, baseIP, baseRLv, baseRExp, remainHrs) {
+    const simIL = baseIL.slice();
+    const simIP = baseIP.slice();
+    let simRLv = baseRLv, simRExp = baseRExp;
+    let totalExp = 0, simTime = 0;
+
+    for (let si = 0; si < seq.length + 1; si++) {
+      // Determine current phase: grinding seq[si], or post-grind optimal
+      let phaseMD, phaseEndCondition;
+      if (si < seq.length) {
+        const g = seq[si];
+        // Build grind layout with current (possibly updated) insight levels
+        phaseMD = _buildInsightGrindLayout(md, g.obsIdx, mMax, gl, so, simIL, occ, simRLv);
+        // Phase ends when target obs insight levels up
+        phaseEndCondition = (obsIdx) => obsIdx === g.obsIdx;
+      } else {
+        // Post-grind: use the after-all-grinds optimal layout
+        phaseMD = afterMD;
+        phaseEndCondition = null; // run to end of time
+      }
+
+      const monoObs = new Set();
+      for (const m of phaseMD) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
+      const monoArr = Array.from(monoObs);
+
+      let curRate = simTotalExpWith(gl, so, phaseMD, simIL, occ, simRLv, ctx);
+      const maxJumps = 5000;
+      let phaseOver = false;
+
+      for (let j = 0; j < maxJumps && !phaseOver; j++) {
+        const timeLeft = remainHrs - simTime;
+        if (timeLeft <= 1e-9 || curRate <= 0) break;
+
+        // Time to next research level-up
+        const expToLv = researchExpReq(simRLv) - simRExp;
+        const hrsToLv = expToLv / curRate;
+
+        // Time to next insight level-up
+        let hrsToInsight = Infinity, nextInsObs = -1;
+        for (const oi of monoArr) {
+          const iRate = insightExpRate(oi, phaseMD, simIL, gl, so, ctx);
+          if (iRate <= 0) continue;
+          const iReq = insightExpReqAt(oi, simIL[oi] || 0);
+          const iHrs = (iReq - (simIP[oi] || 0)) / iRate;
+          if (iHrs < hrsToInsight) { hrsToInsight = iHrs; nextInsObs = oi; }
+        }
+
+        let jumpHrs = Math.min(hrsToLv, hrsToInsight, timeLeft);
+        if (jumpHrs <= 0) jumpHrs = 1e-9;
+
+        // Accumulate EXP
+        totalExp += curRate * jumpHrs;
+        simRExp += curRate * jumpHrs;
+        simTime += jumpHrs;
+
+        // Process research level-ups
+        let lvChanged = false;
+        while (simRExp >= researchExpReq(simRLv) - 1e-9) {
+          simRExp -= researchExpReq(simRLv);
+          if (simRExp < 0) simRExp = 0;
+          simRLv++; lvChanged = true;
+        }
+
+        // Process insight level-ups
+        let insChanged = false;
+        for (const oi of monoArr) {
+          const iRate = insightExpRate(oi, phaseMD, simIL, gl, so, ctx);
+          if (iRate <= 0) continue;
+          simIP[oi] = (simIP[oi] || 0) + iRate * jumpHrs;
+          let req = insightExpReqAt(oi, simIL[oi] || 0);
+          while (simIP[oi] >= req - 1e-9) {
+            simIP[oi] -= req;
+            if (simIP[oi] < 0) simIP[oi] = 0;
+            simIL[oi] = (simIL[oi] || 0) + 1;
+            insChanged = true;
+            // If this is the grind target leveling up, end this grind phase
+            if (phaseEndCondition && phaseEndCondition(oi)) phaseOver = true;
+            req = insightExpReqAt(oi, simIL[oi] || 0);
+          }
+        }
+
+        if (lvChanged || (insChanged && insightAffectsExp(gl, so))) {
+          curRate = simTotalExpWith(gl, so, phaseMD, simIL, occ, simRLv, ctx);
+        }
+      }
+    }
+    return totalExp;
+  }
+
+  // Enumerate all ordered subsets of viable candidates
+  // For N ≤ 5: worst case Σ P(N,k) = 325 permutations, each sim is ~10-50 adaptive jumps
+  const noGrindTotal = _simGrindSequence([], md, il, ip, rLv, 0, remainingHrs);
+
+  let bestCandidate = null;
+  let bestTotalExp = noGrindTotal;
+  let bestPathDesc = 'no grind';
+
+  function _permuteAndScore(seq, remaining) {
+    // Score current sequence if non-empty
+    if (seq.length > 0) {
+      const seqTotal = _simGrindSequence(seq, md, il, ip, rLv, 0, remainingHrs);
+      if (seqTotal > bestTotalExp) {
+        bestTotalExp = seqTotal;
+        bestPathDesc = seq.map(s => s.obsName).join(' \u2192 ');
+        bestCandidate = seq[0];
+      }
+    }
+    // Recurse: try adding each remaining candidate
+    for (let i = 0; i < remaining.length; i++) {
+      const next = remaining[i];
+      const rest = remaining.slice(0, i).concat(remaining.slice(i + 1));
+      _permuteAndScore([...seq, next], rest);
     }
   }
-  if (bestCandidate) {
-    console.log(`[InsightGrind] WINNER: ${bestCandidate.obsName} — netGain=${bestCandidate.netGain.toFixed(2)}, rateGain=${bestCandidate.rateGain.toFixed(2)}, breakEven=${bestCandidate.breakEvenHrs.toFixed(2)}h`);
-  } else {
-    console.log(`[InsightGrind] No profitable grind found after Phase 2`);
+
+  _permuteAndScore([], viable);
+
+  if (bestCandidate && bestTotalExp > noGrindTotal) {
+    const x = bestCandidate;
+    const netGain = bestTotalExp - noGrindTotal;
+    return {
+      obsIdx: x.obsIdx,
+      obsName: x.obsName,
+      grindMD: x.grindMD, grindHrs: x.grindHrs, grindExpHr: x.grindExpHr, postExpHr: x.postExpHr,
+      rateGain: x.rateGain, breakEvenHrs: x.breakEvenHrs,
+      netGain, expLostPerHr: x.expLostPerHr, totalExpLost: x.totalExpLost,
+      newInsightLv: (il[x.obsIdx] || 0) + 1,
+    };
   }
-  return bestCandidate;
+  return null;
 }
 
 async function unifiedSim(config) {
@@ -4208,6 +4337,13 @@ async function unifiedSim(config) {
 
   // Recompute mOwned from (possibly overridden) gl/rLv so beam search +1 on #72/#91 is reflected
   mOwned = computeMagnifiersOwnedWith(gl, rLv);
+
+  // Pre-optimization baseline: user's current mag assignments, same function as post-opt.
+  // Avoids phantom deltas from simTotalExp() vs simTotalExpWith() discrepancies.
+  const _preOptUserMD = config.magData
+    ? config.magData.map(m => ({...m}))
+    : magData.slice(0, mOwned).map(m => ({...m}));
+  const _preOptBaseRate = simTotalExpWith(gl, so, _preOptUserMD, il, occ, rLv, ctx);
 
   // Initial mag assignment via greedy optimizer
   let md;
@@ -4264,11 +4400,39 @@ async function unifiedSim(config) {
   }
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+
+  // Debug: identify what the optimizer changed
+  if (Math.abs(curExpHr - _preOptBaseRate) > 0.5) {
+    const _dbgPre = _preOptUserMD, _dbgPost = md;
+    const _dMag = [], _dKal = [], _dMon = [];
+    const _preS = {}, _curS = {};
+    for (const m of _dbgPre) { if (m.type===0) _preS[m.slot]=(_preS[m.slot]||0)+1; }
+    for (const m of _dbgPost) { if (m.type===0) _curS[m.slot]=(_curS[m.slot]||0)+1; }
+    for (const s of new Set([...Object.keys(_preS),...Object.keys(_curS)])) {
+      if ((_preS[s]||0) !== (_curS[s]||0)) _dMag.push({slot:+s, was:_preS[s]||0, now:_curS[s]||0});
+    }
+    const _preK = {}, _curK = {};
+    for (const m of _dbgPre) { if (m.type===2) _preK[m.slot]=(_preK[m.slot]||0)+1; }
+    for (const m of _dbgPost) { if (m.type===2) _curK[m.slot]=(_curK[m.slot]||0)+1; }
+    for (const s of new Set([...Object.keys(_preK),...Object.keys(_curK)])) {
+      if ((_preK[s]||0) !== (_curK[s]||0)) _dKal.push({slot:+s, was:_preK[s]||0, now:_curK[s]||0});
+    }
+    const _preM = _dbgPre.filter(m=>m.type===1).map(m=>m.slot).sort();
+    const _curM = _dbgPost.filter(m=>m.type===1).map(m=>m.slot).sort();
+    if (JSON.stringify(_preM) !== JSON.stringify(_curM)) _dMon.push({was:_preM, now:_curM});
+    let _soChanges = 0;
+    const _origSO = shapeOverlay;
+    for (let s = 0; s < GRID_SIZE; s++) { if ((so[s]??-1) !== (_origSO[s]??-1)) _soChanges++; }
+    console.log('[InitOpt Debug] preOptRate:', _preOptBaseRate.toFixed(1), 'curExpHr:', curExpHr.toFixed(1), 'delta:', (curExpHr-_preOptBaseRate).toFixed(1));
+    console.log('[InitOpt Debug] magChanges:', JSON.stringify(_dMag), 'kalChanges:', JSON.stringify(_dKal), 'monoChanges:', JSON.stringify(_dMon), 'shapeChanges:', _soChanges);
+    console.log('[InitOpt Debug] preMD types:', _dbgPre.map(m=>m.type+':'+m.slot).join(','), 'postMD types:', _dbgPost.map(m=>m.type+':'+m.slot).join(','));
+  }
+
   const phases = [{
     time: 0, event: 'start', expHr: curExpHr,
     config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
     rLv, rExp,
-    preOptExpHr: config.preOptExpHr || curExpHr,
+    preOptExpHr: _preOptBaseRate,
     freePoints: _initFreePoints
   }];
 
@@ -4306,10 +4470,10 @@ async function unifiedSim(config) {
         md = _grindCandidate.grindMD;
         curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
         // Attach grind info to the last phase (the event that triggered this grind)
-        // Update config.md to reflect the grind layout — this is what the user should set up
+        // Don't overwrite config.md — it should reflect the optimized layout, not the
+        // temporary grind layout.  The grind layout is in grindInfo.grindMD already.
         const lastPhase = phases[phases.length - 1];
         lastPhase.grindInfo = _grindCandidate;
-        lastPhase.config.md = md.map(m => ({...m}));
       }
     }
 
@@ -5873,7 +6037,7 @@ function renderOptimizerResults(result) {
   const compDiv = document.getElementById('opt-comparison-body');
   const bestStats = simSegmentStats(best);
   const bestTime = best.totalTime;
-  const preRate = result.preOptRate || 0;
+  const preRate = (best.phases[0] && best.phases[0].preOptExpHr) || result.preOptRate || 0;
 
   let compHtml = '';
   compHtml += `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">`;
@@ -5981,7 +6145,9 @@ function renderActions(sim, bestSteps) {
     }
 
     const borderColor = colors[p.event] || 'var(--text2)';
-    const delta = p.expHr - prev.expHr;
+    // When a phase has a grind, show the rate after optimization steps complete (not post-grind)
+    const displayExpHr = p.grindInfo ? p.grindInfo.grindExpHr : p.expHr;
+    const delta = displayExpHr - prev.expHr;
     const deltaPct = prev.expHr > 0 ? (delta / prev.expHr * 100) : 0;
     const deltaStr = Math.abs(delta) > 0.5
       ? ` <span style="color:${delta>0?'var(--green)':'var(--red)'};font-size:.85em;">${delta>0?'+':''}${fmtVal(delta)}/hr (${delta>0?'+':''}${deltaPct.toFixed(1)}%)</span>`
@@ -6173,11 +6339,31 @@ function renderActions(sim, bestSteps) {
       insightDetails.push(`<div>Insight <span style="opacity:.6;font-size:.9em;">[${impactStr}]</span>: ${ilChanges.join(', ')}</div>`);
     }
 
+    // Diagnostic: log detail counts for the start phase
+    if (isStart) {
+      console.log('[renderActions:start] preOptMD:', JSON.stringify(prev.config.md.map(m=>({t:m.type,s:m.slot}))));
+      console.log('[renderActions:start] phaseMD:', JSON.stringify(p.config.md.map(m=>({t:m.type,s:m.slot}))));
+      console.log('[renderActions:start] prevSlots:', JSON.stringify(prevSlots), 'curSlots:', JSON.stringify(curSlots));
+      console.log('[renderActions:start] magMoves:', magMoves.length, 'kalMoves:', kalMoves.length, 'monoChanged:', monoChanged);
+      console.log('[renderActions:start] grid:', gridDetails.length, 'shape:', shapeDetails.length, 'mag:', magDetails.length, 'mono:', monoDetails.length, 'insight:', insightDetails.length);
+      console.log('[renderActions:start] delta:', delta.toFixed(1), 'prevExpHr:', prev.expHr.toFixed(1), 'curExpHr:', p.expHr.toFixed(1));
+    }
+
     // ─── Assemble details in correct dependency order ───
     // For start phase: numbered steps so user follows them in order
     // (grid spending changes cell weights → shapes must be re-placed → mags scored against shapes → monocle last)
     const _stepLabel = (n, text) => `<div style="color:var(--cyan);font-weight:700;margin-top:6px;margin-bottom:2px;font-size:.9em;">\u2699 Step ${n}: ${text}</div>`;
-    if (isStart) {
+    if (isStart && p.grindInfo) {
+      // Grind fires immediately — only show grind info; optimization appears on next event
+      const gi = p.grindInfo;
+      const grindMonoSlots = gi.grindMD.filter(m=>m.type===1).map(m=>m.slot).filter(s=>s>=0);
+      const grindMonoNames = grindMonoSlots.map(s => OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : '#'+s);
+      details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
+      if (grindMonoNames.length > 0) {
+        details.push(`<div style="margin-left:8px;color:var(--purple);">Monocle: <b>${grindMonoNames.join(', ')}</b> during grind</div>`);
+      }
+      details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
+    } else if (isStart) {
       let stepNum = 0;
       if (gridDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Spend Grid Points')); details.push(...gridDetails); }
       if (p.freePoints > 0) details.push(`<div style="color:var(--green);margin-top:2px;font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely on any upgrade!</div>`);
@@ -6193,19 +6379,19 @@ function renderActions(sim, bestSteps) {
     }
 
     // ─── Insight grind annotation (attached to the event that decided to grind) ───
-    if (p.grindInfo) {
+    // (Start phase handles grind inline above, so skip it here)
+    if (p.grindInfo && !isStart) {
       const gi = p.grindInfo;
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b>` +
-        (gi.expLostPerHr > 0 ? ` &nbsp; <span style="color:var(--red);font-size:.9em;">(${fmtVal(gi.grindExpHr)}/hr during grind, ${fmtVal(gi.expLostPerHr)} lower)</span>` : '') +
-        `</div>`);
-      details.push(`<div style="margin-left:8px;">Post-grind: <span style="color:var(--green);">${fmtVal(gi.postExpHr)}/hr</span> <span style="color:var(--green);font-size:.9em;">(+${fmtVal(gi.rateGain)}/hr)</span> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
+      details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
     }
 
     // Goal summary — prepend a one-line explanation of WHY this phase exists
     if (details.length > 0 && p.event !== 'end') {
       let goalSummary = '';
-      if (p.event === 'start') {
+      if (p.event === 'start' && p.grindInfo) {
+        goalSummary = 'Insight grind \u2014 point monocle and wait';
+      } else if (p.event === 'start') {
         goalSummary = 'Follow steps in order \u2014 each depends on the previous';
       } else {
         const reasons = [];
@@ -6260,7 +6446,7 @@ function renderActions(sim, bestSteps) {
     html += `<span style="color:var(--text2);min-width:48px;font-size:.85em;font-variant-numeric:tabular-nums;">${fmtTime(p.time)}</span>`;
     html += `<span style="font-size:1em;">${icon}</span>`;
     html += `<span style="font-weight:600;color:${borderColor};flex:1;">${eventLabel}</span>`;
-    html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(p.expHr)}/hr</span>`;
+    html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(displayExpHr)}/hr</span>`;
     html += deltaStr;
     html += lvReqInfo;
     html += segInfo;
