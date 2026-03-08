@@ -3852,6 +3852,40 @@ function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr) {
   return expHr > 0 ? Math.max(1, expNeeded / expHr) : 72;
 }
 
+// Redistribute regular magnifiers optimally for given insight levels, keeping
+// kaleidoscope and monocle positions fixed.  Used by monocle targeting to
+// project what the rate would be *after* insight levels up and mags shift.
+function _reoptRegularMags(md, il, gl, so, rLv, maxPerSlot, occ) {
+  const kalEntries = [], monoEntries = [];
+  let numRegular = 0;
+  for (const m of md) {
+    if (m.type === 2) kalEntries.push({...m});
+    else if (m.type === 1) monoEntries.push({...m});
+    else if (m.type === 0) numRegular++;
+  }
+  const occTBF = computeOccurrencesToBeFound(rLv);
+  const kalMap = _buildKalMap(md);
+  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
+  const gd101 = _gbWith(gl, so, 93);
+  const slotUsed = {};
+  for (const m of kalEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
+  for (const m of monoEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
+  const cands = [];
+  for (let i = 0; i < occTBF; i++) {
+    if (!isObsUsable(i, rLv, occ)) continue;
+    const room = maxPerSlot - (slotUsed[i] || 0);
+    if (room <= 0) continue;
+    const v = obsBaseExp(i) * (1 + gd101 * (il[i] || 0) / 100) * (1 + (kalMap[i] || 0) * kalBase);
+    for (let c = 0; c < room; c++) cands.push({ slot: i, val: v });
+  }
+  cands.sort((a, b) => b.val - a.val);
+  const regEntries = [];
+  for (let i = 0; i < Math.min(numRegular, cands.length); i++) {
+    regEntries.push({ type: 0, slot: cands[i].slot, x: 0, y: 0 });
+  }
+  return [...kalEntries, ...regEntries, ...monoEntries];
+}
+
 function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rLv) {
   // Monocle targeting: assign each monocle to the best observation for insight gain.
   // Monocles can now be spread across multiple observations when maxPerSlot is too small
@@ -3907,6 +3941,25 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
   const insightHelps = gd101 > 0 || gd94 > 0;
   const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
 
+  // Pre-compute projected rate gains for all candidates.
+  // When gd101 is active, projects what the rate gain would be if mags
+  // redistributed optimally after insight levels up.  This fixes the
+  // chicken-and-egg problem where new obs get no mags (because insight=0)
+  // and then get no monocles (because no mags → no rate gain from insight).
+  const candidateScores = {};
+  if (insightHelps) {
+    for (const c of candidates) {
+      const tempIL = il.slice();
+      tempIL[c.obs] = (tempIL[c.obs] || 0) + 1;
+      if (gd101 > 0) {
+        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ);
+        candidateScores[c.obs] = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv) - baseTotRate;
+      } else {
+        candidateScores[c.obs] = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+      }
+    }
+  }
+
   // Strip all monocles from md, then assign them greedily
   let result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
   const monoIndices = [];
@@ -3922,10 +3975,7 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
       if (curAssigned >= c.monoRoom) continue; // this obs is full
       let score;
       if (insightHelps) {
-        // Score: how much faster does this obs level up insight, weighted by benefit
-        const tempIL = il.slice();
-        tempIL[c.obs] = (tempIL[c.obs] || 0) + 1;
-        const rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+        const rateGain = candidateScores[c.obs] || 0;
         score = rateGain > 0 ? rateGain / Math.max(0.01, c.hrsToLv) : 1 / Math.max(0.01, c.hrsToLv);
       } else {
         score = 1 / Math.max(0.01, c.hrsToLv); // fastest to level
@@ -3964,7 +4014,8 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
   const monoCount = md.filter(m => m.type === 1).length;
   if (monoCount === 0) return md;
   const occTBF = computeOccurrencesToBeFound(rLv);
-  const insightHelps = _gbWith(gl, so, 93) > 0 || _gbWith(gl, so, 94) > 0;
+  const gd101 = _gbWith(gl, so, 93);
+  const insightHelps = gd101 > 0 || _gbWith(gl, so, 94) > 0;
   const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
 
   // Build scored candidates with room for at least 1 monocle
@@ -3983,7 +4034,13 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
     let value;
     if (insightHelps) {
       const tempIL = il.slice(); tempIL[i] = (tempIL[i] || 0) + 1;
-      const rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+      let rateGain;
+      if (gd101 > 0) {
+        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ);
+        rateGain = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv) - baseTotRate;
+      } else {
+        rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+      }
       value = rateGain > 0 ? rateGain / hrsToLv : 1 / hrsToLv;
     } else {
       value = 1 / hrsToLv;
@@ -4105,29 +4162,45 @@ function _buildInsightGrindLayout(md, targetObs, mMax, gl, so, il, occ, rLv) {
 
 // Find the most profitable insight grind opportunity.
 // Returns null if no grind is worth doing within remainingHrs.
-async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned, curExpHr, remainingHrs, ctx) {
+async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned, curExpHr, remainingHrs, ctx, assumeObsUnlocked) {
   if (remainingHrs < 1) return null;
   const monoCount = md.filter(m => m.type === 1).length;
   if (monoCount === 0) return null;
   if (!insightAffectsExp(gl, so)) return null;
-  const occTBF = computeOccurrencesToBeFound(rLv);
+
+  // When assuming obs unlock, extend range to include obs that unlock within ~10 levels
+  const futureRLv = assumeObsUnlocked ? rLv + 10 : rLv;
+  const occTBF = computeOccurrencesToBeFound(futureRLv);
 
   // Phase 1: cheap screening — quick rate delta check per obs
+  // Build a projected occ array that includes future obs (for use with assumeObsUnlocked candidates)
+  let projOcc = occ;
+  if (assumeObsUnlocked) {
+    projOcc = occ.slice();
+    for (let oi = 0; oi < OCC_DATA.length; oi++) {
+      if ((projOcc[oi] || 0) < 1 && OCC_DATA[oi].roll <= futureRLv) projOcc[oi] = 1;
+    }
+  }
+  // Fair baseline: use projOcc so Phase 1/2a comparisons aren't inflated by extra found-obs count
+  const projCurExpHr = assumeObsUnlocked ? simTotalExpWith(gl, so, md, il, projOcc, rLv, ctx) : curExpHr;
   const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
-    if (!isObsUsable(i, rLv, occ)) continue;
-    const grindMD = _buildInsightGrindLayout(md, i, mMax, gl, so, il, occ, rLv);
+    // For assumeObsUnlocked, treat not-yet-found obs as found if their level req is within reach
+    if (assumeObsUnlocked && (occ[i] || 0) < 1 && OCC_DATA[i].roll <= futureRLv) {
+      // will be unlocked soon — allow as candidate
+    } else if (!isObsUsable(i, rLv, occ)) continue;
+    const grindMD = _buildInsightGrindLayout(md, i, mMax, gl, so, il, projOcc, rLv);
     const iRate = insightExpRate(i, grindMD, il, gl, so, ctx);
     if (iRate <= 0) continue;
     const iReq = insightExpReqAt(i, il[i] || 0);
     const iProgress = ip[i] || 0;
     const grindHrs = Math.max(0, iReq - iProgress) / iRate;
     if (grindHrs <= 0 || grindHrs > remainingHrs * 0.8) continue;
-    const grindExpHr = simTotalExpWith(gl, so, grindMD, il, occ, rLv, ctx);
+    const grindExpHr = simTotalExpWith(gl, so, grindMD, il, projOcc, rLv, ctx);
     // Quick estimate: post-grind rate with current mag layout + new insight
     const newIL = il.slice(); newIL[i] = (il[i] || 0) + 1;
-    const quickPostExpHr = simTotalExpWith(gl, so, md, newIL, occ, rLv, ctx);
-    const quickRateGain = quickPostExpHr - curExpHr;
+    const quickPostExpHr = simTotalExpWith(gl, so, md, newIL, projOcc, rLv, ctx);
+    const quickRateGain = quickPostExpHr - projCurExpHr;
     if (quickRateGain <= 0) continue;
     candidates.push({ obsIdx: i, grindMD, grindHrs, grindExpHr, newIL, quickRateGain });
   }
@@ -4149,15 +4222,15 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
   const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
-    const postMD = await optimizeMagsFor(gl, so, md, c.newIL, occ, mOwned, mMax, rLv);
-    const postMDFull = chooseMonoTargets(postMD, c.newIL, ip, occ, gl, so, mMax, Math.max(1, remainingHrs - c.grindHrs), rLv);
-    const postExpHr = simTotalExpWith(gl, so, postMDFull, c.newIL, occ, rLv, ctx);
-    const rateGain = postExpHr - curExpHr;
+    const postMD = await optimizeMagsFor(gl, so, md, c.newIL, projOcc, mOwned, mMax, rLv);
+    const postMDFull = chooseMonoTargets(postMD, c.newIL, ip, projOcc, gl, so, mMax, Math.max(1, remainingHrs - c.grindHrs), rLv);
+    const postExpHr = simTotalExpWith(gl, so, postMDFull, c.newIL, projOcc, rLv, ctx);
+    const rateGain = postExpHr - projCurExpHr;
     if (rateGain <= 0) {
       console.log(`  [${obsName}] P2a skip: rateGain=${rateGain.toFixed(2)}`);
       continue;
     }
-    const expLostPerHr = Math.max(0, curExpHr - c.grindExpHr);
+    const expLostPerHr = Math.max(0, projCurExpHr - c.grindExpHr);
     const totalExpLost = expLostPerHr * c.grindHrs;
     const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
     const breakEvenHrs = c.grindHrs + recoupHrs;
@@ -4179,6 +4252,7 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
   function _simGrindSequence(seq, afterMD, baseIL, baseIP, baseRLv, baseRExp, remainHrs) {
     const simIL = baseIL.slice();
     const simIP = baseIP.slice();
+    const simOcc = projOcc.slice(); // local copy; consistent with Phase 1/2a projOcc assumptions
     let simRLv = baseRLv, simRExp = baseRExp;
     let totalExp = 0, simTime = 0;
 
@@ -4188,7 +4262,7 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
       if (si < seq.length) {
         const g = seq[si];
         // Build grind layout with current (possibly updated) insight levels
-        phaseMD = _buildInsightGrindLayout(md, g.obsIdx, mMax, gl, so, simIL, occ, simRLv);
+        phaseMD = _buildInsightGrindLayout(md, g.obsIdx, mMax, gl, so, simIL, simOcc, simRLv);
         // Phase ends when target obs insight levels up
         phaseEndCondition = (obsIdx) => obsIdx === g.obsIdx;
       } else {
@@ -4201,7 +4275,7 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
       for (const m of phaseMD) { if (m.type === 1 && m.slot >= 0) monoObs.add(m.slot); }
       const monoArr = Array.from(monoObs);
 
-      let curRate = simTotalExpWith(gl, so, phaseMD, simIL, occ, simRLv, ctx);
+      let curRate = simTotalExpWith(gl, so, phaseMD, simIL, simOcc, simRLv, ctx);
       const maxJumps = 5000;
       let phaseOver = false;
 
@@ -4239,6 +4313,15 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
           simRLv++; lvChanged = true;
         }
 
+        // Unlock new observations on level-up when assumeObsUnlocked is set
+        if (lvChanged && assumeObsUnlocked) {
+          for (let oi = 0; oi < OCC_DATA.length; oi++) {
+            if ((simOcc[oi] || 0) < 1 && OCC_DATA[oi].roll <= simRLv) {
+              simOcc[oi] = 1;
+            }
+          }
+        }
+
         // Process insight level-ups
         let insChanged = false;
         for (const oi of monoArr) {
@@ -4258,7 +4341,7 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
         }
 
         if (lvChanged || (insChanged && insightAffectsExp(gl, so))) {
-          curRate = simTotalExpWith(gl, so, phaseMD, simIL, occ, simRLv, ctx);
+          curRate = simTotalExpWith(gl, so, phaseMD, simIL, simOcc, simRLv, ctx);
         }
       }
     }
@@ -4296,10 +4379,12 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
   if (bestCandidate && bestTotalExp > noGrindTotal) {
     const x = bestCandidate;
     const netGain = bestTotalExp - noGrindTotal;
+    // Display-facing grindExpHr: use real occ so the shown rate matches what the user observes
+    const realGrindExpHr = simTotalExpWith(gl, so, x.grindMD, il, occ, rLv, ctx);
     return {
       obsIdx: x.obsIdx,
       obsName: x.obsName,
-      grindMD: x.grindMD, grindHrs: x.grindHrs, grindExpHr: x.grindExpHr, postExpHr: x.postExpHr,
+      grindMD: x.grindMD, grindHrs: x.grindHrs, grindExpHr: realGrindExpHr, postExpHr: x.postExpHr,
       rateGain: x.rateGain, breakEvenHrs: x.breakEvenHrs,
       netGain, expLostPerHr: x.expLostPerHr, totalExpLost: x.totalExpLost,
       newInsightLv: (il[x.obsIdx] || 0) + 1,
@@ -4401,33 +4486,6 @@ async function unifiedSim(config) {
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
 
-  // Debug: identify what the optimizer changed
-  if (Math.abs(curExpHr - _preOptBaseRate) > 0.5) {
-    const _dbgPre = _preOptUserMD, _dbgPost = md;
-    const _dMag = [], _dKal = [], _dMon = [];
-    const _preS = {}, _curS = {};
-    for (const m of _dbgPre) { if (m.type===0) _preS[m.slot]=(_preS[m.slot]||0)+1; }
-    for (const m of _dbgPost) { if (m.type===0) _curS[m.slot]=(_curS[m.slot]||0)+1; }
-    for (const s of new Set([...Object.keys(_preS),...Object.keys(_curS)])) {
-      if ((_preS[s]||0) !== (_curS[s]||0)) _dMag.push({slot:+s, was:_preS[s]||0, now:_curS[s]||0});
-    }
-    const _preK = {}, _curK = {};
-    for (const m of _dbgPre) { if (m.type===2) _preK[m.slot]=(_preK[m.slot]||0)+1; }
-    for (const m of _dbgPost) { if (m.type===2) _curK[m.slot]=(_curK[m.slot]||0)+1; }
-    for (const s of new Set([...Object.keys(_preK),...Object.keys(_curK)])) {
-      if ((_preK[s]||0) !== (_curK[s]||0)) _dKal.push({slot:+s, was:_preK[s]||0, now:_curK[s]||0});
-    }
-    const _preM = _dbgPre.filter(m=>m.type===1).map(m=>m.slot).sort();
-    const _curM = _dbgPost.filter(m=>m.type===1).map(m=>m.slot).sort();
-    if (JSON.stringify(_preM) !== JSON.stringify(_curM)) _dMon.push({was:_preM, now:_curM});
-    let _soChanges = 0;
-    const _origSO = shapeOverlay;
-    for (let s = 0; s < GRID_SIZE; s++) { if ((so[s]??-1) !== (_origSO[s]??-1)) _soChanges++; }
-    console.log('[InitOpt Debug] preOptRate:', _preOptBaseRate.toFixed(1), 'curExpHr:', curExpHr.toFixed(1), 'delta:', (curExpHr-_preOptBaseRate).toFixed(1));
-    console.log('[InitOpt Debug] magChanges:', JSON.stringify(_dMag), 'kalChanges:', JSON.stringify(_dKal), 'monoChanges:', JSON.stringify(_dMon), 'shapeChanges:', _soChanges);
-    console.log('[InitOpt Debug] preMD types:', _dbgPre.map(m=>m.type+':'+m.slot).join(','), 'postMD types:', _dbgPost.map(m=>m.type+':'+m.slot).join(','));
-  }
-
   const phases = [{
     time: 0, event: 'start', expHr: curExpHr,
     config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
@@ -4464,7 +4522,7 @@ async function unifiedSim(config) {
     // --- Check for profitable insight grinds ---
     if (_activeGrindObs < 0 && config.reoptimize !== false) {
       const _grindRemaining = _estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr);
-      const _grindCandidate = await _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned, curExpHr, _grindRemaining, ctx);
+      const _grindCandidate = await _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked);
       if (_grindCandidate) {
         _activeGrindObs = _grindCandidate.obsIdx;
         md = _grindCandidate.grindMD;
@@ -6347,16 +6405,6 @@ function renderActions(sim, bestSteps) {
       if (gd94i > 0) impacts.push('research EXP via ' + gridCoord(94) + ' ' + (RES_GRID_RAW[94]?.[0]||'').replace(/_/g,' '));
       const impactStr = impacts.length > 0 ? impacts.join(' + ') : 'banking for future upgrades';
       insightDetails.push(`<div>Insight <span style="opacity:.6;font-size:.9em;">[${impactStr}]</span>: ${ilChanges.join(', ')}</div>`);
-    }
-
-    // Diagnostic: log detail counts for the start phase
-    if (isStart) {
-      console.log('[renderActions:start] preOptMD:', JSON.stringify(prev.config.md.map(m=>({t:m.type,s:m.slot}))));
-      console.log('[renderActions:start] phaseMD:', JSON.stringify(p.config.md.map(m=>({t:m.type,s:m.slot}))));
-      console.log('[renderActions:start] prevSlots:', JSON.stringify(prevSlots), 'curSlots:', JSON.stringify(curSlots));
-      console.log('[renderActions:start] magMoves:', magMoves.length, 'kalMoves:', kalMoves.length, 'monoChanged:', monoChanged);
-      console.log('[renderActions:start] grid:', gridDetails.length, 'shape:', shapeDetails.length, 'mag:', magDetails.length, 'mono:', monoDetails.length, 'insight:', insightDetails.length);
-      console.log('[renderActions:start] delta:', delta.toFixed(1), 'prevExpHr:', prev.expHr.toFixed(1), 'curExpHr:', p.expHr.toFixed(1));
     }
 
     // ─── Assemble details in correct dependency order ───
