@@ -3660,7 +3660,7 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
       let tRLv = rLv, tRExp = rExp || 0;
       let tMOwned = computeMagnifiersOwnedWith(tGL, tRLv);
       _growMagPoolTyped(tMD, tGL, tRLv, tMOwned);
-      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv);
+      tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs, tRLv, p2Ctx);
       let tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
       let totalExp = 0;
       let elapsedHrs = 0;
@@ -3734,11 +3734,11 @@ async function greedySpendPoints(gl, so, md, il, ip, occ, rLv, mMax, lookAheadHr
           }
           tSO = optimizeShapesFor(tGL, tSO, undefined, tRLv, tMD, tIL, occ).overlay;
           tMD = await optimizeMagsFor(tGL, tSO, tMD, tIL, occ, tMOwned, tMMax, tRLv);
-          tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs - elapsedHrs, tRLv);
+          tMD = chooseMonoTargets(tMD, tIL, tIP, occ, tGL, tSO, tMMax, laHrs - elapsedHrs, tRLv, p2Ctx);
           tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
         }
         if (insUp && insightAffectsExp(tGL, tSO)) {
-          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, tGL, tSO, tMMax, tRLv);
+          tMD = _monoAssignBestQuick(tMD, tIL, tIP, occ, tGL, tSO, tMMax, tRLv, p2Ctx);
           tRate = simTotalExpWith(tGL, tSO, tMD, tIL, occ, tRLv, p2Ctx);
         }
       }
@@ -3863,7 +3863,7 @@ function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr) {
 // Redistribute regular magnifiers optimally for given insight levels, keeping
 // kaleidoscope and monocle positions fixed.  Used by monocle targeting to
 // project what the rate would be *after* insight levels up and mags shift.
-function _reoptRegularMags(md, il, gl, so, rLv, maxPerSlot, occ) {
+function _reoptRegularMags(md, il, gl, so, rLv, maxPerSlot, occ, ctx) {
   const kalEntries = [], monoEntries = [];
   let numRegular = 0;
   for (const m of md) {
@@ -3873,8 +3873,8 @@ function _reoptRegularMags(md, il, gl, so, rLv, maxPerSlot, occ) {
   }
   const occTBF = computeOccurrencesToBeFound(rLv);
   const kalMap = _buildKalMap(md);
-  const kalBase = (30 + _gbWith(gl, so, 52) + _gbWith(gl, so, 72)) / 100;
-  const gd101 = _gbWith(gl, so, 93);
+  const kalBase = (30 + _gbWith(gl, so, 52, ctx) + _gbWith(gl, so, 72, ctx)) / 100;
+  const gd101 = _gbWith(gl, so, 93, ctx);
   const slotUsed = {};
   for (const m of kalEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
   for (const m of monoEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
@@ -3894,7 +3894,7 @@ function _reoptRegularMags(md, il, gl, so, rLv, maxPerSlot, occ) {
   return [...kalEntries, ...regEntries, ...monoEntries];
 }
 
-function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rLv) {
+function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rLv, ctx) {
   // Monocle targeting: assign each monocle to the best observation for insight gain.
   // Monocles can now be spread across multiple observations when maxPerSlot is too small
   // to fit them all on one obs.
@@ -3902,8 +3902,8 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
   if (monoCount === 0) return md;
 
   const occTBF = computeOccurrencesToBeFound(rLv);
-  const gd101 = _gbWith(gl, so, 93);
-  const gd94 = _gbWith(gl, so, 94);
+  const gd101 = _gbWith(gl, so, 93, ctx);
+  const gd94 = _gbWith(gl, so, 94, ctx);
 
   // Identify obs with regular mags placed
   const magObsSet = new Set();
@@ -3920,7 +3920,7 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
     const testMD = md.map(m => m.type === 1 ? {...m} : {...m});
     // Place 1 test monocle
     const oneMonoMD = [...testMD.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
-    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so, ctx);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
     const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
@@ -3935,7 +3935,7 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
     const monoRoom = maxPerSlot - inSlotNonMono;
     if (monoRoom < 1) continue;
     const oneMonoMD = [...md.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
-    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so, ctx);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
     const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
@@ -3947,7 +3947,7 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
   // Greedy assignment: assign monocles one at a time to the best obs
   // Score by: insight EXP value (gd101 recoup for mag obs, or fastest level-up for banking)
   const insightHelps = gd101 > 0 || gd94 > 0;
-  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
+  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv, ctx) : 0;
 
   // Pre-compute projected rate gains for all candidates.
   // When gd101 is active, projects what the rate gain would be if mags
@@ -3960,10 +3960,10 @@ function chooseMonoTargets(md, il, ip, occ, gl, so, maxPerSlot, lookAheadHrs, rL
       const tempIL = il.slice();
       tempIL[c.obs] = (tempIL[c.obs] || 0) + 1;
       if (gd101 > 0) {
-        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ);
-        candidateScores[c.obs] = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv) - baseTotRate;
+        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ, ctx);
+        candidateScores[c.obs] = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv, ctx) - baseTotRate;
       } else {
-        candidateScores[c.obs] = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+        candidateScores[c.obs] = simTotalExpWith(gl, so, md, tempIL, occ, rLv, ctx) - baseTotRate;
       }
     }
   }
@@ -4018,13 +4018,13 @@ function _monoAssign(md, obsIdx) {
 }
 
 // Lightweight inner-loop monocle pick (1-step ahead, no forward sim)
-function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
+function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv, ctx) {
   const monoCount = md.filter(m => m.type === 1).length;
   if (monoCount === 0) return md;
   const occTBF = computeOccurrencesToBeFound(rLv);
-  const gd101 = _gbWith(gl, so, 93);
-  const insightHelps = gd101 > 0 || _gbWith(gl, so, 94) > 0;
-  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv) : 0;
+  const gd101 = _gbWith(gl, so, 93, ctx);
+  const insightHelps = gd101 > 0 || _gbWith(gl, so, 94, ctx) > 0;
+  const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv, ctx) : 0;
 
   // Build scored candidates with room for at least 1 monocle
   const candidates = [];
@@ -4034,7 +4034,7 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
     const monoRoom = maxPerSlot - inSlotNonMono;
     if (monoRoom < 1) continue;
     const oneMonoMD = [...md.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
-    const iRate = insightExpRate(i, oneMonoMD, il, gl, so);
+    const iRate = insightExpRate(i, oneMonoMD, il, gl, so, ctx);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
     const hrsToLv = iRate > 0 ? remaining / iRate : Infinity;
@@ -4044,10 +4044,10 @@ function _monoAssignBestQuick(md, il, ip, occ, gl, so, maxPerSlot, rLv) {
       const tempIL = il.slice(); tempIL[i] = (tempIL[i] || 0) + 1;
       let rateGain;
       if (gd101 > 0) {
-        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ);
-        rateGain = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv) - baseTotRate;
+        const projMD = _reoptRegularMags(md, tempIL, gl, so, rLv, maxPerSlot, occ, ctx);
+        rateGain = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv, ctx) - baseTotRate;
       } else {
-        rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv) - baseTotRate;
+        rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv, ctx) - baseTotRate;
       }
       value = rateGain > 0 ? rateGain / hrsToLv : 1 / hrsToLv;
     } else {
@@ -4231,7 +4231,7 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
     const postMD = await optimizeMagsFor(gl, so, md, c.newIL, projOcc, mOwned, mMax, rLv);
-    const postMDFull = chooseMonoTargets(postMD, c.newIL, ip, projOcc, gl, so, mMax, Math.max(1, remainingHrs - c.grindHrs), rLv);
+    const postMDFull = chooseMonoTargets(postMD, c.newIL, ip, projOcc, gl, so, mMax, Math.max(1, remainingHrs - c.grindHrs), rLv, ctx);
     const postExpHr = simTotalExpWith(gl, so, postMDFull, c.newIL, projOcc, rLv, ctx);
     const rateGain = postExpHr - projCurExpHr;
     if (rateGain <= 0) {
@@ -4274,8 +4274,9 @@ async function _findBestInsightGrind(gl, so, md, il, ip, occ, rLv, mMax, mOwned,
         // Phase ends when target obs insight levels up
         phaseEndCondition = (obsIdx) => obsIdx === g.obsIdx;
       } else {
-        // Post-grind: use the after-all-grinds optimal layout
-        phaseMD = afterMD;
+        // Post-grind: re-optimize mags/monocles for the post-grind insight state
+        phaseMD = _reoptRegularMags(afterMD, simIL, gl, so, simRLv, mMax, simOcc, ctx);
+        phaseMD = chooseMonoTargets(phaseMD, simIL, simIP, simOcc, gl, so, mMax, Math.max(1, remainHrs - simTime), simRLv, ctx);
         phaseEndCondition = null; // run to end of time
       }
 
@@ -4489,7 +4490,7 @@ async function unifiedSim(config) {
       const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
       if (beHrs > monoLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA); monoLA = Math.min(beHrs * 1.25, 168); }
     }
-    md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
+    md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv, ctx);
   }
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
@@ -4653,7 +4654,7 @@ async function unifiedSim(config) {
           const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
           if (beHrs > monoLA) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA); monoLA = Math.min(beHrs * 1.25, 168); }
         }
-        md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv);
+        md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA, rLv, ctx);
       }
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
       const eventType = rLeveledUp && insightMatters ? 'level+insight' : rLeveledUp ? 'level-up' : 'insight-up';
@@ -4665,15 +4666,24 @@ async function unifiedSim(config) {
       });
     } else if (insightLeveledUp && config.reoptimize !== false) {
       if (_activeGrindObs >= 0) {
-        // During grind: keep grind monocle layout
+        // During grind: re-optimize mags then re-apply grind layout
+        md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
+        md = _buildInsightGrindLayout(md, _activeGrindObs, mMax, gl, so, il, occ, rLv);
       } else {
+        md = await optimizeMagsFor(gl, so, md, il, occ, mOwned, mMax, rLv);
         let monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, rLv, rExp, curExpHr), 72);
         if (_extendInsightLA) {
           const beHrs = _insightBreakEvenHrs(md, il, ip, gl, so, ctx);
           if (beHrs > monoLA2) { _insightLAExtHrs = Math.max(_insightLAExtHrs, beHrs - monoLA2); monoLA2 = Math.min(beHrs * 1.25, 168); }
         }
-        md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2, rLv);
+        md = chooseMonoTargets(md, il, ip, occ, gl, so, mMax, monoLA2, rLv, ctx);
       }
+      curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+      phases.push({
+        time: currentTime, event: 'insight-up', expHr: curExpHr,
+        config: { gl: gl.slice(), so: so.slice(), md: md.map(m=>({...m})), il: il.slice(), sp: sp.slice() },
+        rLv, rExp
+      });
     }
   }
 
@@ -6210,6 +6220,63 @@ function renderTimeline(sim) {
   detailDiv.innerHTML = '';
 }
 
+// Build HTML lines showing mag/monocle/kaleido diffs between a base layout and a grind layout
+function _renderGrindLayoutDiff(baseMD, grindMD) {
+  const lines = [];
+  // Mag moves (type 0)
+  const baseSlots = {}, grindSlots = {};
+  for (const m of baseMD) { if (m.type === 0) baseSlots[m.slot] = (baseSlots[m.slot]||0)+1; }
+  for (const m of grindMD) { if (m.type === 0) grindSlots[m.slot] = (grindSlots[m.slot]||0)+1; }
+  const allMagSlots = new Set([...Object.keys(baseSlots), ...Object.keys(grindSlots)]);
+  const magMoves = [];
+  for (const s of allMagSlots) {
+    const pv = baseSlots[s] || 0, cv = grindSlots[s] || 0;
+    if (pv !== cv) {
+      const name = OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : `#${s}`;
+      if (cv > pv) magMoves.push(`<span style="color:var(--green);">+${cv-pv}</span> \u2192 ${name}`);
+      else magMoves.push(`<span style="color:var(--red);">-${pv-cv}</span> from ${name}`);
+    }
+  }
+  if (magMoves.length > 0) {
+    lines.push(`<div style="margin-left:8px;">Mags <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${magMoves.join(' &nbsp; ')}</div>`);
+  }
+  // Kaleido moves (type 2)
+  const baseK = {}, grindK = {};
+  for (const m of baseMD) { if (m.type === 2 && m.slot >= 0) baseK[m.slot] = (baseK[m.slot]||0)+1; }
+  for (const m of grindMD) { if (m.type === 2 && m.slot >= 0) grindK[m.slot] = (grindK[m.slot]||0)+1; }
+  const allKSlots = new Set([...Object.keys(baseK), ...Object.keys(grindK)]);
+  const kalMoves = [];
+  for (const s of allKSlots) {
+    const pv = baseK[s] || 0, cv = grindK[s] || 0;
+    if (pv !== cv) {
+      const name = OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : `#${s}`;
+      if (cv > pv) kalMoves.push(`<span style="color:var(--green);">+${cv-pv}</span> \u2192 ${name}`);
+      else kalMoves.push(`<span style="color:var(--red);">-${pv-cv}</span> from ${name}`);
+    }
+  }
+  if (kalMoves.length > 0) {
+    lines.push(`<div style="margin-left:8px;">Kaleido <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${kalMoves.join(' &nbsp; ')}</div>`);
+  }
+  // Monocle moves (type 1)
+  const baseM = {}, grindM = {};
+  for (const m of baseMD) { if (m.type === 1 && m.slot >= 0) baseM[m.slot] = (baseM[m.slot]||0)+1; }
+  for (const m of grindMD) { if (m.type === 1 && m.slot >= 0) grindM[m.slot] = (grindM[m.slot]||0)+1; }
+  const allMSlots = new Set([...Object.keys(baseM), ...Object.keys(grindM)]);
+  const monoMoves = [];
+  for (const s of allMSlots) {
+    const pv = baseM[s] || 0, cv = grindM[s] || 0;
+    if (pv !== cv) {
+      const name = OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : `#${s}`;
+      if (cv > pv) monoMoves.push(`<span style="color:var(--green);">+${cv-pv}</span> \u2192 ${name}`);
+      else monoMoves.push(`<span style="color:var(--red);">-${pv-cv}</span> from ${name}`);
+    }
+  }
+  if (monoMoves.length > 0) {
+    lines.push(`<div style="margin-left:8px;color:var(--purple);">Monocle${grindMD.filter(m=>m.type===1).length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${monoMoves.join(' &nbsp; ')}</div>`);
+  }
+  return lines;
+}
+
 function renderActions(sim, bestSteps) {
   const actDiv = document.getElementById('opt-actions');
   const phases = sim.phases;
@@ -6447,12 +6514,8 @@ function renderActions(sim, bestSteps) {
     if (isStart && p.grindInfo) {
       // Grind fires immediately — only show grind info; optimization appears on next event
       const gi = p.grindInfo;
-      const grindMonoSlots = gi.grindMD.filter(m=>m.type===1).map(m=>m.slot).filter(s=>s>=0);
-      const grindMonoNames = grindMonoSlots.map(s => OCC_DATA[s] ? OCC_DATA[s].name.replace(/_/g,' ') : '#'+s);
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      if (grindMonoNames.length > 0) {
-        details.push(`<div style="margin-left:8px;color:var(--purple);">Monocle: <b>${grindMonoNames.join(', ')}</b> during grind</div>`);
-      }
+      details.push(..._renderGrindLayoutDiff(p.config.md, gi.grindMD));
       details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
     } else if (isStart) {
       let stepNum = 0;
@@ -6474,6 +6537,7 @@ function renderActions(sim, bestSteps) {
     if (p.grindInfo && !isStart) {
       const gi = p.grindInfo;
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
+      details.push(..._renderGrindLayoutDiff(p.config.md, gi.grindMD));
       details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
     }
 
