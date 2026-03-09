@@ -5451,7 +5451,7 @@ async function computeInsightROI(onProgress) {
     // Compute after-grind layouts (re-optimized mags + shapes with new insight levels)
     const newIL = il.slice(); newIL[i] = (il[i]||0)+1;
     const afterMDRaw = await optimizeMagsFor(gl, so, pool, newIL, occ, mOwned, mMax, rLv);
-    const afterMD = chooseMonoTargets(afterMDRaw, newIL, insightProgress, occ, gl, so, mMax, 24, rLv);
+    const afterMD = chooseMonoTargets(afterMDRaw, newIL, insightProgress, occ, gl, so, mMax, 24, rLv, ctx);
     const afterShapeResult = optimizeShapesFor(gl, so, undefined, rLv, afterMD, newIL, occ);
     const afterSO = afterShapeResult.overlay;
 
@@ -5471,7 +5471,7 @@ async function computeInsightROI(onProgress) {
       if (targetLvGain > 1) {
         const newIL2 = il.slice(); newIL2[i] = (il[i]||0)+targetLvGain;
         const aftMD2Raw = await optimizeMagsFor(gl, so, pool, newIL2, occ, mOwned, mMax, rLv);
-        aftMD2 = chooseMonoTargets(aftMD2Raw, newIL2, insightProgress, occ, gl, so, mMax, 24, rLv);
+        aftMD2 = chooseMonoTargets(aftMD2Raw, newIL2, insightProgress, occ, gl, so, mMax, 24, rLv, ctx);
         const aftShape2 = optimizeShapesFor(gl, so, undefined, rLv, aftMD2, newIL2, occ);
         aftSO2 = aftShape2.overlay;
       }
@@ -6724,16 +6724,23 @@ function renderActions(sim, bestSteps) {
       // Non-start phases: original order (grid \u2192 mags \u2192 mono \u2192 insight \u2192 shapes)
       details.push(...gridDetails);
       if (p.freePoints > 0) details.push(`<div style="color:var(--green);font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely!</div>`);
-      details.push(...magDetails, ...monoDetails, ...insightDetails, ...shapeDetails);
+      if (p.grindInfo) {
+        // When grinding, skip regular mag/monocle diff — the user never enters the
+        // intermediate non-grind layout.  The grind section below shows the actual
+        // layout changes the user should make.
+        details.push(...insightDetails, ...shapeDetails);
+      } else {
+        details.push(...magDetails, ...monoDetails, ...insightDetails, ...shapeDetails);
+      }
     }
 
     // ─── Insight grind annotation (attached to the event that decided to grind) ───
     // (Start phase handles grind inline above, so skip it here)
     if (p.grindInfo && !isStart) {
       const gi = p.grindInfo;
-      // If previous phase had a grind, the player's actual layout is the previous grind layout,
-      // not this phase's re-optimized layout. Diff from where the player actually is.
-      const grindBase = prev.grindInfo ? prev.grindInfo.grindMD : p.config.md;
+      // If previous phase had a grind, the player's actual layout is the previous grind layout.
+      // Otherwise, diff from what was actually running in the previous phase.
+      const grindBase = prev.grindInfo ? prev.grindInfo.grindMD : prev.config.md;
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
       details.push(..._renderGrindLayoutDiff(grindBase, gi.grindMD));
       details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
