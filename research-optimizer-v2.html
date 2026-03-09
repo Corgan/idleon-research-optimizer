@@ -197,6 +197,14 @@ h1 span { color: var(--accent); }
 /* --- Shape rotate popup --- */
 .dt-sh-btn { padding:2px 6px;background:#222;border:1px solid #444;border-radius:3px;color:var(--text);cursor:pointer;font-size:.78em;line-height:1.2; }
 .dt-sh-btn:hover { border-color:var(--green);background:#2a2a3e; }
+/* --- ROI layout tabs --- */
+.roi-tabs { margin-top:4px; }
+.roi-tab-bar { display:flex;gap:2px;margin-bottom:6px; }
+.roi-tab-btn { padding:3px 10px;background:#111;border:1.5px solid #333;border-bottom:none;border-radius:5px 5px 0 0;color:var(--text2);cursor:pointer;font-size:.78em;font-weight:600;transition:background .15s,border-color .15s,color .15s; }
+.roi-tab-btn:hover { background:#1a1a2e;border-color:#555; }
+.roi-tab-btn.active { background:#1a1a2e;border-color:var(--accent);color:var(--accent); }
+.roi-tab-panel { display:none; }
+.roi-tab-panel.active { display:block; }
 </style>
 </head>
 <body>
@@ -535,6 +543,7 @@ const RES_GRID_RAW = {
   130: ["Legendary_Yellow_Fever",3,5,"Raises_the_Max_LV_of_certain_Yellow_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
   131: ["Legendary_Red_Fever",3,5,"Raises_the_Max_LV_of_certain_Red_Legend_Talents_by_+|._@_Also,_}x_Class_EXP_gain!"],
   132: ["Legendary_Brown_Fever",3,5,"Raises_the_Max_LV_of_certain_Brown_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
+  146: ["Risky_Strategy",2,10,"Your_Minehead_Damage_is_boosted_by_+{%_for_every_tile_revealed_in_a_single_turn._This_resets_at_the_start_of_every_turn."],
   147: ["Depth_Charge_Rematch!",4,25,"Gives_you_+|_more_tries_every_day_at_Mr_Minehead's_Depth_Charge!_Also,_+{%_Minehead_Currency/hr"],
   148: ["More_of_that_Minehead_Money_Pls",4,25,"Multiplies_Minehead_Currency/hr_by_}x"],
   149: ["Glimbo_Linguistics",1,15,"You_can_now_speak_to_Glimbo,_and_make_trades_with_him!_Also_boosts_coins_dropped_by_monsters_by_}x!"],
@@ -562,7 +571,7 @@ const NODE_GOAL = {
   87:'Gaming', 88:'Stickers', 89:'Cogs', 90:'Res EXP', 91:'Insight', 92:'Insight', 93:'Obs\u00d7Insight', 94:'Res EXP',
   107:'Crowns', 108:'Rat King', 109:'Artifacts', 110:'Res EXP', 111:'AFK', 112:'Res EXP',
   127:'Sigils', 128:'Sigils', 129:'Minehead', 130:'Class EXP', 131:'Class EXP', 132:'Class EXP',
-  147:'Minehead', 148:'Minehead', 149:'Glimbo', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
+  146:'Minehead', 147:'Minehead', 148:'Minehead', 149:'Glimbo', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
   167:'Minehead', 168:'DR Multi', 169:'Glimbo', 170:'All Quick', 171:'Day/Nite', 172:'Clothing', 173:'Drop Rate',
 };
 const NODE_GOAL_COLORS = {
@@ -2040,8 +2049,7 @@ function importState(raw) {
     shapeTiers.above = []; shapeTiers.below = defaultShapeTiers.below.slice();
   }
   _saveShapeTiers();
-  // Rebuild shape overlay from positions (stored overlay may be stale)
-  shapeOverlay = rebuildShapeOverlay(shapePositions);
+  // State files already store the correct overlay (preserving user placement order)
   updateSaveFormatUI();
   renderAll();
 }
@@ -2167,9 +2175,10 @@ function loadSaveData(raw) {
       shapePositions.push({ x: R[6][i], y: R[6][i+1], rot: R[6][i+2], unk: R[6][i+3] });
     }
 
-    // Recompute shapeOverlay from positions using LUT for consistent accuracy
-    // (the game's R[1] may disagree at polygon-edge pixels due to float precision)
-    shapeOverlay = rebuildShapeOverlay(shapePositions);
+    // Use the game's actual overlay (R[1]) — it reflects the user's placement order
+    // which determines overlap priority (first-placed wins).  rebuildShapeOverlay
+    // processes by index order and gets overlaps wrong.
+    // R[1] was already assigned above: shapeOverlay = R[1].slice();
 
     // Compute lab connectivity BFS (needed for MainframeBonus)
     computeLabConnectivity();
@@ -2245,7 +2254,9 @@ function applySupplements() {
   if (allEl) allEl.checked = [...allCbs].every(cb => cb.checked);
   totalTomePoints = Number(document.getElementById('supp-tome').value) || 0;
   serverVarResXP = Number(document.getElementById('supp-resxp').value) || 1.01;
-  // Rebuild shape overlay (companion 54 affects shapes owned count)
+  // Rebuild shape overlay (companion 54 affects shapes owned count).
+  // We must rebuild here because the number of active shapes changed,
+  // but placement-order overlap is unknown — use index order as best approximation.
   shapeOverlay = rebuildShapeOverlay(shapePositions);
   // Recompute derived state (only if real save loaded, not state snapshot)
   if (loadedSaveFormat !== 'state') {
@@ -2658,7 +2669,7 @@ async function computePointPriority(progressCb) {
     92: 'Monocle insight EXP%', 111: 'AFK Research %', 71: 'AFK Research %',
     129: 'Minehead Currency', 131: 'Red Legend talents', 130: 'Yellow Legend talents',
     132: 'Brown Legend talents', 152: 'Green Legend talents', 147: 'Depth Charge + Minehead',
-    148: 'Minehead Currency', 150: 'Masterclass cost', 151: 'Spelunking POW', 171: 'Day/Night Market',
+    146: 'Minehead tile DMG', 148: 'Minehead Currency', 150: 'Masterclass cost', 151: 'Spelunking POW', 171: 'Day/Night Market',
   };
 
   // Save all globals that will be mutated during optimization
@@ -6287,7 +6298,8 @@ function renderActions(sim, bestSteps) {
   const preOptConfig = {
     gl: gridLevels.slice(), so: shapeOverlay.slice(),
     md: magData.slice(0, magnifiersOwned).map(m=>({...m})),
-    il: insightLvs.slice()
+    il: insightLvs.slice(),
+    sp: shapePositions.map(s => ({...s}))
   };
 
   const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--text2)' };
@@ -6511,13 +6523,7 @@ function renderActions(sim, bestSteps) {
     // For start phase: numbered steps so user follows them in order
     // (grid spending changes cell weights → shapes must be re-placed → mags scored against shapes → monocle last)
     const _stepLabel = (n, text) => `<div style="color:var(--cyan);font-weight:700;margin-top:6px;margin-bottom:2px;font-size:.9em;">\u2699 Step ${n}: ${text}</div>`;
-    if (isStart && p.grindInfo) {
-      // Grind fires immediately — only show grind info; optimization appears on next event
-      const gi = p.grindInfo;
-      details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      details.push(..._renderGrindLayoutDiff(p.config.md, gi.grindMD));
-      details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
-    } else if (isStart) {
+    if (isStart) {
       let stepNum = 0;
       if (gridDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Spend Grid Points')); details.push(...gridDetails); }
       if (p.freePoints > 0) details.push(`<div style="color:var(--green);margin-top:2px;font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely on any upgrade!</div>`);
@@ -6525,6 +6531,14 @@ function renderActions(sim, bestSteps) {
       if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
       if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
       if (insightDetails.length) details.push(...insightDetails);
+      if (p.grindInfo) {
+        const gi = p.grindInfo;
+        const grindBase = prev.config.md;
+        stepNum++; details.push(_stepLabel(stepNum, 'Insight Grind'));
+        details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
+        details.push(..._renderGrindLayoutDiff(grindBase, gi.grindMD));
+        details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
+      }
     } else {
       // Non-start phases: original order (grid \u2192 mags \u2192 mono \u2192 insight \u2192 shapes)
       details.push(...gridDetails);
@@ -6536,8 +6550,11 @@ function renderActions(sim, bestSteps) {
     // (Start phase handles grind inline above, so skip it here)
     if (p.grindInfo && !isStart) {
       const gi = p.grindInfo;
+      // If previous phase had a grind, the player's actual layout is the previous grind layout,
+      // not this phase's re-optimized layout. Diff from where the player actually is.
+      const grindBase = prev.grindInfo ? prev.grindInfo.grindMD : p.config.md;
       details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      details.push(..._renderGrindLayoutDiff(p.config.md, gi.grindMD));
+      details.push(..._renderGrindLayoutDiff(grindBase, gi.grindMD));
       details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
     }
 
@@ -6545,7 +6562,7 @@ function renderActions(sim, bestSteps) {
     if (details.length > 0 && p.event !== 'end') {
       let goalSummary = '';
       if (p.event === 'start' && p.grindInfo) {
-        goalSummary = 'Insight grind \u2014 point monocle and wait';
+        goalSummary = 'Follow steps in order, then grind insight';
       } else if (p.event === 'start') {
         goalSummary = 'Follow steps in order \u2014 each depends on the previous';
       } else {
@@ -9173,96 +9190,158 @@ function _fmtLayoutHTML(layout, label) {
   return h;
 }
 
+let _roiTabUid = 0;
+function _roiSwitchTab(btn) {
+  const bar = btn.parentElement, wrap = bar.parentElement;
+  bar.querySelectorAll('.roi-tab-btn').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const idx = parseInt(btn.dataset.idx);
+  wrap.querySelectorAll('.roi-tab-panel').forEach((p, i) => {
+    p.classList.toggle('active', i === idx);
+  });
+}
+
 function _fmtLayoutDiff(before, during, after) {
-  // Show before/during/after mag layouts with changed slots highlighted
+  // Tabbed obs grid: DT-inspired cards with colored mag dots, one phase per tab
+  // Shows ALL unlocked observations, not just those with magnifiers
   const aggregate = (layout) => {
     const bySlot = {};
     for (const m of layout) {
+      if (m.slot < 0) continue;
       if (!bySlot[m.slot]) bySlot[m.slot] = [0,0,0];
       bySlot[m.slot][m.type]++;
     }
     return bySlot;
   };
-  const bSlots = aggregate(before), dSlots = aggregate(during), aSlots = aggregate(after);
-  const allSlots = new Set([...Object.keys(bSlots), ...Object.keys(dSlots), ...Object.keys(aSlots)]);
-  const sorted = [...allSlots].map(Number).sort((a,b) => a - b);
-  const magNames = ['Mag','Mono','Kalei'];
-  const magColors = ['var(--text)','var(--purple)','var(--cyan)'];
 
-  const fmtSlot = (counts) => {
-    const parts = [];
-    for (let t = 0; t < 3; t++) {
-      if (counts[t] > 0) parts.push(`<span style="color:${magColors[t]};">${counts[t]}${magNames[t]}</span>`);
+  const dotColors = ['#81c784','#ce93d8','#4dd0e1']; // Mag, Mono, Kalei (matches DT)
+
+  // Get all unlocked observation indices
+  const occTBF = computeOccurrencesToBeFound();
+  const allObsIndices = [];
+  for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) allObsIndices.push(i);
+
+  // Render a full obs grid for one phase's mag layout (all unlocked obs)
+  const renderPhaseGrid = (slots) => {
+    if (allObsIndices.length === 0) return '<span style="color:var(--text2);font-size:.82em;">No observations unlocked.</span>';
+    const COLS = Math.min(allObsIndices.length, 8);
+    let g = `<div style="display:grid;grid-template-columns:repeat(${COLS},1fr);gap:4px;">`;
+    for (const s of allObsIndices) {
+      const counts = slots[s] || [0,0,0];
+      const hasAny = counts[0] + counts[1] + counts[2] > 0;
+      const oData = s >= 0 && s < OCC_DATA.length ? OCC_DATA[s] : null;
+      let oName = oData ? oData.name.replace(/_/g,' ') : `Slot ${s}`;
+      if (oName.length > 16) oName = oName.slice(0,15) + '\u2026';
+      const dimStyle = hasAny ? '' : 'opacity:.45;';
+      g += `<div style="background:#1a1a2e;border:1.5px solid ${hasAny ? '#555' : '#282828'};border-radius:5px;padding:4px 5px;min-width:0;${dimStyle}">`;
+      g += `<div style="font-size:.7em;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;" title="${oData ? oData.name.replace(/_/g,' ') : ''}">${oName}</div>`;
+      g += `<div style="display:flex;flex-wrap:wrap;gap:1px;align-items:center;min-height:14px;">`;
+      if (hasAny) {
+        for (let t = 0; t < 3; t++) {
+          for (let n = 0; n < counts[t]; n++) {
+            g += `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${dotColors[t]};border:1.5px solid #555;margin:1px;flex-shrink:0;"></span>`;
+          }
+        }
+      } else {
+        g += `<span style="font-size:.65em;color:#444;">\u2014</span>`;
+      }
+      g += '</div></div>';
     }
-    return parts.join(' ') || '<span style="color:var(--text2);">&mdash;</span>';
+    g += '</div>';
+    return g;
   };
-  const arrEq = (a, b) => a[0]===b[0] && a[1]===b[1] && a[2]===b[2];
 
-  let h = '<table style="border-collapse:collapse;font-size:.82em;width:100%;">';
-  h += '<thead><tr style="color:var(--text2);border-bottom:1px solid #333;">';
-  h += '<th style="text-align:left;padding:2px 6px;">Obs Slot</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">Before</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">During Grind</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">After Grind</th>';
-  h += '</tr></thead><tbody>';
+  const bSlots = aggregate(before), dSlots = aggregate(during), aSlots = aggregate(after);
+  if (allObsIndices.length === 0) return '<span style="color:var(--text2);font-size:.82em;">No observations unlocked.</span>';
 
-  for (const s of sorted) {
-    const bc = bSlots[s] || [0,0,0], dc = dSlots[s] || [0,0,0], ac = aSlots[s] || [0,0,0];
-    const changed = !arrEq(bc, dc) || !arrEq(bc, ac);
-    const oData = s >= 0 && s < OCC_DATA.length ? OCC_DATA[s] : null;
-    const oName = oData ? oData.name.replace(/_/g,' ') : `Slot ${s}`;
-    const bg = changed ? 'background:rgba(255,200,50,.07);' : '';
-    h += `<tr style="${bg}">`;
-    h += `<td style="padding:2px 6px;color:var(--text2);white-space:nowrap;">${oName}${changed ? ' <span style="color:var(--gold);">*</span>' : ''}</td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(bc)}</td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(dc)}</td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtSlot(ac)}</td>`;
-    h += '</tr>';
+  const tabs = [
+    { label: 'Before', color: 'var(--text2)', slots: bSlots },
+    { label: 'During Grind', color: 'var(--gold)', slots: dSlots },
+    { label: 'After Grind', color: 'var(--green)', slots: aSlots },
+  ];
+
+  // Legend
+  let h = '<div style="display:flex;gap:10px;align-items:center;margin:4px 0 4px;font-size:.75em;color:var(--text2);">';
+  h += `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dotColors[0]};border:1px solid #555;"></span> Mag`;
+  h += `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dotColors[1]};border:1px solid #555;margin-left:6px;"></span> Mono`;
+  h += `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dotColors[2]};border:1px solid #555;margin-left:6px;"></span> Kalei`;
+  h += '</div>';
+
+  h += '<div class="roi-tabs"><div class="roi-tab-bar">';
+  for (let i = 0; i < tabs.length; i++) {
+    h += `<button class="roi-tab-btn${i===0?' active':''}" data-idx="${i}" onclick="_roiSwitchTab(this)" style="color:${tabs[i].color};">${tabs[i].label}</button>`;
   }
-  h += '</tbody></table>';
+  h += '</div>';
+  for (let i = 0; i < tabs.length; i++) {
+    h += `<div class="roi-tab-panel${i===0?' active':''}">${renderPhaseGrid(tabs[i].slots)}</div>`;
+  }
+  h += '</div>';
   return h;
 }
 
 function _fmtShapeDiff(beforeSO, duringSO, afterSO) {
-  // Show which grid nodes gained/lost shape coverage across phases
+  // Tabbed mini research grids showing shape overlay per phase
   const allIdx = Object.keys(RES_GRID_RAW).map(Number).sort((a,b) => a - b);
 
-  // Only show nodes where coverage changes
+  // Check if there are any changes
   let hasChanges = false;
-  const rows = [];
   for (const idx of allIdx) {
     const b = beforeSO[idx] !== undefined ? beforeSO[idx] : -1;
     const d = duringSO[idx] !== undefined ? duringSO[idx] : -1;
     const a = afterSO[idx] !== undefined ? afterSO[idx] : -1;
-    if (b === d && d === a) continue;
-    hasChanges = true;
-    const raw = RES_GRID_RAW[idx];
-    const name = raw ? raw[0].replace(/_/g,' ') : `Node ${idx}`;
-    rows.push({ idx, name, b, d, a });
+    if (b !== d || d !== a) { hasChanges = true; break; }
   }
   if (!hasChanges) return '<span style="color:var(--text2);font-size:.82em;">No shape changes across phases.</span>';
 
-  const fmtCell = (si) => {
-    if (si < 0) return '<span style="color:var(--text2);">&mdash;</span>';
-    return '<span style="color:var(--green);">covered</span>';
-  };
+  // Render a mini grid (slightly larger since only one shown at a time)
+  const cellSize = 18;
+  const COLS = GRID_COLS;
 
-  let h = '<table style="border-collapse:collapse;font-size:.82em;width:100%;margin-top:4px;">';
-  h += '<thead><tr style="color:var(--text2);border-bottom:1px solid #333;">';
-  h += '<th style="text-align:left;padding:2px 6px;">Grid Node</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">Before</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">During Grind</th>';
-  h += '<th style="text-align:center;padding:2px 6px;">After Grind</th>';
-  h += '</tr></thead><tbody>';
-  for (const r of rows) {
-    h += '<tr style="background:rgba(255,200,50,.07);">';
-    h += `<td style="padding:2px 6px;color:var(--text2);white-space:nowrap;">${r.name} <span style="color:var(--gold);">*</span></td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.b)}</td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.d)}</td>`;
-    h += `<td style="text-align:center;padding:2px 6px;">${fmtCell(r.a)}</td>`;
-    h += '</tr>';
+  function renderShapeGrid(overlay) {
+    function sameShape(i, neighbor) {
+      if (neighbor < 0 || neighbor >= GRID_SIZE) return false;
+      return overlay[i] >= 0 && overlay[i] === overlay[neighbor];
+    }
+    let g = `<div style="display:inline-grid;grid-template-columns:repeat(${COLS},${cellSize}px);gap:0;background:#111;padding:3px;border-radius:5px;">`;
+    for (let i = 0; i < GRID_SIZE; i++) {
+      const info = RES_GRID_RAW[i];
+      const lv = gridLevels[i] || 0;
+      const si = overlay[i];
+      let bg = '#0a0a15';
+      let bT = '1px solid #1a1a1a', bB = bT, bL = bT, bR = bT;
+      if (info) {
+        if (lv > 0) bg = '#1a1a2e';
+        if (si >= 0) {
+          const c = SHAPE_COLORS[si];
+          bg = c + '22';
+          const col = i % COLS;
+          bT = !sameShape(i, i - COLS) ? `1.5px solid ${c}` : '1px solid transparent';
+          bB = !sameShape(i, i + COLS) ? `1.5px solid ${c}` : '1px solid transparent';
+          bL = col > 0 ? (!sameShape(i, i - 1) ? `1.5px solid ${c}` : '1px solid transparent') : `1.5px solid ${c}`;
+          bR = col < COLS - 1 ? (!sameShape(i, i + 1) ? `1.5px solid ${c}` : '1px solid transparent') : `1.5px solid ${c}`;
+        }
+      }
+      g += `<div style="width:${cellSize}px;height:${cellSize}px;background:${bg};border-top:${bT};border-bottom:${bB};border-left:${bL};border-right:${bR};box-sizing:border-box;"></div>`;
+    }
+    g += '</div>';
+    return g;
   }
-  h += '</tbody></table>';
+
+  const tabs = [
+    { label: 'Before', color: 'var(--text2)', so: beforeSO },
+    { label: 'During Grind', color: 'var(--gold)', so: duringSO },
+    { label: 'After Grind', color: 'var(--green)', so: afterSO },
+  ];
+
+  let h = '<div class="roi-tabs"><div class="roi-tab-bar">';
+  for (let i = 0; i < tabs.length; i++) {
+    h += `<button class="roi-tab-btn${i===0?' active':''}" data-idx="${i}" onclick="_roiSwitchTab(this)" style="color:${tabs[i].color};">${tabs[i].label}</button>`;
+  }
+  h += '</div>';
+  for (let i = 0; i < tabs.length; i++) {
+    h += `<div class="roi-tab-panel${i===0?' active':''}">${renderShapeGrid(tabs[i].so)}</div>`;
+  }
+  h += '</div>';
   return h;
 }
 
@@ -9605,7 +9684,7 @@ const SP_ACTIVE_KEY = 'idleon_shapePresetActive';
 
 const SP_BASE_PRESETS = [
   { id: '_none',     name: 'Res EXP',   data: '|' },
-  { id: '_minehead', name: 'Minehead',  data: 'J6,H5,I5,H4|' },
+  { id: '_minehead', name: 'Minehead',  data: 'J6,G5,H5,I5,H4|' },
   { id: '_dr',       name: 'DR',        data: 'N4,M4,I4|' },
   { id: '_daily',    name: 'Daily',     data: 'K5,L5|' },
   { id: '_classexp', name: 'Class EXP', data: 'K6,L6,M6,M5|' },
