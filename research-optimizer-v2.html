@@ -6232,7 +6232,8 @@ function renderTimeline(sim) {
 }
 
 // Build HTML lines showing mag/monocle/kaleido diffs between a base layout and a grind layout
-function _renderGrindLayoutDiff(baseMD, grindMD) {
+function _renderGrindLayoutDiff(baseMD, grindMD, label) {
+  if (!label) label = 'grind layout';
   const lines = [];
   // Mag moves (type 0)
   const baseSlots = {}, grindSlots = {};
@@ -6249,7 +6250,7 @@ function _renderGrindLayoutDiff(baseMD, grindMD) {
     }
   }
   if (magMoves.length > 0) {
-    lines.push(`<div style="margin-left:8px;">Mags <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${magMoves.join(' &nbsp; ')}</div>`);
+    lines.push(`<div style="margin-left:8px;">Mags <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${magMoves.join(' &nbsp; ')}</div>`);
   }
   // Kaleido moves (type 2)
   const baseK = {}, grindK = {};
@@ -6266,7 +6267,7 @@ function _renderGrindLayoutDiff(baseMD, grindMD) {
     }
   }
   if (kalMoves.length > 0) {
-    lines.push(`<div style="margin-left:8px;">Kaleido <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${kalMoves.join(' &nbsp; ')}</div>`);
+    lines.push(`<div style="margin-left:8px;">Kaleido <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${kalMoves.join(' &nbsp; ')}</div>`);
   }
   // Monocle moves (type 1)
   const baseM = {}, grindM = {};
@@ -6283,7 +6284,7 @@ function _renderGrindLayoutDiff(baseMD, grindMD) {
     }
   }
   if (monoMoves.length > 0) {
-    lines.push(`<div style="margin-left:8px;color:var(--purple);">Monocle${grindMD.filter(m=>m.type===1).length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[grind layout]</span>: ${monoMoves.join(' &nbsp; ')}</div>`);
+    lines.push(`<div style="margin-left:8px;color:var(--purple);">Monocle${grindMD.filter(m=>m.type===1).length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${monoMoves.join(' &nbsp; ')}</div>`);
   }
   return lines;
 }
@@ -6528,17 +6529,22 @@ function renderActions(sim, bestSteps) {
       if (gridDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Spend Grid Points')); details.push(...gridDetails); }
       if (p.freePoints > 0) details.push(`<div style="color:var(--green);margin-top:2px;font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely on any upgrade!</div>`);
       if (shapeDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Place Shapes')); details.push(...shapeDetails); }
-      if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
-      if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
-      if (insightDetails.length) details.push(...insightDetails);
       if (p.grindInfo) {
+        // When grinding, show grind layout setup → grind → post-grind switch
         const gi = p.grindInfo;
-        const grindBase = prev.config.md;
+        const grindSetup = _renderGrindLayoutDiff(prev.config.md, gi.grindMD);
+        if (grindSetup.length) {
+          stepNum++; details.push(_stepLabel(stepNum, 'Set Up for Insight Grind'));
+          details.push(...grindSetup);
+        }
         stepNum++; details.push(_stepLabel(stepNum, 'Insight Grind'));
         details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-        details.push(..._renderGrindLayoutDiff(grindBase, gi.grindMD));
         details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
+      } else {
+        if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
+        if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
       }
+      if (insightDetails.length) details.push(...insightDetails);
     } else {
       // Non-start phases: original order (grid \u2192 mags \u2192 mono \u2192 insight \u2192 shapes)
       details.push(...gridDetails);
