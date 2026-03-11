@@ -222,7 +222,79 @@ export function _buildConcentratedLayout(s, targetObs, ctx) {
       m2.slot = bestSlot >= 0 ? bestSlot : -1;
     }
   }
+
+  // Re-optimize kaleidoscope placement for the grind layout.
+  // Goal: minimize total EXP lost during grind = grindHrs * (normalExpHr - grindExpHr).
+  // Since grindHrs ∝ 1/insightRate, this means minimizing (normalExpHr - grindExpHr) / insightRate.
+  // Compute pre-grind normal EXP rate from the original (non-concentrated) md.
+  var normalExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  result = _reoptKaleidsForGrind(result, targetObs, normalExpHr, gl, so, il, occ, rLv, mMax, ctx);
+
   return result;
+}
+
+/**
+ * Re-optimize kaleidoscope positions for a grind layout.
+ * Minimizes total EXP lost during the grind by balancing EXP/hr retention
+ * against insight rate gain.  A kaleido move is only adopted if the faster
+ * grind more than compensates for the EXP/hr drop.
+ */
+function _reoptKaleidsForGrind(md, targetObs, normalExpHr, gl, so, il, occ, rLv, mMax, ctx) {
+  // Collect kaleido indices
+  var kalIndices = [];
+  for (var i = 0; i < md.length; i++) {
+    if (md[i].type === 2) kalIndices.push(i);
+  }
+  if (kalIndices.length === 0) return md;
+
+  var occTBF = computeOccurrencesToBeFound(rLv, occ);
+  var usableSlots = [];
+  for (var si = 0; si < Math.min(occTBF, OCC_DATA.length); si++) {
+    if (isObsUsable(si, rLv, occ)) usableSlots.push(si);
+  }
+  if (usableSlots.length === 0) return md;
+
+  // Score = negative total EXP lost per insight gained.
+  // totalExpLost ∝ (normalExpHr - grindExpHr) / insightRate
+  // We MAXIMIZE the negative (= minimize EXP cost).
+  // When normalExpHr ≈ grindExpHr (little loss), even small insight gains win.
+  // When grindExpHr tanks, need proportionally larger insight gains to justify.
+  function scoreLayout(trial) {
+    var expHr = simTotalExpWith(gl, so, trial, il, occ, rLv, ctx);
+    var iRate = insightExpRate(targetObs, trial, il, gl, so, ctx);
+    if (iRate <= 0) return -Infinity;
+    var expLoss = Math.max(0, normalExpHr - expHr);
+    // Negative cost: higher = less EXP lost per insight gained
+    return -(expLoss / iRate);
+  }
+
+  var best = md;
+  var bestScore = scoreLayout(md);
+
+  // Greedy single-kaleido moves: try moving each kaleido to each usable slot
+  for (var ki = 0; ki < kalIndices.length; ki++) {
+    var idx = kalIndices[ki];
+    var origSlot = md[idx].slot;
+    for (var ui = 0; ui < usableSlots.length; ui++) {
+      var trySlot = usableSlots[ui];
+      if (trySlot === origSlot) continue;
+      // Check slot capacity
+      var slotCount = 0;
+      for (var ci = 0; ci < best.length; ci++) {
+        if (best[ci].slot === trySlot) slotCount++;
+      }
+      if (slotCount >= mMax) continue;
+      var trial = best.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
+      trial[idx].slot = trySlot;
+      var score = scoreLayout(trial);
+      if (score > bestScore) {
+        bestScore = score;
+        best = trial;
+      }
+    }
+  }
+
+  return best;
 }
 
 export function optimizeMonoLayout(s, ctx, lookAheadHrs) {
