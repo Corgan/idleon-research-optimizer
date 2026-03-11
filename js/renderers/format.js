@@ -20,8 +20,8 @@ export function fmtTimePrecise(hrs) {
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
   if (d > 365) return (d / 365).toFixed(1) + 'y';
-  if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
-  if (h > 0) return h + 'h ' + m + 'm';
+  if (d > 0) return d + 'd ' + h + 'h ' + m + 'm ' + s + 's';
+  if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
   if (m > 0) return m + 'm ' + s + 's';
   return s + 's';
 }
