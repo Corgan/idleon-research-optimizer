@@ -728,20 +728,98 @@ export function renderDashboard() {
     svg.classList.add('shape-svg');
     svg.setAttribute('viewBox', '15 24 600 360');
     svg.setAttribute('preserveAspectRatio', 'none');
+    // Allow pointer events on shape polygons but pass through elsewhere
+    svg.style.pointerEvents = 'none';
     for (const si of activeShapes) {
       const poly = computeShapePolygon(si);
       if (!poly) continue;
+
+      // Compute bounding box of the polygon
+      let bxMin = Infinity, bxMax = -Infinity, byMin = Infinity, byMax = -Infinity;
+      for (const [px, py] of poly) {
+        if (px < bxMin) bxMin = px; if (px > bxMax) bxMax = px;
+        if (py < byMin) byMin = py; if (py > byMax) byMax = py;
+      }
+
+      // Bounding box rect (hidden by default)
+      const bbox = document.createElementNS(svgNS, 'rect');
+      bbox.setAttribute('x', bxMin);
+      bbox.setAttribute('y', byMin);
+      bbox.setAttribute('width', bxMax - bxMin);
+      bbox.setAttribute('height', byMax - byMin);
+      bbox.setAttribute('fill', 'none');
+      bbox.setAttribute('stroke', SHAPE_COLORS[si]);
+      bbox.setAttribute('stroke-width', '1.5');
+      bbox.setAttribute('stroke-dasharray', '4 3');
+      bbox.setAttribute('opacity', '0');
+      bbox.setAttribute('rx', '2');
+      svg.appendChild(bbox);
+
+      // Shape polygon (interactive)
       const points = poly.map(([x,y]) => x + ',' + y).join(' ');
       const el = document.createElementNS(svgNS, 'polygon');
       el.setAttribute('points', points);
-      el.setAttribute('fill', 'none');
+      el.setAttribute('fill', SHAPE_COLORS[si] + '08');
       el.setAttribute('stroke', SHAPE_COLORS[si]);
       el.setAttribute('stroke-width', '2');
       el.setAttribute('stroke-linejoin', 'round');
       el.setAttribute('opacity', '0.7');
+      el.style.pointerEvents = 'fill';
+      el.style.cursor = 'pointer';
+      el.addEventListener('mouseenter', function() { bbox.setAttribute('opacity', '0.6'); });
+      el.addEventListener('mouseleave', function() { bbox.setAttribute('opacity', '0'); });
       svg.appendChild(el);
     }
     gridDiv.appendChild(svg);
+  }
+
+  // Shape legend with rasterized footprints
+  if (activeShapes.size > 0) {
+    const legend = document.createElement('div');
+    legend.style.cssText = 'margin-top:6px;display:flex;flex-wrap:wrap;gap:8px 16px;';
+    const sortedShapes = Array.from(activeShapes).sort((a, b) => (SHAPE_BONUS_PCT[b] || 0) - (SHAPE_BONUS_PCT[a] || 0));
+    for (const si of sortedShapes) {
+      // Collect cells covered by this shape
+      const cells = [];
+      for (let ci = 0; ci < shapeOverlay.length; ci++) {
+        if (shapeOverlay[ci] === si) cells.push(ci);
+      }
+      if (cells.length === 0) continue;
+      const sc = SHAPE_COLORS[si] || '#888';
+
+      // Build bounding box footprint
+      let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+      for (const c of cells) {
+        const col = c % GRID_COLS, row = Math.floor(c / GRID_COLS);
+        if (col < minC) minC = col; if (col > maxC) maxC = col;
+        if (row < minR) minR = row; if (row > maxR) maxR = row;
+      }
+      const cellSet = new Set(cells);
+      const w = maxC - minC + 1;
+      const sz = 6;
+      let fpHtml = '<div style="display:inline-grid;grid-template-columns:repeat(' + w + ',' + sz + 'px);gap:1px;flex-shrink:0;">';
+      for (let row = minR; row <= maxR; row++) {
+        for (let col = minC; col <= maxC; col++) {
+          fpHtml += '<div style="width:' + sz + 'px;height:' + sz + 'px;background:' +
+            (cellSet.has(row * GRID_COLS + col) ? sc + '88' : '#1a1a2e') +
+            ';border-radius:1px;"></div>';
+        }
+      }
+      fpHtml += '</div>';
+
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:.75em;white-space:nowrap;';
+      var coordStr = cells.length <= 6
+        ? cells.map(c => gridCoord(c)).join(', ')
+        : cells.length + ' cells (' + gridCoord(cells[0]) + '\u2013' + gridCoord(cells[cells.length - 1]) + ')';
+      item.innerHTML = fpHtml +
+        '<span style="color:' + sc + ';font-weight:600;">' + SHAPE_NAMES[si] + '</span>' +
+        ' <span style="opacity:.6;">(' + SHAPE_BONUS_PCT[si] + '%)</span>' +
+        '<span style="opacity:.5;"> \u2192 </span>' +
+        '<span style="opacity:.7;">' + coordStr + '</span>';
+      legend.appendChild(item);
+    }
+    gridDiv.parentNode.insertBefore(legend, gridDiv.nextSibling);
   }
 
   // Observations - v1-style: 8 cols, full names, text mag indicators, EXP*multi, insight rate, hover tooltip
