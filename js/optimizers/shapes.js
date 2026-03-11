@@ -166,10 +166,18 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
   }
   _rebuildValuedCells();
 
-  // Sort shapes by bonus% descending - place highest-bonus shapes first
+  // Sort shapes by bonus% descending, then by bounding-box area descending.
+  // Larger shapes are harder to position, so among equal-bonus shapes they go
+  // first while the grid is still open; smaller shapes adapt more easily.
   const shapeOrder = [];
   for (let s = 0; s < numShapes; s++) shapeOrder.push(s);
-  shapeOrder.sort((a, b) => SHAPE_BONUS_PCT[b] - SHAPE_BONUS_PCT[a]);
+  shapeOrder.sort((a, b) => {
+    const d = SHAPE_BONUS_PCT[b] - SHAPE_BONUS_PCT[a];
+    if (d !== 0) return d;
+    const areaA = SHAPE_DIMS[a] ? SHAPE_DIMS[a][0] * SHAPE_DIMS[a][1] : 0;
+    const areaB = SHAPE_DIMS[b] ? SHAPE_DIMS[b][0] * SHAPE_DIMS[b][1] : 0;
+    return areaB - areaA;
+  });
 
   const coveredCells = new Set();
   const placements = [];

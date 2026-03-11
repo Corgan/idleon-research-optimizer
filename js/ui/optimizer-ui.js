@@ -233,10 +233,13 @@ function _buildPhaseDetails(p, prev, diff) {
       const cells = diff.shapes.byShape[si];
       const sc = SHAPE_COLORS[si] || 'var(--text2)';
       const coordStrs = cells.map(c => gridCoord(c));
-      bkHtml += `<div style="margin-left:8px;font-size:.9em;margin-bottom:2px;">` +
-        `<span style="color:${sc};font-weight:600;">${SHAPE_NAMES[si]}</span>` +
+      // Build a small rasterized footprint showing the shape's actual cell coverage
+      const footprint = _renderShapeFootprint(cells, sc);
+      bkHtml += `<div style="margin-left:8px;font-size:.9em;margin-bottom:4px;display:flex;align-items:center;gap:6px;">` +
+        footprint +
+        `<div><span style="color:${sc};font-weight:600;">${SHAPE_NAMES[si]}</span>` +
         ` <span style="opacity:.6;">(${SHAPE_BONUS_PCT[si]}%)</span>` +
-        `<span style="opacity:.7;"> \u2192 </span>${coordStrs.join(', ')}</div>`;
+        `<span style="opacity:.7;"> \u2192 </span>${coordStrs.join(', ')}</div></div>`;
     }
     shapeDetails.push(`<details style="margin-bottom:4px;" onclick="event.stopPropagation();"><summary style="cursor:pointer;color:var(--cyan);font-size:.85em;">Shape grid &amp; breakdown</summary><div style="margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div><div style="margin-top:6px;">${bkHtml}</div></details>`);
   }
@@ -653,6 +656,35 @@ export function renderExpChart(sim) {
   chartDiv.innerHTML = svg;
 }
 
+/**
+ * Render a compact rasterized footprint showing which grid cells a shape covers.
+ * Returns an HTML string for an inline mini-grid bounded to the shape's extent.
+ */
+function _renderShapeFootprint(cells, color) {
+  if (!cells || cells.length === 0) return '';
+  var cellSet = new Set(cells);
+  var minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+  for (var i = 0; i < cells.length; i++) {
+    var c = cells[i] % GRID_COLS, r = Math.floor(cells[i] / GRID_COLS);
+    if (c < minC) minC = c; if (c > maxC) maxC = c;
+    if (r < minR) minR = r; if (r > maxR) maxR = r;
+  }
+  var w = maxC - minC + 1, h = maxR - minR + 1;
+  var sz = 8;
+  var html = '<div style="display:inline-grid;grid-template-columns:repeat(' + w + ',' + sz + 'px);gap:1px;flex-shrink:0;">';
+  for (var row = minR; row <= maxR; row++) {
+    for (var col = minC; col <= maxC; col++) {
+      var idx = row * GRID_COLS + col;
+      var hit = cellSet.has(idx);
+      html += '<div style="width:' + sz + 'px;height:' + sz + 'px;background:' +
+        (hit ? color + '88' : '#1a1a2e') +
+        ';border-radius:1px;"></div>';
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
 export function renderMiniGrid(overlay, gl, positions) {
   const usedGL = gl || gridLevels;
   const cellSize = 24;
@@ -702,6 +734,11 @@ export function renderMiniGrid(overlay, gl, positions) {
     const usePos = positions || shapePositions;
     const gw = COLS * cellSize, gh = GRID_ROWS * cellSize;
     let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="15 24 600 360" preserveAspectRatio="none">`;
+    svg += `<style>
+      .sh-poly + .sh-bbox { opacity:0; transition:opacity .15s; }
+      .sh-poly:hover + .sh-bbox { opacity:.6; }
+      .sh-poly { pointer-events:fill; cursor:pointer; }
+    </style>`;
     for (const si of activeShapes) {
       const pos = usePos[si];
       if (!pos) continue;
@@ -716,7 +753,14 @@ export function renderMiniGrid(overlay, gl, positions) {
         return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
                 Math.round(cy + pos.y + dx * sinA + dy * cosA)];
       });
-      svg += `<polygon points="${poly.map(([x,y])=>x+','+y).join(' ')}" fill="none" stroke="${SHAPE_COLORS[si]}" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>`;
+      // Compute bounding box
+      let bxMin = Infinity, bxMax = -Infinity, byMin = Infinity, byMax = -Infinity;
+      for (const [px, py] of poly) {
+        if (px < bxMin) bxMin = px; if (px > bxMax) bxMax = px;
+        if (py < byMin) byMin = py; if (py > byMax) byMax = py;
+      }
+      svg += `<polygon class="sh-poly" points="${poly.map(([x,y])=>x+','+y).join(' ')}" fill="${SHAPE_COLORS[si]}08" stroke="${SHAPE_COLORS[si]}" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>`;
+      svg += `<rect class="sh-bbox" x="${bxMin}" y="${byMin}" width="${bxMax-bxMin}" height="${byMax-byMin}" fill="none" stroke="${SHAPE_COLORS[si]}" stroke-width="1.5" stroke-dasharray="4 3" rx="2"/>`;
     }
     svg += '</svg>';
     html += svg;
