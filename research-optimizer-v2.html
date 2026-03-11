@@ -366,7 +366,10 @@ h1 span { color: var(--accent); }
 
     <!-- Results: Action list -->
     <div class="opt-section" id="opt-actions-section" style="display:none;">
-      <h3 style="color:var(--gold);">Step-by-Step Actions</h3>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <h3 style="color:var(--gold);margin:0;">Step-by-Step Actions</h3>
+        <button id="opt-import-dt" style="margin-left:auto;padding:4px 12px;border:1px solid var(--purple);background:transparent;color:var(--purple);border-radius:4px;cursor:pointer;font-size:.8em;" title="Import this optimization result into the Decision Tree sandbox for branching and exploration">&#x1f333; Open in Decision Tree</button>
+      </div>
       <div id="opt-actions"></div>
     </div>
   </div>

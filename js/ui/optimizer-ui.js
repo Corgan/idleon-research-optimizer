@@ -37,29 +37,41 @@ import {
   fmtTime,
   fmtVal,
 } from '../renderers/format.js';
+import { _dtNodes, _dtCompareSet, DT } from '../dt/dt-state.js';
+import { _dtCreateNode } from '../dt/dt-sim.js';
+import { _dtReset, _dtRenderTree } from '../dt/decision-tree.js';
 
 
 // Convert sim hours-offset to a real date string, relative to now.
 // Shows "X ago" / "in X" relative label + short date/time.
+// Returns { text, epoch } where epoch is seconds (for live-update).
 function fmtRealTime(simHrs) {
-  if (!saveGlobalTime || !isFinite(simHrs)) return '';
-  const now = Date.now() / 1000; // current epoch seconds
-  // Save was taken at saveGlobalTime; sim hour 0 = save time.
-  // Event real time = saveGlobalTime + simHrs * 3600
+  if (!saveGlobalTime || !isFinite(simHrs)) return { text: '', epoch: 0 };
   const eventEpoch = saveGlobalTime + simHrs * 3600;
-  const diffSec = eventEpoch - now;
-  const diffHrs = diffSec / 3600;
-  // Relative label
+  return { text: _relTimeStr(eventEpoch), epoch: eventEpoch };
+}
+function _relTimeStr(eventEpoch) {
+  const diffHrs = (eventEpoch - Date.now() / 1000) / 3600;
   let rel;
   if (Math.abs(diffHrs) < 1/60) rel = 'now';
   else if (diffHrs < 0) rel = fmtTime(-diffHrs) + ' ago';
   else rel = 'in ' + fmtTime(diffHrs);
-  // Short time (12hr am/pm)
   const d = new Date(eventEpoch * 1000);
   let hr = d.getHours(), ampm = hr >= 12 ? 'pm' : 'am';
   hr = hr % 12 || 12;
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${rel} (${hr}:${mm}${ampm})`;
+}
+
+// Live-update all visible real-time labels every 30s.
+let _rtTimer = 0;
+function _startRealTimeUpdates() {
+  clearInterval(_rtTimer);
+  _rtTimer = setInterval(() => {
+    document.querySelectorAll('.opt-rt[data-epoch]').forEach(el => {
+      el.textContent = _relTimeStr(+el.dataset.epoch);
+    });
+  }, 1_000);
 }
 
 
@@ -457,11 +469,20 @@ function renderActions(sim, bestSteps) {
       prev = prevIdx >= 0 ? phases[prevIdx] : phases[0];
       eventLabel = 'End State'; icon = '\u2714';
     } else if (p.event === 'level-up') {
-      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Level Up'; icon = '\u2b50';
+      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Level Up \u2192 LV ' + p.rLv; icon = '\u2b50';
     } else if (p.event === 'insight-up') {
-      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Insight Level Up'; icon = '\u2b06';
+      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0];
+      if (p.insightObs && p.insightObs.length > 0) {
+        const obs = OCC_DATA[p.insightObs[0]];
+        const obsName = obs ? obs.name.replace(/_/g, ' ') : 'Obs ' + p.insightObs[0];
+        const newLv = p.insightLvs ? p.insightLvs[p.insightObs[0]] : null;
+        eventLabel = obsName + (newLv != null ? ' \u2192 LV ' + newLv : ' Leveled Up');
+      } else {
+        eventLabel = 'Insight Level Up';
+      }
+      icon = '\u2b06';
     } else if (p.event === 'level+insight') {
-      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Level + Insight'; icon = '\u26a1';
+      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Level \u2192 LV ' + p.rLv + ' + Insight'; icon = '\u26a1';
     } else {
       prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Event'; icon = '\u25cf';
     }
@@ -515,11 +536,10 @@ function renderActions(sim, bestSteps) {
     }
 
     // Header row: always visible
+    const { text: realTimeStr, epoch: realEpoch } = fmtRealTime(p.time);
     html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;">`;
-    const realTimeStr = fmtRealTime(p.time);
     const timeTitle = realTimeStr ? ` title="${realTimeStr}"` : '';
     html += `<span style="color:var(--text2);min-width:48px;font-size:.85em;font-variant-numeric:tabular-nums;"${timeTitle}>${fmtTime(p.time)}</span>`;
-    if (realTimeStr) html += `<span style="color:var(--text2);font-size:.7em;opacity:.7;min-width:0;white-space:nowrap;">${realTimeStr}</span>`;
     html += `<span style="font-size:1em;">${icon}</span>`;
     html += `<span style="font-weight:600;color:${borderColor};flex:1;">${eventLabel}</span>`;
     html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(displayExpHr)}/hr</span>`;
@@ -528,6 +548,33 @@ function renderActions(sim, bestSteps) {
     html += segInfo;
     if (hasDetails) html += `<span class="action-chevron" id="chevron-${i}" style="color:var(--text2);font-size:.7em;margin-left:4px;transition:transform .2s;">\u25b6</span>`;
     html += `</div>`;
+
+    // Collapsed goal line: always visible 2nd row
+    let goalLine = '';
+    if (p.grindInfo) {
+      const gi = p.grindInfo;
+      goalLine = `\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv} <span style="opacity:.6;">(${fmtTime(gi.grindHrs)}, break-even ${fmtTime(gi.breakEvenHrs)})</span>`;
+    } else if (p.event !== 'end') {
+      const nextP = i < phases.length - 1 ? phases[i + 1] : null;
+      if (nextP) {
+        if (nextP.event === 'level-up') {
+          goalLine = `\ud83c\udfaf Next: Research LV ${nextP.rLv}`;
+        } else if (nextP.event === 'insight-up' && nextP.insightObs && nextP.insightObs.length > 0) {
+          const nObs = OCC_DATA[nextP.insightObs[0]];
+          const nName = nObs ? nObs.name.replace(/_/g, ' ') : 'Obs ' + nextP.insightObs[0];
+          const nLv = nextP.insightLvs ? nextP.insightLvs[nextP.insightObs[0]] : null;
+          goalLine = `\ud83c\udfaf Next: ${nName}` + (nLv != null ? ` \u2192 LV ${nLv}` : ' insight level-up');
+        } else if (nextP.event === 'level+insight') {
+          goalLine = `\ud83c\udfaf Next: Research LV ${nextP.rLv} + insight`;
+        } else if (nextP.event === 'end') {
+          goalLine = `\ud83c\udfaf Running until target`;
+        }
+      }
+    }
+    const realTimeBit = realTimeStr ? `<span class="opt-rt" data-epoch="${realEpoch}" style="font-size:.9em;opacity:.55;margin-left:auto;white-space:nowrap;">${realTimeStr}</span>` : '';
+    if (goalLine || realTimeStr) {
+      html += `<div style="display:flex;align-items:baseline;padding:0 10px 6px 66px;font-size:.78em;color:var(--text2);"><span>${goalLine}</span>${realTimeBit}</div>`;
+    }
 
     // Collapsible detail
     if (hasDetails) {
@@ -548,6 +595,7 @@ function renderActions(sim, bestSteps) {
       toggleActionDetail(Number(el.dataset.phase), Number(el.dataset.phasecount), Number(el.dataset.totaltime));
     });
   }
+  _startRealTimeUpdates();
 }
 
 export function toggleActionDetail(phaseIdx, phaseCount, totalTime) {
@@ -758,4 +806,50 @@ export function renderMiniGrid(overlay, gl, positions) {
   }
   html += '</div>';
   return html;
+}
+
+// ===== IMPORT OPTIMIZER RESULT INTO DECISION TREE =====
+export function importOptToDecisionTree() {
+  if (!_optimizerResult || !_optimizerResult.best) return;
+  const phases = _optimizerResult.best.phases;
+  if (!phases || phases.length === 0) return;
+
+  _dtReset();
+
+  let prevId = null;
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    const segTime = i > 0 ? p.time - phases[i - 1].time : 0;
+    // Build DT state from phase config snapshot
+    const cfg = p.grindInfo ? (p.activeConfig || p.config) : p.config;
+    const state = {
+      gl: cfg.gl.slice(), so: cfg.so.slice(),
+      md: cfg.md.map(m => ({...m})),
+      il: cfg.il.slice(), ip: cfg.ip.slice(),
+      occ: cfg.occ.slice(), sp: cfg.sp.map(s => ({...s})),
+      rLv: p.rLv, rExp: p.rExp,
+      expHr: p.grindInfo ? p.grindInfo.grindExpHr : p.expHr,
+    };
+    const node = _dtCreateNode(prevId, p.event, segTime, state);
+    node.insightObs = p.insightObs || null;
+    node.insightLvs = p.insightLvs || null;
+    prevId = node.id;
+  }
+
+  // Show the tree
+  document.getElementById('dt-tree-wrap').style.display = 'block';
+  _dtRenderTree();
+
+  // Switch to sandbox tab
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'sandbox');
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-sandbox').classList.add('active');
+  // Size the viewport
+  const sizer = document.getElementById('dt-viewport-sizer');
+  if (sizer) {
+    const top = sizer.getBoundingClientRect().top;
+    sizer.style.height = (window.innerHeight - top) + 'px';
+  }
 }

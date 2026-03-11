@@ -79,7 +79,7 @@ function _dtGridBonusMode2(nodeIdx, curBonus, s) {
   }
 }
 
-﻿// ===== UNIFIED GRID + SHAPE CANVAS =====
+// ===== UNIFIED GRID + SHAPE CANVAS =====
 let _dtGridTooltip = null;
 let _dtShapeDrag = null; // {shapeIdx, startX, startY, origX, origY}
 let _dtHoverCell = -1;   // cell index under mouse (for tooltip + highlight)
@@ -398,10 +398,12 @@ function _dtCanvasMouseUp(e) {
   if (canvas) canvas.classList.remove('dt-shape-dragging');
   _dtShapeDrag = null;
   if (!d.moved) {
-    // Click without drag Ã¢â€ â€™ show rotate popup
+    // Click without drag -> show rotate popup
     _dtShowShapeRotatePopup(d.shapeIdx, e.clientX, e.clientY);
   }
   if (DT.editState) {
+    // Move dragged shape to end of placement order (most recently placed = lowest priority)
+    if (d.moved) _dtBumpShapePlaceOrder(d.shapeIdx);
     _dtRecalcExpHr();
     _dtRenderModal();
   }
@@ -511,7 +513,7 @@ function _dtShowGridTip(e, idx) {
 
   // Description with placeholders
   html += `<div style="color:#ccc;margin-top:4px;font-size:.9em">${_dtFormatDesc(idx, s)}</div>`;
-  html += `<div style="color:#888;margin-top:4px;font-size:.8em">Click +1 Ã‚Â· Right-click -1</div>`;
+  html += `<div style="color:#888;margin-top:4px;font-size:.8em">Click +1 - Right-click -1</div>`;
 
   _dtGridTooltip.innerHTML = html;
   _dtGridTooltip.style.display = 'block';
@@ -622,6 +624,7 @@ function _dtShapeRotate(si, dRot) {
   const p = DT.editState.sp[si];
   if (!p) return;
   p.rot = ((p.rot || 0) + dRot + 360) % 360;
+  _dtBumpShapePlaceOrder(si);
   _dtRebuildOverlay();
   _dtRecalcExpHr();
   _dtRenderModal();
@@ -633,9 +636,19 @@ function _dtShapeNudge(si, dx, dy) {
   if (!p) return;
   p.x = (p.x || 0) + dx;
   p.y = (p.y || 0) + dy;
+  _dtBumpShapePlaceOrder(si);
   _dtRebuildOverlay();
   _dtRecalcExpHr();
   _dtRenderModal();
+}
+
+/** Move shape si to the end of placement order (most recently placed = lowest priority). */
+function _dtBumpShapePlaceOrder(si) {
+  const s = DT.editState;
+  if (!s || !s.spo) return;
+  const idx = s.spo.indexOf(si);
+  if (idx >= 0) s.spo.splice(idx, 1);
+  s.spo.push(si);
 }
 
 export function _dtRebuildOverlay() {
@@ -644,7 +657,10 @@ export function _dtRebuildOverlay() {
   const ctx = s.ctx || makeCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, ctx), s.sp.length, SHAPE_VERTICES.length, 10);
   const so = new Array(GRID_SIZE).fill(-1);
-  for (let si = 0; si < numOwned; si++) {
+  // Iterate in placement order: first-placed shape wins overlapping cells
+  const order = s.spo || Array.from({length: numOwned}, (_, i) => i);
+  for (const si of order) {
+    if (si >= numOwned) continue;
     const p = s.sp[si];
     if (!p || p.x == null || p.y == null) continue;
     const cells = getShapeCellCoverage(si, p.x, p.y, p.rot || 0);
@@ -689,7 +705,7 @@ export function _dtRenderObsEditor() {
     }
     poolHtml += `</div>`;
   }
-  poolHtml += `<span style="color:var(--text2);font-size:.8em;">Total: ${usedByType[0]+usedByType[1]+usedByType[2]}/${mOwned} Ã‚Â· Max/slot: ${mMax}</span>`;
+  poolHtml += `<span style="color:var(--text2);font-size:.8em;">Total: ${usedByType[0]+usedByType[1]+usedByType[2]}/${mOwned} - Max/slot: ${mMax}</span>`;
   poolHtml += '</div>';
   document.getElementById('dt-obs-pool').innerHTML = poolHtml;
 

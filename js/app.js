@@ -41,7 +41,7 @@ import {
   _cancelOptimizer,
   _runParallelOptimizer,
 } from './renderers/worker-pool.js';
-import { renderOptimizerResults } from './ui/optimizer-ui.js';
+import { renderOptimizerResults, importOptToDecisionTree } from './ui/optimizer-ui.js';
 import {
   applySupplements,
   copyStateBox,
@@ -77,6 +77,9 @@ function _dtSizeViewport() {
 window.addEventListener('resize', () => {
   if (document.getElementById('tab-sandbox')?.classList.contains('active')) _dtSizeViewport();
 });
+
+// Import optimizer result into decision tree
+document.getElementById('opt-import-dt')?.addEventListener('click', importOptToDecisionTree);
 
 // Optimizer mode toggle
 document.getElementById('opt-mode-level')?.addEventListener('click', () => {
@@ -219,6 +222,9 @@ document.getElementById('state-box-copy')?.addEventListener('click', () => copyS
 document.getElementById('state-box-load')?.addEventListener('click', () => loadStateBox());
 document.getElementById('paste-load-btn')?.addEventListener('click', () => loadFromPaste());
 document.getElementById('supplements-apply-btn')?.addEventListener('click', () => applySupplements());
+document.getElementById('comp-select-all')?.addEventListener('change', (e) => {
+  document.querySelectorAll('.comp-toggle').forEach(cb => { cb.checked = e.target.checked; });
+});
 document.getElementById('dt-lvl-toggle')?.addEventListener('click', () => _dtToggleLevelUpsOnly());
 {
   const infoIcon = document.getElementById('dt-info-icon');
