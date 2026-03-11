@@ -17,7 +17,7 @@ import {
   mealsData,
   spelunkData,
   tasksGlobalData,
-} from './state.js';
+} from '../state.js';
 import {
   cauldronBubblesData,
   cauldronInfoData,
@@ -29,21 +29,21 @@ import {
   optionsListData,
   playerStuffData,
   skillLvData,
-} from './save/data.js';
+} from './data.js';
 import {
   ARENA_THRESHOLDS,
   GODS_TYPE,
   JEWEL_DESC,
   LAB_BONUS_BASE,
   LAB_BONUS_DYNAMIC,
-} from './game-data.js';
+} from '../game-data.js';
 import {
   emporiumBonus,
   labJewelUnlocked,
   ribbonBonusAt,
   superBitType,
-} from './save/helpers.js';
-import { computeCardLv, computeShinyBonusS, computeWinBonus } from './save/external.js';
+} from './helpers.js';
+import { computeCardLv, computeShinyBonusS, computeWinBonus } from './external.js';
 
 export function euclidDist(x1, y1, x2, y2) {
   const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);

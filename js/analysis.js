@@ -20,7 +20,6 @@ import {
   getAvailableSlots,
   insightExpRate,
   insightExpReqAt,
-  isObsUsable,
   simTotalExpWith,
 } from './sim-math.js';
 import { eventShopOwned } from './save/helpers.js';
@@ -30,8 +29,8 @@ import {
   _evalMagScoreWith,
   optimizeMagsFor,
 } from './optimizers/magnifiers.js';
-import { chooseMonoTargets } from './optimizers/monos.js';
-import { optimizeShapesFor } from './sim-engine.js';
+import { chooseMonoTargets, _buildConcentratedLayout } from './optimizers/monos.js';
+import { optimizeShapesFor, optimizePostGrind } from './sim-engine.js';
 
 function _resolveState(state) {
   const gl = state ? state.gl : gridLevels;
@@ -101,46 +100,6 @@ export async function computeInsightROI(onProgress, state) {
   const optBaseMD = await optimizeMagsFor({gl, so, md: pool, il, occ, rLv, mOwned, mMax});
   const optBaseFull = chooseMonoTargets({gl, so, md: optBaseMD, il, ip, occ, rLv, mMax}, ctx, 24);
   const baseRate = simTotalExpWith(gl, so, optBaseFull, il, occ, rLv, ctx);
-  const availSlots = getAvailableSlots(rLv, occ);
-  function buildLayout(targetObs, nAdjKalei) {
-    const assigned = [], slotCounts = new Map();
-    function _assign(type, slot) { assigned.push({ type, slot, x:0, y:0 }); slotCounts.set(slot, (slotCounts.get(slot)||0)+1); }
-    const monoOnTarget = Math.min(monoCount, mMax);
-    for (let k = 0; k < monoOnTarget; k++) _assign(1, targetObs);
-    if (nAdjKalei > 0) {
-      const adj = [], t = targetObs;
-      if (t%8!==0) adj.push(t-1); if (t%8!==7) adj.push(t+1);
-      if (t>=8) adj.push(t-8); if (t+8<80) adj.push(t+8);
-      let placed = 0;
-      for (const s of adj) {
-        if (placed >= nAdjKalei) break;
-        if (s<0||s>=occTBF||!isObsUsable(s,rLv,occ)) continue;
-        if ((slotCounts.get(s)||0)>=mMax) continue;
-        _assign(2, s); placed++;
-      }
-    }
-    const preKalei = assigned.filter(a=>a.type===2).length;
-    const remainKalei = numKalei - preKalei;
-    const toPlace = [];
-    for (let k=0;k<monoCount-monoOnTarget;k++) toPlace.push(1);
-    for (let k=0;k<remainKalei;k++) toPlace.push(2);
-    for (let k=0;k<numRegular;k++) toPlace.push(0);
-    while (toPlace.length > 0) {
-      let bestPI = -1, bestSlot = -1, bestScore = -Infinity;
-      const triedTypes = new Set();
-      for (let pi=0;pi<toPlace.length;pi++) {
-        const magType = toPlace[pi]; if (triedTypes.has(magType)) continue; triedTypes.add(magType);
-        for (const slot of availSlots) {
-          if ((slotCounts.get(slot)||0)>=mMax) continue;
-          const trial = [...assigned, {type:magType,slot,x:0,y:0}];
-          const score = _evalMagScoreWith(trial,gl,so,il,occ,rLv);
-          if (score > bestScore) { bestScore=score; bestSlot=slot; bestPI=pi; }
-        }
-      }
-      if (bestPI >= 0) { _assign(toPlace[bestPI], bestSlot); toPlace.splice(bestPI,1); } else break;
-    }
-    return assigned;
-  }
   // evalLayout: compute break-even for a grind scenario.
   // grindSO: optional shape overlay to use during the grind (null = use current so).
   // afterMD/afterSO: optional post-grind layouts for computing the "after" rate.
@@ -175,15 +134,11 @@ export async function computeInsightROI(onProgress, state) {
   for (const i of usableIndices) {
     const name = OCC_DATA[i].name.replace(/_/g,' ');
     const lv = il[i]||0, progress = ip[i]||0;
-    const maxAdj = Math.min(numKalei, 4), layouts = [];
-    for (let nAdj=0;nAdj<=maxAdj;nAdj++) layouts.push({nAdj,md:buildLayout(i,nAdj)});
-
-    // Find best mag layout (by break-even with current shapes)
-    let bestLayout = layouts[0], bestBE = Infinity;
-    for (const l of layouts) { const ev = evalLayout(l.md,i,1,progress); if (ev.breakEvenHrs<bestBE) { bestBE=ev.breakEvenHrs; bestLayout=l; } }
+    // Build grind layout using concentrated layout builder (same as optimizer)
+    const grindMD = _buildConcentratedLayout({md: optBaseFull, mMax, gl, so, il, occ, rLv}, i, ctx);
 
     // Optimize shapes for insight grind: boost cells that affect insight rate
-    const insightCV = _computeInsightCellValues(i, bestLayout.md, il, gl, so);
+    const insightCV = _computeInsightCellValues(i, grindMD, il, gl, so);
     // Blend: primarily insight rate, secondarily research EXP (to avoid tanking EXP more than needed)
     const researchCV = computeCellValues({gridLevels:gl, shapeOverlay:so, magData:pool, insightLvs:il, occFound:occ, researchLevel:rLv});
     const maxInsight = Math.max(0.001, ...insightCV.filter(v => v > 0));
@@ -193,30 +148,24 @@ export async function computeInsightROI(onProgress, state) {
       // 70% insight priority, 30% research to avoid unnecessary EXP loss
       blendedCV[ci] = 0.7 * (insightCV[ci] / maxInsight) + 0.3 * (researchCV[ci] / maxResearch);
     }
-    const insightShapeResult = optimizeShapesFor({gl, so, md: bestLayout.md, il, occ, rLv}, undefined, blendedCV);
+    const insightShapeResult = optimizeShapesFor({gl, so, md: grindMD, il, occ, rLv}, undefined, blendedCV);
     const insightSO = insightShapeResult.overlay;
 
-    // Also re-find best mag layout with insight shapes (kaleidoscope effect may differ)
-    let bestLayoutIS = bestLayout, bestBE_IS = Infinity;
-    for (const l of layouts) {
-      const ev = evalLayout(l.md, i, 1, progress, insightSO);
-      if (ev.breakEvenHrs < bestBE_IS) { bestBE_IS = ev.breakEvenHrs; bestLayoutIS = l; }
-    }
+    // Build grind layout with insight shapes (kaleidoscope placement may differ)
+    const grindMD_IS = _buildConcentratedLayout({md: optBaseFull, mMax, gl, so: insightSO, il, occ, rLv}, i, ctx);
 
     // Compute after-grind layouts (re-optimized mags + shapes with new insight levels)
     const newIL = il.slice(); newIL[i] = (il[i]||0)+1;
-    const afterMDRaw = await optimizeMagsFor({gl, so, md: pool, il: newIL, occ, rLv, mOwned, mMax});
-    const afterMD = chooseMonoTargets({gl, so, md: afterMDRaw, il: newIL, ip, occ, rLv, mMax}, ctx, 24);
-    const afterShapeResult = optimizeShapesFor({gl, so, md: afterMD, il: newIL, occ, rLv});
-    const afterSO = afterShapeResult.overlay;
+    const after1 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL, ctx, 24);
+    const afterMD = after1.md, afterSO = after1.so;
 
     // Decide: use insight shapes or current shapes? Pick whichever gives better break-even.
-    const evCurrent = evalLayout(bestLayout.md, i, 1, progress, null, afterMD, afterSO);
-    const evInsight = evalLayout(bestLayoutIS.md, i, 1, progress, insightSO, afterMD, afterSO);
+    const evCurrent = evalLayout(grindMD, i, 1, progress, null, afterMD, afterSO);
+    const evInsight = evalLayout(grindMD_IS, i, 1, progress, insightSO, afterMD, afterSO);
     let useInsightShapes = false;
     if (evInsight.breakEvenHrs < evCurrent.breakEvenHrs) useInsightShapes = true;
 
-    const chosenMagLayout = useInsightShapes ? bestLayoutIS : bestLayout;
+    const chosenGrindMD = useInsightShapes ? grindMD_IS : grindMD;
     const chosenSO = useInsightShapes ? insightSO : null;
 
     const scenarios = [];
@@ -225,21 +174,19 @@ export async function computeInsightROI(onProgress, state) {
       let aftMD2 = afterMD, aftSO2 = afterSO;
       if (targetLvGain > 1) {
         const newIL2 = il.slice(); newIL2[i] = (il[i]||0)+targetLvGain;
-        const aftMD2Raw = await optimizeMagsFor({gl, so, md: pool, il: newIL2, occ, rLv, mOwned, mMax});
-        aftMD2 = chooseMonoTargets({gl, so, md: aftMD2Raw, il: newIL2, ip, occ, rLv, mMax}, ctx, 24);
-        const aftShape2 = optimizeShapesFor({gl, so, md: aftMD2, il: newIL2, occ, rLv});
-        aftSO2 = aftShape2.overlay;
+        const after2 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL2, ctx, 24);
+        aftMD2 = after2.md;
+        aftSO2 = after2.so;
       }
-      const ev = evalLayout(chosenMagLayout.md, i, targetLvGain, progress, chosenSO, aftMD2, aftSO2);
+      const ev = evalLayout(chosenGrindMD, i, targetLvGain, progress, chosenSO, aftMD2, aftSO2);
       ev.lvGain = targetLvGain;
-      ev.adjKalei = chosenMagLayout.nAdj;
       ev.afterMD = aftMD2;
       ev.afterSO = aftSO2;
       scenarios.push(ev);
     }
     rows.push({
       idx:i, name, lv, progress, scenarios,
-      grindLayout: chosenMagLayout.md,
+      grindLayout: chosenGrindMD,
       grindSO: chosenSO,
       useInsightShapes,
       afterLayout: afterMD,

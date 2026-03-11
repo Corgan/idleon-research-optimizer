@@ -47,6 +47,17 @@ export function optimizeShapesFor(s, simOpts, precomputedCellValues, saveCtx) {
   return { overlay: result.optimizedOverlay, positions: result.optimizedPositions };
 }
 
+// Centralized post-grind optimization: re-optimize mags + monocles + shapes for new insight levels.
+// Returns { md, so, expHr }.
+export async function optimizePostGrind(state, newIL, ctx, monoLookahead) {
+  const { gl, so, md, ip, occ, rLv, mOwned, mMax } = state;
+  const postMD = await optimizeMagsFor({gl, so, md, il: newIL, occ, rLv, mOwned, mMax}, ctx);
+  const postMDFull = chooseMonoTargets({gl, so, md: postMD, il: newIL, ip, occ, rLv, mMax}, ctx, monoLookahead);
+  const postShapes = optimizeShapesFor({gl, so, md: postMDFull, il: newIL, occ, rLv});
+  const expHr = simTotalExpWith(gl, postShapes.overlay, postMDFull, newIL, occ, rLv, ctx);
+  return { md: postMDFull, so: postShapes.overlay, expHr };
+}
+
 function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr, ctx) {
   if (config.target.type === 'hours') return Math.max(1, config.target.value - currentTime);
   if (rLv >= config.target.value) return 1;
@@ -153,9 +164,8 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
-    const postMD = await optimizeMagsFor({gl, so, md, il: c.newIL, occ: projOcc, rLv, mOwned, mMax}, ctx);
-    const postMDFull = chooseMonoTargets({gl, so, md: postMD, il: c.newIL, ip, occ: projOcc, rLv, mMax}, ctx, Math.max(1, remainingHrs - c.grindHrs));
-    const postExpHr = simTotalExpWith(gl, so, postMDFull, c.newIL, projOcc, rLv, ctx);
+    const post = await optimizePostGrind({gl, so, md, ip, occ: projOcc, rLv, mOwned, mMax}, c.newIL, ctx, Math.max(1, remainingHrs - c.grindHrs));
+    const postExpHr = post.expHr;
     const rateGain = postExpHr - projCurExpHr;
     if (rateGain <= 0) continue;
     const expLostPerHr = Math.max(0, projCurExpHr - c.grindExpHr);

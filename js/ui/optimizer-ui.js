@@ -735,8 +735,6 @@ export function renderMiniGrid(overlay, gl, positions) {
     const gw = COLS * cellSize, gh = GRID_ROWS * cellSize;
     let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="15 24 600 360" preserveAspectRatio="none">`;
     svg += `<style>
-      .sh-poly + .sh-bbox { opacity:0; transition:opacity .15s; }
-      .sh-poly:hover + .sh-bbox { opacity:.6; }
       .sh-poly { pointer-events:fill; cursor:pointer; }
     </style>`;
     for (const si of activeShapes) {
@@ -753,14 +751,7 @@ export function renderMiniGrid(overlay, gl, positions) {
         return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
                 Math.round(cy + pos.y + dx * sinA + dy * cosA)];
       });
-      // Compute bounding box
-      let bxMin = Infinity, bxMax = -Infinity, byMin = Infinity, byMax = -Infinity;
-      for (const [px, py] of poly) {
-        if (px < bxMin) bxMin = px; if (px > bxMax) bxMax = px;
-        if (py < byMin) byMin = py; if (py > byMax) byMax = py;
-      }
       svg += `<polygon class="sh-poly" points="${poly.map(([x,y])=>x+','+y).join(' ')}" fill="${SHAPE_COLORS[si]}08" stroke="${SHAPE_COLORS[si]}" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>`;
-      svg += `<rect class="sh-bbox" x="${bxMin}" y="${byMin}" width="${bxMax-bxMin}" height="${byMax-byMin}" fill="none" stroke="${SHAPE_COLORS[si]}" stroke-width="1.5" stroke-dasharray="4 3" rx="2"/>`;
     }
     svg += '</svg>';
     html += svg;

@@ -12,6 +12,7 @@ import {
   gridLevels,
   grimoireData,
   insightLvs,
+  insightProgress,
   magData,
   magMaxPerSlot,
   magnifiersOwned,
@@ -54,6 +55,7 @@ import {
   _gbWith,
   computeOccurrencesToBeFound,
   getKaleiMultiBase as _getKaleiMultiBasePure,
+  insightExpReqAt,
   obsBaseExp,
   researchExpReq,
 } from '../sim-math.js';
@@ -63,7 +65,7 @@ import {
   ribbonBonusAt,
   superBitType,
 } from '../save/helpers.js';
-import { mainframeBonus } from '../lab.js';
+import { mainframeBonus } from '../save/lab.js';
 import {
   achieveStatus,
   computeAFKGainsRate,
@@ -87,9 +89,10 @@ import {
 import { sameShapeCell } from '../optimizers/shapes-geo.js';
 import { fmtExact, fmtTime, fmtVal } from '../renderers/format.js';
 import { gridCoord } from '../grid-helpers.js';
+import { hideTooltip, moveTooltip, attachTooltip } from './tooltip.js';
 // Circular import (render-upgrades → dashboard → render-upgrades) is safe:
 // both sides use imports only inside functions, not at module level.
-import { _formatDesc } from '../renderers/render-upgrades.js';
+import { _formatDesc } from '../renderers/upgrade-eval.js';
 
 
 // --- Inline helpers (formerly in calculations.js → app.js, used only by dashboard) ---
@@ -213,19 +216,9 @@ export function showGridTooltip(e, idx, overlayOverride) {
   moveTooltip(e);
 }
 
-export function hideTooltip() {
-  document.getElementById('tooltip').style.display = 'none';
-}
-export function moveTooltip(e) {
-  const tt = document.getElementById('tooltip');
-  tt.style.left = (e.clientX + 14) + 'px';
-  tt.style.top = (e.clientY + 14) + 'px';
-}
-export function attachTooltip(el, showFn) {
-  el.addEventListener('mouseenter', showFn);
-  el.addEventListener('mouseleave', hideTooltip);
-  el.addEventListener('mousemove', moveTooltip);
-}
+// Re-export tooltip primitives for external consumers
+export { hideTooltip, moveTooltip, attachTooltip } from './tooltip.js';
+
 function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   const tt = document.getElementById('tooltip');
   const occ = OCC_DATA[obsIdx];
@@ -263,6 +256,20 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
     html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
     if (monos > 0) html += '<div style="color:var(--purple)">Insight/hr: ' + (monoRate * monos).toFixed(2) + ' (' + monos + ' mono x ' + monoRate.toFixed(2) + ')</div>';
     if (kaleis > 0) html += '<div style="color:var(--cyan)">Kaleidoscopes on slot: ' + kaleis + '</div>';
+    html += '</div>';
+  }
+  // Insight progress
+  const iReq = insightExpReqAt(obsIdx, lv);
+  const iProg = insightProgress[obsIdx] || 0;
+  if (iReq > 0) {
+    const pct = Math.min(100, iProg / iReq * 100);
+    html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
+    html += '<div style="color:#aaa">Insight EXP: <span style="color:var(--text)">' + iProg.toFixed(1) + ' / ' + iReq.toFixed(1) + '</span> <span style="color:#666">(' + pct.toFixed(1) + '%)</span></div>';
+    const totalMonoRate = monoRate * monos;
+    if (totalMonoRate > 0) {
+      const hrsLeft = Math.max(0, iReq - iProg) / totalMonoRate;
+      html += '<div style="color:var(--purple)">Time to LV ' + (lv+1) + ': ' + fmtTime(hrsLeft) + '</div>';
+    }
     html += '</div>';
   }
 
@@ -552,12 +559,78 @@ function buildExpBreakdownTree() {
   return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });
 }
 
+// ===== AFK BREAKDOWN TREE =====
+function buildAFKBreakdownTree() {
+  const afkRate = cachedAFKRate || computeAFKGainsRate();
+  const p = afkRate.parts;
+  const addChildren = [];
+
+  // Base 1% (hardcoded in formula: 0.01 + sum/100)
+  addChildren.push(_bNode('Base', 1, null, { fmt: '%' }));
+
+  // Companion 28 - RIP Tide
+  addChildren.push(_bNode('RIP Tide (Companion)', p.comp28.val, null, { fmt: '%', note: p.comp28.note }));
+
+  // Gambit Milestone 15
+  addChildren.push(_bNode('Gambit Milestone', p.gambit15.val, null, { fmt: '%', note: p.gambit15.note }));
+
+  // Minehead floors
+  addChildren.push(_bNode('Minehead Floor 2', p.minehead1.val, null, { fmt: '%', note: p.minehead1.note }));
+  addChildren.push(_bNode('Minehead Floor 11', p.minehead10.val, null, { fmt: '%', note: p.minehead10.note }));
+
+  // Grid bonuses (with full decomposition)
+  var gb71Node = _gbNode(71, 'Powered Down Research');
+  gb71Node.fmt = '%';
+  addChildren.push(gb71Node);
+
+  var gb111Node = _gbNode(111, 'Research AFK Gains');
+  gb111Node.fmt = '%';
+  addChildren.push(gb111Node);
+
+  // Sailing artifact
+  addChildren.push(_bNode('Ender Pearl (Artifact)', p.sailing36.val, null, { fmt: '%', note: p.sailing36.note }));
+
+  // Card
+  addChildren.push(_bNode('Pirate Deckhand Card', p.cardW7b11.val, null, { fmt: '%', note: p.cardW7b11.note }));
+
+  // Sort by value descending
+  addChildren.sort(function(a, b) { return b.val - a.val; });
+
+  const capped = afkRate.pct > 100;
+  return _bNode('AFK Rate', afkRate.pct, addChildren, { fmt: 'pct', note: capped ? 'Capped at 100%' : '' });
+}
+
+// ===== INSIGHT MULTIPLIER BREAKDOWN TREE =====
+function buildInsightBreakdownTree() {
+  var gb92Node = _gbNode(92, 'Oracular Spectacular');
+  gb92Node.fmt = '%';
+  var gb91Node = _gbNode(91, 'Optical Monocle');
+  gb91Node.fmt = '%';
+
+  const children = [gb92Node, gb91Node];
+  children.sort(function(a, b) { return b.val - a.val; });
+
+  const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
+  const multi = 1 + insightBonus / 100;
+  const totalPerMono = 3 * multi;
+
+  const bonusNode = _bNode('Insight Bonus', insightBonus, children, { fmt: '%' });
+  return _bNode('Insight/hr per Monocle', totalPerMono, [
+    _bNode('Monocle Base', 3, null, { fmt: '/hr' }),
+    bonusNode,
+    _bNode('Final Multiplier', multi, null, { fmt: 'x' }),
+  ], { fmt: '/hr' });
+}
+
+var _btTreeCounter = 0;
 function renderBreakdownTree(root, container) {
+  var prefix = 'bt' + (_btTreeCounter++) + '-';
   var idCounter = 0;
 
   function fmtNodeVal(node) {
     var v = node.val;
-    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">(' + fmtExact(v) + ')</span>';
+    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
+    if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
     if (node.fmt === 'x') return '\u00d7' + parseFloat(v.toFixed(4));
     if (Number.isInteger(v)) return String(v);
@@ -566,13 +639,14 @@ function renderBreakdownTree(root, container) {
 
   function valColor(node) {
     if (node.fmt === '/hr') return 'var(--green)';
+    if (node.fmt === 'pct') return 'var(--green)';
     if (node.fmt === '%') return 'var(--purple)';
     if (node.fmt === 'x') return 'var(--cyan)';
     return 'var(--text1)';
   }
 
   function buildHtml(node, depth) {
-    var id = 'bt-' + (idCounter++);
+    var id = prefix + (idCounter++);
     var has = node.children && node.children.length > 0;
     var pad = depth * 18;
     // depth 0 = root (Total), depth 1 = additive group / multipliers - start expanded
@@ -648,6 +722,7 @@ function renderBreakdownTree(root, container) {
 
 // ===== RENDER: DASHBOARD =====
 export function renderDashboard() {
+  _btTreeCounter = 0;
   // Summary
   const sumDiv = document.getElementById('dash-summary');
   const curRate = simTotalExp();
@@ -734,27 +809,6 @@ export function renderDashboard() {
       const poly = computeShapePolygon(si);
       if (!poly) continue;
 
-      // Compute bounding box of the polygon
-      let bxMin = Infinity, bxMax = -Infinity, byMin = Infinity, byMax = -Infinity;
-      for (const [px, py] of poly) {
-        if (px < bxMin) bxMin = px; if (px > bxMax) bxMax = px;
-        if (py < byMin) byMin = py; if (py > byMax) byMax = py;
-      }
-
-      // Bounding box rect (hidden by default)
-      const bbox = document.createElementNS(svgNS, 'rect');
-      bbox.setAttribute('x', bxMin);
-      bbox.setAttribute('y', byMin);
-      bbox.setAttribute('width', bxMax - bxMin);
-      bbox.setAttribute('height', byMax - byMin);
-      bbox.setAttribute('fill', 'none');
-      bbox.setAttribute('stroke', SHAPE_COLORS[si]);
-      bbox.setAttribute('stroke-width', '1.5');
-      bbox.setAttribute('stroke-dasharray', '4 3');
-      bbox.setAttribute('opacity', '0');
-      bbox.setAttribute('rx', '2');
-      svg.appendChild(bbox);
-
       // Shape polygon (interactive)
       const points = poly.map(([x,y]) => x + ',' + y).join(' ');
       const el = document.createElementNS(svgNS, 'polygon');
@@ -766,16 +820,18 @@ export function renderDashboard() {
       el.setAttribute('opacity', '0.7');
       el.style.pointerEvents = 'fill';
       el.style.cursor = 'pointer';
-      el.addEventListener('mouseenter', function() { bbox.setAttribute('opacity', '0.6'); });
-      el.addEventListener('mouseleave', function() { bbox.setAttribute('opacity', '0'); });
       svg.appendChild(el);
     }
     gridDiv.appendChild(svg);
   }
 
   // Shape legend with rasterized footprints
+  // Remove previous legend if any (prevents duplication on re-render)
+  var oldLegend = gridDiv.parentNode.querySelector('.shape-legend');
+  if (oldLegend) oldLegend.remove();
   if (activeShapes.size > 0) {
     const legend = document.createElement('div');
+    legend.className = 'shape-legend';
     legend.style.cssText = 'margin-top:6px;display:flex;flex-wrap:wrap;gap:8px 16px;';
     const sortedShapes = Array.from(activeShapes).sort((a, b) => (SHAPE_BONUS_PCT[b] || 0) - (SHAPE_BONUS_PCT[a] || 0));
     for (const si of sortedShapes) {
@@ -809,9 +865,7 @@ export function renderDashboard() {
 
       const item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:.75em;white-space:nowrap;';
-      var coordStr = cells.length <= 6
-        ? cells.map(c => gridCoord(c)).join(', ')
-        : cells.length + ' cells (' + gridCoord(cells[0]) + '\u2013' + gridCoord(cells[cells.length - 1]) + ')';
+      var coordStr = cells.map(c => gridCoord(c)).join(', ');
       item.innerHTML = fpHtml +
         '<span style="color:' + sc + ';font-weight:600;">' + SHAPE_NAMES[si] + '</span>' +
         ' <span style="opacity:.6;">(' + SHAPE_BONUS_PCT[si] + '%)</span>' +
@@ -873,27 +927,21 @@ export function renderDashboard() {
     renderBreakdownTree(tree, expDiv);
   }
 
-  // AFK Rate Breakdown - full source table
+  // AFK Rate Breakdown - nested tree
   const afkDiv = document.getElementById('dash-afk');
   {
-    const CARD_NAMES_AFK = { w7b11: 'Pirate Deckhand' };
-    const afkSources = Object.entries(afkRate.parts).map(([k, p]) => {
-      let label = p.label;
-      if (k === 'cardW7b11') label = 'Card: ' + CARD_NAMES_AFK.w7b11;
-      return { label, val: p.val };
-    });
-    afkSources.sort((a, b) => b.val - a.val);
+    const afkTree = buildAFKBreakdownTree();
+    renderBreakdownTree(afkTree, afkDiv);
+    const effDiv = document.createElement('div');
+    effDiv.style.cssText = 'margin-top:6px;font-size:.85em;color:var(--text2);';
+    effDiv.innerHTML = 'Effective offline EXP/hr: <b style="color:var(--green);">' + fmtVal(curRate.total * Math.min(1, afkRate.rate)) + '</b>';
+    afkDiv.appendChild(effDiv);
+  }
 
-    let aHtml = '<table class="opt-table"><thead><tr><th>Source</th><th>Value</th></tr></thead><tbody>';
-    for (const s of afkSources) {
-      aHtml += '<tr><td>' + s.label + '</td>' +
-        '<td style="color:' + (s.val > 0 ? 'var(--green)' : 'var(--text2)') + ';font-weight:600">' + (s.val > 0 ? '+' + s.val + '%' : '0') + '</td></tr>';
-    }
-    aHtml += '<tr style="border-top:2px solid #444;">' +
-      '<td style="font-weight:700;">Total:</td>' +
-      '<td style="color:var(--gold);font-weight:700;font-size:1.1em;">' + afkRate.pct.toFixed(0) + '%</td></tr>';
-    aHtml += '</tbody></table>';
-    aHtml += '<div style="margin-top:6px;font-size:.85em;color:var(--text2);">Effective offline EXP/hr: <b style="color:var(--green);">' + fmtVal(curRate.total * Math.min(1, afkRate.rate)) + '</b></div>';
-    afkDiv.innerHTML = aHtml;
+  // Insight Multiplier Breakdown - nested tree
+  const insightDiv = document.getElementById('dash-insight');
+  if (insightDiv) {
+    const insightTree = buildInsightBreakdownTree();
+    renderBreakdownTree(insightTree, insightDiv);
   }
 }

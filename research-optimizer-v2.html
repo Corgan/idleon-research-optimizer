@@ -287,7 +287,7 @@ h1 span { color: var(--accent); }
     <h3 style="color:var(--green);margin-bottom:8px;">Observations</h3>
     <div class="obs-grid" id="dash-obs"></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1200px;margin:16px auto;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;max-width:1200px;margin:16px auto;">
     <div class="opt-section">
       <h3 style="color:var(--green);">EXP Rate Breakdown</h3>
       <div id="dash-exp-breakdown"></div>
@@ -295,6 +295,10 @@ h1 span { color: var(--accent); }
     <div class="opt-section">
       <h3 style="color:var(--text2);">AFK Rate</h3>
       <div id="dash-afk"></div>
+    </div>
+    <div class="opt-section">
+      <h3 style="color:var(--purple);">Insight Multiplier</h3>
+      <div id="dash-insight"></div>
     </div>
   </div>
 </div>
