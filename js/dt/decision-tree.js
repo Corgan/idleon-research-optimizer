@@ -20,7 +20,7 @@ import { makeCtx } from '../save/context.js';
 import { optimizeMagsFor } from '../optimizers/magnifiers.js';
 import { chooseMonoTargets } from '../optimizers/monos.js';
 import { optimizeShapesFor } from '../sim-engine.js';
-import { fmtTime, fmtVal } from '../renderers/format.js';
+import { fmtTime, fmtTimePrecise, fmtVal } from '../renderers/format.js';
 import { renderDashboard } from '../ui/dashboard.js';
 import {
   _dtNodes, _dtCompareSet, DT,
@@ -42,6 +42,18 @@ import {
 // Re-export shared state for external consumers (app.js, state-io.js)
 export { _dtNodes, _dtCompareSet, DT } from './dt-state.js';
 export { _dtRenderGridCanvas, _dtSetGridMode, _dtSetShapeOpacity } from './dt-grid.js';
+
+function _dtEvLabel(node) {
+  const base = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
+  if (base[node.event]) return base[node.event];
+  if (node.event === 'insight-up' && node.insightObs && node.insightObs.length > 0) {
+    const obs = OCC_DATA[node.insightObs[0]];
+    const name = obs ? obs.name.replace(/_/g, ' ') : 'Obs ' + node.insightObs[0];
+    const newLv = node.insightLvs ? node.insightLvs[node.insightObs[0]] : null;
+    return '\uD83D\uDD2E ' + name + (newLv != null ? ' \u2192 LV ' + newLv : '');
+  }
+  return '\uD83D\uDD2E Insight';
+}
 
 // ===== TREE LAYOUT =====
 export function _dtToggleLevelUpsOnly() {
@@ -109,7 +121,7 @@ function _dtLayout() {
   // so they don't overlap the start node visually.
   for (const n of _dtNodes) {
     if (n.parentId !== null && _dtGetNode(n.parentId)?.event === 'start' && n._totalTime === 0) {
-      n._totalTime = -0.001; // tiny negative â†’ will sort right after start
+      n._totalTime = -0.001; // tiny negative -> will sort right after start
     }
   }
   // Ensure start itself is the earliest
@@ -125,7 +137,7 @@ function _dtLayout() {
     timeToX.set(timeSet[i], cumX);
     if (i < timeSet.length - 1) {
       const gap = timeSet[i + 1] - timeSet[i];
-      // Synthetic gaps (start â†’ edit) get just minimum spacing
+      // Synthetic gaps (start -> edit) get just minimum spacing
       if (gap < 0.01) {
         cumX += minColW;
       } else {
@@ -216,11 +228,16 @@ export function _dtRenderTree() {
     ctx.fill();
     ctx.stroke();
 
+    // Clip text to node bounds
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, _DT_NODE_W, _DT_NODE_H);
+    ctx.clip();
+
     // Event badge
-    const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'insight-up': '\uD83D\uDD2E Insight', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
     ctx.font = 'bold 10px system-ui, sans-serif';
     ctx.fillStyle = evColor;
-    ctx.fillText(evLabels[node.event] || node.event, x + 8, y + 13);
+    ctx.fillText(_dtEvLabel(node), x + 8, y + 13);
 
     // Level + Exp/hr
     ctx.font = 'bold 12px system-ui, sans-serif';
@@ -249,7 +266,7 @@ export function _dtRenderTree() {
     ctx.font = '10px system-ui, sans-serif';
     ctx.fillStyle = '#888';
     const totalTimeFromRoot = _dtGetTotalTime(node);
-    ctx.fillText(fmtTime(totalTimeFromRoot), x + 8, y + 52);
+    ctx.fillText(fmtTimePrecise(totalTimeFromRoot), x + 8, y + 52);
 
     // Grid points indicator
     const avail = _dtGridPointsAvail(node.baseState.gl, node.rLv);
@@ -273,6 +290,7 @@ export function _dtRenderTree() {
       ctx.fillText('AI\u25B8', x + _DT_NODE_W - 22, y + 13);
     }
 
+    ctx.restore(); // end node clip
   }
 }
 
@@ -443,12 +461,11 @@ function _dtShowTreeTooltip(node, cx, cy) {
     tip.style.cssText = 'position:fixed;z-index:9999;background:#16162a;border:1px solid #555;border-radius:6px;padding:8px 10px;font-size:12px;color:#ddd;pointer-events:none;max-width:360px;line-height:1.5;white-space:pre-wrap;max-height:60vh;overflow-y:auto;';
     document.body.appendChild(tip);
   }
-  const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Level Up', 'insight-up': '\uD83D\uDD2E Insight Up', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
   const evColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
   const totalTime = _dtGetTotalTime(node);
   const avail = _dtGridPointsAvail(node.baseState.gl, node.rLv);
 
-  let html = `<div style="color:${evColors[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${evLabels[node.event] || node.event}</div>`;
+  let html = `<div style="color:${evColors[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${_dtEvLabel(node)}</div>`;
   html += `<div><span style="color:#aaa;">Level:</span> <b style="color:#eee;">${node.rLv}</b></div>`;
   html += `<div><span style="color:#aaa;">EXP/hr:</span> <b style="color:#81c784;">${fmtVal(node.expHr)}</b>`;
   if (node.parentId !== null) {
@@ -464,7 +481,7 @@ function _dtShowTreeTooltip(node, cx, cy) {
     }
   }
   html += `</div>`;
-  html += `<div><span style="color:#aaa;">Time:</span> <b>${fmtTime(totalTime)}</b></div>`;
+  html += `<div><span style="color:#aaa;">Time:</span> <b>${fmtTimePrecise(totalTime)}</b></div>`;
   if (avail > 0) html += `<div><span style="color:#aaa;">Grid pts:</span> <b style="color:#ffd700;">+${avail}</b></div>`;
 
   // Changes from parent
@@ -485,7 +502,7 @@ function _dtShowTreeTooltip(node, cx, cy) {
     for (const entry of node.insightTimeline) {
       const obsName = (OCC_DATA[entry.obs] ? OCC_DATA[entry.obs].name.replace(/_/g, ' ') : 'Obs ' + entry.obs);
       const monoStr = entry.monoTargets.map(t => OCC_DATA[t] ? OCC_DATA[t].name.replace(/_/g, ' ') : 'Obs ' + t).join(', ');
-      html += `<div style="color:#ddd;"><span style="color:#888;">${fmtTime(entry.time)}</span> ${obsName} Lv ${entry.prevIL} &rarr; ${entry.newIL}</div>`;
+      html += `<div style="color:#ddd;"><span style="color:#888;">${fmtTimePrecise(entry.time)}</span> ${obsName} Lv ${entry.prevIL} &rarr; ${entry.newIL}</div>`;
       html += `<div style="color:#ad8;margin-left:12px;font-size:10px;">Mono &rarr; ${monoStr} <span style="color:#81c784;">${fmtVal(entry.expHr)}/hr</span></div>`;
     }
     html += `</div>`;
@@ -530,6 +547,12 @@ function _dtOpenModal(nodeId) {
   if (!node) return;
   DT.modalNodeId = nodeId;
   DT.editState = _dtCloneState({...node.baseState, rLv: node.rLv, rExp: node.rExp, expHr: node.expHr});
+  // Init shape placement order if not already present
+  if (!DT.editState.spo) {
+    const ctx = makeCtx(DT.editState.gl);
+    const n = Math.min(computeShapesOwnedAt(DT.editState.rLv, ctx), DT.editState.sp.length, 10);
+    DT.editState.spo = Array.from({length: n}, (_, i) => i);
+  }
   _dtRenderModal();
   _dtRenderTree();
   const detail = document.getElementById('dt-detail');
@@ -580,17 +603,16 @@ export function _dtRenderModal() {
   if (!DT.editState || DT.modalNodeId === null) return;
   const node = _dtGetNode(DT.modalNodeId);
   const s = DT.editState;
-  const evLabels = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'insight-up': '\uD83D\uDD2E Insight', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
 
   // Title + inline status
-  document.getElementById('dt-detail-title').textContent = (evLabels[node.event] || node.event) + ' - Lv ' + s.rLv;
+  document.getElementById('dt-detail-title').textContent = _dtEvLabel(node) + ' - Lv ' + s.rLv;
   const totalTime = _dtGetTotalTime(node);
   const avail = _dtGridPointsAvail(s.gl, s.rLv);
   document.getElementById('dt-detail-status').innerHTML =
-    `<b style="color:var(--green);">${fmtVal(s.expHr)}/hr</b> Â· ` +
-    `${fmtTime(totalTime)} Â· ` +
-    `<span style="color:${avail > 0 ? 'var(--gold)' : 'var(--text2)'};">${avail} pts</span> Â· ` +
-    `${computeOccurrencesToBeFound(s.rLv, s.occ)} obs Â· ` +
+    `<b style="color:var(--green);">${fmtVal(s.expHr)}/hr</b>  - ` +
+    `${fmtTimePrecise(totalTime)}  - ` +
+    `<span style="color:${avail > 0 ? 'var(--gold)' : 'var(--text2)'};">${avail} pts</span>  - ` +
+    `${computeOccurrencesToBeFound(s.rLv, s.occ)} obs  - ` +
     `${computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl))} mags`;
 
   // Grid pts label
@@ -659,6 +681,8 @@ export function _dtSaveChanges() {
       return;
     }
     const eventNode = _dtCreateNode(decNode.id, result.event, result.time, result.state);
+    eventNode.insightObs = result.insightObs;
+    eventNode.insightLvs = result.insightLvs;
     _dtRenderTree();
     _dtOpenModal(eventNode.id);
     return;
@@ -672,7 +696,7 @@ export function _dtSaveChanges() {
 
   const children = _dtGetChildren(node.id);
   if (children.length === 0) {
-    // No children yet â†’ auto-advance: sim to next event, create child, open it
+    // No children yet -> auto-advance: sim to next event, create child, open it
     if (node.autoInsight) {
       // Auto-insight: loop through insight-ups, create hidden nodes, stop at research level-up
       const finalNode = _dtAdvanceAutoInsight(node);
@@ -692,11 +716,13 @@ export function _dtSaveChanges() {
         return;
       }
       const newNode = _dtCreateNode(node.id, result.event, result.time, result.state);
+      newNode.insightObs = result.insightObs;
+      newNode.insightLvs = result.insightLvs;
       _dtRenderTree();
       _dtOpenModal(newNode.id);
     }
   } else {
-    // Has children â†’ re-sim all descendants
+    // Has children -> re-sim all descendants
     _dtResimChildrenOf(node);
     _dtRebuildInsightTimelines();
     _dtRenderTree();
@@ -730,7 +756,7 @@ export function _dtRenderComparison() {
     html += `<div style="font-size:.85em;">`;
     html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Level</span><b style="color:var(--gold);">${n.rLv}</b></div>`;
     html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">EXP/hr</span><b style="color:var(--green);">${fmtVal(n.expHr)}</b></div>`;
-    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Time</span><b>${fmtTime(totalTime)}</b></div>`;
+    html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Time</span><b>${fmtTimePrecise(totalTime)}</b></div>`;
     html += `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Grid pts avail</span><b style="color:var(--gold);">${avail}</b></div>`;
     if (changes.length > 0) {
       html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #333;">`;
@@ -856,6 +882,8 @@ export function _dtBranch() {
     return;
   }
   const eventNode = _dtCreateNode(newNode.id, result.event, result.time, result.state);
+  eventNode.insightObs = result.insightObs;
+  eventNode.insightLvs = result.insightLvs;
 
   // Revert current node, render, then open the sim result
   _dtOpenModal(node.id);
@@ -900,6 +928,8 @@ export function _dtAutoOptShapes() {
       s.sp[si] = { x: 0, y: si * 5, rot: 0 };
     }
   }
+  // Reset placement order to optimizer order (index order)
+  s.spo = Array.from({length: numOwned}, (_, i) => i);
   _dtRecalcExpHr();
   _dtRenderModal();
 }

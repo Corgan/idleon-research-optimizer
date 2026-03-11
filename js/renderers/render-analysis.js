@@ -67,6 +67,7 @@ function _roiSwitchTab(btn) {
     p.classList.toggle('active', i === idx);
   });
 }
+window._roiSwitchTab = _roiSwitchTab;
 
 function _fmtLayoutDiff(before, during, after) {
   // Tabbed obs grid: DT-inspired cards with colored mag dots, one phase per tab
@@ -248,6 +249,18 @@ export async function renderInsightROI() {
 function _rerenderInsightROI() {
   if (_insightROICachedData) _renderInsightROITable(_insightROICachedData);
 }
+// Expose to global scope for inline event handlers
+window._rerenderInsightROI = _rerenderInsightROI;
+Object.defineProperty(window, '_insightROISortMode', {
+  get() { return _insightROISortMode; },
+  set(v) { _insightROISortMode = v; },
+  configurable: true
+});
+Object.defineProperty(window, '_insightROIHideFree', {
+  get() { return _insightROIHideFree; },
+  set(v) { _insightROIHideFree = v; },
+  configurable: true
+});
 
 function _renderInsightROITable(data) {
   const summaryDiv = document.getElementById('insight-roi-summary');

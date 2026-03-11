@@ -11,6 +11,21 @@ export function fmtTime(hrs) {
   return d + 'd ' + h + 'h';
 }
 
+// Precise time: includes minutes and seconds (for decision tree nodes).
+export function fmtTimePrecise(hrs) {
+  if (!isFinite(hrs) || hrs <= 0) return '\u2014';
+  const totalSec = Math.round(hrs * 3600);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (d > 365) return (d / 365).toFixed(1) + 'y';
+  if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
 export function fmtExp(n) {
   if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
   if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';

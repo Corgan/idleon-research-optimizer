@@ -415,8 +415,12 @@ export async function unifiedSim(config, saveCtx) {
 
     // --- Advance insight EXP for all monocle obs ---
     let _grindTargetLeveledUp = false;
+    const _insightLeveledObs = [];
+    const _insightLeveledLvs = {};
     let insightLeveledUp = advanceInsightLevels(monoObs, s.md, il, ip, gl, s.so, ctx, jumpHrs, (obsIdx) => {
       if (obsIdx === _activeGrindObs) _grindTargetLeveledUp = true;
+      _insightLeveledObs.push(obsIdx);
+      _insightLeveledLvs[obsIdx] = il[obsIdx];
     });
     // Clear grind state when target insight levels up
     if (_grindTargetLeveledUp && _activeGrindObs >= 0) _activeGrindObs = -1;
@@ -479,7 +483,9 @@ export async function unifiedSim(config, saveCtx) {
         time: currentTime, event: eventType, expHr: curExpHr,
         config: _snap(sp),
         rLv: s.rLv, rExp: s.rExp,
-        freePoints: _lvFreePoints || 0
+        freePoints: _lvFreePoints || 0,
+        insightObs: _insightLeveledObs.length > 0 ? _insightLeveledObs.slice() : null,
+        insightLvs: Object.keys(_insightLeveledLvs).length > 0 ? {..._insightLeveledLvs} : null
       });
     } else if (insightLeveledUp && config.reoptimize !== false) {
       if (_activeGrindObs >= 0) {
@@ -498,7 +504,9 @@ export async function unifiedSim(config, saveCtx) {
       phases.push({
         time: currentTime, event: 'insight-up', expHr: curExpHr,
         config: _snap(sp),
-        rLv: s.rLv, rExp: s.rExp
+        rLv: s.rLv, rExp: s.rExp,
+        insightObs: _insightLeveledObs.length > 0 ? _insightLeveledObs.slice() : null,
+        insightLvs: Object.keys(_insightLeveledLvs).length > 0 ? {..._insightLeveledLvs} : null
       });
     }
 
@@ -517,12 +525,15 @@ export async function unifiedSim(config, saveCtx) {
     }
   }
 
-  // Final phase
-  phases.push({
-    time: currentTime, event: 'end', expHr: curExpHr,
-    config: _snap(sp),
-    rLv: s.rLv, rExp: s.rExp
-  });
+  // Final phase (skip for level targets where the last phase already reached the target)
+  const lastPhaseIsTarget = config.target.type === 'level' && phases.length > 0 && phases[phases.length - 1].rLv >= config.target.value;
+  if (!lastPhaseIsTarget) {
+    phases.push({
+      time: currentTime, event: 'end', expHr: curExpHr,
+      config: _snap(sp),
+      rLv: s.rLv, rExp: s.rExp
+    });
+  }
 
   return { phases, totalTime: currentTime, finalLevel: s.rLv, finalExp: s.rExp, finalIL: il.slice(), insightLAExtension: 0 };
 }

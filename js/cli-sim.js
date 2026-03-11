@@ -209,7 +209,8 @@ async function main() {
   // Summary
   console.log('');
   console.log('═'.repeat(70));
-  console.log(`  Final: LV ${finalLevel} at ${fmtTime(totalTime)}  |  ${fmtVal(phases[phases.length - 2]?.expHr || 0)}/hr`);
+  const lastRate = phases.length > 0 ? (phases[phases.length - 1].event === 'end' ? (phases[phases.length - 2]?.expHr || 0) : phases[phases.length - 1].expHr) : 0;
+  console.log(`  Final: LV ${finalLevel} at ${fmtTime(totalTime)}  |  ${fmtVal(lastRate)}/hr`);
 
   let totalExp = 0;
   for (let i = 0; i < phases.length - 1; i++) {

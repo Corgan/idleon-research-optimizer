@@ -818,8 +818,6 @@ export function renderDashboard() {
       el.setAttribute('stroke-width', '2');
       el.setAttribute('stroke-linejoin', 'round');
       el.setAttribute('opacity', '0.7');
-      el.style.pointerEvents = 'fill';
-      el.style.cursor = 'pointer';
       svg.appendChild(el);
     }
     gridDiv.appendChild(svg);

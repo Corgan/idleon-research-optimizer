@@ -39,6 +39,7 @@ export function _dtCloneState(src) {
     ip: src.ip.slice(), occ: src.occ.slice(),
     sp: src.sp.map(s => ({...s})),
   };
+  if (src.spo) c.spo = src.spo.slice();
   if ('rLv' in src) { c.rLv = src.rLv; c.rExp = src.rExp; c.expHr = src.expHr; }
   return c;
 }
