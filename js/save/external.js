@@ -77,7 +77,7 @@ import {
   ribbonBonusAt,
   superBitType,
 } from './helpers.js';
-import { mainframeBonus } from '../lab.js';
+import { mainframeBonus } from './lab.js';
 // Grid bonus helper - uses _gbWith directly to avoid circular dep with calculations.js
 function _gridBonusFinal(idx) {
   return _gbWith(gridLevels, shapeOverlay, idx, { abm: allBonusMulti });

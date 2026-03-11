@@ -36,7 +36,7 @@ import {
   renderInsightROI,
   renderObsUnlock,
   renderUpgradeEval,
-} from './renderers/decision-tree.js';
+} from './dt/decision-tree.js';
 import {
   _cancelOptimizer,
   _runParallelOptimizer,

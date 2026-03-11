@@ -49,8 +49,8 @@ import {
   _dtReset,
   _saveShapeTiers,
   renderAll,
-} from '../renderers/decision-tree.js';
-import { UE_NON_EXP_NODES } from '../renderers/render-upgrades.js';
+} from '../dt/decision-tree.js';
+import { UE_NON_EXP_NODES } from '../renderers/shape-tiers.js';
 
 
 // ===== STATE EXPORT / IMPORT (gzip + base64) =====

@@ -7,7 +7,7 @@ import { assignState, gridLevels, researchLevel } from '../state.js';
 import { assignSaveData } from './data.js';
 import { parseSaveKey, eventShopOwned } from './helpers.js';
 import { computeExternalBonuses, computeAFKGainsRate, mineheadBonusQTY } from './external.js';
-import { computeLabConnectivity } from '../lab.js';
+import { computeLabConnectivity } from './lab.js';
 
 function computeMagnifiersOwned() {
   const kaleiOwned = Math.round((gridLevels[72] || 0) + eventShopOwned(33));
