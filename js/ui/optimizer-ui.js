@@ -159,7 +159,7 @@ function renderTimeline(sim) {
     const left = (p.time / totalTime * 100).toFixed(2);
     const width = ((phases[nextIdx].time - p.time) / totalTime * 100).toFixed(2);
     const color = colors[p.event] || 'var(--text2)';
-    const tlReal = fmtRealTime(p.time);
+    const tlReal = fmtRealTime(p.time).text;
     const tlRate = p.grindInfo ? p.grindInfo.grindExpHr : p.expHr;
     const tlTitle = `${p.event} at ${fmtTime(p.time)}${tlReal ? ' \u2014 ' + tlReal : ''} \u2014 ${fmtVal(tlRate)}/hr`;
     html += `<div data-phase="${i}" style="position:absolute;left:${left}%;width:${width}%;height:100%;background:${color}33;border-right:1px solid ${color};cursor:pointer;transition:background .15s;" title="${tlTitle}"></div>`;
@@ -433,7 +433,7 @@ function _renderExpSummary(phases, sim) {
   html += `EXP earned: <b style="color:var(--green);">${fmtExp(simExpTotal)}</b>`;
   html += ` &middot; Avg rate: <b style="color:var(--green);">${fmtVal(avgRate)}/hr</b>`;
   html += ` &middot; Start: ${fmtVal(startRate)}/hr \u2192 End: ${fmtVal(phases[phases.length - 2].expHr)}/hr`;
-  const endReal = fmtRealTime(sim.totalTime);
+  const endReal = fmtRealTime(sim.totalTime).text;
   if (endReal) html += ` &middot; <span style="color:var(--text2);font-size:.95em;">Finishes: ${endReal}</span>`;
   if (Math.abs(simExpTotal - expNeeded) > simExpTotal * 0.01) {
     html += ` <span style="color:var(--red);">(mismatch: needed ${fmtExp(expNeeded)})</span>`;
