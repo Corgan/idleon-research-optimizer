@@ -217,3 +217,15 @@ export const JEWEL_DESC = [
   [1728,421,50,'North_Winds_Jewel'],     // 22
   [2042,410,50,'Eternal_Energy_Jewel'],  // 23
 ];
+
+// ===== Grid coordinate / name utilities =====
+
+export function gridCoord(idx) {
+  const col = idx % GRID_COLS;
+  const row = Math.floor(idx / GRID_COLS);
+  return String.fromCharCode(65 + col) + (GRID_ROWS - row);
+}
+
+export function obsName(i) {
+  return OCC_DATA[i] ? OCC_DATA[i].name.replace(/_/g, ' ') : `#${i}`;
+}

@@ -2,24 +2,19 @@
 
 import { OCC_DATA } from '../game-data.js';
 import {
-  _gbWith,
+  gbWith,
   computeOccurrencesToBeFound,
   countMagTypes,
-  getMonoObsSet,
-  insightAffectsExp,
   insightExpRate,
   insightExpReqAt,
   isObsUsable,
-  simForwardProjection,
   simTotalExpWith,
 } from '../sim-math.js';
-import { makeCtx } from '../save/context.js';
-import { _evalMagScoreWith } from './magnifiers.js';
-import { _reoptRegularMags } from '../sim-engine.js';
+import { evalMagScoreWith } from './magnifiers.js';
+import { reoptRegularMags } from '../sim-engine.js';
 
 export function chooseMonoTargets(s, ctx, lookAheadHrs) {
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
-  if (!ctx) ctx = makeCtx(gl);
+  const gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
   // Monocle targeting: assign each monocle to the best observation for insight gain.
   // Monocles can now be spread across multiple observations when maxPerSlot is too small
   // to fit them all on one obs.
@@ -27,8 +22,8 @@ export function chooseMonoTargets(s, ctx, lookAheadHrs) {
   if (monoCount === 0) return md;
 
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
-  const gd101 = _gbWith(gl, so, 93, ctx);
-  const gd94 = _gbWith(gl, so, 94, ctx);
+  const gd101 = gbWith(gl, so, 93, ctx);
+  const gd94 = gbWith(gl, so, 94, ctx);
 
   // Identify obs with regular mags placed
   const magObsSet = new Set();
@@ -85,7 +80,7 @@ export function chooseMonoTargets(s, ctx, lookAheadHrs) {
       const tempIL = il.slice();
       tempIL[c.obs] = (tempIL[c.obs] || 0) + 1;
       if (gd101 > 0) {
-        const projMD = _reoptRegularMags({gl, so, md, il: tempIL, occ, rLv, mMax: maxPerSlot}, ctx);
+        const projMD = reoptRegularMags({gl, so, md, il: tempIL, occ, rLv, mMax: maxPerSlot}, ctx);
         candidateScores[c.obs] = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv, ctx) - baseTotRate;
       } else {
         candidateScores[c.obs] = simTotalExpWith(gl, so, md, tempIL, occ, rLv, ctx) - baseTotRate;
@@ -94,12 +89,12 @@ export function chooseMonoTargets(s, ctx, lookAheadHrs) {
   }
 
   // Strip all monocles from md, then assign them greedily
-  var result = _spreadMonos(md, candidates, monoCount, insightHelps, candidateScores);
+  const result = _spreadMonos(md, candidates, monoCount, insightHelps, candidateScores);
   return result;
 }
 
 function _spreadMonos(md, candidates, monoCount, insightHelps, candidateScores) {
-  var result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
+  const result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
   const monoIndices = [];
   for (let i = 0; i < result.length; i++) {
     if (result[i].type === 1) monoIndices.push(i);
@@ -141,44 +136,33 @@ function _spreadMonos(md, candidates, monoCount, insightHelps, candidateScores) 
   return result;
 }
 
-function _simMonoForward(layoutMD, s, ctx, hrs) {
-  var il = s.il.slice(), ip = s.ip.slice();
-  var monoArr = Array.from(getMonoObsSet(layoutMD));
-  var result = simForwardProjection({
-    monoSlots: monoArr, md: layoutMD, il, ip,
-    gl: s.gl, so: s.so, occ: s.occ, rLv: s.rLv, rExp: s.rExp, ctx,
-    maxHrs: hrs, maxJumps: 2000,
-  });
-  return result.totalExp;
-}
-
-export function _buildConcentratedLayout(s, targetObs, ctx) {
-  var md = s.md, mMax = s.mMax, gl = s.gl, so = s.so, il = s.il, occ = s.occ, rLv = s.rLv;
-  var result = md.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
-  var monoCount = 0;
-  for (var i = 0; i < result.length; i++) if (result[i].type === 1) monoCount++;
+export function buildConcentratedLayout(s, targetObs, ctx) {
+  const md = s.md, mMax = s.mMax, gl = s.gl, so = s.so, il = s.il, occ = s.occ, rLv = s.rLv;
+  let result = md.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
+  let monoCount = 0;
+  for (let i = 0; i < result.length; i++) if (result[i].type === 1) monoCount++;
   if (monoCount === 0) return result;
 
-  var nonMonoOnTarget = 0;
-  for (var i2 = 0; i2 < result.length; i2++) if (result[i2].type !== 1 && result[i2].slot === targetObs) nonMonoOnTarget++;
-  var roomForMonos = Math.max(0, mMax - nonMonoOnTarget);
-  var wantMonosOnTarget = Math.min(monoCount, mMax);
+  let nonMonoOnTarget = 0;
+  for (let i2 = 0; i2 < result.length; i2++) if (result[i2].type !== 1 && result[i2].slot === targetObs) nonMonoOnTarget++;
+  const roomForMonos = Math.max(0, mMax - nonMonoOnTarget);
+  const wantMonosOnTarget = Math.min(monoCount, mMax);
 
-  var evictedIndices = [];
+  const evictedIndices = [];
   if (wantMonosOnTarget > roomForMonos) {
-    var needToEvict = wantMonosOnTarget - roomForMonos;
-    for (var ei = 0; ei < result.length && evictedIndices.length < needToEvict; ei++) {
+    const needToEvict = wantMonosOnTarget - roomForMonos;
+    for (let ei = 0; ei < result.length && evictedIndices.length < needToEvict; ei++) {
       if (result[ei].type !== 1 && result[ei].slot === targetObs) {
         result[ei].slot = -1;
         evictedIndices.push(ei);
       }
     }
   }
-  var actualMonosOnTarget = Math.min(wantMonosOnTarget, roomForMonos + evictedIndices.length);
+  const actualMonosOnTarget = Math.min(wantMonosOnTarget, roomForMonos + evictedIndices.length);
 
-  var placed = 0;
-  var overflowMonoIndices = [];
-  for (var mi2 = 0; mi2 < result.length; mi2++) {
+  let placed = 0;
+  const overflowMonoIndices = [];
+  for (let mi2 = 0; mi2 < result.length; mi2++) {
     if (result[mi2].type !== 1) continue;
     if (placed < actualMonosOnTarget) { result[mi2].slot = targetObs; placed++; }
     else { result[mi2].slot = -1; overflowMonoIndices.push(mi2); }
@@ -186,18 +170,18 @@ export function _buildConcentratedLayout(s, targetObs, ctx) {
 
   // Reassign overflow monocles to best alternate obs (respect mMax)
   if (overflowMonoIndices.length > 0) {
-    var occTBF2 = computeOccurrencesToBeFound(rLv, occ);
-    for (var oi = 0; oi < overflowMonoIndices.length; oi++) {
-      var omi = overflowMonoIndices[oi];
-      var bestSlot2 = -1, bestRate = -1;
-      for (var si = 0; si < Math.min(occTBF2, OCC_DATA.length); si++) {
+    const occTBF2 = computeOccurrencesToBeFound(rLv, occ);
+    for (let oi = 0; oi < overflowMonoIndices.length; oi++) {
+      const omi = overflowMonoIndices[oi];
+      let bestSlot2 = -1, bestRate = -1;
+      for (let si = 0; si < Math.min(occTBF2, OCC_DATA.length); si++) {
         if (si === targetObs) continue;
         if (!isObsUsable(si, rLv, occ)) continue;
-        var slotCount2 = 0;
-        for (var ci2 = 0; ci2 < result.length; ci2++) if (result[ci2].slot === si) slotCount2++;
+        let slotCount2 = 0;
+        for (let ci2 = 0; ci2 < result.length; ci2++) if (result[ci2].slot === si) slotCount2++;
         if (slotCount2 >= mMax) continue;
         result[omi].slot = si;
-        var rate = insightExpRate(si, result, il, gl, so, ctx);
+        const rate = insightExpRate(si, result, il, gl, so, ctx);
         if (rate > bestRate) { bestRate = rate; bestSlot2 = si; }
       }
       result[omi].slot = bestSlot2 >= 0 ? bestSlot2 : -1;
@@ -206,17 +190,17 @@ export function _buildConcentratedLayout(s, targetObs, ctx) {
 
   // Reassign evicted mags to best available slots
   if (evictedIndices.length > 0) {
-    var occTBF = computeOccurrencesToBeFound(rLv, occ);
-    for (var evi = 0; evi < evictedIndices.length; evi++) {
-      var m2 = result[evictedIndices[evi]];
-      var bestSlot = -1, bestScore = -Infinity;
-      for (var oi3 = 0; oi3 < Math.min(occTBF, OCC_DATA.length); oi3++) {
+    const occTBF = computeOccurrencesToBeFound(rLv, occ);
+    for (let evi = 0; evi < evictedIndices.length; evi++) {
+      const m2 = result[evictedIndices[evi]];
+      let bestSlot = -1, bestScore = -Infinity;
+      for (let oi3 = 0; oi3 < Math.min(occTBF, OCC_DATA.length); oi3++) {
         if (!isObsUsable(oi3, rLv, occ)) continue;
-        var slotCount = 0;
-        for (var ci = 0; ci < result.length; ci++) if (result[ci].slot === oi3) slotCount++;
+        let slotCount = 0;
+        for (let ci = 0; ci < result.length; ci++) if (result[ci].slot === oi3) slotCount++;
         if (slotCount >= mMax) continue;
         m2.slot = oi3;
-        var score = _evalMagScoreWith(result, gl, so, il, occ, rLv);
+        const score = evalMagScoreWith(result, gl, so, il, occ, rLv, ctx);
         if (score > bestScore) { bestScore = score; bestSlot = oi3; }
       }
       m2.slot = bestSlot >= 0 ? bestSlot : -1;
@@ -227,7 +211,7 @@ export function _buildConcentratedLayout(s, targetObs, ctx) {
   // Goal: minimize total EXP lost during grind = grindHrs * (normalExpHr - grindExpHr).
   // Since grindHrs ∝ 1/insightRate, this means minimizing (normalExpHr - grindExpHr) / insightRate.
   // Compute pre-grind normal EXP rate from the original (non-concentrated) md.
-  var normalExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  const normalExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   result = _reoptKaleidsForGrind(result, targetObs, normalExpHr, gl, so, il, occ, rLv, mMax, ctx);
 
   return result;
@@ -241,15 +225,15 @@ export function _buildConcentratedLayout(s, targetObs, ctx) {
  */
 function _reoptKaleidsForGrind(md, targetObs, normalExpHr, gl, so, il, occ, rLv, mMax, ctx) {
   // Collect kaleido indices
-  var kalIndices = [];
-  for (var i = 0; i < md.length; i++) {
+  const kalIndices = [];
+  for (let i = 0; i < md.length; i++) {
     if (md[i].type === 2) kalIndices.push(i);
   }
   if (kalIndices.length === 0) return md;
 
-  var occTBF = computeOccurrencesToBeFound(rLv, occ);
-  var usableSlots = [];
-  for (var si = 0; si < Math.min(occTBF, OCC_DATA.length); si++) {
+  const occTBF = computeOccurrencesToBeFound(rLv, occ);
+  const usableSlots = [];
+  for (let si = 0; si < Math.min(occTBF, OCC_DATA.length); si++) {
     if (isObsUsable(si, rLv, occ)) usableSlots.push(si);
   }
   if (usableSlots.length === 0) return md;
@@ -260,33 +244,33 @@ function _reoptKaleidsForGrind(md, targetObs, normalExpHr, gl, so, il, occ, rLv,
   // When normalExpHr ≈ grindExpHr (little loss), even small insight gains win.
   // When grindExpHr tanks, need proportionally larger insight gains to justify.
   function scoreLayout(trial) {
-    var expHr = simTotalExpWith(gl, so, trial, il, occ, rLv, ctx);
-    var iRate = insightExpRate(targetObs, trial, il, gl, so, ctx);
+    const expHr = simTotalExpWith(gl, so, trial, il, occ, rLv, ctx);
+    const iRate = insightExpRate(targetObs, trial, il, gl, so, ctx);
     if (iRate <= 0) return -Infinity;
-    var expLoss = Math.max(0, normalExpHr - expHr);
+    const expLoss = Math.max(0, normalExpHr - expHr);
     // Negative cost: higher = less EXP lost per insight gained
     return -(expLoss / iRate);
   }
 
-  var best = md;
-  var bestScore = scoreLayout(md);
+  let best = md;
+  let bestScore = scoreLayout(md);
 
   // Greedy single-kaleido moves: try moving each kaleido to each usable slot
-  for (var ki = 0; ki < kalIndices.length; ki++) {
-    var idx = kalIndices[ki];
-    var origSlot = md[idx].slot;
-    for (var ui = 0; ui < usableSlots.length; ui++) {
-      var trySlot = usableSlots[ui];
+  for (let ki = 0; ki < kalIndices.length; ki++) {
+    const idx = kalIndices[ki];
+    const origSlot = md[idx].slot;
+    for (let ui = 0; ui < usableSlots.length; ui++) {
+      const trySlot = usableSlots[ui];
       if (trySlot === origSlot) continue;
       // Check slot capacity
-      var slotCount = 0;
-      for (var ci = 0; ci < best.length; ci++) {
+      let slotCount = 0;
+      for (let ci = 0; ci < best.length; ci++) {
         if (best[ci].slot === trySlot) slotCount++;
       }
       if (slotCount >= mMax) continue;
-      var trial = best.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
+      const trial = best.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
       trial[idx].slot = trySlot;
-      var score = scoreLayout(trial);
+      const score = scoreLayout(trial);
       if (score > bestScore) {
         bestScore = score;
         best = trial;
@@ -297,80 +281,13 @@ function _reoptKaleidsForGrind(md, targetObs, normalExpHr, gl, so, il, occ, rLv,
   return best;
 }
 
-export function optimizeMonoLayout(s, ctx, lookAheadHrs) {
-  if (!ctx) ctx = makeCtx(s.gl);
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv;
-  var monoCount = 0;
-  for (var i = 0; i < md.length; i++) if (md[i].type === 1) monoCount++;
-  if (monoCount === 0) return md;
-
-  // Generate spread layout (greedy assignment)
-  var spreadMD = chooseMonoTargets(s, ctx, lookAheadHrs);
-
-  // If insight doesn't affect EXP at all, skip forward sim
-  if (!insightAffectsExp(gl, so, ctx)) return spreadMD;
-  // If horizon is too short for any grind, skip
-  if (lookAheadHrs < 1) return spreadMD;
-
-  // Score spread layout via forward sim
-  var spreadExp = _simMonoForward(spreadMD, s, ctx, lookAheadHrs);
-
-  // Evaluate concentrated layouts for each viable obs
-  var occTBF = computeOccurrencesToBeFound(rLv, occ);
-  var bestMD = spreadMD, bestExp = spreadExp;
-
-  for (var ci = 0; ci < Math.min(occTBF, OCC_DATA.length); ci++) {
-    if (!isObsUsable(ci, rLv, occ)) continue;
-
-    // Build concentrated layout and compute grind time
-    var concMD = _buildConcentratedLayout(s, ci, ctx);
-    var monoOnTarget = 0;
-    for (var mi3 = 0; mi3 < concMD.length; mi3++) {
-      if (concMD[mi3].type === 1 && concMD[mi3].slot === ci) monoOnTarget++;
-    }
-    if (monoOnTarget === 0) continue;
-
-    var iRate = insightExpRate(ci, concMD, il, gl, so, ctx);
-    if (iRate <= 0) continue;
-    var iReq = insightExpReqAt(ci, il[ci] || 0);
-    var grindHrs = Math.max(0, iReq - (ip[ci] || 0)) / iRate;
-    if (grindHrs <= 0 || grindHrs > lookAheadHrs * 0.8) continue;
-
-    // Quick check: does leveling this insight produce a rate gain?
-    var newIL = il.slice(); newIL[ci] = (il[ci] || 0) + 1;
-    var curRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
-    var postRate = simTotalExpWith(gl, so, md, newIL, occ, rLv, ctx);
-    if (postRate <= curRate) continue;
-
-    // Two-phase forward sim: concentrate for grindHrs, then spread for remainder
-    // Phase 1: grind
-    var grindExp = _simMonoForward(concMD, s, ctx, grindHrs);
-    // Phase 2: post-grind with new insight
-    var postS = {gl:gl, so:so, md:md, il:newIL, ip:ip.slice(), occ:occ, rLv:rLv, rExp:s.rExp + grindExp, mOwned:s.mOwned, mMax:s.mMax};
-    // Correct ip for insight spent during grind
-    postS.ip[ci] = 0;
-    // Re-optimize mags with new insight, then spread monocles
-    var postMD = _reoptRegularMags({gl:gl, so:so, md:md, il:newIL, occ:occ, rLv:rLv, mMax:s.mMax}, ctx);
-    var postSpreadMD = chooseMonoTargets({gl:gl, so:so, md:postMD, il:newIL, ip:postS.ip, occ:occ, rLv:rLv, mMax:s.mMax}, ctx, Math.max(1, lookAheadHrs - grindHrs));
-    var postExp = _simMonoForward(postSpreadMD, postS, ctx, lookAheadHrs - grindHrs);
-
-    var totalConc = grindExp + postExp;
-    if (totalConc > bestExp) {
-      bestExp = totalConc;
-      bestMD = concMD;
-    }
-  }
-
-  return bestMD;
-}
-
-export function _monoAssignBestQuick(s, ctx) {
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
+export function monoAssignBestQuick(s, ctx) {
+  const gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
   const monoCount = countMagTypes(md).mono;
   if (monoCount === 0) return md;
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
-  const gd101 = _gbWith(gl, so, 93, ctx);
-  const insightHelps = gd101 > 0 || _gbWith(gl, so, 94, ctx) > 0;
+  const gd101 = gbWith(gl, so, 93, ctx);
+  const insightHelps = gd101 > 0 || gbWith(gl, so, 94, ctx) > 0;
   const baseTotRate = insightHelps ? simTotalExpWith(gl, so, md, il, occ, rLv, ctx) : 0;
 
   // Build scored candidates with room for at least 1 monocle
@@ -391,7 +308,7 @@ export function _monoAssignBestQuick(s, ctx) {
       const tempIL = il.slice(); tempIL[i] = (tempIL[i] || 0) + 1;
       let rateGain;
       if (gd101 > 0) {
-        const projMD = _reoptRegularMags({gl, so, md, il: tempIL, occ, rLv, mMax: maxPerSlot}, ctx);
+        const projMD = reoptRegularMags({gl, so, md, il: tempIL, occ, rLv, mMax: maxPerSlot}, ctx);
         rateGain = simTotalExpWith(gl, so, projMD, tempIL, occ, rLv, ctx) - baseTotRate;
       } else {
         rateGain = simTotalExpWith(gl, so, md, tempIL, occ, rLv, ctx) - baseTotRate;
@@ -405,7 +322,7 @@ export function _monoAssignBestQuick(s, ctx) {
   candidates.sort((a, b) => b.value - a.value);
 
   // Greedy assign monocles across obs respecting per-slot room
-  let result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
+  const result = md.map(m => m.type === 1 ? {...m, slot: -1} : {...m});
   const monoIndices = [];
   for (let i = 0; i < result.length; i++) {
     if (result[i].type === 1) monoIndices.push(i);

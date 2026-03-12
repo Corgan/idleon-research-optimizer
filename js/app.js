@@ -3,43 +3,42 @@
 // ES module: <script type="module" src="js/app.js">.
 
 
-import { researchLevel } from './state.js';
+import {  S  } from './state.js';
 import {
-  _dtAutoOptMags,
-  _dtAutoOptShapes,
-  _dtBranch,
+  dtAutoOptMags,
+  dtAutoOptShapes,
+  dtBranch,
   _dtCompareSet,
-  _dtDeleteNode,
-  _dtHideInfoTip,
-  _dtMoveInfoTip,
+  dtDeleteNode,
+  dtHideInfoTip,
+  dtMoveInfoTip,
   _dtNodes,
-  _dtRenderComparison,
+  dtRenderComparison,
   _dtRenderGridCanvas,
-  _dtRenderTree,
-  _dtReset,
-  _dtSaveChanges,
+  dtRenderTree,
+  dtReset,
+  dtSaveChanges,
   _dtSetGridMode,
   _dtSetShapeOpacity,
-  _dtShowInfoTip,
-  _dtStart,
-  _dtToggleAutoInsight,
-  _dtToggleLevelUpsOnly,
-  _dtTreeMouseDown,
-  _dtTreeMouseLeave,
-  _dtTreeMouseMove,
-  _dtTreeMouseUp,
-  _dtTreeWheel,
-  _dtTreeZoomIn,
-  _dtTreeZoomOut,
-  _dtTreeZoomReset,
+  dtShowInfoTip,
+  dtStart,
+  dtToggleAutoInsight,
+  dtToggleLevelUpsOnly,
+  dtTreeMouseDown,
+  dtTreeMouseLeave,
+  dtTreeMouseMove,
+  dtTreeMouseUp,
+  dtTreeWheel,
+  dtTreeZoomIn,
+  dtTreeZoomOut,
+  dtTreeZoomReset,
   renderAll,
-  renderInsightROI,
-  renderObsUnlock,
-  renderUpgradeEval,
 } from './dt/decision-tree.js';
+import { renderInsightROI, renderObsUnlock } from './renderers/render-analysis.js';
+import { renderUpgradeEval } from './renderers/upgrade-eval.js';
 import {
-  _cancelOptimizer,
-  _runParallelOptimizer,
+  cancelOptimizer,
+  runParallelOptimizer,
 } from './renderers/worker-pool.js';
 import { renderOptimizerResults, importOptToDecisionTree } from './ui/optimizer-ui.js';
 import {
@@ -64,7 +63,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'insight-roi') renderInsightROI();
     if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
     if (tab.dataset.tab === 'shape-opt') renderUpgradeEval();
-    if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (_dtNodes.length === 0) _dtStart(); }
+    if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (_dtNodes.length === 0) dtStart(); }
   });
 });
 
@@ -102,7 +101,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
 
   // If already running, cancel
   if (_optRunning) {
-    _cancelOptimizer();
+    cancelOptimizer();
     return;
   }
 
@@ -110,8 +109,8 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   let target;
   if (isLevelMode) {
     const val = parseInt(document.getElementById('opt-target-level')?.value || '0');
-    if (!val || val <= researchLevel) {
-      alert('Enter a target level above your current level (' + researchLevel + ').');
+    if (!val || val <= S.researchLevel) {
+      alert('Enter a target level above your current level (' + S.researchLevel + ').');
       return;
     }
     target = { type: 'level', value: val };
@@ -136,7 +135,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   try {
     const assumeObs = !!document.getElementById('opt-assume-obs')?.checked;
     const extendInsightLA = !!document.getElementById('opt-insight-la')?.checked;
-    const result = await _runParallelOptimizer(target, (done, total, msg, detail) => {
+    const result = await runParallelOptimizer(target, (done, total, msg, detail) => {
       const frac = done / total;
       const pct = (frac * 100).toFixed(0);
       progBar.style.width = pct + '%';
@@ -165,16 +164,16 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
 
 // Decision Tree buttons
 // dt-reset handler is now inline onclick on the button inside dt-tree-wrap
-document.getElementById('dt-save')?.addEventListener('click', () => _dtSaveChanges());
-document.getElementById('dt-branch')?.addEventListener('click', () => _dtBranch());
+document.getElementById('dt-save')?.addEventListener('click', () => dtSaveChanges());
+document.getElementById('dt-branch')?.addEventListener('click', () => dtBranch());
 document.getElementById('dt-compare-clear')?.addEventListener('click', () => {
   _dtCompareSet.clear();
-  _dtRenderTree();
-  _dtRenderComparison();
+  dtRenderTree();
+  dtRenderComparison();
 });
-document.getElementById('dt-delete')?.addEventListener('click', () => _dtDeleteNode());
-document.getElementById('dt-shape-optimize')?.addEventListener('click', () => _dtAutoOptShapes());
-document.getElementById('dt-mag-optimize')?.addEventListener('click', () => _dtAutoOptMags());
+document.getElementById('dt-delete')?.addEventListener('click', () => dtDeleteNode());
+document.getElementById('dt-shape-optimize')?.addEventListener('click', () => dtAutoOptShapes());
+document.getElementById('dt-mag-optimize')?.addEventListener('click', () => dtAutoOptMags());
 document.getElementById('dt-grid-mode-pill')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.dt-mode-btn');
   if (!btn) return;
@@ -199,11 +198,11 @@ document.getElementById('dt-shape-opacity')?.addEventListener('input', (e) => {
 {
   const wrap = document.getElementById('dt-tree-wrap');
   if (wrap) {
-    wrap.addEventListener('pointerdown', _dtTreeMouseDown);
-    wrap.addEventListener('pointermove', _dtTreeMouseMove);
-    wrap.addEventListener('pointerup', _dtTreeMouseUp);
-    wrap.addEventListener('pointerleave', _dtTreeMouseLeave);
-    wrap.addEventListener('wheel', _dtTreeWheel, { passive: false });
+    wrap.addEventListener('pointerdown', dtTreeMouseDown);
+    wrap.addEventListener('pointermove', dtTreeMouseMove);
+    wrap.addEventListener('pointerup', dtTreeMouseUp);
+    wrap.addEventListener('pointerleave', dtTreeMouseLeave);
+    wrap.addEventListener('wheel', dtTreeWheel, { passive: false });
   }
 }
 
@@ -225,21 +224,21 @@ document.getElementById('supplements-apply-btn')?.addEventListener('click', () =
 document.getElementById('comp-select-all')?.addEventListener('change', (e) => {
   document.querySelectorAll('.comp-toggle').forEach(cb => { cb.checked = e.target.checked; });
 });
-document.getElementById('dt-lvl-toggle')?.addEventListener('click', () => _dtToggleLevelUpsOnly());
+document.getElementById('dt-lvl-toggle')?.addEventListener('click', () => dtToggleLevelUpsOnly());
 {
   const infoIcon = document.getElementById('dt-info-icon');
   if (infoIcon) {
-    infoIcon.addEventListener('mouseenter', (e) => _dtShowInfoTip(e));
-    infoIcon.addEventListener('mouseleave', () => _dtHideInfoTip());
-    infoIcon.addEventListener('mousemove', (e) => _dtMoveInfoTip(e));
+    infoIcon.addEventListener('mouseenter', (e) => dtShowInfoTip(e));
+    infoIcon.addEventListener('mouseleave', () => dtHideInfoTip());
+    infoIcon.addEventListener('mousemove', (e) => dtMoveInfoTip(e));
   }
 }
 document.getElementById('dt-reset')?.addEventListener('click', () => {
   if (_dtNodes.length > 0 && !confirm('Reset the entire decision tree?')) return;
-  _dtReset();
-  _dtStart();
+  dtReset();
+  dtStart();
 });
-document.getElementById('dt-zoom-out')?.addEventListener('click', () => _dtTreeZoomOut());
-document.getElementById('dt-zoom-in')?.addEventListener('click', () => _dtTreeZoomIn());
-document.getElementById('dt-zoom-reset')?.addEventListener('click', () => _dtTreeZoomReset());
-document.getElementById('dt-auto-insight')?.addEventListener('click', () => _dtToggleAutoInsight());
+document.getElementById('dt-zoom-out')?.addEventListener('click', () => dtTreeZoomOut());
+document.getElementById('dt-zoom-in')?.addEventListener('click', () => dtTreeZoomIn());
+document.getElementById('dt-zoom-reset')?.addEventListener('click', () => dtTreeZoomReset());
+document.getElementById('dt-auto-insight')?.addEventListener('click', () => dtToggleAutoInsight());

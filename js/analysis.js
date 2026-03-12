@@ -1,18 +1,6 @@
 // ===== ANALYSIS FUNCTIONS =====
 // Insight ROI, obs unlock priority, mag type balance.
 
-import {
-  cachedFailedRolls,
-  gridLevels,
-  insightLvs,
-  insightProgress,
-  magData,
-  magMaxPerSlot,
-  magnifiersOwned,
-  occFound,
-  researchLevel,
-  shapeOverlay,
-} from './state.js';
 import { GRID_SIZE, OCC_DATA, RES_GRID_RAW } from './game-data.js';
 import {
   computeOccurrencesToBeFound,
@@ -22,44 +10,34 @@ import {
   insightExpReqAt,
   simTotalExpWith,
 } from './sim-math.js';
-import { eventShopOwned } from './save/helpers.js';
 import { makeCtx } from './save/context.js';
 import { computeCellValues } from './optimizers/shapes.js';
 import {
-  _evalMagScoreWith,
+  evalMagScoreWith,
   optimizeMagsFor,
 } from './optimizers/magnifiers.js';
-import { chooseMonoTargets, _buildConcentratedLayout } from './optimizers/monos.js';
+import { chooseMonoTargets, buildConcentratedLayout } from './optimizers/monos.js';
 import { optimizeShapesFor, optimizePostGrind } from './sim-engine.js';
 
-function _resolveState(state) {
-  const gl = state ? state.gl : gridLevels;
-  const so = state ? state.so : shapeOverlay;
-  const il = state ? state.il : insightLvs;
-  const occ = state ? state.occ : occFound;
-  const rLv = state ? state.rLv : researchLevel;
-  const mMax = state ? state.mMax : magMaxPerSlot;
-  const mOwned = state ? state.mOwned : magnifiersOwned;
-  const md = state ? state.md : magData;
-  const ip = state ? state.ip : insightProgress;
-  const failedRolls = state ? state.failedRolls : cachedFailedRolls;
-  return { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls, ctx: makeCtx(gl) };
+function _resolveState(state, saveCtx) {
+  const { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls } = state;
+  return { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls, ctx: makeCtx(gl, saveCtx) };
 }
 
-export async function computeMagTypeBalance(state) {
-  const { gl, so, il, occ, rLv, mMax, mOwned, md, ctx } = _resolveState(state);
+export async function computeMagTypeBalance(state, saveCtx) {
+  const { gl, so, il, occ, rLv, mMax, mOwned, md, ctx } = _resolveState(state, saveCtx);
   const pool = md.slice(0, mOwned);
   const { regular: numR, mono: numM, kalei: numK } = countMagTypes(pool);
   const resTotal = simTotalExpWith(gl, so, pool, il, occ, rLv, ctx);
-  const baseScore = _evalMagScoreWith(pool, gl, so, il, occ, rLv);
+  const baseScore = evalMagScoreWith(pool, gl, so, il, occ, rLv, ctx);
   const resMulti = baseScore > 0 ? resTotal / baseScore : 1;
   const results = [];
 
   for (const addType of [0, 1, 2]) {
     const testMags = pool.map(m => ({...m}));
     testMags.push({ x:0, y:0, slot:-1, type: addType });
-    const optMags = await optimizeMagsFor({gl, so, md: testMags, il, occ, rLv, mOwned: mOwned + 1, mMax});
-    const optScore = _evalMagScoreWith(optMags, gl, so, il, occ, rLv);
+    const optMags = await optimizeMagsFor({gl, so, md: testMags, il, occ, rLv, mOwned: mOwned + 1, mMax}, ctx);
+    const optScore = evalMagScoreWith(optMags, gl, so, il, occ, rLv, ctx);
     results.push({
       type: addType,
       typeName: ['Magnifier','Monocle','Kaleidoscope'][addType],
@@ -73,8 +51,8 @@ export async function computeMagTypeBalance(state) {
   return results;
 }
 
-export function _computeInsightCellValues(obsIdx, md, il, gl, so) {
-  const ctx = makeCtx(gl);
+export function computeInsightCellValues(obsIdx, md, il, gl, so, saveCtx) {
+  const ctx = makeCtx(gl, saveCtx);
   const bareSO = new Array(GRID_SIZE).fill(-1);
   const baseIR = insightExpRate(obsIdx, md, il, gl, bareSO, ctx);
   const values = new Array(GRID_SIZE).fill(0);
@@ -89,15 +67,15 @@ export function _computeInsightCellValues(obsIdx, md, il, gl, so) {
   return values;
 }
 
-export async function computeInsightROI(onProgress, state) {
-  const { gl, so, il, occ, rLv, mMax, mOwned, md, ip, ctx } = _resolveState(state);
+export async function computeInsightROI(onProgress, state, saveCtx) {
+  const { gl, so, il, occ, rLv, mMax, mOwned, md, ip, ctx } = _resolveState(state, saveCtx);
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
   const pool = md.slice(0, mOwned);
   const { mono: monoCount, kalei: numKalei, regular: numRegular } = countMagTypes(pool);
   if (monoCount === 0) return { monoCount: 0, rows: [] };
   // Compute optimal baseline rate: re-optimize mags+monocles for current state
   // so ROI is always vs best non-grind layout, not the user's possibly-mid-grind layout.
-  const optBaseMD = await optimizeMagsFor({gl, so, md: pool, il, occ, rLv, mOwned, mMax});
+  const optBaseMD = await optimizeMagsFor({gl, so, md: pool, il, occ, rLv, mOwned, mMax}, ctx);
   const optBaseFull = chooseMonoTargets({gl, so, md: optBaseMD, il, ip, occ, rLv, mMax}, ctx, 24);
   const baseRate = simTotalExpWith(gl, so, optBaseFull, il, occ, rLv, ctx);
   // evalLayout: compute break-even for a grind scenario.
@@ -135,12 +113,12 @@ export async function computeInsightROI(onProgress, state) {
     const name = OCC_DATA[i].name.replace(/_/g,' ');
     const lv = il[i]||0, progress = ip[i]||0;
     // Build grind layout using concentrated layout builder (same as optimizer)
-    const grindMD = _buildConcentratedLayout({md: optBaseFull, mMax, gl, so, il, occ, rLv}, i, ctx);
+    const grindMD = buildConcentratedLayout({md: optBaseFull, mMax, gl, so, il, occ, rLv}, i, ctx);
 
     // Optimize shapes for insight grind: boost cells that affect insight rate
-    const insightCV = _computeInsightCellValues(i, grindMD, il, gl, so);
+    const insightCV = computeInsightCellValues(i, grindMD, il, gl, so, saveCtx);
     // Blend: primarily insight rate, secondarily research EXP (to avoid tanking EXP more than needed)
-    const researchCV = computeCellValues({gridLevels:gl, shapeOverlay:so, magData:pool, insightLvs:il, occFound:occ, researchLevel:rLv});
+    const researchCV = computeCellValues({gridLevels:gl, shapeOverlay:so, magData:pool, insightLvs:il, occFound:occ, researchLevel:rLv, saveCtx});
     const maxInsight = Math.max(0.001, ...insightCV.filter(v => v > 0));
     const maxResearch = Math.max(0.001, ...researchCV.filter(v => v > 0));
     const blendedCV = new Array(GRID_SIZE).fill(0);
@@ -148,15 +126,15 @@ export async function computeInsightROI(onProgress, state) {
       // 70% insight priority, 30% research to avoid unnecessary EXP loss
       blendedCV[ci] = 0.7 * (insightCV[ci] / maxInsight) + 0.3 * (researchCV[ci] / maxResearch);
     }
-    const insightShapeResult = optimizeShapesFor({gl, so, md: grindMD, il, occ, rLv}, undefined, blendedCV);
+    const insightShapeResult = optimizeShapesFor({gl, so, md: grindMD, il, occ, rLv}, undefined, blendedCV, saveCtx);
     const insightSO = insightShapeResult.overlay;
 
     // Build grind layout with insight shapes (kaleidoscope placement may differ)
-    const grindMD_IS = _buildConcentratedLayout({md: optBaseFull, mMax, gl, so: insightSO, il, occ, rLv}, i, ctx);
+    const grindMD_IS = buildConcentratedLayout({md: optBaseFull, mMax, gl, so: insightSO, il, occ, rLv}, i, ctx);
 
     // Compute after-grind layouts (re-optimized mags + shapes with new insight levels)
     const newIL = il.slice(); newIL[i] = (il[i]||0)+1;
-    const after1 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL, ctx, 24);
+    const after1 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL, ctx, 24, saveCtx);
     const afterMD = after1.md, afterSO = after1.so;
 
     // Decide: use insight shapes or current shapes? Pick whichever gives better break-even.
@@ -174,7 +152,7 @@ export async function computeInsightROI(onProgress, state) {
       let aftMD2 = afterMD, aftSO2 = afterSO;
       if (targetLvGain > 1) {
         const newIL2 = il.slice(); newIL2[i] = (il[i]||0)+targetLvGain;
-        const after2 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL2, ctx, 24);
+        const after2 = await optimizePostGrind({gl, so, md: pool, ip, occ, rLv, mOwned, mMax}, newIL2, ctx, 24, saveCtx);
         aftMD2 = after2.md;
         aftSO2 = after2.so;
       }
@@ -200,13 +178,13 @@ export async function computeInsightROI(onProgress, state) {
   return { monoCount, baseRate, rows, baselineLayout:optBaseFull.slice(), baselineSO:so.slice() };
 }
 
-export async function computeObsUnlockPriority(onProgress, state) {
-  const { gl, so, il, occ, md, mOwned, mMax, rLv, failedRolls, ctx } = _resolveState(state);
+export async function computeObsUnlockPriority(onProgress, state, saveCtx) {
+  const { gl, so, il, occ, md, mOwned, mMax, rLv, failedRolls, ctx } = _resolveState(state, saveCtx);
   const currentTotal = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   const smartEyeLv = gl[31]||0, sharpEyeLv = gl[51]||0, obsLv = gl[90]||0;
   const maxRoll = Math.floor(100 + sharpEyeLv);
   const smartEyePerFail = smartEyeLv, smartEyeCap = 25*smartEyeLv;
-  const rollsPerDay = Math.round(3 + obsLv + 3*eventShopOwned(35));
+  const rollsPerDay = Math.round(3 + obsLv + 3*saveCtx.evShop35);
   const results = [], undiscovered = [];
   for (let t=0;t<OCC_DATA.length;t++) if ((occ[t]||0)<1) undiscovered.push(t);
   const totalUndiscovered = undiscovered.length;
@@ -249,7 +227,7 @@ export async function computeObsUnlockPriority(onProgress, state) {
     const canUseNow = rLv >= requiredRLv;
     const tempOF = occ.slice(); tempOF[t] = 1;
     await new Promise(r=>setTimeout(r,0));
-    const tempMD = await optimizeMagsFor({gl, so, md, il, occ: tempOF, rLv, mOwned, mMax});
+    const tempMD = await optimizeMagsFor({gl, so, md, il, occ: tempOF, rLv, mOwned, mMax}, ctx);
     const newRate = simTotalExpWith(gl, so, tempMD, il, tempOF, rLv, ctx);
     const expGain = canUseNow ? newRate - currentTotal : 0;
     const score = expectedDays > 0 && isFinite(expectedDays) ? expGain / expectedDays : 0;

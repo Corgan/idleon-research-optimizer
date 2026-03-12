@@ -1,11 +1,7 @@
 // ===== render-analysis.js - Insight ROI + Observation Unlock renderers =====
 // Extracted from decision-tree.js. ES module.
 
-import {
-  gridLevels,
-  occFound,
-  researchLevel,
-} from '../state.js';
+import { buildSaveContext } from '../save/context.js';
 import {
   GRID_COLS,
   GRID_SIZE,
@@ -26,7 +22,7 @@ import {
   fmtVal,
 } from './format.js';
 import {
-  _runWorkerTask,
+  runWorkerTask,
 } from './worker-pool.js';
 
 // ===== SHARED HELPERS =====
@@ -69,7 +65,7 @@ function _roiSwitchTab(btn) {
 }
 window._roiSwitchTab = _roiSwitchTab;
 
-function _fmtLayoutDiff(before, during, after) {
+function _fmtLayoutDiff(before, during, after, researchLevel, occFound) {
   // Tabbed obs grid: DT-inspired cards with colored mag dots, one phase per tab
   // Shows ALL unlocked observations, not just those with magnifiers
   const aggregate = (layout) => {
@@ -147,7 +143,7 @@ function _fmtLayoutDiff(before, during, after) {
   return h;
 }
 
-function _fmtShapeDiff(beforeSO, duringSO, afterSO) {
+function _fmtShapeDiff(beforeSO, duringSO, afterSO, gridLevels) {
   // Tabbed mini research grids showing shape overlay per phase
   const allIdx = Object.keys(RES_GRID_RAW).map(Number).sort((a,b) => a - b);
 
@@ -234,7 +230,7 @@ export async function renderInsightROI() {
   let data;
   try {
     const progEl = document.getElementById('insight-roi-progress');
-    data = await _runWorkerTask('insightROI', 'insightROI', {}, (done, total) => {
+    data = await runWorkerTask('insightROI', 'insightROI', {}, (done, total) => {
       if (progEl) progEl.textContent = `${done}/${total} observations`;
     });
   } finally {
@@ -266,6 +262,7 @@ function _renderInsightROITable(data) {
   const summaryDiv = document.getElementById('insight-roi-summary');
   const tableDiv = document.getElementById('insight-roi-table');
   if (!summaryDiv || !tableDiv) return;
+  const sc = buildSaveContext();
 
   if (data.monoCount === 0) {
     summaryDiv.innerHTML = '<span style="color:var(--text2);">No Optical Monocles owned. Unlock grid node K5 (Optical Monocle) to use insight.</span>';
@@ -283,18 +280,34 @@ function _renderInsightROITable(data) {
     const active = sm === mode;
     return `<button onclick="_insightROISortMode='${mode}';_rerenderInsightROI();" style="padding:3px 10px;border-radius:4px;border:1px solid ${active ? 'var(--cyan)' : '#555'};background:${active ? 'rgba(0,188,212,.12)' : 'var(--bg3)'};color:${active ? 'var(--cyan)' : 'var(--text2)'};font-size:.78em;cursor:pointer;">${label}</button>`;
   }
-  let html = '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center;"><span style="color:var(--text2);font-size:.82em;">Sort by:</span>';
-  html += sortBtn('grindtime', 'Grind Time');
-  html += sortBtn('rategain', 'Rate Gain');
-  html += sortBtn('breakeven', 'Break-Even');
-  html += `<label style="margin-left:12px;font-size:.78em;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${_insightROIHideFree ? 'checked' : ''} onchange="_insightROIHideFree=this.checked;_rerenderInsightROI();"> Hide free</label>`;
-  html += '</div>';
+  let ctrlHtml = '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center;"><span style="color:var(--text2);font-size:.82em;">Sort by:</span>';
+  ctrlHtml += sortBtn('grindtime', 'Grind Time');
+  ctrlHtml += sortBtn('rategain', 'Rate Gain');
+  ctrlHtml += sortBtn('breakeven', 'Break-Even');
+  ctrlHtml += sortBtn('efficiency', 'Efficiency');
+  ctrlHtml += `<label style="margin-left:12px;font-size:.78em;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" ${_insightROIHideFree ? 'checked' : ''} onchange="_insightROIHideFree=this.checked;_rerenderInsightROI();"> Hide free</label>`;
+  ctrlHtml += '</div>';
+  tableDiv.innerHTML = ctrlHtml;
+
+  _renderInsightROIBody(data, tableDiv, sc);
+}
+
+function _renderInsightROIBody(data, container, sc) {
+  if (!container) container = document.getElementById('insight-roi-table');
+  if (!container) return;
+
+  const sm = _insightROISortMode;
 
   // Sort rows based on current sort mode
   const sortedRows = data.rows.slice().sort((a, b) => {
     const as = a.scenarios[0], bs = b.scenarios[0];
     if (sm === 'grindtime') return (as?.grindHrs ?? Infinity) - (bs?.grindHrs ?? Infinity);
     if (sm === 'rategain') return (bs?.rateGain ?? -Infinity) - (as?.rateGain ?? -Infinity);
+    if (sm === 'efficiency') {
+      const ae = as && isFinite(as.breakEvenHrs) && as.breakEvenHrs > 0 ? as.rateGain / as.breakEvenHrs : (as?.rateGain > 0 ? Infinity : -Infinity);
+      const be = bs && isFinite(bs.breakEvenHrs) && bs.breakEvenHrs > 0 ? bs.rateGain / bs.breakEvenHrs : (bs?.rateGain > 0 ? Infinity : -Infinity);
+      return be - ae;
+    }
     return (as?.breakEvenHrs ?? Infinity) - (bs?.breakEvenHrs ?? Infinity);
   });
 
@@ -305,6 +318,25 @@ function _renderInsightROITable(data) {
         return sc && isFinite(sc.totalExpLost) && sc.totalExpLost > 0;
       })
     : sortedRows;
+
+  // Triage summary
+  let html = '';
+  let nHigh = 0, nMid = 0, nLow = 0;
+  for (const r of displayRows) {
+    const sc = r.scenarios[0];
+    if (!sc || sc.rateGain <= 0 || !isFinite(sc.breakEvenHrs) || sc.breakEvenHrs <= 0) { nLow++; continue; }
+    const eff = sc.rateGain / sc.breakEvenHrs;
+    if (eff > 10) nHigh++;
+    else if (eff > 1) nMid++;
+    else nLow++;
+  }
+  if (displayRows.length > 0) {
+    html += '<div style="font-size:.82em;margin-bottom:6px;color:var(--text2);">';
+    if (nHigh > 0) html += `<span style="color:var(--green);font-weight:600;">${nHigh} high-value</span> `;
+    if (nMid > 0) html += `<span style="color:var(--gold);font-weight:600;">${nMid} moderate</span> `;
+    if (nLow > 0) html += `<span style="opacity:.6;">${nLow} low/none</span>`;
+    html += '</div>';
+  }
 
   const NCOLS = 11;
   html += '<div style="overflow-x:auto;">';
@@ -320,7 +352,7 @@ function _renderInsightROITable(data) {
   html += '<th style="padding:8px 4px;">Rate Gain</th>';
   html += '<th style="padding:8px 4px;">Recoup</th>';
   html += '<th style="padding:8px 4px;">Break-Even</th>';
-  html += '<th style="padding:8px 4px;">Verdict</th>';
+  html += '<th style="padding:8px 4px;" title="Rate gain per hour of break-even time">Efficiency</th>';
   html += '</tr></thead><tbody>';
 
   for (const row of displayRows) {
@@ -353,48 +385,45 @@ function _renderInsightROITable(data) {
         : '#ff6b6b';
       html += `<td style="text-align:center;padding:6px;color:${beColor};font-weight:600;">${fmtTime(sc.breakEvenHrs)}</td>`;
 
-      let verdict = '\u2014';
-      let verdictColor = 'var(--text2)';
-      if (!sc.worth) {
-        verdict = 'No gain';
-        verdictColor = '#ff6b6b';
-      } else if (sc.breakEvenHrs < 1) {
-        verdict = 'Instant';
-        verdictColor = 'var(--green)';
-      } else if (sc.breakEvenHrs < 24) {
-        verdict = 'Great';
-        verdictColor = 'var(--green)';
-      } else if (sc.breakEvenHrs < 72) {
-        verdict = 'Good';
-        verdictColor = 'var(--gold)';
-      } else if (sc.breakEvenHrs < 168) {
-        verdict = 'Slow';
-        verdictColor = 'var(--text2)';
-      } else {
-        verdict = 'Skip';
-        verdictColor = '#ff6b6b';
+      // Efficiency: rate gain per hour of break-even time
+      let effStr = '\u2014', effColor = 'var(--text2)';
+      if (sc.rateGain > 0 && isFinite(sc.breakEvenHrs) && sc.breakEvenHrs > 0) {
+        const eff = sc.rateGain / sc.breakEvenHrs;
+        effStr = '+' + fmtVal(eff);
+        effColor = eff > 10 ? 'var(--green)' : eff > 1 ? 'var(--gold)' : 'var(--text2)';
+      } else if (sc.rateGain > 0 && sc.breakEvenHrs === 0) {
+        effStr = '\u221e';
+        effColor = 'var(--green)';
+      } else if (sc.rateGain <= 0) {
+        effStr = 'No gain';
+        effColor = '#ff6b6b';
       }
-      html += `<td style="text-align:center;padding:6px;color:${verdictColor};font-weight:700;">${verdict}</td>`;
+      html += `<td style="text-align:center;padding:6px;color:${effColor};font-weight:700;" title="Permanent EXP/hr gained per hour of break-even time">${effStr}</td>`;
       html += '</tr>';
     }
-    // Collapsible layout row after each observation
+    // Collapsible details row after each observation
     html += `<tr><td colspan="${NCOLS}" style="padding:0 6px 6px;">`;
-    html += `<details style="margin:0;"><summary style="cursor:pointer;color:var(--accent);font-size:.82em;padding:2px 0;">Show layouts (before / during / after grind)${row.useInsightShapes ? ' <span style="color:var(--purple);">\u2728 insight-optimized shapes</span>' : ''}</summary>`;
+
+    // Layout details
+    html += `<details style="margin:4px 0 0;"><summary style="cursor:pointer;color:var(--accent);font-size:.82em;padding:2px 0;">Show layouts (before / during / after grind)${row.useInsightShapes ? ' <span style="color:var(--purple);">\u2728 insight-optimized shapes</span>' : ''}</summary>`;
     html += `<div style="margin-top:4px;"><strong style="color:var(--text2);font-size:.82em;">Magnifier Layout</strong>`;
-    html += _fmtLayoutDiff(data.baselineLayout, row.grindLayout, row.afterLayout || data.baselineLayout);
+    html += _fmtLayoutDiff(data.baselineLayout, row.grindLayout, row.afterLayout || data.baselineLayout, sc.researchLevel, sc.occFound);
     html += `</div>`;
     const duringSO = row.grindSO || data.baselineSO;
     const afterSO = row.afterSO || data.baselineSO;
     if (data.baselineSO) {
       html += `<div style="margin-top:8px;"><strong style="color:var(--text2);font-size:.82em;">Shape Coverage</strong><br>`;
-      html += _fmtShapeDiff(data.baselineSO, duringSO, afterSO);
+      html += _fmtShapeDiff(data.baselineSO, duringSO, afterSO, sc.gridLevels);
       html += `</div>`;
     }
     html += '</details></td></tr>';
   }
 
   html += '</tbody></table></div>';
-  tableDiv.innerHTML = html;
+  // Append table HTML after ctrl bar
+  const bodyDiv = document.createElement('div');
+  bodyDiv.innerHTML = html;
+  container.appendChild(bodyDiv);
 }
 
 // ===== OBS UNLOCK PRIORITY =====
@@ -416,7 +445,7 @@ export async function renderObsUnlock() {
   let data;
   try {
     const progEl = document.getElementById('obs-unlock-progress');
-    data = await _runWorkerTask('obsUnlock', 'obsUnlock', {}, (done, total) => {
+    data = await runWorkerTask('obsUnlock', 'obsUnlock', {}, (done, total) => {
       if (progEl) progEl.textContent = `${done}/${total} observations`;
     });
   } finally {

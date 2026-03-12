@@ -13,7 +13,7 @@ import {
  * Compute raw grid bonus for a cell with shape overlay and allBonusMulti.
  * ctx = { abm: number, c52: number }
  */
-export function _gbWith(gl, so, idx, ctx) {
+export function gbWith(gl, so, idx, ctx) {
   const info = RES_GRID_RAW[idx];
   if (!info) return 0;
   const lv = gl[idx] || 0;
@@ -31,7 +31,7 @@ export function _gbWith(gl, so, idx, ctx) {
  * Build adjacency map from kaleidoscope magnifiers.
  * Observation grid: 8 columns (not 20). slot = observation index.
  */
-export function _buildKalMap(mags) {
+export function buildKalMap(mags) {
   const km = {};
   for (const m of mags) {
     if (m.type === 2 && m.slot >= 0) {
@@ -97,8 +97,8 @@ export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
   let count = 0;
   for (const m of md) { if (m.type === 1 && m.slot === obsIdx) count++; }
   if (count === 0) return 0;
-  const insightBonus = _gbWith(gl, so, 92, ctx) + _gbWith(gl, so, 91, ctx);
-  const kalMap = _buildKalMap(md);
+  const insightBonus = gbWith(gl, so, 92, ctx) + gbWith(gl, so, 91, ctx);
+  const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
   const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
   return 3 * count * (1 + insightBonus / 100) * kalMulti;
@@ -106,12 +106,12 @@ export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
 
 /** Whether insight levels affect EXP (gd93 or gd94 > 0). */
 export function insightAffectsExp(gl, so, ctx) {
-  return _gbWith(gl, so, 93, ctx) > 0 || _gbWith(gl, so, 94, ctx) > 0;
+  return gbWith(gl, so, 93, ctx) > 0 || gbWith(gl, so, 94, ctx) > 0;
 }
 
 /** Kaleidoscope base multiplier from grid bonuses. */
 export function getKaleiMultiBase(gl, so, ctx) {
-  return (30 + _gbWith(gl, so, 52, ctx) + _gbWith(gl, so, 72, ctx)) / 100;
+  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx)) / 100;
 }
 
 // ----- Magnifier slot cap -----
@@ -217,9 +217,9 @@ export function deathNoteRank(kills, mode, riftLv) {
  */
 export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   const _c52 = ctx.c52;
-  const kalMap = _buildKalMap(md);
+  const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
-  const gd101 = _gbWith(gl, so, 93, ctx);
+  const gd101 = gbWith(gl, so, 93, ctx);
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
   let obsTotal = 0;
   for (let i = 0; i < occTBF; i++) {
@@ -231,16 +231,16 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
     obsTotal += count * base * (1 + gd101 * (il[i] || 0) / 100) * kalMulti;
   }
   const dynSticker = ctx.stickerFixed > 0
-    ? (1 + (_gbWith(gl, so, 68, ctx) * ctx.boonyCount + 30 * ctx.evShop37) / 100) * ctx.stickerFixed
+    ? (1 + (gbWith(gl, so, 68, ctx) * ctx.boonyCount + 30 * ctx.evShop37) / 100) * ctx.stickerFixed
     : 0;
-  let additive = _gbWith(gl, so, 50, ctx) + _gbWith(gl, so, 90, ctx) + _gbWith(gl, so, 110, ctx) + _gbWith(gl, so, 31, ctx) + ctx.extPctExSticker + dynSticker;
+  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + ctx.extPctExSticker + dynSticker;
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
-  additive += _gbWith(gl, so, 112, ctx) * occFoundCount;
+  additive += gbWith(gl, so, 112, ctx) * occFoundCount;
   let totalObsLV = 0;
   for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
-  additive += _gbWith(gl, so, 94, ctx) * totalObsLV;
-  const takinNotes = _gbWith(gl, so, 70, ctx);
+  additive += gbWith(gl, so, 94, ctx) * totalObsLV;
+  const takinNotes = gbWith(gl, so, 70, ctx);
   const multi = (1 + additive / 100) * (1 + takinNotes / 100) * _c52;
   return obsTotal * multi;
 }
@@ -346,7 +346,7 @@ export function simForwardProjection({
     rExp += curRate * jumpHrs;
     time += jumpHrs;
 
-    var _adv = advanceResearchLevel(rExp, rLv, svrxp);
+    const _adv = advanceResearchLevel(rExp, rLv, svrxp);
     rExp = _adv.rExp; rLv = _adv.rLv;
 
     if (_adv.changed && assumeObsUnlocked) {
@@ -355,7 +355,7 @@ export function simForwardProjection({
       }
     }
 
-    var insChanged = advanceInsightLevels(monoSlots, md, il, ip, gl, so, ctx, jumpHrs,
+    const insChanged = advanceInsightLevels(monoSlots, md, il, ip, gl, so, ctx, jumpHrs,
       onInsightLevelUp ? (obsIdx) => { if (onInsightLevelUp(obsIdx)) stop = true; } : undefined
     );
 

@@ -4,8 +4,8 @@
 import { buildSaveContext } from './save/context.js';
 import { OCC_DATA } from './game-data.js';
 import {
-  _buildKalMap,
-  _gbWith,
+  buildKalMap,
+  gbWith,
   advanceInsightLevels,
   advanceResearchLevel,
   computeMagnifiersOwnedWith,
@@ -25,15 +25,15 @@ import {
   simTotalExpWith,
 } from './sim-math.js';
 import { cloneSimState } from './sim-state.js';
-import { _growMagPoolTyped } from './optimizers/mags.js';
+import { growMagPoolTyped } from './optimizers/mags.js';
 import { getResearchCurrentExp, makeCtx } from './save/context.js';
 import { optimizeShapePlacement } from './optimizers/shapes.js';
 import { optimizeMagsFor } from './optimizers/magnifiers.js';
-import { chooseMonoTargets, _buildConcentratedLayout } from './optimizers/monos.js';
-import { _beamSpendAtLevel } from './optimizers/grid-spend.js';
+import { chooseMonoTargets, buildConcentratedLayout } from './optimizers/monos.js';
+import { beamSpendAtLevel } from './optimizers/grid-spend.js';
 
 export function optimizeShapesFor(s, simOpts, precomputedCellValues, saveCtx) {
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv;
+  const gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv;
   const _sc = saveCtx || buildSaveContext();
   const opts = Object.assign({}, simOpts || {},
     { gridLevels: gl, shapeOverlay: so, magData: md || _sc.magData, insightLvs: il || _sc.insightLvs, occFound: occ || _sc.occFound });
@@ -49,11 +49,11 @@ export function optimizeShapesFor(s, simOpts, precomputedCellValues, saveCtx) {
 
 // Centralized post-grind optimization: re-optimize mags + monocles + shapes for new insight levels.
 // Returns { md, so, expHr }.
-export async function optimizePostGrind(state, newIL, ctx, monoLookahead) {
+export async function optimizePostGrind(state, newIL, ctx, monoLookahead, saveCtx) {
   const { gl, so, md, ip, occ, rLv, mOwned, mMax } = state;
   const postMD = await optimizeMagsFor({gl, so, md, il: newIL, occ, rLv, mOwned, mMax}, ctx);
   const postMDFull = chooseMonoTargets({gl, so, md: postMD, il: newIL, ip, occ, rLv, mMax}, ctx, monoLookahead);
-  const postShapes = optimizeShapesFor({gl, so, md: postMDFull, il: newIL, occ, rLv});
+  const postShapes = optimizeShapesFor({gl, so, md: postMDFull, il: newIL, occ, rLv}, undefined, undefined, saveCtx);
   const expHr = simTotalExpWith(gl, postShapes.overlay, postMDFull, newIL, occ, rLv, ctx);
   return { md: postMDFull, so: postShapes.overlay, expHr };
 }
@@ -67,8 +67,8 @@ function _estimateRemainingHrs(config, currentTime, rLv, rExp, expHr, ctx) {
   return expHr > 0 ? Math.max(1, expNeeded / expHr) : 72;
 }
 
-export function _reoptRegularMags(s, ctx) {
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
+export function reoptRegularMags(s, ctx) {
+  const gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv, maxPerSlot = s.mMax;
   const kalEntries = [], monoEntries = [];
   let numRegular = 0;
   for (const m of md) {
@@ -77,9 +77,9 @@ export function _reoptRegularMags(s, ctx) {
     else if (m.type === 0) numRegular++;
   }
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
-  const kalMap = _buildKalMap(md);
+  const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
-  const gd101 = _gbWith(gl, so, 93, ctx);
+  const gd101 = gbWith(gl, so, 93, ctx);
   const slotUsed = {};
   for (const m of kalEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
   for (const m of monoEntries) { if (m.slot >= 0) slotUsed[m.slot] = (slotUsed[m.slot] || 0) + 1; }
@@ -116,8 +116,8 @@ function _insightBreakEvenHrs(md, il, ip, gl, so, ctx) {
 
 // Find the most profitable insight grind opportunity via permutation search.
 // Returns null if no grind is worth doing within remainingHrs.
-async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUnlocked) {
-  var gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, mMax = s.mMax, mOwned = s.mOwned;
+async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUnlocked, saveCtx) {
+  const gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ, rLv = s.rLv, mMax = s.mMax, mOwned = s.mOwned;
   const svrxp = ctx.serverVarResXP;
   if (remainingHrs < 1) return null;
   const monoCount = countMagTypes(md).mono;
@@ -142,7 +142,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
     if (assumeObsUnlocked && (occ[i] || 0) < 1 && OCC_DATA[i].roll <= futureRLv) {
       // will be unlocked soon - allow as candidate
     } else if (!isObsUsable(i, rLv, occ)) continue;
-    const grindMD = _buildConcentratedLayout({...s, occ: projOcc}, i, ctx);
+    const grindMD = buildConcentratedLayout({...s, occ: projOcc}, i, ctx);
     const iRate = insightExpRate(i, grindMD, il, gl, so, ctx);
     if (iRate <= 0) continue;
     const iReq = insightExpReqAt(i, il[i] || 0);
@@ -164,7 +164,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
-    const post = await optimizePostGrind({gl, so, md, ip, occ: projOcc, rLv, mOwned, mMax}, c.newIL, ctx, Math.max(1, remainingHrs - c.grindHrs));
+    const post = await optimizePostGrind({gl, so, md, ip, occ: projOcc, rLv, mOwned, mMax}, c.newIL, ctx, Math.max(1, remainingHrs - c.grindHrs), saveCtx);
     const postExpHr = post.expHr;
     const rateGain = postExpHr - projCurExpHr;
     if (rateGain <= 0) continue;
@@ -189,10 +189,10 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
       let phaseMD, phaseEndCondition;
       if (si < seq.length) {
         const g = seq[si];
-        phaseMD = _buildConcentratedLayout({gl, so, md, il: simIL, occ: simOcc, rLv: simRLv, mMax}, g.obsIdx, ctx);
+        phaseMD = buildConcentratedLayout({gl, so, md, il: simIL, occ: simOcc, rLv: simRLv, mMax}, g.obsIdx, ctx);
         phaseEndCondition = (obsIdx) => obsIdx === g.obsIdx;
       } else {
-        phaseMD = _reoptRegularMags({gl, so, md: afterMD, il: simIL, occ: simOcc, rLv: simRLv, mMax}, ctx);
+        phaseMD = reoptRegularMags({gl, so, md: afterMD, il: simIL, occ: simOcc, rLv: simRLv, mMax}, ctx);
         phaseMD = chooseMonoTargets({gl, so, md: phaseMD, il: simIL, ip: simIP, occ: simOcc, rLv: simRLv, mMax}, ctx, Math.max(1, remainHrs - simTime));
         phaseEndCondition = null;
       }
@@ -254,12 +254,12 @@ export async function unifiedSim(config, saveCtx) {
   // saveCtx: optional SaveContext - if omitted, captures current globals
   const _sc = saveCtx || buildSaveContext();
   // Build mutable sim state - gl/il/ip/occ are local aliases into s (in-place mutations sync)
-  var gl = (config.gridLevels || _sc.gridLevels).slice();
-  var il = (config.insightLvs || _sc.insightLvs).slice();
-  var ip = (config.insightProgress || _sc.insightProgress).slice();
-  var occ = (config.occFound || _sc.occFound).slice();
-  var _rLv0 = config.researchLevel !== undefined ? config.researchLevel : _sc.researchLevel;
-  var s = {
+  const gl = (config.gridLevels || _sc.gridLevels).slice();
+  const il = (config.insightLvs || _sc.insightLvs).slice();
+  const ip = (config.insightProgress || _sc.insightProgress).slice();
+  const occ = (config.occFound || _sc.occFound).slice();
+  const _rLv0 = config.researchLevel !== undefined ? config.researchLevel : _sc.researchLevel;
+  const s = {
     gl: gl, il: il, ip: ip, occ: occ,
     so: (config.shapeOverlay || _sc.shapeOverlay).slice(),
     md: [], // set below after optimization
@@ -289,7 +289,7 @@ export async function unifiedSim(config, saveCtx) {
   } else {
     // Build pool from current owned types, then grow with correct types if gl increased the count
     const pool = _sc.magData.slice(0, Math.min(_sc.magnifiersOwned, s.mOwned)).map(m => ({...m}));
-    _growMagPoolTyped(pool, gl, s.rLv, s.mOwned, ctx);
+    growMagPoolTyped(pool, gl, s.rLv, s.mOwned, ctx);
     s.md = pool;
     s.md = await optimizeMagsFor(s, ctx);
   }
@@ -314,10 +314,10 @@ export async function unifiedSim(config, saveCtx) {
   let _initFreePoints = 0;
   if (config.reoptimize !== false) {
     if (config.onProgress) config.onProgress({ subStage: 'Spending grid points\u2026' });
-    var _initSpend = _beamSpendAtLevel(s, ctx, config.target, config.assumeObsUnlocked);
+    const _initSpend = beamSpendAtLevel(s, ctx, config.target, config.assumeObsUnlocked, _sc);
     _initFreePoints = _initSpend.freePoints || 0;
     s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);
-    _growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
+    growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
     // Shapes first (so mag scoring sees correct shape overlay)
     if (config.onProgress) config.onProgress({ subStage: 'Re-optimizing shapes\u2026' });
     const reShapes = optimizeShapesFor(s, undefined, undefined, _sc);
@@ -340,7 +340,7 @@ export async function unifiedSim(config, saveCtx) {
   let curExpHr = simTotalExpWith(gl, s.so, s.md, il, occ, s.rLv, ctx);
 
   // Snapshot helper: clones full sim state + adds sp
-  var _snap = function(sp2) { var c = cloneSimState(s); c.sp = sp2.slice(); return c; };
+  const _snap = function(sp2) { const c = cloneSimState(s); c.sp = sp2.slice(); return c; };
 
   const phases = [{
     time: 0, event: 'start', expHr: curExpHr,
@@ -357,7 +357,7 @@ export async function unifiedSim(config, saveCtx) {
   // Check for initial grind opportunity
   if (config.reoptimize !== false && config.enableGrind !== false) {
     const _grindRemaining = _estimateRemainingHrs(config, 0, s.rLv, s.rExp, curExpHr, ctx);
-    const _grindCandidate = await _findBestInsightGrind(s, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked);
+    const _grindCandidate = await _findBestInsightGrind(s, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked, _sc);
     if (_grindCandidate) {
       _activeGrindObs = _grindCandidate.obsIdx;
       s.md = _grindCandidate.grindMD;
@@ -426,14 +426,15 @@ export async function unifiedSim(config, saveCtx) {
     if (_grindTargetLeveledUp && _activeGrindObs >= 0) _activeGrindObs = -1;
 
     // --- Check research level-ups ---
-    var _adv2 = advanceResearchLevel(s.rExp, s.rLv, ctx.serverVarResXP);
-    s.rExp = _adv2.rExp; s.rLv = _adv2.rLv; var rLeveledUp = _adv2.changed;
+    const _adv2 = advanceResearchLevel(s.rExp, s.rLv, ctx.serverVarResXP);
+    s.rExp = _adv2.rExp; s.rLv = _adv2.rLv; const rLeveledUp = _adv2.changed;
     if (rLeveledUp) {
       const newMax = magMaxForLevel(s.rLv);
       if (newMax > s.mMax) s.mMax = newMax;
     }
 
     // --- Handle research level-up side effects ---
+    let _lvFreePoints = 0;
     if (rLeveledUp && config.reoptimize !== false) {
       if (config.assumeObsUnlocked) {
         let obsChanged = false;
@@ -445,15 +446,15 @@ export async function unifiedSim(config, saveCtx) {
         }
         if (obsChanged) {
           s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);
-          _growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
+          growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
           s.md = await optimizeMagsFor(s, ctx);
         }
       }
       if (config.onProgress) config.onProgress({ subStage: 'Level ' + s.rLv + ' \u2014 spending grid points\u2026', rLv: s.rLv, expHr: curExpHr, currentTime });
-      var _spendResult = _beamSpendAtLevel(s, ctx, config.target, config.assumeObsUnlocked);
-      var _lvFreePoints = _spendResult.freePoints || 0;
+      const _spendResult = beamSpendAtLevel(s, ctx, config.target, config.assumeObsUnlocked, _sc);
+      _lvFreePoints = _spendResult.freePoints || 0;
       s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);
-      _growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
+      growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
     }
 
     // --- Reconfig on events ---
@@ -466,7 +467,7 @@ export async function unifiedSim(config, saveCtx) {
       if (_activeGrindObs >= 0) {
         // During grind: re-optimize mags then force monocles back to grind target
         s.md = await optimizeMagsFor(s, ctx);
-        s.md = _buildConcentratedLayout(s, _activeGrindObs, ctx);
+        s.md = buildConcentratedLayout(s, _activeGrindObs, ctx);
       } else {
         // Normal: full mag + monocle re-optimization
         s.md = await optimizeMagsFor(s, ctx);
@@ -490,7 +491,7 @@ export async function unifiedSim(config, saveCtx) {
     } else if (insightLeveledUp && config.reoptimize !== false) {
       if (_activeGrindObs >= 0) {
         s.md = await optimizeMagsFor(s, ctx);
-        s.md = _buildConcentratedLayout(s, _activeGrindObs, ctx);
+        s.md = buildConcentratedLayout(s, _activeGrindObs, ctx);
       } else {
         s.md = await optimizeMagsFor(s, ctx);
         let monoLA2 = Math.min(_estimateRemainingHrs(config, currentTime, s.rLv, s.rExp, curExpHr, ctx), 72);
@@ -513,7 +514,7 @@ export async function unifiedSim(config, saveCtx) {
     // --- Check for profitable insight grinds after events ---
     if (_activeGrindObs < 0 && config.reoptimize !== false && config.enableGrind !== false && (rLeveledUp || insightMatters)) {
       const _grindRemaining = _estimateRemainingHrs(config, currentTime, s.rLv, s.rExp, curExpHr, ctx);
-      const _grindCandidate = await _findBestInsightGrind(s, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked);
+      const _grindCandidate = await _findBestInsightGrind(s, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked, _sc);
       if (_grindCandidate) {
         _activeGrindObs = _grindCandidate.obsIdx;
         s.md = _grindCandidate.grindMD;

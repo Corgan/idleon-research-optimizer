@@ -1,27 +1,6 @@
 // ===== SHAPE OPTIMIZATION =====
 
-import {
-  _covLUTCache,
-  _covLUTCacheN,
-  assignState,
-  gridLevels,
-  insightLvs,
-  insightProgress,
-  magData,
-  occFound,
-  researchLevel,
-  shapeOverlay,
-  shapeTiers,
-} from '../state.js';
-// Phase B helpers: extract saveCtx-or-global fallback
-function _gl(sc)  { return sc ? sc.gridLevels      : gridLevels; }
-function _so(sc)  { return sc ? sc.shapeOverlay     : shapeOverlay; }
-function _md(sc)  { return sc ? sc.magData          : magData; }
-function _il(sc)  { return sc ? sc.insightLvs       : insightLvs; }
-function _ip(sc)  { return sc ? sc.insightProgress  : insightProgress; }
-function _occ(sc) { return sc ? sc.occFound         : occFound; }
-function _rLv(sc) { return sc ? sc.researchLevel    : researchLevel; }
-function _st(sc)  { return sc ? sc.shapeTiers       : shapeTiers; }
+// All functions require saveCtx — no global S fallback.
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -51,21 +30,21 @@ import {
   simTotalExp,
 } from '../save/context.js';
 
-export function simExpOverHorizon(config) {
+function simExpOverHorizon(config) {
   // Lightweight sim: total EXP earned over a time horizon.
   // Tracks insight level-ups and their cascading effect on research EXP rate,
   // but does NOT re-optimize shapes, mags, or grid points (avoids recursion).
   // Uses event-driven jumps (jumps directly to next level-up or insight-up).
   const maxHrs = config.target.type === 'hours' ? config.target.value : 1e8;
 
-  const _sc = config.saveCtx || null;
-  const gl = config.gridLevels ? config.gridLevels.slice() : _gl(_sc).slice();
-  const so = config.shapeOverlay ? config.shapeOverlay.slice() : _so(_sc).slice();
-  const md = config.magData ? config.magData.map(m => ({...m})) : _md(_sc).map(m => ({...m}));
-  const il = config.insightLvs ? config.insightLvs.slice() : _il(_sc).slice();
-  const ip = config.insightProgress ? config.insightProgress.slice() : _ip(_sc).slice();
-  const occ = config.occFound ? config.occFound.slice() : _occ(_sc).slice();
-  let rLv = config.researchLevel !== undefined ? config.researchLevel : _rLv(_sc);
+  const _sc = config.saveCtx;
+  const gl = config.gridLevels ? config.gridLevels.slice() : _sc.gridLevels.slice();
+  const so = config.shapeOverlay ? config.shapeOverlay.slice() : _sc.shapeOverlay.slice();
+  const md = config.magData ? config.magData.map(m => ({...m})) : _sc.magData.map(m => ({...m}));
+  const il = config.insightLvs ? config.insightLvs.slice() : _sc.insightLvs.slice();
+  const ip = config.insightProgress ? config.insightProgress.slice() : _sc.insightProgress.slice();
+  const occ = config.occFound ? config.occFound.slice() : _sc.occFound.slice();
+  let rLv = config.researchLevel !== undefined ? config.researchLevel : _sc.researchLevel;
   let rExp = config.currentExp !== undefined ? config.currentExp : getResearchCurrentExp(_sc);
   const ctx = makeCtx(gl, _sc);
 
@@ -86,15 +65,15 @@ export function computeCellValues(simOpts) {
   // insight cascading effects (insight EXP → insight levels → research EXP).
   const values = new Array(GRID_SIZE).fill(0);
   const bareSO = new Array(GRID_SIZE).fill(-1); // no shapes
-  const _sc = (simOpts && simOpts.saveCtx) || null;
-  const gl = (simOpts && simOpts.gridLevels) || _gl(_sc);
-  const md = (simOpts && simOpts.magData) || _md(_sc);
-  const il = (simOpts && simOpts.insightLvs) || _il(_sc);
-  const ip = (simOpts && simOpts.insightProgress) || _ip(_sc);
-  const occ = (simOpts && simOpts.occFound) || _occ(_sc);
-  const rLv = (simOpts && simOpts.researchLevel !== undefined) ? simOpts.researchLevel : _rLv(_sc);
+  const _sc = simOpts.saveCtx;
+  const gl = simOpts.gridLevels || _sc.gridLevels;
+  const md = simOpts.magData || _sc.magData;
+  const il = simOpts.insightLvs || _sc.insightLvs;
+  const ip = simOpts.insightProgress || _sc.insightProgress;
+  const occ = simOpts.occFound || _sc.occFound;
+  const rLv = simOpts.researchLevel !== undefined ? simOpts.researchLevel : _sc.researchLevel;
 
-  if (simOpts && simOpts.target) {
+  if (simOpts.target) {
     const baseCfg = {
       target: simOpts.target,
       gridLevels: gl.slice(),
@@ -140,12 +119,12 @@ export function computeCellValues(simOpts) {
 
 export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValues) {
   const useTiers = simOpts && simOpts.useTiers;
-  const _sc = (simOpts && simOpts.saveCtx) || null;
-  const gl = (simOpts && simOpts.gridLevels) || _gl(_sc);
-  const md = (simOpts && simOpts.magData) || _md(_sc);
-  const il = (simOpts && simOpts.insightLvs) || _il(_sc);
-  const occ = (simOpts && simOpts.occFound) || _occ(_sc);
-  const rLv = (simOpts && simOpts.researchLevel !== undefined) ? simOpts.researchLevel : _rLv(_sc);
+  const _sc = simOpts.saveCtx;
+  const gl = simOpts.gridLevels || _sc.gridLevels;
+  const md = simOpts.magData || _sc.magData;
+  const il = simOpts.insightLvs || _sc.insightLvs;
+  const occ = simOpts.occFound || _sc.occFound;
+  const rLv = simOpts.researchLevel !== undefined ? simOpts.researchLevel : _sc.researchLevel;
   const cellValues = precomputedCellValues || computeCellValues(simOpts);
 
   // Use computed ShapesOwned (matches game formula) capped by available shape definitions
@@ -183,15 +162,14 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
   const placements = [];
   const canRotate = rLv >= 90;
   const rotations = canRotate ? Array.from({length: 72}, (_, i) => i * 5) : [0];
-  // LUT cache: prefer saveCtx-local cache, fall back to global
-  let _lutN = _sc ? _sc.covLUTCacheN : _covLUTCacheN;
-  let _lut  = _sc ? _sc.covLUTCache  : _covLUTCache;
+  // LUT cache on saveCtx
+  let _lutN = _sc.covLUTCacheN;
+  let _lut  = _sc.covLUTCache;
   if (_lutN !== numShapes) {
     if (progressCb) progressCb(0, numShapes + 1, 'Building coverage LUT\u2026');
     _lut = buildCoverageLUT(numShapes);
     _lutN = numShapes;
-    if (_sc) { _sc.covLUTCache = _lut; _sc.covLUTCacheN = _lutN; }
-    else     { assignState({ _covLUTCache: _lut, _covLUTCacheN: _lutN }); }
+    _sc.covLUTCache = _lut; _sc.covLUTCacheN = _lutN;
   }
   const covLUT = _lut;
   if (progressCb) progressCb(1, numShapes + 1, 'LUT built. Placing shapes\u2026');
@@ -335,15 +313,16 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
   // Boost "above" tier nodes so shapes actively target them alongside EXP.
   // Zero out "below" nodes - they can still get hit incidentally
   // by shapes positioned for nearby EXP/above cells.
+  const st = useTiers ? _sc.shapeTiers : null;
   if (useTiers) {
     const maxExpVal = Math.max(0.001, ...cellValues.filter(v => v > 0));
-    const aboveSet = new Set(_st(_sc).above);
+    const aboveSet = new Set(st.above);
     // Boost EXP nodes in "above" tier (e.g., Insight preset)
-    for (const idx of _st(_sc).above) {
+    for (const idx of st.above) {
       const goal = NODE_GOAL[idx];
       if (goal && NODE_GOAL_COLORS[goal] && (gl[idx] || 0) > 0) {
-        const rank = _st(_sc).above.indexOf(idx);
-        cellValues[idx] = maxExpVal * (2 + (_st(_sc).above.length - rank) * 0.5);
+        const rank = st.above.indexOf(idx);
+        cellValues[idx] = maxExpVal * (2 + (st.above.length - rank) * 0.5);
       }
     }
     // Handle non-EXP nodes: boost above, zero out below
@@ -353,8 +332,8 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
       const goal = NODE_GOAL[idx];
       if (!goal || NODE_GOAL_COLORS[goal]) continue; // skip EXP-related nodes (handled above if in tier)
       if (aboveSet.has(idx)) {
-        const rank = _st(_sc).above.indexOf(idx);
-        cellValues[idx] = maxExpVal * (2 + (_st(_sc).above.length - rank) * 0.5);
+        const rank = st.above.indexOf(idx);
+        cellValues[idx] = maxExpVal * (2 + (st.above.length - rank) * 0.5);
       } else {
         cellValues[idx] = 0; // below: don't target, but may hit incidentally
       }
@@ -382,10 +361,10 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
     const leftover = shapeOrder.filter(s => !placedSet.has(s));
     if (leftover.length > 0) {
       // Give "below" nodes ordered values so leftover shapes cover them by priority
-      for (let i = 0; i < _st(_sc).below.length; i++) {
-        const idx = _st(_sc).below[i];
+      for (let i = 0; i < st.below.length; i++) {
+        const idx = st.below[i];
         if ((gl[idx] || 0) > 0) {
-          cellValues[idx] = 1000 * (_st(_sc).below.length - i);
+          cellValues[idx] = 1000 * (st.below.length - i);
         }
       }
       _rebuildValuedCells();
@@ -397,7 +376,7 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
   }
 
   // Compare with current placement
-  const so = (simOpts && simOpts.shapeOverlay) || _so(_sc);
+  const so = simOpts.shapeOverlay || _sc.shapeOverlay;
   const currentTotal = simTotalExp({ ...stOpts, shapeOverlay: so }, _sc).total;
   const optimizedSO = new Array(GRID_SIZE).fill(-1);
   for (const p of placements) {

@@ -1,18 +1,7 @@
 // ===== worker-pool.js - Web Worker task runner + parallel optimizer =====
 // Extracted from app.js. ES module.
 
-import {
-  _covLUTCacheN,
-  assignState,
-  cachedSpelunkyUpg7,
-  gridLevels,
-  insightLvs,
-  magData,
-  occFound,
-  researchLevel,
-  shapeOverlay,
-  snapshotState,
-} from '../state.js';
+import {  assignState, snapshotState  } from '../state.js';
 import {
   SHAPE_VERTICES,
 } from '../game-data.js';
@@ -20,6 +9,7 @@ import {
   computeGridPointsEarned,
 } from '../sim-math.js';
 import {
+  buildSaveContext,
   computeGridPointsAvailable,
   computeShapesOwned,
   makeCtx,
@@ -29,14 +19,14 @@ import {
   buildCoverageLUT,
 } from '../optimizers/shapes-geo.js';
 import {
-  _enumGridCombos,
-  _expandSpendable,
+  enumGridCombos,
+  expandSpendable,
 } from '../optimizers/grid-spend.js';
 
 // ===== WEB WORKER HELPERS =====
 const _workerTasks = {}; // key → { worker, reject }
 
-export function _cancelWorkerTask(key) {
+export function cancelWorkerTask(key) {
   const t = _workerTasks[key];
   if (!t) return;
   t.worker.terminate();
@@ -44,8 +34,8 @@ export function _cancelWorkerTask(key) {
   delete _workerTasks[key];
 }
 
-export function _runWorkerTask(key, type, extra, progressCb) {
-  _cancelWorkerTask(key);
+export function runWorkerTask(key, type, extra, progressCb) {
+  cancelWorkerTask(key);
   return new Promise(function(resolve, reject) {
     let w;
     try { w = _createOptWorker(); }
@@ -78,8 +68,9 @@ export function _runWorkerTask(key, type, extra, progressCb) {
 
 function _snapshotState() {
   // Eagerly build coverage LUT if not yet cached, so workers receive it pre-built
-  const numShapes = Math.min(computeShapesOwned(), SHAPE_VERTICES.length);
-  if (_covLUTCacheN !== numShapes && numShapes > 0) {
+  const saveCtx = buildSaveContext();
+  const numShapes = Math.min(computeShapesOwned(saveCtx.researchLevel, saveCtx.gridLevels, saveCtx), SHAPE_VERTICES.length);
+  if (saveCtx.covLUTCacheN !== numShapes && numShapes > 0) {
     assignState({ _covLUTCache: buildCoverageLUT(numShapes), _covLUTCacheN: numShapes });
   }
   return snapshotState();
@@ -89,7 +80,7 @@ function _createOptWorker() {
   return new Worker('./js/workers/sim-worker.js', { type: 'module' });
 }
 
-export function _cancelOptimizer() {
+export function cancelOptimizer() {
   if (_optWorkerPool) { _optWorkerPool.terminate(); _optWorkerPool = null; }
 }
 
@@ -182,10 +173,11 @@ function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
   };
 }
 
-export async function _runParallelOptimizer(target, progressCb, opts) {
+export async function runParallelOptimizer(target, progressCb, opts) {
   const assumeObs = !!(opts && opts.assumeObs);
   const extendInsightLA = !!(opts && opts.extendInsightLA);
   const snapshot = _snapshotState();
+  const _saveCtx = buildSaveContext();
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
 
   // Formatting helpers (main-thread copies)
@@ -213,12 +205,12 @@ export async function _runParallelOptimizer(target, progressCb, opts) {
     // Bar fill: target-oriented (levels or hours) from best worker
     let barPct;
     if (target.type === 'level') {
-      let bestLv = researchLevel;
+      let bestLv = _saveCtx.researchLevel;
       for (const sub of workerSubs) {
         if (sub && sub.rLv != null && sub.rLv > bestLv) bestLv = sub.rLv;
       }
-      const span = target.value - researchLevel;
-      barPct = span > 0 ? Math.min((bestLv - researchLevel) / span, 0.999) : 0;
+      const span = target.value - _saveCtx.researchLevel;
+      barPct = span > 0 ? Math.min((bestLv - _saveCtx.researchLevel) / span, 0.999) : 0;
     } else {
       let bestTime = 0;
       for (const sub of workerSubs) {
@@ -272,12 +264,12 @@ export async function _runParallelOptimizer(target, progressCb, opts) {
   try {
     await pool.ready;
 
-    const preOptRate = simTotalExp().total;
+    const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const availPts = computeGridPointsAvailable();
+    const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, _saveCtx.cachedSpelunkyUpg7);
     const futureEarned = target.type === 'level'
-      ? Math.max(0, computeGridPointsEarned(target.value, cachedSpelunkyUpg7) - computeGridPointsEarned(researchLevel, cachedSpelunkyUpg7))
-      : Math.max(0, computeGridPointsEarned(researchLevel + 20, cachedSpelunkyUpg7) - computeGridPointsEarned(researchLevel, cachedSpelunkyUpg7));
+      ? Math.max(0, computeGridPointsEarned(target.value, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7))
+      : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7));
     console.log('[Optimizer] availPts:', availPts, '| futureEarned:', futureEarned);
 
     if (availPts <= 0) {
@@ -294,7 +286,7 @@ export async function _runParallelOptimizer(target, progressCb, opts) {
     }
 
     // Expand spendable set - only EXP-relevant nodes + gateways (only currently-available points)
-    const expandResult = _expandSpendable(gridLevels, availPts, shapeOverlay, magData, insightLvs, occFound, researchLevel, makeCtx(gridLevels));
+    const expandResult = expandSpendable(_saveCtx.gridLevels, availPts, _saveCtx.shapeOverlay, _saveCtx.magData, _saveCtx.insightLvs, _saveCtx.occFound, _saveCtx.researchLevel, makeCtx(_saveCtx.gridLevels, _saveCtx));
     const spendable = expandResult.spendable;
     const freePoints = expandResult.freePoints;
     const freeNotice = expandResult.notice;
@@ -315,7 +307,7 @@ export async function _runParallelOptimizer(target, progressCb, opts) {
 
     // Only distribute currently-available points; future-earned handled by mid-sim branching
     const usefulPoints = Math.min(availPts, availPts - freePoints);
-    const combos = _enumGridCombos(spendable, gridLevels, usefulPoints);
+    const combos = enumGridCombos(spendable, _saveCtx.gridLevels, usefulPoints);
     console.log('[Optimizer] Exhaustive combos:', combos.length, '(' + usefulPoints + ' useful points across ' + spendable.length + ' EXP-relevant squares)');
 
     totalEstSims = combos.length;

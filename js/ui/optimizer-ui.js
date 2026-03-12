@@ -1,14 +1,6 @@
-// ===== OPTIMIZER UI - Render optimizer results, timeline, actions, chart, mini-grid =====
+﻿// ===== OPTIMIZER UI - Render optimizer results, timeline, actions, chart, mini-grid =====
 
-import {
-  gridLevels,
-  insightLvs,
-  magData,
-  magnifiersOwned,
-  serverVarResXP,
-  shapeOverlay,
-  shapePositions,
-} from '../state.js';
+import { S } from '../state.js';
 import { saveGlobalTime } from '../save/data.js';
 import {
   GRID_COLS,
@@ -22,13 +14,13 @@ import {
   SHAPE_DIMS,
   SHAPE_NAMES,
   SHAPE_VERTICES,
+  gridCoord,
 } from '../game-data.js';
 import {
   isGridCellUnlocked,
   researchExpReq,
 } from '../sim-math.js';
-import { getResearchCurrentExp } from '../save/context.js';
-import { gridCoord } from '../grid-helpers.js';
+import { buildSaveContext, getResearchCurrentExp } from '../save/context.js';
 import { diffPhaseConfigs, diffMDLayouts } from '../phase-diff.js';
 import { sameShapeCell } from '../optimizers/shapes-geo.js';
 import {
@@ -37,9 +29,9 @@ import {
   fmtTime,
   fmtVal,
 } from '../renderers/format.js';
-import { _dtNodes, _dtCompareSet, DT } from '../dt/dt-state.js';
-import { _dtCreateNode } from '../dt/dt-sim.js';
-import { _dtReset, _dtRenderTree } from '../dt/decision-tree.js';
+import { dtNodes, dtCompareSet, DT } from '../dt/dt-state.js';
+import { dtCreateNode } from '../dt/dt-sim.js';
+import { dtReset, dtRenderTree } from '../dt/decision-tree.js';
 
 
 // Convert sim hours-offset to a real date string, relative to now.
@@ -141,6 +133,7 @@ export function renderOptimizerResults(result) {
 
   // Actions
   renderActions(best, bestSteps);
+
 }
 
 function renderTimeline(sim) {
@@ -187,8 +180,7 @@ function renderTimeline(sim) {
 // diffPhaseConfigs is imported from phase-diff.js
 
 // Build HTML lines showing mag/monocle/kaleido diffs between a base layout and a grind layout
-function _renderGrindLayoutDiff(baseMD, grindMD, label) {
-  if (!label) label = 'grind layout';
+function _renderGrindLayoutDiff(baseMD, grindMD) {
   const gd = diffMDLayouts(baseMD, grindMD);
   const lines = [];
   const _fmtMoves = (moves) => moves.map(m => {
@@ -198,13 +190,13 @@ function _renderGrindLayoutDiff(baseMD, grindMD, label) {
       : `<span style="color:var(--red);">-${-m.delta}</span> from ${name}`;
   }).join(' &nbsp; ');
   if (gd.mags.length > 0) {
-    lines.push(`<div style="margin-left:8px;">Mags <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${_fmtMoves(gd.mags)}</div>`);
+    lines.push(`<div style="margin-left:8px;">Mags: ${_fmtMoves(gd.mags)}</div>`);
   }
   if (gd.kals.length > 0) {
-    lines.push(`<div style="margin-left:8px;">Kaleido <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${_fmtMoves(gd.kals)}</div>`);
+    lines.push(`<div style="margin-left:8px;">Kaleido: ${_fmtMoves(gd.kals)}</div>`);
   }
   if (gd.monos.length > 0) {
-    lines.push(`<div style="margin-left:8px;color:var(--purple);">Monocle${grindMD.filter(m=>m.type===1).length > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${label}]</span>: ${_fmtMoves(gd.monos)}</div>`);
+    lines.push(`<div style="margin-left:8px;color:var(--purple);">Monocles: ${_fmtMoves(gd.monos)}</div>`);
   }
   return lines;
 }
@@ -216,7 +208,7 @@ function _buildPhaseDetails(p, prev, diff) {
 
   if (diff.rLv) details.push(`<div style="color:var(--gold);">Research LV ${diff.rLv.from} \u2192 ${diff.rLv.to}</div>`);
 
-  // ─── Grid upgrades - grouped by goal category ───
+  // â”€â”€â”€ Grid upgrades - grouped by goal category â”€â”€â”€
   const gridDetails = [];
   const gridGoalKeys = Object.keys(diff.grid);
   if (gridGoalKeys.length > 0) {
@@ -235,7 +227,7 @@ function _buildPhaseDetails(p, prev, diff) {
     }
   }
 
-  // ─── Shape changes ───
+  // â”€â”€â”€ Shape changes â”€â”€â”€
   const shapeDetails = [];
   if (diff.shapes) {
     let bkHtml = '';
@@ -256,7 +248,7 @@ function _buildPhaseDetails(p, prev, diff) {
     shapeDetails.push(`<details style="margin-bottom:4px;" onclick="event.stopPropagation();"><summary style="cursor:pointer;color:var(--cyan);font-size:.85em;">Shape grid &amp; breakdown</summary><div style="margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div><div style="margin-top:6px;">${bkHtml}</div></details>`);
   }
 
-  // ─── Magnifier & Kaleidoscope changes ───
+  // â”€â”€â”€ Magnifier & Kaleidoscope changes â”€â”€â”€
   const magDetails = [];
 
   if (diff.magCap) magDetails.push(`<div style="color:var(--cyan);">Max mags/slot: ${diff.magCap.from} \u2192 ${diff.magCap.to} <span style="opacity:.6;font-size:.9em;">[higher cap allows denser stacking]</span></div>`);
@@ -268,10 +260,7 @@ function _buildPhaseDetails(p, prev, diff) {
         ? `<span style="color:var(--green);">+${m.delta}</span> \u2192 ${name}`
         : `<span style="color:var(--red);">-${-m.delta}</span> from ${name}`;
     }).join(' &nbsp; ');
-    let magReason = 'maximize obs EXP rate';
-    if (diff.mags.netNew > 0) magReason = `+${diff.mags.netNew} new mag${diff.mags.netNew>1?'s':''} placed for best obs EXP`;
-    else if (diff.magCap) magReason = 'redistributed for higher slot cap';
-    magDetails.push(`<div>Mags <span style="opacity:.6;font-size:.9em;">[${magReason}]</span>: ${magMoveHtml}</div>`);
+    magDetails.push(`<div>Mags: ${magMoveHtml}</div>`);
   }
 
   if (diff.kals.moves.length > 0) {
@@ -281,37 +270,20 @@ function _buildPhaseDetails(p, prev, diff) {
         ? `<span style="color:var(--green);">+${m.delta}</span> \u2192 ${name}`
         : `<span style="color:var(--red);">-${-m.delta}</span> from ${name}`;
     }).join(' &nbsp; ');
-    let kalReason = 'best adjacency boost';
-    if (diff.kals.netNew > 0) kalReason = `+${diff.kals.netNew} new kaleido for adjacency`;
-    magDetails.push(`<div>Kaleido <span style="opacity:.6;font-size:.9em;">[${kalReason}]</span>: ${kalMoveHtml}</div>`);
+    magDetails.push(`<div>Kaleido: ${kalMoveHtml}</div>`);
   }
 
-  // ─── Monocle target ───
+  // â”€â”€â”€ Monocle target â”€â”€â”€
   const monoDetails = [];
   if (diff.monos.changed) {
-    const gd93m = (p.config.gl[93] || 0);
-    const gd94m = (p.config.gl[94] || 0);
-    const gd101name = gridCoord(93) + ' ' + (RES_GRID_RAW[93]?.[0]||'').replace(/_/g,' ');
-    const gd102name = gridCoord(94) + ' ' + (RES_GRID_RAW[94]?.[0]||'').replace(/_/g,' ');
     const changes = diff.monos.moves.map(m => {
       const name = m.slot >= 0 && OCC_DATA[m.slot] ? OCC_DATA[m.slot].name.replace(/_/g,' ') : 'none';
       return m.delta > 0
         ? `<span style="color:var(--green);">+${m.delta}</span> \u2192 ${name}`
         : `<span style="color:var(--red);">-${-m.delta}</span> from ${name}`;
     });
-    let monoReason = 'fastest insight level-up';
-    if (p.grindInfo) {
-      monoReason = 'insight grind \u2192 ' + p.grindInfo.obsName;
-    } else if (diff.monos.netNew > 0) monoReason = `+${diff.monos.netNew} new monocle${diff.monos.netNew > 1 ? 's' : ''} from grid`;
-    else {
-      const curMonoSlots = Object.keys(diff.monos.curGroups).map(Number);
-      const anyMagOnCur = curMonoSlots.some(s => s >= 0 && p.config.md.some(m => m.type === 0 && m.slot === s));
-      if (anyMagOnCur && gd93m > 0) monoReason = 'boosting obs EXP via insight (' + gd101name + ')';
-      else if (gd94m > 0) monoReason = 'total insight LVs \u2192 research EXP (' + gd102name + ')';
-      else monoReason = 'banking insight for future ' + gd102name;
-    }
     if (changes.length > 0) {
-      monoDetails.push(`<div style="color:var(--purple);">Monocle${diff.monos.totalCur > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${changes.join(' &nbsp; ')}</div>`);
+      monoDetails.push(`<div style="color:var(--purple);">Monocles: ${changes.join(' &nbsp; ')}</div>`);
     } else {
       const targetParts = [];
       for (const obs of Object.keys(diff.monos.curGroups).map(Number).sort((a,b) => a - b)) {
@@ -319,27 +291,21 @@ function _buildPhaseDetails(p, prev, diff) {
         const cnt = diff.monos.curGroups[obs];
         targetParts.push(cnt > 1 ? `${cnt}\u00d7 ${name}` : name);
       }
-      monoDetails.push(`<div style="color:var(--purple);">Monocle${diff.monos.totalCur > 1 ? 's' : ''} <span style="opacity:.6;font-size:.9em;">[${monoReason}]</span>: ${targetParts.join(', ')}</div>`);
+      monoDetails.push(`<div style="color:var(--purple);">Monocles: ${targetParts.join(', ')}</div>`);
     }
   }
 
-  // ─── Insight changes (informational - happens over time) ───
+  // â”€â”€â”€ Insight changes (informational - happens over time) â”€â”€â”€
   const insightDetails = [];
   if (diff.insight.length > 0) {
     const ilChangeHtml = diff.insight.map(c => {
       const name = OCC_DATA[c.obs] ? OCC_DATA[c.obs].name.replace(/_/g,' ') : `#${c.obs}`;
       return `${name} <span style="color:var(--purple);">${c.from}\u2192${c.to}</span>`;
     });
-    const gd93i = (p.config.gl[93] || 0);
-    const gd94i = (p.config.gl[94] || 0);
-    const impacts = [];
-    if (gd93i > 0) impacts.push('obs EXP\u00d7insight via ' + gridCoord(93) + ' ' + (RES_GRID_RAW[93]?.[0]||'').replace(/_/g,' '));
-    if (gd94i > 0) impacts.push('research EXP via ' + gridCoord(94) + ' ' + (RES_GRID_RAW[94]?.[0]||'').replace(/_/g,' '));
-    const impactStr = impacts.length > 0 ? impacts.join(' + ') : 'banking for future upgrades';
-    insightDetails.push(`<div>Insight <span style="opacity:.6;font-size:.9em;">[${impactStr}]</span>: ${ilChangeHtml.join(', ')}</div>`);
+    insightDetails.push(`<div>Insight: ${ilChangeHtml.join(', ')}</div>`);
   }
 
-  // ─── Assemble details in correct dependency order ───
+  // â”€â”€â”€ Assemble details in correct dependency order â”€â”€â”€
   const _stepLabel = (n, text) => `<div style="color:var(--cyan);font-weight:700;margin-top:6px;margin-bottom:2px;font-size:.9em;">\u2699 Step ${n}: ${text}</div>`;
   if (isStart) {
     let stepNum = 0;
@@ -347,16 +313,13 @@ function _buildPhaseDetails(p, prev, diff) {
     if (p.freePoints > 0) details.push(`<div style="color:var(--green);margin-top:2px;font-size:.9em;">\u2714 ${p.freePoints} point${p.freePoints > 1 ? 's' : ''} don\u2019t affect Research EXP \u2014 spend freely on any upgrade!</div>`);
     if (shapeDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Place Shapes')); details.push(...shapeDetails); }
     if (p.grindInfo) {
-      // When grinding, show grind layout setup → grind → post-grind switch
+      // When grinding, show grind layout setup
       const gi = p.grindInfo;
       const grindSetup = _renderGrindLayoutDiff(prev.config.md, gi.grindMD);
       if (grindSetup.length) {
-        stepNum++; details.push(_stepLabel(stepNum, 'Set Up for Insight Grind'));
+        stepNum++; details.push(_stepLabel(stepNum, `Rearrange for ${gi.obsName} grind`));
         details.push(...grindSetup);
       }
-      stepNum++; details.push(_stepLabel(stepNum, 'Insight Grind'));
-      details.push(`<div style="color:#ff9800;font-weight:600;margin-top:4px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-      details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
     } else {
       if (magDetails.length) { stepNum++; details.push(_stepLabel(stepNum, 'Assign Magnifiers & Kaleidoscopes')); details.push(...magDetails); }
       if (monoDetails.length) { const mc = p.config.md.filter(m=>m.type===1).length; stepNum++; details.push(_stepLabel(stepNum, mc > 1 ? 'Point Monocles' : 'Point Monocle')); details.push(...monoDetails); }
@@ -379,41 +342,39 @@ function _buildPhaseDetails(p, prev, diff) {
   if (p.grindInfo && !isStart) {
     const gi = p.grindInfo;
     const grindBase = prev.grindInfo ? prev.grindInfo.grindMD : prev.config.md;
-    details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:4px;">\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv}</div>`);
-    details.push(..._renderGrindLayoutDiff(grindBase, gi.grindMD));
-    details.push(`<div style="margin-left:8px;">Duration: <b>${fmtTime(gi.grindHrs)}</b> &nbsp; break-even: <b style="color:var(--gold);">${fmtTime(gi.breakEvenHrs)}</b></div>`);
+    const grindMoves = _renderGrindLayoutDiff(grindBase, gi.grindMD);
+    if (grindMoves.length) {
+      details.push(`<div style="color:#ff9800;font-weight:600;margin-top:6px;margin-bottom:2px;">Rearrange for ${gi.obsName} grind:</div>`);
+      details.push(...grindMoves);
+    }
   }
 
   // Goal summary - prepend a one-line explanation of WHY this phase exists
-  if (details.length > 0 && p.event !== 'end') {
-    let goalSummary = '';
-    if (p.event === 'start' && p.grindInfo) {
-      goalSummary = 'Follow steps in order, then grind insight';
-    } else if (p.event === 'start') {
-      goalSummary = 'Follow steps in order \u2014 each depends on the previous';
-    } else {
-      const reasons = [];
-      if (diff.rLv) {
-        const ptsSpent = Object.values(diff.grid).reduce((s, nodes) => s + nodes.reduce((a,n) => a + n.to - n.from, 0), 0);
-        reasons.push(`LV ${diff.rLv.to} reached` + (ptsSpent > 0 ? ` \u2192 spent ${ptsSpent} grid pt${ptsSpent>1?'s':''}` : ''));
-      }
-      if (diff.insight.length > 0) reasons.push('insight leveled \u2192 EXP rates shifted');
-      if (diff.mags.moves.length > 0 && !diff.rLv && diff.insight.length === 0) reasons.push('mags redistributed');
-      if (p.grindInfo) {
-        const gi = p.grindInfo;
-        reasons.push(`grind ${gi.obsName} \u2192 LV ${gi.newInsightLv} (break-even ${fmtTime(gi.breakEvenHrs)})`);
-      }
-      if (reasons.length === 0) reasons.push('reconfiguring for new EXP rates');
-      goalSummary = reasons.join('; ');
+  if (details.length > 0 && p.event !== 'end' && p.event !== 'start') {
+    const reasons = [];
+    if (diff.rLv) {
+      const ptsSpent = Object.values(diff.grid).reduce((s, nodes) => s + nodes.reduce((a,n) => a + n.to - n.from, 0), 0);
+      reasons.push(`LV ${diff.rLv.to}` + (ptsSpent > 0 ? ` \u2192 spend ${ptsSpent} grid pt${ptsSpent>1?'s':''}` : ''));
     }
-    details.unshift(`<div style="color:var(--text);font-weight:600;margin-bottom:4px;font-size:.95em;">\ud83c\udfaf ${goalSummary}</div>`);
+    if (diff.insight.length > 0) {
+      const ilNames = diff.insight.map(c => OCC_DATA[c.obs] ? OCC_DATA[c.obs].name.replace(/_/g,' ') : `#${c.obs}`);
+      reasons.push(`insight: ${ilNames.join(', ')}`);
+    }
+    if (diff.mags.moves.length > 0 && !diff.rLv && diff.insight.length === 0) reasons.push('redistribute mags');
+    if (p.grindInfo) {
+      const gi = p.grindInfo;
+      reasons.push(`grind ${gi.obsName} \u2192 LV ${gi.newInsightLv} (${fmtTime(gi.breakEvenHrs)} break-even)`);
+    }
+    if (reasons.length > 0) {
+      details.unshift(`<div style="color:var(--text);font-weight:600;margin-bottom:4px;font-size:.95em;">\ud83c\udfaf ${reasons.join('; ')}</div>`);
+    }
   }
 
   return details;
 }
 
 // Build the EXP verification summary bar
-function _renderExpSummary(phases, sim) {
+function _renderExpSummary(phases, sim, saveCtx) {
   if (phases.length < 2) return '';
   let simExpTotal = 0;
   for (let i = 0; i < phases.length - 1; i++) {
@@ -423,8 +384,8 @@ function _renderExpSummary(phases, sim) {
   }
   const startLv = phases[0].rLv;
   const endLv = sim.finalLevel;
-  let expNeeded = -getResearchCurrentExp();
-  for (let lv = startLv; lv < endLv; lv++) expNeeded += researchExpReq(lv, serverVarResXP);
+  let expNeeded = -getResearchCurrentExp(saveCtx);
+  for (let lv = startLv; lv < endLv; lv++) expNeeded += researchExpReq(lv, S.serverVarResXP);
   expNeeded += sim.finalExp;
   const avgRate = sim.totalTime > 0 ? simExpTotal / sim.totalTime : 0;
   const startRate = phases[0].grindInfo ? phases[0].grindInfo.grindExpHr : phases[0].expHr;
@@ -450,10 +411,10 @@ function renderActions(sim, bestSteps) {
 
   // Synthetic "pre-optimization" config for start event diff
   const preOptConfig = {
-    gl: gridLevels.slice(), so: shapeOverlay.slice(),
-    md: magData.slice(0, magnifiersOwned).map(m=>({...m})),
-    il: insightLvs.slice(),
-    sp: shapePositions.map(s => ({...s}))
+    gl: S.gridLevels.slice(), so: S.shapeOverlay.slice(),
+    md: S.magData.slice(0, S.magnifiersOwned).map(m=>({...m})),
+    il: S.insightLvs.slice(),
+    sp: S.shapePositions.map(s => ({...s}))
   };
 
   const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--text2)' };
@@ -529,7 +490,7 @@ function renderActions(sim, bestSteps) {
       const prevLv = prev.rLv, curLv = p.rLv;
       if (curLv > prevLv) {
         const reqs = [];
-        for (let lv = prevLv; lv < curLv; lv++) reqs.push(researchExpReq(lv, serverVarResXP));
+        for (let lv = prevLv; lv < curLv; lv++) reqs.push(researchExpReq(lv, S.serverVarResXP));
         const totalReq = reqs.reduce((a,b) => a + b, 0);
         lvReqInfo = `<span style="color:var(--gold);font-size:.75em;margin-left:2px;" title="Total EXP required: ${reqs.map((r,i) => 'LV'+(prevLv+i)+'\u2192'+(prevLv+i+1)+': '+fmtExp(r)).join(', ')}">(${fmtExp(totalReq)} req)</span>`;
       }
@@ -586,7 +547,7 @@ function renderActions(sim, bestSteps) {
     html += `</div>`;
   }
 
-  html += _renderExpSummary(phases, sim);
+  html += _renderExpSummary(phases, sim, buildSaveContext());
 
   if (!html) html = '<div style="color:var(--text2);text-align:center;padding:16px;">No actions needed - current config is optimal.</div>';
   actDiv.innerHTML = html;
@@ -598,7 +559,7 @@ function renderActions(sim, bestSteps) {
   _startRealTimeUpdates();
 }
 
-export function toggleActionDetail(phaseIdx, phaseCount, totalTime) {
+function toggleActionDetail(phaseIdx, phaseCount, totalTime) {
   const det = document.getElementById('action-detail-' + phaseIdx);
   const chev = document.getElementById('chevron-' + phaseIdx);
   if (det) {
@@ -610,7 +571,7 @@ export function toggleActionDetail(phaseIdx, phaseCount, totalTime) {
   highlightTimelinePhase(phaseIdx, null, totalTime);
 }
 
-export function highlightTimelinePhase(phaseIdx, _unused, totalTime) {
+function highlightTimelinePhase(phaseIdx, _unused, totalTime) {
   // Position arrow above the phase segment
   const arrow = document.getElementById('tl-arrow');
   const timelineDiv = document.getElementById('opt-timeline');
@@ -639,7 +600,7 @@ export function highlightTimelinePhase(phaseIdx, _unused, totalTime) {
   }
 }
 
-export function renderExpChart(sim) {
+function renderExpChart(sim) {
   const chartDiv = document.getElementById('opt-chart');
   const phases = sim.phases;
   if (phases.length < 2) { chartDiv.innerHTML = ''; return; }
@@ -710,20 +671,20 @@ export function renderExpChart(sim) {
  */
 function _renderShapeFootprint(cells, color) {
   if (!cells || cells.length === 0) return '';
-  var cellSet = new Set(cells);
-  var minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
-  for (var i = 0; i < cells.length; i++) {
-    var c = cells[i] % GRID_COLS, r = Math.floor(cells[i] / GRID_COLS);
+  const cellSet = new Set(cells);
+  let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i] % GRID_COLS, r = Math.floor(cells[i] / GRID_COLS);
     if (c < minC) minC = c; if (c > maxC) maxC = c;
     if (r < minR) minR = r; if (r > maxR) maxR = r;
   }
-  var w = maxC - minC + 1, h = maxR - minR + 1;
-  var sz = 8;
-  var html = '<div style="display:inline-grid;grid-template-columns:repeat(' + w + ',' + sz + 'px);gap:1px;flex-shrink:0;">';
-  for (var row = minR; row <= maxR; row++) {
-    for (var col = minC; col <= maxC; col++) {
-      var idx = row * GRID_COLS + col;
-      var hit = cellSet.has(idx);
+  const w = maxC - minC + 1, h = maxR - minR + 1;
+  const sz = 8;
+  let html = '<div style="display:inline-grid;grid-template-columns:repeat(' + w + ',' + sz + 'px);gap:1px;flex-shrink:0;">';
+  for (let row = minR; row <= maxR; row++) {
+    for (let col = minC; col <= maxC; col++) {
+      const idx = row * GRID_COLS + col;
+      const hit = cellSet.has(idx);
       html += '<div style="width:' + sz + 'px;height:' + sz + 'px;background:' +
         (hit ? color + '88' : '#1a1a2e') +
         ';border-radius:1px;"></div>';
@@ -733,8 +694,8 @@ function _renderShapeFootprint(cells, color) {
   return html;
 }
 
-export function renderMiniGrid(overlay, gl, positions) {
-  const usedGL = gl || gridLevels;
+function renderMiniGrid(overlay, gl, positions) {
+  const usedGL = gl;
   const cellSize = 24;
   const COLS = GRID_COLS;
   let html = `<div style="display:inline-grid;grid-template-columns:repeat(${COLS},${cellSize}px);gap:0;background:#111;padding:4px;border-radius:6px;position:relative;">`;
@@ -779,7 +740,7 @@ export function renderMiniGrid(overlay, gl, positions) {
     if (overlay[i] >= 0) activeShapes.add(overlay[i]);
   }
   if (activeShapes.size > 0) {
-    const usePos = positions || shapePositions;
+    const usePos = positions;
     const gw = COLS * cellSize, gh = GRID_ROWS * cellSize;
     let svg = `<svg style="position:absolute;top:4px;left:4px;width:${gw}px;height:${gh}px;pointer-events:none;z-index:2;" viewBox="15 24 600 360" preserveAspectRatio="none">`;
     svg += `<style>
@@ -814,7 +775,7 @@ export function importOptToDecisionTree() {
   const phases = _optimizerResult.best.phases;
   if (!phases || phases.length === 0) return;
 
-  _dtReset();
+  dtReset();
 
   let prevId = null;
   for (let i = 0; i < phases.length; i++) {
@@ -830,7 +791,7 @@ export function importOptToDecisionTree() {
       rLv: p.rLv, rExp: p.rExp,
       expHr: p.grindInfo ? p.grindInfo.grindExpHr : p.expHr,
     };
-    const node = _dtCreateNode(prevId, p.event, segTime, state);
+    const node = dtCreateNode(prevId, p.event, segTime, state);
     node.insightObs = p.insightObs || null;
     node.insightLvs = p.insightLvs || null;
     prevId = node.id;
@@ -838,7 +799,7 @@ export function importOptToDecisionTree() {
 
   // Show the tree
   document.getElementById('dt-tree-wrap').style.display = 'block';
-  _dtRenderTree();
+  dtRenderTree();
 
   // Switch to sandbox tab
   document.querySelectorAll('.tab').forEach(t => {

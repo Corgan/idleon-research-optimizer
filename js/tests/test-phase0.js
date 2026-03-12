@@ -16,7 +16,7 @@ import { GRID_COLS, GRID_ROWS, GRID_SIZE, RES_GRID_RAW, OCC_DATA,
        } from '../game-data.js';
 
 import { cloneSimState } from '../sim-state.js';
-import { _gbWith, _buildKalMap, OBS_BASE_EXP, obsBaseExp, insightExpReqAt,
+import { gbWith, buildKalMap, OBS_BASE_EXP, obsBaseExp, insightExpReqAt,
          insightExpRate, insightAffectsExp, getKaleiMultiBase, magMaxForLevel,
          isObsUsable, computeOccurrencesToBeFound, isGridCellUnlocked,
          findNewlyUnlockable, deathNoteRank, researchExpReq,
@@ -29,13 +29,12 @@ import { isPointInPolygon, getShapePolygonAt, getShapeCellCoverage,
          buildCoverageLUT, lookupCoverage, rebuildShapeOverlay,
        } from '../optimizers/shapes-geo.js';
 
-import { _enumKalMags, _growMagPoolTyped } from '../optimizers/mags.js';
+import { enumKalMags, growMagPoolTyped } from '../optimizers/mags.js';
 
 import { fmtTime, fmtExp, fmtVal, fmtExact } from '../renderers/format.js';
 
 import {
-  assignState, restoreState, research, gridLevels, researchLevel,
-  magnifiersOwned, companionIds, shapeTiers, insightLvs,
+  S, assignState, restoreState,
 } from '../state.js';
 
 let pass = 0, fail = 0;
@@ -89,15 +88,15 @@ eq(magMaxForLevel(200), 4, 'magMaxForLevel(200)');
 const gl = new Array(240).fill(0); gl[50] = 2;  // Pts Every Ten, 5 bonus/lv
 const so = new Array(240).fill(-1);
 const ctx = { abm: 1, c52: 1 };
-approx(_gbWith(gl, so, 50, ctx), 10, 0.01, '_gbWith LV2 no shape');
+approx(gbWith(gl, so, 50, ctx), 10, 0.01, '_gbWith LV2 no shape');
 so[50] = 0; // shape 0 = 25%
-approx(_gbWith(gl, so, 50, ctx), 12.5, 0.01, '_gbWith LV2 with 25% shape');
+approx(gbWith(gl, so, 50, ctx), 12.5, 0.01, '_gbWith LV2 with 25% shape');
 ctx.abm = 1.15;
-approx(_gbWith(gl, so, 50, ctx), 14.375, 0.01, '_gbWith with abm=1.15');
+approx(gbWith(gl, so, 50, ctx), 14.375, 0.01, '_gbWith with abm=1.15');
 
 // _buildKalMap
 const kalMags = [{type:2,slot:5,x:0,y:0}]; // slot 5, 8-col grid
-const km = _buildKalMap(kalMags);
+const km = buildKalMap(kalMags);
 eq(km[4], 1, 'kal adj left');
 eq(km[6], 1, 'kal adj right');
 eq(km[13], 1, 'kal adj below'); // 5+8=13
@@ -156,7 +155,7 @@ eq(lut.length, 72, 'LUT for 1 shape has 72 entries');
 eq(lut[0] !== null, true, 'LUT entry 0 exists');
 
 // --- mags.js ---
-const magResult = _enumKalMags([0,1,2], 0, 2, 0.3, 0, [0,0,0], 2);
+const magResult = enumKalMags([0,1,2], 0, 2, 0.3, 0, [0,0,0], 2);
 eq(magResult.length, 2, '2 mags assigned');
 eq(magResult[0].type, 0, 'assigned as regular mag');
 // With 0 gd101 and 0 insight, highest-index obs has highest obsBaseExp
@@ -286,7 +285,7 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
 
   // Start with 1 regular mag
   const md = [{ type: 0, slot: 0, x: 0, y: 0 }];
-  _growMagPoolTyped(md, gl, 10, 6, growCtx);
+  growMagPoolTyped(md, gl, 10, 6, growCtx);
   eq(md.length, 6, 'grow to 6 mags');
   // First 3 new should be kalei (need 3 total, have 0)
   eq(md[1].type, 2, 'grow: 2nd is kalei');
@@ -299,36 +298,36 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
 
   // Already at target → no change
   const before = md.length;
-  _growMagPoolTyped(md, gl, 10, 6, growCtx);
+  growMagPoolTyped(md, gl, 10, 6, growCtx);
   eq(md.length, before, 'grow: no change when at target');
 }
 
 // --- state.js: assignState / restoreState round-trip ---
 {
   // Save original state
-  const origRL = researchLevel;
-  const origMag = magnifiersOwned;
-  const origGL = gridLevels.slice();
-  const origComp = new Set(companionIds);
-  const origTiersAbove = shapeTiers.above.slice();
+  const origRL = S.researchLevel;
+  const origMag = S.magnifiersOwned;
+  const origGL = S.gridLevels.slice();
+  const origComp = new Set(S.companionIds);
+  const origTiersAbove = S.shapeTiers.above.slice();
 
   // assignState partial update
   assignState({ researchLevel: 42, magnifiersOwned: 99 });
-  eq(researchLevel, 42, 'assignState: researchLevel set');
-  eq(magnifiersOwned, 99, 'assignState: magnifiersOwned set');
+  eq(S.researchLevel, 42, 'assignState: researchLevel set');
+  eq(S.magnifiersOwned, 99, 'assignState: magnifiersOwned set');
   // Untouched fields remain unchanged
-  eq(gridLevels, origGL, 'assignState: gridLevels untouched');
+  eq(S.gridLevels, origGL, 'assignState: gridLevels untouched');
 
   // assignState with Set (companionIds)
   assignState({ companionIds: [10, 20, 30] });
-  eq(companionIds instanceof Set, true, 'assignState: companionIds is Set');
-  eq(companionIds.size, 3, 'assignState: companionIds size');
-  eq(companionIds.has(20), true, 'assignState: companionIds has 20');
+  eq(S.companionIds instanceof Set, true, 'assignState: companionIds is Set');
+  eq(S.companionIds.size, 3, 'assignState: companionIds size');
+  eq(S.companionIds.has(20), true, 'assignState: companionIds has 20');
 
   // assignState with shapeTiers (special .above/.below)
   assignState({ shapeTiers: { above: [1, 2], below: [3] } });
-  eq(shapeTiers.above, [1, 2], 'assignState: shapeTiers.above');
-  eq(shapeTiers.below, [3], 'assignState: shapeTiers.below');
+  eq(S.shapeTiers.above, [1, 2], 'assignState: shapeTiers.above');
+  eq(S.shapeTiers.below, [3], 'assignState: shapeTiers.below');
 
   // restoreState with full snapshot round-trip
   restoreState({
@@ -338,17 +337,17 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
     comp52TrueMulti: 1, allBonusMulti: 1, magnifiersOwned: 15,
     companionIds: [55], shapeTiers: { above: [1], below: [2] },
   });
-  eq(researchLevel, 7, 'restoreState: researchLevel from data');
-  eq(magnifiersOwned, 15, 'restoreState: magnifiersOwned from data');
-  eq(gridLevels[0], 5, 'restoreState: gridLevels[0]');
-  eq(gridLevels[1], 10, 'restoreState: gridLevels[1]');
-  eq(companionIds.has(55), true, 'restoreState: companionIds has 55');
-  eq(shapeTiers.above[0], 1, 'restoreState: shapeTiers.above');
-  eq(shapeTiers.below[0], 2, 'restoreState: shapeTiers.below');
+  eq(S.researchLevel, 7, 'restoreState: researchLevel from data');
+  eq(S.magnifiersOwned, 15, 'restoreState: magnifiersOwned from data');
+  eq(S.gridLevels[0], 5, 'restoreState: gridLevels[0]');
+  eq(S.gridLevels[1], 10, 'restoreState: gridLevels[1]');
+  eq(S.companionIds.has(55), true, 'restoreState: companionIds has 55');
+  eq(S.shapeTiers.above[0], 1, 'restoreState: shapeTiers.above');
+  eq(S.shapeTiers.below[0], 2, 'restoreState: shapeTiers.below');
 
-  // Live binding: assignState changes are visible through imported bindings
+  // Live binding: assignState changes are visible through S object
   assignState({ researchLevel: 123 });
-  eq(researchLevel, 123, 'live binding: researchLevel reflects assignState');
+  eq(S.researchLevel, 123, 'live binding: researchLevel reflects assignState');
 
   // Restore original state to not affect other tests
   restoreState({
@@ -356,7 +355,7 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
     magnifiersOwned: origMag,
     gridLevels: origGL,
     companionIds: Array.from(origComp),
-    shapeTiers: { above: origTiersAbove, below: shapeTiers.below }
+    shapeTiers: { above: origTiersAbove, below: S.shapeTiers.below }
   });
 }
 

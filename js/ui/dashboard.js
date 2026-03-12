@@ -1,38 +1,7 @@
 // ===== DASHBOARD.JS - Tooltips, EXP breakdown, and dashboard rendering =====
 // Extracted from app.js.
 
-import {
-  allBonusMulti,
-  cards1Data,
-  companionIds,
-  cachedComp0DivOk,
-  extBonuses,
-  farmCropCount,
-  gemItemsData,
-  gridLevels,
-  grimoireData,
-  insightLvs,
-  insightProgress,
-  magData,
-  magMaxPerSlot,
-  magnifiersOwned,
-  mealsData,
-  ninjaData,
-  occFound,
-  olaData,
-  research,
-  researchLevel,
-  ribbonData,
-  sailingData,
-  serverVarResXP,
-  shapeOverlay,
-  shapePositions,
-  spelunkData,
-  tasksGlobalData,
-  totalTomePoints,
-  totemInfoData,
-  towerData,
-} from '../state.js';
+import { S } from '../state.js';
 import { cachedAFKRate } from '../save/data.js';
 import {
   ARTIFACT_BASE,
@@ -49,29 +18,23 @@ import {
   SHAPE_NAMES,
   SHAPE_VERTICES,
   STICKER_BASE,
+  gridCoord,
 } from '../game-data.js';
 import {
-  _buildKalMap,
-  _gbWith,
+  buildKalMap,
+  gbWith,
   computeOccurrencesToBeFound,
   getKaleiMultiBase as _getKaleiMultiBasePure,
   insightExpReqAt,
   obsBaseExp,
   researchExpReq,
 } from '../sim-math.js';
-import {
-  emporiumBonus,
-  eventShopOwned,
-  ribbonBonusAt,
-  superBitType,
-} from '../save/helpers.js';
 import { mainframeBonus } from '../save/lab.js';
 import {
   achieveStatus,
   computeAFKGainsRate,
   computeCardLv,
   computeEmperorBon,
-  computeExternalBonuses,
   computeMeritocBonusz,
   computeShinyBonusS,
   computeSummWinBonus,
@@ -81,6 +44,7 @@ import {
   legendPTSbonus,
 } from '../save/external.js';
 import {
+  buildSaveContext,
   computeGridPointsAvailable,
   getResearchCurrentExp,
   makeCtx,
@@ -88,41 +52,42 @@ import {
 } from '../save/context.js';
 import { sameShapeCell } from '../optimizers/shapes-geo.js';
 import { fmtExact, fmtTime, fmtVal } from '../renderers/format.js';
-import { gridCoord } from '../grid-helpers.js';
 import { hideTooltip, moveTooltip, attachTooltip } from './tooltip.js';
-// Circular import (render-upgrades → dashboard → render-upgrades) is safe:
-// both sides use imports only inside functions, not at module level.
-import { _formatDesc } from '../renderers/upgrade-eval.js';
+import { formatDesc } from '../renderers/grid-desc.js';
 
+
+// Module-level render-cycle cache: set once at the top of renderDashboard(),
+// used by private helpers that always display current S state.
+let _dSaveCtx = null;
+let _dCtx = null;
+let _simOpts = null;
 
 // --- Inline helpers (formerly in calculations.js → app.js, used only by dashboard) ---
 
-function getGridBonus(idx, gl) {
+function getGridBonus(idx) {
   const info = RES_GRID_RAW[idx];
   if (!info) return 0;
-  const lv = (gl || gridLevels)[idx] || 0;
+  const lv = _dSaveCtx.gridLevels[idx] || 0;
   return info[2] * lv;
 }
 
-function getGridBonusFinal(idx, gl, so, ctx) {
-  if (!ctx) ctx = makeCtx(gl || gridLevels);
-  return _gbWith(gl || gridLevels, so || shapeOverlay, idx, ctx);
+function getGridBonusFinal(idx) {
+  return gbWith(_dSaveCtx.gridLevels, _dSaveCtx.shapeOverlay, idx, _dCtx);
 }
 
 function getTotalObsLVs() {
   let total = 0;
-  const occTBF = computeOccurrencesToBeFound(researchLevel, occFound);
+  const occTBF = computeOccurrencesToBeFound(_dSaveCtx.researchLevel, _dSaveCtx.occFound);
   for (let i = 0; i < occTBF; i++) {
-    if ((insightLvs[i] || 0) >= 1) total += insightLvs[i];
+    if ((_dSaveCtx.insightLvs[i] || 0) >= 1) total += _dSaveCtx.insightLvs[i];
   }
   return total;
 }
 
-function buildKaleiMap() { return _buildKalMap(magData); }
+function buildKaleiMap() { return buildKalMap(_dSaveCtx.magData); }
 
-function getKaleiMultiBase(gl, so, ctx) {
-  if (!ctx) ctx = makeCtx(gl || gridLevels);
-  return _getKaleiMultiBasePure(gl || gridLevels, so || shapeOverlay, ctx);
+function getKaleiMultiBase() {
+  return _getKaleiMultiBasePure(_dSaveCtx.gridLevels, _dSaveCtx.shapeOverlay, _dCtx);
 }
 
 function _getKaleiMultiTot(obsIdx) {
@@ -132,20 +97,20 @@ function _getKaleiMultiTot(obsIdx) {
 
 function getResearchExpPerObs(obsIdx) {
   let count = 0;
-  for (const m of magData) { if (m.type === 0 && m.slot === obsIdx) count++; }
+  for (const m of _dSaveCtx.magData) { if (m.type === 0 && m.slot === obsIdx) count++; }
   if (count === 0) return 0;
   const t = obsIdx;
   const basePerMag = (4 + (t/2 + Math.floor(t/4))) * (1 + Math.pow(t, 1 + t/15*0.4) / 10) + (Math.pow(t, 1.5) + 1.5*t);
   let rate = count * basePerMag;
   const gd101 = getGridBonusFinal(93);
-  rate *= (1 + gd101 * (insightLvs[t] || 0) / 100);
+  rate *= (1 + gd101 * (_dSaveCtx.insightLvs[t] || 0) / 100);
   rate *= _getKaleiMultiTot(t);
   return rate;
 }
 
 function getInsightExpPerObs(obsIdx) {
   let count = 0;
-  for (const m of magData) { if (m.type === 1 && m.slot === obsIdx) count++; }
+  for (const m of _dSaveCtx.magData) { if (m.type === 1 && m.slot === obsIdx) count++; }
   if (count === 0) return 0;
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
   let rate = 3 * count * (1 + insightBonus / 100);
@@ -154,13 +119,13 @@ function getInsightExpPerObs(obsIdx) {
 }
 
 function getResearchExpRequired() {
-  return researchExpReq(researchLevel, serverVarResXP);
+  return researchExpReq(_dSaveCtx.researchLevel, _dSaveCtx.serverVarResXP);
 }
 
 
 // ===== SHAPE POLYGON =====
 function computeShapePolygon(shapeIdx) {
-  const pos = shapePositions[shapeIdx];
+  const pos = S.shapePositions[shapeIdx];
   if (!pos) return null;
   const verts = SHAPE_VERTICES[shapeIdx];
   const dims = SHAPE_DIMS[shapeIdx];
@@ -181,10 +146,10 @@ export function showGridTooltip(e, idx, overlayOverride) {
   const tt = document.getElementById('tooltip');
   const info = RES_GRID_RAW[idx];
   if (!info) return;
-  const lv = gridLevels[idx] || 0;
+  const lv = S.gridLevels[idx] || 0;
   const bonus = getGridBonus(idx);
   const finalBonus = getGridBonusFinal(idx);
-  const ov = overlayOverride || shapeOverlay;
+  const ov = overlayOverride || S.shapeOverlay;
   const si = ov[idx];
 
   let html = '<div class="tt-name">' + gridCoord(idx) + ' - ' + info[0].replace(/_/g,' ') + '</div>';
@@ -194,18 +159,18 @@ export function showGridTooltip(e, idx, overlayOverride) {
     const afterShape = bonus * (1 + SHAPE_BONUS_PCT[si] / 100);
     html += '<div class="tt-shape" style="color:' + SHAPE_COLORS[si] + '">' + SHAPE_NAMES[si] + ' (+' + SHAPE_BONUS_PCT[si] + '%): ' + afterShape.toFixed(1) + '</div>';
   }
-  if (allBonusMulti !== 1) {
-    html += '<div style="color:var(--cyan)">Grid AllMulti (x' + allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
+  if (S.allBonusMulti !== 1) {
+    html += '<div style="color:var(--cyan)">Grid AllMulti (x' + S.allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
   } else if (si < 0 && bonus > 0) {
     html += '<div style="color:var(--gold)">Final: ' + finalBonus.toFixed(1) + '</div>';
   }
-  html += '<div class="tt-desc">' + _formatDesc(idx) + '</div>';
+  html += '<div class="tt-desc">' + formatDesc(idx, undefined, _dSaveCtx) + '</div>';
 
   // Next level preview
   const maxLv = info[1];
   if (lv < maxLv) {
     html += '<div style="margin-top:4px;border-top:1px solid #444;padding-top:4px;color:#aaa;font-size:.9em;">';
-    html += '<span style="color:var(--cyan)">LV ' + (lv+1) + ':</span> ' + _formatDesc(idx, lv + 1);
+    html += '<span style="color:var(--cyan)">LV ' + (lv+1) + ':</span> ' + formatDesc(idx, lv + 1, _dSaveCtx);
     html += '</div>';
   } else if (lv > 0) {
     html += '<div style="margin-top:4px;border-top:1px solid #444;padding-top:4px;color:#666;font-size:.9em;">Max level</div>';
@@ -216,14 +181,13 @@ export function showGridTooltip(e, idx, overlayOverride) {
   moveTooltip(e);
 }
 
-// Re-export tooltip primitives for external consumers
-export { hideTooltip, moveTooltip, attachTooltip } from './tooltip.js';
+
 
 function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   const tt = document.getElementById('tooltip');
   const occ = OCC_DATA[obsIdx];
   const name = occ ? occ.name.replace(/_/g, ' ') : 'Obs #' + obsIdx;
-  const lv = insightLvs[obsIdx] || 0;
+  const lv = S.insightLvs[obsIdx] || 0;
   const t = obsIdx;
 
   const basePerMag = obsBaseExp(t);
@@ -244,7 +208,7 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   if (gd101 > 0) html += '<div style="color:#aaa">GD101 (x' + gd101.toFixed(1) + '% x LV ' + lv + '): <span style="color:var(--text)">x' + gd101Multi.toFixed(3) + '</span></div>';
   if (adjKal > 0) html += '<div style="color:#aaa">Kalei (' + adjKal + ' adj x ' + (kalBase*100).toFixed(1) + '%): <span style="color:var(--cyan)">x' + kalMulti.toFixed(3) + '</span></div>';
   html += '<div style="color:#aaa">Per magnifier: <span style="color:var(--green)">' + perMagFinal.toFixed(2) + '</span></div>';
-  const resMulti = simTotalExp().multi;
+  const resMulti = simTotalExp(_simOpts, _dSaveCtx).multi;
   const totalFinal = totalExp * resMulti;
   if (mags > 0) {
     html += '<div style="color:var(--green);font-weight:700">Obs EXP/hr: ' + totalExp.toFixed(1) + ' (' + mags + ' mag' + (mags>1?'s':'') + ')</div>';
@@ -260,7 +224,7 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   }
   // Insight progress
   const iReq = insightExpReqAt(obsIdx, lv);
-  const iProg = insightProgress[obsIdx] || 0;
+  const iProg = S.insightProgress[obsIdx] || 0;
   if (iReq > 0) {
     const pct = Math.min(100, iProg / iReq * 100);
     html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
@@ -286,35 +250,36 @@ function _bNode(label, val, children, opts) {
 function _gbNode(idx, label, opts) {
   const info = RES_GRID_RAW[idx];
   if (!info) return _bNode(label || 'Grid #' + idx, 0, null, opts);
-  const lv = gridLevels[idx] || 0;
+  const lv = S.gridLevels[idx] || 0;
   const bonusPerLv = info[2];
   const base = bonusPerLv * lv;
-  const si = shapeOverlay[idx];
+  const si = S.shapeOverlay[idx];
   const hasShape = si >= 0 && si < SHAPE_BONUS_PCT.length;
   const shapePct = hasShape ? SHAPE_BONUS_PCT[si] : 0;
   const shapeMult = 1 + shapePct / 100;
-  const final = base * shapeMult * allBonusMulti;
+  const final = base * shapeMult * S.allBonusMulti;
   const coord = gridCoord(idx);
-  const comp55val = companionIds.has(55) ? 15 : 0;
-  const comp0owned = companionIds.has(0);
-  const comp0val = comp0owned && cachedComp0DivOk && (gridLevels[173] || 0) > 0 ? 5 : 0;
+  const comp55val = S.companionIds.has(55) ? 15 : 0;
+  const comp0owned = S.companionIds.has(0);
+  const comp0val = comp0owned && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
   return _bNode(label || 'Grid ' + coord + ': ' + (info[1] || '#' + idx), final, [
     _bNode('Bonus', base, [
       _bNode('Base', bonusPerLv, null, { fmt: '%' }),
       _bNode('Level', lv, null, { fmt: 'x' })
     ], { fmt: '%' }),
     _bNode('Shape Bonus' + (hasShape ? ' (' + SHAPE_NAMES[si] + ')' : ''), shapeMult, null, { fmt: 'x', note: hasShape ? '' : 'No shape' }),
-    _bNode('All Bonus Multi', allBonusMulti, [
+    _bNode('All Bonus Multi', S.allBonusMulti, [
       _bNode('Pirate Deckhand', comp55val, null, { fmt: '%' }),
-      _bNode('Grid ' + gridCoord(173) + ': Divine Design', comp0val, null, { fmt: '%', note: comp0owned ? (cachedComp0DivOk ? ((gridLevels[173]||0) > 0 ? '' : 'Node LV 0') : 'Doot divine < 2') : 'Doot not owned' })
+      _bNode('Grid ' + gridCoord(173) + ': Divine Design', comp0val, null, { fmt: '%', note: comp0owned ? (S.cachedComp0DivOk ? ((S.gridLevels[173]||0) > 0 ? '' : 'Node LV 0') : 'Doot divine < 2') : 'Doot not owned' })
     ], { fmt: 'x' })
   ], opts);
 }
 
 function buildExpBreakdownTree() {
-  const ext = extBonuses || computeExternalBonuses();
-  const rate = simTotalExp();
-  const occTBF = computeOccurrencesToBeFound(researchLevel, occFound);
+  const ext = S.extBonuses;
+  if (!ext) return null;
+  const rate = simTotalExp(_simOpts, _dSaveCtx);
+  const occTBF = computeOccurrencesToBeFound(_dSaveCtx.researchLevel, _dSaveCtx.occFound);
   const addChildren = [];
 
   // Grid-based additive bonuses
@@ -330,7 +295,7 @@ function buildExpBreakdownTree() {
 
   // Grid 112 x occFoundCount
   let occFoundCount = 0;
-  for (let i = 0; i < occTBF; i++) if ((occFound[i] || 0) >= 1) occFoundCount++;
+  for (let i = 0; i < occTBF; i++) if ((S.occFound[i] || 0) >= 1) occFoundCount++;
   const gb112raw = getGridBonusFinal(112);
   addChildren.push(_bNode('Grid ' + gridCoord(112) + ': See Em All', gb112raw * occFoundCount, [
     _gbNode(112, 'Per-Insight Level', { fmt: '%' }),
@@ -347,14 +312,14 @@ function buildExpBreakdownTree() {
 
   // ---- External sources ----
   // Sticker
-  const stkLv = research?.[9]?.[1] || 0;
+  const stkLv = S.research?.[9]?.[1] || 0;
   const stkBase = STICKER_BASE[1] || 5;
-  const boonyCount = research?.[11]?.length || 0;
+  const boonyCount = S.research?.[11]?.length || 0;
   const gb68val = getGridBonusFinal(68);
   const gb68mode2 = gb68val * boonyCount;
-  const evShop37 = eventShopOwned(37);
+  const evShop37 = _dSaveCtx.cachedEvShop37;
   const stkCrownMulti = 1 + (gb68mode2 + 30 * evShop37) / 100;
-  const stkSB62 = 1 + 20 * superBitType(62) / 100;
+  const stkSB62 = 1 + 20 * _dSaveCtx.sb62 / 100;
   addChildren.push(_bNode('Farming: Laissez Maize Sticker', ext.sticker?.val || 0, [
     _bNode('Sticker', stkBase * stkLv, [
       _bNode('Base', stkBase, null, { fmt: '%' }),
@@ -371,7 +336,7 @@ function buildExpBreakdownTree() {
   ], { fmt: '%' }));
 
   // Dancing Coral
-  const tower22 = towerData[22] || 0;
+  const tower22 = S.towerData[22] || 0;
   const dcBase = DANCING_CORAL_BASE[4] || 3;
   const dcProgress = Math.max(0, tower22 - 200);
   addChildren.push(_bNode('Clover Shrine', ext.dancingCoral?.val || 0, [
@@ -380,7 +345,7 @@ function buildExpBreakdownTree() {
   ], { fmt: '%' }));
 
   // Zenith Market
-  const zmLevel = spelunkData?.[45]?.[8] || 0;
+  const zmLevel = S.spelunkData?.[45]?.[8] || 0;
   addChildren.push(_bNode('Zenith Market', ext.zenithMarket?.val || 0, null, { fmt: '%' }));
 
   // Cards
@@ -393,8 +358,8 @@ function buildExpBreakdownTree() {
   addChildren.push(_bNode('Prehistoric Set', ext.prehistoricSet?.val || 0, null, { fmt: '%' }));
 
   // Slabbo
-  const hasSB34 = superBitType(34);
-  const c1len = cards1Data.length || 0;
+  const hasSB34 = _dSaveCtx.sb34;
+  const c1len = S.cards1Data.length || 0;
   const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
   const slabboMF15 = mainframeBonus(15);
   const slabboMeritoc23 = computeMeritocBonusz(23);
@@ -413,9 +378,9 @@ function buildExpBreakdownTree() {
   addChildren.push(_bNode('Arcade: Research XP', ext.arcade?.val || 0, null, { fmt: '%' }));
 
   // Meal (Giga Chip) - deep decomposition
-  const mealLv = mealsData?.[0]?.[72] || 0;
-  const ribT = ribbonData[100] || 0;
-  const ribBon = ribbonBonusAt(100);
+  const mealLv = S.mealsData?.[0]?.[72] || 0;
+  const ribT = S.ribbonData[100] || 0;
+  const ribBon = _dSaveCtx.ribbon100;
   const mfb116 = mainframeBonus(116);
   const shinyS20 = computeShinyBonusS(20);
   const winBon26 = computeWinBonus(26);
@@ -424,14 +389,14 @@ function buildExpBreakdownTree() {
   // WinBonus(26) decomposition
   const swb = computeSummWinBonus();
   const swbRaw = swb[26] || 0;
-  const pristine8 = (ninjaData?.[107]?.[8] === 1) ? 30 : 0;
-  const gemItems11 = Number(gemItemsData[11]) || 0;
-  const artRarity = Number(sailingData?.[3]?.[32]) || 0;
+  const pristine8 = (S.ninjaData?.[107]?.[8] === 1) ? 30 : 0;
+  const gemItems11 = Number(S.gemItemsData[11]) || 0;
+  const artRarity = Number(S.sailingData?.[3]?.[32]) || 0;
   const artBonus32 = artRarity > 0 ? (ARTIFACT_BASE[32] || 25) * artRarity : 0;
-  const taskVal = Math.min(10, Number(tasksGlobalData?.[2]?.[5]?.[4]) || 0);
+  const taskVal = Math.min(10, Number(S.tasksGlobalData?.[2]?.[5]?.[4]) || 0);
   const wb31 = swb[31] || 0;
   const empBon8 = computeEmperorBon(8);
-  const godshardSet = String(olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
+  const godshardSet = String(S.olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
   const ach379 = achieveStatus(379);
   const ach373 = achieveStatus(373);
 
@@ -450,7 +415,7 @@ function buildExpBreakdownTree() {
     ], { fmt: 'x' })
   ], { fmt: 'x' });
 
-  const hasEmpSet = String(olaData[379] || '').includes('EMPEROR_SET');
+  const hasEmpSet = String(S.olaData[379] || '').includes('EMPEROR_SET');
   const empTermVal = hasEmpSet ? Math.floor(ribT / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
 
   const ribBase = ribT > 0 ? Math.floor(5 * ribT + Math.floor(ribT / 2) * (4 + 6.5 * Math.floor(ribT / 5))) : 0;
@@ -474,14 +439,14 @@ function buildExpBreakdownTree() {
   ], { fmt: '%' }));
 
   // Crop Scientist
-  const hasEmp44 = emporiumBonus(44);
-  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (farmCropCount - 200) / 10)) : 0;
+  const hasEmp44 = _dSaveCtx.emp44;
+  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (S.farmCropCount - 200) / 10)) : 0;
   const mf17 = mainframeBonus(17);
   const gub22 = grimoireUpgBonus22();
   const exo40 = exoticBonusQTY40();
   const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40) / 100);
   addChildren.push(_bNode('Crop Scientist', ext.cropSC?.val || 0, hasEmp44 ? [
-    _bNode('Base (' + farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
+    _bNode('Base (' + S.farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
     _bNode('Multi', cropSCmulti, [
       _bNode('Depot Studies PhD', 1 + mf17 / 100, null, { fmt: 'x' }),
       _bNode('Crop Research Multi', 1 + (gub22 + exo40) / 100, [
@@ -492,13 +457,13 @@ function buildExpBreakdownTree() {
   ] : null, { fmt: '%', note: hasEmp44 ? '' : 'Science Chalk locked' }));
 
   // MSA
-  const hasSB44 = superBitType(44);
-  const tdWaves = Array.isArray(totemInfoData[0]) ? totemInfoData[0] : [];
+  const hasSB44 = _dSaveCtx.sb44;
+  const tdWaves = Array.isArray(S.totemInfoData[0]) ? S.totemInfoData[0] : [];
   const tdNames = ['W1: Forest Outskirts', 'W2: Up Up Down Down', 'W1: The Roots', 'W3: Rollin\' Tundra', 'W4: Mountainous Deugh', 'W5: OJ Bay', 'W6: Above the Clouds', 'W7: Puffpuff Overpass'];
   const gamingStars = tdWaves.reduce(function(a,v) { return a + (Number(v)||0); }, 0);
   const msaEff = Math.max(0, Math.floor((gamingStars - 300) / 10));
   const tdChildren = [];
-  for (var ti = 0; ti < tdWaves.length; ti++) {
+  for (let ti = 0; ti < tdWaves.length; ti++) {
     if (!tdNames[ti]) continue;
     tdChildren.push(_bNode(tdNames[ti], Number(tdWaves[ti]) || 0));
   }
@@ -507,17 +472,17 @@ function buildExpBreakdownTree() {
   ] : null, { fmt: '%', note: hasSB44 ? 'floor((Total Waves - 300) / 10) x 0.3' : 'MSA Research locked' }));
 
   // Lore / Tome
-  const loreEpisodes = spelunkData?.[13]?.[2] || 0;
-  if (loreEpisodes > 7 && totalTomePoints > 0) {
-    const g17 = grimoireData?.[17] || 0;
-    const trollSet = String(olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
+  const loreEpisodes = S.spelunkData?.[13]?.[2] || 0;
+  if (loreEpisodes > 7 && S.totalTomePoints > 0) {
+    const g17 = S.grimoireData?.[17] || 0;
+    const trollSet = String(S.olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
     const loreMult = 1 + (g17 + trollSet) / 100;
-    const x = Math.floor(Math.max(0, totalTomePoints - 16000) / 100);
+    const x = Math.floor(Math.max(0, S.totalTomePoints - 16000) / 100);
     const xp = Math.pow(x, 0.7);
     const decayVal = 20 * Math.max(0, xp / (25 + xp));
     addChildren.push(_bNode('Tome Bonus', ext.loreEpi?.val || 0, [
       _bNode('Base', decayVal, [
-        _bNode('Scaled Points (' + totalTomePoints + ')', x, null, { note: 'floor((Tome Points - 16000) / 100)' })
+        _bNode('Scaled Points (' + S.totalTomePoints + ')', x, null, { note: 'floor((Tome Points - 16000) / 100)' })
       ], { fmt: '%', note: '20 x Scaled^0.7 / (25 + Scaled^0.7)' }),
       _bNode('Tome Multi', loreMult, [
         _bNode('DB: Grey Tome Book', g17, null, { fmt: '%' }),
@@ -549,7 +514,7 @@ function buildExpBreakdownTree() {
   const rootChildren = [];
   rootChildren.push(_bNode('Observation Base', rate.obsBase, null, { fmt: '/hr' }));
   rootChildren.push(additiveNode);
-  var tnNode = _gbNode(70, "Takin' Notes");
+  const tnNode = _gbNode(70, "Takin' Notes");
   tnNode.val = 1 + takinNotesVal / 100;
   tnNode.fmt = 'x';
   rootChildren.push(tnNode);
@@ -579,11 +544,11 @@ function buildAFKBreakdownTree() {
   addChildren.push(_bNode('Minehead Floor 11', p.minehead10.val, null, { fmt: '%', note: p.minehead10.note }));
 
   // Grid bonuses (with full decomposition)
-  var gb71Node = _gbNode(71, 'Powered Down Research');
+  const gb71Node = _gbNode(71, 'Powered Down Research');
   gb71Node.fmt = '%';
   addChildren.push(gb71Node);
 
-  var gb111Node = _gbNode(111, 'Research AFK Gains');
+  const gb111Node = _gbNode(111, 'Research AFK Gains');
   gb111Node.fmt = '%';
   addChildren.push(gb111Node);
 
@@ -602,9 +567,9 @@ function buildAFKBreakdownTree() {
 
 // ===== INSIGHT MULTIPLIER BREAKDOWN TREE =====
 function buildInsightBreakdownTree() {
-  var gb92Node = _gbNode(92, 'Oracular Spectacular');
+  const gb92Node = _gbNode(92, 'Oracular Spectacular');
   gb92Node.fmt = '%';
-  var gb91Node = _gbNode(91, 'Optical Monocle');
+  const gb91Node = _gbNode(91, 'Optical Monocle');
   gb91Node.fmt = '%';
 
   const children = [gb92Node, gb91Node];
@@ -622,13 +587,14 @@ function buildInsightBreakdownTree() {
   ], { fmt: '/hr' });
 }
 
-var _btTreeCounter = 0;
+let _btTreeCounter = 0;
 function renderBreakdownTree(root, container) {
-  var prefix = 'bt' + (_btTreeCounter++) + '-';
-  var idCounter = 0;
+  if (!root) { container.innerHTML = ''; return; }
+  const prefix = 'bt' + (_btTreeCounter++) + '-';
+  let idCounter = 0;
 
   function fmtNodeVal(node) {
-    var v = node.val;
+    const v = node.val;
     if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
@@ -646,16 +612,16 @@ function renderBreakdownTree(root, container) {
   }
 
   function buildHtml(node, depth) {
-    var id = prefix + (idCounter++);
-    var has = node.children && node.children.length > 0;
-    var pad = depth * 18;
+    const id = prefix + (idCounter++);
+    const has = node.children && node.children.length > 0;
+    const pad = depth * 18;
     // depth 0 = root (Total), depth 1 = additive group / multipliers - start expanded
-    var startOpen = depth <= 1;
-    var arrow = has ? '<span class="bt-arrow" data-id="' + id + '">' + (startOpen ? '\u25be' : '\u25b8') + '</span>' : '<span style="display:inline-block;width:14px;"></span>';
-    var cls = 'bt-row';
+    const startOpen = depth <= 1;
+    const arrow = has ? '<span class="bt-arrow" data-id="' + id + '">' + (startOpen ? '\u25be' : '\u25b8') + '</span>' : '<span style="display:inline-block;width:14px;"></span>';
+    let cls = 'bt-row';
     if (depth === 0) cls += ' bt-root';
-    var noteAttr = node.note ? ' data-bt-note="' + node.note.replace(/"/g, '&quot;') + '"' : '';
-    var html = '<div class="' + cls + '"' + noteAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
+    const noteAttr = node.note ? ' data-bt-note="' + node.note.replace(/"/g, '&quot;') + '"' : '';
+    let html = '<div class="' + cls + '"' + noteAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
     html += arrow;
     html += '<span class="bt-label">' + node.label + '</span>';
     if (node.note) html += '';
@@ -663,7 +629,7 @@ function renderBreakdownTree(root, container) {
     html += '</div>';
     if (has) {
       html += '<div class="bt-children" id="' + id + '" style="' + (startOpen ? '' : 'display:none;') + '">';
-      for (var ci = 0; ci < node.children.length; ci++) {
+      for (let ci = 0; ci < node.children.length; ci++) {
         html += buildHtml(node.children[ci], depth + 1);
       }
       html += '</div>';
@@ -671,43 +637,43 @@ function renderBreakdownTree(root, container) {
     return html;
   }
 
-  var html = '<div class="bt-controls"><button class="btn btn-sm bt-expand-all">Expand All</button><button class="btn btn-sm bt-collapse-all">Collapse All</button></div>';
+  let html = '<div class="bt-controls"><button class="btn btn-sm bt-expand-all">Expand All</button><button class="btn btn-sm bt-collapse-all">Collapse All</button></div>';
   html += '<div class="bt-tree">' + buildHtml(root, 0) + '</div>';
   container.innerHTML = html;
 
   // Toggle handlers - use onclick to avoid stacking on re-render
   container.onmouseover = function(e) {
-    var row = e.target.closest('.bt-row[data-bt-note]');
+    const row = e.target.closest('.bt-row[data-bt-note]');
     if (!row) return;
-    var tt = document.getElementById('tooltip');
+    const tt = document.getElementById('tooltip');
     tt.innerHTML = '<div class="tt-desc">' + row.getAttribute('data-bt-note') + '</div>';
     tt.style.display = 'block';
     moveTooltip(e);
   };
   container.onmousemove = function(e) {
-    var row = e.target.closest('.bt-row[data-bt-note]');
+    const row = e.target.closest('.bt-row[data-bt-note]');
     if (row) moveTooltip(e);
   };
   container.onmouseout = function(e) {
-    var row = e.target.closest('.bt-row[data-bt-note]');
+    const row = e.target.closest('.bt-row[data-bt-note]');
     if (row && !row.contains(e.relatedTarget)) hideTooltip();
   };
   container.onclick = function(e) {
     if (e.target.closest('.bt-controls')) return;
-    var row = e.target.closest('.bt-row');
+    const row = e.target.closest('.bt-row');
     if (!row) return;
-    var arrow = row.querySelector('.bt-arrow');
+    const arrow = row.querySelector('.bt-arrow');
     if (!arrow) return;
-    var targetId = arrow.dataset.id;
-    var childDiv = document.getElementById(targetId);
+    const targetId = arrow.dataset.id;
+    const childDiv = document.getElementById(targetId);
     if (!childDiv) return;
-    var open = childDiv.style.display !== 'none';
+    const open = childDiv.style.display !== 'none';
     childDiv.style.display = open ? 'none' : '';
     arrow.textContent = open ? '\u25b8' : '\u25be';
   };
 
-  var expandBtn = container.querySelector('.bt-expand-all');
-  var collapseBtn = container.querySelector('.bt-collapse-all');
+  const expandBtn = container.querySelector('.bt-expand-all');
+  const collapseBtn = container.querySelector('.bt-collapse-all');
   if (expandBtn) expandBtn.onclick = function(e) {
     e.stopPropagation();
     container.querySelectorAll('.bt-children').forEach(function(el) { el.style.display = ''; });
@@ -721,24 +687,27 @@ function renderBreakdownTree(root, container) {
 }
 
 // ===== RENDER: DASHBOARD =====
-export function renderDashboard() {
+export function renderDashboard(saveCtx) {
   _btTreeCounter = 0;
+  _dSaveCtx = saveCtx || buildSaveContext();
+  _dCtx = makeCtx(_dSaveCtx.gridLevels, _dSaveCtx);
+  _simOpts = { gridLevels: _dSaveCtx.gridLevels, shapeOverlay: _dSaveCtx.shapeOverlay, magData: _dSaveCtx.magData, insightLvs: _dSaveCtx.insightLvs, occFound: _dSaveCtx.occFound, researchLevel: _dSaveCtx.researchLevel };
   // Summary
   const sumDiv = document.getElementById('dash-summary');
-  const curRate = simTotalExp();
+  const curRate = simTotalExp(_simOpts, _dSaveCtx);
   const afkRate = cachedAFKRate || computeAFKGainsRate();
   const expReq = getResearchExpRequired();
-  const expCur = getResearchCurrentExp();
+  const expCur = getResearchCurrentExp(_dSaveCtx);
   const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
   sumDiv.innerHTML = `
     <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:12px;">
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${researchLevel}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${S.researchLevel}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(curRate.total)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(curRate.total)}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(timeToNext)}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(afkRate.rate * 100).toFixed(1)}%</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magnifiersOwned}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${magMaxPerSlot}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable()} free</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${S.magnifiersOwned}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${S.magMaxPerSlot}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(S.researchLevel, S.gridLevels, _dSaveCtx.cachedSpelunkyUpg7)} free</div></div>
     </div>
     <div style="max-width:420px;margin:8px auto 4px;padding:0 12px;">
       <div style="height:22px;background:#1a1a2e;border-radius:11px;overflow:hidden;border:1px solid #333;">
@@ -758,7 +727,7 @@ export function renderDashboard() {
     cell.className = 'grid-cell';
     const info = RES_GRID_RAW[i];
     if (info) {
-      const lv = gridLevels[i] || 0;
+      const lv = S.gridLevels[i] || 0;
       const maxLv = info[1];
       cell.classList.add('active');
       if (lv >= maxLv) cell.classList.add('maxed');
@@ -770,14 +739,14 @@ export function renderDashboard() {
     }
 
     // Shape overlay - connected borders
-    const si = shapeOverlay[i];
+    const si = S.shapeOverlay[i];
     if (si >= 0) {
       const color = SHAPE_COLORS[si];
       const col = i % COLS;
-      const top = !sameShapeCell(shapeOverlay, i, i - COLS);
-      const bottom = !sameShapeCell(shapeOverlay, i, i + COLS);
-      const left = col > 0 ? !sameShapeCell(shapeOverlay, i, i - 1) : true;
-      const right = col < COLS - 1 ? !sameShapeCell(shapeOverlay, i, i + 1) : true;
+      const top = !sameShapeCell(S.shapeOverlay, i, i - COLS);
+      const bottom = !sameShapeCell(S.shapeOverlay, i, i + COLS);
+      const left = col > 0 ? !sameShapeCell(S.shapeOverlay, i, i - 1) : true;
+      const right = col < COLS - 1 ? !sameShapeCell(S.shapeOverlay, i, i + 1) : true;
       const overlay = document.createElement('div');
       overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:.5;'
         + 'background:' + color + '22;'
@@ -794,8 +763,8 @@ export function renderDashboard() {
 
   // SVG shape polygon overlay
   const activeShapes = new Set();
-  for (let i = 0; i < shapeOverlay.length; i++) {
-    if (shapeOverlay[i] >= 0) activeShapes.add(shapeOverlay[i]);
+  for (let i = 0; i < S.shapeOverlay.length; i++) {
+    if (S.shapeOverlay[i] >= 0) activeShapes.add(S.shapeOverlay[i]);
   }
   if (activeShapes.size > 0) {
     const svgNS = 'http://www.w3.org/2000/svg';
@@ -825,7 +794,7 @@ export function renderDashboard() {
 
   // Shape legend with rasterized footprints
   // Remove previous legend if any (prevents duplication on re-render)
-  var oldLegend = gridDiv.parentNode.querySelector('.shape-legend');
+  const oldLegend = gridDiv.parentNode.querySelector('.shape-legend');
   if (oldLegend) oldLegend.remove();
   if (activeShapes.size > 0) {
     const legend = document.createElement('div');
@@ -835,8 +804,8 @@ export function renderDashboard() {
     for (const si of sortedShapes) {
       // Collect cells covered by this shape
       const cells = [];
-      for (let ci = 0; ci < shapeOverlay.length; ci++) {
-        if (shapeOverlay[ci] === si) cells.push(ci);
+      for (let ci = 0; ci < S.shapeOverlay.length; ci++) {
+        if (S.shapeOverlay[ci] === si) cells.push(ci);
       }
       if (cells.length === 0) continue;
       const sc = SHAPE_COLORS[si] || '#888';
@@ -863,7 +832,7 @@ export function renderDashboard() {
 
       const item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:.75em;white-space:nowrap;';
-      var coordStr = cells.map(c => gridCoord(c)).join(', ');
+      const coordStr = cells.map(c => gridCoord(c)).join(', ');
       item.innerHTML = fpHtml +
         '<span style="color:' + sc + ';font-weight:600;">' + SHAPE_NAMES[si] + '</span>' +
         ' <span style="opacity:.6;">(' + SHAPE_BONUS_PCT[si] + '%)</span>' +
@@ -877,20 +846,20 @@ export function renderDashboard() {
   // Observations - v1-style: 8 cols, full names, text mag indicators, EXP*multi, insight rate, hover tooltip
   const obsDiv = document.getElementById('dash-obs');
   obsDiv.innerHTML = '';
-  const occTBF = computeOccurrencesToBeFound(researchLevel, occFound);
+  const occTBF = computeOccurrencesToBeFound(S.researchLevel, S.occFound);
   const kalMap = buildKaleiMap();
-  const resMulti = simTotalExp().multi;
+  const resMulti = simTotalExp(_simOpts, _dSaveCtx).multi;
 
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     const cell = document.createElement('div');
-    const found = occFound[i] >= 1;
+    const found = S.occFound[i] >= 1;
     cell.className = 'obs-cell ' + (found ? 'found' : 'not-found');
 
     const name = OCC_DATA[i] ? OCC_DATA[i].name.replace(/_/g,' ') : 'Obs #' + i;
-    const lv = insightLvs[i] || 0;
+    const lv = S.insightLvs[i] || 0;
 
     let mags = 0, monos = 0, kaleis = 0;
-    for (const m of magData) {
+    for (const m of S.magData) {
       if (m.slot === i) {
         if (m.type === 0) mags++;
         else if (m.type === 1) monos++;
