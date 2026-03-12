@@ -8,44 +8,20 @@
 //   const saveCtx = buildSaveContext();      // capture once after loading save
 //   const result  = await unifiedSim(config, saveCtx);  // fully deterministic
 
-import {
-  cachedBoonyCount,
-  cachedComp0DivOk,
-  cachedEvShop37,
-  cachedExtPctExSticker,
-  cachedResearchExp,
-  cachedSpelunkyUpg7,
-  cachedStickerFixed,
-  comp52TrueMulti,
-  companionIds,
-  externalResearchPct,
-  gridLevels,
-  insightLvs,
-  insightProgress,
-  magData,
-  magMaxPerSlot,
-  magnifiersOwned,
-  occFound,
-  researchLevel,
-  serverVarResXP,
-  shapeOverlay,
-  shapeTiers,
-  _covLUTCache,
-  _covLUTCacheN,
-} from '../state.js';
+import {  S  } from '../state.js';
 import {
   OBS_BASE_EXP,
-  _buildKalMap,
+  buildKalMap,
   calcAllBonusMultiWith,
   computeGridPointsEarned,
   computeGridPointsSpent,
   computeOccurrencesToBeFound,
   computeShapesOwnedAt,
-  _gbWith,
+  gbWith,
   getKaleiMultiBase as _getKaleiMultiBasePure,
   simTotalExpWith,
 } from '../sim-math.js';
-import { eventShopOwned } from './helpers.js';
+import { eventShopOwned, superBitType, emporiumBonus, ribbonBonusAt } from './helpers.js';
 import { mineheadBonusQTY } from './external.js';
 
 /**
@@ -56,109 +32,108 @@ import { mineheadBonusQTY } from './external.js';
 export function buildSaveContext() {
   return {
     // Server variable for research EXP curve
-    serverVarResXP,
+    serverVarResXP: S.serverVarResXP,
 
     // Companion booleans
-    companionHas55: companionIds.has(55),
-    companionHas54: companionIds.has(54),
-    companionHas0:  companionIds.has(0),
-    cachedComp0DivOk,
+    companionHas55: S.companionIds.has(55),
+    companionHas54: S.companionIds.has(54),
+    companionHas0:  S.companionIds.has(0),
+    cachedComp0DivOk: S.cachedComp0DivOk,
 
     // Cached scalars used by makeCtx
-    comp52TrueMulti,
-    cachedStickerFixed,
-    cachedBoonyCount,
-    cachedEvShop37,
-    cachedExtPctExSticker,
-    cachedSpelunkyUpg7,
-    cachedResearchExp,
+    comp52TrueMulti: S.comp52TrueMulti,
+    cachedStickerFixed: S.cachedStickerFixed,
+    cachedBoonyCount: S.cachedBoonyCount,
+    cachedEvShop37: S.cachedEvShop37,
+    cachedExtPctExSticker: S.cachedExtPctExSticker,
+    cachedSpelunkyUpg7: S.cachedSpelunkyUpg7,
+    cachedResearchExp: S.cachedResearchExp,
 
     // Pre-computed shop/minehead constants (avoid global-reading functions)
     evShop33: eventShopOwned(33),
     evShop34: eventShopOwned(34),
+    evShop35: eventShopOwned(35),
     evShop36: eventShopOwned(36),
+    sb34: superBitType(34),
+    sb44: superBitType(44),
+    sb62: superBitType(62),
+    emp44: emporiumBonus(44),
+    ribbon100: ribbonBonusAt(100),
     mhq2:  mineheadBonusQTY(2),
     mhq12: mineheadBonusQTY(12),
     mhq20: mineheadBonusQTY(20),
 
     // Mutable-array defaults (used as fallbacks in unifiedSim when config
     // doesn't override).  Stored as references - callers .slice() before mutation.
-    gridLevels,
-    insightLvs,
-    insightProgress,
-    occFound,
-    shapeOverlay,
-    magData,
-    magnifiersOwned,
-    researchLevel,
-    magMaxPerSlot,
+    gridLevels: S.gridLevels,
+    insightLvs: S.insightLvs,
+    insightProgress: S.insightProgress,
+    occFound: S.occFound,
+    shapeOverlay: S.shapeOverlay,
+    magData: S.magData,
+    magnifiersOwned: S.magnifiersOwned,
+    researchLevel: S.researchLevel,
+    magMaxPerSlot: S.magMaxPerSlot,
+    shapePositions: S.shapePositions,
+    cachedFailedRolls: S.cachedFailedRolls,
 
     // Shape cache (mutable - updated in-place during sim)
-    shapeTiers,
-    covLUTCache:  _covLUTCache,
-    covLUTCacheN: _covLUTCacheN,
+    shapeTiers: S.shapeTiers,
+    covLUTCache:  S._covLUTCache,
+    covLUTCacheN: S._covLUTCacheN,
 
     // Display-only (not used by sim math, but handy for callers)
-    externalResearchPct,
+    externalResearchPct: S.externalResearchPct,
   };
 }
 
-// ===== Stateful wrappers - read module-level state, delegate to pure sim-math =====
+// ===== Stateful wrappers - delegate to pure sim-math via saveCtx =====
 
 export function makeCtx(gl, saveCtx) {
-  const hasComp55     = saveCtx ? saveCtx.companionHas55 : companionIds.has(55);
-  const hasComp0DivOk = saveCtx ? (saveCtx.companionHas0 && saveCtx.cachedComp0DivOk) : (companionIds.has(0) && cachedComp0DivOk);
+  const hasComp55     = saveCtx.companionHas55;
+  const hasComp0DivOk = saveCtx.companionHas0 && saveCtx.cachedComp0DivOk;
   return {
     abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk),
-    c52:            saveCtx ? saveCtx.comp52TrueMulti      : comp52TrueMulti,
-    stickerFixed:   saveCtx ? saveCtx.cachedStickerFixed   : cachedStickerFixed,
-    boonyCount:     saveCtx ? saveCtx.cachedBoonyCount     : cachedBoonyCount,
-    evShop37:       saveCtx ? saveCtx.cachedEvShop37       : cachedEvShop37,
-    extPctExSticker:saveCtx ? saveCtx.cachedExtPctExSticker: cachedExtPctExSticker,
+    c52:            saveCtx.comp52TrueMulti,
+    stickerFixed:   saveCtx.cachedStickerFixed,
+    boonyCount:     saveCtx.cachedBoonyCount,
+    evShop37:       saveCtx.cachedEvShop37,
+    extPctExSticker:saveCtx.cachedExtPctExSticker,
     hasComp55,
     hasComp0DivOk,
-    hasComp54:      saveCtx ? saveCtx.companionHas54       : companionIds.has(54),
-    evShop33:       saveCtx ? saveCtx.evShop33  : eventShopOwned(33),
-    evShop34:       saveCtx ? saveCtx.evShop34  : eventShopOwned(34),
-    evShop36:       saveCtx ? saveCtx.evShop36  : eventShopOwned(36),
-    mhq2:          saveCtx ? saveCtx.mhq2   : mineheadBonusQTY(2),
-    mhq12:         saveCtx ? saveCtx.mhq12  : mineheadBonusQTY(12),
-    mhq20:         saveCtx ? saveCtx.mhq20  : mineheadBonusQTY(20),
-    spelunkyUpg7:   saveCtx ? saveCtx.cachedSpelunkyUpg7   : cachedSpelunkyUpg7,
-    serverVarResXP: saveCtx ? saveCtx.serverVarResXP       : serverVarResXP,
+    hasComp54:      saveCtx.companionHas54,
+    evShop33:       saveCtx.evShop33,
+    evShop34:       saveCtx.evShop34,
+    evShop36:       saveCtx.evShop36,
+    mhq2:          saveCtx.mhq2,
+    mhq12:         saveCtx.mhq12,
+    mhq20:         saveCtx.mhq20,
+    spelunkyUpg7:   saveCtx.cachedSpelunkyUpg7,
+    serverVarResXP: saveCtx.serverVarResXP,
   };
-}
-
-export function ctxFrom(s, saveCtx) {
-  return makeCtx(s.gl, saveCtx);
 }
 
 export function getResearchCurrentExp(saveCtx) {
-  return saveCtx ? saveCtx.cachedResearchExp : cachedResearchExp;
+  return saveCtx.cachedResearchExp;
 }
 
-export function computeShapesOwned() {
-  return computeShapesOwnedAt(researchLevel, makeCtx(gridLevels));
+export function computeShapesOwned(rLv, gl, saveCtx) {
+  return computeShapesOwnedAt(rLv, makeCtx(gl, saveCtx));
 }
 
-export function computeGridPointsAvailable() {
-  return Math.max(0, computeGridPointsEarned(researchLevel, cachedSpelunkyUpg7) - computeGridPointsSpent(gridLevels));
+export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7) {
+  return Math.max(0, computeGridPointsEarned(rLv, spelunkyUpg7) - computeGridPointsSpent(gl));
 }
 
-export function simTotalExp(opts = {}, saveCtx) {
-  const gl = opts.gridLevels || gridLevels;
-  const so = opts.shapeOverlay || shapeOverlay;
-  const md = opts.magData || magData;
-  const il = opts.insightLvs || insightLvs;
-  const occ = opts.occFound || occFound;
-  const rLv = opts.researchLevel !== undefined ? opts.researchLevel : researchLevel;
+export function simTotalExp(opts, saveCtx) {
+  const { gridLevels: gl, shapeOverlay: so, magData: md, insightLvs: il, occFound: occ, researchLevel: rLv } = opts;
   const ctx = makeCtx(gl, saveCtx);
 
   const total = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
 
-  const kalMap = _buildKalMap(md);
+  const kalMap = buildKalMap(md);
   const kalBase = _getKaleiMultiBasePure(gl, so, ctx);
-  const gd101 = _gbWith(gl, so, 93, ctx);
+  const gd101 = gbWith(gl, so, 93, ctx);
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
   let obsTotal = 0;
   for (let i = 0; i < occTBF; i++) {

@@ -1,23 +1,6 @@
 // ===== LAB CONNECTIVITY & BFS =====
 
-import {
-  achieveRegData,
-  arcaneData,
-  assignState,
-  breedingData,
-  companionIds,
-  gemItemsData,
-  gridLevels,
-  grimoireData,
-  holesData,
-  labBonusConnected,
-  labJewelConnected,
-  labMainBonusFull,
-  lv0AllData,
-  mealsData,
-  spelunkData,
-  tasksGlobalData,
-} from '../state.js';
+import {  S, assignState  } from '../state.js';
 import {
   cauldronBubblesData,
   cauldronInfoData,
@@ -45,12 +28,12 @@ import {
 } from './helpers.js';
 import { computeCardLv, computeShinyBonusS, computeWinBonus } from './external.js';
 
-export function euclidDist(x1, y1, x2, y2) {
+function euclidDist(x1, y1, x2, y2) {
   const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
   return 0.9604339 * Math.max(dx, dy) + 0.397824735 * Math.min(dx, dy);
 }
 
-export function computePetArenaBonus(idx) {
+function computePetArenaBonus(idx) {
   const waves = optionsListData[89] || 0;
   let tier = 0;
   for (let s = 0; s < 16; s++) {
@@ -60,12 +43,12 @@ export function computePetArenaBonus(idx) {
   return tier > idx ? 1 : 0;
 }
 
-export function hasBonusMajor(playerIdx, godType) {
+function hasBonusMajor(playerIdx, godType) {
   // Companions(0): Ballthezar = all gods, requires divinity lv >= 2
-  if (companionIds.has(0) && (lv0AllData[0]?.[14] || 0) >= 2) return true;
+  if (S.companionIds.has(0) && (S.lv0AllData[0]?.[14] || 0) >= 2) return true;
   // Holes PocketDivOwned: cosmic pocket slots
-  const hole29 = holesData?.[11]?.[29] ?? -1;
-  const hole30 = holesData?.[11]?.[30] ?? -1;
+  const hole29 = S.holesData?.[11]?.[29] ?? -1;
+  const hole30 = S.holesData?.[11]?.[30] ?? -1;
   if (hole29 >= 0 && hole29 < GODS_TYPE.length && GODS_TYPE[hole29] === godType) return true;
   if (hole30 >= 0 && hole30 < GODS_TYPE.length && GODS_TYPE[hole30] === godType) return true;
   // W7divChosen
@@ -75,20 +58,20 @@ export function hasBonusMajor(playerIdx, godType) {
     if (chosenGodIdx < GODS_TYPE.length && GODS_TYPE[chosenGodIdx] === godType) return true;
   }
   // Research grid 173  type 2 only
-  if (godType === 2 && (gridLevels[173] || 0) >= 1) return true;
+  if (godType === 2 && (S.gridLevels[173] || 0) >= 1) return true;
   // Normal: player's assigned god from Divinity[playerIdx + 12]
   const assignedGod = divinityData[playerIdx + 12] ?? -1;
   if (assignedGod >= 0 && assignedGod < GODS_TYPE.length && GODS_TYPE[assignedGod] === godType) return true;
   return false;
 }
 
-export function computeBonusLineWidth(playerIdx) {
-  const gemSlots = 2 * (gemItemsData[123] || 0);
+function computeBonusLineWidth(playerIdx) {
+  const gemSlots = 2 * (S.gemItemsData[123] || 0);
   if (playerIdx >= gemSlots) return 0;
   return hasBonusMajor(playerIdx, 2) ? 30 : 0;
 }
 
-export function computeChip6Count(playerIdx) {
+function computeChip6Count(playerIdx) {
   const chipSlots = labData?.[1 + playerIdx];
   if (!chipSlots) return 0;
   let count = 0;
@@ -98,28 +81,28 @@ export function computeChip6Count(playerIdx) {
   return count;
 }
 
-export function computeCookingMealMulti() {
+function computeCookingMealMulti() {
   const mfb116 = mainframeBonus(116);
   const shinyS20 = computeShinyBonusS(20);
   const winBon26 = computeWinBonus(26);
   return (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
 }
 
-export function computeMealBonusPxLine() {
+function computeMealBonusPxLine() {
   // PxLine: level * base, NO ribbon, NO cook multi. Meals 11 (Pancakes, base 2) + 25 (Wild_Boar, base 2)
-  return (mealsData?.[0]?.[11] || 0) * 2 + (mealsData?.[0]?.[25] || 0) * 2;
+  return (S.mealsData?.[0]?.[11] || 0) * 2 + (S.mealsData?.[0]?.[25] || 0) * 2;
 }
 
-export function computeMealBonusLinePct() {
+function computeMealBonusLinePct() {
   // LinePct: cookMulti * ribbon * level * base. Only meal 40 (Eel, base 1)
-  const eelLv = mealsData?.[0]?.[40] || 0;
+  const eelLv = S.mealsData?.[0]?.[40] || 0;
   if (eelLv <= 0) return 0;
   const cookMulti = computeCookingMealMulti();
   const ribbon = ribbonBonusAt(28 + 40);
   return cookMulti * ribbon * eelLv * 1;
 }
 
-export function computeAllTalentLVz(talentLv, slotIdx) {
+function computeAllTalentLVz(talentLv, slotIdx) {
   // Replicates AllTalentLVz from the game. The argument is the player's talent LEVEL
   // (passed as-is from getbonus2 due to game code design).
   // Banned check: if level value falls in banned range, return 0
@@ -130,9 +113,9 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   let spelunkBonus = 0;
   if (slotIdx >= 0) {
     const preset = Number(playerStuffData[slotIdx]?.[1]) || 0;
-    const superArr = spelunkData?.[20 + slotIdx + 12 * preset];
+    const superArr = S.spelunkData?.[20 + slotIdx + 12 * preset];
     if (Array.isArray(superArr) && superArr.indexOf(talentLv) !== -1) {
-      spelunkBonus = Math.round(50 + (Number(spelunkData?.[18]?.[7]) || 0) * 10 + (Number(spelunkData?.[45]?.[5]) || 0));
+      spelunkBonus = Math.round(50 + (Number(S.spelunkData?.[18]?.[7]) || 0) * 10 + (Number(S.spelunkData?.[45]?.[5]) || 0));
     }
   }
 
@@ -150,7 +133,7 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   const tal149 = intervalAddMax(149);
   const tal374 = intervalAddMax(374);
   const tal539 = intervalAddMax(539);
-  const achieve291 = achieveRegData[291] === -1 ? 1 : 0;
+  const achieve291 = S.achieveRegData[291] === -1 ? 1 : 0;
 
   // FamBonusQTYs[68]: ClassFamilyBonuses[34], decay(20, 350, max(0, round(charLv-69)))
   // Only classes whose ReturnClasses chain includes 34 contribute: classes 34, 35.
@@ -158,7 +141,7 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   for (let ci = 0; ci < numCharacters; ci++) {
     const cls = charClassData[ci];
     if (cls === 34 || cls === 35) {
-      const lv = lv0AllData[ci]?.[0] || 0;
+      const lv = S.lv0AllData[ci]?.[0] || 0;
       if (lv > maxMageCharLv) maxMageCharLv = lv;
     }
   }
@@ -166,19 +149,19 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   const famBonus68 = famN > 0 ? 20 * famN / (famN + 350) : 0;
 
   // Companions(1): Rift Slug = +25 talent levels if owned
-  const comp1 = companionIds.has(1) ? 25 : 0;
+  const comp1 = S.companionIds.has(1) ? 25 : 0;
 
   // Divinity("Bonus_Minor", currentPlayer, 2): ceil(minorBonus)
   // Minor bonus 2 (Arctis) = max(1,Y2ACTIVE) * (1+CoralKid(3)/100) * divLv/(60+divLv) * 15
   // Y2ACTIVE = bubble Y2 (CauldronInfo[3][21]) active if equipped or Companions(4)
   const y2BubbleLv = Number(cauldronInfoData?.[3]?.[21]) || 0;
   const y2Value = y2BubbleLv > 0 ? 1 + 0.5 * y2BubbleLv / (y2BubbleLv + 60) : 0;
-  const allBubblesActive = companionIds.has(4);
+  const allBubblesActive = S.companionIds.has(4);
   let divMinor = 0;
   const coralKid3 = Number(optionsListData?.[430]) || 0;
   for (let ci = 0; ci < numCharacters; ci++) {
     if (!hasBonusMajor(ci, 2)) continue;
-    const divLv = lv0AllData[ci]?.[14] || 0;
+    const divLv = S.lv0AllData[ci]?.[14] || 0;
     if (divLv <= 0) continue;
     const y2Active = (allBubblesActive || (cauldronBubblesData?.[ci] || []).includes('d21')) ? y2Value : 0;
     const val = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * 15;
@@ -193,17 +176,17 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   const ola232bonus = 5 * Math.floor((97 + ola232) / 100);
 
   // GrimoireUpgBonus(39) = Grimoire[39] * 1 (no global multi; index 39 is exception)
-  const grimoire39 = Number(grimoireData?.[39]) || 0;
+  const grimoire39 = Number(S.grimoireData?.[39]) || 0;
 
   // GetSetBonus("KATTLEKRUK_SET"): +5 if permanently unlocked in OLA[379]
   const kattlekrukSet = String(optionsListData?.[379] || '').split(',').includes('KATTLEKRUK_SET') ? 5 : 0;
 
   // min(5, ArcaneUpgBonus(57)) = min(5, Arcane[57] * 1)
-  const arcane57 = Math.min(5, Number(arcaneData?.[57]) || 0);
+  const arcane57 = Math.min(5, Number(S.arcaneData?.[57]) || 0);
 
   // max(0, floor((Lv0[0] - 500) / 100) * SuperBitType(47))
   // Lv0[0] = current player's level
-  const currentPlayerLv = (slotIdx >= 0 ? lv0AllData[slotIdx]?.[0] : 0) || 0;
+  const currentPlayerLv = (slotIdx >= 0 ? S.lv0AllData[slotIdx]?.[0] : 0) || 0;
   const superBit47 = superBitType(47);
   const lvBonusTerm = superBit47 ? Math.max(0, Math.floor((currentPlayerLv - 500) / 100)) : 0;
 
@@ -221,7 +204,7 @@ export function computeAllTalentLVz(talentLv, slotIdx) {
   );
 }
 
-export function computeBubonicPurple(playerIdx) {
+function computeBubonicPurple(playerIdx) {
   // Find the Bubonic Conjuror / Arcane Cultist (class 36 or 39)
   let bcIdx = -1;
   let bestLv = 0;
@@ -245,8 +228,8 @@ export function computeBubonicPurple(playerIdx) {
   return 40 * effectiveLv / (effectiveLv + 100);
 }
 
-export function computePlayerDist(playerIdx) {
-  const labLev = lv0AllData[playerIdx]?.[12] || 0;
+function computePlayerDist(playerIdx) {
+  const labLev = S.lv0AllData[playerIdx]?.[12] || 0;
   let baseDist = 50 + 2 * labLev;
 
   // Jewel 5 proximity: x1.25 if unlocked and within 150px
@@ -273,7 +256,7 @@ export function computePlayerDist(playerIdx) {
   return Math.floor(flat * (1 + pctTotal / 100));
 }
 
-export function buildLabMainBonus() {
+function buildLabMainBonus() {
   // Base 14 entries always present
   const lmb = LAB_BONUS_BASE.map(e => [...e]);
   // Dynamic entries from NinjaInfo[25-28], require Emporium unlocks
@@ -287,7 +270,7 @@ export function buildLabMainBonus() {
 
 export function computeLabConnectivity() {
   assignState({ labMainBonusFull: buildLabMainBonus() });
-  const lmbLen = labMainBonusFull.length;
+  const lmbLen = S.labMainBonusFull.length;
   const jdLen = JEWEL_DESC.length; // 24
   const totalNodes = 12 + lmbLen + jdLen;
 
@@ -316,7 +299,7 @@ export function computeLabConnectivity() {
   // Bonus/Gem distance: computed iteratively
   // Game: floor(80*(1+(MF(109)+MF(13))/100) + TaskShopDesc[3][4][11]*Tasks[2][3][4] + Dream[8] + WinBonus(4))
   // TaskShopDesc[3][4][11] = 1, so it's just Tasks[2][3][4]
-  const taskShopLabRange = Number(tasksGlobalData?.[2]?.[3]?.[4]) || 0;
+  const taskShopLabRange = Number(S.tasksGlobalData?.[2]?.[3]?.[4]) || 0;
   const dreamLabRange = Number(dreamData?.[8]) || 0;
   const winBonus4 = computeWinBonus(4);
   const bonusGemFlat = taskShopLabRange + dreamLabRange + winBonus4;
@@ -365,8 +348,8 @@ export function computeLabConnectivity() {
         } else if (dn < 12 + lmbLen) {
           const bi = dn - 12;
           if (bonusConn[bi]) continue;
-          const bx = labMainBonusFull[bi][0];
-          const by = labMainBonusFull[bi][1];
+          const bx = S.labMainBonusFull[bi][0];
+          const by = S.labMainBonusFull[bi][1];
           const threshold = (bi === 13 || bi === 8) ? 80 : bonusGemDist;
           const d = euclidDist(sx, sy, bx, by);
           if (d < threshold) {
@@ -403,15 +386,15 @@ export function computeLabConnectivity() {
 }
 
 export function mainframeBonus(e) {
-  const lmbLen = labMainBonusFull.length;
+  const lmbLen = S.labMainBonusFull.length;
   if (e < 100) {
     if (e >= lmbLen) return 0;
-    if (!labBonusConnected[e]) return labMainBonusFull[e][3]; // inactive value
+    if (!S.labBonusConnected[e]) return S.labMainBonusFull[e][3]; // inactive value
     // Connected: return active value with chain bonuses
-    const active = labMainBonusFull[e][4];
+    const active = S.labMainBonusFull[e][4];
     if (e === 9) return active + mainframeBonus(113);
     if (e === 0) {
-      const totPets = (breedingData?.[1] || []).reduce((s, v) => s + (Number(v) || 0), 0);
+      const totPets = (S.breedingData?.[1] || []).reduce((s, v) => s + (Number(v) || 0), 0);
       return (active + mainframeBonus(101)) * totPets;
     }
     if (e === 3) return active + mainframeBonus(107);
@@ -425,7 +408,7 @@ export function mainframeBonus(e) {
   // Jewel: e >= 100
   const ji = e - 100;
   if (ji < 0 || ji >= JEWEL_DESC.length) return 0;
-  if (!labJewelConnected[ji]) return 0;
+  if (!S.labJewelConnected[ji]) return 0;
   const base = JEWEL_DESC[ji][2];
   if (e === 119) return base; // Pure_Opal_Navette: no MF(8) multiplier
   return base * mainframeBonus(8);

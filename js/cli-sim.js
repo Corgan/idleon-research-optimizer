@@ -15,12 +15,11 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RES_GRID_RAW } from './game-data.js';
+import { RES_GRID_RAW, gridCoord, obsName } from './game-data.js';
 import { unifiedSim } from './sim-engine.js';
 import { buildSaveContext } from './save/context.js';
 import { fmtTime, fmtExp, fmtVal } from './renderers/format.js';
 import { loadSaveData } from './save/loader.js';
-import { gridCoord, obsName } from './grid-helpers.js';
 import { diffPhaseConfigs, diffMDLayouts } from './phase-diff.js';
 
 // ===== Arg parsing =====

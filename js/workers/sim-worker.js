@@ -2,7 +2,7 @@
 // Receives state snapshots + task commands from the main thread.
 // Imports from split engine modules.
 
-import { restoreState } from '../state.js';
+import {  restoreState  } from '../state.js';
 import { unifiedSim } from '../sim-engine.js';
 import { optimizeShapePlacement } from '../optimizers/shapes.js';
 import { computeInsightROI, computeObsUnlockPriority } from '../analysis.js';
@@ -39,6 +39,13 @@ onmessage = async function(e) {
   }
 
   restoreState(d.state);
+  const saveCtx = buildSaveContext();
+  const state = {
+    gl: saveCtx.gridLevels, so: saveCtx.shapeOverlay, il: saveCtx.insightLvs,
+    occ: saveCtx.occFound, rLv: saveCtx.researchLevel, mMax: saveCtx.magMaxPerSlot,
+    mOwned: saveCtx.magnifiersOwned, md: saveCtx.magData, ip: saveCtx.insightProgress,
+    failedRolls: saveCtx.cachedFailedRolls,
+  };
   const progressFn = function(done, total, msg, detail) {
     postMessage({ type: 'progress', done: done, total: total, msg: msg, detail: detail || '' });
   };
@@ -57,7 +64,7 @@ onmessage = async function(e) {
   }
   else if (d.type === 'insightROI') {
     try {
-      const result = await computeInsightROI(progressFn);
+      const result = await computeInsightROI(progressFn, state, saveCtx);
       postMessage({ type: 'done', result: result });
     } catch (err) {
       postMessage({ type: 'error', message: err.message, stack: err.stack });
@@ -65,7 +72,7 @@ onmessage = async function(e) {
   }
   else if (d.type === 'obsUnlock') {
     try {
-      const result = await computeObsUnlockPriority(progressFn);
+      const result = await computeObsUnlockPriority(progressFn, state, saveCtx);
       postMessage({ type: 'done', result: result });
     } catch (err) {
       postMessage({ type: 'error', message: err.message, stack: err.stack });

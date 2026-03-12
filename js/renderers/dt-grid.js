@@ -1,7 +1,11 @@
 // dt-grid.js - Grid canvas, shape manipulation, and observation editor for the decision tree.
 // Extracted from decision-tree.js.
 
+import {
+  DT, _dtGetNode, _dtGridPointsAvail,
+} from './dt-state.js';
 import { optionsListData } from '../save/data.js';
+import { cachedBoonyCount } from '../state.js';
 import {
   GRID_COLS, GRID_ROWS, GRID_SIZE, NODE_GOAL, NODE_GOAL_COLORS, OCC_DATA,
   RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_COLORS, SHAPE_DIMS, SHAPE_NAMES, SHAPE_VERTICES,
@@ -11,32 +15,33 @@ import {
   computeOccurrencesToBeFound, computeShapesOwnedAt, getKaleiMultiBase,
   isObsUsable, magMaxForLevel, obsBaseExp, simTotalExpWith,
 } from '../sim-math.js';
+import { eventShopOwned } from '../save/helpers.js';
 import { makeCtx, simTotalExp } from '../save/context.js';
 import {
   getShapeCellCoverage, getShapePolygonAt, isPointInPolygon,
 } from '../optimizers/shapes-geo.js';
 import { growMagPoolTyped } from '../optimizers/mags.js';
-import { hideTooltip, moveTooltip } from '../ui/tooltip.js';
+import { hideTooltip, moveTooltip } from '../ui/dashboard.js';
 // Circular import (safe - only used inside functions at runtime, not at module parse time)
-import { dtRenderModal } from './decision-tree.js';
+import { _dtRenderModal } from './decision-tree.js';
 
 
 // ===== Utility exports =====
 
-export function dtRecalcExpHr() {
+export function _dtRecalcExpHr() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const ctx = makeCtx(s.gl, s.saveCtx);
+  const ctx = makeCtx(s.gl);
   s.ctx = ctx;
   s.expHr = simTotalExpWith(s.gl, s.so, s.md, s.il, s.occ, s.rLv, ctx);
 }
 
-export function dtResetGridState() {
+export function _dtResetGridState() {
   _dtShapeDrag = null;
   if (_dtGridTooltip) _dtGridTooltip.style.display = 'none';
 }
 
-export function dtSetGridMode(mode) {
+export function _dtSetGridMode(mode) {
   DT.gridMode = mode;
   document.querySelectorAll('#dt-grid-mode-pill .dt-mode-btn').forEach(b => {
     const active = b.dataset.mode === DT.gridMode;
@@ -50,16 +55,16 @@ export function dtSetGridMode(mode) {
   }
 }
 
-export function dtSetShapeOpacity(val) {
+export function _dtSetShapeOpacity(val) {
   DT.shapeOpacity = val;
-  dtRenderGridCanvas();
+  _dtRenderGridCanvas();
 }
 
 // DT-aware version of _gridBonusMode2 (reads from edit state, not globals)
 function _dtGridBonusMode2(nodeIdx, curBonus, s) {
   switch (nodeIdx) {
     case 31: return 25 * (s.gl[31] || 0);
-    case 67: case 68: case 107: return curBonus * s.saveCtx.cachedBoonyCount;
+    case 67: case 68: case 107: return curBonus * cachedBoonyCount;
     case 94: {
       let t = 0; for (let i = 0; i < s.il.length; i++) t += s.il[i] || 0;
       return curBonus * t;
@@ -74,17 +79,17 @@ function _dtGridBonusMode2(nodeIdx, curBonus, s) {
   }
 }
 
-// ===== UNIFIED GRID + SHAPE CANVAS =====
+﻿// ===== UNIFIED GRID + SHAPE CANVAS =====
 let _dtGridTooltip = null;
 let _dtShapeDrag = null; // {shapeIdx, startX, startY, origX, origY}
 let _dtHoverCell = -1;   // cell index under mouse (for tooltip + highlight)
 const _DT_CELL = 30;     // px per grid cell on canvas
 const _DT_GRID_PAD = 16; // canvas padding
 
-export function dtRenderGridCanvas() {
+export function _dtRenderGridCanvas() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const sCtx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const sCtx = s.ctx || makeCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, sCtx), s.sp.length, SHAPE_VERTICES.length, 10);
   const avail = _dtGridPointsAvail(s.gl, s.rLv);
 
@@ -297,7 +302,7 @@ function _dtCanvasCellAt(cx, cy) {
 function _dtShapeHitTest(canvasX, canvasY) {
   if (!DT.editState) return -1;
   const s = DT.editState;
-  const ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const ctx = s.ctx || makeCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, ctx), s.sp.length, SHAPE_VERTICES.length, 10);
   const gx = _dtCanvasToGameX(canvasX);
   const gy = _dtCanvasToGameY(canvasY);
@@ -356,8 +361,8 @@ function _dtCanvasMouseMove(e) {
     if (p) {
       p.x = d.origX + dx;
       p.y = d.origY + dy;
-      dtRebuildOverlay();
-      dtRenderGridCanvas();
+      _dtRebuildOverlay();
+      _dtRenderGridCanvas();
     }
     return;
   }
@@ -371,7 +376,7 @@ function _dtCanvasMouseMove(e) {
     } else {
       _dtHideGridTip();
     }
-    dtRenderGridCanvas();
+    _dtRenderGridCanvas();
   } else if (idx >= 0 && _dtGridTooltip && _dtGridTooltip.style.display !== 'none') {
     _dtGridTooltip.style.left = (e.clientX + 14) + 'px';
     _dtGridTooltip.style.top = (e.clientY + 14) + 'px';
@@ -393,14 +398,12 @@ function _dtCanvasMouseUp(e) {
   if (canvas) canvas.classList.remove('dt-shape-dragging');
   _dtShapeDrag = null;
   if (!d.moved) {
-    // Click without drag -> show rotate popup
+    // Click without drag Ã¢â€ â€™ show rotate popup
     _dtShowShapeRotatePopup(d.shapeIdx, e.clientX, e.clientY);
   }
   if (DT.editState) {
-    // Move dragged shape to end of placement order (most recently placed = lowest priority)
-    if (d.moved) _dtBumpShapePlaceOrder(d.shapeIdx);
-    dtRecalcExpHr();
-    dtRenderModal();
+    _dtRecalcExpHr();
+    _dtRenderModal();
   }
 }
 
@@ -435,7 +438,7 @@ function _dtCanvasMouseLeave(e) {
   _dtHoverCell = -1;
   _dtHideGridTip();
   _dtCanvasMouseUp(e);
-  dtRenderGridCanvas();
+  _dtRenderGridCanvas();
 }
 
 function _dtCanvasRightClick(e) {
@@ -482,7 +485,7 @@ function _dtShowGridTip(e, idx) {
   const si = s.so[idx];
   const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
   const coord = String.fromCharCode(65 + row) + (col + 1);
-  const _ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const _ctx = s.ctx || makeCtx(s.gl);
   const abm = calcAllBonusMultiWith(s.gl, _ctx.hasComp55, _ctx.hasComp0DivOk);
 
   let html = `<span style="color:var(--cyan);font-weight:700;font-size:1.1em">${coord}</span> `;
@@ -508,7 +511,7 @@ function _dtShowGridTip(e, idx) {
 
   // Description with placeholders
   html += `<div style="color:#ccc;margin-top:4px;font-size:.9em">${_dtFormatDesc(idx, s)}</div>`;
-  html += `<div style="color:#888;margin-top:4px;font-size:.8em">Click +1 - Right-click -1</div>`;
+  html += `<div style="color:#888;margin-top:4px;font-size:.8em">Click +1 Ã‚Â· Right-click -1</div>`;
 
   _dtGridTooltip.innerHTML = html;
   _dtGridTooltip.style.display = 'block';
@@ -580,11 +583,11 @@ function _dtGridUp(idx) {
   const unlocked = _dtIsGridCellUnlocked(idx, s.gl);
   if (!unlocked || avail <= 0 || (s.gl[idx] || 0) >= info[1]) return;
   s.gl[idx] = (s.gl[idx] || 0) + 1;
-  s.ctx = makeCtx(s.gl, s.saveCtx);
+  s.ctx = makeCtx(s.gl);
   const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx);
   growMagPoolTyped(s.md, s.gl, s.rLv, newOwned);
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 function _dtGridDown(idx) {
@@ -601,16 +604,16 @@ function _dtGridDown(idx) {
     }
   }
   s.gl[idx]--;
-  s.ctx = makeCtx(s.gl, s.saveCtx);
+  s.ctx = makeCtx(s.gl);
   const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx);
   while (s.md.length > newOwned) {
     const unIdx = s.md.findIndex(m => m.slot < 0);
     if (unIdx >= 0) s.md.splice(unIdx, 1);
     else s.md.pop();
   }
-  dtRebuildOverlay();
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 // --- Shape manipulation ---
@@ -619,10 +622,9 @@ function _dtShapeRotate(si, dRot) {
   const p = DT.editState.sp[si];
   if (!p) return;
   p.rot = ((p.rot || 0) + dRot + 360) % 360;
-  _dtBumpShapePlaceOrder(si);
-  dtRebuildOverlay();
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 function _dtShapeNudge(si, dx, dy) {
@@ -631,31 +633,18 @@ function _dtShapeNudge(si, dx, dy) {
   if (!p) return;
   p.x = (p.x || 0) + dx;
   p.y = (p.y || 0) + dy;
-  _dtBumpShapePlaceOrder(si);
-  dtRebuildOverlay();
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRebuildOverlay();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
-/** Move shape si to the end of placement order (most recently placed = lowest priority). */
-function _dtBumpShapePlaceOrder(si) {
-  const s = DT.editState;
-  if (!s || !s.spo) return;
-  const idx = s.spo.indexOf(si);
-  if (idx >= 0) s.spo.splice(idx, 1);
-  s.spo.push(si);
-}
-
-export function dtRebuildOverlay() {
+export function _dtRebuildOverlay() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const ctx = s.ctx || makeCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, ctx), s.sp.length, SHAPE_VERTICES.length, 10);
   const so = new Array(GRID_SIZE).fill(-1);
-  // Iterate in placement order: first-placed shape wins overlapping cells
-  const order = s.spo || Array.from({length: numOwned}, (_, i) => i);
-  for (const si of order) {
-    if (si >= numOwned) continue;
+  for (let si = 0; si < numOwned; si++) {
     const p = s.sp[si];
     if (!p || p.x == null || p.y == null) continue;
     const cells = getShapeCellCoverage(si, p.x, p.y, p.rot || 0);
@@ -668,17 +657,17 @@ export function dtRebuildOverlay() {
 const _DT_OBS_COLS = 8;
 let _dtObsDragData = null; // {magIdx, fromSlot} or {poolType}
 
-export function dtRenderObsEditor() {
+export function _dtRenderObsEditor() {
   if (!DT.editState) return;
   const s = DT.editState;
   const occTBF = computeOccurrencesToBeFound(s.rLv, s.occ);
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl));
   const mMax = magMaxForLevel(s.rLv);
 
   // Pool counts
   let usedByType = [0, 0, 0];
   for (const m of s.md) { if (m.slot >= 0) usedByType[m.type]++; }
-  const expectedK = Math.round((s.gl[72] || 0) + s.saveCtx.evShop33);
+  const expectedK = Math.round((s.gl[72] || 0) + eventShopOwned(33));
   const expectedM = Math.round(s.gl[91] || 0);
   const expectedR = mOwned - expectedK - expectedM;
   const freeR = expectedR - usedByType[0];
@@ -700,7 +689,7 @@ export function dtRenderObsEditor() {
     }
     poolHtml += `</div>`;
   }
-  poolHtml += `<span style="color:var(--text2);font-size:.8em;">Total: ${usedByType[0]+usedByType[1]+usedByType[2]}/${mOwned} - Max/slot: ${mMax}</span>`;
+  poolHtml += `<span style="color:var(--text2);font-size:.8em;">Total: ${usedByType[0]+usedByType[1]+usedByType[2]}/${mOwned} Ã‚Â· Max/slot: ${mMax}</span>`;
   poolHtml += '</div>';
   document.getElementById('dt-obs-pool').innerHTML = poolHtml;
 
@@ -775,7 +764,7 @@ function _dtObsWireTooltips(bySlot, kalMap) {
       const adjKal = kalMap[oi] || 0;
 
       // DT-aware grid bonus: uses s.gl and s.so instead of globals
-      const _ctx2 = s.ctx || makeCtx(s.gl, s.saveCtx);
+      const _ctx2 = s.ctx || makeCtx(s.gl);
 
       const basePerMag = obsBaseExp(oi);
       const gd101 = gbWith(s.gl, s.so, 93, _ctx2);
@@ -786,7 +775,7 @@ function _dtObsWireTooltips(bySlot, kalMap) {
       const totalExp = perMagFinal * mags;
       const insightBonus = gbWith(s.gl, s.so, 92, _ctx2) + gbWith(s.gl, s.so, 91, _ctx2);
       const monoRate = 3 * (1 + insightBonus / 100) * kalMulti;
-      const resMulti = simTotalExp({ gridLevels: s.gl, shapeOverlay: s.so, magData: s.md, insightLvs: s.il, occFound: s.occ, researchLevel: s.rLv }, s.saveCtx).multi;
+      const resMulti = simTotalExp({ gridLevels: s.gl, shapeOverlay: s.so, magData: s.md, insightLvs: s.il, occFound: s.occ }).multi;
       const totalFinal = totalExp * resMulti;
 
       let h = '<div style="color:var(--gold);font-weight:600">' + name + ' (#' + oi + ')</div>';
@@ -898,8 +887,8 @@ function _dtObsDrop(targetSlot, data) {
       }
     }
   }
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 function _dtRemoveMagFromSlotDirect(magIdx) {
@@ -907,8 +896,8 @@ function _dtRemoveMagFromSlotDirect(magIdx) {
   const m = DT.editState.md[magIdx];
   if (m && m.slot >= 0) {
     m.slot = -1;
-    dtRecalcExpHr();
-    dtRenderModal();
+    _dtRecalcExpHr();
+    _dtRenderModal();
   }
 }
 
@@ -917,9 +906,9 @@ function _dtCycleMagType(magIdx) {
   const s = DT.editState;
   const m = s.md[magIdx];
   if (!m || m.slot < 0) return;
-  const expectedK = Math.round((s.gl[72] || 0) + s.saveCtx.evShop33);
+  const expectedK = Math.round((s.gl[72] || 0) + eventShopOwned(33));
   const expectedM = Math.round(s.gl[91] || 0);
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl));
   const expectedR = mOwned - expectedK - expectedM;
   for (let attempt = 0; attempt < 3; attempt++) {
     const nextType = (m.type + 1 + attempt) % 3;
@@ -931,14 +920,14 @@ function _dtCycleMagType(magIdx) {
       break;
     }
   }
-  dtRecalcExpHr();
-  dtRenderModal();
+  _dtRecalcExpHr();
+  _dtRenderModal();
 }
 
 function _dtAddMagToSlot(slotIdx) {
   if (!DT.editState) return;
   const s = DT.editState;
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl));
   const mMax = magMaxForLevel(s.rLv);
   let slotCount = 0, totalPlaced = 0;
   for (const m of s.md) {
@@ -949,8 +938,8 @@ function _dtAddMagToSlot(slotIdx) {
   for (const m of s.md) {
     if (m.slot < 0) {
       m.slot = slotIdx;
-      dtRecalcExpHr();
-      dtRenderModal();
+      _dtRecalcExpHr();
+      _dtRenderModal();
       return;
     }
   }
@@ -962,8 +951,8 @@ function _dtRemoveMagFromSlot(slotIdx) {
   for (let i = s.md.length - 1; i >= 0; i--) {
     if (s.md[i].slot === slotIdx) {
       s.md[i].slot = -1;
-      dtRecalcExpHr();
-      dtRenderModal();
+      _dtRecalcExpHr();
+      _dtRenderModal();
       return;
     }
   }

@@ -11,16 +11,11 @@ import { performance } from 'node:perf_hooks';
 
 import { loadSaveData } from '../save/loader.js';
 import { buildSaveContext } from '../save/context.js';
-import {
-  cachedFailedRolls,
-  gridLevels, shapeOverlay, insightLvs, insightProgress,
-  magData, magMaxPerSlot, magnifiersOwned,
-  occFound, researchLevel,
-} from '../state.js';
+import {  S  } from '../state.js';
 import { GRID_SIZE } from '../game-data.js';
 import {
   computeMagTypeBalance,
-  _computeInsightCellValues,
+  computeInsightCellValues,
   computeInsightROI,
   computeObsUnlockPriority,
 } from '../analysis.js';
@@ -43,16 +38,24 @@ function approx(a, b, tol, label) {
 }
 
 // ===== Load save =====
+let _state, _saveCtx;
 async function loadSave() {
   const raw = JSON.parse(await readFile(resolve(SAVES_DIR, 'it.json'), 'utf-8'));
   loadSaveData(raw);
+  _saveCtx = buildSaveContext();
+  _state = {
+    gl: S.gridLevels, so: S.shapeOverlay, il: S.insightLvs,
+    occ: S.occFound, rLv: S.researchLevel, mMax: S.magMaxPerSlot,
+    mOwned: S.magnifiersOwned, md: S.magData, ip: S.insightProgress,
+    failedRolls: S.cachedFailedRolls,
+  };
 }
 
 // ===== computeMagTypeBalance =====
 async function testMagTypeBalance() {
   console.log('--- computeMagTypeBalance ---');
   const t0 = performance.now();
-  const results = await computeMagTypeBalance();
+  const results = await computeMagTypeBalance(_state, _saveCtx);
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
   console.log(`  (${elapsed}s)`);
 
@@ -82,37 +85,18 @@ async function testMagTypeBalance() {
   }
 }
 
-// ===== computeMagTypeBalance (state param) =====
-async function testMagTypeBalanceWithState() {
-  console.log('--- computeMagTypeBalance (state param) ---');
-  const state = {
-    gl: gridLevels, so: shapeOverlay, il: insightLvs,
-    occ: occFound, rLv: researchLevel, mMax: magMaxPerSlot,
-    mOwned: magnifiersOwned, md: magData,
-  };
-  const results = await computeMagTypeBalance(state);
-  eq(results.length, 3, 'state-param: 3 results');
-  const noArgs = await computeMagTypeBalance();
-  // Same results as default-globals path
-  for (let i = 0; i < 3; i++) {
-    eq(results[i].type, noArgs[i].type, `state-param: type[${i}] matches`);
-    approx(results[i].immediateExpHr, noArgs[i].immediateExpHr, 0.01,
-      `state-param: immediateExpHr[${i}] matches`);
-  }
-}
-
 // ===== _computeInsightCellValues =====
 function testInsightCellValues() {
   console.log('--- _computeInsightCellValues ---');
   const t0 = performance.now();
-  const gl = gridLevels, so = shapeOverlay, il = insightLvs;
-  const pool = magData.slice(0, magnifiersOwned);
+  const gl = S.gridLevels, so = S.shapeOverlay, il = S.insightLvs;
+  const pool = S.magData.slice(0, S.magnifiersOwned);
   // Find an obs slot that has at least one monocle (type=1), otherwise insight rate is 0
   const monoSlots = new Set(pool.filter(m => m.type === 1).map(m => m.slot));
   const obsIdx = monoSlots.size > 0 ? monoSlots.values().next().value : 0;
   const hasMonos = monoSlots.has(obsIdx);
   console.log(`  obsIdx=${obsIdx}, hasMonos=${hasMonos}`);
-  const values = _computeInsightCellValues(obsIdx, pool, il, gl, so);
+  const values = computeInsightCellValues(obsIdx, pool, il, gl, so, _saveCtx);
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
   console.log(`  (${elapsed}s)`);
 
@@ -142,7 +126,7 @@ async function testInsightROI() {
   console.log('--- computeInsightROI ---');
   const t0 = performance.now();
   let progressCalls = 0;
-  const result = await computeInsightROI(function(done, total) { progressCalls++; });
+  const result = await computeInsightROI(function(done, total) { progressCalls++; }, _state, _saveCtx);
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
   console.log(`  (${elapsed}s, ${progressCalls} progress callbacks)`);
 
@@ -191,29 +175,12 @@ async function testInsightROI() {
   ok(progressCalls > 0, `progress callback fired (${progressCalls}x)`);
 }
 
-// ===== computeInsightROI (state param) =====
-async function testInsightROIWithState() {
-  console.log('--- computeInsightROI (state param) ---');
-  const state = {
-    gl: gridLevels, so: shapeOverlay, il: insightLvs,
-    occ: occFound, rLv: researchLevel, mMax: magMaxPerSlot,
-    mOwned: magnifiersOwned, md: magData, ip: insightProgress,
-  };
-  const result = await computeInsightROI(null, state);
-  const noArgs = await computeInsightROI(null);
-  eq(result.monoCount, noArgs.monoCount, 'state-param: monoCount matches');
-  if (result.monoCount > 0) {
-    approx(result.baseRate, noArgs.baseRate, 0.01, 'state-param: baseRate matches');
-    eq(result.rows.length, noArgs.rows.length, 'state-param: rows count matches');
-  }
-}
-
 // ===== computeObsUnlockPriority =====
 async function testObsUnlockPriority() {
   console.log('--- computeObsUnlockPriority ---');
   const t0 = performance.now();
   let progressCalls = 0;
-  const result = await computeObsUnlockPriority(function(done, total) { progressCalls++; });
+  const result = await computeObsUnlockPriority(function(done, total) { progressCalls++; }, _state, _saveCtx);
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
   console.log(`  (${elapsed}s, ${progressCalls} progress callbacks)`);
 
@@ -227,7 +194,7 @@ async function testObsUnlockPriority() {
   ok(Array.isArray(result.results), 'results is array');
 
   // Should have some undiscovered observations
-  const undiscoveredCount = occFound.filter((v, i) => (v || 0) < 1).length;
+  const undiscoveredCount = S.occFound.filter((v, i) => (v || 0) < 1).length;
   // results.length should match undiscovered count (minus any OCC_DATA boundary)
   ok(result.results.length > 0, `results count ${result.results.length} > 0`);
   ok(result.results.length <= undiscoveredCount, `results count <= undiscovered obs`);
@@ -264,45 +231,21 @@ async function testObsUnlockPriority() {
   ok(progressCalls > 0, `progress callback fired (${progressCalls}x)`);
 }
 
-// ===== computeObsUnlockPriority (state param) =====
-async function testObsUnlockPriorityWithState() {
-  console.log('--- computeObsUnlockPriority (state param) ---');
-  const state = {
-    gl: gridLevels, so: shapeOverlay, il: insightLvs,
-    occ: occFound, rLv: researchLevel, mMax: magMaxPerSlot,
-    mOwned: magnifiersOwned, md: magData, failedRolls: cachedFailedRolls,
-  };
-  const result = await computeObsUnlockPriority(null, state);
-  const noArgs = await computeObsUnlockPriority(null);
-  approx(result.currentTotal, noArgs.currentTotal, 0.01, 'state-param: currentTotal matches');
-  eq(result.results.length, noArgs.results.length, 'state-param: results count matches');
-  if (result.results.length > 0) {
-    eq(result.results[0].idx, noArgs.results[0].idx, 'state-param: first result idx matches');
-    approx(result.results[0].score, noArgs.results[0].score, 0.01, 'state-param: first result score matches');
-  }
-}
-
 // ===== Main =====
 async function main() {
   const t0 = performance.now();
   console.log('Loading save it.json...');
   await loadSave();
-  console.log(`  researchLevel=${researchLevel}, magnifiersOwned=${magnifiersOwned}`);
+  console.log(`  S.researchLevel=${S.researchLevel}, S.magnifiersOwned=${S.magnifiersOwned}`);
   console.log('');
 
   await testMagTypeBalance();
-  console.log('');
-  await testMagTypeBalanceWithState();
   console.log('');
   testInsightCellValues();
   console.log('');
   await testInsightROI();
   console.log('');
-  await testInsightROIWithState();
-  console.log('');
   await testObsUnlockPriority();
-  console.log('');
-  await testObsUnlockPriorityWithState();
   console.log('');
 
   const elapsed = ((performance.now() - t0) / 1000).toFixed(1);

@@ -3,19 +3,19 @@
 // Takes a parsed JSON object (it.json or save.json format) and populates
 // mutable state via assignState().  Does NOT perform any UI operations.
 
-import { assignState, gridLevels, researchLevel } from '../state.js';
+import {  S, assignState  } from '../state.js';
 import { assignSaveData } from './data.js';
 import { parseSaveKey, eventShopOwned } from './helpers.js';
 import { computeExternalBonuses, computeAFKGainsRate, mineheadBonusQTY } from './external.js';
 import { computeLabConnectivity } from './lab.js';
 
 function computeMagnifiersOwned() {
-  const kaleiOwned = Math.round((gridLevels[72] || 0) + eventShopOwned(33));
-  const monoOwned = Math.round(gridLevels[91] || 0);
-  const lvBonus = Math.min(1, Math.floor(researchLevel / 10))
-    + Math.min(1, Math.floor(researchLevel / 100))
-    + Math.min(1, Math.floor(researchLevel / 130))
-    + Math.min(1, Math.floor(researchLevel / 140));
+  const kaleiOwned = Math.round((S.gridLevels[72] || 0) + eventShopOwned(33));
+  const monoOwned = Math.round(S.gridLevels[91] || 0);
+  const lvBonus = Math.min(1, Math.floor(S.researchLevel / 10))
+    + Math.min(1, Math.floor(S.researchLevel / 100))
+    + Math.min(1, Math.floor(S.researchLevel / 130))
+    + Math.min(1, Math.floor(S.researchLevel / 140));
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
     + mineheadBonusQTY(2) + mineheadBonusQTY(12) + mineheadBonusQTY(20)

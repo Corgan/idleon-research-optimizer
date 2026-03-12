@@ -18,7 +18,7 @@ import { obsBaseExp } from '../sim-math.js';
  * @param {number}   maxPerSlot  - max magnifiers per observation slot
  * @returns {Array<{type,slot,x,y}>} optimal magnifier assignments
  */
-export function _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il, maxPerSlot) {
+export function enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il, maxPerSlot) {
   const S = availSlots.length;
 
   if (numKalei === 0) {
@@ -102,7 +102,7 @@ export function _enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, i
  * ctx must provide: evShop33.
  * Mutates md in-place (pushes new entries).
  */
-export function _growMagPoolTyped(md, gl, rLv, targetCount, ctx) {
+export function growMagPoolTyped(md, gl, rLv, targetCount, ctx) {
   if (md.length >= targetCount) return;
   const expectedK = Math.round((gl[72] || 0) + ctx.evShop33);
   const expectedM = Math.round(gl[91] || 0);

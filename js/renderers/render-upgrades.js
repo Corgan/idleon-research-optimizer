@@ -1,25 +1,49 @@
-﻿// ===== shape-tiers.js - Shape Tier Presets & Tier List Rendering =====
-// Split from render-upgrades.js.
+// ===== render-upgrades.js - Shape Tier Presets + Upgrade Evaluation =====
+// Extracted from decision-tree.js. ES module.
 
-import {  S  } from '../state.js';
-import { buildSaveContext } from '../save/context.js';
+import {
+  cachedBoonyCount,
+  gridLevels,
+  insightLvs,
+  occFound,
+  researchLevel,
+  shapeOverlay,
+  shapeTiers,
+} from '../state.js';
+import { optionsListData } from '../save/data.js';
 import {
   GRID_COLS,
   GRID_ROWS,
+  GRID_SIZE,
   NODE_GOAL,
   NODE_GOAL_COLORS,
   RES_GRID_RAW,
   SHAPE_BONUS_PCT,
   SHAPE_COLORS,
+  SHAPE_DIMS,
   SHAPE_NAMES,
-  gridCoord,
+  SHAPE_VERTICES,
 } from '../game-data.js';
 import {
+  getShapeCellCoverage,
+  sameShapeCell,
+} from '../optimizers/shapes-geo.js';
+import {
   computeCellValues,
+  optimizeShapePlacement,
 } from '../optimizers/shapes.js';
-import { formatDesc } from './grid-desc.js';
-// Circular import (safe: all uses are inside functions, not at module parse time)
-import { getLastOpt, renderUpgradeEval } from './upgrade-eval.js';
+import {
+  fmtVal,
+} from './format.js';
+import {
+  cancelWorkerTask,
+  runWorkerTask,
+} from './worker-pool.js';
+import {
+  attachTooltip,
+  showGridTooltip,
+} from '../ui/dashboard.js';
+import { gridCoord } from '../grid-helpers.js';
 
 // ===== UPGRADE EVAL - SHAPE PRIORITY SYSTEM =====
 // All non-EXP node indices that can appear in shape tier lists
@@ -36,41 +60,41 @@ export const UE_NON_EXP_NODES = (() => {
 // 'above' = shapes always placed here alongside EXP nodes
 // 'below' = shapes placed here only with leftover shapes
 // Initialize with all non-EXP nodes in 'below' (pure EXP optimization default)
-S.shapeTiers.above = []; S.shapeTiers.below = UE_NON_EXP_NODES.slice();
+shapeTiers.above = []; shapeTiers.below = UE_NON_EXP_NODES.slice();
 
 export function _saveShapeTiers() {
   _dedupTiers();
-  try { localStorage.setItem('idleon_shapeTiers', JSON.stringify({ above: S.shapeTiers.above, below: S.shapeTiers.below })); } catch(e) { console.warn('Failed to save shapeTiers:', e); }
+  try { localStorage.setItem('idleon_shapeTiers', JSON.stringify({ above: shapeTiers.above, below: shapeTiers.below })); } catch(e) { console.warn('Failed to save shapeTiers:', e); }
 }
 function _loadShapeTiers() {
   try {
     const raw = JSON.parse(localStorage.getItem('idleon_shapeTiers'));
     if (raw && Array.isArray(raw.below)) {
-      S.shapeTiers.above = raw.above || [];
-      S.shapeTiers.below = [...(raw.below || []), ...(raw.disabled || [])];
+      shapeTiers.above = raw.above || [];
+      shapeTiers.below = [...(raw.below || []), ...(raw.disabled || [])];
     }
   } catch(e) { console.warn('Failed to load shapeTiers:', e); }
   _dedupTiers();
   // Reconcile: ensure every non-EXP node appears in exactly one tier
-  const allTiered = new Set([...S.shapeTiers.above, ...S.shapeTiers.below]);
+  const allTiered = new Set([...shapeTiers.above, ...shapeTiers.below]);
   for (const idx of UE_NON_EXP_NODES) {
-    if (!allTiered.has(idx)) S.shapeTiers.below.push(idx);
+    if (!allTiered.has(idx)) shapeTiers.below.push(idx);
   }
   // Remove stale nodes
   const validNonExp = new Set(UE_NON_EXP_NODES);
   const allNodes = new Set(Object.keys(RES_GRID_RAW).map(Number));
   // Above allows any valid node (including EXP nodes for presets like Insight)
-  for (let i = S.shapeTiers.above.length - 1; i >= 0; i--) {
-    if (!allNodes.has(S.shapeTiers.above[i])) S.shapeTiers.above.splice(i, 1);
+  for (let i = shapeTiers.above.length - 1; i >= 0; i--) {
+    if (!allNodes.has(shapeTiers.above[i])) shapeTiers.above.splice(i, 1);
   }
   // Below only allows non-EXP nodes
-  for (let i = S.shapeTiers.below.length - 1; i >= 0; i--) {
-    if (!validNonExp.has(S.shapeTiers.below[i])) S.shapeTiers.below.splice(i, 1);
+  for (let i = shapeTiers.below.length - 1; i >= 0; i--) {
+    if (!validNonExp.has(shapeTiers.below[i])) shapeTiers.below.splice(i, 1);
   }
 }
 function _dedupTiers() {
   const seen = new Set();
-  for (const list of [S.shapeTiers.above, S.shapeTiers.below]) {
+  for (const list of [shapeTiers.above, shapeTiers.below]) {
     for (let i = list.length - 1; i >= 0; i--) {
       if (seen.has(list[i])) list.splice(i, 1); else seen.add(list[i]);
     }
@@ -127,19 +151,19 @@ function _loadPresets() {
 function _savePresets(presets) {
   try { localStorage.setItem(SP_STORAGE_KEY, JSON.stringify(presets)); } catch(e) { console.warn('Failed to save presets:', e); }
 }
-export function _getActivePresetId() {
+function _getActivePresetId() {
   return localStorage.getItem(SP_ACTIVE_KEY) || '';
 }
 function _setActivePresetId(id) {
   try { localStorage.setItem(SP_ACTIVE_KEY, id); } catch(e) { console.warn('Failed to save active preset:', e); }
 }
-export function _isBasePreset(id) { return id && id.startsWith('_'); }
+function _isBasePreset(id) { return id && id.startsWith('_'); }
 
 function _applyPreset(preset) {
   const tiers = _stringToTiers(preset.data);
   if (!tiers) return;
-  S.shapeTiers.above = tiers.above;
-  S.shapeTiers.below = tiers.below;
+  shapeTiers.above = tiers.above;
+  shapeTiers.below = tiers.below;
   _dedupTiers();
   // Base presets don't save tiers to localStorage
   if (!_isBasePreset(preset.id)) _saveShapeTiers();
@@ -152,12 +176,12 @@ function _applyPreset(preset) {
     const bp = SP_BASE_PRESETS.find(p => p.id === activeId);
     if (bp) {
       const tiers = _stringToTiers(bp.data);
-      if (tiers) { S.shapeTiers.above = tiers.above; S.shapeTiers.below = tiers.below; }
+      if (tiers) { shapeTiers.above = tiers.above; shapeTiers.below = tiers.below; }
     }
   }
 })();
 
-export function _renderPresetSidebar() {
+function _renderPresetSidebar() {
   const sidebar = document.getElementById('sp-sidebar');
   if (!sidebar) return;
   sidebar.innerHTML = '';
@@ -270,7 +294,7 @@ export function _renderPresetSidebar() {
     saveBtn.title = 'Overwrite current preset';
     saveBtn.addEventListener('click', () => {
       const existing = presets.find(p => p.id === activeId);
-      existing.data = _tiersToString(S.shapeTiers);
+      existing.data = _tiersToString(shapeTiers);
       _savePresets(presets);
       _renderPresetSidebar();
     });
@@ -290,7 +314,7 @@ export function _renderPresetSidebar() {
     newBtn.style.display = 'none';
     const inp = _makeInlineInput('', (name) => {
       const id = Date.now().toString(36);
-      presets.push({ id, name, data: _tiersToString(S.shapeTiers) });
+      presets.push({ id, name, data: _tiersToString(shapeTiers) });
       _savePresets(presets);
       _setActivePresetId(id);
       _renderPresetSidebar();
@@ -327,7 +351,7 @@ export function _renderPresetSidebar() {
       if (bp) name = bp.name;
       else { const up = presets.find(p => p.id === aid); if (up) name = up.name; }
     }
-    ioBox.value = (name ? name + ':' : '') + _tiersToString(S.shapeTiers);
+    ioBox.value = (name ? name + ':' : '') + _tiersToString(shapeTiers);
     ioBox.select();
   });
   const impBtn = document.createElement('button');
@@ -346,8 +370,8 @@ export function _renderPresetSidebar() {
     }
     const tiers = _stringToTiers(raw);
     if (!tiers) { ioBox.style.borderColor = '#e74c3c'; setTimeout(() => ioBox.style.borderColor = '', 1000); return; }
-    S.shapeTiers.above = tiers.above;
-    S.shapeTiers.below = tiers.below;
+    shapeTiers.above = tiers.above;
+    shapeTiers.below = tiers.below;
     _dedupTiers();
     _saveShapeTiers();
     // Create a new user preset if name was included
@@ -360,7 +384,7 @@ export function _renderPresetSidebar() {
         finalName = finalName + ' ' + suffix;
       }
       const id = Date.now().toString(36);
-      presets.push({ id, name: finalName, data: _tiersToString(S.shapeTiers) });
+      presets.push({ id, name: finalName, data: _tiersToString(shapeTiers) });
       _savePresets(presets);
       _setActivePresetId(id);
     } else {
@@ -374,7 +398,7 @@ export function _renderPresetSidebar() {
   sidebar.appendChild(ioRow);
 }
 
-export function _tierOnChange() {
+function _tierOnChange() {
   _saveShapeTiers();
   _updateAboveWarning();
   // Drag modified tiers - deselect any base preset since they're immutable
@@ -385,22 +409,70 @@ export function _tierOnChange() {
   renderUpgradeEval();
 }
 
+// Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders)
+function _gridBonusMode2(nodeIdx, curBonus, lvOverride) {
+  switch (nodeIdx) {
+    case 31: return 25 * (lvOverride != null ? lvOverride : (gridLevels[31] || 0));
+    case 67: case 68: case 107: return curBonus * cachedBoonyCount;
+    case 94: {
+      let t = 0; for (let i = 0; i < insightLvs.length; i++) t += insightLvs[i] || 0;
+      return curBonus * t;
+    }
+    case 112: {
+      let f = 0; for (let i = 0; i < occFound.length; i++) if (occFound[i] >= 1) f++;
+      return curBonus * f;
+    }
+    case 151: return Number(optionsListData?.[500]) || 0;
+    case 168: return curBonus; // Glimbo trades not tracked
+    default: return curBonus;
+  }
+}
+// Format description with all game placeholders resolved
+export function _formatDesc(nodeIdx, lvOverride) {
+  const info = RES_GRID_RAW[nodeIdx];
+  if (!info) return '';
+  const lv = lvOverride != null ? lvOverride : (gridLevels[nodeIdx] || 0);
+  const bonusPerLv = info[2];
+  const curBonus = bonusPerLv * lv;
+  const curBonusClean = parseFloat(curBonus.toFixed(4));
+  const multiStr = (1 + curBonus / 100).toFixed(2);
+  const g = v => '<b style="color:var(--green)">' + v + '</b>';
+
+  let desc = (info[3] || '').replace(/_/g, ' ');
+  desc = desc.replace(/ ?@ ?/g, ' \u2014 ');
+  if (nodeIdx === 173) desc = desc.replace('<', 'Arctis grid bonus');
+  desc = desc.replace(/\|/g, g(lv));
+  desc = desc.replace(/\{/g, g(curBonusClean));
+  desc = desc.replace(/\}/g, g(multiStr));
+  if (desc.includes('$')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus, lvOverride);
+    desc = desc.replace(/\$/g, g(Math.round(v * 100) / 100));
+  }
+  if (desc.includes('^')) {
+    const v = _gridBonusMode2(nodeIdx, curBonus, lvOverride);
+    desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2)));
+  }
+  if (desc.includes('&')) {
+    const olaVal = Number(optionsListData?.[499]) || 0;
+    desc = desc.replace(/&/g, g(Math.floor(1e4 * (1 - 1 / (1 + olaVal / 100))) / 100));
+  }
+  return desc;
+}
 // Build shape-bonus tooltip info for a node (uses optimized overlay)
-function _shapeInfo(nodeIdx, sc) {
-  const opt = getLastOpt();
-  const ov = opt ? opt.optimizedOverlay : sc.shapeOverlay;
+function _shapeInfo(nodeIdx) {
+  const ov = _lastOpt ? _lastOpt.optimizedOverlay : shapeOverlay;
   const si = ov[nodeIdx];
   if (si < 0) return '';
   const info = RES_GRID_RAW[nodeIdx];
   if (!info) return '';
-  const lv = sc.gridLevels[nodeIdx] || 0;
+  const lv = gridLevels[nodeIdx] || 0;
   const baseBonus = info[2] * lv;
   const shapePct = SHAPE_BONUS_PCT[si];
   const boosted = baseBonus * (1 + shapePct / 100);
   return '<div class="tt-shape" style="color:' + SHAPE_COLORS[si] + '">' + SHAPE_NAMES[si]
     + ' (+' + shapePct + '%): ' + boosted.toFixed(1) + '</div>';
 }
-export function _renderTierList(containerId, tiers, onChange, opts) {
+function _renderTierList(containerId, tiers, onChange, opts) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const locked = opts && opts.locked;
@@ -416,29 +488,28 @@ export function _renderTierList(containerId, tiers, onChange, opts) {
 
   // Collect leveled EXP nodes for the immutable mid-section, sorted by cell value (optimized order)
   const aboveSet = new Set(tiers.above);
-  const _tierSc = (opts && opts.saveCtx) || buildSaveContext();
   const expNodes = [];
   for (const idxStr of Object.keys(RES_GRID_RAW)) {
     const idx = Number(idxStr);
-    if ((_tierSc.gridLevels[idx] || 0) < 1) continue;
+    if ((gridLevels[idx] || 0) < 1) continue;
     if (aboveSet.has(idx)) continue; // shown in above zone instead
     const goal = NODE_GOAL[idx] || '';
     if (NODE_GOAL_COLORS[goal]) expNodes.push(idx);
   }
-  const _cv = computeCellValues({ saveCtx: _tierSc });
+  const _cv = computeCellValues();
   expNodes.sort((a, b) => (_cv[b] || 0) - (_cv[a] || 0));
 
   function showTierTooltip(e, nodeIdx) {
     const info = RES_GRID_RAW[nodeIdx];
     if (!info) return;
-    const lv = _tierSc.gridLevels[nodeIdx] || 0;
+    const lv = gridLevels[nodeIdx] || 0;
     const baseBonus = info[2] * lv;
     let html = '<span class="tt-coord">' + gridCoord(nodeIdx) + '</span> ';
     html += '<span class="tt-name">' + info[0].replace(/_/g, ' ') + '</span><br>';
     html += '<span class="tt-lv">Level: ' + lv + ' / ' + info[1] + '</span>';
     html += '<div class="tt-bonus">Base bonus: ' + baseBonus.toFixed(1) + '</div>';
-    html += _shapeInfo(nodeIdx, _tierSc);
-    html += '<div class="tt-desc">' + formatDesc(nodeIdx, undefined, _tierSc) + '</div>';
+    html += _shapeInfo(nodeIdx);
+    html += '<div class="tt-desc">' + _formatDesc(nodeIdx) + '</div>';
     tierTT.innerHTML = html;
     tierTT.style.display = 'block';
     tierTT.style.left = (e.clientX + 12) + 'px';
@@ -454,13 +525,12 @@ export function _renderTierList(containerId, tiers, onChange, opts) {
     container.innerHTML = '';
     let dragSrc = null, dragTier = null;
 
-    const aboveFiltered = tiers.above.filter(n => (_tierSc.gridLevels[n] || 0) >= 1);
-    const belowFiltered = tiers.below.filter(n => (_tierSc.gridLevels[n] || 0) >= 1);
+    const aboveFiltered = tiers.above.filter(n => (gridLevels[n] || 0) >= 1);
+    const belowFiltered = tiers.below.filter(n => (gridLevels[n] || 0) >= 1);
 
 
     function sqColor(nodeIdx) {
-      const opt = getLastOpt();
-      const ov = opt ? opt.optimizedOverlay : _tierSc.shapeOverlay;
+      const ov = _lastOpt ? _lastOpt.optimizedOverlay : shapeOverlay;
       const si = ov[nodeIdx];
       if (si >= 0) return SHAPE_COLORS[si];
       return '#555';
@@ -574,8 +644,183 @@ export function _renderTierList(containerId, tiers, onChange, opts) {
   rebuild();
 }
 
-export function _updateAboveWarning() {
+function _updateAboveWarning() {
   const warn = document.getElementById('ue-warn-above');
   if (!warn) return;
-  warn.style.display = S.shapeTiers.above.length > 0 ? '' : 'none';
+  warn.style.display = shapeTiers.above.length > 0 ? '' : 'none';
 }
+
+let _lastOpt = null; // cached optimizeShapePlacement result for current render cycle
+let _pureExpTotal = 0; // EXP/hr from pure EXP-only optimization (no tiers)
+
+let _shapeOptGen = 0;
+export async function renderUpgradeEval() {
+  // Cancel any in-flight shape optimization worker
+  cancelWorkerTask('shapeOpt');
+  const gen = ++_shapeOptGen;
+
+  // Render the tier list and sidebar immediately (cheap)
+  const locked = _isBasePreset(_getActivePresetId());
+  _renderTierList('ue-tier-shape', shapeTiers, _tierOnChange, { locked });
+  _updateAboveWarning();
+  _renderPresetSidebar();
+
+  // Show loading indicator with progress bar
+  const sumEl = document.getElementById('ue-shape-summary');
+  const gridDiv = document.getElementById('ue-grid');
+  if (sumEl) sumEl.innerHTML =
+    '<div style="padding:10px;color:var(--text2);font-size:.9em;">' +
+    '<div id="shape-opt-status">Computing optimal shapes\u2026</div>' +
+    '<div style="margin-top:6px;height:6px;background:#333;border-radius:3px;overflow:hidden;">' +
+    '<div id="shape-opt-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .15s;"></div>' +
+    '</div></div>';
+  if (gridDiv) gridDiv.style.opacity = '0.4';
+
+  // Yield to let the browser paint the loading state
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  if (gen !== _shapeOptGen) return; // preempted by newer call
+
+  try {
+    const statusEl = document.getElementById('shape-opt-status');
+    const barEl = document.getElementById('shape-opt-bar');
+    const result = await runWorkerTask('shapeOpt', 'shapeOpt', { args: { opts: { useTiers: true }, needPure: shapeTiers.above.length > 0 } }, function(done, total, msg) {
+      if (statusEl) statusEl.textContent = msg || ('Computing\u2026 ' + done + '/' + total);
+      if (barEl) barEl.style.width = (total > 0 ? Math.round(done / total * 100) : 0) + '%';
+    });
+    if (gen !== _shapeOptGen) return; // preempted by newer call
+    _lastOpt = result.primary;
+    if (result.pure) {
+      _pureExpTotal = result.pure.optimizedTotal;
+    } else {
+      _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
+    }
+  } catch(err) {
+    if (gen !== _shapeOptGen) return; // preempted - don't fallback for stale call
+    console.error('Shape opt worker error:', err);
+    // Fallback to synchronous computation
+    _lastOpt = optimizeShapePlacement({ useTiers: true });
+    if (shapeTiers.above.length > 0) {
+      _pureExpTotal = optimizeShapePlacement().optimizedTotal;
+    } else {
+      _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
+    }
+  }
+  if (gridDiv) gridDiv.style.opacity = '';
+  renderUEGrid();
+}
+
+function renderUEGrid() {
+  const gridDiv = document.getElementById('ue-grid');
+  if (!gridDiv) return;
+  gridDiv.innerHTML = '';
+
+  // Use cached optimizer result (set by renderUpgradeEval before this is called)
+  if (!_lastOpt) return;
+  const opt = _lastOpt;
+  const optOverlay = opt.optimizedOverlay || new Array(GRID_SIZE).fill(-1);
+  const COLS = GRID_COLS;
+
+  // Summary bar
+  const sumEl = document.getElementById('ue-shape-summary');
+  if (sumEl) {
+    if (opt.placements && opt.placements.length > 0) {
+      const tierCost = _pureExpTotal - opt.optimizedTotal;
+      const tierCostPct = _pureExpTotal > 0 ? tierCost / _pureExpTotal * 100 : 0;
+      let html = '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:6px 10px;background:var(--bg2);border-radius:6px;font-size:.85em;">'
+        + '<span style="color:var(--text2);">Optimized EXP/hr:</span> '
+        + '<span style="color:var(--green);font-weight:700;">' + fmtVal(opt.optimizedTotal) + '</span>'
+        + (opt.improvPct > 0.01 ? ' <span style="color:var(--cyan);">(+' + opt.improvPct.toFixed(2) + '% vs current)</span>' : '');
+      if (tierCost > 0.01) {
+        html += ' <span style="color:#e74c3c;">(\u2212' + fmtVal(tierCost) + ' / \u2212' + tierCostPct.toFixed(2) + '% vs pure EXP)</span>';
+      }
+      html += ' <span style="color:var(--text2);margin-left:auto;">' + opt.placements.length + ' shapes placed</span>'
+        + '</div>';
+      sumEl.innerHTML = html;
+    } else {
+      sumEl.innerHTML = '';
+    }
+  }
+
+  for (let i = 0; i < GRID_SIZE; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    const info = RES_GRID_RAW[i];
+
+    if (!info) {
+      cell.classList.add('empty');
+      gridDiv.appendChild(cell);
+      continue;
+    }
+
+    const lv = gridLevels[i] || 0;
+    const maxLv = info[1];
+    cell.classList.add('active');
+    if (lv >= maxLv) cell.classList.add('maxed');
+    cell.innerHTML = '<div class="cell-name">' + gridCoord(i) + '</div>'
+      + '<div class="cell-lv">' + lv + '/' + maxLv + '</div>';
+    attachTooltip(cell, (ev) => showGridTooltip(ev, i, optOverlay));
+
+    // Shape overlay - connected borders (same pattern as dashboard)
+    const si = optOverlay[i];
+    if (si >= 0) {
+      const color = SHAPE_COLORS[si];
+      const col = i % COLS;
+      const top = !sameShapeCell(optOverlay, i, i - COLS);
+      const bottom = !sameShapeCell(optOverlay, i, i + COLS);
+      const left = col > 0 ? !sameShapeCell(optOverlay, i, i - 1) : true;
+      const right = col < COLS - 1 ? !sameShapeCell(optOverlay, i, i + 1) : true;
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:.5;'
+        + 'background:' + color + '22;'
+        + 'border-top:' + (top ? '2px solid ' + color : 'none') + ';'
+        + 'border-bottom:' + (bottom ? '2px solid ' + color : 'none') + ';'
+        + 'border-left:' + (left ? '2px solid ' + color : 'none') + ';'
+        + 'border-right:' + (right ? '2px solid ' + color : 'none') + ';'
+        + 'border-radius:' + (top && left ? '3px' : '0') + ' ' + (top && right ? '3px' : '0') + ' ' + (bottom && right ? '3px' : '0') + ' ' + (bottom && left ? '3px' : '0') + ';';
+      cell.appendChild(overlay);
+    }
+
+    gridDiv.appendChild(cell);
+  }
+
+  // SVG shape polygon overlay
+  const activeShapes = new Set();
+  for (let i = 0; i < optOverlay.length; i++) {
+    if (optOverlay[i] >= 0) activeShapes.add(optOverlay[i]);
+  }
+  if (activeShapes.size > 0) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.classList.add('shape-svg');
+    svg.setAttribute('viewBox', '15 24 600 360');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    for (const si of activeShapes) {
+      const pos = opt.optimizedPositions[si];
+      if (!pos) continue;
+      const verts = SHAPE_VERTICES[si];
+      const dims = SHAPE_DIMS[si];
+      if (!verts || !dims) continue;
+      const cx = dims[0] / 2, cy = dims[1] / 2;
+      const angle = (pos.rot || 0) * Math.PI / 180;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      const polyPts = verts.map(([vx, vy]) => {
+        const dx = vx - cx, dy = vy - cy;
+        return [Math.round(cx + pos.x + dx * cosA - dy * sinA),
+                Math.round(cy + pos.y + dx * sinA + dy * cosA)];
+      });
+      const points = polyPts.map(([x,y]) => x + ',' + y).join(' ');
+      const el = document.createElementNS(svgNS, 'polygon');
+      el.setAttribute('points', points);
+      el.setAttribute('fill', 'none');
+      el.setAttribute('stroke', SHAPE_COLORS[si]);
+      el.setAttribute('stroke-width', '2');
+      el.setAttribute('stroke-linejoin', 'round');
+      el.setAttribute('opacity', '0.7');
+      svg.appendChild(el);
+    }
+    gridDiv.appendChild(svg);
+  }
+}
+
+
+
