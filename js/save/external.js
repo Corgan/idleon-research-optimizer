@@ -62,8 +62,7 @@ export function exoticBonusQTY40() {
   return 20 * lv / (1000 + lv);
 }
 
-export function mineheadBonusQTY(t) {
-  const mineFloor = S.stateR7[4] || 0;
+export function mineheadBonusQTY(t, mineFloor) {
   return mineFloor > t ? (MINEHEAD_BONUS_QTY[t] || 0) : 0;
 }
 
@@ -228,7 +227,7 @@ export function computeMeritocBonusz(optionIdx) {
   const comp39 = S.companionIds.has(39) ? 50 : 0;
   const legend24 = legendPTSbonus(24);
   const arcade59 = arcadeBonus(59);
-  const eventShop23 = eventShopOwned(23);
+  const eventShop23 = eventShopOwned(23, S.cachedEventShopStr);
   let multi;
   if (canVote) {
     multi = 1 + (5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23) / 100;
@@ -342,6 +341,10 @@ function computeGambitPTSmulti() {
 
 export function computeExternalBonuses() {
   const b = {};
+  const _eventShopStr = S.cachedEventShopStr;
+  const _gamingData12 = S.gamingData[12];
+  const _ninjaData102_9 = S.ninjaData?.[102]?.[9];
+  const _olaStr379 = S.olaData[379];
 
   // Compute S.allBonusMulti early so getGridBonusFinal calls below use the correct value
   const _comp55val = S.companionIds.has(55) ? 15 : 0;
@@ -354,15 +357,15 @@ export function computeExternalBonuses() {
   // Grid_Bonus(68, mode 2) = Grid_Bonus(68,0) * Research[11].length (boony crown count)
   const boonyCount = S.research?.[11]?.length || 0;
   const gridBonus68mode2 = _gridBonusFinal(68) * boonyCount;
-  const stkCrownMulti = 1 + (gridBonus68mode2 + 30 * eventShopOwned(37)) / 100;
-  const stkSuperbit62 = 1 + 20 * superBitType(62) / 100;
+  const stkCrownMulti = 1 + (gridBonus68mode2 + 30 * eventShopOwned(37, _eventShopStr)) / 100;
+  const stkSuperbit62 = 1 + 20 * superBitType(62, _gamingData12) / 100;
   const autoSticker = stkCrownMulti * stkSuperbit62 * stkLv * stkBase;
   b.sticker = { val: autoSticker, label: 'Sticker Bonus', note: `LV${stkLv}x${stkBase}xcrown(${stkCrownMulti.toFixed(2)})xsb62(${stkSuperbit62.toFixed(2)})` };
   // Cache components for dynamic recalculation in sim
   assignState({
     cachedStickerFixed: stkSuperbit62 * stkLv * stkBase,
     cachedBoonyCount: boonyCount,
-    cachedEvShop37: eventShopOwned(37),
+    cachedEvShop37: eventShopOwned(37, _eventShopStr),
   });
 
   // 2. Dancing Coral (index 4 = Research EXP)
@@ -386,7 +389,7 @@ export function computeExternalBonuses() {
   b.prehistoricSet = { val: ola379.includes('PREHISTORIC_SET') ? 50 : 0, label: 'Prehistoric Set', note: ola379.includes('PREHISTORIC_SET') ? 'Unlocked: min(50, 100) = 50' : 'Not unlocked' };
 
   // 6. SlabboBonus(7) = 0.1 * mult * floor(max(0, Cards1.length-1300)/5). Requires SuperBit(34).
-  const hasSB34 = superBitType(34);
+  const hasSB34 = superBitType(34, _gamingData12);
   const c1len = S.cards1Data.length || 0;
   const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
   // mult = (1 + MainframeBonus(15)/100) * (1 + MeritocBonusz(23)/100) * (1 + LegendPTS_bonus(28)/100)
@@ -405,7 +408,7 @@ export function computeExternalBonuses() {
   // 8. MealBonusesS  Giga_Chip (Meals[0][72], base 0.01, MealINFO[72][5]="ResearchXP")
   const mealLv = S.mealsData?.[0]?.[72] || 0;
   const ribT = S.ribbonData[100] || 0;
-  const ribBon = ribbonBonusAt(100);
+  const ribBon = ribbonBonusAt(100, S.ribbonData, _olaStr379);
   const mealBase = ribBon * mealLv * 0.01;
   // CookingMealBonusMultioo = (1 + (MainframeBonus(116) + ShinyBonusS(20))/100) x (1 + WinBonus(26)/100)
   const mfb116 = mainframeBonus(116);
@@ -416,7 +419,7 @@ export function computeExternalBonuses() {
   b.meal = { val: autoMeal, label: 'Meal (Giga Chip)', note: `LV${mealLv}x0.01xrib=${ribBon.toFixed(3)}xcook(mfb=${mfb116},shiny=${shinyS20.toFixed(1)},win=${winBon26.toFixed(1)})=${autoMeal.toFixed(2)}` };
 
   // 9. CropSCbonus(9)  EmporiumBonus(44), floor(max(0,(crops-200)/10))
-  const hasEmp44 = emporiumBonus(44);
+  const hasEmp44 = emporiumBonus(44, _ninjaData102_9);
   const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (S.farmCropCount - 200) / 10)) : 0;
   // CropSCbonMulti = (1 + MainframeBonus(17)/100) x (1 + (GrimoireUpgBonus(22)+ExoticBonusQTY(40))/100)
   const mf17 = mainframeBonus(17);
@@ -427,7 +430,7 @@ export function computeExternalBonuses() {
   b.cropSC = { val: autoCropSC, label: 'Crop Scientist', note: hasEmp44 ? `floor((${S.farmCropCount}-200)/10)=${cropRaw}xmulti(${cropSCmulti.toFixed(2)}) [MF17=${mf17.toFixed(0)}]` : 'Emporium(44) not unlocked' };
 
   // 10. MSA_Bonus(10)  SuperBitType(44), sum(TotemInfo[0]) = gaming stars
-  const hasSB44 = superBitType(44);
+  const hasSB44 = superBitType(44, _gamingData12);
   const gamingStars = Array.isArray(S.totemInfoData[0]) ? S.totemInfoData[0].reduce((a,v) => a + (Number(v)||0), 0) : 0;
   const autoMSA = hasSB44 ? 0.3 * Math.max(0, Math.floor((gamingStars - 300) / 10)) : 0;
   b.msa = { val: autoMSA, label: 'MSA Bonus', note: hasSB44 ? `0.3 x max(0,floor((${gamingStars}-300)/10)) = ${autoMSA.toFixed(1)}` : 'SuperBit(44) not unlocked' };
@@ -508,10 +511,11 @@ export function computeAFKGainsRate() {
   parts.gambit15 = { val: gambit.val, label: 'Gambit Milestone', note: gambit.note };
 
   // Minehead("BonusQTY", 1) = MINEHEAD_BONUS_QTY[1] = 2
-  parts.minehead1 = { val: mineheadBonusQTY(1), label: 'Minehead Floor 2', note: `${MINEHEAD_BONUS_QTY[1]}` };
+  const _mineFloor = S.stateR7[4] || 0;
+  parts.minehead1 = { val: mineheadBonusQTY(1, _mineFloor), label: 'Minehead Floor 2', note: `${MINEHEAD_BONUS_QTY[1]}` };
 
   // Minehead("BonusQTY", 10) = MINEHEAD_BONUS_QTY[10] = 3
-  parts.minehead10 = { val: mineheadBonusQTY(10), label: 'Minehead Floor 11', note: `${MINEHEAD_BONUS_QTY[10]}` };
+  parts.minehead10 = { val: mineheadBonusQTY(10, _mineFloor), label: 'Minehead Floor 11', note: `${MINEHEAD_BONUS_QTY[10]}` };
 
   // Grid_Bonus(71, 0)  Powered Down Research
   const gb71 = _gridBonusFinal(71);

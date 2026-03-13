@@ -98,7 +98,7 @@ function computeMealBonusLinePct() {
   const eelLv = S.mealsData?.[0]?.[40] || 0;
   if (eelLv <= 0) return 0;
   const cookMulti = computeCookingMealMulti();
-  const ribbon = ribbonBonusAt(28 + 40);
+  const ribbon = ribbonBonusAt(28 + 40, S.ribbonData, S.olaData[379]);
   return cookMulti * ribbon * eelLv * 1;
 }
 
@@ -187,7 +187,7 @@ function computeAllTalentLVz(talentLv, slotIdx) {
   // max(0, floor((Lv0[0] - 500) / 100) * SuperBitType(47))
   // Lv0[0] = current player's level
   const currentPlayerLv = (slotIdx >= 0 ? S.lv0AllData[slotIdx]?.[0] : 0) || 0;
-  const superBit47 = superBitType(47);
+  const superBit47 = superBitType(47, S.gamingData[12]);
   const lvBonusTerm = superBit47 ? Math.max(0, Math.floor((currentPlayerLv - 500) / 100)) : 0;
 
   return Math.floor(
@@ -261,7 +261,7 @@ function buildLabMainBonus() {
   const lmb = LAB_BONUS_BASE.map(e => [...e]);
   // Dynamic entries from NinjaInfo[25-28], require Emporium unlocks
   for (const dyn of LAB_BONUS_DYNAMIC) {
-    if (emporiumBonus(dyn[6])) {
+    if (emporiumBonus(dyn[6], S.ninjaData?.[102]?.[9])) {
       lmb.push([dyn[0], dyn[1], dyn[2], dyn[3], dyn[4], dyn[5]]);
     }
   }

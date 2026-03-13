@@ -30,6 +30,12 @@ import { mineheadBonusQTY } from './external.js';
  * against the same save data.
  */
 export function buildSaveContext() {
+  const eventShopStr = S.cachedEventShopStr;
+  const gamingData12 = S.gamingData[12];
+  const ninjaData102_9 = S.ninjaData?.[102]?.[9];
+  const olaStr379 = S.olaData[379];
+  const mineFloor = S.stateR7[4] || 0;
+
   return {
     // Server variable for research EXP curve
     serverVarResXP: S.serverVarResXP,
@@ -50,18 +56,18 @@ export function buildSaveContext() {
     cachedResearchExp: S.cachedResearchExp,
 
     // Pre-computed shop/minehead constants (avoid global-reading functions)
-    evShop33: eventShopOwned(33),
-    evShop34: eventShopOwned(34),
-    evShop35: eventShopOwned(35),
-    evShop36: eventShopOwned(36),
-    sb34: superBitType(34),
-    sb44: superBitType(44),
-    sb62: superBitType(62),
-    emp44: emporiumBonus(44),
-    ribbon100: ribbonBonusAt(100),
-    mhq2:  mineheadBonusQTY(2),
-    mhq12: mineheadBonusQTY(12),
-    mhq20: mineheadBonusQTY(20),
+    evShop33: eventShopOwned(33, eventShopStr),
+    evShop34: eventShopOwned(34, eventShopStr),
+    evShop35: eventShopOwned(35, eventShopStr),
+    evShop36: eventShopOwned(36, eventShopStr),
+    sb34: superBitType(34, gamingData12),
+    sb44: superBitType(44, gamingData12),
+    sb62: superBitType(62, gamingData12),
+    emp44: emporiumBonus(44, ninjaData102_9),
+    ribbon100: ribbonBonusAt(100, S.ribbonData, olaStr379),
+    mhq2:  mineheadBonusQTY(2, mineFloor),
+    mhq12: mineheadBonusQTY(12, mineFloor),
+    mhq20: mineheadBonusQTY(20, mineFloor),
 
     // Mutable-array defaults (used as fallbacks in unifiedSim when config
     // doesn't override).  Stored as references - callers .slice() before mutation.

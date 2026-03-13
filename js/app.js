@@ -8,18 +8,18 @@ import {
   dtAutoOptMags,
   dtAutoOptShapes,
   dtBranch,
-  _dtCompareSet,
+  dtCompareSet,
   dtDeleteNode,
   dtHideInfoTip,
   dtMoveInfoTip,
-  _dtNodes,
+  dtNodes,
   dtRenderComparison,
-  _dtRenderGridCanvas,
+  dtRenderGridCanvas,
   dtRenderTree,
   dtReset,
   dtSaveChanges,
-  _dtSetGridMode,
-  _dtSetShapeOpacity,
+  dtSetGridMode,
+  dtSetShapeOpacity,
   dtShowInfoTip,
   dtStart,
   dtToggleAutoInsight,
@@ -63,7 +63,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'insight-roi') renderInsightROI();
     if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
     if (tab.dataset.tab === 'shape-opt') renderUpgradeEval();
-    if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (_dtNodes.length === 0) dtStart(); }
+    if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (dtNodes.length === 0) dtStart(); }
   });
 });
 
@@ -167,7 +167,7 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
 document.getElementById('dt-save')?.addEventListener('click', () => dtSaveChanges());
 document.getElementById('dt-branch')?.addEventListener('click', () => dtBranch());
 document.getElementById('dt-compare-clear')?.addEventListener('click', () => {
-  _dtCompareSet.clear();
+  dtCompareSet.clear();
   dtRenderTree();
   dtRenderComparison();
 });
@@ -177,7 +177,7 @@ document.getElementById('dt-mag-optimize')?.addEventListener('click', () => dtAu
 document.getElementById('dt-grid-mode-pill')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.dt-mode-btn');
   if (!btn) return;
-  _dtSetGridMode(btn.dataset.mode);
+  dtSetGridMode(btn.dataset.mode);
   const mode = btn.dataset.mode;
   document.querySelectorAll('#dt-grid-mode-pill .dt-mode-btn').forEach(b => {
     const active = b.dataset.mode === mode;
@@ -192,8 +192,8 @@ document.getElementById('dt-grid-mode-pill')?.addEventListener('click', (e) => {
   }
 });
 document.getElementById('dt-shape-opacity')?.addEventListener('input', (e) => {
-  _dtSetShapeOpacity(parseInt(e.target.value) / 100);
-  _dtRenderGridCanvas();
+  dtSetShapeOpacity(parseInt(e.target.value) / 100);
+  dtRenderGridCanvas();
 });
 {
   const wrap = document.getElementById('dt-tree-wrap');
@@ -234,7 +234,7 @@ document.getElementById('dt-lvl-toggle')?.addEventListener('click', () => dtTogg
   }
 }
 document.getElementById('dt-reset')?.addEventListener('click', () => {
-  if (_dtNodes.length > 0 && !confirm('Reset the entire decision tree?')) return;
+  if (dtNodes.length > 0 && !confirm('Reset the entire decision tree?')) return;
   dtReset();
   dtStart();
 });

@@ -10,7 +10,9 @@ import { computeExternalBonuses, computeAFKGainsRate, mineheadBonusQTY } from '.
 import { computeLabConnectivity } from './lab.js';
 
 function computeMagnifiersOwned() {
-  const kaleiOwned = Math.round((S.gridLevels[72] || 0) + eventShopOwned(33));
+  const _eventShopStr = S.cachedEventShopStr;
+  const _mineFloor = S.stateR7[4] || 0;
+  const kaleiOwned = Math.round((S.gridLevels[72] || 0) + eventShopOwned(33, _eventShopStr));
   const monoOwned = Math.round(S.gridLevels[91] || 0);
   const lvBonus = Math.min(1, Math.floor(S.researchLevel / 10))
     + Math.min(1, Math.floor(S.researchLevel / 100))
@@ -18,8 +20,8 @@ function computeMagnifiersOwned() {
     + Math.min(1, Math.floor(S.researchLevel / 140));
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
-    + mineheadBonusQTY(2) + mineheadBonusQTY(12) + mineheadBonusQTY(20)
-    + eventShopOwned(34)
+    + mineheadBonusQTY(2, _mineFloor) + mineheadBonusQTY(12, _mineFloor) + mineheadBonusQTY(20, _mineFloor)
+    + eventShopOwned(34, _eventShopStr)
     + lvBonus
   ));
 }
