@@ -140,7 +140,7 @@ function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
         task.reject(new Error(ev.message));
       }
     };
-    w.postMessage({ type: 'init', saveCtx: saveCtx });
+    w.postMessage({ type: 'init', saveCtx: snapshot });
     workers.push(w);
   }
 

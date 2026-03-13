@@ -2,6 +2,7 @@
 
 import {
   GRID_COLS,
+  GRID_INDICES,
   GRID_SIZE,
   OCC_DATA,
   RES_GRID_RAW,
@@ -44,7 +45,7 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
     baseInsightRates.push(insightExpRate(monoObs[oi], md, il, gl, so, ctx));
   }
 
-  const allSquares = Object.keys(RES_GRID_RAW).map(Number);
+  const allSquares = GRID_INDICES;
   for (let i = 0; i < allSquares.length; i++) {
     const idx = allSquares[i];
     const maxLv = RES_GRID_RAW[idx][1];
@@ -91,7 +92,7 @@ function _findGatewayPath(gl, targetIdx, maxCost) {
   if (isGridCellUnlocked(targetIdx, gl)) return []; // already reachable, no gateways needed
   // BFS backwards from target through adjacency, looking for a path to an already-unlocked cell.
   // Each node on the path that isn't already owned is a gateway cost of 1.
-  const allSquares = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  const allSquares = new Set(GRID_INDICES);
   const COLS = GRID_COLS;
 
   function adj(idx) {
@@ -138,7 +139,7 @@ function _findGatewayPath(gl, targetIdx, maxCost) {
 
 export function expandSpendable(gl, totalPoints, so, md, il, occ, rLv, ctx) {
   // All params required - no global fallbacks.
-  const allSquares = Object.keys(RES_GRID_RAW).map(Number);
+  const allSquares = GRID_INDICES;
 
   // Dynamically detect which nodes affect EXP at any rank
   const expNodes = _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx);

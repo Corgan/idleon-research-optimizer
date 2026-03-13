@@ -3,6 +3,7 @@
 // All functions require saveCtx — no global S fallback.
 import {
   GRID_COLS,
+  GRID_INDICES,
   GRID_ROWS,
   GRID_SIZE,
   NODE_GOAL,
@@ -95,23 +96,25 @@ export function computeCellValues(simOpts) {
     const scoreCfg = { ...baseCfg, target: effectiveTarget };
     const bareResult = simExpOverHorizon({ ...scoreCfg, shapeOverlay: bareSO });
 
-    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    const testSO = bareSO.slice();
+    for (const idx of GRID_INDICES) {
       if ((gl[idx] || 0) === 0) continue;
-      const testSO = bareSO.slice();
       testSO[idx] = 0; // 25% shape
       const testResult = simExpOverHorizon({ ...scoreCfg, shapeOverlay: testSO });
       values[idx] = testResult.totalExp - bareResult.totalExp;
+      testSO[idx] = -1; // restore
     }
   } else {
     // Static scoring (original: instantaneous EXP/hr delta)
     const stOpts = { gridLevels: gl, magData: md, insightLvs: il, occFound: occ, researchLevel: rLv };
     const bareTotal = simTotalExp({ ...stOpts, shapeOverlay: bareSO }, _sc).total;
-    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    const testSO2 = bareSO.slice();
+    for (const idx of GRID_INDICES) {
       if ((gl[idx] || 0) === 0) continue;
-      const testSO = bareSO.slice();
-      testSO[idx] = 0; // 25% shape
-      const withShape = simTotalExp({ ...stOpts, shapeOverlay: testSO }, _sc).total;
+      testSO2[idx] = 0; // 25% shape
+      const withShape = simTotalExp({ ...stOpts, shapeOverlay: testSO2 }, _sc).total;
       values[idx] = withShape - bareTotal;
+      testSO2[idx] = -1; // restore
     }
   }
   return values;
@@ -326,7 +329,7 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
       }
     }
     // Handle non-EXP nodes: boost above, zero out below
-    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    for (const idx of GRID_INDICES) {
       const lv = gl[idx] || 0;
       if (lv === 0) continue;
       const goal = NODE_GOAL[idx];

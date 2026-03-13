@@ -1,7 +1,7 @@
 // ===== ANALYSIS FUNCTIONS =====
 // Insight ROI, obs unlock priority, mag type balance.
 
-import { GRID_SIZE, OCC_DATA, RES_GRID_RAW } from './game-data.js';
+import { GRID_INDICES, GRID_SIZE, OCC_DATA, RES_GRID_RAW } from './game-data.js';
 import {
   computeOccurrencesToBeFound,
   countMagTypes,
@@ -56,13 +56,14 @@ export function computeInsightCellValues(obsIdx, md, il, gl, so, saveCtx) {
   const bareSO = new Array(GRID_SIZE).fill(-1);
   const baseIR = insightExpRate(obsIdx, md, il, gl, bareSO, ctx);
   const values = new Array(GRID_SIZE).fill(0);
-  for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+  const testSO = bareSO.slice();
+  for (const idx of GRID_INDICES) {
     const lv = gl[idx] || 0;
     if (lv === 0) continue;
-    const testSO = bareSO.slice();
     testSO[idx] = 0; // 25% shape
     const testIR = insightExpRate(obsIdx, md, il, gl, testSO, ctx);
     values[idx] = testIR - baseIR;
+    testSO[idx] = -1; // restore
   }
   return values;
 }

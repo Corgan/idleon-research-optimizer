@@ -55,6 +55,9 @@ export const RES_GRID_RAW = {
   173: ["Divine_Design",1,25,"<._Also,_+{%_Drop_Rate."],
 };
 
+/** Pre-computed numeric keys of RES_GRID_RAW (sorted). Avoids repeated Object.keys() in hot loops. */
+export const GRID_INDICES = Object.keys(RES_GRID_RAW).map(Number).sort((a, b) => a - b);
+
 export const SHAPE_NAMES = ["Purple Diamond","Blue Circle","Green Microsquare","Cyan Hexagon",
   "Golden Rectangle","Orange Star","Maroon Triangle","White Moon","Pink Heart","Bat Symbol"];
 export const SHAPE_BONUS_PCT = [25,15,50,20,20,35,25,30,35,60];

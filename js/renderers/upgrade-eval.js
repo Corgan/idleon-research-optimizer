@@ -5,6 +5,7 @@ import { S } from '../state.js';
 import { buildSaveContext } from '../save/context.js';
 import {
   GRID_COLS,
+  GRID_INDICES,
   GRID_ROWS,
   GRID_SIZE,
   NODE_GOAL,
@@ -72,7 +73,7 @@ function _loadShapeTiers() {
   }
   // Remove stale nodes
   const validNonExp = new Set(UE_NON_EXP_NODES);
-  const allNodes = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  const allNodes = new Set(GRID_INDICES);
   // Above allows any valid node (including EXP nodes for presets like Insight)
   for (let i = S.shapeTiers.above.length - 1; i >= 0; i--) {
     if (!allNodes.has(S.shapeTiers.above[i])) S.shapeTiers.above.splice(i, 1);
@@ -124,7 +125,7 @@ function _stringToTiers(str) {
   const parts = str.split('|');
   if (parts.length !== 2) return null;
   const nonExp = new Set(UE_NON_EXP_NODES);
-  const allNodes = new Set(Object.keys(RES_GRID_RAW).map(Number));
+  const allNodes = new Set(GRID_INDICES);
   const above = parts[0] ? parts[0].split(',').map(s => _coordToIdx(s.trim())).filter(i => i >= 0 && allNodes.has(i)) : [];
   const below = parts[1] ? parts[1].split(',').map(s => _coordToIdx(s.trim())).filter(i => i >= 0 && nonExp.has(i)) : [];
   // Add any missing non-EXP nodes to below
@@ -432,8 +433,7 @@ function _renderTierList(containerId, tiers, onChange, opts) {
   const aboveSet = new Set(tiers.above);
   const _tierSc = (opts && opts.saveCtx) || buildSaveContext();
   const expNodes = [];
-  for (const idxStr of Object.keys(RES_GRID_RAW)) {
-    const idx = Number(idxStr);
+  for (const idx of GRID_INDICES) {
     if ((_tierSc.gridLevels[idx] || 0) < 1) continue;
     if (aboveSet.has(idx)) continue; // shown in above zone instead
     const goal = NODE_GOAL[idx] || '';

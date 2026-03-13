@@ -75,10 +75,12 @@ export function buildPhaseDetails(p, prev, diff) {
       const sc = SHAPE_COLORS[si] || 'var(--text2)';
       const coordStrs = cells.map(c => gridCoord(c));
       const footprint = renderShapeFootprint(cells, sc);
+      const pos = p.config.sp[si];
+      const posStr = pos ? ` <span style="opacity:.5;font-size:.85em;">at (${Math.round(pos.x)},${Math.round(pos.y)})${pos.rot ? ' rot ' + pos.rot + '\u00b0' : ''}</span>` : '';
       bkHtml += `<div style="margin-left:8px;font-size:.9em;margin-bottom:4px;display:flex;align-items:center;gap:6px;">` +
         footprint +
         `<div><span style="color:${sc};font-weight:600;">${SHAPE_NAMES[si]}</span>` +
-        ` <span style="opacity:.6;">(${SHAPE_BONUS_PCT[si]}%)</span>` +
+        ` <span style="opacity:.6;">(${SHAPE_BONUS_PCT[si]}%)</span>${posStr}` +
         `<span style="opacity:.7;"> \u2192 </span>${coordStrs.join(', ')}</div></div>`;
     }
     shapeDetails.push(`<details style="margin-bottom:4px;" onclick="event.stopPropagation();"><summary style="cursor:pointer;color:var(--cyan);font-size:.85em;">Shape grid &amp; breakdown</summary><div style="margin-top:4px;">${renderMiniGrid(p.config.so, p.config.gl, p.config.sp)}</div><div style="margin-top:6px;">${bkHtml}</div></details>`);
