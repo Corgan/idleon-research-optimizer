@@ -53,50 +53,23 @@ export function diffPhaseConfigs(prev, cur) {
   const curMax = magMaxForLevel(cur.rLv);
   diff.magCap = curMax > prevMax ? { from: prevMax, to: curMax } : null;
 
-  // Magnifier moves (type 0)
-  {
-    const prevSlots = {}, curSlots = {};
-    for (const m of prev.config.md) { if (m.type === 0) prevSlots[m.slot] = (prevSlots[m.slot]||0)+1; }
-    for (const m of cur.config.md) { if (m.type === 0) curSlots[m.slot] = (curSlots[m.slot]||0)+1; }
-    const allSlots = new Set([...Object.keys(prevSlots), ...Object.keys(curSlots)]);
-    const moves = [];
-    for (const s of allSlots) {
-      const pv = prevSlots[s] || 0, cv = curSlots[s] || 0;
-      if (pv !== cv) moves.push({ slot: Number(s), delta: cv - pv });
-    }
-    diff.mags = { moves, netNew: cur.config.md.filter(m=>m.type===0).length - prev.config.md.filter(m=>m.type===0).length };
-  }
+  // Magnifier / Kaleidoscope / Monocle moves - delegate to diffMDLayouts
+  const mdMoves = diffMDLayouts(prev.config.md, cur.config.md);
 
-  // Kaleidoscope moves (type 2, slot >= 0 only)
-  {
-    const prevSlots = {}, curSlots = {};
-    for (const m of prev.config.md) { if (m.type === 2 && m.slot >= 0) prevSlots[m.slot] = (prevSlots[m.slot]||0)+1; }
-    for (const m of cur.config.md) { if (m.type === 2 && m.slot >= 0) curSlots[m.slot] = (curSlots[m.slot]||0)+1; }
-    const allSlots = new Set([...Object.keys(prevSlots), ...Object.keys(curSlots)]);
-    const moves = [];
-    for (const s of allSlots) {
-      const pv = prevSlots[s] || 0, cv = curSlots[s] || 0;
-      if (pv !== cv) moves.push({ slot: Number(s), delta: cv - pv });
-    }
-    diff.kals = { moves, netNew: cur.config.md.filter(m=>m.type===2).length - prev.config.md.filter(m=>m.type===2).length };
-  }
+  diff.mags = { moves: mdMoves.mags, netNew: mdMoves.mags.reduce((s, m) => s + m.delta, 0) };
+  diff.kals = { moves: mdMoves.kals, netNew: mdMoves.kals.reduce((s, m) => s + m.delta, 0) };
 
-  // Monocle diff (type 1)
-  const prevMono = prev.config.md.filter(m=>m.type===1).map(m=>m.slot).sort((a,b)=>a-b);
-  const curMono = cur.config.md.filter(m=>m.type===1).map(m=>m.slot).sort((a,b)=>a-b);
-  const monoChanged = prevMono.length !== curMono.length || prevMono.some((s,i) => s !== curMono[i]);
-  if (monoChanged) {
-    const curGroups = {};
-    for (const s of curMono) curGroups[s] = (curGroups[s] || 0) + 1;
-    const prevGroups = {};
-    for (const s of prevMono) prevGroups[s] = (prevGroups[s] || 0) + 1;
-    const allObs = new Set([...Object.keys(curGroups), ...Object.keys(prevGroups)].map(Number));
-    const moves = [];
-    for (const obs of [...allObs].sort((a,b) => a - b)) {
-      const pc = prevGroups[obs] || 0, cc = curGroups[obs] || 0;
-      if (pc !== cc) moves.push({ slot: obs, delta: cc - pc });
-    }
-    diff.monos = { changed: true, curGroups, prevGroups, moves, netNew: curMono.length - prevMono.length, totalCur: curMono.length };
+  if (mdMoves.monos.length > 0) {
+    const curGroups = {}, prevGroups = {};
+    for (const m of cur.config.md)  { if (m.type === 1 && m.slot >= 0) curGroups[m.slot]  = (curGroups[m.slot]  || 0) + 1; }
+    for (const m of prev.config.md) { if (m.type === 1 && m.slot >= 0) prevGroups[m.slot] = (prevGroups[m.slot] || 0) + 1; }
+    const totalCur = Object.values(curGroups).reduce((s, c) => s + c, 0);
+    diff.monos = {
+      changed: true, curGroups, prevGroups,
+      moves: mdMoves.monos.sort((a, b) => a.slot - b.slot),
+      netNew: mdMoves.monos.reduce((s, m) => s + m.delta, 0),
+      totalCur,
+    };
   } else {
     diff.monos = { changed: false };
   }

@@ -1,28 +1,24 @@
 // ===== SIM WORKER - Web Worker entry point (type: module) =====
-// Receives state snapshots + task commands from the main thread.
+// Receives pre-built saveCtx + task commands from the main thread.
 // Imports from split engine modules.
 
-import {  restoreState  } from '../state.js';
 import { unifiedSim } from '../sim-engine.js';
 import { optimizeShapePlacement } from '../optimizers/shapes.js';
 import { computeInsightROI, computeObsUnlockPriority } from '../analysis.js';
-import { buildSaveContext } from '../save/context.js';
 
-let _baseState = null;
+let _saveCtx = null;
 
 onmessage = async function(e) {
   const d = e.data;
 
   if (d.type === 'init') {
-    _baseState = d.state;
-    restoreState(_baseState);
+    _saveCtx = d.saveCtx;
     postMessage({ type: 'ready' });
     return;
   }
 
   if (d.type === 'runSim') {
-    if (_baseState) restoreState(_baseState);
-    const saveCtx = buildSaveContext();
+    const saveCtx = _saveCtx;
     const simId = d.simId;
     const simProgressFn = function(sub) {
       postMessage({ type: 'simProgress', simId: simId, sub: sub });
@@ -38,8 +34,7 @@ onmessage = async function(e) {
     return;
   }
 
-  restoreState(d.state);
-  const saveCtx = buildSaveContext();
+  const saveCtx = d.saveCtx;
   const state = {
     gl: saveCtx.gridLevels, so: saveCtx.shapeOverlay, il: saveCtx.insightLvs,
     occ: saveCtx.occFound, rLv: saveCtx.researchLevel, mMax: saveCtx.magMaxPerSlot,
@@ -52,10 +47,10 @@ onmessage = async function(e) {
 
   if (d.type === 'shapeOpt') {
     try {
-      const r1 = optimizeShapePlacement(d.args.opts || {}, progressFn);
+      const r1 = optimizeShapePlacement(Object.assign({}, d.args.opts || {}, { saveCtx: saveCtx }), progressFn);
       let r2 = null;
       if (d.args.needPure) {
-        r2 = optimizeShapePlacement({}, progressFn);
+        r2 = optimizeShapePlacement({ saveCtx: saveCtx }, progressFn);
       }
       postMessage({ type: 'done', result: { primary: r1, pure: r2 } });
     } catch (err) {

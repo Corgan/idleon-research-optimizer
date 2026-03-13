@@ -63,6 +63,33 @@ export function countMagTypes(pool) {
   return { regular, mono, kalei };
 }
 
+/** Count magnifiers of a specific type assigned to a specific slot. */
+export function countMagsOfType(md, type, slot) {
+  let c = 0;
+  for (const m of md) if (m.type === type && m.slot === slot) c++;
+  return c;
+}
+
+/** Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders).
+ *  Pure function — callers adapt their data source to these primitives. */
+export function gridBonusMode2(nodeIdx, curBonus, gl31, il, occ, boonyCount, opts500) {
+  switch (nodeIdx) {
+    case 31: return 25 * gl31;
+    case 67: case 68: case 107: return curBonus * boonyCount;
+    case 94: {
+      let t = 0; for (let i = 0; i < il.length; i++) t += il[i] || 0;
+      return curBonus * t;
+    }
+    case 112: {
+      let f = 0; for (let i = 0; i < occ.length; i++) if (occ[i] >= 1) f++;
+      return curBonus * f;
+    }
+    case 151: return Number(opts500) || 0;
+    case 168: return curBonus;
+    default: return curBonus;
+  }
+}
+
 /** Observation indices that are usable for magnifier placement. */
 export function getAvailableSlots(rLv, occ) {
   const n = computeOccurrencesToBeFound(rLv, occ);
@@ -94,8 +121,7 @@ export function insightExpReqAt(obsIdx, lv) {
  * Returns 0 if no monocles assigned.
  */
 export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
-  let count = 0;
-  for (const m of md) { if (m.type === 1 && m.slot === obsIdx) count++; }
+  const count = countMagsOfType(md, 1, obsIdx);
   if (count === 0) return 0;
   const insightBonus = gbWith(gl, so, 92, ctx) + gbWith(gl, so, 91, ctx);
   const kalMap = buildKalMap(md);

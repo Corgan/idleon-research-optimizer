@@ -1,7 +1,7 @@
 // ===== worker-pool.js - Web Worker task runner + parallel optimizer =====
 // Extracted from app.js. ES module.
 
-import {  assignState, snapshotState  } from '../state.js';
+import {  assignState  } from '../state.js';
 import {
   SHAPE_VERTICES,
 } from '../game-data.js';
@@ -60,20 +60,23 @@ export function runWorkerTask(key, type, extra, progressCb) {
       w.terminate();
       reject(new Error(ev.message));
     };
-    const msg = { type: type, state: _snapshotState() };
+    const msg = { type: type, saveCtx: _buildWorkerCtx() };
     if (extra) Object.assign(msg, extra);
     w.postMessage(msg);
   });
 }
 
-function _snapshotState() {
-  // Eagerly build coverage LUT if not yet cached, so workers receive it pre-built
+function _buildWorkerCtx() {
+  // Build saveCtx with pre-computed coverage LUT for workers
   const saveCtx = buildSaveContext();
   const numShapes = Math.min(computeShapesOwned(saveCtx.researchLevel, saveCtx.gridLevels, saveCtx), SHAPE_VERTICES.length);
   if (saveCtx.covLUTCacheN !== numShapes && numShapes > 0) {
-    assignState({ _covLUTCache: buildCoverageLUT(numShapes), _covLUTCacheN: numShapes });
+    const newLUT = buildCoverageLUT(numShapes);
+    assignState({ _covLUTCache: newLUT, _covLUTCacheN: numShapes });
+    saveCtx.covLUTCache = newLUT;
+    saveCtx.covLUTCacheN = numShapes;
   }
-  return snapshotState();
+  return saveCtx;
 }
 
 function _createOptWorker() {
@@ -137,7 +140,7 @@ function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
         task.reject(new Error(ev.message));
       }
     };
-    w.postMessage({ type: 'init', state: snapshot });
+    w.postMessage({ type: 'init', saveCtx: saveCtx });
     workers.push(w);
   }
 
@@ -176,8 +179,7 @@ function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
 export async function runParallelOptimizer(target, progressCb, opts) {
   const assumeObs = !!(opts && opts.assumeObs);
   const extendInsightLA = !!(opts && opts.extendInsightLA);
-  const snapshot = _snapshotState();
-  const _saveCtx = buildSaveContext();
+  const _saveCtx = _buildWorkerCtx();
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
 
   // Formatting helpers (main-thread copies)
@@ -254,7 +256,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
   }
 
   // Create pool
-  const pool = _createSimWorkerPool(snapshot, poolSize, function(simId, sub, wIdx) {
+  const pool = _createSimWorkerPool(_saveCtx, poolSize, function(simId, sub, wIdx) {
     workerSubs[wIdx] = sub;
     _reportProgress();
   });
@@ -270,7 +272,6 @@ export async function runParallelOptimizer(target, progressCb, opts) {
     const futureEarned = target.type === 'level'
       ? Math.max(0, computeGridPointsEarned(target.value, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7))
       : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7));
-    console.log('[Optimizer] availPts:', availPts, '| futureEarned:', futureEarned);
 
     if (availPts <= 0) {
       // No points to spend now - run one sim (future points handled per level-up)
@@ -290,7 +291,6 @@ export async function runParallelOptimizer(target, progressCb, opts) {
     const spendable = expandResult.spendable;
     const freePoints = expandResult.freePoints;
     const freeNotice = expandResult.notice;
-    console.log('[Optimizer] EXP-relevant spendable:', spendable.length, 'squares | freePoints:', freePoints);
 
     if (spendable.length === 0) {
       currentStage = 'Simulating';
@@ -308,7 +308,6 @@ export async function runParallelOptimizer(target, progressCb, opts) {
     // Only distribute currently-available points; future-earned handled by mid-sim branching
     const usefulPoints = Math.min(availPts, availPts - freePoints);
     const combos = enumGridCombos(spendable, _saveCtx.gridLevels, usefulPoints);
-    console.log('[Optimizer] Exhaustive combos:', combos.length, '(' + usefulPoints + ' useful points across ' + spendable.length + ' EXP-relevant squares)');
 
     totalEstSims = combos.length;
     currentStage = 'Testing ' + combos.length + ' combination' + (combos.length > 1 ? 's' : '');

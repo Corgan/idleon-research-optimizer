@@ -25,12 +25,13 @@ import {
   dtNodes, dtCompareSet, DT,
   dtGetNode, dtGetChildren, dtGetRoot,
   dtCloneState, dtGridPointsAvail,
-  DT_COL_W, DT_ROW_H, DT_NODE_W, DT_NODE_H, DT_PAD, DT_BRANCH_COLORS,
+  DT_COL_W, DT_ROW_H, DT_NODE_W, DT_NODE_H, DT_PAD, DT_BRANCH_COLORS, DT_EVENT_COLORS,
 } from './dt-state.js';
 import {
   dtRecalcExpHr, dtResetGridState, dtSetGridMode, dtSetShapeOpacity,
-  dtRenderGridCanvas, dtRenderObsEditor, dtRebuildOverlay,
+  dtRenderGridCanvas, dtRebuildOverlay,
 } from './dt-grid.js';
+import { dtRenderObsEditor } from './dt-obs-editor.js';
 import {
   dtBuildInitState, dtCreateNode, dtStepSim, dtAdvanceAutoInsight,
   dtIsNodeVisible, dtVisibleParent, dtVisibleChildren, dtGetTotalTime,
@@ -39,8 +40,8 @@ import {
 } from './dt-sim.js';
 
 // Re-export shared state for external consumers (app.js, state-io.js)
-export { dtNodes as _dtNodes, dtCompareSet as _dtCompareSet, DT } from './dt-state.js';
-export { dtRenderGridCanvas as _dtRenderGridCanvas, dtSetGridMode as _dtSetGridMode, dtSetShapeOpacity as _dtSetShapeOpacity } from './dt-grid.js';
+export { dtNodes, dtCompareSet, DT } from './dt-state.js';
+export { dtRenderGridCanvas, dtSetGridMode, dtSetShapeOpacity } from './dt-grid.js';
 
 function _dtEvLabel(node) {
   const base = { 'start': '\u25B6 Start', 'decision': '\u270F\uFE0F Edit', 'level-up': '\u2B06 Lv Up', 'level+insight': '\u2B06+\uD83D\uDD2E Both' };
@@ -200,8 +201,7 @@ export function dtRenderTree() {
     const y1 = vParent._y + DT_NODE_H / 2;
     const x2 = node._x;
     const y2 = node._y + DT_NODE_H / 2;
-    const lineEvColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
-    ctx.strokeStyle = lineEvColors[node.event] || '#888';
+    ctx.strokeStyle = DT_EVENT_COLORS[node.event] || '#888';
     ctx.lineWidth = 2;
     ctx.beginPath();
     const cpx = (x1 + x2) / 2;
@@ -216,8 +216,7 @@ export function dtRenderTree() {
     const isSelected = dtCompareSet.has(node.id);
     const isActive = node.id === DT.modalNodeId;
     const isLeaf = dtVisibleChildren(node.id).length === 0;
-    const nodeEvColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
-    const evColor = nodeEvColors[node.event] || '#888';
+    const evColor = DT_EVENT_COLORS[node.event] || '#888';
 
     // Card background
     ctx.fillStyle = isSelected ? '#1a2a1a' : isActive ? '#1e1e3a' : '#1a1a2e';
@@ -460,11 +459,10 @@ function _dtShowTreeTooltip(node, cx, cy) {
     tip.style.cssText = 'position:fixed;z-index:9999;background:#16162a;border:1px solid #555;border-radius:6px;padding:8px 10px;font-size:12px;color:#ddd;pointer-events:none;max-width:360px;line-height:1.5;white-space:pre-wrap;max-height:60vh;overflow-y:auto;';
     document.body.appendChild(tip);
   }
-  const evColors = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
   const totalTime = dtGetTotalTime(node);
   const avail = dtGridPointsAvail(node.baseState.gl, node.rLv);
 
-  let html = `<div style="color:${evColors[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${_dtEvLabel(node)}</div>`;
+  let html = `<div style="color:${DT_EVENT_COLORS[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${_dtEvLabel(node)}</div>`;
   html += `<div><span style="color:#aaa;">Level:</span> <b style="color:#eee;">${node.rLv}</b></div>`;
   html += `<div><span style="color:#aaa;">EXP/hr:</span> <b style="color:#81c784;">${fmtVal(node.expHr)}</b>`;
   if (node.parentId !== null) {

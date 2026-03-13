@@ -25,6 +25,7 @@ export const DT = {
 export const DT_COL_W = 140, DT_ROW_H = 70;
 export const DT_NODE_W = 120, DT_NODE_H = 58, DT_PAD = 30;
 export const DT_BRANCH_COLORS = ['#9c27b0','#00bcd4','#ffd700','#e94560','#4caf50','#ff9800','#2196f3','#e91e63','#8bc34a','#795548'];
+export const DT_EVENT_COLORS = { 'start': '#aaa', 'decision': '#ffa726', 'level-up': '#ffd700', 'insight-up': '#ce93d8', 'level+insight': '#4dd0e1' };
 
 // Common accessors
 export function dtGetNode(id) { return dtNodes.find(n => n.id === id); }

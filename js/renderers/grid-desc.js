@@ -3,24 +3,12 @@
 
 import { RES_GRID_RAW } from '../game-data.js';
 import { optionsListData } from '../save/data.js';
+import { gridBonusMode2 } from '../sim-math.js';
 
-// Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders)
+// Compute Grid_Bonus mode 2 via centralized helper, adapted for save-context data
 function _gridBonusMode2(nodeIdx, curBonus, lvOverride, sc) {
-  switch (nodeIdx) {
-    case 31: return 25 * (lvOverride != null ? lvOverride : (sc.gridLevels[31] || 0));
-    case 67: case 68: case 107: return curBonus * sc.cachedBoonyCount;
-    case 94: {
-      let t = 0; for (let i = 0; i < sc.insightLvs.length; i++) t += sc.insightLvs[i] || 0;
-      return curBonus * t;
-    }
-    case 112: {
-      let f = 0; for (let i = 0; i < sc.occFound.length; i++) if (sc.occFound[i] >= 1) f++;
-      return curBonus * f;
-    }
-    case 151: return Number(optionsListData?.[500]) || 0;
-    case 168: return curBonus; // Glimbo trades not tracked
-    default: return curBonus;
-  }
+  const gl31 = lvOverride != null && nodeIdx === 31 ? lvOverride : (sc.gridLevels[31] || 0);
+  return gridBonusMode2(nodeIdx, curBonus, gl31, sc.insightLvs, sc.occFound, sc.cachedBoonyCount, optionsListData?.[500]);
 }
 
 // Format description with all game placeholders resolved
