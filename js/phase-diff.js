@@ -3,7 +3,7 @@
 // Computes structured diffs between sim phase configs.
 // No DOM, no HTML - consumers format the output for their platform.
 
-import { RES_GRID_RAW, NODE_GOAL, GRID_SIZE, OCC_DATA } from './game-data.js';
+import { GRID_INDICES, RES_GRID_RAW, NODE_GOAL, GRID_SIZE, OCC_DATA } from './game-data.js';
 import { magMaxForLevel } from './sim-math.js';
 
 /**
@@ -18,8 +18,7 @@ export function diffPhaseConfigs(prev, cur) {
 
   // Grid upgrades grouped by NODE_GOAL
   const grid = {};
-  for (const idxStr of Object.keys(RES_GRID_RAW)) {
-    const idx = Number(idxStr);
+  for (const idx of GRID_INDICES) {
     const pgl = prev.config.gl[idx] || 0, cgl = cur.config.gl[idx] || 0;
     if (cgl > pgl) {
       const goal = NODE_GOAL[idx] || 'Other';

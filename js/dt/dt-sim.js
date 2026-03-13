@@ -2,7 +2,7 @@
 // Split from decision-tree.js. Pure model/simulation layer.
 
 import {
-  OCC_DATA, RES_GRID_RAW, SHAPE_NAMES, SHAPE_COLORS,
+  GRID_INDICES, OCC_DATA, RES_GRID_RAW, SHAPE_NAMES, SHAPE_COLORS,
 } from '../game-data.js';
 import {
   advanceInsightLevels, advanceResearchLevel,
@@ -242,8 +242,8 @@ export function dtNodeChangeSummary(node) {
 
   // Grid changes - show abbreviated upgrade names
   const gridParts = [];
-  for (const idx of Object.keys(RES_GRID_RAW)) {
-    const i = Number(idx);
+  for (const idx of GRID_INDICES) {
+    const i = idx;
     const pv = pgl[i] || 0, nv = ngl[i] || 0;
     if (nv !== pv) {
       let name = RES_GRID_RAW[i][0].replace(/_/g, ' ');
@@ -299,11 +299,10 @@ export function dtComputeChanges(node) {
   const changes = [];
   const pgl = parent.baseState.gl, ngl = node.baseState.gl;
   const gridChanges = [];
-  for (const idx of Object.keys(RES_GRID_RAW)) {
-    const i = Number(idx);
-    const pv = pgl[i] || 0, nv = ngl[i] || 0;
+  for (const idx of GRID_INDICES) {
+    const pv = pgl[idx] || 0, nv = ngl[idx] || 0;
     if (nv !== pv) {
-      const name = RES_GRID_RAW[i][0].replace(/_/g, ' ');
+      const name = RES_GRID_RAW[idx][0].replace(/_/g, ' ');
       gridChanges.push(`${name} ${pv}\u2192${nv}`);
     }
   }

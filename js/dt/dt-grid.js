@@ -3,7 +3,7 @@
 
 import { optionsListData } from '../save/data.js';
 import {
-  GRID_COLS, GRID_ROWS, GRID_SIZE, NODE_GOAL, NODE_GOAL_COLORS,
+  GRID_COLS, GRID_INDICES, GRID_ROWS, GRID_SIZE, NODE_GOAL, NODE_GOAL_COLORS,
   RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_COLORS, SHAPE_DIMS, SHAPE_NAMES, SHAPE_VERTICES,
 } from '../game-data.js';
 import {
@@ -74,9 +74,9 @@ export function dtRenderGridCanvas() {
   const avail = dtGridPointsAvail(s.gl, s.rLv);
 
   // Coverage summary
-  const nodesInGrid = Object.keys(RES_GRID_RAW).length;
+  const nodesInGrid = GRID_INDICES.length;
   let coveredNodes = 0;
-  for (const idx of Object.keys(RES_GRID_RAW)) { if (s.so[Number(idx)] >= 0) coveredNodes++; }
+  for (const idx of GRID_INDICES) { if (s.so[idx] >= 0) coveredNodes++; }
   document.getElementById('dt-shape-coverage').textContent = `(${coveredNodes}/${nodesInGrid} covered)`;
 
   const canvas = document.getElementById('dt-grid-canvas');

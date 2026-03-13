@@ -4,6 +4,7 @@
 import { buildSaveContext } from '../save/context.js';
 import {
   GRID_COLS,
+  GRID_INDICES,
   GRID_SIZE,
   OCC_DATA,
   RES_GRID_RAW,
@@ -145,7 +146,7 @@ function _fmtLayoutDiff(before, during, after, researchLevel, occFound) {
 
 function _fmtShapeDiff(beforeSO, duringSO, afterSO, gridLevels) {
   // Tabbed mini research grids showing shape overlay per phase
-  const allIdx = Object.keys(RES_GRID_RAW).map(Number).sort((a,b) => a - b);
+  const allIdx = GRID_INDICES;
 
   // Check if there are any changes
   let hasChanges = false;

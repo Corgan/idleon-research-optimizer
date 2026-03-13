@@ -1,7 +1,7 @@
 // Optimizer unit tests: grid-spend, magnifiers, shapes, shapes-geo, monos
 // Run: node js/tests/test-optimizers.js
 
-import { GRID_COLS, GRID_SIZE, RES_GRID_RAW, OCC_DATA,
+import { GRID_COLS, GRID_INDICES, GRID_SIZE, RES_GRID_RAW, OCC_DATA,
          SHAPE_VERTICES, SHAPE_DIMS, SHAPE_BONUS_PCT, SHAPE_NAMES,
        } from '../game-data.js';
 
@@ -278,7 +278,7 @@ console.log('\nLoading save it.json...');
 
     // At least some grid nodes with level > 0 should have >0 cell values
     let hasPositive = false;
-    for (const idx of Object.keys(RES_GRID_RAW).map(Number)) {
+    for (const idx of GRID_INDICES) {
       if ((S.gridLevels[idx] || 0) > 0 && cv[idx] > 0) { hasPositive = true; break; }
     }
     ok(hasPositive, 'computeCellValues: some owned grid nodes have positive value');

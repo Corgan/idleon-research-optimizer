@@ -3,7 +3,7 @@
 // No global mutable state. Safe to call from workers and Node.js tests.
 
 import {
-  RES_GRID_RAW, SHAPE_BONUS_PCT, OCC_DATA,
+  RES_GRID_RAW, GRID_INDICES, SHAPE_BONUS_PCT, OCC_DATA,
   GRID_COLS, GRID_ROWS, GRID_SIZE,
 } from './game-data.js';
 
@@ -247,10 +247,12 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   const kalBase = getKaleiMultiBase(gl, so, ctx);
   const gd101 = gbWith(gl, so, 93, ctx);
   const occTBF = computeOccurrencesToBeFound(rLv, occ);
+  // Pre-compute regular magnifier counts per slot in a single pass
+  const magCounts = new Int32Array(occTBF);
+  for (const m of md) { if (m.type === 0 && m.slot >= 0 && m.slot < occTBF) magCounts[m.slot]++; }
   let obsTotal = 0;
   for (let i = 0; i < occTBF; i++) {
-    let count = 0;
-    for (const m of md) { if (m.type === 0 && m.slot === i) count++; }
+    const count = magCounts[i];
     if (count === 0) continue;
     const base = obsBaseExp(i);
     const kalMulti = 1 + (kalMap[i] || 0) * kalBase;
@@ -408,7 +410,7 @@ export function computeGridPointsEarned(rLv, sq50) {
  */
 export function computeGridPointsSpent(gl) {
   let total = 0;
-  for (const idx of Object.keys(RES_GRID_RAW)) total += gl[Number(idx)] || 0;
+  for (const idx of GRID_INDICES) total += gl[idx] || 0;
   return total;
 }
 

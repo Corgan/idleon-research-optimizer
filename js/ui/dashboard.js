@@ -368,9 +368,12 @@ export function renderDashboard(saveCtx) {
       const item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:.75em;white-space:nowrap;';
       const coordStr = cells.map(c => gridCoord(c)).join(', ');
+      const pos = S.shapePositions[si];
+      const posStr = pos ? ' at (' + Math.round(pos.x) + ',' + Math.round(pos.y) + ')' + (pos.rot ? ' rot ' + pos.rot + '\u00b0' : '') : '';
       item.innerHTML = fpHtml +
         '<span style="color:' + sc + ';font-weight:600;">' + SHAPE_NAMES[si] + '</span>' +
         ' <span style="opacity:.6;">(' + SHAPE_BONUS_PCT[si] + '%)</span>' +
+        '<span style="opacity:.4;font-size:.9em;">' + posStr + '</span>' +
         '<span style="opacity:.5;"> \u2192 </span>' +
         '<span style="opacity:.7;">' + coordStr + '</span>';
       legend.appendChild(item);

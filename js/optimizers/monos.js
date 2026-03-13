@@ -29,17 +29,24 @@ export function chooseMonoTargets(s, ctx, lookAheadHrs) {
   const magObsSet = new Set();
   for (const m of md) { if (m.type === 0 && m.slot >= 0) magObsSet.add(m.slot); }
 
+  // Pre-compute non-monocle counts per slot and the non-mono mag list in one pass
+  const nonMonoCountBySlot = new Int32Array(OCC_DATA.length);
+  const nonMonoMD = [];
+  for (const m of md) {
+    if (m.type !== 1) {
+      if (m.slot >= 0 && m.slot < nonMonoCountBySlot.length) nonMonoCountBySlot[m.slot]++;
+      nonMonoMD.push(m);
+    }
+  }
+
   // Build candidates - any usable obs with room for at least 1 monocle
   const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     if (!isObsUsable(i, rLv, occ)) continue;
-    const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
-    const monoRoom = maxPerSlot - inSlotNonMono;
+    const monoRoom = maxPerSlot - nonMonoCountBySlot[i];
     if (monoRoom < 1) continue;
     // Compute insight rate assuming 1 monocle placed here
-    const testMD = md.map(m => m.type === 1 ? {...m} : {...m});
-    // Place 1 test monocle
-    const oneMonoMD = [...testMD.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
+    const oneMonoMD = [...nonMonoMD, {type: 1, slot: i, x:0, y:0}];
     const iRate = insightExpRate(i, oneMonoMD, il, gl, so, ctx);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
@@ -51,10 +58,9 @@ export function chooseMonoTargets(s, ctx, lookAheadHrs) {
   // Also scan beyond occTBF for any usable obs (fallback for edge cases)
   for (let i = Math.min(occTBF, OCC_DATA.length); i < OCC_DATA.length; i++) {
     if (!isObsUsable(i, rLv, occ)) continue;
-    const inSlotNonMono = md.filter(m => m.slot === i && m.type !== 1).length;
-    const monoRoom = maxPerSlot - inSlotNonMono;
+    const monoRoom = maxPerSlot - nonMonoCountBySlot[i];
     if (monoRoom < 1) continue;
-    const oneMonoMD = [...md.filter(m => m.type !== 1), {type: 1, slot: i, x:0, y:0}];
+    const oneMonoMD = [...nonMonoMD, {type: 1, slot: i, x:0, y:0}];
     const iRate = insightExpRate(i, oneMonoMD, il, gl, so, ctx);
     const req = insightExpReqAt(i, il[i] || 0);
     const remaining = Math.max(0, req - (ip[i] || 0));
@@ -171,39 +177,53 @@ export function buildConcentratedLayout(s, targetObs, ctx) {
   // Reassign overflow monocles to best alternate obs (respect mMax)
   if (overflowMonoIndices.length > 0) {
     const occTBF2 = computeOccurrencesToBeFound(rLv, occ);
+    // Pre-compute slot counts once
+    const slotCounts = new Int32Array(Math.min(occTBF2, OCC_DATA.length));
+    for (let ci2 = 0; ci2 < result.length; ci2++) {
+      const s2 = result[ci2].slot;
+      if (s2 >= 0 && s2 < slotCounts.length) slotCounts[s2]++;
+    }
     for (let oi = 0; oi < overflowMonoIndices.length; oi++) {
       const omi = overflowMonoIndices[oi];
       let bestSlot2 = -1, bestRate = -1;
-      for (let si = 0; si < Math.min(occTBF2, OCC_DATA.length); si++) {
+      for (let si = 0; si < slotCounts.length; si++) {
         if (si === targetObs) continue;
         if (!isObsUsable(si, rLv, occ)) continue;
-        let slotCount2 = 0;
-        for (let ci2 = 0; ci2 < result.length; ci2++) if (result[ci2].slot === si) slotCount2++;
-        if (slotCount2 >= mMax) continue;
+        if (slotCounts[si] >= mMax) continue;
         result[omi].slot = si;
         const rate = insightExpRate(si, result, il, gl, so, ctx);
         if (rate > bestRate) { bestRate = rate; bestSlot2 = si; }
       }
-      result[omi].slot = bestSlot2 >= 0 ? bestSlot2 : -1;
+      if (bestSlot2 >= 0) {
+        result[omi].slot = bestSlot2;
+        slotCounts[bestSlot2]++;
+      } else {
+        result[omi].slot = -1;
+      }
     }
   }
 
   // Reassign evicted mags to best available slots
   if (evictedIndices.length > 0) {
     const occTBF = computeOccurrencesToBeFound(rLv, occ);
+    // Pre-compute slot counts once
+    const slotCountsE = new Int32Array(Math.min(occTBF, OCC_DATA.length));
+    for (let ci = 0; ci < result.length; ci++) {
+      const se = result[ci].slot;
+      if (se >= 0 && se < slotCountsE.length) slotCountsE[se]++;
+    }
     for (let evi = 0; evi < evictedIndices.length; evi++) {
       const m2 = result[evictedIndices[evi]];
       let bestSlot = -1, bestScore = -Infinity;
-      for (let oi3 = 0; oi3 < Math.min(occTBF, OCC_DATA.length); oi3++) {
+      for (let oi3 = 0; oi3 < slotCountsE.length; oi3++) {
         if (!isObsUsable(oi3, rLv, occ)) continue;
-        let slotCount = 0;
-        for (let ci = 0; ci < result.length; ci++) if (result[ci].slot === oi3) slotCount++;
-        if (slotCount >= mMax) continue;
+        if (slotCountsE[oi3] >= mMax) continue;
         m2.slot = oi3;
         const score = evalMagScoreWith(result, gl, so, il, occ, rLv, ctx);
         if (score > bestScore) { bestScore = score; bestSlot = oi3; }
       }
       m2.slot = bestSlot >= 0 ? bestSlot : -1;
+      if (bestSlot >= 0) slotCountsE[bestSlot]++;
     }
   }
 

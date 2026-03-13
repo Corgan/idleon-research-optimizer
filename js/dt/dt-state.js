@@ -1,6 +1,6 @@
 // dt-state.js - Shared mutable state and accessors for the decision-tree module family
 
-import { RES_GRID_RAW } from '../game-data.js';
+import { GRID_INDICES, RES_GRID_RAW } from '../game-data.js';
 
 // Shared collections (mutated in-place via push/splice/clear - never reassigned)
 export const dtNodes = [];
@@ -50,6 +50,6 @@ export function dtGridPointsAvail(gl, rLv) {
   const sq50 = gl[50] || 0;
   const earned = Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
   let spent = 0;
-  for (const idx of Object.keys(RES_GRID_RAW)) spent += gl[Number(idx)] || 0;
+  for (const idx of GRID_INDICES) spent += gl[idx] || 0;
   return Math.max(0, earned - spent);
 }
