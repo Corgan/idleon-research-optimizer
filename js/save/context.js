@@ -109,6 +109,7 @@ export function makeCtx(gl, saveCtx) {
     hasComp55,
     hasComp0DivOk,
     hasComp54:      saveCtx.companionHas54,
+    companionHas153: saveCtx.companionHas153,
     evShop33:       saveCtx.evShop33,
     evShop34:       saveCtx.evShop34,
     evShop36:       saveCtx.evShop36,
