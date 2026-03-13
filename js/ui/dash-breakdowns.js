@@ -171,13 +171,15 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const slabboMF15 = mainframeBonus(15);
   const slabboMeritoc23 = computeMeritocBonusz(23);
   const slabboLegend28 = legendPTSbonus(28);
-  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100);
+  const vub74 = S.vaultData[74] || 0;
+  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);
   addChildren.push(_bNode('Slab Bonus', ext.slabbo?.val || 0, hasSB34 ? [
     _bNode('Base (' + c1len + ')', slabboBase * 0.1, null, { fmt: '%', note: 'floor((Item Count - 1300) / 5) x 0.1' }),
     _bNode('Multiplier', slabboMult, [
       _bNode('Slab Sovereignty', 1 + slabboMF15 / 100, null, { fmt: 'x' }),
       _bNode('Slab Meritocracy', 1 + slabboMeritoc23 / 100, null, { fmt: 'x' }),
-      _bNode('+1 Slab', 1 + slabboLegend28 / 100, null, { fmt: 'x' })
+      _bNode('+1 Slab', 1 + slabboLegend28 / 100, null, { fmt: 'x' }),
+      _bNode('Vault: Super Slab', 1 + vub74 / 100, null, { fmt: 'x' })
     ], { fmt: 'x' })
   ] : null, { fmt: '%', note: hasSB34 ? '' : 'Slabby Research locked' }));
 
@@ -251,14 +253,16 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const mf17 = mainframeBonus(17);
   const gub22 = grimoireUpgBonus22();
   const exo40 = exoticBonusQTY40();
-  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40) / 100);
+  const vub79 = S.vaultData[79] || 0;
+  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
   addChildren.push(_bNode('Crop Scientist', ext.cropSC?.val || 0, hasEmp44 ? [
     _bNode('Base (' + S.farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
     _bNode('Multi', cropSCmulti, [
       _bNode('Depot Studies PhD', 1 + mf17 / 100, null, { fmt: 'x' }),
-      _bNode('Crop Research Multi', 1 + (gub22 + exo40) / 100, [
+      _bNode('Crop Research Multi', 1 + (gub22 + exo40 + vub79) / 100, [
         _bNode('Superior Crop Research', gub22, null, { fmt: '%' }),
-        _bNode('Scienterrific', exo40, null, { fmt: '%' })
+        _bNode('Scienterrific', exo40, null, { fmt: '%' }),
+        _bNode('Vault: Funded Research', vub79, null, { fmt: '%' })
       ], { fmt: 'x' })
     ], { fmt: 'x' })
   ] : null, { fmt: '%', note: hasEmp44 ? '' : 'Science Chalk locked' }));
@@ -314,8 +318,11 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const comp52val = ext._comp52?.val || 0;
   const jellyNode = _bNode('Jellofish', 1 + comp52val, null, { fmt: 'x', note: comp52val > 0 ? 'Owned' : 'Not owned' });
 
+  const comp153val = ext._comp153?.val || 0;
+  const nightmareNode = _bNode('Nightmare', 1 + comp153val, null, { fmt: 'x', note: comp153val > 0 ? 'Owned' : 'Not owned' });
+
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, 1 + comp52val);
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val));
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -326,6 +333,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   tnNode.fmt = 'x';
   rootChildren.push(tnNode);
   rootChildren.push(jellyNode);
+  rootChildren.push(nightmareNode);
   rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
 
   return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });
@@ -342,6 +350,9 @@ export function buildAFKBreakdownTree() {
 
   // Companion 28 - RIP Tide
   addChildren.push(_bNode('RIP Tide (Companion)', p.comp28.val, null, { fmt: '%', note: p.comp28.note }));
+
+  // Companion 153 - Nightmare
+  addChildren.push(_bNode('Nightmare (Companion)', p.comp153.val, null, { fmt: '%', note: p.comp153.note }));
 
   // Gambit Milestone 15
   addChildren.push(_bNode('Gambit Milestone', p.gambit15.val, null, { fmt: '%', note: p.gambit15.note }));

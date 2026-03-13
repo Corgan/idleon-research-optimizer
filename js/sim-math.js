@@ -400,9 +400,10 @@ export function simForwardProjection({
 /**
  * Compute grid points earned at a given research level.
  * sq50 = grid level of node 50 (Pts Every Ten).
+ * bonusPts = flat bonus points (e.g. 10 from Companion 153).
  */
-export function computeGridPointsEarned(rLv, sq50) {
-  return Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
+export function computeGridPointsEarned(rLv, sq50, bonusPts) {
+  return Math.floor(rLv + (bonusPts || 0) + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
 }
 
 /**
@@ -444,11 +445,12 @@ export function computeMagnifiersOwnedWith(gl, rLv, ctx) {
     + Math.min(1, Math.floor(rLv / 100))
     + Math.min(1, Math.floor(rLv / 130))
     + Math.min(1, Math.floor(rLv / 140));
+  const comp153 = ctx.companionHas153 ? 1 : 0;
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
     + ctx.mhq2 + ctx.mhq12 + ctx.mhq20
     + ctx.evShop34
-    + lvBonus
+    + lvBonus + comp153
   ));
 }
 

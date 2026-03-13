@@ -18,11 +18,12 @@ function computeMagnifiersOwned() {
     + Math.min(1, Math.floor(S.researchLevel / 100))
     + Math.min(1, Math.floor(S.researchLevel / 130))
     + Math.min(1, Math.floor(S.researchLevel / 140));
+  const comp153 = S.companionIds.has(153) ? 1 : 0;
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
     + mineheadBonusQTY(2, _mineFloor) + mineheadBonusQTY(12, _mineFloor) + mineheadBonusQTY(20, _mineFloor)
     + eventShopOwned(34, _eventShopStr)
-    + lvBonus
+    + lvBonus + comp153
   ));
 }
 
@@ -58,6 +59,7 @@ export function loadSaveData(raw) {
   const farmCrop = parseSaveKey(save, 'FarmCrop') || {};
   assignState({ farmCropCount: typeof farmCrop === 'object' ? Object.keys(farmCrop).length : 0 });
   assignState({ grimoireData: parseSaveKey(save, 'Grimoire') || [] });
+  assignState({ vaultData: parseSaveKey(save, 'UpgVault') || [] });
   assignSaveData({ labData: parseSaveKey(save, 'Lab') || [] });
   assignState({ farmUpgData: parseSaveKey(save, 'FarmUpg') || [] });
   assignState({ holesData: parseSaveKey(save, 'Holes') || [] });
@@ -160,7 +162,7 @@ export function loadSaveData(raw) {
   const eb = computeExternalBonuses();
   assignState({ extBonuses: eb });
   assignState({ externalResearchPct: eb._total });
-  assignState({ comp52TrueMulti: 1 + (eb._comp52?.val || 0) });
+  assignState({ comp52TrueMulti: (1 + (eb._comp52?.val || 0)) * (1 + (eb._comp153?.val || 0)) });
   assignState({ allBonusMulti: eb._allMulti?.val || 1 });
   assignSaveData({ cachedAFKRate: computeAFKGainsRate() });
 

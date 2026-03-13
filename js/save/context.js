@@ -44,6 +44,7 @@ export function buildSaveContext() {
     companionHas55: S.companionIds.has(55),
     companionHas54: S.companionIds.has(54),
     companionHas0:  S.companionIds.has(0),
+    companionHas153: S.companionIds.has(153),
     cachedComp0DivOk: S.cachedComp0DivOk,
 
     // Cached scalars used by makeCtx
@@ -127,8 +128,8 @@ export function computeShapesOwned(rLv, gl, saveCtx) {
   return computeShapesOwnedAt(rLv, makeCtx(gl, saveCtx));
 }
 
-export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7) {
-  return Math.max(0, computeGridPointsEarned(rLv, spelunkyUpg7) - computeGridPointsSpent(gl));
+export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7, bonusPts) {
+  return Math.max(0, computeGridPointsEarned(rLv, spelunkyUpg7, bonusPts) - computeGridPointsSpent(gl));
 }
 
 export function simTotalExp(opts, saveCtx) {
