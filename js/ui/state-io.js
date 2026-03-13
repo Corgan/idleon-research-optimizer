@@ -245,7 +245,7 @@ export function applySupplements() {
   if (loadedSaveFormat !== 'state') {
     assignState({ extBonuses: computeExternalBonuses() });
     assignState({ externalResearchPct: S.extBonuses._total });
-    assignState({ comp52TrueMulti: 1 + (S.extBonuses._comp52?.val || 0) });
+    assignState({ comp52TrueMulti: (1 + (S.extBonuses._comp52?.val || 0)) * (1 + (S.extBonuses._comp153?.val || 0)) });
     assignState({ allBonusMulti: S.extBonuses._allMulti?.val || 1 });
     assignSaveData({ cachedAFKRate: computeAFKGainsRate() });
   }

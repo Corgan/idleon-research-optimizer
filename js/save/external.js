@@ -392,13 +392,15 @@ export function computeExternalBonuses() {
   const hasSB34 = superBitType(34, _gamingData12);
   const c1len = S.cards1Data.length || 0;
   const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
-  // mult = (1 + MainframeBonus(15)/100) * (1 + MeritocBonusz(23)/100) * (1 + LegendPTS_bonus(28)/100)
+  // SlabboBonus_AllMulti = (1 + MeritocBonusz(23)/100) * (1 + LegendPTS_bonus(28)/100) * (1 + VaultUpgBonus(74)/100)
+  // mult = (1 + MainframeBonus(15)/100) * SlabboBonus_AllMulti
   const slabboMF15 = mainframeBonus(15);
   const slabboMeritoc23 = computeMeritocBonusz(23);
   const slabboLegend28 = legendPTSbonus(28);
-  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100);
+  const vub74 = S.vaultData[74] || 0;  // Super Slab — BonusPerLevel=1
+  const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);
   const autoSlabbo = hasSB34 ? 0.1 * slabboMult * slabboBase : 0;
-  b.slabbo = { val: autoSlabbo, label: 'Slab Bonus', note: hasSB34 ? `0.1x${slabboBase}xmulti(${slabboMult.toFixed(2)}) [MF15=${slabboMF15.toFixed(0)},merit=${slabboMeritoc23.toFixed(0)},leg=${slabboLegend28}]` : 'SuperBit(34) not unlocked' };
+  b.slabbo = { val: autoSlabbo, label: 'Slab Bonus', note: hasSB34 ? `0.1x${slabboBase}xmulti(${slabboMult.toFixed(2)}) [MF15=${slabboMF15.toFixed(0)},merit=${slabboMeritoc23.toFixed(0)},leg=${slabboLegend28},vub74=${vub74}]` : 'SuperBit(34) not unlocked' };
 
   // 7. ArcadeBonus(63)  uses shared arcadeBonus helper
   const autoArcade = arcadeBonus(63);
@@ -421,13 +423,14 @@ export function computeExternalBonuses() {
   // 9. CropSCbonus(9)  EmporiumBonus(44), floor(max(0,(crops-200)/10))
   const hasEmp44 = emporiumBonus(44, _ninjaData102_9);
   const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (S.farmCropCount - 200) / 10)) : 0;
-  // CropSCbonMulti = (1 + MainframeBonus(17)/100) x (1 + (GrimoireUpgBonus(22)+ExoticBonusQTY(40))/100)
+  // CropSCbonMulti = (1 + MainframeBonus(17)/100) x (1 + (GrimoireUpgBonus(22)+ExoticBonusQTY(40)+VaultUpgBonus(79))/100)
   const mf17 = mainframeBonus(17);
   const gub22 = grimoireUpgBonus22();
   const exo40 = exoticBonusQTY40();
-  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40) / 100);
+  const vub79 = S.vaultData[79] || 0;  // Properly Funded Research — BonusPerLevel=1
+  const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
   const autoCropSC = cropRaw * cropSCmulti;
-  b.cropSC = { val: autoCropSC, label: 'Crop Scientist', note: hasEmp44 ? `floor((${S.farmCropCount}-200)/10)=${cropRaw}xmulti(${cropSCmulti.toFixed(2)}) [MF17=${mf17.toFixed(0)}]` : 'Emporium(44) not unlocked' };
+  b.cropSC = { val: autoCropSC, label: 'Crop Scientist', note: hasEmp44 ? `floor((${S.farmCropCount}-200)/10)=${cropRaw}xmulti(${cropSCmulti.toFixed(2)}) [MF17=${mf17.toFixed(0)},vub79=${vub79}]` : 'Emporium(44) not unlocked' };
 
   // 10. MSA_Bonus(10)  SuperBitType(44), sum(TotemInfo[0]) = gaming stars
   const hasSB44 = superBitType(44, _gamingData12);
@@ -468,6 +471,11 @@ export function computeExternalBonuses() {
   const comp52val = comp52owned ? 0.5 : 0; // CompanionDB[52][2] = 0.5  1.5x Research EXP
   b._comp52 = { val: comp52val, label: 'Jellofish (1.5x Research EXP)', note: comp52owned ? 'Owned ' : 'Not owned', isTrueMult: true };
 
+  // Companion 153 (rift5 Nightmare): 2x Research EXP
+  const comp153owned = S.companionIds.has(153);
+  const comp153val = comp153owned ? 1 : 0; // CompanionDB[153] = 2x Research EXP
+  b._comp153 = { val: comp153val, label: 'Nightmare (2x Research EXP)', note: comp153owned ? 'Owned' : 'Not owned', isTrueMult: true };
+
   // Grid_Bonus_Allmulti: 1 + (Companions(55) + 5*min(1, R[0][173]*Companions(0)))/100
   const comp55owned = S.companionIds.has(55);
   const comp55val = comp55owned ? 15 : 0; // CompanionDB[55][2] = 15  1.15x all grid bonuses
@@ -505,6 +513,10 @@ export function computeAFKGainsRate() {
   // Companion(28) = CompanionDB[28] w7d1, bonus=30
   const comp28owned = S.companionIds.has(28);
   parts.comp28 = { val: comp28owned ? 30 : 0, label: 'RIP Tide (Companion)', note: comp28owned ? 'Owned (30%)' : 'Not owned' };
+
+  // Companion(153) = CompanionDB[153] rift5 Nightmare, bonus=20
+  const comp153afk = S.companionIds.has(153);
+  parts.comp153 = { val: comp153afk ? 20 : 0, label: 'Nightmare (Companion)', note: comp153afk ? 'Owned (20%)' : 'Not owned' };
 
   // GambitBonuses(15)  flat 3 if unlocked
   const gambit = computeGambitBonus15();

@@ -42,6 +42,7 @@ export const S = {
   mealsData: [],
   farmCropCount: 0,
   grimoireData: [],
+  vaultData: [],
   farmUpgData: [],
   totalTomePoints: 0,
   holesData: [],
@@ -136,6 +137,7 @@ export function restoreState(s) {
   if (!S.ribbonData) S.ribbonData = [];
   if (!S.mealsData) S.mealsData = [];
   if (!S.grimoireData) S.grimoireData = [];
+  if (!S.vaultData) S.vaultData = [];
   if (!S.farmUpgData) S.farmUpgData = [];
   if (!S.holesData) S.holesData = [];
   if (!S.riftData) S.riftData = [];

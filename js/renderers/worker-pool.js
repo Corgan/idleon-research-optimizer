@@ -268,10 +268,11 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, _saveCtx.cachedSpelunkyUpg7);
+    const comp153bonus = _saveCtx.companionHas153 ? 10 : 0;
+    const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, _saveCtx.cachedSpelunkyUpg7, comp153bonus);
     const futureEarned = target.type === 'level'
-      ? Math.max(0, computeGridPointsEarned(target.value, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7))
-      : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, _saveCtx.cachedSpelunkyUpg7) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7));
+      ? Math.max(0, computeGridPointsEarned(target.value, _saveCtx.cachedSpelunkyUpg7, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7, comp153bonus))
+      : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, _saveCtx.cachedSpelunkyUpg7, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, _saveCtx.cachedSpelunkyUpg7, comp153bonus));
 
     if (availPts <= 0) {
       // No points to spend now - run one sim (future points handled per level-up)
