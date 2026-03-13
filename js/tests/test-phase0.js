@@ -251,6 +251,10 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
   gl[72] = 50; gl[91] = 30;
   const magCtx3 = { evShop33: 5, evShop34: 5, mhq2: 5, mhq12: 5, mhq20: 5 };
   eq(computeMagnifiersOwnedWith(gl, 200, magCtx3), 80, 'magOwned capped at 80');
+  // companionHas153 → +1
+  gl[72] = 0; gl[91] = 0;
+  const magCtx4 = { evShop33: 0, evShop34: 0, mhq2: 0, mhq12: 0, mhq20: 0, companionHas153: true };
+  eq(computeMagnifiersOwnedWith(gl, 1, magCtx4), 2, 'magOwned + comp153');
 }
 
 // --- computeShapesOwnedAt ---
