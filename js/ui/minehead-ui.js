@@ -1443,30 +1443,34 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     gameOver = false;
     logEl.innerHTML = '';
     _log('Game started! Click tiles to reveal them.', 'var(--green)');
-    _newTurn();
+    _newTurn(true);
   }
 
-  function _newTurn() {
-    turnsPlayed++;
-    const g = generateGrid(numTiles, mines, lvs, crownOdds, _rng);
-    grid = g.grid;
-    crowns = g.crowns;
-    goldenPos = _placeGoldens(grid, numTiles, goldens, maxGoldens, _rng);
-    // Rigged mode: every non-golden tile becomes a mine
-    if (PLAY_RIGGED) {
-      const goldSet = new Set(goldenPos);
-      for (let i = 0; i < numTiles; i++) { if (!goldSet.has(i)) grid[i] = 0; }
-    }
-    revealed = new Array(numTiles).fill(false);
-    turnValues = [];
-    minesFound = 0;
-    crownProgress = 0;
-    crownSets = 0;
-    safeRevealed = 0;
-    turnActive = true;
-    _log(`── Turn ${turnsPlayed} ──`, 'var(--purple)');
-    _renderGrid();
-    _updateHud();
+  function _newTurn(skipDispose) {
+    const setup = () => {
+      turnsPlayed++;
+      const g = generateGrid(numTiles, mines, lvs, crownOdds, _rng);
+      grid = g.grid;
+      crowns = g.crowns;
+      goldenPos = _placeGoldens(grid, numTiles, goldens, maxGoldens, _rng);
+      // Rigged mode: every non-golden tile becomes a mine
+      if (PLAY_RIGGED) {
+        const goldSet = new Set(goldenPos);
+        for (let i = 0; i < numTiles; i++) { if (!goldSet.has(i)) grid[i] = 0; }
+      }
+      revealed = new Array(numTiles).fill(false);
+      turnValues = [];
+      minesFound = 0;
+      crownProgress = 0;
+      crownSets = 0;
+      safeRevealed = 0;
+      turnActive = true;
+      _log(`── Turn ${turnsPlayed} ──`, 'var(--purple)');
+      _renderGrid(true);
+      _updateHud();
+    };
+    if (skipDispose) { setup(); return; }
+    _disposeTiles().then(setup);
   }
 
   function _tileStyle(i) {
@@ -1494,11 +1498,37 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     return v;
   }
 
-  function _renderGrid() {
+  function _disposeTiles() {
+    return new Promise(resolve => {
+      const tiles = gridEl.children;
+      if (!tiles.length) { resolve(); return; }
+      const indices = Array.from({length: tiles.length}, (_, i) => i);
+      // Shuffle order for staggered dispose
+      for (let j = indices.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [indices[j], indices[k]] = [indices[k], indices[j]]; }
+      const stagger = Math.min(30, 400 / tiles.length);
+      indices.forEach((idx, order) => {
+        const t = tiles[idx];
+        if (!t) return;
+        setTimeout(() => {
+          t.style.transition = 'transform .3s ease-in, opacity .3s ease-in';
+          t.style.transform = `scale(0.3) rotate(${(Math.random() - 0.5) * 40}deg)`;
+          t.style.opacity = '0';
+        }, order * stagger);
+      });
+      setTimeout(resolve, indices.length * stagger + 320);
+    });
+  }
+
+  function _renderGrid(animate) {
     gridEl.innerHTML = '';
     for (let i = 0; i < numTiles; i++) {
       const tile = document.createElement('div');
-      tile.style.cssText = `width:48px;height:48px;border:2px solid;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.2em;font-weight:700;transition:all .15s;user-select:none;${_tileStyle(i)}`;
+      const baseStyle = `width:48px;height:48px;border:2px solid;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.2em;font-weight:700;user-select:none;`;
+      if (animate) {
+        tile.style.cssText = baseStyle + `opacity:0;transform:scale(0) rotate(${(Math.random()-0.5)*30}deg);transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease-out;${_tileStyle(i)}`;
+      } else {
+        tile.style.cssText = baseStyle + `transition:all .15s;${_tileStyle(i)}`;
+      }
       tile.textContent = _tileLabel(i);
       if (crowns[i] && revealed[i] && grid[i] !== 0) {
         tile.innerHTML = _tileLabel(i) + '<span style="position:absolute;top:-2px;right:1px;font-size:.55em;">👑</span>';
@@ -1510,6 +1540,16 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
         tile.addEventListener('click', () => _onTileClick(i));
       }
       gridEl.appendChild(tile);
+    }
+    if (animate) {
+      const stagger = Math.min(25, 350 / numTiles);
+      const shuffled = Array.from({length: numTiles}, (_, i) => i);
+      for (let j = shuffled.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]]; }
+      shuffled.forEach((idx, order) => {
+        const t = gridEl.children[idx];
+        if (!t) return;
+        setTimeout(() => { t.style.opacity = '1'; t.style.transform = 'scale(1) rotate(0deg)'; }, order * stagger + 30);
+      });
     }
   }
 
@@ -1559,7 +1599,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       } else {
         turnActive = false;
         _log('Turn lost — 0 damage committed.', 'var(--accent)');
-        setTimeout(() => { if (!gameOver) _newTurn(); }, 1200);
+        setTimeout(() => { if (!gameOver) _newTurn(false); }, 600);
       }
     } else if (result === 'mine-blocked') {
       // keep playing
@@ -1595,7 +1635,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       gameOver = true;
       _log(`🎉 BOSS DEFEATED in ${turnsPlayed} turns!`, 'var(--green)');
     } else {
-      setTimeout(() => { if (!gameOver) _newTurn(); }, 800);
+      setTimeout(() => { if (!gameOver) _newTurn(false); }, 400);
     }
     _renderGrid();
     _updateHud();
