@@ -85,7 +85,7 @@ export function computeCardLv(cardKey) {
   return lv;
 }
 
-function arcadeBonus(idx) {
+export function arcadeBonus(idx) {
   const params = ARCADE_SHOP[idx];
   if (!params) return 0;
   const lv = S.arcadeUpgData[idx] || 0;
@@ -484,6 +484,45 @@ export function computeExternalBonuses() {
   b._allMulti = { val: 1 + (comp55val + comp0val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val})/100` };
 
   return b;
+}
+
+export function computeMineheadCurrSources() {
+  // Companion 143 (w7b2): bonus=20, used as max(1, min(2, val)) → 2x when owned
+  const comp143 = S.companionIds.has(143) ? 20 : 0;
+
+  // Atom 13 (Silicon): 1% per atom level
+  const atom13 = Number(S.atomsData?.[13]) || 0;
+
+  // Arcade 62 (Minehead Currency): decay 25/100
+  const arcade62val = arcadeBonus(62);
+  const arcade62lv = S.arcadeUpgData[62] || 0;
+
+  // Meal 73 (2nd Wedding Cake): base=0.02, ribbon=28+73=101, type=MineCurr
+  const mealLv = S.mealsData?.[0]?.[73] || 0;
+  const olaStr379 = String(S.olaData[379] || '');
+  let mealMineCurr = 0;
+  let mealRibBon = 0;
+  let mealCookMulti = 1;
+  let mealMfb116 = 0;
+  let mealShinyS20 = 0;
+  let mealWinBon26 = 0;
+  let mealRibT = 0;
+  if (mealLv > 0) {
+    mealRibT = S.ribbonData[101] || 0;
+    mealRibBon = ribbonBonusAt(101, S.ribbonData, olaStr379);
+    mealMfb116 = mainframeBonus(116);
+    mealShinyS20 = computeShinyBonusS(20);
+    mealWinBon26 = computeWinBonus(26);
+    mealCookMulti = (1 + (mealMfb116 + mealShinyS20) / 100) * (1 + mealWinBon26 / 100);
+    mealMineCurr = mealCookMulti * mealRibBon * mealLv * 0.02;
+  }
+
+  return {
+    comp143, atom13,
+    arcade62: arcade62val, arcade62lv,
+    mealMineCurr, mealLv, mealRibBon, mealRibT,
+    mealCookMulti, mealMfb116, mealShinyS20, mealWinBon26,
+  };
 }
 
 export function calcAllBonusMulti(gl) {

@@ -168,12 +168,16 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
     const postExpHr = post.expHr;
     const rateGain = postExpHr - projCurExpHr;
     if (rateGain <= 0) continue;
+    // Decompose: permanent gain (102 only) = new IL with current mag layout
+    const permExpHr = simTotalExpWith(gl, so, md, c.newIL, projOcc, rLv, ctx);
+    const permGain = Math.max(0, permExpHr - projCurExpHr);
     const expLostPerHr = Math.max(0, projCurExpHr - c.grindExpHr);
     const totalExpLost = expLostPerHr * c.grindHrs;
-    const recoupHrs = rateGain > 0 ? totalExpLost / rateGain : Infinity;
+    // Use permanent gain for break-even filter (conservative; Phase 2b scores accurately)
+    const recoupHrs = permGain > 0 ? totalExpLost / permGain : Infinity;
     const breakEvenHrs = c.grindHrs + recoupHrs;
     if (breakEvenHrs >= remainingHrs) continue;
-    viable.push({ ...c, obsName, postExpHr, rateGain, breakEvenHrs, expLostPerHr, totalExpLost });
+    viable.push({ ...c, obsName, postExpHr, rateGain, permGain, breakEvenHrs, expLostPerHr, totalExpLost });
   }
   if (viable.length === 0) return null;
 
@@ -198,12 +202,16 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
       }
 
       const monoArr = Array.from(getMonoObsSet(phaseMD));
+      const isPostGrind = si >= seq.length;
       const phaseResult = simForwardProjection({
         monoSlots: monoArr, md: phaseMD, il: simIL, ip: simIP,
         gl, so, occ: simOcc, rLv: simRLv, rExp: simRExp, ctx,
         maxHrs: remainHrs - simTime, maxJumps: 5000,
         assumeObsUnlocked,
         onInsightLevelUp: phaseEndCondition ? (obsIdx) => phaseEndCondition(obsIdx) : undefined,
+        onReopt: isPostGrind ? (curMD, curIL, curOcc, curRLv) => {
+          return reoptRegularMags({gl, so, md: curMD, il: curIL, occ: curOcc, rLv: curRLv, mMax}, ctx);
+        } : undefined,
       });
       totalExp += phaseResult.totalExp;
       simTime += phaseResult.time;
@@ -241,7 +249,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
       obsIdx: x.obsIdx,
       obsName: x.obsName,
       grindMD: x.grindMD, grindHrs: x.grindHrs, grindExpHr: realGrindExpHr, postExpHr: x.postExpHr,
-      rateGain: x.rateGain, breakEvenHrs: x.breakEvenHrs,
+      rateGain: x.rateGain, permGain: x.permGain, breakEvenHrs: x.breakEvenHrs,
       netGain: bestTotalExp - noGrindTotal, expLostPerHr: x.expLostPerHr, totalExpLost: x.totalExpLost,
       newInsightLv: (il[x.obsIdx] || 0) + 1,
     };

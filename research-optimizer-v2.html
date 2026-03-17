@@ -262,6 +262,8 @@ h1 span { color: var(--accent); }
       <input type="number" id="supp-tome" value="0" min="0" step="1000" style="width:80px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;">
       <span style="margin-left:8px;">A_ResXP:</span>
       <input type="number" id="supp-resxp" value="1.01" min="1" step="0.01" style="width:70px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;" title="Server variable A_ResXP (EXP curve scaling for levels 21+)">
+      <span style="margin-left:8px;">A_MineHP:</span>
+      <input type="number" id="supp-minehp" value="1" min="1" step="0.1" style="width:70px;background:#111;border:1px solid #444;border-radius:4px;padding:3px 6px;color:var(--text);font-size:.9em;" title="Server variable A_MineHP (Depth Charge boss HP scaling for boss 10+)">
       <span style="margin-left:4px;color:#888;font-size:.8em;font-style:italic;">No need to change unless told to</span>
       <button class="btn btn-sm" id="supplements-apply-btn">Apply</button>
     </div>
@@ -275,6 +277,7 @@ h1 span { color: var(--accent); }
   <div class="tab" data-tab="obs-unlock">Obs Unlock</div>
   <div class="tab" data-tab="shape-opt">Shape Opt</div>
   <div class="tab" data-tab="sandbox">Decision Tree</div>
+  <div class="tab" data-tab="minehead">Minehead</div>
 </div>
 
 <!-- ===== DASHBOARD TAB ===== -->
@@ -508,6 +511,9 @@ h1 span { color: var(--accent); }
     <div class="research-grid" id="ue-grid"></div>
   </div>
 </div>
+
+<!-- ===== MINEHEAD TAB ===== -->
+<div id="tab-minehead" class="tab-content"></div>
 
 <div class="tooltip" id="tooltip"></div>
 

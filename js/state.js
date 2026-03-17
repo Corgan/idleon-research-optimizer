@@ -21,6 +21,7 @@ export const S = {
   magData: [],
   shapePositions: [],
   stateR7: new Array(20).fill(0),
+  mineheadUpgLevels: [],
   researchLevel: 0,
   magMaxPerSlot: 1,
   externalResearchPct: 0,
@@ -49,6 +50,7 @@ export const S = {
   riftData: [],
   breedingData: [],
   summonData: [],
+  atomsData: [],
   arcaneData: [],
   gemItemsData: [],
   achieveRegData: [],
@@ -61,6 +63,8 @@ export const S = {
   extBonusOverrides: {},
   extBonuses: null,
   serverVarResXP: 1.01,
+  serverVarMineHP: 1,
+  serverVarMineCost: 1,
   cachedEventShopStr: '',
   cachedResearchExp: 0,
   cachedSpelunkyUpg7: 0,
@@ -143,6 +147,7 @@ export function restoreState(s) {
   if (!S.riftData) S.riftData = [];
   if (!S.breedingData) S.breedingData = [];
   if (!S.summonData) S.summonData = [];
+  if (!S.atomsData) S.atomsData = [];
   if (!S.arcaneData) S.arcaneData = [];
   if (!S.gemItemsData) S.gemItemsData = [];
   if (!S.achieveRegData) S.achieveRegData = [];

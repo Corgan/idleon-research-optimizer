@@ -39,6 +39,7 @@ export function loadSaveData(raw) {
   assignState({ insightLvs: R[4].slice() });
   assignState({ insightProgress: R[3].slice() });
   assignState({ stateR7: R[7].slice() });
+  assignState({ mineheadUpgLevels: R[8] ? R[8].slice() : [] });
 
   // Parse additional save data
   const olaRaw = parseSaveKey(save, 'OptLacc') || [];
@@ -67,6 +68,7 @@ export function loadSaveData(raw) {
   assignState({ breedingData: parseSaveKey(save, 'Breeding') || [] });
   assignState({ summonData: parseSaveKey(save, 'Summon') || [] });
   assignState({ arcaneData: parseSaveKey(save, 'Arcane') || [] });
+  assignState({ atomsData: parseSaveKey(save, 'Atoms') || [] });
   assignState({ gemItemsData: parseSaveKey(save, 'GemItemsPurchased') || [] });
   assignState({ achieveRegData: parseSaveKey(save, 'AchieveReg') || [] });
   assignSaveData({ tasksW7Data: parseSaveKey(save, 'TaskZZ5') || [] });
@@ -114,6 +116,8 @@ export function loadSaveData(raw) {
 
   if (raw.extraData?.totalTomePoints != null) assignState({ totalTomePoints: raw.extraData.totalTomePoints });
   if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
+  if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
+  if (raw.serverVars?.A_MineCost != null) assignState({ serverVarMineCost: Number(raw.serverVars.A_MineCost) || 1 });
 
   const timeAwayRaw = parseSaveKey(save, 'TimeAway');
   if (timeAwayRaw) {

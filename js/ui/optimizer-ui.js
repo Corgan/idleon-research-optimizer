@@ -274,7 +274,10 @@ function renderActions(sim, bestSteps) {
     let goalLine = '';
     if (p.grindInfo) {
       const gi = p.grindInfo;
-      goalLine = `\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv} <span style="opacity:.6;">(${fmtTime(gi.grindHrs)}, break-even ${fmtTime(gi.breakEvenHrs)})</span>`;
+      const permNote = gi.permGain != null && gi.rateGain > 0
+        ? ` <span style="opacity:.5;" title="Permanent (102) gain only">\u2014 perm ${fmtTime(gi.grindHrs + (gi.permGain > 0 ? (gi.totalExpLost || 0) / gi.permGain : Infinity))} BE</span>`
+        : '';
+      goalLine = `\ud83d\udd2c Insight Grind: <span style="color:var(--purple);">${gi.obsName}</span> \u2192 LV ${gi.newInsightLv} <span style="opacity:.6;">(${fmtTime(gi.grindHrs)}, break-even ${fmtTime(gi.breakEvenHrs)})</span>${permNote}`;
     } else if (p.event !== 'end') {
       const nextP = i < phases.length - 1 ? phases[i + 1] : null;
       if (nextP) {

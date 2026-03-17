@@ -51,7 +51,7 @@ async function exportState() {
     gridLevels: S.gridLevels, shapeOverlay: S.shapeOverlay, occFound: S.occFound, insightLvs: S.insightLvs, insightProgress: S.insightProgress, magData: S.magData, shapePositions: S.shapePositions,
     stateR7: S.stateR7, researchLevel: S.researchLevel, magMaxPerSlot: S.magMaxPerSlot, magnifiersOwned: S.magnifiersOwned,
     externalResearchPct: S.externalResearchPct, comp52TrueMulti: S.comp52TrueMulti, allBonusMulti: S.allBonusMulti, extBonuses: S.extBonuses,
-    companionIds: [...S.companionIds], totalTomePoints: S.totalTomePoints, serverVarResXP: S.serverVarResXP,
+    companionIds: [...S.companionIds], totalTomePoints: S.totalTomePoints, serverVarResXP: S.serverVarResXP, serverVarMineHP: S.serverVarMineHP,
     cachedEventShopStr: S.cachedEventShopStr, cachedResearchExp: S.cachedResearchExp, cachedSpelunkyUpg7: S.cachedSpelunkyUpg7, cachedFailedRolls: S.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: S.cachedComp0DivOk,
     cachedStickerFixed: S.cachedStickerFixed, cachedBoonyCount: S.cachedBoonyCount, cachedEvShop37: S.cachedEvShop37, cachedExtPctExSticker: S.cachedExtPctExSticker,
     extBonusOverrides: S.extBonusOverrides, loadedSaveFormat,
@@ -130,6 +130,7 @@ function importState(raw) {
   assignState({ companionIds: new Set(raw.companionIds || []) });
   assignState({ totalTomePoints: raw.totalTomePoints || 0 });
   assignState({ serverVarResXP: raw.serverVarResXP || 1.01 });
+  assignState({ serverVarMineHP: raw.serverVarMineHP || 1 });
   assignState({ cachedEventShopStr: raw.cachedEventShopStr || '' });
   assignState({ cachedResearchExp: raw.cachedResearchExp || 0 });
   assignState({ cachedSpelunkyUpg7: raw.cachedSpelunkyUpg7 || 0 });
@@ -223,6 +224,7 @@ function updateSaveFormatUI() {
     if (selAll) selAll.checked = [...allCbs].every(cb => cb.checked);
     document.getElementById('supp-tome').value = S.totalTomePoints || 0;
     document.getElementById('supp-resxp').value = S.serverVarResXP || 1.01;
+    document.getElementById('supp-minehp').value = S.serverVarMineHP || 1;
   }
 }
 
@@ -237,6 +239,7 @@ export function applySupplements() {
   if (allEl) allEl.checked = [...allCbs].every(cb => cb.checked);
   assignState({ totalTomePoints: Number(document.getElementById('supp-tome').value) || 0 });
   assignState({ serverVarResXP: Number(document.getElementById('supp-resxp').value) || 1.01 });
+  assignState({ serverVarMineHP: Number(document.getElementById('supp-minehp').value) || 1 });
   // Rebuild shape overlay (companion 54 affects shapes owned count).
   // We must rebuild here because the number of active shapes changed,
   // but placement-order overlap is unknown - use index order as best approximation.

@@ -153,7 +153,7 @@ export const MERITOC_BASE = [0,700,150,200,400,200,900,200,200,100,125,100,9900,
 // LegendTalents bonus per point for specific indices
 export const LEGEND_TALENT_PER_PT = { 21: 3, 24: 20, 28: 15, 29: 20 };
 // ArcadeShopInfo decay params: [base, denom]
-export const ARCADE_SHOP = { 51: ['add', 0.2, 0], 53: ['decay', 100, 100], 59: ['decay', 10, 100], 63: ['decay', 20, 100] };
+export const ARCADE_SHOP = { 51: ['add', 0.2, 0], 53: ['decay', 100, 100], 59: ['decay', 10, 100], 62: ['decay', 25, 100], 63: ['decay', 20, 100] };
 // ArcaneUpg bonus per level for flat indices and multiplied indices
 export const ARCANE_FLAT_SET = new Set([3,7,8,10,13,16,20,25,26,28,33,35,39,40,43,45,48,57,58]);
 // HolesInfo static data for measurements
