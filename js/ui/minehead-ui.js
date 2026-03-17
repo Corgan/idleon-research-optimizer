@@ -1399,12 +1399,13 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   function _updateHud() {
     let h = '';
     h += _hudItem('Lives', '❤'.repeat(lives) + '🖤'.repeat(Math.max(0, maxLives - lives)), 'var(--accent)');
-    h += _hudItem('Blocks', blocks, 'var(--cyan)');
-    h += _hudItem('Goldens', goldens, 'var(--gold)');
-    h += _hudItem('Instas', instas, '#4caf50');
+    if (maxBlocks > 0) h += _hudItem('Blocks', blocks, 'var(--cyan)');
+    if (maxGoldens > 0) h += _hudItem('Goldens', goldens, 'var(--gold)');
+    if (maxInstas > 0) h += _hudItem('Instas', instas, '#4caf50');
     h += _hudItem('Turn', turnsPlayed, 'var(--text)');
-    h += _hudItem('Crowns', `${crownProgress}/3 (${crownSets} sets)`, 'var(--purple)');
+    if (crownOdds > 0) h += _hudItem('Crowns', `${crownProgress}/3 (${crownSets} sets)`, 'var(--purple)');
     hudEl.innerHTML = h;
+    instaBtn.style.display = maxInstas > 0 ? '' : 'none';
 
     const pct = Math.min(100, totalDmg / bossHP * 100);
     const turnDmg = _calcTurnDmg();
@@ -1423,7 +1424,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     attackBtn.disabled = gameOver || !turnActive || safeRevealed === 0;
     instaBtn.disabled = gameOver || !turnActive || instas <= 0;
     attackBtn.style.opacity = attackBtn.disabled ? '.4' : '1';
-    instaBtn.style.opacity = instaBtn.disabled ? '.4' : '1';
+    if (maxInstas > 0) instaBtn.style.opacity = instaBtn.disabled ? '.4' : '1';
   }
 
   function _calcTurnDmg() {
