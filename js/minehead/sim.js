@@ -39,6 +39,7 @@ import {
   bluecrownOdds, jackpotOdds, jackpotTiles, upgradeQTY,
   gridDims, goldTilesTotal, blocksTotal, instaRevealsTotal,
   currentOutgoingDMG, bonusDMGperTilePCT,
+  WIGGLE_CHANCE, wiggleMaxPerGame,
 } from './formulas.js';
 
 // ===== STRATEGIES =====
@@ -316,6 +317,7 @@ export function _placeGoldens(grid, numTiles, goldBudget, goldUpgTotal, rng) {
  * @param {Function}  [opts.strategy]      strategy function; default = moderate
  * @param {number}    [opts.gridBonus167]  research grid bonus for base damage
  * @param {number}    [opts.gridBonus146]  research grid bonus per-tile %
+ * @param {number}    [opts.gridBonus166_1] Minehead_Copium level (wiggles per game)
  * @param {number}    [opts.wepPowDmgPCT]  GenINFO[39] weapon power damage %
  * @param {number}    [opts.svarHP]        server var A_MineHP
  * @param {number}    [opts.maxTurns]      safety cap (default 200; 0 = unlimited)
@@ -324,7 +326,7 @@ export function _placeGoldens(grid, numTiles, goldBudget, goldUpgTotal, rng) {
 export function simulateGame({
   floor, upgLevels,
   strategy = tunableStrategy(),
-  gridBonus167 = 0, gridBonus146 = 0, wepPowDmgPCT = 0,
+  gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0,
   svarHP = 1, maxTurns = 200, rng = Math.random,
 }) {
   const { cols, rows } = gridDims(upgLevels[2]);
@@ -341,12 +343,14 @@ export function simulateGame({
   const jpTileCount = jackpotTiles(upgLevels);
   const goldUpgTotal = goldTilesTotal(upgLevels);
   const hasRevival = upgradeQTY(19, upgLevels[19]) >= 1;
+  const maxWiggles = wiggleMaxPerGame(gridBonus166_1);
 
   let totalDmg = 0;
   let turnsPlayed = 0;
   let totalCommits = 0;
   let mineHitsTotal = 0;
   let blocksUsedTotal = 0;
+  let wigglesUsed = 0;
   let firstClickMines = 0;
   let firstTurnDmg = 0;
   const turnLog = [];
@@ -395,6 +399,11 @@ export function simulateGame({
       if (grid[pos] === 0) {
         // MINE HIT
         if (isInsta) return 'mine-insta'; // immune to penalty
+        // Wiggle: first manual click on a mine, chance to save
+        if (wigglesUsed < maxWiggles && manualReveals === 0 && rng() < WIGGLE_CHANCE) {
+          wigglesUsed++;
+          return 'mine-wiggle'; // mine dodged
+        }
         mineHitsTotal++;
         if (blocksLeft > 0) {
           blocksLeft--;
@@ -554,6 +563,9 @@ export function simulateGame({
         } else if (result === 'mine-blocked') {
           if (manualReveals === 1) firstClickMines++;
           // Continue playing — block absorbed it
+        } else if (result === 'mine-wiggle') {
+          if (manualReveals === 1) firstClickMines++;
+          // Continue playing — wiggle dodged the mine
         }
         // 'safe', 'jackpot', 'mine-insta' → keep going
       }
@@ -602,6 +614,7 @@ export function simulateGame({
     totalCommits,
     mineHits: mineHitsTotal,
     blocksUsed: blocksUsedTotal,
+    wigglesUsed,
     firstClickMines,
     firstTurnDmg,
     timedOut,

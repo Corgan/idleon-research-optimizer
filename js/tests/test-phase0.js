@@ -51,7 +51,7 @@ function approx(a, b, tol, label) {
 eq(GRID_COLS, 20, 'GRID_COLS');
 eq(GRID_ROWS, 12, 'GRID_ROWS');
 eq(GRID_SIZE, 240, 'GRID_SIZE');
-eq(Object.keys(RES_GRID_RAW).length, 47, 'RES_GRID_RAW count');
+eq(Object.keys(RES_GRID_RAW).length, 48, 'RES_GRID_RAW count');
 eq(OCC_DATA.length, 43, 'OCC_DATA count');
 eq(OCC_DATA[0].name, 'Bored_Tree', 'OCC_DATA[0].name');
 eq(OCC_DATA[42].name, 'Happy_Tree', 'OCC_DATA[42].name');

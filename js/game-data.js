@@ -46,6 +46,7 @@ export const RES_GRID_RAW = {
   150: ["Masterclass_Research",2,10,"Reduces_the_cost_of_all_Masterclass_upgrades_by_{%_every_day,_FOREVER!_Total_Reduction:-&%"],
   151: ["Spelunking_Research",2,25,"Boosts_Spelunking_POW_by_+{%_every_day,_FOREVER!_@_Total_Boost:^x_POW"],
   152: ["Legendary_Green_Fever",3,5,"Raises_the_Max_LV_of_certain_Green_Legend_Talents_by_+|._Also,_}x_Class_EXP_gain!"],
+  166: ["Minehead_Copium",4,15,"If_your_1st_click_is_on_a_depth_charge,_50%_chance_it_wiggles_and_doesn't_count!_Happens_up_to_|_times_per_game._@_Also,_+{%_Minehead_Currency_gain!"],
   167: ["Minehead_Damagio",3,15,"Multiplies_all_damage_you_deal_in_Mr_Minehead's_Depth_Charge_by_}x"],
   168: ["Glimbo_Insider_Trading_Secrets",1,1,"+{%_Drop_Rate_TRUE_Multi_per_100_Glimbo_Trades!_@_Total_Bonus:^x_DR"],
   169: ["Glimbo_BOGO_Offer",2,10,"Some_of_Glimbo's_trades_give_+|_additional_LVs!_This_works_retroactively._Also,_}x_Coin_gain"],
@@ -70,7 +71,7 @@ export const NODE_GOAL = {
   87:'Gaming', 88:'Stickers', 89:'Cogs', 90:'Res EXP', 91:'Insight', 92:'Insight', 93:'Obs\u00d7Insight', 94:'Res EXP',
   107:'Crowns', 108:'Rat King', 109:'Artifacts', 110:'Res EXP', 111:'AFK', 112:'Res EXP',
   127:'Sigils', 128:'Sigils', 129:'Minehead', 130:'Class EXP', 131:'Class EXP', 132:'Class EXP',
-  146:'Minehead', 147:'Minehead', 148:'Minehead', 149:'Glimbo', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
+  146:'Minehead', 147:'Minehead', 148:'Minehead', 149:'Glimbo', 166:'Minehead', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
   167:'Minehead', 168:'DR Multi', 169:'Glimbo', 170:'All Quick', 171:'Day/Nite', 172:'Clothing', 173:'Drop Rate',
 };
 export const NODE_GOAL_COLORS = {
