@@ -12,6 +12,7 @@ import {
   bluecrownMulti, bluecrownOdds, jackpotOdds, jackpotTiles,
   dailyTries, currencyPerHour, canBuyUpg,
   goldTilesTotal, blocksTotal, instaRevealsTotal, currentOutgoingDMG,
+  WIGGLE_CHANCE, wiggleMaxPerGame,
 } from '../minehead/formulas.js';
 import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
 
@@ -104,10 +105,11 @@ function _renderDashboard() {
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
+  const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
   const mhSrc = computeMineheadCurrSources();
   const cph = currencyPerHour({
-    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147,
+    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     upgLevels: lvs, highestDmg,
@@ -238,10 +240,11 @@ function _renderCurrencyTab() {
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
+  const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
   const mhSrc = computeMineheadCurrSources();
   const cph = currencyPerHour({
-    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147,
+    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     upgLevels: lvs, highestDmg,
@@ -255,12 +258,12 @@ function _renderCurrencyTab() {
 
   const treeEl = document.getElementById('mh-curr-tree');
   if (treeEl) {
-    const tree = _buildCurrencyTree(gb129, gb148, gb147, bqty6, lvs, highestDmg, mhSrc, cph);
+    const tree = _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph);
     renderBreakdownTree(tree, treeEl);
   }
 }
 
-function _buildCurrencyTree(gb129, gb148, gb147, bqty6, lvs, highestDmg, mhSrc, cph) {
+function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph) {
   const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
   const upg5 = upgradeQTY(5, lvs[5]);
   const upg22 = upgradeQTY(22, lvs[22]);
@@ -335,9 +338,13 @@ function _buildCurrencyTree(gb129, gb148, gb147, bqty6, lvs, highestDmg, mhSrc, 
     fmt: '%', note: mhSrc.mealLv > 0 ? '' : 'Meal 73 not leveled',
   });
 
-  const passiveSum = gb147 + mhSrc.mealMineCurr;
+  const gb166node = _gbNode(166, 'Grid ' + gridCoord(166) + ': ' + RES_GRID_RAW[166][0].replace(/_/g, ' '));
+  gb166node.fmt = '%';
+  if (gb166node.children?.[0]) gb166node.children[0].label = 'Base';
+
+  const passiveSum = gb147 + gb166 + mhSrc.mealMineCurr;
   const passiveNode = _bNode('Grid & Meal Bonus', 1 + passiveSum / 100, [
-    gb147node, mealNode,
+    gb147node, gb166node, mealNode,
   ], { fmt: 'x' });
 
   const comp143node = _bNode('Boomy Mine (Companion)', comp143mult, null, {
@@ -1375,10 +1382,15 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   const gridBonus146 = 0;
   const wepPowDmgPCT = 0;
 
+  // Wiggle (G5 research: Minehead_Copium, grid 166)
+  const _gbCtx = { abm: S.allBonusMulti || 1 };
+  const _gb166_1 = S.gridLevels?.[166] || 0; // mode 1 = level
+  const maxWiggles = wiggleMaxPerGame(_gb166_1);
+
   let _rng = _makeRng();
   let lives, goldens, blocks, instas, totalDmg, turnsPlayed, totalCommits;
   let grid, crowns, goldenPos, revealed, turnValues, crownProgress, crownSets;
-  let safeRevealed, gameOver, turnActive, minesFound;
+  let safeRevealed, gameOver, turnActive, minesFound, wigglesUsed, firstClickDone;
 
   function _makeRng() {
     let s = (Date.now() ^ 0xDEADBEEF) | 0;
@@ -1402,6 +1414,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     if (maxBlocks > 0) h += _hudItem('Blocks', blocks, 'var(--cyan)');
     if (maxGoldens > 0) h += _hudItem('Goldens', goldens, 'var(--gold)');
     if (maxInstas > 0) h += _hudItem('Instas', instas, '#4caf50');
+    if (maxWiggles > 0) h += _hudItem('Wiggles', `${maxWiggles - wigglesUsed}/${maxWiggles}`, '#ff9800');
     h += _hudItem('Turn', turnsPlayed, 'var(--text)');
     if (crownOdds > 0) h += _hudItem('Crowns', `${crownProgress}/3 (${crownSets} sets)`, 'var(--purple)');
     hudEl.innerHTML = h;
@@ -1441,6 +1454,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     totalDmg = 0;
     turnsPlayed = 0;
     totalCommits = 0;
+    wigglesUsed = 0;
     gameOver = false;
     logEl.innerHTML = '';
     _log('Game started! Click tiles to reveal them.', 'var(--green)');
@@ -1465,6 +1479,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       crownProgress = 0;
       crownSets = 0;
       safeRevealed = 0;
+      firstClickDone = false;
       turnActive = true;
       _log(`── Turn ${turnsPlayed} ──`, 'var(--purple)');
       _renderGrid(true);
@@ -1568,6 +1583,12 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     if (v === 0) {
       minesFound++;
       if (isInsta) { _log('⚡ Insta-reveal found a mine safely!', '#4caf50'); return 'mine-insta'; }
+      // Wiggle: first click of turn, chance to dodge
+      if (!firstClickDone && wigglesUsed < maxWiggles && _rng() < WIGGLE_CHANCE) {
+        wigglesUsed++;
+        _log('Wiggle! Mine dodged! (' + (maxWiggles - wigglesUsed) + ' left)', '#ff9800');
+        return 'mine-wiggle';
+      }
       if (blocks > 0) { blocks--; _log('🛡 Block absorbed a mine hit!', 'var(--cyan)'); return 'mine-blocked'; }
       lives--;
       if (lives === 1 && upgradeQTY(19, lvs[19]) >= 1) { blocks = 1; _log('💀 Revival! Gained 1 block.', 'var(--gold)'); }
@@ -1590,6 +1611,8 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
 
   function _onTileClick(i) {
     if (gameOver || !turnActive || revealed[i]) return;
+    const wasFirstClick = !firstClickDone;
+    firstClickDone = true;
     const result = _revealTile(i, false);
 
     if (result === 'mine-hit') {
@@ -1604,6 +1627,8 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       }
     } else if (result === 'mine-blocked') {
       // keep playing
+    } else if (result === 'mine-wiggle') {
+      // keep playing — mine dodged
     }
 
     // Check if all tiles revealed

@@ -230,13 +230,13 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
  * gridBonus129 × (1 + gridBonus148/100) × max(1, min(2, comp143))
  * × min(3, 1 + BonusQTY(6)/100)
  * × (1 + (qty5 + qty22 + qty28*LOG(highestDmg) + arcade62)/100)
- * × (1 + atom13/100) × (1 + (gridBonus147 + mealMineCurr)/100)
+ * × (1 + atom13/100) × (1 + (gridBonus147 + gridBonus166 + mealMineCurr)/100)
  *
  * BonusQTY(6) = 50 if mineFloor > 6, else 0 (from FLOOR_REWARD_QTY[6]).
  * LOG = base-10 log or the game's custom log.
  */
 export function currencyPerHour({
-  gridBonus129 = 0, gridBonus148 = 0, gridBonus147 = 0,
+  gridBonus129 = 0, gridBonus148 = 0, gridBonus147 = 0, gridBonus166 = 0,
   comp143 = 1, bonusQTY6 = 0, atom13 = 0, mealMineCurr = 0, arcade62 = 0,
   upgLevels, highestDmg = 1,
 }) {
@@ -252,9 +252,19 @@ export function currencyPerHour({
                       + upgradeQTY(28, upgLevels[28]) * logDmg
                       + arcade62) / 100;
   const atomMulti = 1 + atom13 / 100;
-  const passiveMulti = 1 + (gridBonus147 + mealMineCurr) / 100;
+  const passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
   return base * multi148 * compMulti * bqMulti * farmPCT * atomMulti * passiveMulti;
+}
+
+// ---------- wiggle (G5 research: Minehead_Copium, grid 166) ----------
+
+/** Wiggle chance when first click hits a mine. Game code: 0.6 > randomFloat(). */
+export const WIGGLE_CHANCE = 0.6;
+
+/** Max wiggle saves per game = Grid_Bonus(166, mode 1) = research level. */
+export function wiggleMaxPerGame(gridBonus166_1) {
+  return Math.round(gridBonus166_1);
 }
 
 // ---------- Glimbo ----------
