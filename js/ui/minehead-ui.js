@@ -1378,7 +1378,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   let _rng = _makeRng();
   let lives, goldens, blocks, instas, totalDmg, turnsPlayed, totalCommits;
   let grid, crowns, goldenPos, revealed, turnValues, crownProgress, crownSets;
-  let safeRevealed, gameOver, turnActive;
+  let safeRevealed, gameOver, turnActive, minesFound;
 
   function _makeRng() {
     let s = (Date.now() ^ 0xDEADBEEF) | 0;
@@ -1415,10 +1415,10 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       <div style="position:absolute;width:100%;text-align:center;font-size:.72em;line-height:16px;color:#fff;font-weight:600;">${_fmt(totalDmg)} / ${_fmt(bossHP)} ${turnDmg > 0 ? '(+' + _fmt(turnDmg) + ')' : ''}</div>
     </div>`;
 
-    const minesLeft = grid ? grid.filter((v, i) => !revealed[i] && v === 0).length : 0;
+    const estMinesLeft = Math.max(0, mines - minesFound);
     const unrevealed = grid ? revealed.filter(r => !r).length : 0;
-    const mPct = unrevealed > 0 ? (minesLeft / unrevealed * 100).toFixed(0) : 0;
-    turnInfoEl.textContent = `Tiles: ${safeRevealed} revealed | Mines left: ~${minesLeft}/${unrevealed} (${mPct}%) | Turn dmg: ${_fmt(_calcTurnDmg())}`;
+    const mPct = unrevealed > 0 ? (estMinesLeft / unrevealed * 100).toFixed(0) : 0;
+    turnInfoEl.textContent = `Tiles: ${safeRevealed} revealed | Mines left: ~${estMinesLeft}/${unrevealed} (${mPct}%) | Turn dmg: ${_fmt(_calcTurnDmg())}`;
 
     attackBtn.disabled = gameOver || !turnActive || safeRevealed === 0;
     instaBtn.disabled = gameOver || !turnActive || instas <= 0;
@@ -1459,6 +1459,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     }
     revealed = new Array(numTiles).fill(false);
     turnValues = [];
+    minesFound = 0;
     crownProgress = 0;
     crownSets = 0;
     safeRevealed = 0;
@@ -1524,6 +1525,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
 
     const v = grid[i];
     if (v === 0) {
+      minesFound++;
       if (isInsta) { _log('⚡ Insta-reveal found a mine safely!', '#4caf50'); return 'mine-insta'; }
       if (blocks > 0) { blocks--; _log('🛡 Block absorbed a mine hit!', 'var(--cyan)'); return 'mine-blocked'; }
       lives--;
