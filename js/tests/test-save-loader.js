@@ -42,10 +42,10 @@ loadSaveData(raw);
 console.log('--- loadSaveData state ---');
 
 ok(typeof S.researchLevel === 'number' && S.researchLevel > 0, 'researchLevel is positive number');
-eq(S.researchLevel, 49, 'researchLevel === 49');
+eq(S.researchLevel, 51, 'researchLevel === 51');
 
 ok(typeof S.magnifiersOwned === 'number' && S.magnifiersOwned > 0, 'magnifiersOwned > 0');
-eq(S.magnifiersOwned, 10, 'magnifiersOwned === 10');
+eq(S.magnifiersOwned, 14, 'magnifiersOwned === 14');
 
 ok(Array.isArray(S.gridLevels), 'gridLevels is array');
 eq(S.gridLevels.length, GRID_SIZE, 'gridLevels length === GRID_SIZE');

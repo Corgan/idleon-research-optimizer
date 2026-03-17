@@ -38,11 +38,11 @@ import { hideTooltip, moveTooltip } from './tooltip.js';
 
 
 // ===== Tree node helpers =====
-function _bNode(label, val, children, opts) {
+export function _bNode(label, val, children, opts) {
   return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '' };
 }
 
-function _gbNode(idx, label, opts) {
+export function _gbNode(idx, label, opts) {
   const info = RES_GRID_RAW[idx];
   if (!info) return _bNode(label || 'Grid #' + idx, 0, null, opts);
   const lv = S.gridLevels[idx] || 0;

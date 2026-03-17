@@ -347,12 +347,15 @@ export function hrsToNextInsightLv(monoSlots, md, il, ip, gl, so, ctx) {
  * Lightweight forward projection sim - event-driven jumps with no reoptimization.
  * Mutates il[] and ip[] in place. Returns { totalExp, time, rLv, rExp }.
  * Optional onInsightLevelUp(obsIdx) callback; return true to stop the loop.
+ * Optional onReopt(md, il, occ, rLv) callback; called on level-up/insight events,
+ *   should return a new md array (or falsy to keep current).
  */
 export function simForwardProjection({
   monoSlots, md, il, ip, gl, so, occ, rLv, rExp, ctx,
   maxHrs, maxJumps = 5000,
   targetLevel,
   onInsightLevelUp,
+  onReopt,
   assumeObsUnlocked = false,
 }) {
   let curRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
@@ -388,6 +391,10 @@ export function simForwardProjection({
     );
 
     if (_adv.changed || (insChanged && insightAffectsExp(gl, so, ctx))) {
+      if (onReopt) {
+        const newMD = onReopt(md, il, occ, rLv);
+        if (newMD) md = newMD;
+      }
       curRate = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
     }
   }

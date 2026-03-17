@@ -41,6 +41,7 @@ import {
   runParallelOptimizer,
 } from './renderers/worker-pool.js';
 import { renderOptimizerResults, importOptToDecisionTree } from './ui/optimizer-ui.js';
+import { renderMineheadTab } from './ui/minehead-ui.js';
 import {
   applySupplements,
   copyStateBox,
@@ -64,6 +65,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'obs-unlock') renderObsUnlock();
     if (tab.dataset.tab === 'shape-opt') renderUpgradeEval();
     if (tab.dataset.tab === 'sandbox') { _dtSizeViewport(); if (dtNodes.length === 0) dtStart(); }
+    if (tab.dataset.tab === 'minehead') renderMineheadTab();
   });
 });
 

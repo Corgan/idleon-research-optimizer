@@ -21,6 +21,7 @@ import { fmtTime, fmtTimePrecise, fmtVal } from '../renderers/format.js';
 import { renderDashboard } from '../ui/dashboard.js';
 import { renderInsightROI, renderObsUnlock } from '../renderers/render-analysis.js';
 import { renderUpgradeEval } from '../renderers/upgrade-eval.js';
+import { renderMineheadTab } from '../ui/minehead-ui.js';
 import {
   dtNodes, dtCompareSet, DT,
   dtGetNode, dtGetChildren, dtGetRoot,
@@ -945,6 +946,7 @@ export function renderAll() {
     if (t === 'insight-roi') renderInsightROI();
     else if (t === 'obs-unlock') renderObsUnlock();
     else if (t === 'shape-opt') renderUpgradeEval(sc);
+    else if (t === 'minehead') renderMineheadTab();
   }
   // Set default target level for optimizer (always current + 1)
   const _rLv = sc.researchLevel;
