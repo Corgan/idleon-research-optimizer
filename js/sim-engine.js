@@ -158,9 +158,23 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   }
   if (candidates.length === 0) return null;
 
-  // Phase 2a: full mag reopt + break-even for top-5
-  candidates.sort((a, b) => b.quickRateGain - a.quickRateGain);
-  const topN = candidates.slice(0, 5);
+  // Phase 2a: full mag reopt + break-even for top candidates.
+  // Take top-3 by absolute rate gain (high-value grinds) PLUS top-3 by
+  // efficiency (rate gain / grind time) to surface fast GD-94-only level-ups
+  // that would otherwise be crowded out by high-GD-93 long grinds.
+  const byGain = candidates.slice().sort((a, b) => b.quickRateGain - a.quickRateGain);
+  const byEfficiency = candidates.slice().sort((a, b) =>
+    (b.quickRateGain / Math.max(0.01, b.grindHrs))
+    - (a.quickRateGain / Math.max(0.01, a.grindHrs)));
+  const topSet = new Set();
+  const topN = [];
+  for (const list of [byEfficiency, byGain]) {
+    for (const c of list) {
+      if (topSet.has(c.obsIdx) || topN.length >= 6) continue;
+      topSet.add(c.obsIdx);
+      topN.push(c);
+    }
+  }
   const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
