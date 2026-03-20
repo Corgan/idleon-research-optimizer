@@ -16,7 +16,7 @@ import {
 } from '../minehead/formulas.js';
 import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
 
-let PLAY_RIGGED = true;
+let PLAY_RIGGED = false;
 
 let _activeSubtab = 'mh-dashboard';
 
