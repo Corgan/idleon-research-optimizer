@@ -86,6 +86,20 @@ import {
  * @param {number}  [p.crownChase=0]       EV reduction factor when 2/3 crowns matched (0–1)
  * @param {number}  [p.commitTurns=0]      force attack after N turns (0 = no limit)
  * @param {number}  [p.instaMode=0]        mine% threshold for using insta-reveals (0 = always)
+ *
+ * Human-behavior knobs (for playstyle inference):
+ * @param {number}  [p.postMinePanic=0]    inflate EV threshold on turn after mine hit (0–1)
+ * @param {number}  [p.lastTurnAggro=0]    halve EV when remainingHP/bossHP < val (0=off)
+ * @param {number}  [p.targetReveals=0]    soft reveal cap per turn (0=disabled)
+ * @param {boolean} [p.goldenFirst=false]  always prefer golden over risky reveal
+ * @param {number}  [p.crownOrDie=0]       max mine% for reveals with 2/3 crowns (0=disabled)
+ * @param {number}  [p.hotStreak=0]        reduce EV threshold after 3+ safe reveals (0–1)
+ * @param {number}  [p.blockHoard=0]       inflate EV threshold when blocks ≤ 1 (0–1)
+ *
+ * Spatial click-pattern knobs (for tile selection):
+ * @param {number}  [p.cornerBias=1]       weight multiplier for corner tiles (>1 = prefer corners)
+ * @param {number}  [p.edgeBias=1]         weight multiplier for edge tiles (>1 = prefer edges)
+ * @param {number}  [p.clusterBias=1]      weight multiplier for tiles adjacent to known safe (>1 = cluster)
  */
 export function tunableStrategy(p = {}) {
   const {
@@ -101,10 +115,23 @@ export function tunableStrategy(p = {}) {
     crownChase = 0,
     commitTurns = 0,
     instaMode = 0,
+    // Human-behavior knobs
+    postMinePanic = 0,
+    lastTurnAggro = 0,
+    targetReveals = 0,
+    goldenFirst = false,
+    crownOrDie = 0,
+    hotStreak = 0,
+    blockHoard = 0,
+    // Spatial knobs
+    cornerBias = 1,
+    edgeBias = 1,
+    clusterBias = 1,
   } = p;
 
   // Helper: prefer golden over reveal when mine% >= goldenMinePct
   function _revealOrGolden(ctx, pMine) {
+    if (goldenFirst && ctx.goldensOnGrid > 0) return 'golden';
     if (ctx.goldensOnGrid > 0 && pMine >= goldenMinePct) return 'golden';
     return 'reveal';
   }
@@ -124,6 +151,11 @@ export function tunableStrategy(p = {}) {
         && ctx.currentTurnDmg > 0) {
       return _goldenOrAttack(ctx);
     }
+    // targetReveals: soft cap on reveals per turn
+    if (targetReveals > 0 && ctx.safeRevealedThisTurn >= targetReveals
+        && ctx.currentTurnDmg > 0) {
+      return _goldenOrAttack(ctx);
+    }
     // Must reveal at least once — commit with 0 tiles = 0 damage
     const pMine = ctx.unrevealedCount > 0
       ? ctx.minesRemaining / ctx.unrevealedCount : 0;
@@ -132,6 +164,10 @@ export function tunableStrategy(p = {}) {
     }
     if (ctx.unrevealedCount === 0) {
       return _goldenOrAttack(ctx);
+    }
+    // crownOrDie: override mine cap when 2/3 crowns — keep revealing
+    if (crownOrDie > 0 && (ctx.crownProgress || 0) >= 2 && pMine <= crownOrDie) {
+      return _revealOrGolden(ctx, pMine);
     }
     // Hard mine cap
     if (pMine >= mineCapPct) {
@@ -160,6 +196,23 @@ export function tunableStrategy(p = {}) {
     if (crownChase > 0 && (ctx.crownProgress || 0) >= 2) {
       effEvMul *= (1 - crownChase);
     }
+    // postMinePanic: conservative after previous turn mine hit
+    if (postMinePanic > 0 && ctx.lastTurnMineHit) {
+      effEvMul *= (1 + postMinePanic);
+    }
+    // lastTurnAggro: aggressive near kill
+    if (lastTurnAggro > 0 && ctx.bossHP > 0
+        && ctx.remainingHP / ctx.bossHP < lastTurnAggro) {
+      effEvMul *= 0.5;
+    }
+    // hotStreak: aggressive after many safe reveals this turn
+    if (hotStreak > 0 && ctx.safeRevealedThisTurn >= 3) {
+      effEvMul *= (1 - hotStreak);
+    }
+    // blockHoard: cautious when few blocks left
+    if (blockHoard > 0 && ctx.blocksLeft <= 1) {
+      effEvMul *= (1 + blockHoard);
+    }
 
     let evReveal;
     if (blockAggro && ctx.blocksLeft > 0) {
@@ -177,6 +230,9 @@ export function tunableStrategy(p = {}) {
     return _goldenOrAttack(ctx);
   };
   fn.instaMode = instaMode;
+  fn.cornerBias = cornerBias;
+  fn.edgeBias = edgeBias;
+  fn.clusterBias = clusterBias;
   return fn;
 }
 
@@ -194,6 +250,18 @@ export const DEFAULT_PARAMS = {
   crownChase: 0,
   commitTurns: 0,
   instaMode: 0,
+  // Human-behavior knobs (all off = EV-optimal)
+  postMinePanic: 0,
+  lastTurnAggro: 0,
+  targetReveals: 0,
+  goldenFirst: false,
+  crownOrDie: 0,
+  hotStreak: 0,
+  blockHoard: 0,
+  // Spatial knobs (1 = neutral/random)
+  cornerBias: 1,
+  edgeBias: 1,
+  clusterBias: 1,
 };
 
 // ===== GRID GENERATION (matches game code at line 99604) =====
@@ -353,6 +421,7 @@ export function simulateGame({
   let wigglesUsed = 0;
   let firstClickMines = 0;
   let firstTurnDmg = 0;
+  let lastTurnMineHit = false;
   const turnLog = [];
   const verbose = !!arguments[0]?.verbose;
 
@@ -523,6 +592,7 @@ export function simulateGame({
         perTilePct,
         tileCount: turnValues.length,
         crownProgress,
+        lastTurnMineHit,
       });
 
       if (decision === 'attack') {
@@ -539,7 +609,7 @@ export function simulateGame({
           turnEnded = true;
         }
       } else {
-        // Pick a random unrevealed NON-golden tile
+        // Pick an unrevealed NON-golden tile, weighted by spatial knobs
         manualReveals++;
         const candidates = [];
         for (let i = 0; i < numTiles; i++) {
@@ -553,7 +623,54 @@ export function simulateGame({
           }
           continue;
         }
-        const pick = candidates[Math.floor(rng() * candidates.length)];
+
+        // Spatial weighting
+        const hasSpatial = strategy.cornerBias !== 1 || strategy.edgeBias !== 1 || strategy.clusterBias !== 1;
+        let pick;
+        if (!hasSpatial || candidates.length === 1) {
+          pick = candidates[Math.floor(rng() * candidates.length)];
+        } else {
+          const cBias = strategy.cornerBias ?? 1;
+          const eBias = strategy.edgeBias ?? 1;
+          const sBias = strategy.clusterBias ?? 1;
+          let totalW = 0;
+          const weights = new Array(candidates.length);
+          for (let ci = 0; ci < candidates.length; ci++) {
+            const idx = candidates[ci];
+            const r = (idx / cols) | 0, c = idx % cols;
+            const isEdgeR = r === 0 || r === rows - 1;
+            const isEdgeC = c === 0 || c === cols - 1;
+            const isCorner = isEdgeR && isEdgeC;
+            const isEdge = (isEdgeR || isEdgeC) && !isCorner;
+            let w = 1;
+            if (isCorner) w *= cBias;
+            else if (isEdge) w *= eBias;
+            // Cluster: boost if adjacent to any revealed safe tile
+            if (sBias !== 1) {
+              let hasAdj = false;
+              for (let dr = -1; dr <= 1 && !hasAdj; dr++) {
+                for (let dc = -1; dc <= 1 && !hasAdj; dc++) {
+                  if (dr === 0 && dc === 0) continue;
+                  const nr = r + dr, nc = c + dc;
+                  if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                    const ni = nr * cols + nc;
+                    if (revealed[ni] && grid[ni] !== 0) hasAdj = true;
+                  }
+                }
+              }
+              if (hasAdj) w *= sBias;
+            }
+            weights[ci] = w;
+            totalW += w;
+          }
+          // Weighted random pick
+          let dart = rng() * totalW;
+          pick = candidates[candidates.length - 1];
+          for (let ci = 0; ci < candidates.length; ci++) {
+            dart -= weights[ci];
+            if (dart <= 0) { pick = candidates[ci]; break; }
+          }
+        }
         const result = revealTile(pick, false);
 
         if (result === 'mine-hit') {
@@ -583,6 +700,8 @@ export function simulateGame({
       }
       if (!turnOutcome) turnOutcome = 'cleared';
     }
+
+    lastTurnMineHit = (turnOutcome === 'mine');
 
     if (verbose) {
       turnLog.push({
@@ -697,6 +816,19 @@ export const OPTIMIZE_GRID = {
   turn1EvMul:     [0, 0.7],
   crownChase:     [0, 0.4],
   instaMode:      [0, 0.3],
+  // Human-behavior knobs
+  commitTurns:    [0],
+  postMinePanic:  [0],
+  lastTurnAggro:  [0],
+  targetReveals:  [0],
+  goldenFirst:    [false],
+  crownOrDie:     [0],
+  hotStreak:      [0],
+  blockHoard:     [0],
+  // Spatial knobs
+  cornerBias:     [1],
+  edgeBias:       [1],
+  clusterBias:    [1],
 };
 
 /**
