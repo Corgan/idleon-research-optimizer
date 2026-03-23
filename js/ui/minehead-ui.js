@@ -5,7 +5,7 @@ import { computeMineheadCurrSources } from '../save/external.js';
 import { renderBreakdownTree, _bNode, _gbNode } from './dash-breakdowns.js';
 import { hideTooltip, moveTooltip } from './tooltip.js';
 import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
-import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, FLOOR_REWARD_QTY, FLOOR_REWARD_DESC } from '../minehead/game-data.js';
+import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../minehead/game-data.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
   maxHPYou, floorHP, minesOnFloor, baseDMG, bonusDMGperTilePCT,
@@ -15,6 +15,7 @@ import {
   WIGGLE_CHANCE, wiggleMaxPerGame,
 } from '../minehead/formulas.js';
 import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
+import { inferStrategy, analyzeSpatial } from '../minehead/strategy-inferrer.js';
 
 let PLAY_RIGGED = false;
 
@@ -27,6 +28,44 @@ let _optCache = null;      // { floor, bestParams, bestResult, topResults }
 let _optWorkers = null;    // optimizer workers (for cancellation)
 let _pathCache = null;     // { floor, path, baseline, finalResult, finalLvs }
 let _pathWorkers = null;   // path workers (for cancellation)
+let _pathStartCtx = null;  // { upgLevels, svarHP } for comparison banner
+let _playDecisions = [];   // decision snapshots from Play tab games
+let _playGames = 0;        // games completed in Play tab
+let _inferResult = null;   // cached inference result
+
+const _LS_KEY = 'mh_inferred_strategy';
+
+const _LS_DECISIONS_KEY = 'mh_play_decisions';
+
+function _saveInferred() {
+  if (!_inferResult || !_inferResult.params) return;
+  try { localStorage.setItem(_LS_KEY, JSON.stringify(_inferResult)); } catch (e) { /* full */ }
+}
+
+function _saveDecisions() {
+  try { localStorage.setItem(_LS_DECISIONS_KEY, JSON.stringify({ d: _playDecisions, g: _playGames })); } catch (e) { /* full */ }
+}
+
+function _loadInferred() {
+  try {
+    const raw = localStorage.getItem(_LS_KEY);
+    if (raw) _inferResult = JSON.parse(raw);
+  } catch (e) { /* corrupt */ }
+  try {
+    const raw = localStorage.getItem(_LS_DECISIONS_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (Array.isArray(obj.d)) { _playDecisions = obj.d; _playGames = obj.g || 0; }
+    }
+  } catch (e) { /* corrupt */ }
+}
+
+/** Get user's inferred params, or null. */
+function _getInferredParams() {
+  return _inferResult?.params ?? null;
+}
+
+_loadInferred();
 
 // ===== public entry =====
 
@@ -408,6 +447,70 @@ function _renderOptimize() {
   document.getElementById('mh-opt-cancel').addEventListener('click', _cancelOptimize);
 
   if (_optCache && _optCache.floor === floor) _showOptResults(_optCache);
+  _showInferredCard(floor, lvs, svarHP);
+}
+
+// Show standalone "Your Strategy" card on the Optimize tab (works with or without optimizer results)
+function _showInferredCard(floor, upgLevels, svarHP) {
+  const resultsEl = document.getElementById('mh-opt-results');
+  if (!resultsEl) return;
+  const infP = _getInferredParams();
+  if (!infP) return;
+
+  const infR = evaluateTunableParams({
+    params: infP, floor, upgLevels, nTrials: 2000,
+    seed: 42 + floor, svarHP,
+  });
+  const profile = _inferResult?.profile || '';
+  const agreement = _inferResult?.agreement ? (_inferResult.agreement * 100).toFixed(1) + '% match' : '';
+
+  let html = `<div style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--cyan);border-radius:8px;">`;
+  html += `<h4 style="color:var(--cyan);margin:0 0 8px;">Your Strategy</h4>`;
+  if (profile) html += `<div style="font-size:.85em;color:var(--purple);font-weight:600;margin-bottom:4px;">${profile}</div>`;
+  if (agreement) html += `<div style="font-size:.78em;color:var(--text2);margin-bottom:8px;">${agreement} · ${_inferResult?.totalDecisions || 0} decisions</div>`;
+
+  // Stats row
+  html += `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.9em;margin-bottom:8px;">`;
+  html += `<div>Win: <b style="color:${infR.winRate > 0.8 ? 'var(--green)' : infR.winRate > 0.4 ? 'var(--gold)' : 'var(--accent)'};">${(infR.winRate * 100).toFixed(1)}%</b></div>`;
+  html += `<div>Avg Dmg: <b>${_fmt(infR.avgDmg)}</b></div>`;
+  html += `<div>T1 Dmg: <b>${_fmt(infR.avgFirstTurnDmg)}</b></div>`;
+  html += `<div>Turns: <b>${infR.avgTurns.toFixed(1)}</b></div>`;
+  html += `<div>Dmg/Cmt: <b>${_fmt(infR.avgDmgPerCommit)}</b></div>`;
+  html += `</div>`;
+
+  // Comparison vs optimizer #1 (if available)
+  if (_optCache && _optCache.floor === floor && _optCache.bestResult) {
+    const br = _optCache.bestResult;
+    const dmgDelta = br.avgDmg > 0 ? ((infR.avgDmg - br.avgDmg) / br.avgDmg * 100) : 0;
+    const winDelta = (infR.winRate - br.winRate) * 100;
+    const dColor = dmgDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    const wColor = winDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    html += `<div style="font-size:.85em;padding-top:6px;border-top:1px solid var(--bg3);">`;
+    html += `<b>vs Optimized #1:</b> `;
+    html += `Win <b style="color:${wColor};">${winDelta >= 0 ? '+' : ''}${winDelta.toFixed(1)}%</b> &nbsp; `;
+    html += `Avg Dmg <b style="color:${dColor};">${dmgDelta >= 0 ? '+' : ''}${dmgDelta.toFixed(1)}%</b> `;
+    html += `(${_fmt(infR.avgDmg)} vs ${_fmt(br.avgDmg)})`;
+    html += `</div>`;
+  }
+
+  // Key params
+  html += `<details style="margin-top:8px;font-size:.82em;">`;
+  html += `<summary style="cursor:pointer;color:var(--cyan);">Your Knobs</summary>`;
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">`;
+  html += _paramBadge('EV Mul', infP.evMultiplier, infP.evMultiplier < 1 ? 'Aggressive' : infP.evMultiplier > 1 ? 'Conservative' : 'Neutral', '');
+  html += _paramBadge('Min Rev', infP.minReveal, infP.minReveal === 0 ? 'No min' : `≥${infP.minReveal}`, '');
+  html += _paramBadge('Mine Cap', (infP.mineCapPct * 100).toFixed(0) + '%', infP.mineCapPct < 1 ? 'Safety net' : 'No cap', '');
+  html += _paramBadge('Goldens', infP.goldenMinePct < 1 ? (infP.goldenMinePct * 100).toFixed(0) + '%' : 'Last', '', '');
+  html += _paramBadge('Blocks', infP.blockAggro ? 'Aggro' : 'Safe', '', '');
+  html += _paramBadge('Life Agg', infP.lifeAggro ?? 1, '', '');
+  html += `</div></details>`;
+
+  html += `</div>`;
+
+  // Append (or replace existing) inferred card
+  let existing = resultsEl.querySelector('[data-inferred-card]');
+  if (existing) { existing.outerHTML = `<div data-inferred-card>${html}</div>`; }
+  else { resultsEl.insertAdjacentHTML('beforeend', `<div data-inferred-card>${html}</div>`); }
 }
 
 // ===== RANK UPGRADES SUBTAB =====
@@ -428,6 +531,10 @@ function _renderRankTab() {
       </p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
         <button class="btn" id="mh-rank-btn" style="background:linear-gradient(135deg,#1a6b3c,#0d4d2b);">Rank Upgrades (+1 each)</button>
+        <select id="mh-rank-strat" style="background:var(--bg3);color:var(--text);border:1px solid var(--bg3);border-radius:4px;padding:4px 8px;font-size:.85em;">
+          <option value="optimized">Optimized Strategy</option>
+          <option value="yours" ${!_getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
+        </select>
         <button class="btn" id="mh-rank-cancel" style="background:var(--bg3);display:none;">Cancel</button>
         <span id="mh-rank-status" style="color:var(--text2);font-size:.85em;"></span>
       </div>
@@ -467,6 +574,10 @@ function _renderPathTab() {
       </p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
         <button class="btn" id="mh-path-btn" style="background:linear-gradient(135deg,#1a3c6b,#0d2b4d);">Find Upgrade Path</button>
+        <select id="mh-path-strat" style="background:var(--bg3);color:var(--text);border:1px solid var(--bg3);border-radius:4px;padding:4px 8px;font-size:.85em;">
+          <option value="optimized">Optimized Strategy</option>
+          <option value="yours" ${!_getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
+        </select>
         <button class="btn" id="mh-path-cancel" style="background:var(--bg3);display:none;">Cancel</button>
         <span id="mh-path-status" style="color:var(--text2);font-size:.85em;"></span>
       </div>
@@ -536,6 +647,30 @@ const _KNOB_DEFS = [
     min: 0, max: 0.8, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0.4] },
   { key: 'instaMode',     label: 'Insta Mode',      tip: 'Mine% threshold for using insta-reveals. 0 = always use.',
     min: 0, max: 0.6, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Always', defaults: [0, 0.3] },
+  // --- Human-Behavior Knobs ---
+  { key: 'commitTurns',   label: 'Commit Turns',    tip: 'Force attack after N turns. 0 = no limit.',
+    min: 0, max: 10, step: 1, fmt: v => v > 0 ? v : 'Off', defaults: [0, 0] },
+  { key: 'postMinePanic', label: 'Post-Mine Panic', tip: 'Inflate EV threshold on the turn after a mine hit. Higher = more cautious after getting hit.',
+    min: 0, max: 0.8, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
+  { key: 'lastTurnAggro', label: 'Last Turn Aggro', tip: 'Halve EV when boss is nearly dead (remainingHP/bossHP < val). Encourages finishing.',
+    min: 0, max: 0.5, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
+  { key: 'targetReveals', label: 'Target Reveals',  tip: 'Soft cap on reveals per turn. Attack after this many safe reveals.',
+    min: 0, max: 10, step: 1, fmt: v => v > 0 ? v : 'Off', defaults: [0, 0] },
+  { key: 'goldenFirst',   label: 'Golden First',    tip: 'Always prefer golden tiles over risky reveals. ON = click goldens first.',
+    min: 0, max: 1, step: 1, fmt: v => v ? 'On' : 'Off', defaults: [0, 0] },
+  { key: 'crownOrDie',    label: 'Crown Or Die',    tip: 'Max mine% for reveals when 2/3 crowns matched. Keep revealing to chase the 3-match.',
+    min: 0, max: 0.6, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
+  { key: 'hotStreak',     label: 'Hot Streak',      tip: 'Reduce EV threshold after 3+ safe reveals this turn. Momentum-based risk.',
+    min: 0, max: 0.5, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
+  { key: 'blockHoard',    label: 'Block Hoard',     tip: 'Inflate EV threshold when blocks ≤ 1. More cautious when armor is low.',
+    min: 0, max: 0.6, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
+  // --- Spatial Knobs ---
+  { key: 'cornerBias',    label: 'Corner Bias',     tip: 'Weight multiplier for corner tiles. >1 = prefer clicking corners. 1 = random.',
+    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
+  { key: 'edgeBias',      label: 'Edge Bias',       tip: 'Weight multiplier for edge tiles. >1 = prefer clicking edges. 1 = random.',
+    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
+  { key: 'clusterBias',   label: 'Cluster Bias',    tip: 'Weight multiplier for tiles adjacent to known safe tiles. >1 = cluster near safe. 1 = random.',
+    min: 0.5, max: 4.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
 ];
 
 function _buildKnobSliders() {
@@ -680,7 +815,7 @@ function _buildGridFromSliders() {
   // Convert to grid
   const grid = {};
   for (const k of _KNOB_DEFS) {
-    grid[k.key] = k.key === 'blockAggro'
+    grid[k.key] = (k.key === 'blockAggro' || k.key === 'goldenFirst')
       ? allVals[k.key].map(v => !!v)
       : allVals[k.key];
     if (grid[k.key].length === 0) grid[k.key] = [k.defaults[0]];
@@ -769,7 +904,7 @@ function _runOptimize(lvs, floor, svarHP) {
         screenResults[idx].score = score(d.result);
       }
       if (completed === totalScreen + topN) {
-        _onOptComplete(screenResults.slice(0, topN), floor);
+        _onOptComplete(screenResults.slice(0, topN), floor, lvs, svarHP);
         return;
       }
     }
@@ -797,11 +932,11 @@ function _dispatchOptTask(worker, task, floor, upgLevels, nTrials, seed, svarHP)
   worker.postMessage({ type: 'optimize', id: task.id, floor, upgLevels: [...upgLevels], params: task.params, nTrials, seed, svarHP });
 }
 
-function _onOptComplete(topResults, floor) {
+function _onOptComplete(topResults, floor, upgLevels, svarHP) {
   if (_optWorkers) { for (const w of _optWorkers) w.terminate(); _optWorkers = null; }
   topResults.sort((a, b) => b.score - a.score);
   const best = topResults[0];
-  _optCache = { floor, bestParams: best.params, bestResult: best.result, topResults };
+  _optCache = { floor, bestParams: best.params, bestResult: best.result, topResults, upgLevels, svarHP };
   const statusEl = document.getElementById('mh-opt-status');
   const progressEl = document.getElementById('mh-opt-progress');
   const cancelEl = document.getElementById('mh-opt-cancel');
@@ -908,7 +1043,58 @@ function _showOptResults(cache) {
     html += `<td style="padding:4px 6px;">${p.instaMode > 0 ? (p.instaMode * 100).toFixed(0) + '%' : '—'}</td>`;
     html += `</tr>`;
   }
+
+  // "Your Strategy" comparison row
+  const _infP = _getInferredParams();
+  let _infR = null;
+  const _infLvs = cache.upgLevels || S.mineheadUpgLevels;
+  const _infSvar = cache.svarHP || S.serverVarMineHP || 1;
+  if (_infP && _infLvs) {
+    _infR = evaluateTunableParams({
+      params: _infP, floor: cache.floor,
+      upgLevels: _infLvs, nTrials: 2000,
+      seed: 42 + cache.floor, svarHP: _infSvar,
+    });
+    const ip = _infP, ir = _infR;
+    const profile = _inferResult?.profile || '';
+    html += `<tr style="background:rgba(100,180,255,.15);border-top:2px solid var(--cyan);font-weight:600;">`;
+    html += `<td style="padding:4px 6px;color:var(--cyan);font-size:.85em;" data-tip="${profile || 'Your inferred strategy from the Play tab'}">You</td>`;
+    html += `<td style="padding:4px 6px;color:${ir.winRate > 0.8 ? 'var(--green)' : ir.winRate > 0.4 ? 'var(--gold)' : 'var(--accent)'};">${(ir.winRate * 100).toFixed(1)}%</td>`;
+    html += `<td style="padding:4px 6px;">${_fmt(ir.avgDmg)}</td>`;
+    html += `<td style="padding:4px 6px;">${_fmt(ir.avgFirstTurnDmg)}</td>`;
+    html += `<td style="padding:4px 6px;">${ir.avgTurns.toFixed(1)}</td>`;
+    html += `<td style="padding:4px 6px;">${_fmt(ir.avgDmgPerCommit)}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.evMultiplier}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.minReveal}</td>`;
+    html += `<td style="padding:4px 6px;">${(ip.mineCapPct * 100).toFixed(0)}%</td>`;
+    html += `<td style="padding:4px 6px;">${ip.goldenMinePct < 1 ? (ip.goldenMinePct * 100).toFixed(0) + '%' : 'Last'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.hpThreshold > 0 ? (ip.hpThreshold * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.blockAggro ? 'Aggro' : 'Safe'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.commitMin ? (ip.commitMin * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.lifeAggro ?? 1}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.turn1EvMul || '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.crownChase || '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.instaMode > 0 ? (ip.instaMode * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `</tr>`;
+  }
+
   html += `</tbody></table></div>`;
+
+  // Comparison summary panel (if inferred strategy exists)
+  if (_infR) {
+    const dmgDelta = br.avgDmg > 0 ? ((_infR.avgDmg - br.avgDmg) / br.avgDmg * 100) : 0;
+    const winDelta = (_infR.winRate - br.winRate) * 100;
+    const dColor = dmgDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    const wColor = winDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    html += `<div style="margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--cyan);border-radius:8px;">`;
+    html += `<b style="color:var(--cyan);">Your Strategy vs #1:</b> `;
+    html += `Win <b style="color:${wColor};">${winDelta >= 0 ? '+' : ''}${winDelta.toFixed(1)}%</b> &nbsp; `;
+    html += `Avg Dmg <b style="color:${dColor};">${dmgDelta >= 0 ? '+' : ''}${dmgDelta.toFixed(1)}%</b> `;
+    html += `(${_fmt(_infR.avgDmg)} vs ${_fmt(br.avgDmg)})`;
+    if (_inferResult?.profile) html += ` &nbsp; <span style="color:var(--text2);font-size:.85em;">${_inferResult.profile}</span>`;
+    html += `</div>`;
+  }
+
   el.innerHTML = html;
   _wireOptTooltips(el);
 }
@@ -969,7 +1155,8 @@ function _runUpgradeRank(lvs, floor, svarHP) {
   const seed = 42 + floor;
   const mineCurrency = S.stateR7?.[5] || 0;
   const qty26 = upgradeQTY(26, lvs[26] || 0);
-  const params = _getParams(floor);
+  const stratEl = document.getElementById('mh-rank-strat');
+  const params = (stratEl?.value === 'yours' && _getInferredParams()) || _getParams(floor);
 
   const researchLv = S.researchLevel || 0;
   const affordable = [];
@@ -1062,7 +1249,7 @@ function _onRankComplete(results, affordable, floor, nTrials, lvs) {
   });
 
   upgrades.sort((a, b) => b.dmgPerCost - a.dmgPerCost);
-  _rankCache = { floor, baseline, upgrades, nTrials };
+  _rankCache = { floor, baseline, upgrades, nTrials, upgLevels: lvs, svarHP };
 
   const statusEl = document.getElementById('mh-rank-status');
   const progressEl = document.getElementById('mh-rank-progress');
@@ -1082,6 +1269,26 @@ function _showRankResults(cache) {
 
   let html = `<h4 style="color:var(--gold);margin:20px 0 6px;">Upgrade Rankings +1 Level Each</h4>`;
   html += `<p style="color:var(--text2);font-size:.82em;margin-bottom:6px;">Baseline: <b>${_fmt(b.avgDmg)}</b> avg dmg, <b>${(b.winRate * 100).toFixed(1)}%</b> win (${nTrials.toLocaleString()} trials)</p>`;
+
+  // Comparison banner if user has an inferred strategy and this was run with optimized
+  const _rInfP = _getInferredParams();
+  if (_rInfP && cache.upgLevels) {
+    const _rInfR = evaluateTunableParams({
+      params: _rInfP, floor: cache.floor,
+      upgLevels: cache.upgLevels, nTrials: 2000,
+      seed: 42 + cache.floor, svarHP: cache.svarHP || 1,
+    });
+    const dmgDelta = b.avgDmg > 0 ? ((_rInfR.avgDmg - b.avgDmg) / b.avgDmg * 100) : 0;
+    const winDelta = (_rInfR.winRate - b.winRate) * 100;
+    const dColor = dmgDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    const wColor = winDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    html += `<div style="padding:8px 12px;background:var(--bg2);border:1px solid var(--cyan);border-radius:6px;margin-bottom:10px;font-size:.85em;">`;
+    html += `<b style="color:var(--cyan);">Your Strategy baseline:</b> <b>${_fmt(_rInfR.avgDmg)}</b> avg dmg, <b>${(_rInfR.winRate * 100).toFixed(1)}%</b> win &nbsp; `;
+    html += `(<span style="color:${dColor};">${dmgDelta >= 0 ? '+' : ''}${dmgDelta.toFixed(1)}% dmg</span>, `;
+    html += `<span style="color:${wColor};">${winDelta >= 0 ? '+' : ''}${winDelta.toFixed(1)}% win</span> vs optimized)`;
+    html += `</div>`;
+  }
+
   html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.85em;">`;
   html += `<thead><tr style="border-bottom:2px solid var(--bg3);">`;
   html += `<th style="text-align:left;padding:5px 8px;color:var(--text2);">#</th>`;
@@ -1149,7 +1356,8 @@ function _runUpgradePath(lvs, floor, svarHP) {
   statusEl.textContent = 'Finding path...';
   statusEl.style.color = 'var(--gold)';
 
-  const params = _getParams(floor);
+  const stratEl = document.getElementById('mh-path-strat');
+  const params = (stratEl?.value === 'yours' && _getInferredParams()) || _getParams(floor);
   const nTrials = 2000;
   const seed = 42 + floor;
   const maxSteps = 50;
@@ -1159,6 +1367,7 @@ function _runUpgradePath(lvs, floor, svarHP) {
 
   const currentLvs = [...lvs];
   const path = [];
+  _pathStartCtx = { upgLevels: [...lvs], svarHP };
 
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
   const workers = [];
@@ -1292,6 +1501,25 @@ function _showPathResults(cache) {
   let html = `<h4 style="color:var(--blue);margin:20px 0 6px;">Cost-Effective Upgrade Path (${path.length} upgrades, ${_fmt(totalCost)} spent)</h4>`;
   html += `<p style="color:var(--text2);font-size:.82em;margin-bottom:6px;">Each step picks the single best +1 upgrade. Baseline: <b>${_fmt(baseline.avgDmg)}</b> avg dmg, <b>${(baseline.winRate * 100).toFixed(1)}%</b> win</p>`;
 
+  // Comparison banner if user has an inferred strategy
+  const _pInfP = _getInferredParams();
+  if (_pInfP && _pathStartCtx) {
+    const _pInfR = evaluateTunableParams({
+      params: _pInfP, floor: cache.floor,
+      upgLevels: _pathStartCtx.upgLevels, nTrials: 2000,
+      seed: 42 + cache.floor, svarHP: _pathStartCtx.svarHP || 1,
+    });
+    const dmgDelta = baseline.avgDmg > 0 ? ((_pInfR.avgDmg - baseline.avgDmg) / baseline.avgDmg * 100) : 0;
+    const winDelta = (_pInfR.winRate - baseline.winRate) * 100;
+    const dColor = dmgDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    const wColor = winDelta >= 0 ? 'var(--green)' : 'var(--accent)';
+    html += `<div style="padding:8px 12px;background:var(--bg2);border:1px solid var(--cyan);border-radius:6px;margin-bottom:10px;font-size:.85em;">`;
+    html += `<b style="color:var(--cyan);">Your Strategy baseline:</b> <b>${_fmt(_pInfR.avgDmg)}</b> avg dmg, <b>${(_pInfR.winRate * 100).toFixed(1)}%</b> win &nbsp; `;
+    html += `(<span style="color:${dColor};">${dmgDelta >= 0 ? '+' : ''}${dmgDelta.toFixed(1)}% dmg</span>, `;
+    html += `<span style="color:${wColor};">${winDelta >= 0 ? '+' : ''}${winDelta.toFixed(1)}% win</span> vs optimized)`;
+    html += `</div>`;
+  }
+
   html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.85em;">`;
   html += `<thead><tr style="border-bottom:2px solid var(--bg3);">`;
   html += `<th style="text-align:left;padding:5px 8px;color:var(--text2);">Step</th>`;
@@ -1363,6 +1591,13 @@ function _renderPlayfield() {
     </div>
     <div id="mh-p-grid" style="display:grid;grid-template-columns:repeat(${cols}, 48px);gap:3px;justify-content:center;"></div>
     <div id="mh-p-log" style="max-width:500px;margin:12px auto 0;max-height:160px;overflow-y:auto;font-size:.78em;color:var(--text2);"></div>
+    <div id="mh-p-strategy" style="max-width:500px;margin:16px auto 0;">
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center;">
+        <span id="mh-p-stats" style="font-size:.82em;color:var(--text2);">Games: 0 | Decisions: 0</span>
+        <button class="btn" id="mh-p-clear-data" style="background:var(--bg3);font-size:.78em;">Reset</button>
+      </div>
+      <div id="mh-p-profile" style="margin-top:8px;"></div>
+    </div>
   `;
 
   _initPlayGame(container, cols, rows, numTiles, mines, hp, maxLives, maxGoldens, maxBlocks, maxInstas, crownOdds, jpTileCount, lvs, svarHP);
@@ -1391,11 +1626,84 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   let lives, goldens, blocks, instas, totalDmg, turnsPlayed, totalCommits;
   let grid, crowns, goldenPos, revealed, turnValues, crownProgress, crownSets;
   let safeRevealed, gameOver, turnActive, minesFound, wigglesUsed, firstClickDone;
+  let _lastTurnMineHit = false;
 
   function _makeRng() {
     let s = (Date.now() ^ 0xDEADBEEF) | 0;
     return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   }
+
+  const stratStatsEl = document.getElementById('mh-p-stats');
+  const clearDataBtn = document.getElementById('mh-p-clear-data');
+  const profileEl = document.getElementById('mh-p-profile');
+
+  function _collectDecision(choice, tileIdx) {
+    const estMinesLeft = Math.max(0, mines - minesFound);
+    const unrevealed = revealed.filter(r => !r).length;
+    const goldensOnGrid = goldenPos.filter(p => !revealed[p]).length;
+
+    // Spatial data (only for reveal/golden, not attack)
+    let spatial = null;
+    if (tileIdx != null) {
+      const r = Math.floor(tileIdx / cols), c = tileIdx % cols;
+      const isEdge = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
+      const isCorner = (r === 0 || r === rows - 1) && (c === 0 || c === cols - 1);
+      // Count adjacent revealed mines and safe tiles
+      let adjMines = 0, adjSafe = 0, adjUnrevealed = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+          const ni = nr * cols + nc;
+          if (revealed[ni]) {
+            if (grid[ni] === 0) adjMines++;
+            else adjSafe++;
+          } else adjUnrevealed++;
+        }
+      }
+      spatial = {
+        idx: tileIdx, r, c, cols, rows,
+        isCorner, isEdge: isEdge && !isCorner,
+        isCenter: !isEdge,
+        adjMines, adjSafe, adjUnrevealed,
+        clickOrder: safeRevealed, // 0-based: how many tiles already revealed this turn
+      };
+    }
+
+    _playDecisions.push({
+      safeRevealedThisTurn: safeRevealed,
+      minesTotal: mines,
+      minesRemaining: estMinesLeft,
+      unrevealedCount: unrevealed,
+      livesLeft: lives,
+      totalDmgSoFar: totalDmg,
+      bossHP,
+      turnsPlayed,
+      blocksLeft: blocks,
+      goldensOnGrid,
+      currentTurnDmg: _calcTurnDmg(),
+      remainingHP: bossHP - totalDmg,
+      perTilePct: bonusDMGperTilePCT(lvs, gridBonus146),
+      tileCount: turnValues.length,
+      crownProgress,
+      lastTurnMineHit: _lastTurnMineHit,
+      choice,
+      spatial,
+    });
+    _updateStrategyStats();
+  }
+
+  function _updateStrategyStats() {
+    const need = Math.max(0, 3 - _playGames);
+    if (need > 0) {
+      if (stratStatsEl) stratStatsEl.textContent = `Games: ${_playGames} | Decisions: ${_playDecisions.length} — play ${need} more game${need > 1 ? 's' : ''} to start learning`;
+    } else {
+      if (stratStatsEl) stratStatsEl.textContent = `Games: ${_playGames} | Decisions: ${_playDecisions.length} — auto-analyzing after each game`;
+    }
+  }
+
+  _updateStrategyStats();
 
   function _log(msg, color) {
     const d = document.createElement('div');
@@ -1455,6 +1763,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     turnsPlayed = 0;
     totalCommits = 0;
     wigglesUsed = 0;
+    _lastTurnMineHit = false;
     gameOver = false;
     logEl.innerHTML = '';
     _log('Game started! Click tiles to reveal them.', 'var(--green)');
@@ -1510,7 +1819,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     if (v === 0) return '💣';
     if (v === 30) return '🎰';
     if (v >= 40) return '$' + (v - 39);
-    if (v >= 20) return '×' + (v - 19);
+    if (v >= 20) return '×' + TILE_MULTIPLIERS[v - 20];
     return v;
   }
 
@@ -1611,14 +1920,22 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
 
   function _onTileClick(i) {
     if (gameOver || !turnActive || revealed[i]) return;
+    // Collect decision snapshot before resolving
+    const isGolden = goldenPos.includes(i);
+    _collectDecision(isGolden ? 'golden' : 'reveal', i);
     const wasFirstClick = !firstClickDone;
     firstClickDone = true;
     const result = _revealTile(i, false);
 
     if (result === 'mine-hit') {
+      _lastTurnMineHit = true;
       if (lives <= 0) {
         turnActive = false;
         gameOver = true;
+        _playGames++;
+        _saveDecisions();
+        _autoAnalyze();
+        _updateStrategyStats();
         _log('☠ GAME OVER — All lives lost!', 'var(--accent)');
       } else {
         turnActive = false;
@@ -1655,10 +1972,15 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
       totalCommits++;
       _log(`⚔ Attack! Dealt ${_fmt(dmg)} damage (${totalCommits} commits, total: ${_fmt(totalDmg)})`, 'var(--green)');
     }
+    _lastTurnMineHit = false;
     turnActive = false;
 
     if (totalDmg >= bossHP) {
       gameOver = true;
+      _playGames++;
+      _saveDecisions();
+      _autoAnalyze();
+      _updateStrategyStats();
       _log(`🎉 BOSS DEFEATED in ${turnsPlayed} turns!`, 'var(--green)');
     } else {
       setTimeout(() => { if (!gameOver) _newTurn(false); }, 400);
@@ -1688,9 +2010,120 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
     _updateHud();
   }
 
-  attackBtn.addEventListener('click', () => { if (turnActive && safeRevealed > 0) _commitDamage(); });
+  attackBtn.addEventListener('click', () => {
+    if (turnActive && safeRevealed > 0) {
+      _collectDecision('attack');
+      _commitDamage();
+    }
+  });
   instaBtn.addEventListener('click', _useInsta);
   newBtn.addEventListener('click', _newGame);
+
+  function _autoAnalyze() {
+    if (_playGames < 3 || _playDecisions.length < 10) return;
+    _inferResult = inferStrategy(_playDecisions);
+    _saveInferred();
+    _renderProfile();
+  }
+
+  clearDataBtn.addEventListener('click', () => {
+    _playDecisions.length = 0;
+    _playGames = 0;
+    _inferResult = null;
+    try { localStorage.removeItem(_LS_KEY); } catch (e) { /* */ }
+    try { localStorage.removeItem(_LS_DECISIONS_KEY); } catch (e) { /* */ }
+    _updateStrategyStats();
+    if (profileEl) profileEl.innerHTML = '';
+  });
+
+  function _renderProfile() {
+    if (!profileEl || !_inferResult || !_inferResult.params) return;
+    const r = _inferResult;
+    const pct = (r.agreement * 100).toFixed(1);
+    const p = r.params;
+    const knobRows = Object.entries(p).map(([k, v]) => {
+      const isDefault = v === 0 || v === false || v === 1.0 || (k === 'blockAggro' && v === true);
+      const color = isDefault ? 'var(--text2)' : 'var(--gold)';
+      return `<tr><td style="padding:2px 8px;color:${color};">${k}</td><td style="padding:2px 8px;color:${color};font-weight:600;">${v}</td></tr>`;
+    }).join('');
+
+    // Spatial analysis
+    let spatialHtml = '';
+    const sp = r.spatial;
+    if (sp) {
+      // Zone bias badges
+      const zb = sp.zoneBias;
+      const _zbBadge = (label, val) => {
+        const color = val > 1.3 ? 'var(--gold)' : val < 0.7 ? 'var(--cyan)' : 'var(--text2)';
+        return `<span style="display:inline-block;background:var(--bg3);border-radius:4px;padding:2px 6px;margin:2px;font-size:.82em;"><span style="color:var(--text2);">${label}</span> <b style="color:${color};">${val.toFixed(2)}×</b></span>`;
+      };
+
+      spatialHtml += `<div style="margin-top:6px;">`;
+      spatialHtml += `<div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">Zone Bias (1.0 = random)</div>`;
+      spatialHtml += _zbBadge('Corner', zb.corner) + _zbBadge('Edge', zb.edge) + _zbBadge('Center', zb.center);
+      spatialHtml += `</div>`;
+
+      if (sp.firstClickZone) {
+        const fc = sp.firstClickZone;
+        spatialHtml += `<div style="margin-top:4px;">`;
+        spatialHtml += `<div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">First Click Bias</div>`;
+        spatialHtml += _zbBadge('Corner', fc.corner) + _zbBadge('Edge', fc.edge) + _zbBadge('Center', fc.center);
+        spatialHtml += `</div>`;
+      }
+
+      // Adjacency
+      spatialHtml += `<div style="margin-top:4px;font-size:.82em;">`;
+      const mColor = sp.adjMineBias > 0.15 ? 'var(--accent)' : sp.adjMineBias < 0.03 ? 'var(--green)' : 'var(--text2)';
+      const sColor = sp.adjSafeBias > 0.5 ? 'var(--cyan)' : 'var(--text2)';
+      spatialHtml += `<span style="color:var(--text2);">Adj. Mines:</span> <b style="color:${mColor};">${(sp.adjMineBias * 100).toFixed(0)}%</b> &nbsp; `;
+      spatialHtml += `<span style="color:var(--text2);">Adj. Safe:</span> <b style="color:${sColor};">${(sp.adjSafeBias * 100).toFixed(0)}%</b>`;
+      spatialHtml += `</div>`;
+
+      // Mini heatmap
+      if (sp.heatmap) {
+        const maxVal = Math.max(...sp.heatmap.flat(), 0.001);
+        let hmHtml = `<div style="margin-top:6px;"><div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">Click Heatmap</div>`;
+        hmHtml += `<div style="display:inline-grid;grid-template-columns:repeat(${sp.heatmapSize},20px);gap:1px;">`;
+        for (const row of sp.heatmap) {
+          for (const v of row) {
+            const intensity = v / maxVal;
+            const r = Math.round(50 + intensity * 205);
+            const g = Math.round(50 + (1 - intensity) * 100);
+            const b = 50;
+            const a = 0.3 + intensity * 0.7;
+            hmHtml += `<div style="width:20px;height:20px;border-radius:2px;background:rgba(${r},${g},${b},${a});" title="${(v * 100).toFixed(1)}%"></div>`;
+          }
+        }
+        hmHtml += `</div></div>`;
+        spatialHtml += hmHtml;
+      }
+
+      // Spatial traits summary
+      if (sp.traits.length > 0) {
+        spatialHtml += `<div style="margin-top:4px;font-size:.8em;color:var(--purple);">${sp.traits.join(' · ')}</div>`;
+      }
+    }
+
+    profileEl.innerHTML = `
+      <div class="opt-card" style="padding:10px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-weight:700;color:var(--purple);font-size:1.05em;">${r.profile}</span>
+          <span style="color:var(--green);font-weight:600;">${pct}% match</span>
+        </div>
+        <div style="font-size:.78em;color:var(--text2);margin-bottom:6px;">${r.totalDecisions} decisions from ${_playGames} games</div>
+        <details style="font-size:.82em;" open>
+          <summary style="cursor:pointer;color:var(--blue);margin-bottom:4px;">Click Tendencies</summary>
+          ${spatialHtml || '<div style="color:var(--text2);font-size:.82em;">Not enough reveal data yet</div>'}
+        </details>
+        <details style="font-size:.82em;">
+          <summary style="cursor:pointer;color:var(--blue);margin-bottom:4px;">Inferred Knobs</summary>
+          <table style="font-size:.85em;"><tbody>${knobRows}</tbody></table>
+        </details>
+      </div>`;
+  }
+
+  // Show saved profile on load
+  if (_inferResult && _inferResult.params) _renderProfile();
 
   _newGame();
 }

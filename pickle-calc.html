@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BoneJoePickle Calculator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #1a1a2e; color: #e0e0e0;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 24px 12px;
+  }
+  h1 { color: #c8f7c5; margin-bottom: 4px; font-size: 1.6em; }
+  .subtitle { color: #888; font-size: .85em; margin-bottom: 20px; }
+  .input-group {
+    background: #16213e; border-radius: 10px; padding: 18px 22px;
+    width: 100%; max-width: 520px; margin-bottom: 16px;
+  }
+  .input-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #a0d2db; }
+  .input-group .hint { font-size: .78em; color: #777; margin-bottom: 8px; }
+  .input-group input[type=number] {
+    width: 100%; padding: 8px 12px; border-radius: 6px;
+    border: 1px solid #334; background: #0f0f23; color: #fff;
+    font-size: 1.1em;
+  }
+  .input-group input[type=range] { width: 100%; accent-color: #66bb6a; }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row span { min-width: 44px; text-align: right; font-weight: 600; color: #ffd54f; }
+  table {
+    width: 100%; max-width: 680px; border-collapse: collapse;
+    margin-top: 8px; font-size: .92em;
+  }
+  th { background: #0d1b2a; color: #66bb6a; padding: 8px 6px; text-align: left; position: sticky; top: 0; }
+  td { padding: 7px 6px; border-bottom: 1px solid #1f2f3f; }
+  tr:hover td { background: #1a2744; }
+  .world { font-size: .75em; color: #777; }
+  .ok { color: #66bb6a; font-weight: 700; }
+  .warn { color: #ffd54f; font-weight: 600; }
+  .nope { color: #ef5350; }
+  .hp { color: #b0bec5; font-variant-numeric: tabular-nums; }
+  .pickles { font-size: 1.15em; font-weight: 700; }
+  .note { color: #888; font-size: .8em; margin-top: 12px; max-width: 520px; text-align: center; }
+  .ttk { font-size: .82em; color: #999; }
+  @media (max-width: 500px) { table { font-size: .8em; } }
+</style>
+</head>
+<body>
+<h1>🦴 BoneJoePickle Calculator</h1>
+<p class="subtitle">How many pickles can you stack and still kill each miniboss in time?</p>
+
+<div class="input-group">
+  <label for="dps">Your DPS</label>
+  <div class="hint">Hit the Shimmer Island target dummy and enter your damage per second</div>
+  <input type="number" id="dps" placeholder="e.g. 50000000" min="1" value="">
+</div>
+
+<div class="input-group">
+  <label for="ttk">Max Time to Kill</label>
+  <div class="slider-row">
+    <input type="range" id="ttk" min="5" max="120" value="30" step="1">
+    <span id="ttk-val">30s</span>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Miniboss</th>
+      <th>Base HP</th>
+      <th>Max Pickles</th>
+      <th>Effective HP</th>
+      <th>Kill Time</th>
+    </tr>
+  </thead>
+  <tbody id="results"></tbody>
+</table>
+
+<p class="note">
+  Formula: HP × 1.10<sup>pickles</sup>. Pickles only affect minibosses (NinjaInfo[30] list),
+  not dungeon or pet mobs. Deathnote bonus from Jade Upgrade #7 is separate.
+</p>
+
+<script>
+// Boss Deathnote list (the BoneJoePickle-relevant miniboss page)
+const MINIBOSSES = [
+  { code: 'slimeB',     name: 'Glunko The Massive',        hp: 10000,             world: 'W1' },
+  { code: 'poopBig',    name: 'Dr Defecaus',               hp: 750000,            world: 'W2' },
+  { code: 'babayaga',   name: 'Baba Yaga',                 hp: 150000,            world: 'W2' },
+  { code: 'babaHour',   name: 'Biggie Hours',              hp: 800000,            world: 'W2' },
+  { code: 'babaMummy',  name: 'King Doot',                 hp: 3000000,           world: 'W2' },
+  { code: 'mini3a',     name: 'Dilapidated Slush',         hp: 1250000,           world: 'W3' },
+  { code: 'mini4a',     name: 'Mutated Mush',              hp: 120000000,         world: 'W4' },
+  { code: 'mini5a',     name: 'Domeo Magmus',              hp: 1000000000,        world: 'W5' },
+  { code: 'mini6a',     name: 'Demented Spiritlord',       hp: 25000000000000,    world: 'W6' },
+];
+
+const dpsEl    = document.getElementById('dps');
+const ttkEl    = document.getElementById('ttk');
+const ttkVal   = document.getElementById('ttk-val');
+const tbody    = document.getElementById('results');
+
+function fmtNum(n) {
+  if (n >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+
+function update() {
+  const dps  = parseFloat(dpsEl.value) || 0;
+  const maxT = parseFloat(ttkEl.value);
+  ttkVal.textContent = maxT + 's';
+
+  let html = '';
+  for (const m of MINIBOSSES) {
+    let maxPickles = 0;
+    let effHP = m.hp;
+    let killTime = dps > 0 ? m.hp / dps : Infinity;
+
+    if (dps > 0 && maxT > 0) {
+      // baseHP * 1.1^p <= dps * maxT
+      const ratio = (dps * maxT) / m.hp;
+      if (ratio >= 1) {
+        maxPickles = Math.floor(Math.log(ratio) / Math.log(1.1));
+      } else {
+        maxPickles = -1; // can't even kill base
+      }
+    } else {
+      maxPickles = -1;
+    }
+
+    effHP = m.hp * Math.pow(1.1, Math.max(0, maxPickles));
+    killTime = dps > 0 ? effHP / dps : Infinity;
+
+    let pickleClass, pickleText, ttkText;
+    if (maxPickles < 0) {
+      pickleClass = 'nope';
+      pickleText  = '✗';
+      ttkText = dps > 0 ? fmtNum(m.hp / dps) + 's' : '—';
+      effHP = m.hp;
+    } else if (maxPickles === 0) {
+      pickleClass = 'warn';
+      pickleText  = '0';
+      ttkText = killTime.toFixed(1) + 's';
+    } else {
+      pickleClass = 'ok';
+      pickleText  = maxPickles.toString();
+      ttkText = killTime.toFixed(1) + 's';
+    }
+
+    html += `<tr>
+      <td>${m.name} <span class="world">${m.world}</span></td>
+      <td class="hp">${fmtNum(m.hp)}</td>
+      <td class="pickles ${pickleClass}">${pickleText}</td>
+      <td class="hp">${dps > 0 ? fmtNum(effHP) : '—'}</td>
+      <td class="ttk">${ttkText}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+dpsEl.addEventListener('input', update);
+ttkEl.addEventListener('input', update);
+update();
+</script>
+</body>
+</html>
