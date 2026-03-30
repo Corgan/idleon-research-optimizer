@@ -394,7 +394,7 @@ export function _placeGoldens(grid, numTiles, goldBudget, goldUpgTotal, rng) {
 export function simulateGame({
   floor, upgLevels,
   strategy = tunableStrategy(),
-  gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0,
+  gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0, sailing38 = 0,
   svarHP = 1, maxTurns = 200, rng = Math.random,
 }) {
   const { cols, rows } = gridDims(upgLevels[2]);
@@ -573,7 +573,7 @@ export function simulateGame({
       const perTilePct = bonusDMGperTilePCT(upgLevels, gridBonus146);
       const turnDmgNow = turnValues.length > 0
         ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT)
+            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38)
         : 0;
 
       const decision = strategy({
@@ -692,7 +692,7 @@ export function simulateGame({
     if (turnOutcome !== 'mine' && turnValues.length > 0) {
       const dmg = currentOutgoingDMG(
         turnValues, crownSets, livesLeft <= 1,
-        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT,
+        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38,
       );
       if (dmg > 0) {
         if (totalCommits === 0) firstTurnDmg = dmg;
@@ -715,7 +715,7 @@ export function simulateGame({
         dmgThisTurn: turnOutcome === 'mine' ? 0
           : (turnValues.length > 0
             ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT)
+                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38)
             : 0),
         livesLeft,
         totalDmg,

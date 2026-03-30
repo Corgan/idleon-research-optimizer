@@ -7,7 +7,8 @@ import {  S, assignState  } from '../state.js';
 import { assignSaveData } from './data.js';
 import { parseSaveKey, eventShopOwned } from './helpers.js';
 import { computeExternalBonuses, computeAFKGainsRate, mineheadBonusQTY } from './external.js';
-import { computeLabConnectivity } from './lab.js';
+import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
+import { rogBonusQTY } from '../game-data.js';
 
 function computeMagnifiersOwned() {
   const _eventShopStr = S.cachedEventShopStr;
@@ -19,11 +20,12 @@ function computeMagnifiersOwned() {
     + Math.min(1, Math.floor(S.researchLevel / 130))
     + Math.min(1, Math.floor(S.researchLevel / 140));
   const comp153 = S.companionIds.has(153) ? 1 : 0;
+  const rog8 = rogBonusQTY(8, S.cachedUniqueSushi);
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
     + mineheadBonusQTY(2, _mineFloor) + mineheadBonusQTY(12, _mineFloor) + mineheadBonusQTY(20, _mineFloor)
     + eventShopOwned(34, _eventShopStr)
-    + lvBonus + comp153
+    + lvBonus + comp153 + rog8
   ));
 }
 
@@ -68,41 +70,112 @@ export function loadSaveData(raw) {
   assignState({ breedingData: parseSaveKey(save, 'Breeding') || [] });
   assignState({ summonData: parseSaveKey(save, 'Summon') || [] });
   assignState({ arcaneData: parseSaveKey(save, 'Arcane') || [] });
+  assignState({ sushiData: parseSaveKey(save, 'Sushi') || [] });
+
+  // StarSg: stored as a char-by-char object {0:'{',1:'"',...} — reconstruct and parse
+  const starSgRaw = save.StarSg;
+  if (starSgRaw && typeof starSgRaw === 'object' && !Array.isArray(starSgRaw)) {
+    const starSgStr = Object.keys(starSgRaw).sort((a,b) => Number(a) - Number(b)).map(k => starSgRaw[k]).join('');
+    try { assignState({ starSignsUnlocked: JSON.parse(starSgStr) }); } catch(e) { assignState({ starSignsUnlocked: {} }); }
+  } else if (typeof starSgRaw === 'string') {
+    try { assignState({ starSignsUnlocked: JSON.parse(starSgRaw) }); } catch(e) { assignState({ starSignsUnlocked: {} }); }
+  }
+  assignState({ compassData: parseSaveKey(save, 'Compass') || [] });
   assignState({ atomsData: parseSaveKey(save, 'Atoms') || [] });
   assignState({ gemItemsData: parseSaveKey(save, 'GemItemsPurchased') || [] });
   assignState({ achieveRegData: parseSaveKey(save, 'AchieveReg') || [] });
+  assignState({ bribeStatusData: parseSaveKey(save, 'BribeStatus') || [] });
+  assignState({ cauldronP2WData: parseSaveKey(save, 'CauldronP2W') || [] });
   assignSaveData({ tasksW7Data: parseSaveKey(save, 'TaskZZ5') || [] });
   const tasksGlobal = [];
   for (let tz = 0; tz <= 5; tz++) tasksGlobal.push(parseSaveKey(save, 'TaskZZ' + tz) || []);
   assignState({ tasksGlobalData: tasksGlobal });
   assignSaveData({ dreamData: parseSaveKey(save, 'Dream') || [] });
   assignSaveData({ divinityData: parseSaveKey(save, 'Divinity') || [] });
-  const optionsRaw = parseSaveKey(save, 'OptionsListAccount') || [];
+  const optionsRaw = parseSaveKey(save, 'OptionsListAccount') || olaRaw;
   assignSaveData({ optionsListData: optionsRaw });
+  assignState({ guildData: parseSaveKey(save, 'Guild') || [] });
+  assignState({ prayOwnedData: parseSaveKey(save, 'PrayOwned') || [] });
+  assignState({ shrineData: parseSaveKey(save, 'Shrine') || [] });
+  assignState({ bundlesData: parseSaveKey(save, 'BundlesReceived') || {} });
+  assignState({ farmRankData: parseSaveKey(save, 'FarmRank') || {} });
+  assignState({ forgeLvData: parseSaveKey(save, 'ForgeLV') || [] });
 
   const nChars = raw.charNames ? raw.charNames.length : 10;
   assignSaveData({ numCharacters: nChars });
 
   // Per-character data
-  const lv0All = [], exp0All = [], charClass = [], skillLv = [], playerStuff = [];
+  const lv0All = [], exp0All = [], charClass = [], skillLv = [], playerStuff = [], pvStatList = [];
   for (let ci = 0; ci < nChars; ci++) {
     lv0All.push(parseSaveKey(save, 'Lv0_' + ci) || []);
     exp0All.push(parseSaveKey(save, 'Exp0_' + ci) || []);
     charClass.push(Number(parseSaveKey(save, 'CharacterClass_' + ci)) || 0);
     skillLv.push(parseSaveKey(save, 'SL_' + ci) || {});
     playerStuff.push(parseSaveKey(save, 'PlayerStuff_' + ci) || []);
+    pvStatList.push(parseSaveKey(save, 'PVStatList_' + ci) || []);
   }
   assignState({ lv0AllData: lv0All });
   assignSaveData({ charClassData: charClass });
   assignSaveData({ skillLvData: skillLv });
   assignSaveData({ playerStuffData: playerStuff });
+  assignSaveData({ pvStatListData: pvStatList });
   assignSaveData({ cauldronInfoData: parseSaveKey(save, 'CauldronInfo') || [] });
   assignSaveData({ cauldronBubblesData: parseSaveKey(save, 'CauldronBubbles') || [] });
+  assignSaveData({ stampLvData: parseSaveKey(save, 'StampLv') || {} });
+
+  // Per-character star sign strings (plain strings like "69,52,24,", not JSON)
+  const starSigns = [];
+  for (let ci = 0; ci < nChars; ci++) {
+    const key = 'PVtStarSign_' + ci;
+    const raw = save[key];
+    starSigns.push(typeof raw === 'string' ? raw : String(raw || ''));
+  }
+  assignSaveData({ starSignData: starSigns });
+
   const kla = [];
   for (let ci = 0; ci < nChars; ci++) {
     kla.push(parseSaveKey(save, 'KLA_' + ci) || []);
   }
   assignSaveData({ klaData: kla });
+
+  // Per-character equipment (food bags needed for golden food bonuses)
+  const equipOrders = [], equipQtys = [], emmAll = [];
+  for (let ci = 0; ci < nChars; ci++) {
+    equipOrders.push(parseSaveKey(save, 'EquipOrder_' + ci) || []);
+    equipQtys.push(parseSaveKey(save, 'EquipQTY_' + ci) || []);
+    // Equipment stat maps: EMm0=gear(16 slots), EMm1=tools(8 slots)
+    emmAll.push([
+      parseSaveKey(save, 'EMm0_' + ci) || {},
+      parseSaveKey(save, 'EMm1_' + ci) || {},
+    ]);
+  }
+  assignSaveData({ equipOrderData: equipOrders });
+  assignSaveData({ equipQtyData: equipQtys });
+  assignSaveData({ emmData: emmAll });
+
+  // Per-character obols + family obols
+  const obolNames = [], obolMaps = [];
+  for (let ci = 0; ci < nChars; ci++) {
+    obolNames.push(parseSaveKey(save, 'ObolEqO0_' + ci) || []);
+    obolMaps.push(parseSaveKey(save, 'ObolEqMAP_' + ci) || {});
+  }
+  assignSaveData({ obolNamesData: obolNames });
+  assignSaveData({ obolMapsData: obolMaps });
+  assignSaveData({ obolFamilyNames: parseSaveKey(save, 'ObolEqO1') || [] });
+  assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
+
+  // Per-character prayers, post office, card equip
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [];
+  for (let ci = 0; ci < nChars; ci++) {
+    prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
+    postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
+    cardEquip.push(parseSaveKey(save, 'CardEquip_' + ci) || []);
+    csetEq.push(parseSaveKey(save, 'CSetEq_' + ci) || {});
+  }
+  assignSaveData({ prayersPerCharData: prayersPerChar });
+  assignSaveData({ postOfficeData: postOffice });
+  assignSaveData({ cardEquipData: cardEquip });
+  assignSaveData({ csetEqData: csetEq });
 
   // Companion ownership from it.json
   if (companionRaw && Array.isArray(companionRaw.l)) {
@@ -118,6 +191,7 @@ export function loadSaveData(raw) {
   if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
   if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
   if (raw.serverVars?.A_MineCost != null) assignState({ serverVarMineCost: Number(raw.serverVars.A_MineCost) || 1 });
+  if (raw.serverVars?.voteCategories) assignState({ activeVoteIdx: Number(raw.serverVars.voteCategories[0]) || -1 });
 
   const timeAwayRaw = parseSaveKey(save, 'TimeAway');
   if (timeAwayRaw) {
@@ -142,6 +216,21 @@ export function loadSaveData(raw) {
   assignState({ cachedSpelunkyUpg7: spelunkRaw?.[0]?.[7] || 0 });
   assignState({ cachedFailedRolls: Number(optionsRaw[514]) || 0 });
   assignState({ cachedComp0DivOk: (lv0All[0]?.[14] || 0) >= 2 });
+
+  // Compute unique sushi tiers (consecutive tiers with Sushi[5][tier] >= 0)
+  const sushiRaw = S.sushiData;
+  let uniqueSushi = 0;
+  if (Array.isArray(sushiRaw?.[5])) {
+    for (let i = 0; i < sushiRaw[5].length; i++) {
+      if ((Number(sushiRaw[5][i]) || 0) >= 0) uniqueSushi = i + 1;
+      else break;
+    }
+  }
+  assignState({ cachedUniqueSushi: uniqueSushi });
+
+  // Sailing artifact 37 bonus (capped at 10) — flat grid PTS
+  const sailArt37 = Math.min(10, Math.round(Number(S.sailingData?.[3]?.[37]) || 0));
+  assignState({ cachedSailingArt37: sailArt37 });
 
   assignState({ magnifiersOwned: computeMagnifiersOwned() });
 

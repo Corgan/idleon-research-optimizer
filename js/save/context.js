@@ -22,7 +22,8 @@ import {
   simTotalExpWith,
 } from '../sim-math.js';
 import { eventShopOwned, superBitType, emporiumBonus, ribbonBonusAt } from './helpers.js';
-import { mineheadBonusQTY } from './external.js';
+import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
+import { rogBonusQTY } from '../game-data.js';
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -69,6 +70,14 @@ export function buildSaveContext() {
     mhq2:  mineheadBonusQTY(2, mineFloor),
     mhq12: mineheadBonusQTY(12, mineFloor),
     mhq20: mineheadBonusQTY(20, mineFloor),
+
+    // Sushi RoG bonuses affecting research
+    rog0:  rogBonusQTY(0, S.cachedUniqueSushi),
+    rog3:  rogBonusQTY(3, S.cachedUniqueSushi),
+    rog8:  rogBonusQTY(8, S.cachedUniqueSushi),
+    rog13: rogBonusQTY(13, S.cachedUniqueSushi),
+    sailingArt37: S.cachedSailingArt37,
+    cachedUniqueSushi: S.cachedUniqueSushi,
 
     // Mutable-array defaults (used as fallbacks in unifiedSim when config
     // doesn't override).  Stored as references - callers .slice() before mutation.
@@ -118,6 +127,8 @@ export function makeCtx(gl, saveCtx) {
     mhq20:         saveCtx.mhq20,
     spelunkyUpg7:   saveCtx.cachedSpelunkyUpg7,
     serverVarResXP: saveCtx.serverVarResXP,
+    rog0:           saveCtx.rog0 || 0,
+    rog8:           saveCtx.rog8 || 0,
   };
 }
 
