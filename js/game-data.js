@@ -134,7 +134,7 @@ export function rogBonusQTY(idx, uniqueSushi) {
 }
 
 // Static data from game code
-export const MINEHEAD_BONUS_QTY = [10,2,1,40,1,100,50,1,2,80,3,11,1,30,2,10,20,5,1,25,1,2,50,23,24,25,26,27,28,29,30,31];
+export const MINEHEAD_BONUS_QTY = [10,2,1,40,1,100,50,1,2,80,3,25,1,30,2,10,20,5,1,25,1,2,50,23,24,25,26,27,28,29,30,31];
 export const STICKER_BASE = [10,5,15,250,40,30,60,1,1,1,1,1]; // Research[25]
 export const DANCING_CORAL_BASE = [2,5,3,4,3,1,1,1,1]; // Spelunky[24] parsed digits
 export const N2L = '_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ肥肢肖肋肉職耐者箱管算箔策答筒筍白発癒痛痕病疾疲潤潜漬漠演漏漁滞毎殻殺段殖残歳歯歩武歓欲次欠櫛機色村材杉本末未木授掃捧彼役影彫彩胃堪城坑努助加功力創割借候倒老個景是明昇早既掴担想扉戻懸懲憩態感蛮蛍虫虚蘇薬薄蔵';
@@ -170,7 +170,7 @@ export const MERITOC_BASE = [0,700,150,200,400,200,900,200,200,100,125,100,9900,
 // We only include indices currently referenced by our code.
 export const LEGEND_TALENT_PER_PT = { 1: 500, 7: 10, 10: 25, 20: 75, 21: 15, 22: 25, 24: 20, 25: 500, 26: 200, 28: 15, 29: 20, 36: 3 };
 // ArcadeShopInfo decay params: [base, denom]
-export const ARCADE_SHOP = { 27: ['decay', 30, 100], 51: ['add', 0.2, 0], 53: ['decay', 100, 100], 54: ['decay', 10, 100], 59: ['decay', 10, 100], 62: ['decay', 25, 100], 63: ['decay', 20, 100] };
+export const ARCADE_SHOP = { 27: ['decay', 30, 100], 51: ['add', 0.2, 0], 53: ['decay', 100, 100], 54: ['decay', 10, 100], 59: ['decay', 10, 100], 62: ['decay', 25, 100], 63: ['decay', 20, 100], 67: ['decay', 25, 100] };
 
 // ===== GALLERY / NAMETAG / PREMHAT DATA =====
 // Nametag tier scale: tierScale[min(4, level - 1)]

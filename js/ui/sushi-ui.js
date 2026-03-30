@@ -458,9 +458,21 @@ function _renderCurrency() {
   const addSum = surchargeSum + knBucks + ext.gridBonus189 + noTax40 + hourlyWage41 + tierVision43 + overtunedMulti + sailing39;
 
   const multiTree = _bNode('Currency Multiplier', currMulti, [
+    _bNode('Arcade #67 (Sushi Bucks)', 1 + ext.arcade67 / 100, null, { fmt: 'x' }),
     _bNode('1.1^UniqueSushi (' + us + ')', uniqueMulti, null, { fmt: 'x' }),
-    _bNode('Additive Bonuses', 1 + addSum / 100, addChildren, { fmt: 'x' }),
     _bNode('Bundle V', ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
+    _bNode('Customer Surcharges', 1 + surchargeSum / 100, [
+      surchargeNode,
+      _bNode('SuperBit 67', ext.gamingSuperBit67 * 100, null, { fmt: '%' }),
+    ], { fmt: 'x' }),
+    _bNode('Knowledge: Bucks', 1 + knBucks / 100, null, { fmt: 'x' }),
+    _bNode('Grid #189 (Sushi Linguistics)', 1 + ext.gridBonus189 / 100, null, { fmt: 'x' }),
+    _bNode('No Tax on Tips (upg 40)', 1 + noTax40 / 100, null, { fmt: 'x', note: `Lv ${Number(ul[40]) || 0}` }),
+    _bNode('Minehead #11', Math.max(1, Math.min(1.25, 1 + ext.mineheadBonus11 / 100)), null, { fmt: 'x' }),
+    _bNode('Hourly Wage + Tier Vision', 1 + (hourlyWage41 + tierVision43) / 100, null, { fmt: 'x' }),
+    _bNode('Overtuned Multi', 1 + overtunedMulti / 100, null, { fmt: 'x' }),
+    _bNode('Atom 14 (Phosphorus)', 1 + ext.atom14 / 100, null, { fmt: 'x' }),
+    _bNode('Sailing Art #39', 1 + sailing39 / 100, null, { fmt: 'x' }),
   ], { fmt: 'x' });
 
   const slotBucks = [];
