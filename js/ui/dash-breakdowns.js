@@ -19,7 +19,7 @@ import {
   computeOccurrencesToBeFound,
 } from '../sim-math.js';
 import { simTotalExp } from '../save/context.js';
-import { mainframeBonus } from '../save/lab.js';
+import { mainframeBonus } from '../stats/systems/w4/lab.js';
 import {
   achieveStatus,
   computeAFKGainsRate,
@@ -34,12 +34,10 @@ import {
   legendPTSbonus,
 } from '../save/external.js';
 import { fmtExact, fmtVal } from '../renderers/format.js';
-import { hideTooltip, moveTooltip } from './tooltip.js';
-
 
 // ===== Tree node helpers =====
 export function _bNode(label, val, children, opts) {
-  return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '' };
+  return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '', tag: opts?.tag || '' };
 }
 
 export function _gbNode(idx, label, opts) {
@@ -321,8 +319,11 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const comp153val = ext._comp153?.val || 0;
   const nightmareNode = _bNode('Nightmare', 1 + comp153val, null, { fmt: 'x', note: comp153val > 0 ? 'Owned' : 'Not owned' });
 
+  const rog0val = ext._rog0?.val || 0;
+  const rog0Node = _bNode('Sushi RoG', 1 + rog0val, null, { fmt: 'x', note: rog0val > 0 ? ext._rog0.note : 'Not unlocked' });
+
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val));
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val);
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -334,6 +335,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   rootChildren.push(tnNode);
   rootChildren.push(jellyNode);
   rootChildren.push(nightmareNode);
+  rootChildren.push(rog0Node);
   rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
 
   return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });
@@ -411,17 +413,20 @@ export function buildInsightBreakdownTree(dSaveCtx, dCtx) {
 let _btTreeCounter = 0;
 export function resetTreeCounter() { _btTreeCounter = 0; }
 
-export function renderBreakdownTree(root, container) {
+export function renderBreakdownTree(root, container, opts) {
   if (!root) { container.innerHTML = ''; return; }
+  opts = opts || {};
   const prefix = 'bt' + (_btTreeCounter++) + '-';
   let idCounter = 0;
+  const ttId = opts.tooltipId || 'tooltip';
 
   function fmtNodeVal(node) {
-    const v = node.val;
+    const v = Number(node.val) || 0;
     if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
     if (node.fmt === 'x') return '\u00d7' + parseFloat(v.toFixed(4));
+    if (node.fmt === '+') return (v >= 0 ? '+' : '') + parseFloat(v.toFixed(4));
     if (Number.isInteger(v)) return String(v);
     return parseFloat(v.toFixed(4));
   }
@@ -429,6 +434,7 @@ export function renderBreakdownTree(root, container) {
   function valColor(node) {
     if (node.fmt === '/hr') return 'var(--green)';
     if (node.fmt === 'pct') return 'var(--green)';
+    if (node.fmt === '+') return 'var(--green)';
     if (node.fmt === '%') return 'var(--purple)';
     if (node.fmt === 'x') return 'var(--cyan)';
     return 'var(--text1)';
@@ -444,10 +450,10 @@ export function renderBreakdownTree(root, container) {
     let cls = 'bt-row';
     if (depth === 0) cls += ' bt-root';
     const noteAttr = node.note ? ' data-bt-note="' + node.note.replace(/"/g, '&quot;') + '"' : '';
+    const tagHtml = node.tag ? ' <span class="bt-tag ' + node.tag + '">[' + node.tag + ']</span>' : '';
     let html = '<div class="' + cls + '"' + noteAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
     html += arrow;
-    html += '<span class="bt-label">' + node.label + '</span>';
-    if (node.note) html += '';
+    html += '<span class="bt-label">' + node.label + tagHtml + '</span>';
     html += '<span class="bt-val" style="color:' + valColor(node) + '">' + fmtNodeVal(node) + '</span>';
     html += '</div>';
     if (has) {
@@ -464,22 +470,32 @@ export function renderBreakdownTree(root, container) {
   html += '<div class="bt-tree">' + buildHtml(root, 0) + '</div>';
   container.innerHTML = html;
 
-  // Toggle handlers - use onclick to avoid stacking on re-render
+  // Tooltip handlers — self-contained, configurable element ID
   container.onmouseover = function(e) {
     const row = e.target.closest('.bt-row[data-bt-note]');
     if (!row) return;
-    const tt = document.getElementById('tooltip');
+    const tt = document.getElementById(ttId);
+    if (!tt) return;
     tt.innerHTML = '<div class="tt-desc">' + row.getAttribute('data-bt-note') + '</div>';
     tt.style.display = 'block';
-    moveTooltip(e);
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top = (e.clientY + 14) + 'px';
   };
   container.onmousemove = function(e) {
     const row = e.target.closest('.bt-row[data-bt-note]');
-    if (row) moveTooltip(e);
+    if (!row) return;
+    const tt = document.getElementById(ttId);
+    if (tt && tt.style.display === 'block') {
+      tt.style.left = (e.clientX + 14) + 'px';
+      tt.style.top = (e.clientY + 14) + 'px';
+    }
   };
   container.onmouseout = function(e) {
     const row = e.target.closest('.bt-row[data-bt-note]');
-    if (row && !row.contains(e.relatedTarget)) hideTooltip();
+    if (row && !row.contains(e.relatedTarget)) {
+      const tt = document.getElementById(ttId);
+      if (tt) tt.style.display = 'none';
+    }
   };
   container.onclick = function(e) {
     if (e.target.closest('.bt-controls')) return;

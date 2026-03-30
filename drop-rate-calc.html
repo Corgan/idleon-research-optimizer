@@ -1,0 +1,209 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdleOn Drop Rate Calculator</title>
+<style>
+:root {
+  --bg: #101020; --bg2: #181830; --bg3: #222244;
+  --text: #ddd; --text1: #ddd; --text2: #888; --accent: #66ccff;
+  --green: #6f6; --gold: #ffd700; --orange: #ffa060; --purple: #b388ff;
+  --red: #f66; --cyan: #5ff; --border: #333;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5em; }
+.subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 14px; }
+.container { max-width: 960px; margin: 0 auto; padding: 0 12px 40px; }
+
+/* Top controls */
+.top-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.top-bar select { padding: 6px 10px; background: var(--bg2); color: var(--accent); border: 1px solid var(--border); border-radius: 4px; font-size: .9em; }
+.top-bar .btn { padding: 6px 16px; background: var(--accent); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85em; }
+.top-bar .btn:hover { filter: brightness(1.2); }
+.top-bar .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); font-size: .8em; }
+.top-bar .btn-sm:hover { color: var(--red); border-color: var(--red); }
+
+/* Import */
+.import-box { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.import-box summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.import-box textarea { width: 100%; height: 80px; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: .82em; font-family: monospace; padding: 6px; resize: vertical; }
+.import-msg { font-size: .82em; margin-top: 6px; }
+.import-msg.ok { color: var(--green); }
+.import-msg.err { color: var(--red); }
+
+/* Summary card */
+.dr-card { background: var(--bg2); border-radius: 10px; padding: 18px; margin-bottom: 18px; text-align: center; }
+.dr-total { font-size: 2.6em; font-weight: 800; color: var(--gold); }
+.dr-sub { color: var(--text2); font-size: .85em; margin-top: 4px; }
+
+/* Breakdown Tree */
+.tree { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.tree h2 { color: var(--cyan); margin-bottom: 10px; font-size: 1.1em; }
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #444; }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-tag { font-size: .7em; opacity: .7; margin-left: 4px; }
+.bt-tag.auto { color: var(--accent); }
+.bt-tag.manual { color: var(--orange); }
+.bt-tooltip { position: fixed; background: #1a1a2e; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
+
+</style>
+</head>
+<body>
+<h1>&#x1F3B2; IdleOn Drop Rate Calculator</h1>
+<p class="subtitle">Auto-computes from save JSON. Select character &amp; map.</p>
+<div class="container">
+
+<!-- Import -->
+<details class="import-box" open>
+  <summary>&#x1F4CB; Import Save JSON</summary>
+  <textarea id="json-in" placeholder="Paste your it.json or save.json contents here..."></textarea>
+  <div class="top-bar">
+    <button class="btn" onclick="doImport()">Load Save</button>
+    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
+      <option value="-1">-- load save first --</option>
+    </select>
+    <select id="map-sel" onchange="switchMap(+this.value)" disabled>
+      <option value="0">Map: Town (no AC)</option>
+    </select>
+  </div>
+  <div id="import-msg" class="import-msg"></div>
+</details>
+
+<!-- Total DR -->
+<div class="dr-card">
+  <div class="dr-sub">Total Drop Rate Multiplier</div>
+  <div class="dr-total" id="dr-total">1.00x</div>
+  <div class="dr-sub" id="dr-sub"></div>
+</div>
+
+<!-- Breakdown tree -->
+<div class="tree">
+  <h2>Formula Breakdown</h2>
+  <div id="tree"></div>
+</div>
+
+</div>
+<div class="bt-tooltip" id="bt-tooltip"></div>
+<script type="module">
+'use strict';
+
+// ======================= MODULE IMPORTS =======================
+import { loadSaveData } from './js/save/loader.js';
+import { computeDNSM } from './js/save/dnsm-context.js';
+import { S } from './js/state.js';
+import { buildTree, toRenderNode } from './js/stats/tree-builder.js';
+import catalog from './js/stats/catalog.js';
+import drDesc from './js/stats/defs/drop-rate.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+
+function _j(v) { return typeof v === 'string' ? JSON.parse(v) : v; }
+function fN(n, d) {
+  if (n == null || isNaN(n)) return '0';
+  d = d ?? 2;
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(d);
+}
+
+// ======================= STATE =======================
+var SAVE_RAW = null;
+var CHARS = [];
+var CUR_CHAR = 0;
+var CUR_MAP = 0;
+
+// ======================= COMPUTE & RENDER =======================
+function recalc() {
+  if (!SAVE_RAW) return;
+
+  var mapBon = null;
+  if (SAVE_RAW && SAVE_RAW.data && SAVE_RAW.data.MapBon) {
+    mapBon = _j(SAVE_RAW.data.MapBon);
+  }
+
+  var dnsm = null;
+  try { dnsm = computeDNSM(CUR_CHAR); } catch (e) { console.warn('DNSM error:', e); }
+
+  var ctx = { charIdx: CUR_CHAR, mapIdx: CUR_MAP, S: S, dnsm: dnsm, mapBon: mapBon };
+  var tree = buildTree(drDesc, catalog, ctx);
+
+  document.getElementById('dr-total').textContent = tree.val.toFixed(2) + 'x';
+  document.getElementById('dr-sub').textContent =
+    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + '  ·  Map: ' + CUR_MAP;
+
+  var renderRoot = toRenderNode(tree);
+  renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
+}
+
+// ======================= IMPORT =======================
+function doImport() {
+  var msgEl = document.getElementById('import-msg');
+  try {
+    var raw = JSON.parse(document.getElementById('json-in').value);
+    SAVE_RAW = raw;
+    loadSaveData(raw);
+
+    var data = raw.data || raw;
+    CHARS = raw.charNames || [];
+
+    var sel = document.getElementById('char-sel');
+    sel.innerHTML = '';
+    CHARS.forEach(function(name, i) {
+      var o = document.createElement('option');
+      o.value = i;
+      o.textContent = i + ': ' + name + ' (class ' + (data['CharacterClass_' + i] || '?') + ')';
+      sel.appendChild(o);
+    });
+    sel.disabled = false;
+    CUR_CHAR = 0;
+
+    var mapSel = document.getElementById('map-sel');
+    mapSel.innerHTML = '<option value="0">Map 0: Town (no AC)</option>';
+    if (data.MapBon) {
+      var mb = _j(data.MapBon);
+      for (var i = 0; i < mb.length; i++) {
+        if (Array.isArray(mb[i]) && mb[i].length >= 3 && mb[i].some(function(v) { return v > 0; })) {
+          var k = mb[i].slice(0, 3);
+          var o = document.createElement('option');
+          o.value = i;
+          o.textContent = 'Map ' + i + ': ' + k.map(function(v) { return v > 0 ? v.toLocaleString() : '-'; }).join('/') + ' kills';
+          mapSel.appendChild(o);
+        }
+      }
+    }
+    mapSel.disabled = false;
+    CUR_MAP = data['CurrentMap_' + CUR_CHAR] || 0;
+
+    msgEl.className = 'import-msg ok';
+    msgEl.textContent = '✓ Loaded ' + CHARS.length + ' characters.';
+    recalc();
+  } catch (err) {
+    msgEl.className = 'import-msg err';
+    msgEl.textContent = '✗ ' + err.message;
+    console.error(err);
+  }
+}
+
+function switchChar(idx) { CUR_CHAR = idx; recalc(); }
+function switchMap(idx) { CUR_MAP = idx; recalc(); }
+
+window.doImport = doImport;
+window.switchChar = switchChar;
+window.switchMap = switchMap;
+
+// Init
+recalc();
+</script>
+</body>
+</html>

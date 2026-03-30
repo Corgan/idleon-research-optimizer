@@ -279,7 +279,7 @@ export function enumGridCombos(spendable, baseGL, numPoints) {
 
 function _exhaustiveSpendAtLevel(s, ctx) {
   const gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv, mMax = s.mMax;
-  const avail = dtGridPointsAvail(gl, rLv);
+  const avail = dtGridPointsAvail(gl, rLv, s.saveCtx);
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);
@@ -406,7 +406,7 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
 export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
   const gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ;
   const rLv = s.rLv, rExp = s.rExp, mMax = s.mMax;
-  const avail = dtGridPointsAvail(gl, rLv);
+  const avail = dtGridPointsAvail(gl, rLv, saveCtx || s.saveCtx);
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);

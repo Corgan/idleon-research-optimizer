@@ -125,8 +125,9 @@ export function minesOnFloor(floor) {
 /**
  * Base damage (before any turn-specific multipliers).
  * (1 + qty0 + qty7 + qty25) × (1 + (qty4 + qty21 + qty27)/100) × (1 + gridBonus167/100)
+ * × (1 + 50 * sailing38 / 100)
  */
-export function baseDMG(upgLevels, gridBonus167 = 0) {
+export function baseDMG(upgLevels, gridBonus167 = 0, sailing38 = 0) {
   const flat = 1 + upgradeQTY(0, upgLevels[0])
                  + upgradeQTY(7, upgLevels[7])
                  + upgradeQTY(25, upgLevels[25]);
@@ -134,7 +135,8 @@ export function baseDMG(upgLevels, gridBonus167 = 0) {
                       + upgradeQTY(21, upgLevels[21])
                       + upgradeQTY(27, upgLevels[27])) / 100;
   const gridMulti = 1 + gridBonus167 / 100;
-  return flat * pctMega * gridMulti;
+  const sailMulti = 1 + 50 * sailing38 / 100;
+  return flat * pctMega * gridMulti * sailMulti;
 }
 
 /**
@@ -190,10 +192,11 @@ export function jackpotTiles(upgLevels) {
  * @param {number}   gridBonus167    Grid_Bonus(167, 0) — damage grid bonus %
  * @param {number}   gridBonus146    Grid_Bonus(146, 0) — per-tile bonus %
  * @param {number}   wepPowDmgPCT   GenINFO[39] weapon power bonus (usually 0 for sim)
+ * @param {number}   sailing38       Sailing art #38 level
  */
 export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
                                     upgLevels, gridBonus167 = 0, gridBonus146 = 0,
-                                    wepPowDmgPCT = 0) {
+                                    wepPowDmgPCT = 0, sailing38 = 0) {
   let addSum = 0;     // DN1
   let multiProd = 1;  // DN2
   let tileCount = 0;  // DN3
@@ -211,7 +214,7 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
     tileCount++;
   }
 
-  let dmg = addSum * baseDMG(upgLevels, gridBonus167);      // stage 1+2
+  let dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38);  // stage 1+2
   dmg *= multiProd;                                          // stage 3
   dmg *= (1 + wepPowDmgPCT / 100);                          // stage 4
   dmg *= (1 + tileCount * bonusDMGperTilePCT(upgLevels, gridBonus146) / 100);  // stage 5
@@ -227,8 +230,8 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
 /**
  * Minehead currency gain per hour.
  *
- * gridBonus129 × (1 + gridBonus148/100) × max(1, min(2, comp143))
- * × min(3, 1 + BonusQTY(6)/100)
+ * gridBonus129 × (1 + gridBonus148/100) × (1 + rogBonus12/100)
+ * × max(1, min(2, comp143)) × min(3, 1 + BonusQTY(6)/100)
  * × (1 + (qty5 + qty22 + qty28*LOG(highestDmg) + arcade62)/100)
  * × (1 + atom13/100) × (1 + (gridBonus147 + gridBonus166 + mealMineCurr)/100)
  *
@@ -238,10 +241,12 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
 export function currencyPerHour({
   gridBonus129 = 0, gridBonus148 = 0, gridBonus147 = 0, gridBonus166 = 0,
   comp143 = 1, bonusQTY6 = 0, atom13 = 0, mealMineCurr = 0, arcade62 = 0,
+  rogBonus12 = 0,
   upgLevels, highestDmg = 1,
 }) {
   const base = gridBonus129;
   const multi148 = 1 + gridBonus148 / 100;
+  const rogMulti = 1 + rogBonus12 / 100;
   const compMulti = Math.max(1, Math.min(2, comp143));
   const bqMulti = Math.min(3, 1 + bonusQTY6 / 100);
 
@@ -254,7 +259,7 @@ export function currencyPerHour({
   const atomMulti = 1 + atom13 / 100;
   const passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
-  return base * multi148 * compMulti * bqMulti * farmPCT * atomMulti * passiveMulti;
+  return base * multi148 * rogMulti * compMulti * bqMulti * farmPCT * atomMulti * passiveMulti;
 }
 
 // ---------- wiggle (G5 research: Minehead_Copium, grid 166) ----------

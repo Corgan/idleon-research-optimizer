@@ -52,8 +52,11 @@ export const S = {
   summonData: [],
   atomsData: [],
   arcaneData: [],
+  compassData: [],
   gemItemsData: [],
   achieveRegData: [],
+  bribeStatusData: [],
+  cauldronP2WData: [],
   tasksGlobalData: [],
   lv0AllData: [],
   labBonusConnected: [],
@@ -65,6 +68,8 @@ export const S = {
   serverVarResXP: 1.01,
   serverVarMineHP: 1,
   serverVarMineCost: 1,
+  activeVoteIdx: -1,
+  starSignsUnlocked: {},
   cachedEventShopStr: '',
   cachedResearchExp: 0,
   cachedSpelunkyUpg7: 0,
@@ -74,6 +79,15 @@ export const S = {
   cachedBoonyCount: 0,
   cachedEvShop37: 0,
   cachedExtPctExSticker: 0,
+  guildData: [],
+  prayOwnedData: [],
+  shrineData: [],
+  bundlesData: {},
+  farmRankData: {},
+  forgeLvData: [],
+  sushiData: [],
+  cachedUniqueSushi: 0,
+  cachedSailingArt37: 0,
   shapeTiers: { above: [], below: [] },
   _covLUTCache: null,
   _covLUTCacheN: -1,
@@ -149,6 +163,7 @@ export function restoreState(s) {
   if (!S.summonData) S.summonData = [];
   if (!S.atomsData) S.atomsData = [];
   if (!S.arcaneData) S.arcaneData = [];
+  if (!S.starSignsUnlocked) S.starSignsUnlocked = {};
   if (!S.gemItemsData) S.gemItemsData = [];
   if (!S.achieveRegData) S.achieveRegData = [];
   if (!S.tasksGlobalData) S.tasksGlobalData = [];

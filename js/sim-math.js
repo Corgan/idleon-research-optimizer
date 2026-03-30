@@ -269,7 +269,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx) {
   for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
   additive += gbWith(gl, so, 94, ctx) * totalObsLV;
   const takinNotes = gbWith(gl, so, 70, ctx);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * _c52;
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
   return obsTotal * multi;
 }
 
@@ -407,7 +407,7 @@ export function simForwardProjection({
 /**
  * Compute grid points earned at a given research level.
  * sq50 = grid level of node 50 (Pts Every Ten).
- * bonusPts = flat bonus points (e.g. 10 from Companion 153).
+ * bonusPts = flat bonus points (e.g. 10 from Companion 153, RoG 3+13, Sailing Art 37).
  */
 export function computeGridPointsEarned(rLv, sq50, bonusPts) {
   return Math.floor(rLv + (bonusPts || 0) + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
@@ -453,11 +453,12 @@ export function computeMagnifiersOwnedWith(gl, rLv, ctx) {
     + Math.min(1, Math.floor(rLv / 130))
     + Math.min(1, Math.floor(rLv / 140));
   const comp153 = ctx.companionHas153 ? 1 : 0;
+  const rog8 = ctx.rog8 || 0;
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
     + ctx.mhq2 + ctx.mhq12 + ctx.mhq20
     + ctx.evShop34
-    + lvBonus + comp153
+    + lvBonus + comp153 + rog8
   ));
 }
 

@@ -46,9 +46,10 @@ export function dtCloneState(src) {
   return c;
 }
 
-export function dtGridPointsAvail(gl, rLv) {
+export function dtGridPointsAvail(gl, rLv, saveCtx) {
   const sq50 = gl[50] || 0;
-  const earned = Math.floor(rLv + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
+  const bonusPts = (saveCtx?.companionHas153 ? 10 : 0) + (saveCtx?.rog3 || 0) + (saveCtx?.rog13 || 0) + (saveCtx?.sailingArt37 || 0);
+  const earned = Math.floor(rLv + bonusPts + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50));
   let spent = 0;
   for (const idx of GRID_INDICES) spent += gl[idx] || 0;
   return Math.max(0, earned - spent);

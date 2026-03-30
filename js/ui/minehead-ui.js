@@ -4,7 +4,7 @@ import { gbWith } from '../sim-math.js';
 import { computeMineheadCurrSources } from '../save/external.js';
 import { renderBreakdownTree, _bNode, _gbNode } from './dash-breakdowns.js';
 import { hideTooltip, moveTooltip } from './tooltip.js';
-import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
+import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES, rogBonusQTY } from '../game-data.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../minehead/game-data.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
@@ -20,6 +20,7 @@ import { inferStrategy, analyzeSpatial } from '../minehead/strategy-inferrer.js'
 let PLAY_RIGGED = false;
 
 let _activeSubtab = 'mh-dashboard';
+let _showSpoilerMH = false;
 
 let _rankCache = null;
 let _rankWorkers = null;
@@ -135,26 +136,29 @@ function _renderDashboard() {
   const svarHP = S.serverVarMineHP || 1;
   const svarCost = S.serverVarMineCost || 1;
   const hp = floorHP(floor, svarHP);
-  const base = baseDMG(lvs, 0);
   const tries = dailyTries(0);
 
-  // Currency/hr breakdown
+  // Grid / sailing / RoG helpers used by both damage and currency
   const _gbCtx = { abm: S.allBonusMulti || 1 };
   const _gb = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtx);
+  const sail38 = Number(S.sailingData?.[3]?.[38]) || 0;
+  const uniqueSushi = S.cachedUniqueSushi || 0;
+  const gb167 = _gb(167);
+  const base = baseDMG(lvs, gb167, sail38);
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
   const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
   const mhSrc = computeMineheadCurrSources();
+  const rogB12 = rogBonusQTY(12, uniqueSushi);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
+    rogBonus12: rogB12,
     upgLevels: lvs, highestDmg,
   });
-
-  // Find the lowest req level among still-locked upgrades (the "next" unlock)
   const rLv = S.researchLevel || 0;
   let nextUpgReq = Infinity;
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
@@ -177,6 +181,11 @@ function _renderDashboard() {
         <div style="color:var(--text2);font-size:.8em;">A_MineCost (server var)</div>
         <input id="mh-svar-cost" type="number" step="0.01" min="1" value="${svarCost}" style="width:80px;background:var(--bg3);border:1px solid #444;border-radius:4px;color:var(--text);padding:2px 6px;font-size:1.1em;font-weight:700;"/>
       </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
+      <label style="font-size:.8em;color:var(--text2);cursor:pointer;user-select:none;">
+        <input type="checkbox" id="mh-spoiler" ${_showSpoilerMH ? 'checked' : ''} style="margin-right:4px;cursor:pointer;" />Show all (spoilers)
+      </label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
     <div>
@@ -207,7 +216,7 @@ function _renderDashboard() {
             const rowBg = maxed ? 'background:rgba(255,215,0,.08);' : locked ? 'opacity:.45;' : '';
             const lvColor = maxed ? 'var(--gold)' : locked ? 'var(--text2)' : 'var(--green)';
             const reqColor = locked ? 'var(--accent)' : 'var(--green)';
-            if (hidden) return `<tr style="border-bottom:1px solid #222;opacity:.3;">
+            if (hidden && !_showSpoilerMH) return `<tr style="border-bottom:1px solid #222;opacity:.3;">
               <td style="padding:3px 6px;font-weight:600;">???</td>
               <td style="padding:3px 6px;">--</td>
               <td style="padding:3px 6px;color:var(--text2);font-size:.9em;">???</td>
@@ -236,7 +245,7 @@ function _renderDashboard() {
         const rDesc = FLOOR_REWARD_DESC[i]
           .replace(/\{/g, String(q))
           .replace(/\}/g, (1 + q / 100).toFixed(2));
-        if (hidden) return `<div class="opt-card" style="padding:5px 8px;opacity:.25;">
+        if (hidden && !_showSpoilerMH) return `<div class="opt-card" style="padding:5px 8px;opacity:.25;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:700;font-size:.85em;color:var(--text2)">???</span>
             <span style="color:var(--text2);">--</span>
@@ -262,6 +271,11 @@ function _renderDashboard() {
     S.serverVarMineCost = v;
     _renderDashboard();
   });
+
+  document.getElementById('mh-spoiler').addEventListener('change', (e) => {
+    _showSpoilerMH = e.target.checked;
+    _renderDashboard();
+  });
 }
 
 // ===== CURRENCY BREAKDOWN SUBTAB =====
@@ -281,11 +295,14 @@ function _renderCurrencyTab() {
   const gb147 = _gb(147);
   const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
+  const uniqueSushi = S.cachedUniqueSushi || 0;
+  const rogB12 = rogBonusQTY(12, uniqueSushi);
   const mhSrc = computeMineheadCurrSources();
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
+    rogBonus12: rogB12,
     upgLevels: lvs, highestDmg,
   });
 
@@ -297,12 +314,12 @@ function _renderCurrencyTab() {
 
   const treeEl = document.getElementById('mh-curr-tree');
   if (treeEl) {
-    const tree = _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph);
+    const tree = _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12);
     renderBreakdownTree(tree, treeEl);
   }
 }
 
-function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph) {
+function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12 = 0) {
   const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
   const upg5 = upgradeQTY(5, lvs[5]);
   const upg22 = upgradeQTY(22, lvs[22]);
@@ -394,8 +411,13 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     fmt: 'x', note: bqty6 > 0 ? `+${bqty6}%, capped at \u00d73.00` : 'Floor 7 not reached',
   });
 
+  const rogMult = 1 + rogB12 / 100;
+  const rogNode = _bNode('RoG #12: Minehead Currency', rogMult, null, {
+    fmt: 'x', note: rogB12 > 0 ? `+${rogB12}% (50% when unlocked)` : 'Not unlocked',
+  });
+
   return _bNode('Mine Currency/hr', cph, [
-    gb129node, gb148node, comp143node, bossNode,
+    gb129node, gb148node, rogNode, comp143node, bossNode,
     upgNode, atomNode, passiveNode,
   ], { fmt: '/hr' });
 }
@@ -1613,9 +1635,12 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   const instaBtn = document.getElementById('mh-p-insta');
   const newBtn = document.getElementById('mh-p-new');
 
-  const gridBonus167 = 0; // TODO: wire from save if available
-  const gridBonus146 = 0;
+  const _gbCtxPlay = { abm: S.allBonusMulti || 1 };
+  const _gbPlay = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtxPlay);
+  const gridBonus167 = _gbPlay(167);
+  const gridBonus146 = _gbPlay(146);
   const wepPowDmgPCT = 0;
+  const playSail38 = Number(S.sailingData?.[3]?.[38]) || 0;
 
   // Wiggle (G5 research: Minehead_Copium, grid 166)
   const _gbCtx = { abm: S.allBonusMulti || 1 };
@@ -1750,7 +1775,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
 
   function _calcTurnDmg() {
     if (turnValues.length === 0) return 0;
-    return currentOutgoingDMG(turnValues, crownSets, lives <= 1, lvs, gridBonus167, gridBonus146, wepPowDmgPCT);
+    return currentOutgoingDMG(turnValues, crownSets, lives <= 1, lvs, gridBonus167, gridBonus146, wepPowDmgPCT, playSail38);
   }
 
   function _newGame() {
@@ -2190,11 +2215,16 @@ function _fmtUpgDesc(i, lv, qty, lvs, highestDmg) {
 function _fmt(n) {
   if (n === 0) return '0';
   if (typeof n !== 'number' || !isFinite(n)) return String(n);
-  if (Math.abs(n) >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-  if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (Math.abs(n) >= 1e4) return (n / 1e3).toFixed(1) + 'K';
-  if (Math.abs(n) >= 100) return Math.round(n).toLocaleString();
+  const a = Math.abs(n);
+  if (a >= 1e24) return n.toExponential(2);
+  if (a >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
+  if (a >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
+  if (a >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
+  if (a >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  if (a >= 100) return Math.round(n).toLocaleString();
   if (Number.isInteger(n)) return String(n);
   return n.toFixed(2);
 }

@@ -268,7 +268,7 @@ export function dtRenderTree() {
     ctx.fillText(fmtTimePrecise(totalTimeFromRoot), x + 8, y + 52);
 
     // Grid points indicator
-    const avail = dtGridPointsAvail(node.baseState.gl, node.rLv);
+    const avail = dtGridPointsAvail(node.baseState.gl, node.rLv, node.baseState.saveCtx);
     if (avail > 0) {
       ctx.font = 'bold 10px system-ui, sans-serif';
       ctx.fillStyle = '#ffd700';
@@ -461,7 +461,7 @@ function _dtShowTreeTooltip(node, cx, cy) {
     document.body.appendChild(tip);
   }
   const totalTime = dtGetTotalTime(node);
-  const avail = dtGridPointsAvail(node.baseState.gl, node.rLv);
+  const avail = dtGridPointsAvail(node.baseState.gl, node.rLv, node.baseState.saveCtx);
 
   let html = `<div style="color:${DT_EVENT_COLORS[node.event] || '#aaa'};font-weight:700;margin-bottom:4px;">${_dtEvLabel(node)}</div>`;
   html += `<div><span style="color:#aaa;">Level:</span> <b style="color:#eee;">${node.rLv}</b></div>`;
@@ -605,7 +605,7 @@ export function dtRenderModal() {
   // Title + inline status
   document.getElementById('dt-detail-title').textContent = _dtEvLabel(node) + ' - Lv ' + s.rLv;
   const totalTime = dtGetTotalTime(node);
-  const avail = dtGridPointsAvail(s.gl, s.rLv);
+  const avail = dtGridPointsAvail(s.gl, s.rLv, s.saveCtx);
   document.getElementById('dt-detail-status').innerHTML =
     `<b style="color:var(--green);">${fmtVal(s.expHr)}/hr</b>  - ` +
     `${fmtTimePrecise(totalTime)}  - ` +
@@ -747,7 +747,7 @@ export function dtRenderComparison() {
   for (const n of nodes) {
     const totalTime = dtGetTotalTime(n);
     const brColor = DT_BRANCH_COLORS[n._branchIdx % DT_BRANCH_COLORS.length];
-    const avail = dtGridPointsAvail(n.baseState.gl, n.rLv);
+    const avail = dtGridPointsAvail(n.baseState.gl, n.rLv, n.baseState.saveCtx);
     const changes = dtComputeChanges(n);
     html += `<div style="background:#1a1a2e;border:2px solid ${brColor};border-radius:8px;padding:12px;">`;
     html += `<div style="color:${brColor};font-weight:700;margin-bottom:6px;">Node #${n.id} <span style="color:var(--text2);font-weight:400;font-size:.8em;">${n.event}</span></div>`;

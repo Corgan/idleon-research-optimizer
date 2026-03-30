@@ -71,7 +71,7 @@ export function dtRenderGridCanvas() {
   const s = DT.editState;
   const sCtx = s.ctx || makeCtx(s.gl, s.saveCtx);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, sCtx), s.sp.length, SHAPE_VERTICES.length, 10);
-  const avail = dtGridPointsAvail(s.gl, s.rLv);
+  const avail = dtGridPointsAvail(s.gl, s.rLv, s.saveCtx);
 
   // Coverage summary
   const nodesInGrid = GRID_INDICES.length;
@@ -561,7 +561,7 @@ function _dtGridUp(idx) {
   const s = DT.editState;
   const info = RES_GRID_RAW[idx];
   if (!info) return;
-  const avail = dtGridPointsAvail(s.gl, s.rLv);
+  const avail = dtGridPointsAvail(s.gl, s.rLv, s.saveCtx);
   const unlocked = _dtIsGridCellUnlocked(idx, s.gl);
   if (!unlocked || avail <= 0 || (s.gl[idx] || 0) >= info[1]) return;
   s.gl[idx] = (s.gl[idx] || 0) + 1;

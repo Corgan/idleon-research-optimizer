@@ -1,4 +1,6 @@
 // ===== EXTERNAL BONUS COMPUTATION =====
+// Aggregator functions that combine bonuses from multiple game systems.
+// Domain-specific computations now live in js/stats/systems/.
 
 import {  S, assignState  } from '../state.js';
 import {
@@ -6,31 +8,16 @@ import {
   numCharacters,
 } from './data.js';
 import {
-  ARCADE_SHOP,
-  ARCANE_FLAT_SET,
-  ARTIFACT_BASE,
-  CARD_BASE_REQ,
   COSMO_UPG_BASE,
   DANCING_CORAL_BASE,
   DN_MOB_DATA,
-  EMPEROR_BON_TYPE,
-  EMPEROR_BON_VAL_BY_TYPE,
-  GODSHARD_SET_BONUS,
   HOLES_BOLAIA_PER_LV,
   HOLES_JAR_BONUS_PER_LV,
   HOLES_MEAS_BASE,
   HOLES_MEAS_TYPE,
   HOLES_MON_BONUS,
-  LEGEND_TALENT_PER_PT,
-  MERITOC_BASE,
   MINEHEAD_BONUS_QTY,
-  PET_SHINY_TYPE,
-  SHINY_BONUS_PER_LV,
-  SHINY_TYPE_TO_CAT,
   STICKER_BASE,
-  SUMMON_ENDLESS_TYPE,
-  SUMMON_ENDLESS_VAL,
-  SUMMON_NORMAL_BONUS,
 } from '../game-data.js';
 import { gbWith, deathNoteRank } from '../sim-math.js';
 import {
@@ -39,203 +26,38 @@ import {
   ribbonBonusAt,
   superBitType,
 } from './helpers.js';
-import { mainframeBonus } from './lab.js';
+import { mainframeBonus } from '../stats/systems/w4/lab.js';
+import { achieveStatus } from '../stats/systems/common/achievement.js';
+import { arcadeBonus } from '../stats/systems/w2/arcade.js';
+import { arcaneUpgBonus } from '../stats/systems/mc/tesseract.js';
+import { computeCardLv } from '../stats/systems/common/cards.js';
+import { computeEmperorBon } from '../stats/systems/w6/emperor.js';
+import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
+import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
+import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
+import { mineheadBonusQTY, computeMineheadCurrSources } from '../stats/systems/w7/research.js';
+import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
+import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
+import { computeWinBonus, computeSummWinBonus } from '../stats/systems/w6/summoning.js';
+import { rogBonusQTY } from '../game-data.js';
 // Grid bonus helper - uses _gbWith directly to avoid circular dep with calculations.js
 function _gridBonusFinal(idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
 }
 
-export function grimoireUpgBonus22() {
-  // "Superior Crop Research"  GrimoireUpg[22][5]=1
-  // GrimoireUpgBonus(36) = Grimoire[36]*1 (exception set, no self-boost)
-  // GrimoireUpgBonus(22) = Grimoire[22]*1*(1 + GrimoireUpgBonus(36)/100)
-  const g22 = S.grimoireData?.[22] || 0;
-  const g36 = S.grimoireData?.[36] || 0;
-  return g22 * (1 + g36 / 100);
-}
-
-export function exoticBonusQTY40() {
-  // MarketExoticInfo[40]="SCIENTERRIFIC" [3]=20 [4]=1(diminishing)
-  // FarmUpg[20+40] = FarmUpg[60]
-  const lv = S.farmUpgData?.[60] || 0;
-  if (lv <= 0) return 0;
-  return 20 * lv / (1000 + lv);
-}
-
-export function mineheadBonusQTY(t, mineFloor) {
-  return mineFloor > t ? (MINEHEAD_BONUS_QTY[t] || 0) : 0;
-}
-
-export function computeCardLv(cardKey) {
-  const qty = S.cards0Data[cardKey] || 0;
-  if (qty <= 0) return 0;
-  // Max stars = 4 + RiftStuff("5starCards") + Spelunk("6starCards")
-  const rift5star = (S.riftData[0] || 0) >= 45 ? 1 : 0;
-  const spelunk6star = (S.spelunkData?.[0]?.[2] || 0) >= 1 ? 1 : 0;
-  const maxStars = Math.round(4 + rift5star + spelunk6star);
-  const baseReq = CARD_BASE_REQ[cardKey] || 1;
-  let lv = 1; // having > 0 qty = at least star 1
-  for (let s = 0; s < maxStars; s++) {
-    const thr = baseReq * Math.pow(s + 1 + Math.floor(s / 3) + 16 * Math.floor(s / 4) + 100 * Math.floor(s / 5), 2);
-    if (qty > thr) lv = s + 2;
-  }
-  // OLA[155] 6-star override
-  const ola155 = String(S.olaData[155] || '');
-  if (ola155.split(',').includes(cardKey) && lv < 6) lv = 6;
-  return lv;
-}
-
-export function arcadeBonus(idx) {
-  const params = ARCADE_SHOP[idx];
-  if (!params) return 0;
-  const lv = S.arcadeUpgData[idx] || 0;
-  if (lv <= 0) return 0;
-  const [type, base, denom] = params;
-  const raw = type === 'add' ? (denom !== 0 ? ((base + denom) / denom + 0.5 * (lv - 1)) / (base / denom) * lv * base : base * lv) : base * lv / (lv + denom);
-  const maxedM = lv >= 101 ? 2 : 1;
-  const comp27M = S.companionIds.has(27) ? 2 : 1;
-  return maxedM * comp27M * raw;
-}
-
-function arcaneUpgBonus(idx) {
-  const lv = S.arcaneData[idx] || 0;
-  if (lv <= 0) return 0;
-  if (ARCANE_FLAT_SET.has(idx)) return lv; // ArcaneUpg[t][5]=1 for all relevant indices
-  return lv * (1 + arcaneUpgBonus(39) / 100);
-}
-
-export function legendPTSbonus(idx) {
-  const lv = S.spelunkData?.[18]?.[idx] || 0;
-  const perPt = LEGEND_TALENT_PER_PT[idx] || 0;
-  return Math.round(lv * perPt);
-}
-
-export function achieveStatus(idx) {
-  return S.achieveRegData[idx] === -1 ? 1 : 0;
-}
-
-export function computeShinyBonusS(catKey) {
-  // Sum shiny pet contributions for a given bonus category
-  let total = 0;
-  for (let world = 0; world < 4; world++) {
-    const shinyExps = S.breedingData[22 + world];
-    const petTypes = PET_SHINY_TYPE[world];
-    if (!shinyExps || !petTypes) continue;
-    for (let pet = 0; pet < petTypes.length; pet++) {
-      const exp = shinyExps[pet] || 0;
-      if (exp <= 0) continue;
-      const shinyTypeIdx = petTypes[pet];
-      const cat = SHINY_TYPE_TO_CAT[shinyTypeIdx];
-      if (cat !== catKey) continue;
-      // SpecialPassives("Lv"): compute shiny level from EXP
-      let shinyLv = 1;
-      for (let e = 0; e < 19; e++) {
-        if (exp > Math.floor((1 + Math.pow(e + 1, 1.6)) * Math.pow(1.7, e + 1)))
-          shinyLv = e + 2;
-      }
-      const bonusPerLv = SHINY_BONUS_PER_LV[shinyTypeIdx] || 0;
-      total += Math.round(shinyLv * bonusPerLv);
-    }
-  }
-  return total;
-}
-
-export function computeSummWinBonus() {
-  // Build SummWinBonus[0..31] from normal + endless summon wins
-  const bonus = new Array(32).fill(0);
-  // Normal wins: Summon[1] = array of defeated enemy names
-  const normalWins = S.summonData[1] || [];
-  for (let i = 0; i < normalWins.length; i++) {
-    const name = normalWins[i];
-    if (typeof name !== 'string' || name.startsWith('rift')) continue;
-    const entry = SUMMON_NORMAL_BONUS[name];
-    if (!entry) continue;
-    const bonusIdx = Math.round(entry[0] - 1);
-    if (bonusIdx >= 0 && bonusIdx < 32) bonus[bonusIdx] += entry[1];
-  }
-  // Endless wins (OLA[319] = total endless wins)
-  const endlessWins = Number(S.olaData[319]) || 0;
-  for (let i = 0; i < endlessWins; i++) {
-    const idx = i % 40;
-    const type = SUMMON_ENDLESS_TYPE[idx] - 1;
-    if (type >= 0 && type < 32) bonus[type] += SUMMON_ENDLESS_VAL[idx];
-  }
-  return bonus;
-}
-
-export function computeEmperorBon(bonusIdx) {
-  const emperorCount = Number(S.olaData[369]) || 0;
-  let sum = 0;
-  for (let r = 0; r < emperorCount; r++) {
-    const slot = r % 48;
-    if (EMPEROR_BON_TYPE[slot] === bonusIdx) sum += Number(EMPEROR_BON_VAL_BY_TYPE[bonusIdx]) || 0;
-  }
-  // mult = (1 + (ArcaneUpgBonus(48) + ArcadeBonus(51))/100)
-  const mult = 1 + (arcaneUpgBonus(48) + arcadeBonus(51)) / 100;
-  return Math.floor(sum * mult);
-}
-
-export function computeWinBonus(idx) {
-  const swb = computeSummWinBonus();
-  // Raw indices (no multiplier): 20, 22, 24, 31
-  if (idx === 20 || idx === 22 || idx === 24 || idx === 31) return swb[idx] || 0;
-  const raw = swb[idx] || 0;
-  if (raw <= 0) return 0;
-  // Pristine charm 8: Ninja[107][8]==1  NjTrP8[3]=30
-  const pristine8 = (S.ninjaData?.[107]?.[8] === 1) ? 30 : 0;
-  const gemItems11 = Number(S.gemItemsData[11]) || 0;
-  // ArtifactBonus(32): base 25, rarity = Sailing[3][32], mult = rarity (2-6). 0 if not owned.
-  const artRarity = Number(S.sailingData?.[3]?.[32]) || 0;
-  const artBonus32 = artRarity > 0 ? (ARTIFACT_BASE[32] || 25) * artRarity : 0;
-  // Tasks[2][5][4] = global W6 task shop item 4
-  const taskVal = Math.min(10, Number(S.tasksGlobalData?.[2]?.[5]?.[4]) || 0);
-  const wb31 = swb[31] || 0; // raw, no multiplier
-  const empBon8 = computeEmperorBon(8);
-  const godshardSet = String(S.olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
-
-  // Index 19: 3.5x but NO wb31/empBon8
-  if (idx === 19) {
-    return 3.5 * raw
-      * (1 + pristine8 / 100)
-      * (1 + 10 * gemItems11 / 100)
-      * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + godshardSet) / 100);
-  }
-  // Indices 20-33 (except raw 20,22,24,31 handled above): 1x with wb31+empBon8
-  if (idx >= 20 && idx <= 33) {
-    return raw
-      * (1 + pristine8 / 100)
-      * (1 + 10 * gemItems11 / 100)
-      * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + wb31 + empBon8 + godshardSet) / 100);
-  }
-  // Everything else (0-18 except 19): 3.5x with wb31+empBon8
-  return 3.5 * raw
-    * (1 + pristine8 / 100)
-    * (1 + 10 * gemItems11 / 100)
-    * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + wb31 + empBon8 + godshardSet) / 100);
-}
-
-export function computeMeritocBonusz(optionIdx) {
-  // Returns bonus only for the active voted option
-  const activeVote = Number(S.olaData[453]) || 0;
-  if (optionIdx !== activeVote) return 0;
-  const baseVal = MERITOC_BASE[optionIdx] || 0;
-  if (baseVal <= 0) return 0;
-  // MeritocCanVote: OLA[472]==1
-  const canVote = Number(S.olaData[472]) === 1;
-  // ClamWorkBonus(3): OLA[464] > 3 ? 1 : 0
-  const clamWork3 = (Number(S.olaData[464]) || 0) > 3 ? 1 : 0;
-  const comp39 = S.companionIds.has(39) ? 50 : 0;
-  const legend24 = legendPTSbonus(24);
-  const arcade59 = arcadeBonus(59);
-  const eventShop23 = eventShopOwned(23, S.cachedEventShopStr);
-  let multi;
-  if (canVote) {
-    multi = 1 + (5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23) / 100;
-  } else {
-    multi = 0.25 + (5 * clamWork3 + comp39 + legend24 + arcade59) / 100;
-  }
-  return baseVal * multi;
-}
+// Re-export domain functions for backward compatibility
+export { achieveStatus } from '../stats/systems/common/achievement.js';
+export { arcadeBonus } from '../stats/systems/w2/arcade.js';
+export { arcaneUpgBonus } from '../stats/systems/mc/tesseract.js';
+export { computeCardLv } from '../stats/systems/common/cards.js';
+export { computeEmperorBon } from '../stats/systems/w6/emperor.js';
+export { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
+export { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
+export { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
+export { mineheadBonusQTY, computeMineheadCurrSources } from '../stats/systems/w7/research.js';
+export { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
+export { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
+export { computeWinBonus, computeSummWinBonus } from '../stats/systems/w6/summoning.js';
 
 function cosmoBonus(t, i) {
   const key = t + '_' + i;
@@ -476,6 +298,10 @@ export function computeExternalBonuses() {
   const comp153val = comp153owned ? 1 : 0; // CompanionDB[153] = 2x Research EXP
   b._comp153 = { val: comp153val, label: 'Nightmare (2x Research EXP)', note: comp153owned ? 'Owned' : 'Not owned', isTrueMult: true };
 
+  // Sushi RoG_BonusQTY(0) = 100% Research EXP true multiplier (2x when unlocked)
+  const rog0val = S.cachedUniqueSushi > 0 ? 1 : 0;  // RoG[0] = 100, so (1 + 100/100) = 2x → val = 1 for the multiplier chain
+  b._rog0 = { val: rog0val, label: 'Sushi RoG (2x Research EXP)', note: S.cachedUniqueSushi > 0 ? `Unlocked (${S.cachedUniqueSushi} unique sushi)` : 'No sushi tiers discovered', isTrueMult: true };
+
   // Grid_Bonus_Allmulti: 1 + (Companions(55) + 5*min(1, R[0][173]*Companions(0)))/100
   const comp55owned = S.companionIds.has(55);
   const comp55val = comp55owned ? 15 : 0; // CompanionDB[55][2] = 15  1.15x all grid bonuses
@@ -484,45 +310,6 @@ export function computeExternalBonuses() {
   b._allMulti = { val: 1 + (comp55val + comp0val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val})/100` };
 
   return b;
-}
-
-export function computeMineheadCurrSources() {
-  // Companion 143 (w7b2): bonus=20, used as max(1, min(2, val)) → 2x when owned
-  const comp143 = S.companionIds.has(143) ? 20 : 0;
-
-  // Atom 13 (Silicon): 1% per atom level
-  const atom13 = Number(S.atomsData?.[13]) || 0;
-
-  // Arcade 62 (Minehead Currency): decay 25/100
-  const arcade62val = arcadeBonus(62);
-  const arcade62lv = S.arcadeUpgData[62] || 0;
-
-  // Meal 73 (2nd Wedding Cake): base=0.02, ribbon=28+73=101, type=MineCurr
-  const mealLv = S.mealsData?.[0]?.[73] || 0;
-  const olaStr379 = String(S.olaData[379] || '');
-  let mealMineCurr = 0;
-  let mealRibBon = 0;
-  let mealCookMulti = 1;
-  let mealMfb116 = 0;
-  let mealShinyS20 = 0;
-  let mealWinBon26 = 0;
-  let mealRibT = 0;
-  if (mealLv > 0) {
-    mealRibT = S.ribbonData[101] || 0;
-    mealRibBon = ribbonBonusAt(101, S.ribbonData, olaStr379);
-    mealMfb116 = mainframeBonus(116);
-    mealShinyS20 = computeShinyBonusS(20);
-    mealWinBon26 = computeWinBonus(26);
-    mealCookMulti = (1 + (mealMfb116 + mealShinyS20) / 100) * (1 + mealWinBon26 / 100);
-    mealMineCurr = mealCookMulti * mealRibBon * mealLv * 0.02;
-  }
-
-  return {
-    comp143, atom13,
-    arcade62: arcade62val, arcade62lv,
-    mealMineCurr, mealLv, mealRibBon, mealRibT,
-    mealCookMulti, mealMfb116, mealShinyS20, mealWinBon26,
-  };
 }
 
 export function calcAllBonusMulti(gl) {
@@ -583,6 +370,13 @@ export function computeAFKGainsRate() {
   // min(CardLv("w7b11"), 10)
   const clvW7b11 = computeCardLv('w7b11');
   parts.cardW7b11 = { val: Math.min(clvW7b11, 10), label: 'Pirate Deckhand Card', note: `min(${clvW7b11}, 10)` };
+
+  // Sushi RoG_BonusQTY(4) + RoG_BonusQTY(24) additive AFK
+  const rog4 = rogBonusQTY(4, S.cachedUniqueSushi);
+  const rog24 = rogBonusQTY(24, S.cachedUniqueSushi);
+  if (rog4 + rog24 > 0) {
+    parts.rog4_24 = { val: rog4 + rog24, label: 'Sushi RoG AFK', note: `RoG(4)=${rog4} + RoG(24)=${rog24}` };
+  }
 
   let sum = 0;
   for (const k of Object.keys(parts)) sum += parts[k].val;
