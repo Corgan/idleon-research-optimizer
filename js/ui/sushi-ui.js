@@ -278,11 +278,11 @@ function _renderOverview() {
       const isPerfecto = val > 0;
       tiers.push({ tier: t, discovered, isPerfecto });
     }
-    tierMapEl.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:3px;max-width:700px;">
+    tierMapEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(15,32px);gap:3px;">
       ${tiers.map(t => {
         const bg = t.discovered ? (t.isPerfecto ? 'var(--gold)' : 'var(--green)') : '#333';
         const fg = t.discovered ? '#000' : '#666';
-        return `<div style="width:32px;height:28px;background:${bg};color:${fg};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;" title="T${t.tier + 1}${t.isPerfecto ? ' *' : t.discovered ? '' : ' (locked)'}">${t.tier + 1}${t.isPerfecto ? '*' : ''}</div>`;
+        return `<div style="height:28px;background:${bg};color:${fg};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;" title="T${t.tier + 1}${t.isPerfecto ? ' *' : t.discovered ? '' : ' (locked)'}">${t.tier + 1}${t.isPerfecto ? '*' : ''}</div>`;
       }).join('')}
     </div>`;
   }
