@@ -1,4 +1,8 @@
-// ===== CATALOG.JS — System registry =====
+// ===== REGISTRY.JS — Unified system + descriptor registry =====
+// Drop-in replacement for catalog.js. Holds both system resolvers
+// (talent, guild, etc.) and stat descriptors (drop-rate, etc.).
+
+// ----- System imports (same set as catalog.js) -----
 import { talent } from './systems/common/talent.js';
 import { guild } from './systems/common/guild.js';
 import { equipment } from './systems/common/equipment.js';
@@ -39,8 +43,19 @@ import { minehead } from './systems/w7/research.js';
 import { meritoc } from './systems/w7/meritoc.js';
 import { grimoire } from './systems/mc/grimoire.js';
 import { arcaneMap } from './systems/mc/tesseract.js';
+import { sushiRoG } from './systems/w7/sushi.js';
 
-export default {
+// ----- Descriptor imports -----
+import dropRate from './defs/drop-rate.js';
+import votingMulti from './defs/voting-multi.js';
+import gfoodMulti from './defs/gfood-multi.js';
+import researchExp from './defs/research-exp.js';
+import researchAfkGains from './defs/research-afk-gains.js';
+import sushiBucks from './defs/sushi-bucks.js';
+import mineheadCurrency from './defs/minehead-currency.js';
+
+// ----- Internal storage -----
+var _systems = {
   talent, guild, equipment, starSign, achievement, bundle, goldenFood,
   card, cardSet, cardSingle, companion, compMulti, vault, friend,
   lukScaling, ola, etcBonus, obol,
@@ -51,5 +66,47 @@ export default {
   shrine, holes,
   winBonus, farm, emperor, pristine,
   legendPTS, spelunkShop, nametag, premhat, trophy, minehead, meritoc,
-  grimoire, arcaneMap,
+  grimoire, arcaneMap, sushiRoG,
 };
+
+var _descriptors = {};
+
+// ----- Registration -----
+
+export function registerSystem(name, resolver) {
+  _systems[name] = resolver;
+}
+
+export function registerDescriptor(desc) {
+  if (!desc || !desc.id) throw new Error('Descriptor must have an id');
+  _descriptors[desc.id] = desc;
+}
+
+// ----- Lookup -----
+
+export function getSystem(name) {
+  return _systems[name] || null;
+}
+
+export function getDescriptor(id) {
+  return _descriptors[id] || null;
+}
+
+/** Returns the full system map (catalog-compatible object for tree-builder). */
+export function getCatalog() {
+  return _systems;
+}
+
+/** Returns an array of all registered descriptors. */
+export function allDescriptors() {
+  return Object.values(_descriptors);
+}
+
+// ----- Auto-register built-in descriptors -----
+registerDescriptor(dropRate);
+registerDescriptor(votingMulti);
+registerDescriptor(gfoodMulti);
+registerDescriptor(researchExp);
+registerDescriptor(researchAfkGains);
+registerDescriptor(sushiBucks);
+registerDescriptor(mineheadCurrency);

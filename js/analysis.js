@@ -10,7 +10,7 @@ import {
   insightExpReqAt,
   simTotalExpWith,
 } from './sim-math.js';
-import { makeCtx } from './save/context.js';
+import { makeSimCtx } from './save/context.js';
 import { computeCellValues } from './optimizers/shapes.js';
 import {
   evalMagScoreWith,
@@ -21,7 +21,7 @@ import { optimizeShapesFor, optimizePostGrind } from './sim-engine.js';
 
 function _resolveState(state, saveCtx) {
   const { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls } = state;
-  return { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls, ctx: makeCtx(gl, saveCtx) };
+  return { gl, so, il, occ, rLv, mMax, mOwned, md, ip, failedRolls, ctx: makeSimCtx(gl) };
 }
 
 export async function computeMagTypeBalance(state, saveCtx) {
@@ -52,7 +52,7 @@ export async function computeMagTypeBalance(state, saveCtx) {
 }
 
 export function computeInsightCellValues(obsIdx, md, il, gl, so, saveCtx) {
-  const ctx = makeCtx(gl, saveCtx);
+  const ctx = makeSimCtx(gl);
   const bareSO = new Array(GRID_SIZE).fill(-1);
   const baseIR = insightExpRate(obsIdx, md, il, gl, bareSO, ctx);
   const values = new Array(GRID_SIZE).fill(0);

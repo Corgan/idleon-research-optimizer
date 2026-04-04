@@ -1,7 +1,7 @@
 // ===== DASHBOARD.JS - Tooltips and dashboard rendering =====
 // Extracted from app.js. Breakdown trees in dash-breakdowns.js.
 
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { cachedAFKRate } from '../save/data.js';
 import {
   GRID_COLS,
@@ -25,12 +25,12 @@ import {
   obsBaseExp,
   researchExpReq,
 } from '../sim-math.js';
-import { computeAFKGainsRate } from '../save/external.js';
+import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import {
   buildSaveContext,
   computeGridPointsAvailable,
   getResearchCurrentExp,
-  makeCtx,
+  makeSimCtx,
   simTotalExp,
 } from '../save/context.js';
 import { sameShapeCell } from '../optimizers/shapes-geo.js';
@@ -47,7 +47,7 @@ import {
 
 
 // Module-level render-cycle cache: set once at the top of renderDashboard(),
-// used by private helpers that always display current S state.
+// used by private helpers that always display current saveData state.
 let _dSaveCtx = null;
 let _dCtx = null;
 let _simOpts = null;
@@ -104,7 +104,7 @@ function getResearchExpRequired() {
 
 // ===== SHAPE POLYGON =====
 function computeShapePolygon(shapeIdx) {
-  const pos = S.shapePositions[shapeIdx];
+  const pos = saveData.shapePositions[shapeIdx];
   if (!pos) return null;
   const verts = SHAPE_VERTICES[shapeIdx];
   const dims = SHAPE_DIMS[shapeIdx];
@@ -125,10 +125,10 @@ export function showGridTooltip(e, idx, overlayOverride) {
   const tt = document.getElementById('tooltip');
   const info = RES_GRID_RAW[idx];
   if (!info) return;
-  const lv = S.gridLevels[idx] || 0;
+  const lv = saveData.gridLevels[idx] || 0;
   const bonus = getGridBonus(idx);
   const finalBonus = getGridBonusFinal(idx);
-  const ov = overlayOverride || S.shapeOverlay;
+  const ov = overlayOverride || saveData.shapeOverlay;
   const si = ov[idx];
 
   let html = '<div class="tt-name">' + gridCoord(idx) + ' - ' + info[0].replace(/_/g,' ') + '</div>';
@@ -138,8 +138,8 @@ export function showGridTooltip(e, idx, overlayOverride) {
     const afterShape = bonus * (1 + SHAPE_BONUS_PCT[si] / 100);
     html += '<div class="tt-shape" style="color:' + SHAPE_COLORS[si] + '">' + SHAPE_NAMES[si] + ' (+' + SHAPE_BONUS_PCT[si] + '%): ' + afterShape.toFixed(1) + '</div>';
   }
-  if (S.allBonusMulti !== 1) {
-    html += '<div style="color:var(--cyan)">Grid AllMulti (x' + S.allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
+  if (saveData.allBonusMulti !== 1) {
+    html += '<div style="color:var(--cyan)">Grid AllMulti (x' + saveData.allBonusMulti.toFixed(2) + '): ' + finalBonus.toFixed(1) + '</div>';
   } else if (si < 0 && bonus > 0) {
     html += '<div style="color:var(--gold)">Final: ' + finalBonus.toFixed(1) + '</div>';
   }
@@ -166,7 +166,7 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   const tt = document.getElementById('tooltip');
   const occ = OCC_DATA[obsIdx];
   const name = occ ? occ.name.replace(/_/g, ' ') : 'Obs #' + obsIdx;
-  const lv = S.insightLvs[obsIdx] || 0;
+  const lv = saveData.insightLvs[obsIdx] || 0;
   const t = obsIdx;
 
   const basePerMag = obsBaseExp(t);
@@ -203,7 +203,7 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   }
   // Insight progress
   const iReq = insightExpReqAt(obsIdx, lv);
-  const iProg = S.insightProgress[obsIdx] || 0;
+  const iProg = saveData.insightProgress[obsIdx] || 0;
   if (iReq > 0) {
     const pct = Math.min(100, iProg / iReq * 100);
     html += '<div style="margin-top:4px;border-top:1px solid #555;padding-top:4px;">';
@@ -225,24 +225,25 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
 export function renderDashboard(saveCtx) {
   resetTreeCounter();
   _dSaveCtx = saveCtx || buildSaveContext();
-  _dCtx = makeCtx(_dSaveCtx.gridLevels, _dSaveCtx);
+  _dCtx = makeSimCtx(_dSaveCtx.gridLevels);
   _simOpts = { gridLevels: _dSaveCtx.gridLevels, shapeOverlay: _dSaveCtx.shapeOverlay, magData: _dSaveCtx.magData, insightLvs: _dSaveCtx.insightLvs, occFound: _dSaveCtx.occFound, researchLevel: _dSaveCtx.researchLevel };
   // Summary
   const sumDiv = document.getElementById('dash-summary');
   const curRate = simTotalExp(_simOpts, _dSaveCtx);
-  const afkRate = cachedAFKRate || computeAFKGainsRate();
+  const afkRate = cachedAFKRate || afkGainsDesc.combine({}, { saveData });
+  const _afkRateVal = afkRate.val;
   const expReq = getResearchExpRequired();
   const expCur = getResearchCurrentExp(_dSaveCtx);
   const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
   sumDiv.innerHTML = `
     <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:12px;">
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${S.researchLevel}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${saveData.researchLevel}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(curRate.total)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(curRate.total)}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(timeToNext)}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(afkRate.rate * 100).toFixed(1)}%</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${S.magnifiersOwned}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${S.magMaxPerSlot}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(S.researchLevel, S.gridLevels, _dSaveCtx.cachedSpelunkyUpg7, (_dSaveCtx.companionHas153 ? 10 : 0) + (_dSaveCtx.rog3 || 0) + (_dSaveCtx.rog13 || 0) + (_dSaveCtx.sailingArt37 || 0))} free</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(_afkRateVal * 100).toFixed(1)}%</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magnifiersOwned}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magMaxPerSlot}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(saveData.researchLevel, saveData.gridLevels, _dSaveCtx.cachedSpelunkyUpg7, (_dSaveCtx.companionHas153 ? 10 : 0) + (_dSaveCtx.rog3 || 0) + (_dSaveCtx.rog13 || 0) + (_dSaveCtx.sailingArt37 || 0))} free</div></div>
     </div>
     <div style="max-width:420px;margin:8px auto 4px;padding:0 12px;">
       <div style="height:22px;background:#1a1a2e;border-radius:11px;overflow:hidden;border:1px solid #333;">
@@ -262,7 +263,7 @@ export function renderDashboard(saveCtx) {
     cell.className = 'grid-cell';
     const info = RES_GRID_RAW[i];
     if (info) {
-      const lv = S.gridLevels[i] || 0;
+      const lv = saveData.gridLevels[i] || 0;
       const maxLv = info[1];
       cell.classList.add('active');
       if (lv >= maxLv) cell.classList.add('maxed');
@@ -274,14 +275,14 @@ export function renderDashboard(saveCtx) {
     }
 
     // Shape overlay - connected borders
-    const si = S.shapeOverlay[i];
+    const si = saveData.shapeOverlay[i];
     if (si >= 0) {
       const color = SHAPE_COLORS[si];
       const col = i % COLS;
-      const top = !sameShapeCell(S.shapeOverlay, i, i - COLS);
-      const bottom = !sameShapeCell(S.shapeOverlay, i, i + COLS);
-      const left = col > 0 ? !sameShapeCell(S.shapeOverlay, i, i - 1) : true;
-      const right = col < COLS - 1 ? !sameShapeCell(S.shapeOverlay, i, i + 1) : true;
+      const top = !sameShapeCell(saveData.shapeOverlay, i, i - COLS);
+      const bottom = !sameShapeCell(saveData.shapeOverlay, i, i + COLS);
+      const left = col > 0 ? !sameShapeCell(saveData.shapeOverlay, i, i - 1) : true;
+      const right = col < COLS - 1 ? !sameShapeCell(saveData.shapeOverlay, i, i + 1) : true;
       const overlay = document.createElement('div');
       overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:.5;'
         + 'background:' + color + '22;'
@@ -298,8 +299,8 @@ export function renderDashboard(saveCtx) {
 
   // SVG shape polygon overlay
   const activeShapes = new Set();
-  for (let i = 0; i < S.shapeOverlay.length; i++) {
-    if (S.shapeOverlay[i] >= 0) activeShapes.add(S.shapeOverlay[i]);
+  for (let i = 0; i < saveData.shapeOverlay.length; i++) {
+    if (saveData.shapeOverlay[i] >= 0) activeShapes.add(saveData.shapeOverlay[i]);
   }
   if (activeShapes.size > 0) {
     const svgNS = 'http://www.w3.org/2000/svg';
@@ -339,8 +340,8 @@ export function renderDashboard(saveCtx) {
     for (const si of sortedShapes) {
       // Collect cells covered by this shape
       const cells = [];
-      for (let ci = 0; ci < S.shapeOverlay.length; ci++) {
-        if (S.shapeOverlay[ci] === si) cells.push(ci);
+      for (let ci = 0; ci < saveData.shapeOverlay.length; ci++) {
+        if (saveData.shapeOverlay[ci] === si) cells.push(ci);
       }
       if (cells.length === 0) continue;
       const sc = SHAPE_COLORS[si] || '#888';
@@ -368,7 +369,7 @@ export function renderDashboard(saveCtx) {
       const item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:.75em;white-space:nowrap;';
       const coordStr = cells.map(c => gridCoord(c)).join(', ');
-      const pos = S.shapePositions[si];
+      const pos = saveData.shapePositions[si];
       const posStr = pos ? ' at (' + Math.round(pos.x) + ',' + Math.round(pos.y) + ')' + (pos.rot ? ' rot ' + pos.rot + '\u00b0' : '') : '';
       item.innerHTML = fpHtml +
         '<span style="color:' + sc + ';font-weight:600;">' + SHAPE_NAMES[si] + '</span>' +
@@ -384,20 +385,20 @@ export function renderDashboard(saveCtx) {
   // Observations - v1-style: 8 cols, full names, text mag indicators, EXP*multi, insight rate, hover tooltip
   const obsDiv = document.getElementById('dash-obs');
   obsDiv.innerHTML = '';
-  const occTBF = computeOccurrencesToBeFound(S.researchLevel, S.occFound);
+  const occTBF = computeOccurrencesToBeFound(saveData.researchLevel, saveData.occFound);
   const kalMap = buildKaleiMap();
   const resMulti = simTotalExp(_simOpts, _dSaveCtx).multi;
 
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
     const cell = document.createElement('div');
-    const found = S.occFound[i] >= 1;
+    const found = saveData.occFound[i] >= 1;
     cell.className = 'obs-cell ' + (found ? 'found' : 'not-found');
 
     const name = OCC_DATA[i] ? OCC_DATA[i].name.replace(/_/g,' ') : 'Obs #' + i;
-    const lv = S.insightLvs[i] || 0;
+    const lv = saveData.insightLvs[i] || 0;
 
     let mags = 0, monos = 0, kaleis = 0;
-    for (const m of S.magData) {
+    for (const m of saveData.magData) {
       if (m.slot === i) {
         if (m.type === 0) mags++;
         else if (m.type === 1) monos++;
@@ -439,7 +440,7 @@ export function renderDashboard(saveCtx) {
     renderBreakdownTree(afkTree, afkDiv);
     const effDiv = document.createElement('div');
     effDiv.style.cssText = 'margin-top:6px;font-size:.85em;color:var(--text2);';
-    effDiv.innerHTML = 'Effective offline EXP/hr: <b style="color:var(--green);">' + fmtVal(curRate.total * Math.min(1, afkRate.rate)) + '</b>';
+    effDiv.innerHTML = 'Effective offline EXP/hr: <b style="color:var(--green);">' + fmtVal(curRate.total * Math.min(1, _afkRateVal)) + '</b>';
     afkDiv.appendChild(effDiv);
   }
 

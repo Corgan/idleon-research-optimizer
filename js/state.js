@@ -1,6 +1,6 @@
 // ===== MUTABLE STATE MODULE =====
 // Single state object replaces 60+ let exports.
-// All modules import S and access properties: S.gridLevels, S.researchLevel, etc.
+// All modules import saveData and access properties: saveData.gridLevels, saveData.researchLevel, etc.
 // assignState() for partial updates, restoreState() for full snapshot restore.
 
 import { GRID_SIZE } from './game-data.js';
@@ -11,7 +11,7 @@ const _SIM_CLONE_KEYS = [
   'insightProgress', 'shapePositions', 'stateR7',
 ];
 
-export const S = {
+export const saveData = {
   research: null,
   gridLevels: new Array(GRID_SIZE).fill(0),
   shapeOverlay: new Array(GRID_SIZE).fill(-1),
@@ -64,7 +64,6 @@ export const S = {
   labMainBonusFull: [],
   companionIds: new Set(),
   extBonusOverrides: {},
-  extBonuses: null,
   serverVarResXP: 1.01,
   serverVarMineHP: 1,
   serverVarMineCost: 1,
@@ -86,6 +85,8 @@ export const S = {
   farmRankData: {},
   forgeLvData: [],
   sushiData: [],
+  questCompleteData: [],
+  totalQuestsComplete: 0,
   cachedUniqueSushi: 0,
   cachedSailingArt37: 0,
   shapeTiers: { above: [], below: [] },
@@ -97,12 +98,12 @@ export const S = {
 export function assignState(u) {
   for (const k in u) {
     if (k === 'companionIds') {
-      S.companionIds = u.companionIds instanceof Set ? u.companionIds : new Set(u.companionIds || []);
+      saveData.companionIds = u.companionIds instanceof Set ? u.companionIds : new Set(u.companionIds || []);
     } else if (k === 'shapeTiers') {
-      S.shapeTiers.above = u.shapeTiers.above || [];
-      S.shapeTiers.below = u.shapeTiers.below || [];
+      saveData.shapeTiers.above = u.shapeTiers.above || [];
+      saveData.shapeTiers.below = u.shapeTiers.below || [];
     } else {
-      S[k] = u[k];
+      saveData[k] = u[k];
     }
   }
 }
@@ -110,15 +111,15 @@ export function assignState(u) {
 // Clone state for worker transfer. Sim-mutable arrays are cloned; save data is referenced.
 export function snapshotState() {
   const snap = {};
-  for (const k in S) snap[k] = S[k];
+  for (const k in saveData) snap[k] = saveData[k];
   // Clone sim-mutable arrays
-  for (const k of _SIM_CLONE_KEYS) snap[k] = S[k].slice();
-  snap.magData = S.magData.map(m => ({ x: m.x, y: m.y, slot: m.slot, type: m.type }));
-  snap.companionIds = Array.from(S.companionIds);
-  snap.shapeTiers = { above: S.shapeTiers.above.slice(), below: S.shapeTiers.below.slice() };
+  for (const k of _SIM_CLONE_KEYS) snap[k] = saveData[k].slice();
+  snap.magData = saveData.magData.map(m => ({ x: m.x, y: m.y, slot: m.slot, type: m.type }));
+  snap.companionIds = Array.from(saveData.companionIds);
+  snap.shapeTiers = { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() };
   // Rename for worker compat
-  snap._covLUT = S._covLUTCache;
-  snap._covLUTN = S._covLUTCacheN;
+  snap._covLUT = saveData._covLUTCache;
+  snap._covLUTN = saveData._covLUTCacheN;
   return snap;
 }
 
@@ -126,51 +127,51 @@ export function snapshotState() {
 export function restoreState(s) {
   for (const k in s) {
     if (k === 'companionIds') {
-      S.companionIds = new Set(s.companionIds || []);
+      saveData.companionIds = new Set(s.companionIds || []);
     } else if (k === 'shapeTiers') {
-      S.shapeTiers.above = s.shapeTiers.above || [];
-      S.shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])];
+      saveData.shapeTiers.above = s.shapeTiers.above || [];
+      saveData.shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])];
     } else if (k === '_covLUT') {
-      if (s._covLUT && s._covLUTN >= 0) S._covLUTCache = s._covLUT;
+      if (s._covLUT && s._covLUTN >= 0) saveData._covLUTCache = s._covLUT;
     } else if (k === '_covLUTN') {
-      if (s._covLUT && s._covLUTN >= 0) S._covLUTCacheN = s._covLUTN;
+      if (s._covLUT && s._covLUTN >= 0) saveData._covLUTCacheN = s._covLUTN;
     } else {
-      S[k] = s[k];
+      saveData[k] = s[k];
     }
   }
   // Defaults for optional fields (backwards compat with older snapshots)
-  if (!S.shapePositions) S.shapePositions = [];
-  if (!S.stateR7) S.stateR7 = new Array(20).fill(0);
-  if (!S.olaData) S.olaData = [];
-  if (!S.towerData) S.towerData = [];
-  if (!S.spelunkData) S.spelunkData = [];
-  if (!S.arcadeUpgData) S.arcadeUpgData = [];
-  if (!S.cards0Data) S.cards0Data = {};
-  if (!S.cards1Data) S.cards1Data = [];
-  if (!S.sailingData) S.sailingData = [];
-  if (!S.lv0Data) S.lv0Data = [];
-  if (!S.totemInfoData) S.totemInfoData = [];
-  if (!S.gamingData) S.gamingData = [];
-  if (!S.ninjaData) S.ninjaData = [];
-  if (!S.ribbonData) S.ribbonData = [];
-  if (!S.mealsData) S.mealsData = [];
-  if (!S.grimoireData) S.grimoireData = [];
-  if (!S.vaultData) S.vaultData = [];
-  if (!S.farmUpgData) S.farmUpgData = [];
-  if (!S.holesData) S.holesData = [];
-  if (!S.riftData) S.riftData = [];
-  if (!S.breedingData) S.breedingData = [];
-  if (!S.summonData) S.summonData = [];
-  if (!S.atomsData) S.atomsData = [];
-  if (!S.arcaneData) S.arcaneData = [];
-  if (!S.starSignsUnlocked) S.starSignsUnlocked = {};
-  if (!S.gemItemsData) S.gemItemsData = [];
-  if (!S.achieveRegData) S.achieveRegData = [];
-  if (!S.tasksGlobalData) S.tasksGlobalData = [];
-  if (!S.lv0AllData) S.lv0AllData = [];
-  if (!S.labBonusConnected) S.labBonusConnected = [];
-  if (!S.labJewelConnected) S.labJewelConnected = [];
-  if (!S.labMainBonusFull) S.labMainBonusFull = [];
-  if (!S.extBonusOverrides) S.extBonusOverrides = {};
-  if (!S.cachedEventShopStr) S.cachedEventShopStr = '';
+  if (!saveData.shapePositions) saveData.shapePositions = [];
+  if (!saveData.stateR7) saveData.stateR7 = new Array(20).fill(0);
+  if (!saveData.olaData) saveData.olaData = [];
+  if (!saveData.towerData) saveData.towerData = [];
+  if (!saveData.spelunkData) saveData.spelunkData = [];
+  if (!saveData.arcadeUpgData) saveData.arcadeUpgData = [];
+  if (!saveData.cards0Data) saveData.cards0Data = {};
+  if (!saveData.cards1Data) saveData.cards1Data = [];
+  if (!saveData.sailingData) saveData.sailingData = [];
+  if (!saveData.lv0Data) saveData.lv0Data = [];
+  if (!saveData.totemInfoData) saveData.totemInfoData = [];
+  if (!saveData.gamingData) saveData.gamingData = [];
+  if (!saveData.ninjaData) saveData.ninjaData = [];
+  if (!saveData.ribbonData) saveData.ribbonData = [];
+  if (!saveData.mealsData) saveData.mealsData = [];
+  if (!saveData.grimoireData) saveData.grimoireData = [];
+  if (!saveData.vaultData) saveData.vaultData = [];
+  if (!saveData.farmUpgData) saveData.farmUpgData = [];
+  if (!saveData.holesData) saveData.holesData = [];
+  if (!saveData.riftData) saveData.riftData = [];
+  if (!saveData.breedingData) saveData.breedingData = [];
+  if (!saveData.summonData) saveData.summonData = [];
+  if (!saveData.atomsData) saveData.atomsData = [];
+  if (!saveData.arcaneData) saveData.arcaneData = [];
+  if (!saveData.starSignsUnlocked) saveData.starSignsUnlocked = {};
+  if (!saveData.gemItemsData) saveData.gemItemsData = [];
+  if (!saveData.achieveRegData) saveData.achieveRegData = [];
+  if (!saveData.tasksGlobalData) saveData.tasksGlobalData = [];
+  if (!saveData.lv0AllData) saveData.lv0AllData = [];
+  if (!saveData.labBonusConnected) saveData.labBonusConnected = [];
+  if (!saveData.labJewelConnected) saveData.labJewelConnected = [];
+  if (!saveData.labMainBonusFull) saveData.labMainBonusFull = [];
+  if (!saveData.extBonusOverrides) saveData.extBonusOverrides = {};
+  if (!saveData.cachedEventShopStr) saveData.cachedEventShopStr = '';
 }

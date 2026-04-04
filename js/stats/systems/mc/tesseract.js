@@ -2,14 +2,17 @@
 // Arcane map kill-count bonus and arcane upgrade bonuses.
 
 import { node } from '../../node.js';
-import { S } from '../../../state.js';
-import { ARCANE_FLAT_SET, ARCANE_PER_LEVEL } from '../../../game-data.js';
+import { saveData } from '../../../state.js';
+import { arcanePerLevel } from '../../data/common/arcane.js';
+import { ARCANE_NO_MULTI } from '../../data/game-constants.js';
+
+var arcaneNoMultiSet = ARCANE_NO_MULTI;
 
 export function arcaneUpgBonus(idx) {
-  var lv = S.arcaneData[idx] || 0;
+  var lv = saveData.arcaneData[idx] || 0;
   if (lv <= 0) return 0;
-  var perLv = ARCANE_PER_LEVEL[idx] || 1;
-  if (ARCANE_FLAT_SET.has(idx)) return lv * perLv;
+  var perLv = arcanePerLevel(idx) || 1;
+  if (arcaneNoMultiSet.has(idx)) return lv * perLv;
   return lv * perLv * (1 + arcaneUpgBonus(39) / 100);
 }
 

@@ -8,17 +8,11 @@ import {
   numCharacters,
 } from './data.js';
 import {
-  COSMO_UPG_BASE,
-  DANCING_CORAL_BASE,
-  DN_MOB_DATA,
-  HOLES_BOLAIA_PER_LV,
-  HOLES_JAR_BONUS_PER_LV,
-  HOLES_MEAS_BASE,
-  HOLES_MEAS_TYPE,
-  HOLES_MON_BONUS,
-  MINEHEAD_BONUS_QTY,
-  STICKER_BASE,
-} from '../game-data.js';
+  cosmoUpgBase, holesBolaiaPerLv, HOLES_JAR_BONUS_PER_LV,
+  holesMeasBase, holesMeasType, holesMonBonus,
+} from '../stats/data/w5/hole.js';
+import { dancingCoralBase, MINEHEAD_BONUS_QTY, stickerBase } from '../stats/data/w7/research.js';
+import { DN_MOB_DATA } from '../stats/data/w7/deathNote.js';
 import { gbWith, deathNoteRank } from '../sim-math.js';
 import {
   emporiumBonus,
@@ -27,41 +21,24 @@ import {
   superBitType,
 } from './helpers.js';
 import { mainframeBonus } from '../stats/systems/w4/lab.js';
-import { achieveStatus } from '../stats/systems/common/achievement.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import { arcaneUpgBonus } from '../stats/systems/mc/tesseract.js';
 import { computeCardLv } from '../stats/systems/common/cards.js';
-import { computeEmperorBon } from '../stats/systems/w6/emperor.js';
 import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
 import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
-import { mineheadBonusQTY, computeMineheadCurrSources } from '../stats/systems/w7/research.js';
+import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
 import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
 import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
-import { computeWinBonus, computeSummWinBonus } from '../stats/systems/w6/summoning.js';
-import { rogBonusQTY } from '../game-data.js';
+import { computeWinBonus } from '../stats/systems/w6/summoning.js';
+import { rogBonusQTY } from '../stats/data/w7/sushi.js';
 // Grid bonus helper - uses _gbWith directly to avoid circular dep with calculations.js
 function _gridBonusFinal(idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
 }
 
-// Re-export domain functions for backward compatibility
-export { achieveStatus } from '../stats/systems/common/achievement.js';
-export { arcadeBonus } from '../stats/systems/w2/arcade.js';
-export { arcaneUpgBonus } from '../stats/systems/mc/tesseract.js';
-export { computeCardLv } from '../stats/systems/common/cards.js';
-export { computeEmperorBon } from '../stats/systems/w6/emperor.js';
-export { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
-export { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
-export { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
-export { mineheadBonusQTY, computeMineheadCurrSources } from '../stats/systems/w7/research.js';
-export { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
-export { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
-export { computeWinBonus, computeSummWinBonus } from '../stats/systems/w6/summoning.js';
-
 function cosmoBonus(t, i) {
-  const key = t + '_' + i;
-  const base = COSMO_UPG_BASE[key] || 0;
+  const base = cosmoUpgBase(t, i);
   return Math.floor(base * (Number(S.holesData?.[4 + t]?.[i]) || 0));
 }
 
@@ -110,7 +87,7 @@ function computeMeasurementMulti(typeIdx) {
 function computeGambitPTSmulti() {
   // MeasurementBonusTOTAL(13)
   const cosmo13 = cosmoBonus(1, 3);
-  const measBaseStr = HOLES_MEAS_BASE[13] || '0';
+  const measBaseStr = holesMeasBase(13) || '0';
   const isTOT = measBaseStr.includes('TOT');
   const measBaseNum = parseFloat(measBaseStr) || 0;
   const measLv = Number(S.holesData?.[22]?.[13]) || 0;
@@ -120,13 +97,13 @@ function computeGambitPTSmulti() {
   } else {
     measBase = (1 + cosmo13 / 100) * measBaseNum * measLv;
   }
-  const measType = Number(HOLES_MEAS_TYPE[13]) || 0;
+  const measType = holesMeasType(13);
   const measMulti = computeMeasurementMulti(measType);
   const measTotal = measBase * measMulti;
 
   // StudyBolaiaBonuses(13)
   const bolaiaLv = Number(S.holesData?.[26]?.[13]) || 0;
-  const bolaiaPerLv = HOLES_BOLAIA_PER_LV[13] || 0;
+  const bolaiaPerLv = holesBolaiaPerLv(13);
   const studyBolaia = bolaiaLv * bolaiaPerLv;
 
   // B_UPG(78, 10)
@@ -134,14 +111,14 @@ function computeGambitPTSmulti() {
 
   // MonumentROGbonuses(2, 7)
   const mon29Lv = Number(S.holesData?.[15]?.[29]) || 0;
-  const mon29Bonus = HOLES_MON_BONUS[29] || 0;
+  const mon29Bonus = holesMonBonus(29);
   const mon29 = mon29Bonus >= 30
     ? 0.1 * Math.ceil(mon29Lv / (250 + mon29Lv) * 10 * mon29Bonus)
     : mon29Lv * mon29Bonus;
   const cosmo00 = cosmoBonus(0, 0);
   const holeozDN = (1 + mon29 / 100) + cosmo00 / 100;
   const mon27Lv = Number(S.holesData?.[15]?.[27]) || 0;
-  const mon27Bonus = HOLES_MON_BONUS[27] || 0;
+  const mon27Bonus = holesMonBonus(27);
   let monROG27;
   if (mon27Bonus >= 30) {
     monROG27 = 0.1 * Math.ceil(mon27Lv / (250 + mon27Lv) * 10 * mon27Bonus * Math.max(1, holeozDN));
@@ -175,7 +152,7 @@ export function computeExternalBonuses() {
 
   // 1. StickerBonus(1) = (1 + (Grid_Bonus(68,2) + 30*EventShop(37))/100) * (1 + 20*SuperBit(62)/100) * R[9][1] * base
   const stkLv = S.research?.[9]?.[1] || 0;
-  const stkBase = STICKER_BASE[1] || 5;
+  const stkBase = stickerBase(1) || 5;
   // Grid_Bonus(68, mode 2) = Grid_Bonus(68,0) * Research[11].length (boony crown count)
   const boonyCount = S.research?.[11]?.length || 0;
   const gridBonus68mode2 = _gridBonusFinal(68) * boonyCount;
@@ -192,7 +169,7 @@ export function computeExternalBonuses() {
 
   // 2. Dancing Coral (index 4 = Research EXP)
   const tower22 = S.towerData[22] || 0;
-  const dcBase = DANCING_CORAL_BASE[4] || 3;
+  const dcBase = dancingCoralBase(4) || 3;
   b.dancingCoral = { val: dcBase * Math.max(0, tower22 - 200), label: 'Dancing Coral/Clover Shrine', note: `${dcBase} x max(0, ${tower22}-200)` };
 
   // 3. ZenithMarket (index 8)
@@ -310,12 +287,6 @@ export function computeExternalBonuses() {
   b._allMulti = { val: 1 + (comp55val + comp0val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val})/100` };
 
   return b;
-}
-
-export function calcAllBonusMulti(gl) {
-  const comp55val = S.companionIds.has(55) ? 15 : 0;
-  const comp0val = S.companionIds.has(0) && S.cachedComp0DivOk && (gl[173] || 0) > 0 ? 5 : 0;
-  return 1 + (comp55val + comp0val) / 100;
 }
 
 function computeGambitBonus15() {

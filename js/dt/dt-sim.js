@@ -9,7 +9,7 @@ import {
   computeOccurrencesToBeFound, getMonoObsSet,
   hrsToNextInsightLv, magMaxForLevel, researchExpReq, simTotalExpWith,
 } from '../sim-math.js';
-import { buildSaveContext, getResearchCurrentExp, makeCtx } from '../save/context.js';
+import { buildSaveContext, getResearchCurrentExp, makeSimCtx } from '../save/context.js';
 import { chooseMonoTargets } from '../optimizers/monos.js';
 import {
   dtNodes, dtCompareSet, DT,
@@ -29,7 +29,7 @@ export function dtBuildInitState() {
   const ip = saveCtx.insightProgress.slice();
   const occ = saveCtx.occFound.slice();
   const sp = saveCtx.shapePositions.map(s => ({...s}));
-  const ctx = makeCtx(gl, saveCtx);
+  const ctx = makeSimCtx(gl);
   const expHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   return {
     gl, so, md, il, ip, occ, sp, rLv, rExp: getResearchCurrentExp(saveCtx), expHr, saveCtx
@@ -74,7 +74,7 @@ export function dtStepSim(state) {
   let occ = state.occ.slice();
   let rLv = state.rLv;
   let rExp = state.rExp;
-  const ctx = makeCtx(gl, state.saveCtx);
+  const ctx = makeSimCtx(gl);
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   let currentTime = 0;
 
@@ -164,7 +164,7 @@ export function dtAdvanceAutoInsight(parentNode) {
       if (now > prev) insightChanges.push({ obs: i, prevIL: prev, newIL: now });
     }
 
-    const ctx = makeCtx(result.state.gl, result.state.saveCtx);
+    const ctx = makeSimCtx(result.state.gl);
     result.state.md = chooseMonoTargets(
       {gl: result.state.gl, so: result.state.so, md: result.state.md, il: result.state.il, ip: result.state.ip, occ: result.state.occ, rLv: result.state.rLv, mMax},
       ctx, 72

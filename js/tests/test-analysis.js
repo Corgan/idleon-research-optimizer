@@ -11,7 +11,7 @@ import { performance } from 'node:perf_hooks';
 
 import { loadSaveData } from '../save/loader.js';
 import { buildSaveContext } from '../save/context.js';
-import {  S  } from '../state.js';
+import {  saveData  } from '../state.js';
 import { GRID_SIZE } from '../game-data.js';
 import {
   computeMagTypeBalance,
@@ -44,10 +44,10 @@ async function loadSave() {
   loadSaveData(raw);
   _saveCtx = buildSaveContext();
   _state = {
-    gl: S.gridLevels, so: S.shapeOverlay, il: S.insightLvs,
-    occ: S.occFound, rLv: S.researchLevel, mMax: S.magMaxPerSlot,
-    mOwned: S.magnifiersOwned, md: S.magData, ip: S.insightProgress,
-    failedRolls: S.cachedFailedRolls,
+    gl: saveData.gridLevels, so: saveData.shapeOverlay, il: saveData.insightLvs,
+    occ: saveData.occFound, rLv: saveData.researchLevel, mMax: saveData.magMaxPerSlot,
+    mOwned: saveData.magnifiersOwned, md: saveData.magData, ip: saveData.insightProgress,
+    failedRolls: saveData.cachedFailedRolls,
   };
 }
 
@@ -79,9 +79,9 @@ async function testMagTypeBalance() {
   ok(results[0].deltaImmediate >= results[1].deltaImmediate, 'sorted: [0] >= [1]');
   ok(results[1].deltaImmediate >= results[2].deltaImmediate, 'sorted: [1] >= [2]');
 
-  // Deltas should all be positive (adding a mag always helps)
+  // Deltas should all be non-negative (Monocle may have deltaImmediate=0 since it boosts insight, not EXP directly)
   for (const r of results) {
-    ok(r.deltaImmediate > 0, `delta > 0 for ${r.typeName}`);
+    ok(r.deltaImmediate >= 0, `delta >= 0 for ${r.typeName}`);
   }
 }
 
@@ -89,8 +89,8 @@ async function testMagTypeBalance() {
 function testInsightCellValues() {
   console.log('--- _computeInsightCellValues ---');
   const t0 = performance.now();
-  const gl = S.gridLevels, so = S.shapeOverlay, il = S.insightLvs;
-  const pool = S.magData.slice(0, S.magnifiersOwned);
+  const gl = saveData.gridLevels, so = saveData.shapeOverlay, il = saveData.insightLvs;
+  const pool = saveData.magData.slice(0, saveData.magnifiersOwned);
   // Find an obs slot that has at least one monocle (type=1), otherwise insight rate is 0
   const monoSlots = new Set(pool.filter(m => m.type === 1).map(m => m.slot));
   const obsIdx = monoSlots.size > 0 ? monoSlots.values().next().value : 0;
@@ -194,7 +194,7 @@ async function testObsUnlockPriority() {
   ok(Array.isArray(result.results), 'results is array');
 
   // Should have some undiscovered observations
-  const undiscoveredCount = S.occFound.filter((v, i) => (v || 0) < 1).length;
+  const undiscoveredCount = saveData.occFound.filter((v, i) => (v || 0) < 1).length;
   // results.length should match undiscovered count (minus any OCC_DATA boundary)
   ok(result.results.length > 0, `results count ${result.results.length} > 0`);
   ok(result.results.length <= undiscoveredCount, `results count <= undiscovered obs`);
@@ -236,7 +236,7 @@ async function main() {
   const t0 = performance.now();
   console.log('Loading save it.json...');
   await loadSave();
-  console.log(`  S.researchLevel=${S.researchLevel}, S.magnifiersOwned=${S.magnifiersOwned}`);
+  console.log(`  saveData.researchLevel=${saveData.researchLevel}, saveData.magnifiersOwned=${saveData.magnifiersOwned}`);
   console.log('');
 
   await testMagTypeBalance();

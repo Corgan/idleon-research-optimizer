@@ -24,9 +24,7 @@ import {
 } from './format.js';
 import {
   runWorkerTask,
-} from './worker-pool.js';
-
-// ===== SHARED HELPERS =====
+} from '../workers/worker-pool.js';
 
 function _fmtLayoutHTML(layout, label) {
   // Aggregate layout by slot: {slot: {0:count, 1:count, 2:count}}

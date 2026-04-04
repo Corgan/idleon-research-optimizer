@@ -1,72 +1,41 @@
 // ===== DASH-BREAKDOWNS.JS - EXP, AFK, and Insight breakdown trees =====
 // Extracted from dashboard.js.
 
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { cachedAFKRate } from '../save/data.js';
 import {
-  ARTIFACT_BASE,
-  DANCING_CORAL_BASE,
-  EMPEROR_SET_BONUS_VAL,
-  GODSHARD_SET_BONUS,
-  RES_GRID_RAW,
-  SHAPE_BONUS_PCT,
-  SHAPE_NAMES,
-  STICKER_BASE,
   gridCoord,
 } from '../game-data.js';
+import { artifactBase } from '../stats/data/w5/sailing.js';
+import { dancingCoralBase, stickerBase } from '../stats/data/w7/research.js';
+import { EMPEROR_SET_BONUS_VAL } from '../stats/data/common/emperor.js';
+import { equipSetBonus } from '../stats/data/common/equipment.js';
 import {
   gbWith,
   computeOccurrencesToBeFound,
 } from '../sim-math.js';
 import { simTotalExp } from '../save/context.js';
 import { mainframeBonus } from '../stats/systems/w4/lab.js';
-import {
-  achieveStatus,
-  computeAFKGainsRate,
-  computeCardLv,
-  computeEmperorBon,
-  computeMeritocBonusz,
-  computeShinyBonusS,
-  computeSummWinBonus,
-  computeWinBonus,
-  exoticBonusQTY40,
-  grimoireUpgBonus22,
-  legendPTSbonus,
-} from '../save/external.js';
+import { achieveStatus } from '../stats/systems/common/achievement.js';
+import { computeCardLv } from '../stats/systems/common/cards.js';
+import { computeEmperorBon } from '../stats/systems/w6/emperor.js';
+import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
+import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
+import { computeSummWinBonus, computeWinBonus } from '../stats/systems/w6/summoning.js';
+import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
+import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
+import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
+import { arcadeBonus } from '../stats/systems/w2/arcade.js';
+import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import { fmtExact, fmtVal } from '../renderers/format.js';
+import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 
 // ===== Tree node helpers =====
-export function _bNode(label, val, children, opts) {
-  return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '', tag: opts?.tag || '' };
-}
-
-export function _gbNode(idx, label, opts) {
-  const info = RES_GRID_RAW[idx];
-  if (!info) return _bNode(label || 'Grid #' + idx, 0, null, opts);
-  const lv = S.gridLevels[idx] || 0;
-  const bonusPerLv = info[2];
-  const base = bonusPerLv * lv;
-  const si = S.shapeOverlay[idx];
-  const hasShape = si >= 0 && si < SHAPE_BONUS_PCT.length;
-  const shapePct = hasShape ? SHAPE_BONUS_PCT[si] : 0;
-  const shapeMult = 1 + shapePct / 100;
-  const final = base * shapeMult * S.allBonusMulti;
-  const coord = gridCoord(idx);
-  const comp55val = S.companionIds.has(55) ? 15 : 0;
-  const comp0owned = S.companionIds.has(0);
-  const comp0val = comp0owned && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
-  return _bNode(label || 'Grid ' + coord + ': ' + (info[1] || '#' + idx), final, [
-    _bNode('Bonus', base, [
-      _bNode('Base', bonusPerLv, null, { fmt: '%' }),
-      _bNode('Level', lv, null, { fmt: 'x' })
-    ], { fmt: '%' }),
-    _bNode('Shape Bonus' + (hasShape ? ' (' + SHAPE_NAMES[si] + ')' : ''), shapeMult, null, { fmt: 'x', note: hasShape ? '' : 'No shape' }),
-    _bNode('All Bonus Multi', S.allBonusMulti, [
-      _bNode('Pirate Deckhand', comp55val, null, { fmt: '%' }),
-      _bNode('Grid ' + gridCoord(173) + ': Divine Design', comp0val, null, { fmt: '%', note: comp0owned ? (S.cachedComp0DivOk ? ((S.gridLevels[173]||0) > 0 ? '' : 'Node LV 0') : 'Doot divine < 2') : 'Doot not owned' })
-    ], { fmt: 'x' })
-  ], opts);
-}
+// _bNode imported from stats/node-helpers.js
+// _gbNode wrapper binds global saveData for local use
+export { _bNode };
+const _gbNode = (idx, label, opts) => _gbNodeS(saveData, idx, label, opts);
+export { _gbNode };
 
 
 // ===== EXP BREAKDOWN TREE =====
@@ -81,8 +50,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
     return total;
   }
 
-  const ext = S.extBonuses;
-  if (!ext) return null;
+  if (!saveData.research) return null;
   const rate = simTotalExp(simOpts, dSaveCtx);
   const occTBF = computeOccurrencesToBeFound(dSaveCtx.researchLevel, dSaveCtx.occFound);
   const addChildren = [];
@@ -100,7 +68,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
   // Grid 112 x occFoundCount
   let occFoundCount = 0;
-  for (let i = 0; i < occTBF; i++) if ((S.occFound[i] || 0) >= 1) occFoundCount++;
+  for (let i = 0; i < occTBF; i++) if ((saveData.occFound[i] || 0) >= 1) occFoundCount++;
   const gb112raw = getGridBonusFinal(112);
   addChildren.push(_bNode('Grid ' + gridCoord(112) + ': See Em All', gb112raw * occFoundCount, [
     _gbNode(112, 'Per-Insight Level', { fmt: '%' }),
@@ -117,15 +85,15 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
   // ---- External sources ----
   // Sticker
-  const stkLv = S.research?.[9]?.[1] || 0;
-  const stkBase = STICKER_BASE[1] || 5;
-  const boonyCount = S.research?.[11]?.length || 0;
+  const stkLv = saveData.research?.[9]?.[1] || 0;
+  const stkBase = stickerBase(1) || 5;
+  const boonyCount = saveData.research?.[11]?.length || 0;
   const gb68val = getGridBonusFinal(68);
   const gb68mode2 = gb68val * boonyCount;
   const evShop37 = dSaveCtx.cachedEvShop37;
   const stkCrownMulti = 1 + (gb68mode2 + 30 * evShop37) / 100;
   const stkSB62 = 1 + 20 * dSaveCtx.sb62 / 100;
-  addChildren.push(_bNode('Farming: Laissez Maize Sticker', ext.sticker?.val || 0, [
+  addChildren.push(_bNode('Farming: Laissez Maize Sticker', stkCrownMulti * stkSB62 * stkLv * stkBase, [
     _bNode('Sticker', stkBase * stkLv, [
       _bNode('Base', stkBase, null, { fmt: '%' }),
       _bNode('Count', stkLv, null, { fmt: 'x' })
@@ -141,37 +109,38 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   ], { fmt: '%' }));
 
   // Dancing Coral
-  const tower22 = S.towerData[22] || 0;
-  const dcBase = DANCING_CORAL_BASE[4] || 3;
+  const tower22 = saveData.towerData[22] || 0;
+  const dcBase = dancingCoralBase(4) || 3;
   const dcProgress = Math.max(0, tower22 - 200);
-  addChildren.push(_bNode('Clover Shrine', ext.dancingCoral?.val || 0, [
+  addChildren.push(_bNode('Clover Shrine', dcBase * dcProgress, [
     _bNode('Base', dcBase, null, { fmt: '%' }),
     _bNode('Level', dcProgress, null, { fmt: 'x' })
   ], { fmt: '%' }));
 
   // Zenith Market
-  const zmLevel = S.spelunkData?.[45]?.[8] || 0;
-  addChildren.push(_bNode('Zenith Market', ext.zenithMarket?.val || 0, null, { fmt: '%' }));
+  const zmLevel = saveData.spelunkData?.[45]?.[8] || 0;
+  addChildren.push(_bNode('Zenith Market', Math.floor(zmLevel), null, { fmt: '%' }));
 
   // Cards
   const clvW7b1 = computeCardLv('w7b1');
   const clvW7b4 = computeCardLv('w7b4');
-  addChildren.push(_bNode('Card: Trench Fish', ext.cardW7b1?.val || 0, null, { fmt: '%' }));
-  addChildren.push(_bNode('Card: Eggroll', ext.cardW7b4?.val || 0, null, { fmt: '%' }));
+  addChildren.push(_bNode('Card: Trench Fish', Math.min(clvW7b1, 10), null, { fmt: '%' }));
+  addChildren.push(_bNode('Card: Eggroll', Math.min(2 * clvW7b4, 10), null, { fmt: '%' }));
 
   // Prehistoric Set
-  addChildren.push(_bNode('Prehistoric Set', ext.prehistoricSet?.val || 0, null, { fmt: '%' }));
+  const _prehistoricSet = String(saveData.olaData[379] || '').includes('PREHISTORIC_SET') ? 50 : 0;
+  addChildren.push(_bNode('Prehistoric Set', _prehistoricSet, null, { fmt: '%' }));
 
   // Slabbo
   const hasSB34 = dSaveCtx.sb34;
-  const c1len = S.cards1Data.length || 0;
+  const c1len = saveData.cards1Data.length || 0;
   const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
   const slabboMF15 = mainframeBonus(15);
   const slabboMeritoc23 = computeMeritocBonusz(23);
   const slabboLegend28 = legendPTSbonus(28);
-  const vub74 = S.vaultData[74] || 0;
+  const vub74 = saveData.vaultData[74] || 0;
   const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);
-  addChildren.push(_bNode('Slab Bonus', ext.slabbo?.val || 0, hasSB34 ? [
+  addChildren.push(_bNode('Slab Bonus', hasSB34 ? 0.1 * slabboMult * slabboBase : 0, hasSB34 ? [
     _bNode('Base (' + c1len + ')', slabboBase * 0.1, null, { fmt: '%', note: 'floor((Item Count - 1300) / 5) x 0.1' }),
     _bNode('Multiplier', slabboMult, [
       _bNode('Slab Sovereignty', 1 + slabboMF15 / 100, null, { fmt: 'x' }),
@@ -182,11 +151,11 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   ] : null, { fmt: '%', note: hasSB34 ? '' : 'Slabby Research locked' }));
 
   // Arcade
-  addChildren.push(_bNode('Arcade: Research XP', ext.arcade?.val || 0, null, { fmt: '%' }));
+  addChildren.push(_bNode('Arcade: Research XP', arcadeBonus(63), null, { fmt: '%' }));
 
   // Meal (Giga Chip) - deep decomposition
-  const mealLv = S.mealsData?.[0]?.[72] || 0;
-  const ribT = S.ribbonData[100] || 0;
+  const mealLv = saveData.mealsData?.[0]?.[72] || 0;
+  const ribT = saveData.ribbonData[100] || 0;
   const ribBon = dSaveCtx.ribbon100;
   const mfb116 = mainframeBonus(116);
   const shinyS20 = computeShinyBonusS(20);
@@ -196,14 +165,14 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   // WinBonus(26) decomposition
   const swb = computeSummWinBonus();
   const swbRaw = swb[26] || 0;
-  const pristine8 = (S.ninjaData?.[107]?.[8] === 1) ? 30 : 0;
-  const gemItems11 = Number(S.gemItemsData[11]) || 0;
-  const artRarity = Number(S.sailingData?.[3]?.[32]) || 0;
-  const artBonus32 = artRarity > 0 ? (ARTIFACT_BASE[32] || 25) * artRarity : 0;
-  const taskVal = Math.min(10, Number(S.tasksGlobalData?.[2]?.[5]?.[4]) || 0);
+  const pristine8 = (saveData.ninjaData?.[107]?.[8] === 1) ? 30 : 0;
+  const gemItems11 = Number(saveData.gemItemsData[11]) || 0;
+  const artRarity = Number(saveData.sailingData?.[3]?.[32]) || 0;
+  const artBonus32 = artRarity > 0 ? artifactBase(32) * artRarity : 0;
+  const taskVal = Math.min(10, Number(saveData.tasksGlobalData?.[2]?.[5]?.[4]) || 0);
   const wb31 = swb[31] || 0;
   const empBon8 = computeEmperorBon(8);
-  const godshardSet = String(S.olaData[379] || '').includes('GODSHARD_SET') ? GODSHARD_SET_BONUS : 0;
+  const godshardSet = String(saveData.olaData[379] || '').includes('GODSHARD_SET') ? equipSetBonus('GODSHARD_SET') : 0;
   const ach379 = achieveStatus(379);
   const ach373 = achieveStatus(373);
 
@@ -222,12 +191,12 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
     ], { fmt: 'x' })
   ], { fmt: 'x' });
 
-  const hasEmpSet = String(S.olaData[379] || '').includes('EMPEROR_SET');
+  const hasEmpSet = String(saveData.olaData[379] || '').includes('EMPEROR_SET');
   const empTermVal = hasEmpSet ? Math.floor(ribT / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
 
   const ribBase = ribT > 0 ? Math.floor(5 * ribT + Math.floor(ribT / 2) * (4 + 6.5 * Math.floor(ribT / 5))) : 0;
 
-  addChildren.push(_bNode('Meal: Giga Chip', ext.meal?.val || 0, [
+  addChildren.push(_bNode('Meal: Giga Chip', ribBon * mealLv * 0.01 * cookMulti, [
     _bNode('Meal Value', 0.01 * mealLv, [
       _bNode('Base', 0.01, null, { fmt: '%' }),
       _bNode('Levels', mealLv, null, { fmt: 'x' })
@@ -247,14 +216,14 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
   // Crop Scientist
   const hasEmp44 = dSaveCtx.emp44;
-  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (S.farmCropCount - 200) / 10)) : 0;
+  const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (saveData.farmCropCount - 200) / 10)) : 0;
   const mf17 = mainframeBonus(17);
   const gub22 = grimoireUpgBonus22();
   const exo40 = exoticBonusQTY40();
-  const vub79 = S.vaultData[79] || 0;
+  const vub79 = saveData.vaultData[79] || 0;
   const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
-  addChildren.push(_bNode('Crop Scientist', ext.cropSC?.val || 0, hasEmp44 ? [
-    _bNode('Base (' + S.farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
+  addChildren.push(_bNode('Crop Scientist', cropRaw * cropSCmulti, hasEmp44 ? [
+    _bNode('Base (' + saveData.farmCropCount + ')', cropRaw, null, { fmt: '%', note: 'floor((Crops - 200) / 10)' }),
     _bNode('Multi', cropSCmulti, [
       _bNode('Depot Studies PhD', 1 + mf17 / 100, null, { fmt: 'x' }),
       _bNode('Crop Research Multi', 1 + (gub22 + exo40 + vub79) / 100, [
@@ -267,7 +236,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
   // MSA
   const hasSB44 = dSaveCtx.sb44;
-  const tdWaves = Array.isArray(S.totemInfoData[0]) ? S.totemInfoData[0] : [];
+  const tdWaves = Array.isArray(saveData.totemInfoData[0]) ? saveData.totemInfoData[0] : [];
   const tdNames = ['W1: Forest Outskirts', 'W2: Up Up Down Down', 'W1: The Roots', 'W3: Rollin\' Tundra', 'W4: Mountainous Deugh', 'W5: OJ Bay', 'W6: Above the Clouds', 'W7: Puffpuff Overpass'];
   const gamingStars = tdWaves.reduce(function(a,v) { return a + (Number(v)||0); }, 0);
   const msaEff = Math.max(0, Math.floor((gamingStars - 300) / 10));
@@ -276,22 +245,22 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
     if (!tdNames[ti]) continue;
     tdChildren.push(_bNode(tdNames[ti], Number(tdWaves[ti]) || 0));
   }
-  addChildren.push(_bNode('MSA Bonus', ext.msa?.val || 0, hasSB44 ? [
+  addChildren.push(_bNode('MSA Bonus', hasSB44 ? 0.3 * msaEff : 0, hasSB44 ? [
     _bNode('Total Waves', gamingStars, tdChildren)
   ] : null, { fmt: '%', note: hasSB44 ? 'floor((Total Waves - 300) / 10) x 0.3' : 'MSA Research locked' }));
 
   // Lore / Tome
-  const loreEpisodes = S.spelunkData?.[13]?.[2] || 0;
-  if (loreEpisodes > 7 && S.totalTomePoints > 0) {
-    const g17 = S.grimoireData?.[17] || 0;
-    const trollSet = String(S.olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
+  const loreEpisodes = saveData.spelunkData?.[13]?.[2] || 0;
+  if (loreEpisodes > 7 && saveData.totalTomePoints > 0) {
+    const g17 = saveData.grimoireData?.[17] || 0;
+    const trollSet = String(saveData.olaData[379] || '').includes('TROLL_SET') ? 25 : 0;
     const loreMult = 1 + (g17 + trollSet) / 100;
-    const x = Math.floor(Math.max(0, S.totalTomePoints - 16000) / 100);
+    const x = Math.floor(Math.max(0, saveData.totalTomePoints - 16000) / 100);
     const xp = Math.pow(x, 0.7);
     const decayVal = 20 * Math.max(0, xp / (25 + xp));
-    addChildren.push(_bNode('Tome Bonus', ext.loreEpi?.val || 0, [
+    addChildren.push(_bNode('Tome Bonus', loreMult * decayVal, [
       _bNode('Base', decayVal, [
-        _bNode('Scaled Points (' + S.totalTomePoints + ')', x, null, { note: 'floor((Tome Points - 16000) / 100)' })
+        _bNode('Scaled Points (' + saveData.totalTomePoints + ')', x, null, { note: 'floor((Tome Points - 16000) / 100)' })
       ], { fmt: '%', note: '20 x Scaled^0.7 / (25 + Scaled^0.7)' }),
       _bNode('Tome Multi', loreMult, [
         _bNode('DB: Grey Tome Book', g17, null, { fmt: '%' }),
@@ -299,7 +268,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
       ], { fmt: 'x' })
     ], { fmt: '%' }));
   } else {
-    addChildren.push(_bNode('Tome Bonus', ext.loreEpi?.val || 0, null, {
+    addChildren.push(_bNode('Tome Bonus', 0, null, {
       fmt: '%', note: loreEpisodes <= 7 ? 'Need 8+ lore episodes' : 'No tome points'
     }));
   }
@@ -313,14 +282,14 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   // ---- Multiplicative ----
   const takinNotesVal = getGridBonusFinal(70);
 
-  const comp52val = ext._comp52?.val || 0;
+  const comp52val = saveData.companionIds.has(52) ? 0.5 : 0;
   const jellyNode = _bNode('Jellofish', 1 + comp52val, null, { fmt: 'x', note: comp52val > 0 ? 'Owned' : 'Not owned' });
 
-  const comp153val = ext._comp153?.val || 0;
+  const comp153val = saveData.companionIds.has(153) ? 1 : 0;
   const nightmareNode = _bNode('Nightmare', 1 + comp153val, null, { fmt: 'x', note: comp153val > 0 ? 'Owned' : 'Not owned' });
 
-  const rog0val = ext._rog0?.val || 0;
-  const rog0Node = _bNode('Sushi RoG', 1 + rog0val, null, { fmt: 'x', note: rog0val > 0 ? ext._rog0.note : 'Not unlocked' });
+  const rog0val = saveData.cachedUniqueSushi > 0 ? 1 : 0;
+  const rog0Node = _bNode('Sushi RoG', 1 + rog0val, null, { fmt: 'x', note: rog0val > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'Not unlocked' });
 
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
   const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val);
@@ -343,46 +312,36 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
 // ===== AFK BREAKDOWN TREE =====
 export function buildAFKBreakdownTree() {
-  const afkRate = cachedAFKRate || computeAFKGainsRate();
-  const p = afkRate.parts;
+  const afkRate = cachedAFKRate || afkGainsDesc.combine({}, { saveData });
+  const afkPct = afkRate.val * 100;
   const addChildren = [];
 
   // Base 1% (hardcoded in formula: 0.01 + sum/100)
   addChildren.push(_bNode('Base', 1, null, { fmt: '%' }));
 
-  // Companion 28 - RIP Tide
-  addChildren.push(_bNode('RIP Tide (Companion)', p.comp28.val, null, { fmt: '%', note: p.comp28.note }));
-
-  // Companion 153 - Nightmare
-  addChildren.push(_bNode('Nightmare (Companion)', p.comp153.val, null, { fmt: '%', note: p.comp153.note }));
-
-  // Gambit Milestone 15
-  addChildren.push(_bNode('Gambit Milestone', p.gambit15.val, null, { fmt: '%', note: p.gambit15.note }));
-
-  // Minehead floors
-  addChildren.push(_bNode('Minehead Floor 2', p.minehead1.val, null, { fmt: '%', note: p.minehead1.note }));
-  addChildren.push(_bNode('Minehead Floor 11', p.minehead10.val, null, { fmt: '%', note: p.minehead10.note }));
-
-  // Grid bonuses (with full decomposition)
-  const gb71Node = _gbNode(71, 'Powered Down Research');
-  gb71Node.fmt = '%';
-  addChildren.push(gb71Node);
-
-  const gb111Node = _gbNode(111, 'Research AFK Gains');
-  gb111Node.fmt = '%';
-  addChildren.push(gb111Node);
-
-  // Sailing artifact
-  addChildren.push(_bNode('Ender Pearl (Artifact)', p.sailing36.val, null, { fmt: '%', note: p.sailing36.note }));
-
-  // Card
-  addChildren.push(_bNode('Pirate Deckhand Card', p.cardW7b11.val, null, { fmt: '%', note: p.cardW7b11.note }));
+  // Map descriptor children to display nodes
+  var descChildren = afkRate.children || [];
+  for (var i = 0; i < descChildren.length; i++) {
+    var dc = descChildren[i];
+    // Grid bonuses get full _gbNode decomposition
+    if (dc.name === 'Grid: Powered Down Research') {
+      var gbn71 = _gbNode(71, 'Powered Down Research');
+      gbn71.fmt = '%';
+      addChildren.push(gbn71);
+    } else if (dc.name === 'Grid: Research AFK Gains') {
+      var gbn111 = _gbNode(111, 'Research AFK Gains');
+      gbn111.fmt = '%';
+      addChildren.push(gbn111);
+    } else {
+      addChildren.push(_bNode(dc.name, dc.val, null, { fmt: '%' }));
+    }
+  }
 
   // Sort by value descending
   addChildren.sort(function(a, b) { return b.val - a.val; });
 
-  const capped = afkRate.pct > 100;
-  return _bNode('AFK Rate', afkRate.pct, addChildren, { fmt: 'pct', note: capped ? 'Capped at 100%' : '' });
+  const capped = afkPct > 100;
+  return _bNode('AFK Rate', afkPct, addChildren, { fmt: 'pct', note: capped ? 'Capped at 100%' : '' });
 }
 
 // ===== INSIGHT MULTIPLIER BREAKDOWN TREE =====

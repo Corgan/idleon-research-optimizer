@@ -10,7 +10,7 @@ import {
   calcAllBonusMultiWith, computeMagnifiersOwnedWith,
   computeShapesOwnedAt, gridBonusMode2, simTotalExpWith,
 } from '../sim-math.js';
-import { makeCtx } from '../save/context.js';
+import { makeSimCtx } from '../save/context.js';
 import {
   getShapeCellCoverage, getShapePolygonAt, isPointInPolygon,
 } from '../optimizers/shapes-geo.js';
@@ -25,7 +25,7 @@ import { dtRenderModal } from './decision-tree.js';
 export function dtRecalcExpHr() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const ctx = makeCtx(s.gl, s.saveCtx);
+  const ctx = makeSimCtx(s.gl);
   s.ctx = ctx;
   s.expHr = simTotalExpWith(s.gl, s.so, s.md, s.il, s.occ, s.rLv, ctx);
 }
@@ -69,7 +69,7 @@ const _DT_GRID_PAD = 16; // canvas padding
 export function dtRenderGridCanvas() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const sCtx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const sCtx = s.ctx || makeSimCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, sCtx), s.sp.length, SHAPE_VERTICES.length, 10);
   const avail = dtGridPointsAvail(s.gl, s.rLv, s.saveCtx);
 
@@ -282,7 +282,7 @@ function _dtCanvasCellAt(cx, cy) {
 function _dtShapeHitTest(canvasX, canvasY) {
   if (!DT.editState) return -1;
   const s = DT.editState;
-  const ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const ctx = s.ctx || makeSimCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, ctx), s.sp.length, SHAPE_VERTICES.length, 10);
   const gx = _dtCanvasToGameX(canvasX);
   const gy = _dtCanvasToGameY(canvasY);
@@ -467,7 +467,7 @@ function _dtShowGridTip(e, idx) {
   const si = s.so[idx];
   const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
   const coord = String.fromCharCode(65 + row) + (col + 1);
-  const _ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const _ctx = s.ctx || makeSimCtx(s.gl);
   const abm = calcAllBonusMultiWith(s.gl, _ctx.hasComp55, _ctx.hasComp0DivOk);
 
   let html = `<span style="color:var(--cyan);font-weight:700;font-size:1.1em">${coord}</span> `;
@@ -565,7 +565,7 @@ function _dtGridUp(idx) {
   const unlocked = _dtIsGridCellUnlocked(idx, s.gl);
   if (!unlocked || avail <= 0 || (s.gl[idx] || 0) >= info[1]) return;
   s.gl[idx] = (s.gl[idx] || 0) + 1;
-  s.ctx = makeCtx(s.gl, s.saveCtx);
+  s.ctx = makeSimCtx(s.gl);
   const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx);
   growMagPoolTyped(s.md, s.gl, s.rLv, newOwned);
   dtRecalcExpHr();
@@ -586,7 +586,7 @@ function _dtGridDown(idx) {
     }
   }
   s.gl[idx]--;
-  s.ctx = makeCtx(s.gl, s.saveCtx);
+  s.ctx = makeSimCtx(s.gl);
   const newOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx);
   while (s.md.length > newOwned) {
     const unIdx = s.md.findIndex(m => m.slot < 0);
@@ -634,7 +634,7 @@ function _dtBumpShapePlaceOrder(si) {
 export function dtRebuildOverlay() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const ctx = s.ctx || makeCtx(s.gl, s.saveCtx);
+  const ctx = s.ctx || makeSimCtx(s.gl);
   const numOwned = Math.min(computeShapesOwnedAt(s.rLv, ctx), s.sp.length, SHAPE_VERTICES.length, 10);
   const so = new Array(GRID_SIZE).fill(-1);
   // Iterate in placement order: first-placed shape wins overlapping cells

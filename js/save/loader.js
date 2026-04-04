@@ -3,31 +3,18 @@
 // Takes a parsed JSON object (it.json or save.json format) and populates
 // mutable state via assignState().  Does NOT perform any UI operations.
 
-import {  S, assignState  } from '../state.js';
+import {  saveData, assignState  } from '../state.js';
 import { assignSaveData } from './data.js';
-import { parseSaveKey, eventShopOwned } from './helpers.js';
-import { computeExternalBonuses, computeAFKGainsRate, mineheadBonusQTY } from './external.js';
+import { parseSaveKey } from './helpers.js';
+import { eventShopOwned, superBitType } from '../game-helpers.js';
+import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
 import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
-import { rogBonusQTY } from '../game-data.js';
-
-function computeMagnifiersOwned() {
-  const _eventShopStr = S.cachedEventShopStr;
-  const _mineFloor = S.stateR7[4] || 0;
-  const kaleiOwned = Math.round((S.gridLevels[72] || 0) + eventShopOwned(33, _eventShopStr));
-  const monoOwned = Math.round(S.gridLevels[91] || 0);
-  const lvBonus = Math.min(1, Math.floor(S.researchLevel / 10))
-    + Math.min(1, Math.floor(S.researchLevel / 100))
-    + Math.min(1, Math.floor(S.researchLevel / 130))
-    + Math.min(1, Math.floor(S.researchLevel / 140));
-  const comp153 = S.companionIds.has(153) ? 1 : 0;
-  const rog8 = rogBonusQTY(8, S.cachedUniqueSushi);
-  return Math.min(80, Math.round(
-    1 + kaleiOwned + monoOwned
-    + mineheadBonusQTY(2, _mineFloor) + mineheadBonusQTY(12, _mineFloor) + mineheadBonusQTY(20, _mineFloor)
-    + eventShopOwned(34, _eventShopStr)
-    + lvBonus + comp153 + rog8
-  ));
-}
+import { SceneNPCquestOrder } from '../stats/data/game/customlists.js';
+import { rogBonusQTY, computeUniqueSushi } from '../stats/systems/w7/sushi.js';
+import { stickerBase } from '../stats/data/w7/research.js';
+import { computeMagnifiersOwnedWith, magMaxForLevel } from '../sim-math.js';
+import resExpDesc from '../stats/defs/research-exp.js';
+import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 
 export function loadSaveData(raw) {
   const save = raw.data ? raw.data : raw;
@@ -187,6 +174,13 @@ export function loadSaveData(raw) {
     assignState({ companionIds: ids });
   }
 
+  // Per-character quest completion
+  const questComplete = [];
+  for (let ci = 0; ci < nChars; ci++) {
+    questComplete.push(parseSaveKey(save, 'QuestComplete_' + ci) || {});
+  }
+  assignState({ questCompleteData: questComplete });
+
   if (raw.extraData?.totalTomePoints != null) assignState({ totalTomePoints: raw.extraData.totalTomePoints });
   if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
   if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
@@ -211,28 +205,30 @@ export function loadSaveData(raw) {
   }
   assignState({ cachedResearchExp: bestExp });
 
-  assignState({ magMaxPerSlot: Math.min(4, Math.round(1 + Math.min(1, Math.floor(rLv / 40)) + Math.min(1, Math.floor(rLv / 70)) + Math.min(1, Math.floor(rLv / 120)))) });
+  assignState({ magMaxPerSlot: magMaxForLevel(rLv) });
   assignState({ cachedEventShopStr: String(olaRaw[311] || '') });
   assignState({ cachedSpelunkyUpg7: spelunkRaw?.[0]?.[7] || 0 });
   assignState({ cachedFailedRolls: Number(optionsRaw[514]) || 0 });
   assignState({ cachedComp0DivOk: (lv0All[0]?.[14] || 0) >= 2 });
 
-  // Compute unique sushi tiers (consecutive tiers with Sushi[5][tier] >= 0)
-  const sushiRaw = S.sushiData;
-  let uniqueSushi = 0;
-  if (Array.isArray(sushiRaw?.[5])) {
-    for (let i = 0; i < sushiRaw[5].length; i++) {
-      if ((Number(sushiRaw[5][i]) || 0) >= 0) uniqueSushi = i + 1;
-      else break;
-    }
-  }
+  const uniqueSushi = computeUniqueSushi(saveData.sushiData);
   assignState({ cachedUniqueSushi: uniqueSushi });
 
   // Sailing artifact 37 bonus (capped at 10) — flat grid PTS
-  const sailArt37 = Math.min(10, Math.round(Number(S.sailingData?.[3]?.[37]) || 0));
+  const sailArt37 = Math.min(10, Math.round(Number(saveData.sailingData?.[3]?.[37]) || 0));
   assignState({ cachedSailingArt37: sailArt37 });
 
-  assignState({ magnifiersOwned: computeMagnifiersOwned() });
+  const _eventShopStr = saveData.cachedEventShopStr;
+  const _mineFloor = saveData.stateR7[4] || 0;
+  assignState({ magnifiersOwned: computeMagnifiersOwnedWith(saveData.gridLevels, rLv, {
+    evShop33: eventShopOwned(33, _eventShopStr),
+    evShop34: eventShopOwned(34, _eventShopStr),
+    mhq2: mineheadBonusQTY(2, _mineFloor),
+    mhq12: mineheadBonusQTY(12, _mineFloor),
+    mhq20: mineheadBonusQTY(20, _mineFloor),
+    companionHas153: saveData.companionIds.has(153),
+    rog8: rogBonusQTY(8, uniqueSushi),
+  }) });
 
   // Parse magnifiers - game iterates ALL of Research[5] without truncation
   const magArr = [];
@@ -248,16 +244,50 @@ export function loadSaveData(raw) {
   }
   assignState({ shapePositions: spArr });
 
-  // Compute lab connectivity BFS (needed for MainframeBonus)
-  computeLabConnectivity();
+  // Compute total unique quests completed (TomeQTY[4])
+  let totalQC = 0;
+  for (let qi = 0; qi < SceneNPCquestOrder.length; qi++) {
+    const qName = SceneNPCquestOrder[qi];
+    for (let ci = 0; ci < questComplete.length; ci++) {
+      if (questComplete[ci][qName] === 1) { totalQC++; break; }
+    }
+  }
+  assignState({ totalQuestsComplete: totalQC });
 
-  // Compute external bonuses (also sets cachedStickerFixed, cachedExtPctExSticker, etc.)
-  const eb = computeExternalBonuses();
-  assignState({ extBonuses: eb });
-  assignState({ externalResearchPct: eb._total });
-  assignState({ comp52TrueMulti: (1 + (eb._comp52?.val || 0)) * (1 + (eb._comp153?.val || 0)) });
-  assignState({ allBonusMulti: eb._allMulti?.val || 1 });
-  assignSaveData({ cachedAFKRate: computeAFKGainsRate() });
+  // Compute lab connectivity BFS (needed for MainframeBonus)
+  assignState(computeLabConnectivity());
+
+  recomputeDerivedBonuses();
 
   assignSaveData({ loadedSaveFormat: raw.data ? 'it.json' : 'save.json' });
+}
+
+/** Recompute allBonusMulti, sticker, research-exp, comp52, AFK rate from current saveData. */
+export function recomputeDerivedBonuses() {
+  const _comp55val = saveData.companionIds.has(55) ? 15 : 0;
+  const _comp0val = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
+  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val) / 100 });
+
+  const stkLv = saveData.research?.[9]?.[1] || 0;
+  const stkBase = stickerBase(1) || 5;
+  const stkSuperbit62 = 1 + 20 * superBitType(62, saveData.gamingData[12]) / 100;
+  assignState({
+    cachedStickerFixed: stkSuperbit62 * stkLv * stkBase,
+    cachedBoonyCount: saveData.research?.[11]?.length || 0,
+    cachedEvShop37: eventShopOwned(37, saveData.cachedEventShopStr),
+  });
+
+  const rexp = resExpDesc.combine({}, { saveData });
+  let _stickerVal = 0;
+  if (rexp.children) {
+    for (let i = 0; i < rexp.children.length; i++) {
+      if (rexp.children[i].name === 'Sticker Bonus') { _stickerVal = rexp.children[i].val; break; }
+    }
+  }
+  assignState({
+    externalResearchPct: rexp.val,
+    cachedExtPctExSticker: rexp.val - _stickerVal,
+    comp52TrueMulti: (1 + (saveData.companionIds.has(52) ? 0.5 : 0)) * (1 + (saveData.companionIds.has(153) ? 1 : 0)),
+  });
+  assignSaveData({ cachedAFKRate: afkGainsDesc.combine({}, { saveData }) });
 }

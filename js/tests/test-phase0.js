@@ -4,15 +4,19 @@
 import { GRID_COLS, GRID_ROWS, GRID_SIZE, RES_GRID_RAW, OCC_DATA,
          SHAPE_VERTICES, SHAPE_DIMS, SHAPE_BONUS_PCT, SHAPE_NAMES, SHAPE_COLORS,
          NODE_GOAL, NODE_GOAL_COLORS, N2L,
-         MINEHEAD_BONUS_QTY, STICKER_BASE, DANCING_CORAL_BASE,
-         CARD_BASE_REQ, ARENA_THRESHOLDS, GODS_TYPE,
-         SUMMON_ENDLESS_TYPE, SUMMON_ENDLESS_VAL, SUMMON_NORMAL_BONUS,
-         DN_MOB_DATA, EMPEROR_BON_VAL_BY_TYPE, EMPEROR_BON_TYPE, EMPEROR_SET_BONUS_VAL,
-         MERITOC_BASE, LEGEND_TALENT_PER_PT, ARCADE_SHOP, ARCANE_FLAT_SET,
-         HOLES_MEAS_BASE, HOLES_MEAS_TYPE, HOLES_BOLAIA_PER_LV, HOLES_MON_BONUS,
-         HOLES_JAR_BONUS_PER_LV, COSMO_UPG_BASE, ARTIFACT_BASE, GODSHARD_SET_BONUS,
-         LAB_BONUS_BASE, LAB_BONUS_DYNAMIC, JEWEL_DESC,
        } from '../game-data.js';
+import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
+import { CARD_BASE_REQ } from '../stats/data/common/cards.js';
+import { SUMMON_ENDLESS_TYPE, SUMMON_ENDLESS_VAL, SUMMON_NORMAL_BONUS } from '../stats/data/w7/summon.js';
+import { DN_MOB_DATA } from '../stats/data/w7/deathNote.js';
+import { EMPEROR_SET_BONUS_VAL } from '../stats/data/common/emperor.js';
+import { MERITOC_BASE } from '../stats/data/w7/meritoc.js';
+import { legendTalentPerPt } from '../stats/data/w7/legendTalent.js';
+import { arcadeShopParams } from '../stats/data/w2/arcade.js';
+import { HOLES_JAR_BONUS_PER_LV, cosmoUpgBase } from '../stats/data/w5/hole.js';
+import { artifactBase } from '../stats/data/w5/sailing.js';
+import { equipSetBonus } from '../stats/data/common/equipment.js';
+import { LAB_BONUS_BASE, LAB_BONUS_DYNAMIC, JEWEL_DESC } from '../stats/data/w4/lab.js';
 
 import { cloneSimState } from '../sim-state.js';
 import { gbWith, buildKalMap, OBS_BASE_EXP, obsBaseExp, insightExpReqAt,
@@ -33,7 +37,7 @@ import { enumKalMags, growMagPoolTyped } from '../optimizers/mags.js';
 import { fmtTime, fmtExp, fmtVal, fmtExact } from '../renderers/format.js';
 
 import {
-  S, assignState, restoreState,
+  saveData, assignState, restoreState,
 } from '../state.js';
 
 let pass = 0, fail = 0;
@@ -50,7 +54,7 @@ function approx(a, b, tol, label) {
 eq(GRID_COLS, 20, 'GRID_COLS');
 eq(GRID_ROWS, 12, 'GRID_ROWS');
 eq(GRID_SIZE, 240, 'GRID_SIZE');
-eq(Object.keys(RES_GRID_RAW).length, 48, 'RES_GRID_RAW count');
+eq(Object.keys(RES_GRID_RAW).length, 51, 'RES_GRID_RAW count');
 eq(OCC_DATA.length, 43, 'OCC_DATA count');
 eq(OCC_DATA[0].name, 'Bored_Tree', 'OCC_DATA[0].name');
 eq(OCC_DATA[42].name, 'Happy_Tree', 'OCC_DATA[42].name');
@@ -62,7 +66,7 @@ eq(N2L.length, 157, 'N2L length');
 eq(LAB_BONUS_BASE.length, 14, 'LAB_BONUS_BASE count');
 eq(LAB_BONUS_DYNAMIC.length, 4, 'LAB_BONUS_DYNAMIC count');
 eq(JEWEL_DESC.length, 24, 'JEWEL_DESC count');
-eq(GODSHARD_SET_BONUS, 15, 'GODSHARD_SET_BONUS');
+eq(equipSetBonus('GODSHARD_SET'), 15, 'equipSetBonus(GODSHARD_SET)');
 
 // --- sim-state.js ---
 const testState = { gl:[0,1,2], so:[-1,0,1], md:[{type:0,slot:1,x:5,y:10}],
@@ -308,29 +312,29 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
 // --- state.js: assignState / restoreState round-trip ---
 {
   // Save original state
-  const origRL = S.researchLevel;
-  const origMag = S.magnifiersOwned;
-  const origGL = S.gridLevels.slice();
-  const origComp = new Set(S.companionIds);
-  const origTiersAbove = S.shapeTiers.above.slice();
+  const origRL = saveData.researchLevel;
+  const origMag = saveData.magnifiersOwned;
+  const origGL = saveData.gridLevels.slice();
+  const origComp = new Set(saveData.companionIds);
+  const origTiersAbove = saveData.shapeTiers.above.slice();
 
   // assignState partial update
   assignState({ researchLevel: 42, magnifiersOwned: 99 });
-  eq(S.researchLevel, 42, 'assignState: researchLevel set');
-  eq(S.magnifiersOwned, 99, 'assignState: magnifiersOwned set');
+  eq(saveData.researchLevel, 42, 'assignState: researchLevel set');
+  eq(saveData.magnifiersOwned, 99, 'assignState: magnifiersOwned set');
   // Untouched fields remain unchanged
-  eq(S.gridLevels, origGL, 'assignState: gridLevels untouched');
+  eq(saveData.gridLevels, origGL, 'assignState: gridLevels untouched');
 
   // assignState with Set (companionIds)
   assignState({ companionIds: [10, 20, 30] });
-  eq(S.companionIds instanceof Set, true, 'assignState: companionIds is Set');
-  eq(S.companionIds.size, 3, 'assignState: companionIds size');
-  eq(S.companionIds.has(20), true, 'assignState: companionIds has 20');
+  eq(saveData.companionIds instanceof Set, true, 'assignState: companionIds is Set');
+  eq(saveData.companionIds.size, 3, 'assignState: companionIds size');
+  eq(saveData.companionIds.has(20), true, 'assignState: companionIds has 20');
 
   // assignState with shapeTiers (special .above/.below)
   assignState({ shapeTiers: { above: [1, 2], below: [3] } });
-  eq(S.shapeTiers.above, [1, 2], 'assignState: shapeTiers.above');
-  eq(S.shapeTiers.below, [3], 'assignState: shapeTiers.below');
+  eq(saveData.shapeTiers.above, [1, 2], 'assignState: shapeTiers.above');
+  eq(saveData.shapeTiers.below, [3], 'assignState: shapeTiers.below');
 
   // restoreState with full snapshot round-trip
   restoreState({
@@ -340,17 +344,17 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
     comp52TrueMulti: 1, allBonusMulti: 1, magnifiersOwned: 15,
     companionIds: [55], shapeTiers: { above: [1], below: [2] },
   });
-  eq(S.researchLevel, 7, 'restoreState: researchLevel from data');
-  eq(S.magnifiersOwned, 15, 'restoreState: magnifiersOwned from data');
-  eq(S.gridLevels[0], 5, 'restoreState: gridLevels[0]');
-  eq(S.gridLevels[1], 10, 'restoreState: gridLevels[1]');
-  eq(S.companionIds.has(55), true, 'restoreState: companionIds has 55');
-  eq(S.shapeTiers.above[0], 1, 'restoreState: shapeTiers.above');
-  eq(S.shapeTiers.below[0], 2, 'restoreState: shapeTiers.below');
+  eq(saveData.researchLevel, 7, 'restoreState: researchLevel from data');
+  eq(saveData.magnifiersOwned, 15, 'restoreState: magnifiersOwned from data');
+  eq(saveData.gridLevels[0], 5, 'restoreState: gridLevels[0]');
+  eq(saveData.gridLevels[1], 10, 'restoreState: gridLevels[1]');
+  eq(saveData.companionIds.has(55), true, 'restoreState: companionIds has 55');
+  eq(saveData.shapeTiers.above[0], 1, 'restoreState: shapeTiers.above');
+  eq(saveData.shapeTiers.below[0], 2, 'restoreState: shapeTiers.below');
 
-  // Live binding: assignState changes are visible through S object
+  // Live binding: assignState changes are visible through saveData object
   assignState({ researchLevel: 123 });
-  eq(S.researchLevel, 123, 'live binding: researchLevel reflects assignState');
+  eq(saveData.researchLevel, 123, 'live binding: researchLevel reflects assignState');
 
   // Restore original state to not affect other tests
   restoreState({
@@ -358,7 +362,7 @@ eq(fmtExact(123456.7), '123,457', 'fmtExact rounding');
     magnifiersOwned: origMag,
     gridLevels: origGL,
     companionIds: Array.from(origComp),
-    shapeTiers: { above: origTiersAbove, below: S.shapeTiers.below }
+    shapeTiers: { above: origTiersAbove, below: saveData.shapeTiers.below }
   });
 }
 

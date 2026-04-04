@@ -1,11 +1,13 @@
 // Minehead tab - Dashboard, Optimize, Rank, Path, and Play subtabs.
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { gbWith } from '../sim-math.js';
-import { computeMineheadCurrSources } from '../save/external.js';
-import { renderBreakdownTree, _bNode, _gbNode } from './dash-breakdowns.js';
+import { computeMineheadCurrSources } from '../stats/systems/w7/minehead.js';
+import { renderBreakdownTree } from './dash-breakdowns.js';
+import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { hideTooltip, moveTooltip } from './tooltip.js';
-import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES, rogBonusQTY } from '../game-data.js';
-import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../minehead/game-data.js';
+import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
+import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
+import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../stats/data/w7/minehead.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
   maxHPYou, floorHP, minesOnFloor, baseDMG, bonusDMGperTilePCT,
@@ -13,9 +15,10 @@ import {
   dailyTries, currencyPerHour, canBuyUpg,
   goldTilesTotal, blocksTotal, instaRevealsTotal, currentOutgoingDMG,
   WIGGLE_CHANCE, wiggleMaxPerGame,
-} from '../minehead/formulas.js';
+} from '../stats/systems/w7/minehead.js';
 import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
 import { inferStrategy, analyzeSpatial } from '../minehead/strategy-inferrer.js';
+import { fmtNum as _fmt } from '../renderers/format.js';
 
 let PLAY_RIGGED = false;
 
@@ -122,10 +125,10 @@ function _renderDashboard() {
   const container = document.getElementById('mh-dashboard');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const mineCurrency = S.stateR7?.[5] || 0;
-  const highestDmg = S.stateR7?.[6] || 0;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const mineCurrency = saveData.stateR7?.[5] || 0;
+  const highestDmg = saveData.stateR7?.[6] || 0;
 
   // Summary cards
   const gridExp = lvs[2] || 0;
@@ -133,16 +136,16 @@ function _renderDashboard() {
   const tiles = totalTiles(gridExp);
   const mines = minesOnFloor(floor);
   const lives = maxHPYou(lvs);
-  const svarHP = S.serverVarMineHP || 1;
-  const svarCost = S.serverVarMineCost || 1;
+  const svarHP = saveData.serverVarMineHP || 1;
+  const svarCost = saveData.serverVarMineCost || 1;
   const hp = floorHP(floor, svarHP);
   const tries = dailyTries(0);
 
   // Grid / sailing / RoG helpers used by both damage and currency
-  const _gbCtx = { abm: S.allBonusMulti || 1 };
-  const _gb = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtx);
-  const sail38 = Number(S.sailingData?.[3]?.[38]) || 0;
-  const uniqueSushi = S.cachedUniqueSushi || 0;
+  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
+  const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
+  const sail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
+  const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const gb167 = _gb(167);
   const base = baseDMG(lvs, gb167, sail38);
   const gb129 = _gb(129);
@@ -159,7 +162,7 @@ function _renderDashboard() {
     rogBonus12: rogB12,
     upgLevels: lvs, highestDmg,
   });
-  const rLv = S.researchLevel || 0;
+  const rLv = saveData.researchLevel || 0;
   let nextUpgReq = Infinity;
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
     const req = upgLvReq(i);
@@ -209,7 +212,7 @@ function _renderDashboard() {
             const reqLv = upgLvReq(i);
             const maxed = u.maxLv <= 998 && lv >= u.maxLv;
             const infinite = u.maxLv > 998;
-            const locked = (S.researchLevel || 0) < reqLv;
+            const locked = (saveData.researchLevel || 0) < reqLv;
             const hidden = locked && reqLv > nextUpgReq;
             const lvStr = maxed ? `${lv}/${u.maxLv} MAX` : infinite ? `${lv}` : `${lv}/${u.maxLv}`;
             const desc = _fmtUpgDesc(i, lv, qty, lvs, highestDmg);
@@ -268,7 +271,7 @@ function _renderDashboard() {
   document.getElementById('mh-svar-cost').addEventListener('change', (e) => {
     const v = Math.max(1, parseFloat(e.target.value) || 1);
     e.target.value = v;
-    S.serverVarMineCost = v;
+    saveData.serverVarMineCost = v;
     _renderDashboard();
   });
 
@@ -284,18 +287,18 @@ function _renderCurrencyTab() {
   const container = document.getElementById('mh-currency');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const highestDmg = S.stateR7?.[6] || 0;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const highestDmg = saveData.stateR7?.[6] || 0;
 
-  const _gbCtx = { abm: S.allBonusMulti || 1 };
-  const _gb = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtx);
+  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
+  const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
   const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
-  const uniqueSushi = S.cachedUniqueSushi || 0;
+  const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const rogB12 = rogBonusQTY(12, uniqueSushi);
   const mhSrc = computeMineheadCurrSources();
   const cph = currencyPerHour({
@@ -332,10 +335,10 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
 
   // Grid 129 (base) — flat value, not a percentage; build manually
   const info129 = RES_GRID_RAW[129];
-  const lv129 = S.gridLevels[129] || 0;
+  const lv129 = saveData.gridLevels[129] || 0;
   const bpLv129 = info129[2];
   const base129 = bpLv129 * lv129;
-  const si129 = S.shapeOverlay[129];
+  const si129 = saveData.shapeOverlay[129];
   const hasShape129 = si129 >= 0 && si129 < SHAPE_BONUS_PCT.length;
   const shapeMult129 = 1 + (hasShape129 ? SHAPE_BONUS_PCT[si129] : 0) / 100;
   const gb129node = _bNode('Grid ' + gridCoord(129) + ': ' + info129[0].replace(/_/g, ' '), gb129, [
@@ -344,11 +347,11 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
       _bNode('Level', lv129, null, { fmt: 'x' }),
     ]),
     _bNode('Shape' + (hasShape129 ? ' (' + SHAPE_NAMES[si129] + ')' : ''), shapeMult129, null, { fmt: 'x', note: hasShape129 ? '' : 'No shape' }),
-    _bNode('All Bonus Multi', S.allBonusMulti, null, { fmt: 'x' }),
+    _bNode('All Bonus Multi', saveData.allBonusMulti, null, { fmt: 'x' }),
   ], { fmt: '/hr' });
 
   // Grid 148 — percentage multiplier; use _gbNode for full decomposition
-  const gb148node = _gbNode(148, 'Grid ' + gridCoord(148) + ': ' + RES_GRID_RAW[148][0].replace(/_/g, ' '));
+  const gb148node = _gbNodeS(saveData, 148, 'Grid ' + gridCoord(148) + ': ' + RES_GRID_RAW[148][0].replace(/_/g, ' '));
   gb148node.val = 1 + gb148 / 100;
   gb148node.fmt = 'x';
   if (gb148node.children?.[0]) gb148node.children[0].label = 'Base';
@@ -372,7 +375,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   });
 
   // Grid 147 + Meal additive group
-  const gb147node = _gbNode(147, 'Grid ' + gridCoord(147) + ': ' + RES_GRID_RAW[147][0].replace(/_/g, ' '));
+  const gb147node = _gbNodeS(saveData, 147, 'Grid ' + gridCoord(147) + ': ' + RES_GRID_RAW[147][0].replace(/_/g, ' '));
   gb147node.fmt = '%';
   if (gb147node.children?.[0]) gb147node.children[0].label = 'Base';
 
@@ -394,7 +397,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     fmt: '%', note: mhSrc.mealLv > 0 ? '' : 'Meal 73 not leveled',
   });
 
-  const gb166node = _gbNode(166, 'Grid ' + gridCoord(166) + ': ' + RES_GRID_RAW[166][0].replace(/_/g, ' '));
+  const gb166node = _gbNodeS(saveData, 166, 'Grid ' + gridCoord(166) + ': ' + RES_GRID_RAW[166][0].replace(/_/g, ' '));
   gb166node.fmt = '%';
   if (gb166node.children?.[0]) gb166node.children[0].label = 'Base';
 
@@ -428,9 +431,9 @@ function _renderOptimize() {
   const container = document.getElementById('mh-optimize');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const svarHP = S.serverVarMineHP || 1;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const svarHP = saveData.serverVarMineHP || 1;
   const hp = floorHP(floor, svarHP);
   const mines = minesOnFloor(floor);
 
@@ -541,9 +544,9 @@ function _renderRankTab() {
   const container = document.getElementById('mh-rank');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const svarHP = S.serverVarMineHP || 1;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const svarHP = saveData.serverVarMineHP || 1;
 
   container.innerHTML = `
     <div style="margin-bottom:16px;">
@@ -584,9 +587,9 @@ function _renderPathTab() {
   const container = document.getElementById('mh-path');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const svarHP = S.serverVarMineHP || 1;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const svarHP = saveData.serverVarMineHP || 1;
 
   container.innerHTML = `
     <div style="margin-bottom:16px;">
@@ -1069,8 +1072,8 @@ function _showOptResults(cache) {
   // "Your Strategy" comparison row
   const _infP = _getInferredParams();
   let _infR = null;
-  const _infLvs = cache.upgLevels || S.mineheadUpgLevels;
-  const _infSvar = cache.svarHP || S.serverVarMineHP || 1;
+  const _infLvs = cache.upgLevels || saveData.mineheadUpgLevels;
+  const _infSvar = cache.svarHP || saveData.serverVarMineHP || 1;
   if (_infP && _infLvs) {
     _infR = evaluateTunableParams({
       params: _infP, floor: cache.floor,
@@ -1175,12 +1178,12 @@ function _runUpgradeRank(lvs, floor, svarHP) {
 
   const nTrials = _rankTrials;
   const seed = 42 + floor;
-  const mineCurrency = S.stateR7?.[5] || 0;
+  const mineCurrency = saveData.stateR7?.[5] || 0;
   const qty26 = upgradeQTY(26, lvs[26] || 0);
   const stratEl = document.getElementById('mh-rank-strat');
   const params = (stratEl?.value === 'yours' && _getInferredParams()) || _getParams(floor);
 
-  const researchLv = S.researchLevel || 0;
+  const researchLv = saveData.researchLevel || 0;
   const affordable = [];
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
     const lv = lvs[i] || 0;
@@ -1253,9 +1256,9 @@ function _onRankComplete(results, affordable, floor, nTrials, lvs) {
   if (_rankWorkers) { for (const w of _rankWorkers) w.terminate(); _rankWorkers = null; }
 
   const qty26 = upgradeQTY(26, lvs[26] || 0);
-  const mineCurrency = S.stateR7?.[5] || 0;
-  const svarHP = S.serverVarMineHP || 1;
-  const svarCost = S.serverVarMineCost || 1;
+  const mineCurrency = saveData.stateR7?.[5] || 0;
+  const svarHP = saveData.serverVarMineHP || 1;
+  const svarCost = saveData.serverVarMineCost || 1;
   const baseline = results['base'];
   const upgrades = affordable.map(idx => {
     const r = results[`upg${idx}`];
@@ -1383,9 +1386,9 @@ function _runUpgradePath(lvs, floor, svarHP) {
   const nTrials = 2000;
   const seed = 42 + floor;
   const maxSteps = 50;
-  const researchLv = S.researchLevel || 0;
+  const researchLv = saveData.researchLevel || 0;
   const hp = floorHP(floor, svarHP);
-  const mineCurrency = S.stateR7?.[5] || 0;
+  const mineCurrency = saveData.stateR7?.[5] || 0;
 
   const currentLvs = [...lvs];
   const path = [];
@@ -1435,7 +1438,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
   // Find candidates for this step
   const candidates = [];
   const qty26 = upgradeQTY(26, currentLvs[26] || 0);
-  const svarCost = S.serverVarMineCost || 1;
+  const svarCost = saveData.serverVarMineCost || 1;
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
     const lv = currentLvs[i] || 0;
     const max = MINEHEAD_UPG[i].maxLv;
@@ -1462,7 +1465,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
     if (done === totalCands) {
       // Pick best candidate by cost efficiency (dmg increase per currency)
       let bestIdx = -1, bestScore = -Infinity, bestResult = null, bestCost = 0;
-      const svarCostLocal = S.serverVarMineCost || 1;
+      const svarCostLocal = saveData.serverVarMineCost || 1;
       const prevDmg = path.length > 0 ? path[path.length - 1].result.avgDmg : (baseline?.avgDmg || 0);
       for (const idx of candidates) {
         const r = candResults[`path_s${step}_u${idx}`];
@@ -1584,9 +1587,9 @@ function _renderPlayfield() {
   const container = document.getElementById('mh-play');
   if (!container) return;
 
-  const lvs = S.mineheadUpgLevels || [];
-  const floor = S.stateR7?.[4] || 0;
-  const svarHP = S.serverVarMineHP || 1;
+  const lvs = saveData.mineheadUpgLevels || [];
+  const floor = saveData.stateR7?.[4] || 0;
+  const svarHP = saveData.serverVarMineHP || 1;
   const { cols, rows } = gridDims(lvs[2]);
   const numTiles = cols * rows;
   const mines = minesOnFloor(floor);
@@ -1635,16 +1638,16 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   const instaBtn = document.getElementById('mh-p-insta');
   const newBtn = document.getElementById('mh-p-new');
 
-  const _gbCtxPlay = { abm: S.allBonusMulti || 1 };
-  const _gbPlay = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtxPlay);
+  const _gbCtxPlay = { abm: saveData.allBonusMulti || 1 };
+  const _gbPlay = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtxPlay);
   const gridBonus167 = _gbPlay(167);
   const gridBonus146 = _gbPlay(146);
   const wepPowDmgPCT = 0;
-  const playSail38 = Number(S.sailingData?.[3]?.[38]) || 0;
+  const playSail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
 
   // Wiggle (G5 research: Minehead_Copium, grid 166)
-  const _gbCtx = { abm: S.allBonusMulti || 1 };
-  const _gb166_1 = S.gridLevels?.[166] || 0; // mode 1 = level
+  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
+  const _gb166_1 = saveData.gridLevels?.[166] || 0; // mode 1 = level
   const maxWiggles = wiggleMaxPerGame(_gb166_1);
 
   let _rng = _makeRng();
@@ -2210,21 +2213,4 @@ function _fmtUpgDesc(i, lv, qty, lvs, highestDmg) {
   }
 
   return d;
-}
-
-function _fmt(n) {
-  if (n === 0) return '0';
-  if (typeof n !== 'number' || !isFinite(n)) return String(n);
-  const a = Math.abs(n);
-  if (a >= 1e24) return n.toExponential(2);
-  if (a >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
-  if (a >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
-  if (a >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-  if (a >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
-  if (a >= 100) return Math.round(n).toLocaleString();
-  if (Number.isInteger(n)) return String(n);
-  return n.toFixed(2);
 }

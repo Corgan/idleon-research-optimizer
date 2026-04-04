@@ -15,9 +15,9 @@ import { computeCellValues, optimizeShapePlacement } from '../optimizers/shapes.
 import { gbWith, buildKalMap, obsBaseExp, computeOccurrencesToBeFound,
          simTotalExpWith, getKaleiMultiBase, calcAllBonusMultiWith,
        } from '../sim-math.js';
-import { buildSaveContext, makeCtx } from '../save/context.js';
+import { buildSaveContext, makeSimCtx } from '../save/context.js';
 import { loadSaveData } from '../save/loader.js';
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
@@ -249,21 +249,21 @@ console.log('\nLoading save it.json...');
 {
   const raw = await readFile(resolve(SAVES_DIR, 'it.json'), 'utf8');
   loadSaveData(JSON.parse(raw));
-  console.log(`  S.researchLevel=${S.researchLevel}, S.magnifiersOwned=${S.magnifiersOwned}`);
+  console.log(`  saveData.researchLevel=${saveData.researchLevel}, saveData.magnifiersOwned=${saveData.magnifiersOwned}`);
 
   const saveCtx = buildSaveContext();
-  const ctx = makeCtx(S.gridLevels, saveCtx);
+  const ctx = makeSimCtx(saveData.gridLevels);
 
   // --- computeCellValues ---
   console.log('\n--- computeCellValues ---');
   {
     const simOpts = {
       saveCtx,
-      gridLevels: S.gridLevels,
+      gridLevels: saveData.gridLevels,
       magData: saveCtx.magData,
       insightLvs: saveCtx.insightLvs,
       occFound: saveCtx.occFound,
-      researchLevel: S.researchLevel,
+      researchLevel: saveData.researchLevel,
     };
     const cv = computeCellValues(simOpts);
     eq(cv.length, GRID_SIZE, 'computeCellValues: returns 240 values');
@@ -279,7 +279,7 @@ console.log('\nLoading save it.json...');
     // At least some grid nodes with level > 0 should have >0 cell values
     let hasPositive = false;
     for (const idx of GRID_INDICES) {
-      if ((S.gridLevels[idx] || 0) > 0 && cv[idx] > 0) { hasPositive = true; break; }
+      if ((saveData.gridLevels[idx] || 0) > 0 && cv[idx] > 0) { hasPositive = true; break; }
     }
     ok(hasPositive, 'computeCellValues: some owned grid nodes have positive value');
   }
@@ -289,12 +289,12 @@ console.log('\nLoading save it.json...');
   {
     const simOpts = {
       saveCtx,
-      gridLevels: S.gridLevels,
+      gridLevels: saveData.gridLevels,
       shapeOverlay: saveCtx.shapeOverlay,
       magData: saveCtx.magData,
       insightLvs: saveCtx.insightLvs,
       occFound: saveCtx.occFound,
-      researchLevel: S.researchLevel,
+      researchLevel: saveData.researchLevel,
     };
     const result = optimizeShapePlacement(simOpts);
     ok(result.placements !== undefined, 'optimizeShapePlacement: has placements');
@@ -344,8 +344,8 @@ console.log('\nLoading save it.json...');
   console.log('\n--- evalMagScoreWith (real data) ---');
   {
     const score = evalMagScoreWith(
-      saveCtx.magData, S.gridLevels, saveCtx.shapeOverlay,
-      saveCtx.insightLvs, saveCtx.occFound, S.researchLevel, ctx
+      saveCtx.magData, saveData.gridLevels, saveCtx.shapeOverlay,
+      saveCtx.insightLvs, saveCtx.occFound, saveData.researchLevel, ctx
     );
     ok(score > 0, 'evalMagScoreWith(real data): positive score');
     ok(typeof score === 'number' && isFinite(score), 'evalMagScoreWith(real data): finite number');

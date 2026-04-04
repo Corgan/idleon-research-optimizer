@@ -4,20 +4,17 @@
 // Applies Seraph_Cosmos multiplier: chipMulti × meritocMulti × seraphMulti.
 
 import { node } from '../../node.js';
-import { S } from '../../../state.js';
+import { label } from '../../entity-names.js';
+import { saveData } from '../../../state.js';
 import { labData } from '../../../save/data.js';
-import { STAR_SIGNS_DROP } from '../../../game-data.js';
+import { starSignDropVal } from '../../data/common/starSign.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 
-// Map bonus type → sign lookup table
+// Map bonus type → sign indices and accessor
 var SIGN_TABLES = {
-  drop: STAR_SIGNS_DROP,
+  drop: { indices: [14, 76], val: starSignDropVal },
 };
 
-var SIGN_NAMES = {
-  14: 'Pirate Booty',
-  76: 'Druipi Major',
-};
 
 // Silkrode Nanochip = chip ID 15, key "star", value 1
 var STAR_CHIP_ID = 15;
@@ -30,11 +27,11 @@ var STAR_CHIP_ID = 15;
  * @returns {number} total multiplier (>= 1)
  */
 export function computeSeraphMulti(charIdx) {
-  if (!S.starSignsUnlocked || !('Seraph_Cosmos' in S.starSignsUnlocked)) return 1;
+  if (!saveData.starSignsUnlocked || !('Seraph_Cosmos' in saveData.starSignsUnlocked)) return 1;
 
-  var arcane40 = Number(S.arcaneData && S.arcaneData[40]) || 0;
+  var arcane40 = Number(saveData.arcaneData && saveData.arcaneData[40]) || 0;
   // Summoning level = Lv0[18] for current char (game uses Lv0, not SL_)
-  var lv0 = S.lv0AllData && S.lv0AllData[charIdx];
+  var lv0 = saveData.lv0AllData && saveData.lv0AllData[charIdx];
   var summonLv = Number(lv0 && lv0[18]) || 0;
   var seraphBase = 1.1 + Math.min(arcane40, 10) / 100;
   var seraphExp = Math.ceil((summonLv + 1) / 20);
@@ -50,7 +47,7 @@ export function computeSeraphMulti(charIdx) {
   }
   // enabledStarSigns: rift[0]>=10 → at least 5; else 0
   // chipMulti = max(1, min(2, 1 + chipBon * floor((999+enabled)/1000)))
-  var riftLv = Number(S.riftData && S.riftData[0]) || 0;
+  var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
   var enabledSS = riftLv >= 10 ? 5 : 0; // base 5; ShinyBonusS(3) adds more but floor((999+5)/1000)=1 already
   var chipMulti = (hasStarChip && enabledSS >= 1) ? Math.max(1, Math.min(2, 2)) : 1;
 
@@ -63,17 +60,18 @@ export function computeSeraphMulti(charIdx) {
 
 export var starSign = {
   resolve: function(id, ctx) {
+    var saveData = ctx.saveData;
     // id = bonus type like 'drop'
     var table = SIGN_TABLES[id];
     if (!table) return node('Star Signs', 0, null, { note: 'starSign:' + id });
     // All star signs are active — sum every sign in the table.
     var baseTotal = 0;
     var signChildren = [];
-    var keys = Object.keys(table);
-    for (var i = 0; i < keys.length; i++) {
-      var idx = parseInt(keys[i]);
-      var bonus = table[keys[i]];
-      var name = SIGN_NAMES[idx] || 'Sign #' + idx;
+    var indices = table.indices;
+    for (var i = 0; i < indices.length; i++) {
+      var idx = indices[i];
+      var bonus = table.val(idx);
+      var name = label('Star Sign', idx);
       signChildren.push(node(name, bonus, null, { fmt: '+' }));
       baseTotal += bonus;
     }
@@ -83,8 +81,8 @@ export var starSign = {
     var totalMulti = computeSeraphMulti(ctx.charIdx);
 
     // Extract components for display
-    var arcane40 = Number(S.arcaneData && S.arcaneData[40]) || 0;
-    var lv0 = S.lv0AllData && S.lv0AllData[ctx.charIdx];
+    var arcane40 = Number(saveData.arcaneData && saveData.arcaneData[40]) || 0;
+    var lv0 = saveData.lv0AllData && saveData.lv0AllData[ctx.charIdx];
     var summonLv = Number(lv0 && lv0[18]) || 0;
     var seraphBase = 1.1 + Math.min(arcane40, 10) / 100;
     var seraphPow = Math.ceil((summonLv + 1) / 20);
@@ -98,7 +96,7 @@ export var starSign = {
     var hasStarChip = false;
     var chipSlots = labData && labData[1 + ctx.charIdx];
     if (chipSlots) { for (var c = 0; c < 7; c++) { if (Number(chipSlots[c]) === STAR_CHIP_ID) { hasStarChip = true; break; } } }
-    var riftLv = Number(S.riftData && S.riftData[0]) || 0;
+    var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
     var chipMulti = (hasStarChip && riftLv >= 10) ? 2 : 1;
     var meritoc22 = computeMeritocBonusz(22);
     var meritocMulti = 1 + meritoc22 / 100;

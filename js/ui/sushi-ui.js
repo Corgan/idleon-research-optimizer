@@ -1,18 +1,21 @@
 // ===== SUSHI STATION TAB =====
 // Overview, Upgrades, Currency/hr, Best Upgrade, Sushi.
 
-import { S } from '../state.js';
-import { rogBonusQTY, ROG_BONUS_QTY, MINEHEAD_BONUS_QTY } from '../game-data.js';
+import { saveData } from '../state.js';
+import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { gbWith } from '../sim-math.js';
-import { renderBreakdownTree, _bNode } from './dash-breakdowns.js';
+import { renderBreakdownTree } from './dash-breakdowns.js';
+import { _bNode } from '../stats/node-helpers.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
-import { superBitType } from '../save/helpers.js';
+import { fmtNum as _fmt } from '../renderers/format.js';
+import { superBitType } from '../game-helpers.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
-  KNOWLEDGE_CAT_DESC, KNOWLEDGE_CAT_VALUE, ROG_DESC, ROG_VALUES,
-  MAX_TIER, MAX_SLOTS, currencyPerTier, fuelCostPerTier,
-} from '../sushi/game-data.js';
+  KNOWLEDGE_CAT_DESC, KNOWLEDGE_CAT_VALUE, ROG_DESC, ROG_BONUS_QTY as ROG_VALUES,
+  MAX_TIER, MAX_SLOTS,
+} from '../stats/data/w7/sushi.js';
 import {
+  rogBonusQTY, currencyPerTier, fuelCostPerTier,
   upgLvReq, upgradeQTY, upgCost, slotUpgIdx,
   knowledgeBonusSpecific, knowledgeBonusTotals,
   fuelGenPerHr, fuelCapacity,
@@ -22,7 +25,7 @@ import {
   maxCookTier, freeShakerChance, saffronHrs,
   perfectoOdds, knowledgeXPReq, knowledgeXPBase, knowledgeXPMulti,
   fireplaceEffectByType,
-} from '../sushi/formulas.js';
+} from '../stats/systems/w7/sushi.js';
 
 let _activeSubtab = 'su-overview';
 let _showSpoilerUpg = false;
@@ -72,7 +75,7 @@ function _renderActiveSubtab() {
 // ===== HELPERS =====
 
 function _getSushiData() {
-  return S.sushiData || [];
+  return saveData.sushiData || [];
 }
 
 function _getUpgLevels() {
@@ -80,7 +83,7 @@ function _getUpgLevels() {
 }
 
 function _getUniqueSushi() {
-  return S.cachedUniqueSushi || 0;
+  return saveData.cachedUniqueSushi || 0;
 }
 
 function _getKnowledgeTotals() {
@@ -88,36 +91,19 @@ function _getKnowledgeTotals() {
 }
 
 function _getExternalSources() {
-  const _gbCtx = { abm: S.allBonusMulti || 1 };
-  const _gb = idx => gbWith(S.gridLevels, S.shapeOverlay, idx, _gbCtx);
-  const mineFloor = S.stateR7?.[4] || 0;
+  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
+  const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
+  const mineFloor = saveData.stateR7?.[4] || 0;
   return {
     gridBonus189: _gb(189),
     gridBonus188: _gb(188),
     arcade67: arcadeBonus(67),
     mineheadBonus11: mineFloor > 11 ? (MINEHEAD_BONUS_QTY[11] || 0) : 0,
-    atom14: Number(S.atomsData?.[14]) || 0,
-    sailing39: Number(S.sailingData?.[3]?.[39]) || 0,
-    hasBundleV: S.bundlesData?.bon_v ? true : false,
-    gamingSuperBit67: superBitType(67, S.gamingData?.[12]),
+    atom14: Number(saveData.atomsData?.[14]) || 0,
+    sailing39: Number(saveData.sailingData?.[3]?.[39]) || 0,
+    hasBundleV: saveData.bundlesData?.bon_v ? true : false,
+    gamingSuperBit67: superBitType(67, saveData.gamingData?.[12]),
   };
-}
-
-function _fmt(n) {
-  if (n === 0) return '0';
-  if (typeof n !== 'number' || !isFinite(n)) return String(n);
-  const a = Math.abs(n);
-  if (a >= 1e24) return n.toExponential(2);
-  if (a >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
-  if (a >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
-  if (a >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-  if (a >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
-  if (a >= 100) return Math.round(n).toLocaleString();
-  if (Number.isInteger(n)) return String(n);
-  return n.toFixed(2);
 }
 
 function _pct(n) { return n.toFixed(2) + '%'; }
@@ -222,7 +208,7 @@ function _renderOverview() {
   const bucks = Number(sd?.[4]?.[3]) || 0;
   const sparks = Number(sd?.[4]?.[2]) || 0;
 
-  const rLv = S.researchLevel || 0;
+  const rLv = saveData.researchLevel || 0;
 
   // Count upgrade slots unlocked
   let upgradeSlots = 0;
@@ -313,7 +299,7 @@ function _renderUpgrades() {
 
   // Build rows in unlock order (slot 0 first, slot 44 last)
   const rows = [];
-  const rLv = S.researchLevel || 0;
+  const rLv = saveData.researchLevel || 0;
   // Find the lowest resReq among still-locked upgrades (the "next" unlock)
   let nextUpgReq = Infinity;
   for (let slot = 0; slot < SLOT_TO_UPG.length; slot++) {
@@ -633,7 +619,7 @@ function _renderBestUpgrade() {
 
   const bucksCandidates = [];
   const fuelCandidates = [];
-  const rLv = S.researchLevel || 0;
+  const rLv = saveData.researchLevel || 0;
 
   for (let slot = 0; slot < SLOT_TO_UPG.length; slot++) {
     const ui = SLOT_TO_UPG[slot];
@@ -734,7 +720,8 @@ function _renderBestUpgrade() {
         g.totalCost += p.cost;
       }
     }
-    return { path: [...grouped.values()], totalSpent, remaining, steps: purchases.length };
+    const totalGain = metricFn(simUl) - metricFn(ul);
+    return { path: [...grouped.values()], totalSpent, remaining, steps: purchases.length, totalGain };
   };
 
   const metricBucks = (simUl) => totalBucksPerHr(sd, simUl, us, kt, ext);
@@ -750,6 +737,7 @@ function _renderBestUpgrade() {
     return `<div style="background:var(--bg2);border-radius:6px;padding:6px 8px;margin-bottom:10px;">
       <div style="font-size:.72em;color:var(--text2);margin-bottom:4px;">
         Upgrade Path: <b>${pr.steps}</b> buys, <b style="color:var(--accent);">${_fmt(pr.totalSpent)}</b> spent, <b>${_fmt(pr.remaining)}</b> left
+        ${pr.totalGain ? `<br>Total Gain: <b style="color:var(--green);">+${_fmt(pr.totalGain)}</b>` : ''}
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:.72em;">
         <thead><tr style="color:var(--text2);border-bottom:1px solid #333;">
@@ -759,7 +747,7 @@ function _renderBestUpgrade() {
         </tr></thead>
         <tbody>${pr.path.map(p => `<tr style="border-bottom:1px solid #222;">
           <td style="padding:2px 4px;">${p.name}</td>
-          <td style="text-align:center;padding:2px 4px;color:var(--cyan);">${p.fromLv} ' ${p.toLv}</td>
+          <td style="text-align:center;padding:2px 4px;color:var(--cyan);">${p.fromLv} -> ${p.toLv}</td>
           <td style="text-align:right;padding:2px 4px;color:var(--text2);">${_fmt(p.totalCost)}</td>
         </tr>`).join('')}</tbody>
       </table>

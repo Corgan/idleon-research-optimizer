@@ -1,6 +1,6 @@
 ﻿// ===== OPTIMIZER UI - Entry point + timeline + actions for optimizer results =====
 
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { saveGlobalTime } from '../save/data.js';
 import { OCC_DATA } from '../game-data.js';
 import { researchExpReq } from '../sim-math.js';
@@ -171,10 +171,10 @@ function renderActions(sim, bestSteps) {
 
   // Synthetic "pre-optimization" config for start event diff
   const preOptConfig = {
-    gl: S.gridLevels.slice(), so: S.shapeOverlay.slice(),
-    md: S.magData.slice(0, S.magnifiersOwned).map(m=>({...m})),
-    il: S.insightLvs.slice(),
-    sp: S.shapePositions.map(s => ({...s}))
+    gl: saveData.gridLevels.slice(), so: saveData.shapeOverlay.slice(),
+    md: saveData.magData.slice(0, saveData.magnifiersOwned).map(m=>({...m})),
+    il: saveData.insightLvs.slice(),
+    sp: saveData.shapePositions.map(s => ({...s}))
   };
 
   const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--text2)' };
@@ -250,7 +250,7 @@ function renderActions(sim, bestSteps) {
       const prevLv = prev.rLv, curLv = p.rLv;
       if (curLv > prevLv) {
         const reqs = [];
-        for (let lv = prevLv; lv < curLv; lv++) reqs.push(researchExpReq(lv, S.serverVarResXP));
+        for (let lv = prevLv; lv < curLv; lv++) reqs.push(researchExpReq(lv, saveData.serverVarResXP));
         const totalReq = reqs.reduce((a,b) => a + b, 0);
         lvReqInfo = `<span style="color:var(--gold);font-size:.75em;margin-left:2px;" title="Total EXP required: ${reqs.map((r,i) => 'LV'+(prevLv+i)+'\u2192'+(prevLv+i+1)+': '+fmtExp(r)).join(', ')}">(${fmtExp(totalReq)} req)</span>`;
       }

@@ -11,7 +11,7 @@ import {
   researchExpReq,
 } from '../sim-math.js';
 import { buildSaveContext, getResearchCurrentExp } from '../save/context.js';
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { diffMDLayouts } from '../phase-diff.js';
 import { sameShapeCell } from '../optimizers/shapes-geo.js';
 import { fmtExp, fmtTime, fmtVal } from './format.js';
@@ -219,7 +219,7 @@ export function renderExpSummary(phases, sim, saveCtx, fmtRealTimeFn) {
   const startLv = phases[0].rLv;
   const endLv = sim.finalLevel;
   let expNeeded = -getResearchCurrentExp(saveCtx);
-  for (let lv = startLv; lv < endLv; lv++) expNeeded += researchExpReq(lv, S.serverVarResXP);
+  for (let lv = startLv; lv < endLv; lv++) expNeeded += researchExpReq(lv, saveData.serverVarResXP);
   expNeeded += sim.finalExp;
   const avgRate = sim.totalTime > 0 ? simExpTotal / sim.totalTime : 0;
   const startRate = phases[0].grindInfo ? phases[0].grindInfo.grindExpHr : phases[0].expHr;

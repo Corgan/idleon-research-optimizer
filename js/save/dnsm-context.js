@@ -4,13 +4,13 @@
 // star signs, meals, stamps, etc.) and are cached at game load.
 //
 // Two modes:
-//   1. computeDNSM() — attempts to compute everything from shared state (S).
+//   1. computeDNSM() — attempts to compute everything from shared state (saveData).
 //      For deeply nested chains that aren't yet implemented, returns 0.
 //   2. createDNSM(overrides) — manually inject known values for testing.
 
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import {
-  skillLvData, numCharacters, optionsListData, dreamData, klaData,
+  skillLvData, numCharacters, optionsListData, klaData,
   charClassData, cauldronInfoData, stampLvData, emmData,
   equipOrderData, labData,
 } from './data.js';
@@ -18,17 +18,18 @@ import { formulaEval } from './engine.js';
 import { gbWith } from '../sim-math.js';
 import { node } from '../stats/node.js';
 import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
-import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
-import { eventShopOwned, ribbonBonusAt } from './helpers.js';
+import { ribbonBonusAt } from './helpers.js';
 import { computeAllTalentLVz } from '../stats/systems/common/talent.js';
 import { mainframeBonus } from '../stats/systems/w4/lab.js';
 import { computeWinBonus } from '../stats/systems/w6/summoning.js';
 import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
-import {
-  COSMO_UPG_BASE, SHIMMERON_BUBBLE, WARRIORS_RULE_BUBBLE, CLASS_TREES,
-  FAMILY_BONUS_33, TALENT_144, STAR_SIGN_69_BONUS, ITEMS_WITH_GFOOD_UQ,
-  isFightingMap, MAP_KILL_REQS,
-} from '../game-data.js';
+
+import { SHIMMERON_BUBBLE, WARRIORS_RULE_BUBBLE } from '../stats/data/w2/alchemy.js';
+import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../stats/data/common/talent.js';
+import { STAR_SIGN_69_BONUS } from '../stats/data/common/starSign.js';
+import votingMultiDesc from '../stats/defs/voting-multi.js';
+import { itemUqMatch } from '../stats/data/common/equipment.js';
+import { isFightingMap, mapKillReq } from '../game-data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../stats/systems/w2/alchemy.js';
 import { isExalted, computeStampDoublerSources } from '../stats/systems/w1/stamp.js';
 import { computeSeraphMulti } from '../stats/systems/common/starSign.js';
@@ -81,12 +82,12 @@ export function createDNSM(overrides = {}) {
 }
 
 /**
- * Compute DNSM cache from shared state (S).
+ * Compute DNSM cache from shared state (saveData).
  * Implements as many DNSM chains as possible; values that can't be
  * computed yet are left at 0 and flagged in the `_uncomputed` array.
  */
 /**
- * Compute DNSM cache from shared state (S).
+ * Compute DNSM cache from shared state (saveData).
  * Implements as many DNSM chains as possible; values that can't be
  * computed yet are left at 0 and flagged in the `_uncomputed` array.
  *
@@ -103,7 +104,7 @@ export function computeDNSM(charIdx = 0) {
   // are computed directly in golden-food.js — no dnsm needed.
 
   // === Emporium unlock ===
-  const ninja104 = S.ninjaData[104];
+  const ninja104 = saveData.ninjaData[104];
   if (Array.isArray(ninja104)) {
     dnsm.emporiumBonusUnlocked = ninja104.some(v => Number(v) > 0);
   }
@@ -149,7 +150,7 @@ export function computeDNSM(charIdx = 0) {
 
   // === artifactBonus16 ===
   {
-    const tier = Number((S.sailingData[3] || [])[16]) || 0;
+    const tier = Number((saveData.sailingData[3] || [])[16]) || 0;
     if (tier === 0) {
       dnsm.artifactBonus16 = 0;
     } else {
@@ -178,7 +179,7 @@ export function computeDNSM(charIdx = 0) {
     const GFOOD_COMPANION_VALUES = { 48: 5, 155: 2500 };
     const bon = {};
     for (const [idx, val] of Object.entries(GFOOD_COMPANION_VALUES)) {
-      if (S.companionIds.has(Number(idx))) bon[idx] = val;
+      if (saveData.companionIds.has(Number(idx))) bon[idx] = val;
     }
     dnsm.companionBon = bon;
   }
@@ -203,7 +204,7 @@ export function computeDNSM(charIdx = 0) {
         if (!isFightingMap(m)) continue;
         const arr = kla[m];
         if (!Array.isArray(arr)) continue;
-        const killsDone = (MAP_KILL_REQS[m] || 0) - Number(arr[0]);
+        const killsDone = mapKillReq(m) - Number(arr[0]);
         if (killsDone >= 1e9) count++;
       }
     }
@@ -213,51 +214,11 @@ export function computeDNSM(charIdx = 0) {
     ] : null, { fmt: 'raw' });
   }
 
-  // === votingBonuszMulti ===
+  // === votingBonuszMulti (delegated to voting-multi descriptor) ===
   {
-    const meritoc9 = computeMeritocBonusz(9);
-    const comp41 = S.companionIds.has(41) ? 40 : 0;
-    const dream13 = Number((dreamData || [])[13]) || 0;
-    const comp19 = S.companionIds.has(19) ? 5 : 0;
-    const legendPTS22 = legendPTSbonus(22);
-    const evStr = S.cachedEventShopStr;
-    const eventShop7 = eventShopOwned(7, evStr);
-    const eventShop16 = eventShopOwned(16, evStr);
-    const cosmoBase = COSMO_UPG_BASE['2_3'] || 0;
-    const holesLv = Number(S.holesData?.[6]?.[3]) || 0;
-    const cosmoBonus23 = Math.floor(cosmoBase * holesLv);
-    const winBonus22 = computeWinBonus(22);
-    const paletteLv = Number(S.spelunkData?.[9]?.[32]) || 0;
-    let paletteBonus32 = 0;
-    if (paletteLv > 0) {
-      const paletteRaw = paletteLv / (paletteLv + 25) * 10;
-      const legendMulti = 1 + legendPTSbonus(10) / 100;
-      const loreFlag8 = (Number(S.spelunkData?.[0]?.[8]) || 0) >= 1 ? 1 : 0;
-      const loreMulti = 1 + 0.5 * loreFlag8;
-      paletteBonus32 = paletteRaw * legendMulti * loreMulti;
-    }
-    const innerSum = comp41 + dream13 + cosmoBonus23 + winBonus22
-      + 17 * eventShop7 + 13 * eventShop16 + comp19 + paletteBonus32 + legendPTS22;
-    dnsm.votingBonuszMulti = (1 + meritoc9 / 100) * (1 + innerSum / 100);
-
-    var innerCh = [];
-    if (comp41 > 0) innerCh.push(node('Comp 41', comp41, null, { fmt: 'raw' }));
-    if (dream13 > 0) innerCh.push(node('Dream 13', dream13, null, { fmt: 'raw' }));
-    if (cosmoBonus23 > 0) innerCh.push(node('Cosmo 2/3', cosmoBonus23, null, { fmt: 'raw', note: 'Holes Lv=' + holesLv }));
-    if (winBonus22 > 0) innerCh.push(node('WinBonus 22', winBonus22, null, { fmt: 'raw' }));
-    if (eventShop7 > 0) innerCh.push(node('17×EvShop 7', 17 * eventShop7, null, { fmt: 'raw' }));
-    if (eventShop16 > 0) innerCh.push(node('13×EvShop 16', 13 * eventShop16, null, { fmt: 'raw' }));
-    if (comp19 > 0) innerCh.push(node('Comp 19', comp19, null, { fmt: 'raw' }));
-    if (paletteBonus32 > 0) innerCh.push(node('Palette 32', paletteBonus32, paletteLv > 0 ? [
-      node('Palette Lv', paletteLv, null, { fmt: 'raw' }),
-      node('Legend 10 ×', 1 + legendPTSbonus(10) / 100, null, { fmt: 'x' }),
-    ] : null, { fmt: 'raw' }));
-    if (legendPTS22 > 0) innerCh.push(node('Legend 22', legendPTS22, null, { fmt: 'raw' }));
-
-    T.votingBonuszMulti = node('Voting Multi', dnsm.votingBonuszMulti, [
-      node('Meritoc 9 ×', 1 + meritoc9 / 100, null, { fmt: 'x' }),
-      node('Inner ×', 1 + innerSum / 100, innerCh.length ? innerCh : null, { fmt: 'x' }),
-    ], { fmt: 'x' });
+    const vr = votingMultiDesc.combine({}, { S: saveData });
+    dnsm.votingBonuszMulti = vr.val;
+    T.votingBonuszMulti = node('Voting Multi', vr.val, vr.children, { fmt: 'x' });
   }
 
   // === stampBonusGFood ===
@@ -338,14 +299,14 @@ export function computeDNSM(charIdx = 0) {
 
   // === mealBonusZGoldFood ===
   {
-    const mealLv = Number((S.mealsData?.[0] || [])[64]) || 0;
+    const mealLv = Number((saveData.mealsData?.[0] || [])[64]) || 0;
     if (mealLv > 0) {
       const mfb116 = mainframeBonus(116);
       const shinyS20 = computeShinyBonusS(20);
       const winBon26 = computeWinBonus(26);
       const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
       const ribbonIdx = 28 + 64;
-      const ribbon = ribbonBonusAt(ribbonIdx, S.ribbonData, optionsListData[379]);
+      const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379]);
       dnsm.mealBonusZGoldFood = cookMulti * ribbon * mealLv * 2;
 
       var cookCh = [];
@@ -383,7 +344,7 @@ export function computeDNSM(charIdx = 0) {
       const classId = charClassData[ci] || 0;
       const tree = CLASS_TREES[classId];
       if (!tree || !tree.includes(33)) continue;
-      const charLevel = Number((S.lv0AllData[ci] || [])[0]) || 0;
+      const charLevel = Number((saveData.lv0AllData[ci] || [])[0]) || 0;
       const effectiveLv = Math.max(0, charLevel - FAMILY_BONUS_33.lvOffset);
       const bonus = formulaEval(
         FAMILY_BONUS_33.formula, FAMILY_BONUS_33.x1, FAMILY_BONUS_33.x2, effectiveLv
@@ -420,7 +381,7 @@ export function computeDNSM(charIdx = 0) {
     var etcChildren = [];
 
     // -- Equipment (rows 0 and 1) --
-    var sp = S.spelunkData || [];
+    var sp = saveData.spelunkData || [];
     var galleryOn = (sp[16] && sp[16].length > 0) || (sp[17] && sp[17].length > 0);
     var premhatOn = sp[46] && sp[46].length > 0;
 
@@ -438,7 +399,7 @@ export function computeDNSM(charIdx = 0) {
     }
 
     // Research grid 172 bonus for slot 15 UQ multiplier
-    var gridBonus172 = gbWith(S.gridLevels, S.shapeOverlay, 172, { abm: S.allBonusMulti || 1 });
+    var gridBonus172 = gbWith(saveData.gridLevels, saveData.shapeOverlay, 172, { abm: saveData.allBonusMulti || 1 });
 
     for (let row = 0; row < 2; row++) {
       const gear = equipOrderData[charIdx]?.[row] || {};
@@ -451,14 +412,14 @@ export function computeDNSM(charIdx = 0) {
         const itemName = gear[slot] || 'Blank';
         if (itemName === 'Blank') continue;
         const emmSlot = emmGear[slot] || {};
-        const itemDef = ITEMS_WITH_GFOOD_UQ[itemName];
+        const itemDef = itemUqMatch(itemName, [STAT]);
         for (let uqi = 1; uqi <= 2; uqi++) {
           const uqTxtKey = 'UQ' + uqi + 'txt';
           const uqValKey = 'UQ' + uqi + 'val';
           let statName = null, val = 0;
           if (itemDef && itemDef.uq === uqi) {
             statName = STAT;
-            val = itemDef.baseVal + (Number(emmSlot[uqValKey]) || 0);
+            val = itemDef.val + (Number(emmSlot[uqValKey]) || 0);
           }
           if (!statName && emmSlot[uqTxtKey] === STAT && (Number(emmSlot[uqValKey]) || 0) > 0) {
             statName = STAT;
@@ -471,7 +432,7 @@ export function computeDNSM(charIdx = 0) {
           else if (row === 0 && slot === 10 && hasTrophChip) val *= 2;
           else if (row === 0 && slot === 15 && gridBonus172 >= 1) val *= (1 + gridBonus172 / 100);
           total += val;
-          etcChildren.push(node('R' + row + 'S' + slot + ' ' + itemName, val, null, { fmt: 'raw' }));
+          etcChildren.push(node('R' + row + 'saveData' + slot + ' ' + itemName, val, null, { fmt: 'raw' }));
         }
       }
     }
@@ -479,7 +440,7 @@ export function computeDNSM(charIdx = 0) {
     // -- Obols, Nametag, Trophy, Premhat --
     // These sub-systems rarely have %_GOLD_FOOD_EFFECT but game includes them.
     // Scan obol data (ScrollCircleINFO[43])
-    var obolData = S.obolData || [];
+    var obolData = saveData.obolData || [];
     for (let oi = 0; oi < obolData.length; oi++) {
       var ob = obolData[oi];
       if (!ob) continue;
@@ -489,11 +450,11 @@ export function computeDNSM(charIdx = 0) {
       }
     }
     // Nametag, trophy, premhat: scan gallery data for stat type 8
-    var galTrophy = S.galleryTrophyBon || {};
+    var galTrophy = saveData.galleryTrophyBon || {};
     if (galTrophy[STAT]) { total += galTrophy[STAT]; etcChildren.push(node('Trophy GF', galTrophy[STAT], null, { fmt: 'raw' })); }
-    var galNametag = S.galleryNametagBon || {};
+    var galNametag = saveData.galleryNametagBon || {};
     if (galNametag[STAT]) { total += galNametag[STAT]; etcChildren.push(node('Nametag GF', galNametag[STAT], null, { fmt: 'raw' })); }
-    var galPremhat = S.premHatBon || {};
+    var galPremhat = saveData.premHatBon || {};
     if (galPremhat[STAT]) { total += galPremhat[STAT]; etcChildren.push(node('Premhat GF', galPremhat[STAT], null, { fmt: 'raw' })); }
 
     dnsm.etcBonuses8 = total;

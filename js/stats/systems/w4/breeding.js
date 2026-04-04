@@ -2,11 +2,12 @@
 // Shiny pet breeding bonuses.
 
 import { node } from '../../node.js';
-import { S } from '../../../state.js';
+import { label } from '../../entity-names.js';
+import { saveData } from '../../../state.js';
 import {
   PET_SHINY_TYPE, PET_NAMES, SHINY_BONUS_PER_LV, SHINY_TYPE_TO_CAT,
   SHINY_CAT_NAMES,
-} from '../../../data/w4/breeding.js';
+} from '../../data/w4/breeding.js';
 
 function shinyLvFromExp(exp) {
   if (exp <= 0) return 0;
@@ -21,7 +22,7 @@ function shinyLvFromExp(exp) {
 export function computeShinyBonusS(catKey) {
   var total = 0;
   for (var world = 0; world < 4; world++) {
-    var shinyExps = S.breedingData[22 + world];
+    var shinyExps = saveData.breedingData[22 + world];
     var petTypes = PET_SHINY_TYPE[world];
     if (!shinyExps || !petTypes) continue;
     for (var pet = 0; pet < petTypes.length; pet++) {
@@ -44,7 +45,7 @@ export var shiny = {
     var children = [];
     var total = 0;
     for (var world = 0; world < 4; world++) {
-      var shinyExps = ctx.S.breedingData[22 + world];
+      var shinyExps = ctx.saveData.breedingData[22 + world];
       var petTypes = PET_SHINY_TYPE[world];
       if (!shinyExps || !petTypes) continue;
       for (var pet = 0; pet < petTypes.length; pet++) {
@@ -65,6 +66,6 @@ export var shiny = {
         ], { fmt: '+' }));
       }
     }
-    return node('Shiny Pets (' + catName + ')', total, children.length ? children : null, { fmt: '+', note: 'breeding shiny ' + id });
+    return node(label('Breeding', id), total, children.length ? children : null, { fmt: '+', note: 'breeding shiny ' + id });
   },
 };

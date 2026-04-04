@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Extracts breeding/shiny data from src/N.formatted.js → js/data/w4/breeding.js
+// Extracts breeding/shiny data from src/N.formatted.js → js/stats/data/w4/breeding.js
 // Usage: node js/extract/w4/breeding.js
 'use strict';
 const fs = require('fs');
@@ -7,7 +7,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const SRC  = path.join(ROOT, 'src', 'N.formatted.js');
-const OUT  = path.join(ROOT, 'js', 'data', 'w4', 'breeding.js');
+const OUT  = path.join(ROOT, 'js', 'stats', 'data', 'w4', 'breeding.js');
 
 console.log('Reading', SRC);
 const src = fs.readFileSync(SRC, 'utf8');

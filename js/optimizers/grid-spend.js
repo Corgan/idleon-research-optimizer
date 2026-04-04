@@ -25,10 +25,10 @@ import {
 } from '../sim-math.js';
 import { cloneSimState } from '../sim-state.js';
 import { growMagPoolTyped } from './mags.js';
-import { makeCtx } from '../save/context.js';
+import { makeSimCtx } from '../save/context.js';
 import { monoAssignBestQuick } from './monos.js';
 import { reoptRegularMags } from '../sim-engine.js';
-import { dtGridPointsAvail } from '../dt/dt-state.js';
+import { gridPointsAvail } from '../sim-math.js';
 
 function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
   const relevant = new Set();
@@ -279,7 +279,7 @@ export function enumGridCombos(spendable, baseGL, numPoints) {
 
 function _exhaustiveSpendAtLevel(s, ctx) {
   const gl = s.gl, so = s.so, md = s.md, il = s.il, occ = s.occ, rLv = s.rLv, mMax = s.mMax;
-  const avail = dtGridPointsAvail(gl, rLv, s.saveCtx);
+  const avail = gridPointsAvail(gl, rLv, s.saveCtx);
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);
@@ -332,7 +332,7 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
   let so = sc.so, md = sc.md;
   let rLv = sc.rLv, rExp = sc.rExp, mMax = sc.mMax, mOwned = sc.mOwned;
 
-  const ctx = makeCtx(sc.gl, saveCtx);
+  const ctx = makeSimCtx(sc.gl);
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   let currentTime = 0;
@@ -406,7 +406,7 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
 export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
   const gl = s.gl, so = s.so, md = s.md, il = s.il, ip = s.ip, occ = s.occ;
   const rLv = s.rLv, rExp = s.rExp, mMax = s.mMax;
-  const avail = dtGridPointsAvail(gl, rLv, saveCtx || s.saveCtx);
+  const avail = gridPointsAvail(gl, rLv, saveCtx || s.saveCtx);
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);

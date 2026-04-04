@@ -80,6 +80,7 @@ export default {
       { system: 'bundle', id: 'bun_p' },
       { system: 'arcaneMap' },
       { system: 'card', id: 101 },
+      { system: 'sushiRoG', id: 48 },
       { system: 'grid', id: 168 },
       { system: 'tome', id: 7 },
       { system: 'etcBonus', id: 99 },

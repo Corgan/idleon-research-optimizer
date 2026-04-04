@@ -1,18 +1,12 @@
 // ===== STATE-IO.JS - State export/import, save loading, supplements =====
 // Extracted from app.js.
 
-import { S, assignState } from '../state.js';
+import { saveData, assignState } from '../state.js';
 import {
-  assignSaveData,
-  cachedAFKRate,
   loadedSaveFormat,
 } from '../save/data.js';
 import { GRID_SIZE } from '../game-data.js';
-import { loadSaveData as _loadSaveIntoState } from '../save/loader.js';
-import {
-  computeAFKGainsRate,
-  computeExternalBonuses,
-} from '../save/external.js';
+import { loadSaveData as _loadSaveIntoState, recomputeDerivedBonuses } from '../save/loader.js';
 import { rebuildShapeOverlay } from '../optimizers/shapes-geo.js';
 import {
   dtReset,
@@ -48,14 +42,14 @@ async function decompressState(str) {
 async function exportState() {
   const state = {
     _format: 'research-optimizer-state', _version: 2,
-    gridLevels: S.gridLevels, shapeOverlay: S.shapeOverlay, occFound: S.occFound, insightLvs: S.insightLvs, insightProgress: S.insightProgress, magData: S.magData, shapePositions: S.shapePositions,
-    stateR7: S.stateR7, researchLevel: S.researchLevel, magMaxPerSlot: S.magMaxPerSlot, magnifiersOwned: S.magnifiersOwned,
-    externalResearchPct: S.externalResearchPct, comp52TrueMulti: S.comp52TrueMulti, allBonusMulti: S.allBonusMulti, extBonuses: S.extBonuses,
-    companionIds: [...S.companionIds], totalTomePoints: S.totalTomePoints, serverVarResXP: S.serverVarResXP, serverVarMineHP: S.serverVarMineHP,
-    cachedEventShopStr: S.cachedEventShopStr, cachedResearchExp: S.cachedResearchExp, cachedSpelunkyUpg7: S.cachedSpelunkyUpg7, cachedFailedRolls: S.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: S.cachedComp0DivOk,
-    cachedStickerFixed: S.cachedStickerFixed, cachedBoonyCount: S.cachedBoonyCount, cachedEvShop37: S.cachedEvShop37, cachedExtPctExSticker: S.cachedExtPctExSticker,
-    extBonusOverrides: S.extBonusOverrides, loadedSaveFormat,
-    shapeTiers: { above: S.shapeTiers.above.slice(), below: S.shapeTiers.below.slice() },
+    gridLevels: saveData.gridLevels, shapeOverlay: saveData.shapeOverlay, occFound: saveData.occFound, insightLvs: saveData.insightLvs, insightProgress: saveData.insightProgress, magData: saveData.magData, shapePositions: saveData.shapePositions,
+    stateR7: saveData.stateR7, researchLevel: saveData.researchLevel, magMaxPerSlot: saveData.magMaxPerSlot, magnifiersOwned: saveData.magnifiersOwned,
+    externalResearchPct: saveData.externalResearchPct, comp52TrueMulti: saveData.comp52TrueMulti, allBonusMulti: saveData.allBonusMulti,
+    companionIds: [...saveData.companionIds], totalTomePoints: saveData.totalTomePoints, serverVarResXP: saveData.serverVarResXP, serverVarMineHP: saveData.serverVarMineHP,
+    cachedEventShopStr: saveData.cachedEventShopStr, cachedResearchExp: saveData.cachedResearchExp, cachedSpelunkyUpg7: saveData.cachedSpelunkyUpg7, cachedFailedRolls: saveData.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: saveData.cachedComp0DivOk,
+    cachedStickerFixed: saveData.cachedStickerFixed, cachedBoonyCount: saveData.cachedBoonyCount, cachedEvShop37: saveData.cachedEvShop37, cachedExtPctExSticker: saveData.cachedExtPctExSticker,
+    extBonusOverrides: saveData.extBonusOverrides, loadedSaveFormat,
+    shapeTiers: { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() },
   };
   return await compressState(state);
 }
@@ -137,28 +131,27 @@ function importState(raw) {
   assignState({ cachedFailedRolls: raw.cachedFailedRolls || 0 });
   assignSaveData({ cachedAFKRate: raw.cachedAFKRate || null });
   assignState({ cachedComp0DivOk: raw.cachedComp0DivOk || false });
-  // Backward compat: old state exports lack sticker cache fields - derive from S.extBonuses
-  if ('S.cachedStickerFixed' in raw) {
+  // Backward compat: old state exports lack sticker cache fields - derive from saveData.extBonuses
+  if ('saveData.cachedStickerFixed' in raw) {
     assignState({ cachedStickerFixed: raw.cachedStickerFixed || 0 });
     assignState({ cachedBoonyCount: raw.cachedBoonyCount || 0 });
     assignState({ cachedEvShop37: raw.cachedEvShop37 || 0 });
     assignState({ cachedExtPctExSticker: raw.cachedExtPctExSticker || 0 });
   } else {
-    // Old format: treat entire S.externalResearchPct as non-sticker (sticker stays static)
+    // Old format: treat entire saveData.externalResearchPct as non-sticker (sticker stays static)
     assignState({ cachedStickerFixed: 0 });
     assignState({ cachedBoonyCount: 0 });
     assignState({ cachedEvShop37: 0 });
-    assignState({ cachedExtPctExSticker: S.externalResearchPct });
+    assignState({ cachedExtPctExSticker: saveData.externalResearchPct });
   }
   assignState({ extBonusOverrides: raw.extBonusOverrides || {} });
-  assignState({ extBonuses: raw.extBonuses || null });
   assignSaveData({ loadedSaveFormat: raw.loadedSaveFormat || 'state' });
   const defaultShapeTiers = { above: [], below: UE_NON_EXP_NODES.slice() };
   if (raw.shapeTiers && Array.isArray(raw.shapeTiers.below) && typeof raw.shapeTiers.below[0] === 'number') {
-    S.shapeTiers.above = raw.shapeTiers.above || [];
-    S.shapeTiers.below = [...(raw.shapeTiers.below || []), ...(raw.shapeTiers.disabled || [])];
+    saveData.shapeTiers.above = raw.shapeTiers.above || [];
+    saveData.shapeTiers.below = [...(raw.shapeTiers.below || []), ...(raw.shapeTiers.disabled || [])];
   } else {
-    S.shapeTiers.above = []; S.shapeTiers.below = defaultShapeTiers.below.slice();
+    saveData.shapeTiers.above = []; saveData.shapeTiers.below = defaultShapeTiers.below.slice();
   }
   saveShapeTiers();
   // State files already store the correct overlay (preserving user placement order)
@@ -217,21 +210,21 @@ function updateSaveFormatUI() {
     const sp = document.getElementById('supplement-panel');
     sp.style.display = '';
     sp.querySelectorAll('.comp-toggle').forEach(cb => {
-      cb.checked = S.companionIds.has(Number(cb.dataset.id));
+      cb.checked = saveData.companionIds.has(Number(cb.dataset.id));
     });
     const allCbs = sp.querySelectorAll('.comp-toggle');
     const selAll = document.getElementById('comp-select-all');
     if (selAll) selAll.checked = [...allCbs].every(cb => cb.checked);
-    document.getElementById('supp-tome').value = S.totalTomePoints || 0;
-    document.getElementById('supp-resxp').value = S.serverVarResXP || 1.01;
-    document.getElementById('supp-minehp').value = S.serverVarMineHP || 1;
+    document.getElementById('supp-tome').value = saveData.totalTomePoints || 0;
+    document.getElementById('supp-resxp').value = saveData.serverVarResXP || 1.01;
+    document.getElementById('supp-minehp').value = saveData.serverVarMineHP || 1;
   }
 }
 
 export function applySupplements() {
   assignState({ companionIds: new Set() });
   document.querySelectorAll('.comp-toggle').forEach(cb => {
-    if (cb.checked) S.companionIds.add(Number(cb.dataset.id));
+    if (cb.checked) saveData.companionIds.add(Number(cb.dataset.id));
   });
   // Sync "select all" checkbox state
   const allCbs = document.querySelectorAll('.comp-toggle');
@@ -243,14 +236,10 @@ export function applySupplements() {
   // Rebuild shape overlay (companion 54 affects shapes owned count).
   // We must rebuild here because the number of active shapes changed,
   // but placement-order overlap is unknown - use index order as best approximation.
-  assignState({ shapeOverlay: rebuildShapeOverlay(S.shapePositions) });
+  assignState({ shapeOverlay: rebuildShapeOverlay(saveData.shapePositions) });
   // Recompute derived state (only if real save loaded, not state snapshot)
   if (loadedSaveFormat !== 'state') {
-    assignState({ extBonuses: computeExternalBonuses() });
-    assignState({ externalResearchPct: S.extBonuses._total });
-    assignState({ comp52TrueMulti: (1 + (S.extBonuses._comp52?.val || 0)) * (1 + (S.extBonuses._comp153?.val || 0)) });
-    assignState({ allBonusMulti: S.extBonuses._allMulti?.val || 1 });
-    assignSaveData({ cachedAFKRate: computeAFKGainsRate() });
+    recomputeDerivedBonuses();
   }
   renderAll();
 }
