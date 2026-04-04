@@ -5,14 +5,14 @@
 // Node shape (plain data, rendering-agnostic):
 //   { name: string, val: number, children?: Array, note?: string, fmt?: string }
 
-import { _bNode } from '../ui/dash-breakdowns.js';
+import { _bNode } from './node-helpers.js';
 
 /**
  * Build a breakdown tree for a stat descriptor.
  *
  * @param {object} desc    - { id, name, scope, pools, combine(pools) }
  * @param {object} catalog - { systemName: { resolve(id, ctx, args?) → node } }
- * @param {object} ctx     - { charIdx, mapIdx, S, dnsm, mapBon? }
+ * @param {object} ctx     - { charIdx, mapIdx, saveData, mapBon? }
  * @returns {{ name: string, val: number, children: Array }}
  */
 export function buildTree(desc, catalog, ctx) {
@@ -43,7 +43,7 @@ export function buildTree(desc, catalog, ctx) {
     pools[poolName] = { items: items, sum: sum, product: product };
   }
 
-  var result = desc.combine(pools);
+  var result = desc.combine(pools, ctx);
   return { name: desc.name, val: result.val, children: result.children };
 }
 

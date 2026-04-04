@@ -1,7 +1,7 @@
 const { execSync } = require('child_process');
 const { writeFileSync } = require('fs');
 
-const tests = ['test-analysis', 'test-optimizers', 'test-phase0', 'test-save-loader'];
+const tests = ['test-analysis', 'test-optimizers', 'test-phase0', 'test-save-loader', 'test-formulas', 'test-minehead', 'test-regression'];
 const results = [];
 
 for (const t of tests) {

@@ -27,7 +27,7 @@ import {
 import { buildCoverageLUT } from './shapes-geo.js';
 import {
   getResearchCurrentExp,
-  makeCtx,
+  makeSimCtx,
   simTotalExp,
 } from '../save/context.js';
 
@@ -47,7 +47,7 @@ function simExpOverHorizon(config) {
   const occ = config.occFound ? config.occFound.slice() : _sc.occFound.slice();
   let rLv = config.researchLevel !== undefined ? config.researchLevel : _sc.researchLevel;
   let rExp = config.currentExp !== undefined ? config.currentExp : getResearchCurrentExp(_sc);
-  const ctx = makeCtx(gl, _sc);
+  const ctx = makeSimCtx(gl);
 
   const monoObsArr = Array.from(getMonoObsSet(md));
   const targetLevel = config.target.type === 'level' ? config.target.value : undefined;
@@ -131,7 +131,7 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
   const cellValues = precomputedCellValues || computeCellValues(simOpts);
 
   // Use computed ShapesOwned (matches game formula) capped by available shape definitions
-  const ctx = makeCtx(gl, _sc);
+  const ctx = makeSimCtx(gl);
   const numShapes = Math.min(computeShapesOwnedAt(rLv, ctx), SHAPE_VERTICES.length);
   if (numShapes === 0) return { placements: [], cellValues, pureExpTotal: 0, message: 'No shapes unlocked.' };
 

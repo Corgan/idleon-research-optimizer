@@ -13,7 +13,7 @@ import {
   computeMagnifiersOwnedWith, computeOccurrencesToBeFound,
   computeShapesOwnedAt, magMaxForLevel,
 } from '../sim-math.js';
-import { buildSaveContext, makeCtx } from '../save/context.js';
+import { buildSaveContext, makeSimCtx } from '../save/context.js';
 import { optimizeMagsFor } from '../optimizers/magnifiers.js';
 import { chooseMonoTargets } from '../optimizers/monos.js';
 import { optimizeShapesFor } from '../sim-engine.js';
@@ -547,7 +547,7 @@ function _dtOpenModal(nodeId) {
   DT.editState = dtCloneState({...node.baseState, rLv: node.rLv, rExp: node.rExp, expHr: node.expHr});
   // Init shape placement order if not already present
   if (!DT.editState.spo) {
-    const ctx = makeCtx(DT.editState.gl, DT.editState.saveCtx);
+    const ctx = makeSimCtx(DT.editState.gl);
     const n = Math.min(computeShapesOwnedAt(DT.editState.rLv, ctx), DT.editState.sp.length, 10);
     DT.editState.spo = Array.from({length: n}, (_, i) => i);
   }
@@ -611,7 +611,7 @@ export function dtRenderModal() {
     `${fmtTimePrecise(totalTime)}  - ` +
     `<span style="color:${avail > 0 ? 'var(--gold)' : 'var(--text2)'};">${avail} pts</span>  - ` +
     `${computeOccurrencesToBeFound(s.rLv, s.occ)} obs  - ` +
-    `${computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx))} mags`;
+    `${computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeSimCtx(s.gl))} mags`;
 
   // Grid pts label
   document.getElementById('dt-grid-pts').textContent = `(${avail} pts)`;
@@ -902,7 +902,7 @@ export function dtStart() {
 export async function dtAutoOptMags() {
   if (!DT.editState) return;
   const s = DT.editState;
-  const ctx = makeCtx(s.gl, s.saveCtx);
+  const ctx = makeSimCtx(s.gl);
   const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, ctx);
   const mMax = magMaxForLevel(s.rLv);
   const optimized = await optimizeMagsFor({gl: s.gl, so: s.so, md: s.md, il: s.il, occ: s.occ, rLv: s.rLv, mOwned, mMax}, ctx);
@@ -920,7 +920,7 @@ export function dtAutoOptShapes() {
   s.so = result.overlay;
   s.sp = result.positions;
   // Ensure unplaced shapes still have a position on the board (stacked at top-left)
-  const numOwned = Math.min(computeShapesOwnedAt(s.rLv, makeCtx(s.gl, s.saveCtx)), SHAPE_VERTICES.length, 10);
+  const numOwned = Math.min(computeShapesOwnedAt(s.rLv, makeSimCtx(s.gl)), SHAPE_VERTICES.length, 10);
   for (let si = 0; si < numOwned; si++) {
     if (!s.sp[si] || s.sp[si].x == null) {
       s.sp[si] = { x: 0, y: si * 5, rot: 0 };

@@ -6,7 +6,7 @@ import {
   buildKalMap, computeMagnifiersOwnedWith, computeOccurrencesToBeFound,
   gbWith, getKaleiMultiBase, isObsUsable, magMaxForLevel, obsBaseExp,
 } from '../sim-math.js';
-import { makeCtx, simTotalExp } from '../save/context.js';
+import { makeSimCtx, simTotalExp } from '../save/context.js';
 import { hideTooltip, moveTooltip } from '../ui/tooltip.js';
 import { DT } from './dt-state.js';
 import { dtRenderModal } from './decision-tree.js';
@@ -19,7 +19,7 @@ export function dtRenderObsEditor() {
   if (!DT.editState) return;
   const s = DT.editState;
   const occTBF = computeOccurrencesToBeFound(s.rLv, s.occ);
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeSimCtx(s.gl));
   const mMax = magMaxForLevel(s.rLv);
 
   // Pool counts
@@ -123,7 +123,7 @@ function _dtObsWireTooltips(bySlot, kalMap) {
       const adjKal = kalMap[oi] || 0;
 
       // DT-aware grid bonus: uses s.gl and s.so instead of globals
-      const _ctx2 = s.ctx || makeCtx(s.gl, s.saveCtx);
+      const _ctx2 = s.ctx || makeSimCtx(s.gl);
 
       const basePerMag = obsBaseExp(oi);
       const gd101 = gbWith(s.gl, s.so, 93, _ctx2);
@@ -267,7 +267,7 @@ function _dtCycleMagType(magIdx) {
   if (!m || m.slot < 0) return;
   const expectedK = Math.round((s.gl[72] || 0) + s.saveCtx.evShop33);
   const expectedM = Math.round(s.gl[91] || 0);
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeSimCtx(s.gl));
   const expectedR = mOwned - expectedK - expectedM;
   for (let attempt = 0; attempt < 3; attempt++) {
     const nextType = (m.type + 1 + attempt) % 3;
@@ -286,7 +286,7 @@ function _dtCycleMagType(magIdx) {
 function _dtAddMagToSlot(slotIdx) {
   if (!DT.editState) return;
   const s = DT.editState;
-  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeCtx(s.gl, s.saveCtx));
+  const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeSimCtx(s.gl));
   const mMax = magMaxForLevel(s.rLv);
   let slotCount = 0, totalPlaced = 0;
   for (const m of s.md) {

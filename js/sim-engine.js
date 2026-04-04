@@ -26,7 +26,7 @@ import {
 } from './sim-math.js';
 import { cloneSimState } from './sim-state.js';
 import { growMagPoolTyped } from './optimizers/mags.js';
-import { getResearchCurrentExp, makeCtx } from './save/context.js';
+import { getResearchCurrentExp, makeSimCtx } from './save/context.js';
 import { optimizeShapePlacement } from './optimizers/shapes.js';
 import { optimizeMagsFor } from './optimizers/magnifiers.js';
 import { chooseMonoTargets, buildConcentratedLayout } from './optimizers/monos.js';
@@ -293,7 +293,7 @@ export async function unifiedSim(config, saveCtx) {
   const _extendInsightLA = !!config.extendInsightLA;
 
   // Sync ctx to match the (possibly overridden) gl state
-  const ctx = makeCtx(gl, _sc);
+  const ctx = makeSimCtx(gl);
 
   // Recompute mOwned from (possibly overridden) gl/rLv so beam search +1 on #72/#91 is reflected
   s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);

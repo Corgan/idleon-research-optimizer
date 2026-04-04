@@ -4,18 +4,16 @@
 // Mastery tiers: <32 uses VaultUpgBonus(32), 33-60 uses VaultUpgBonus(61), 61-88 uses VaultUpgBonus(89).
 
 import { node } from '../../node.js';
-
-var VAULT_NAMES = {
-  18: 'Drops for Days',
-};
+import { label } from '../../entity-names.js';
+import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
 
 // Indices that return lv * perLv WITHOUT mastery multiplier
-var NO_MASTERY = new Set([32,1,6,7,8,9,13,999,33,36,40,42,43,44,49,51,52,53,57,61,89,64,70,73,74,76,79,85,86,88]);
+var NO_MASTERY = VAULT_NO_MASTERY;
 
 export var vault = {
   resolve: function(id, ctx) {
-    var name = VAULT_NAMES[id] || 'Vault Upgrade ' + id;
-    var vd = ctx.S.vaultData;
+    var name = label('Vault', id);
+    var vd = ctx.saveData.vaultData;
     var lv = vd ? (Number(vd[id]) || 0) : 0;
     // VaultUpgBonus: perLevel * level (perLevel is always 1 for currently used upgrades)
     var perLevel = 1;

@@ -2,7 +2,8 @@
 // Research grid bonuses, chip bonuses, lab connectivity BFS, and mainframe bonuses.
 
 import { node } from '../../node.js';
-import { S, assignState } from '../../../state.js';
+import { label } from '../../entity-names.js';
+import { saveData } from '../../../state.js';
 import {
   charClassData,
   dreamData,
@@ -12,72 +13,71 @@ import {
   skillLvData,
 } from '../../../save/data.js';
 import {
-  ARENA_THRESHOLDS,
-  JEWEL_DESC,
-  LAB_BONUS_BASE,
-  LAB_BONUS_DYNAMIC,
+  arenaThreshold,
   SHAPE_BONUS_PCT,
 } from '../../../game-data.js';
-import {
-  emporiumBonus,
-  labJewelUnlocked,
-  ribbonBonusAt,
-} from '../../../save/helpers.js';
+import { JEWEL_DESC, LAB_BONUS_BASE, LAB_BONUS_DYNAMIC } from '../../data/w4/lab.js';
+import { labJewelUnlocked } from '../../../save/helpers.js';
+import { emporiumBonus, ribbonBonusAt } from '../../../game-helpers.js';
 import { computeCardLv } from '../common/cards.js';
 import { computeShinyBonusS } from './breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { hasBonusMajor } from '../w5/divinity.js';
 import { computeAllTalentLVz } from '../common/talent.js';
+import { companionBonus } from '../../data/common/companions.js';
+import { chipBonusValue } from '../../data/w4/chips.js';
+import { gridBonusPerLv } from '../../data/w7/research.js';
+import { talentParams } from '../../data/common/talent.js';
+import { formulaEval } from '../../../formulas.js';
 
-function gridAllMulti(S) {
-  var comp55 = S.companionIds && S.companionIds.has(55) ? 15 : 0;
-  var comp0 = S.companionIds && S.companionIds.has(0) ? 1 : 0;
-  var grid173Lv = S.gridLevels[173] || 0;
+function gridAllMulti(saveData) {
+  var comp55 = saveData.companionIds && saveData.companionIds.has(55) ? companionBonus(55) : 0;
+  var comp0 = saveData.companionIds && saveData.companionIds.has(0) ? companionBonus(0) : 0;
+  var grid173Lv = saveData.gridLevels[173] || 0;
   var sum = comp55 + 5 * Math.min(1, grid173Lv * comp0);
   return { val: 1 + sum / 100, comp55: comp55, comp0: comp0, grid173Lv: grid173Lv };
 }
 
 export var grid = {
   resolve: function(id, ctx) {
-    var S = ctx.S;
-    var gridLv = S.gridLevels[id] || 0;
-    if (gridLv < 1) return node('Lab Grid ' + id, 0, null, { note: 'grid ' + id });
+    var saveData = ctx.saveData;
+    var gridLv = saveData.gridLevels[id] || 0;
+    if (gridLv < 1) return node(label('Grid', id), 0, null, { note: 'grid ' + id });
 
-    var si = S.shapeOverlay[id];
+    var si = saveData.shapeOverlay[id];
     var shapePct = (si >= 0 && si < SHAPE_BONUS_PCT.length) ? SHAPE_BONUS_PCT[si] : 0;
     var shapeMult = 1 + shapePct / 100;
-    var am = gridAllMulti(S);
+    var am = gridAllMulti(saveData);
     var allMulti = am.val;
 
-    // Grid bonus per level varies by node — for now hardcode known ones
-    var bonusPerLv = 25; // default (grid 173 = 25, others vary)
-    if (id === 168) bonusPerLv = 1;
+    // Grid bonus per level from game data
+    var bonusPerLv = gridBonusPerLv(id) || 25;
 
     var rawVal = bonusPerLv * gridLv;
     var val = rawVal * shapeMult * Math.max(1, allMulti);
 
     var allMultiChildren = [];
-    if (am.comp55 > 0) allMultiChildren.push(node('Krunk Companion', am.comp55, null, { fmt: 'raw', note: 'companion 55' }));
-    if (am.comp0 > 0) allMultiChildren.push(node('Ballthezar Companion', 5 * Math.min(1, am.grid173Lv * am.comp0), [
-      node('Grid 173 Lv', am.grid173Lv, null, { fmt: 'raw' }),
+    if (am.comp55 > 0) allMultiChildren.push(node(label('Companion', 55), am.comp55, null, { fmt: 'raw', note: 'companion 55' }));
+    if (am.comp0 > 0) allMultiChildren.push(node(label('Companion', 0), 5 * Math.min(1, am.grid173Lv * am.comp0), [
+      node(label('Grid', 173, ' Lv'), am.grid173Lv, null, { fmt: 'raw' }),
     ], { fmt: 'raw', note: 'companion 0' }));
 
     // Grid 168 has special Glimbo trade logic
     if (id === 168) {
-      var trades = S.research[12] || [];
+      var trades = saveData.research[12] || [];
       var totalTrades = 0;
       for (var i = 0; i < trades.length; i++) totalTrades += (Number(trades[i]) || 0);
       var tradeGroups = Math.floor(totalTrades / 100);
       var glimboVal = 1 + (val * tradeGroups) / 100;
       return node('Glimbo DR Multi', glimboVal, [
-        node('Grid 168 Level', gridLv, null, { fmt: 'raw' }),
+        node(label('Grid', 168, ' Level'), gridLv, null, { fmt: 'raw' }),
         node('Shape Bonus', shapeMult, null, { fmt: 'x', note: 'shape=' + si }),
         node('All Multi', allMulti, allMultiChildren.length ? allMultiChildren : null, { fmt: 'x' }),
         node('Total Trades', totalTrades, null, { fmt: 'raw', note: tradeGroups + ' groups' }),
       ], { fmt: 'x', note: 'grid 168' });
     }
 
-    return node('Lab Grid ' + id, val, [
+    return node(label('Grid', id), val, [
       node('Grid Level', gridLv, null, { fmt: 'raw' }),
       node('Base per Level', rawVal, null, { fmt: 'raw', note: bonusPerLv + '/level' }),
       node('Shape Bonus', shapeMult, null, { fmt: 'x', note: 'shape=' + si }),
@@ -94,10 +94,11 @@ export var chip = {
     var total = 0;
     var children = [];
     for (var i = 0; i < 7; i++) {
-      // Chip 3 = Grounded_Processor, gives 60% DR
+      // Chip 3 = Grounded_Processor, gives DR
       if (id === 'dr' && Number(chipSlots[i]) === 3) {
-        total += 60;
-        children.push(node('Slot ' + i + ' Grounded Processor', 60, null, { fmt: '+', note: 'chip 3' }));
+        var _chipVal = chipBonusValue(3);
+        total += _chipVal;
+        children.push(node('Slot ' + i + ' Grounded Processor', _chipVal, null, { fmt: '+', note: 'chip 3' }));
       }
     }
     return node('Lab Chip DR', total, children, { fmt: '+', note: 'chip ' + id });
@@ -115,14 +116,14 @@ function computePetArenaBonus(idx) {
   var waves = optionsListData[89] || 0;
   var tier = 0;
   for (var s = 0; s < 16; s++) {
-    if (waves >= ARENA_THRESHOLDS[s]) tier = s + 1;
+    if (waves >= arenaThreshold(s)) tier = s + 1;
     else break;
   }
   return tier > idx ? 1 : 0;
 }
 
 function computeBonusLineWidth(playerIdx) {
-  var gemSlots = 2 * (S.gemItemsData[123] || 0);
+  var gemSlots = 2 * (saveData.gemItemsData[123] || 0);
   if (playerIdx >= gemSlots) return 0;
   return hasBonusMajor(playerIdx, 2) ? 30 : 0;
 }
@@ -145,15 +146,15 @@ function computeCookingMealMulti() {
 }
 
 function computeMealBonusPxLine() {
-  return ((S.mealsData && S.mealsData[0] && S.mealsData[0][11]) || 0) * 2 +
-         ((S.mealsData && S.mealsData[0] && S.mealsData[0][25]) || 0) * 2;
+  return ((saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][11]) || 0) * 2 +
+         ((saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][25]) || 0) * 2;
 }
 
 function computeMealBonusLinePct() {
-  var eelLv = (S.mealsData && S.mealsData[0] && S.mealsData[0][40]) || 0;
+  var eelLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][40]) || 0;
   if (eelLv <= 0) return 0;
   var cookMulti = computeCookingMealMulti();
-  var ribbon = ribbonBonusAt(28 + 40, S.ribbonData, S.olaData[379]);
+  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData[379]);
   return cookMulti * ribbon * eelLv * 1;
 }
 
@@ -173,11 +174,12 @@ function computeBubonicPurple(playerIdx) {
   if (playerX < bcX) return 0;
   var allTalent = bestLv > 0 ? computeAllTalentLVz(535, bcIdx) : 0;
   var effectiveLv = bestLv + allTalent;
-  return 40 * effectiveLv / (effectiveLv + 100);
+  var _t535 = talentParams(535);
+  return formulaEval(_t535.formula, _t535.x1, _t535.x2, effectiveLv);
 }
 
 function computePlayerDist(playerIdx) {
-  var labLev = (S.lv0AllData[playerIdx] && S.lv0AllData[playerIdx][12]) || 0;
+  var labLev = (saveData.lv0AllData[playerIdx] && saveData.lv0AllData[playerIdx][12]) || 0;
   var baseDist = 50 + 2 * labLev;
   var px = (labData && labData[0] && labData[0][2 * playerIdx]) || 0;
   var py = (labData && labData[0] && labData[0][2 * playerIdx + 1]) || 0;
@@ -201,7 +203,7 @@ function buildLabMainBonus() {
   var lmb = LAB_BONUS_BASE.map(function(e) { return e.slice(); });
   for (var i = 0; i < LAB_BONUS_DYNAMIC.length; i++) {
     var dyn = LAB_BONUS_DYNAMIC[i];
-    if (emporiumBonus(dyn[6], S.ninjaData && S.ninjaData[102] && S.ninjaData[102][9])) {
+    if (emporiumBonus(dyn[6], saveData.ninjaData && saveData.ninjaData[102] && saveData.ninjaData[102][9])) {
       lmb.push([dyn[0], dyn[1], dyn[2], dyn[3], dyn[4], dyn[5]]);
     }
   }
@@ -209,14 +211,31 @@ function buildLabMainBonus() {
 }
 
 export function computeLabConnectivity() {
-  assignState({ labMainBonusFull: buildLabMainBonus() });
-  var lmbLen = S.labMainBonusFull.length;
+  var lmb = buildLabMainBonus();
+  var lmbLen = lmb.length;
   var jdLen = JEWEL_DESC.length;
   var totalNodes = 12 + lmbLen + jdLen;
-  assignState({
-    labBonusConnected: new Array(lmbLen).fill(0),
-    labJewelConnected: new Array(jdLen).fill(0),
-  });
+  var bonusConn = new Array(lmbLen).fill(0);
+  var jewelConn = new Array(jdLen).fill(0);
+
+  // Local mainframeBonus that reads from in-progress connectivity arrays
+  function _mfb(e) {
+    if (e < 100) {
+      if (e >= lmbLen) return 0;
+      if (!bonusConn[e]) return lmb[e][3];
+      var active = lmb[e][4];
+      if (e === 13) return active;
+      if (e === 8) return active + _mfb(119) / 100;
+      return active;
+    }
+    var ji = e - 100;
+    if (ji < 0 || ji >= jdLen) return 0;
+    if (!jewelConn[ji]) return 0;
+    var base = JEWEL_DESC[ji][2];
+    if (e === 119) return base;
+    return base * _mfb(8);
+  }
+
   var playerPos = [];
   var lab0 = (labData && labData[0]) || [];
   for (var i = 0; i < 12; i++) {
@@ -227,7 +246,7 @@ export function computeLabConnectivity() {
     if (playerPos[i].x > 0 || playerPos[i].y > 0) inLab[i] = true;
   }
   var playerDist = new Array(12).fill(0);
-  var taskShopLabRange = Number((S.tasksGlobalData && S.tasksGlobalData[2] && S.tasksGlobalData[2][3] && S.tasksGlobalData[2][3][4]) || 0);
+  var taskShopLabRange = Number((saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][3] && saveData.tasksGlobalData[2][3][4]) || 0);
   var dreamLabRange = Number((dreamData && dreamData[8]) || 0);
   var winBonus4 = computeWinBonus(4);
   var bonusGemFlat = taskShopLabRange + dreamLabRange + winBonus4;
@@ -236,8 +255,8 @@ export function computeLabConnectivity() {
     for (var i = 0; i < 12; i++) {
       if (inLab[i]) playerDist[i] = computePlayerDist(i);
     }
-    var bonusConn = new Array(lmbLen).fill(0);
-    var jewelConn = new Array(jdLen).fill(0);
+    bonusConn = new Array(lmbLen).fill(0);
+    jewelConn = new Array(jdLen).fill(0);
     var connected = [];
     var visited = new Set();
     for (var n = 0; n < 12; n++) {
@@ -265,8 +284,8 @@ export function computeLabConnectivity() {
         } else if (dn < 12 + lmbLen) {
           var bi = dn - 12;
           if (bonusConn[bi]) continue;
-          var bx = S.labMainBonusFull[bi][0];
-          var by = S.labMainBonusFull[bi][1];
+          var bx = lmb[bi][0];
+          var by = lmb[bi][1];
           var threshold = (bi === 13 || bi === 8) ? 80 : bonusGemDist;
           var d = euclidDist(sx, sy, bx, by);
           if (d < threshold) {
@@ -291,22 +310,22 @@ export function computeLabConnectivity() {
         }
       }
     }
-    assignState({ labBonusConnected: bonusConn, labJewelConnected: jewelConn });
-    var newDist = Math.floor(80 * (1 + (mainframeBonus(109) + mainframeBonus(13)) / 100)) + bonusGemFlat;
+    var newDist = Math.floor(80 * (1 + (_mfb(109) + _mfb(13)) / 100)) + bonusGemFlat;
     if (newDist === bonusGemDist && pass > 0) break;
     bonusGemDist = newDist;
   }
+  return { labMainBonusFull: lmb, labBonusConnected: bonusConn, labJewelConnected: jewelConn };
 }
 
 export function mainframeBonus(e) {
-  var lmbLen = S.labMainBonusFull.length;
+  var lmbLen = saveData.labMainBonusFull.length;
   if (e < 100) {
     if (e >= lmbLen) return 0;
-    if (!S.labBonusConnected[e]) return S.labMainBonusFull[e][3];
-    var active = S.labMainBonusFull[e][4];
+    if (!saveData.labBonusConnected[e]) return saveData.labMainBonusFull[e][3];
+    var active = saveData.labMainBonusFull[e][4];
     if (e === 9) return active + mainframeBonus(113);
     if (e === 0) {
-      var totPets = (S.breedingData && S.breedingData[1] || []).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
+      var totPets = (saveData.breedingData && saveData.breedingData[1] || []).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
       return (active + mainframeBonus(101)) * totPets;
     }
     if (e === 3) return active + mainframeBonus(107);
@@ -319,7 +338,7 @@ export function mainframeBonus(e) {
   }
   var ji = e - 100;
   if (ji < 0 || ji >= JEWEL_DESC.length) return 0;
-  if (!S.labJewelConnected[ji]) return 0;
+  if (!saveData.labJewelConnected[ji]) return 0;
   var base = JEWEL_DESC[ji][2];
   if (e === 119) return base;
   return base * mainframeBonus(8);

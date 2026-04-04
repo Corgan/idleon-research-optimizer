@@ -1,15 +1,15 @@
 // Tests for js/minehead/ — formulas, game data, and simulation.
 import {
-  MINEHEAD_UPG, GRID_DIMS, TILE_MULTIPLIERS, FLOOR_REWARD_QTY,
+  MINEHEAD_UPG, GRID_DIMS, TILE_MULTIPLIERS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY,
   MINEHEAD_UNLOCK_ORDER
-} from '../minehead/game-data.js';
+} from '../stats/data/w7/minehead.js';
 import {
   upgLvReq, upgradeQTY, upgCost, canBuyUpg,
   gridDims, totalTiles, maxHPYou, floorHP, minesOnFloor, dailyTries,
   baseDMG, bonusDMGperTilePCT, bluecrownMulti, bluecrownOdds,
   jackpotOdds, jackpotTiles, currentOutgoingDMG, currencyPerHour,
   glimboCost, goldTilesTotal, blocksTotal, flagsTotal, instaRevealsTotal,
-} from '../minehead/formulas.js';
+} from '../stats/systems/w7/minehead.js';
 import { simulateGame, monteCarloFloor, generateGrid, DEFAULT_PARAMS, greedyUpgradePath } from '../minehead/sim.js';
 
 let _pass = 0, _fail = 0;
@@ -37,7 +37,7 @@ function ok(cond, label) {
 console.log('--- game-data ---');
 eq(MINEHEAD_UPG.length, 30, '30 upgrades');
 eq(MINEHEAD_UPG[0].name, 'Base_Damage_I', 'first upgrade name');
-eq(MINEHEAD_UPG[29].name, 'Rift_Guy', 'last upgrade name');
+eq(MINEHEAD_UPG[29].name, "Rift_Guy's_Upgrade", 'last upgrade name');
 eq(MINEHEAD_UPG[6].maxLv, 7, 'Extra_Lives maxLv=7');
 eq(GRID_DIMS.length, 17, '17 grid dimension entries');
 eq(GRID_DIMS[0], '3,3', 'first grid = 3x3');

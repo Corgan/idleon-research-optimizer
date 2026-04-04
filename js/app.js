@@ -2,8 +2,16 @@
 // Extracted from research-optimizer-v2.html inline script.
 // ES module: <script type="module" src="js/app.js">.
 
+// Global error handlers — surface all errors in console
+window.addEventListener('error', function(ev) {
+  console.error('[Uncaught]', ev.message, ev.filename + ':' + ev.lineno, ev.error);
+});
+window.addEventListener('unhandledrejection', function(ev) {
+  console.error('[Unhandled Promise]', ev.reason);
+});
 
-import {  S  } from './state.js';
+
+import {  saveData  } from './state.js';
 import {
   dtAutoOptMags,
   dtAutoOptShapes,
@@ -39,7 +47,7 @@ import { renderUpgradeEval } from './renderers/upgrade-eval.js';
 import {
   cancelOptimizer,
   runParallelOptimizer,
-} from './renderers/worker-pool.js';
+} from './workers/worker-pool.js';
 import { renderOptimizerResults, importOptToDecisionTree } from './ui/optimizer-ui.js';
 import { renderMineheadTab } from './ui/minehead-ui.js';
 import { renderSushiTab } from './ui/sushi-ui.js';
@@ -113,8 +121,8 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
   let target;
   if (isLevelMode) {
     const val = parseInt(document.getElementById('opt-target-level')?.value || '0');
-    if (!val || val <= S.researchLevel) {
-      alert('Enter a target level above your current level (' + S.researchLevel + ').');
+    if (!val || val <= saveData.researchLevel) {
+      alert('Enter a target level above your current level (' + saveData.researchLevel + ').');
       return;
     }
     target = { type: 'level', value: val };

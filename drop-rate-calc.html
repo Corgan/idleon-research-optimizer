@@ -58,6 +58,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .bt-tag.manual { color: var(--orange); }
 .bt-tooltip { position: fixed; background: #1a1a2e; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
 
+
 </style>
 </head>
 <body>
@@ -101,12 +102,15 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 
 // ======================= MODULE IMPORTS =======================
 import { loadSaveData } from './js/save/loader.js';
-import { computeDNSM } from './js/save/dnsm-context.js';
-import { S } from './js/state.js';
+import { saveData } from './js/state.js';
 import { buildTree, toRenderNode } from './js/stats/tree-builder.js';
-import catalog from './js/stats/catalog.js';
+import { getCatalog } from './js/stats/registry.js';
 import drDesc from './js/stats/defs/drop-rate.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { ClassNames, MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
+import { MONSTERS } from './js/stats/data/game/monsters.js';
+
+const catalog = getCatalog();
 
 function _j(v) { return typeof v === 'string' ? JSON.parse(v) : v; }
 function fN(n, d) {
@@ -117,11 +121,32 @@ function fN(n, d) {
   return n.toFixed(d);
 }
 
+function _arcaneMulti(kills) {
+  if (kills < 1) return 0;
+  var lg = Math.log10(kills), lg2 = Math.log2(kills);
+  return (2 * Math.max(0, lg - 3.5) + Math.max(0, lg2 - 12)) * (lg / 2.5)
+    + Math.min(2, kills / 1000) + Math.max(5 * (lg - 5), 0);
+}
+
+function _mapLabel(idx, bonArr) {
+  var name = (MapDispName[idx] || 'Map ' + idx).replace(/_/g, ' ');
+  var mobId = MapAFKtarget[idx];
+  var mob = mobId && MONSTERS[mobId] ? MONSTERS[mobId].Name.replace(/_/g, ' ') : '';
+  var label = name;
+  if (mob && mob !== 'Nothing') label += ' - ' + mob;
+  if (bonArr) {
+    var multi = _arcaneMulti(bonArr[0] || 0);
+    if (multi > 0) label += ' (' + (1 + multi / 100).toFixed(2) + 'x)';
+  }
+  return label;
+}
+
 // ======================= STATE =======================
 var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
 var CUR_MAP = 0;
+
 
 // ======================= COMPUTE & RENDER =======================
 function recalc() {
@@ -132,15 +157,12 @@ function recalc() {
     mapBon = _j(SAVE_RAW.data.MapBon);
   }
 
-  var dnsm = null;
-  try { dnsm = computeDNSM(CUR_CHAR); } catch (e) { console.warn('DNSM error:', e); }
-
-  var ctx = { charIdx: CUR_CHAR, mapIdx: CUR_MAP, S: S, dnsm: dnsm, mapBon: mapBon };
+  var ctx = { charIdx: CUR_CHAR, mapIdx: CUR_MAP, saveData: saveData, mapBon: mapBon };
   var tree = buildTree(drDesc, catalog, ctx);
 
   document.getElementById('dr-total').textContent = tree.val.toFixed(2) + 'x';
   document.getElementById('dr-sub').textContent =
-    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + '  ·  Map: ' + CUR_MAP;
+    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + '  ·  Map: ' + (MapDispName[CUR_MAP] || CUR_MAP).replace(/_/g, ' ');
 
   var renderRoot = toRenderNode(tree);
   renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
@@ -160,24 +182,25 @@ function doImport() {
     var sel = document.getElementById('char-sel');
     sel.innerHTML = '';
     CHARS.forEach(function(name, i) {
+      var classId = data['CharacterClass_' + i];
+      var className = (ClassNames[classId] || '?').replace(/_/g, ' ');
       var o = document.createElement('option');
       o.value = i;
-      o.textContent = i + ': ' + name + ' (class ' + (data['CharacterClass_' + i] || '?') + ')';
+      o.textContent = i + ': ' + name + ' (' + className + ')';
       sel.appendChild(o);
     });
     sel.disabled = false;
     CUR_CHAR = 0;
 
     var mapSel = document.getElementById('map-sel');
-    mapSel.innerHTML = '<option value="0">Map 0: Town (no AC)</option>';
+    mapSel.innerHTML = '<option value="0">' + _mapLabel(0, null) + '</option>';
     if (data.MapBon) {
       var mb = _j(data.MapBon);
       for (var i = 0; i < mb.length; i++) {
         if (Array.isArray(mb[i]) && mb[i].length >= 3 && mb[i].some(function(v) { return v > 0; })) {
-          var k = mb[i].slice(0, 3);
           var o = document.createElement('option');
           o.value = i;
-          o.textContent = 'Map ' + i + ': ' + k.map(function(v) { return v > 0 ? v.toLocaleString() : '-'; }).join('/') + ' kills';
+          o.textContent = _mapLabel(i, mb[i]);
           mapSel.appendChild(o);
         }
       }
@@ -186,7 +209,7 @@ function doImport() {
     CUR_MAP = data['CurrentMap_' + CUR_CHAR] || 0;
 
     msgEl.className = 'import-msg ok';
-    msgEl.textContent = '✓ Loaded ' + CHARS.length + ' characters.';
+    msgEl.textContent = '\u2713 Loaded ' + CHARS.length + ' characters.';
     recalc();
   } catch (err) {
     msgEl.className = 'import-msg err';

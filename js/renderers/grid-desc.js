@@ -1,5 +1,5 @@
 // ===== grid-desc.js - Grid Node Description Formatting =====
-// Extracted from upgrade-eval.js to break dashboard ↔ upgrade-eval circular import.
+// Extracted from upgrade-eval.js to break dashboard <-> upgrade-eval circular import.
 
 import { RES_GRID_RAW } from '../game-data.js';
 import { optionsListData } from '../save/data.js';
@@ -8,7 +8,8 @@ import { gridBonusMode2 } from '../sim-math.js';
 // Compute Grid_Bonus mode 2 via centralized helper, adapted for save-context data
 function _gridBonusMode2(nodeIdx, curBonus, lvOverride, sc) {
   const gl31 = lvOverride != null && nodeIdx === 31 ? lvOverride : (sc.gridLevels[31] || 0);
-  return gridBonusMode2(nodeIdx, curBonus, gl31, sc.insightLvs, sc.occFound, sc.cachedBoonyCount, optionsListData?.[500]);
+  const ola500 = sc.optionsListData500 != null ? sc.optionsListData500 : optionsListData?.[500];
+  return gridBonusMode2(nodeIdx, curBonus, gl31, sc.insightLvs, sc.occFound, sc.cachedBoonyCount, ola500);
 }
 
 // Format description with all game placeholders resolved
@@ -37,7 +38,7 @@ export function formatDesc(nodeIdx, lvOverride, sc) {
     desc = desc.replace(/\^/g, g((1 + v / 100).toFixed(2)));
   }
   if (desc.includes('&')) {
-    const olaVal = Number(optionsListData?.[499]) || 0;
+    const olaVal = sc.optionsListData499 != null ? sc.optionsListData499 : Number(optionsListData?.[499]) || 0;
     desc = desc.replace(/&/g, g(Math.floor(1e4 * (1 - 1 / (1 + olaVal / 100))) / 100));
   }
   return desc;

@@ -2,20 +2,24 @@
 // Summoning owl bonuses with legend/companion/megafeather multipliers.
 
 import { node } from '../../node.js';
+import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
+import { companionBonus } from '../../data/common/companions.js';
+import { OWL_BASE } from '../../data/game-constants.js';
 
 export var owl = {
   resolve: function(id, ctx) {
-    // id = owl bonus index (4 = DR)
+    // id = owl bonus index (4 = DR, 5 = LUK)
+    var base = OWL_BASE[id] || 1;
     var ola255 = Number((optionsListData && optionsListData[255]) || 0);
     var rawCount = Math.max(0, Math.ceil((ola255 - id) / 6));
     if (rawCount <= 0) return node('Summoning Owl', 0, null, { note: 'owl ' + id });
 
     var legend26 = legendPTSbonus(26);
     var legendMulti = 1 + legend26 / 100;
-    // CompanionDB[51] = w6c2b "3x bonuses from Orion, Poppy, and Bubba", value = 2
-    var comp51 = ctx.S.companionIds && ctx.S.companionIds.has(51) ? 2 : 0;
+    // CompanionDB[51] = w6c2b "3x bonuses from Orion, Poppy, and Bubba"
+    var comp51 = ctx.saveData.companionIds && ctx.saveData.companionIds.has(51) ? companionBonus(51) : 0;
 
     var ola262 = Number((optionsListData && optionsListData[262]) || 0);
     function owlMF(t) { return ola262 > t ? (t === 9 ? ola262 - 9 : 1) : 0; }
@@ -30,11 +34,12 @@ export var owl = {
     if (mf9a > 0) mfChildren.push(node('Feather 9', mf9a, null, { fmt: 'raw' }));
     if (mf9b > 0) mfChildren.push(node('Feather 9+ (×50 ea)', mf9b, null, { fmt: 'raw' }));
 
-    var val = legendMulti * (1 + comp51) * (1 + owlAll / 100) * rawCount;
+    var val = base * legendMulti * (1 + comp51) * (1 + owlAll / 100) * rawCount;
     return node('Summoning Owl', val, [
+      node('Base Per Owl', base, null, { fmt: 'raw', note: 'OWL_BASE[' + id + ']' }),
       node('Owl Count', rawCount, null, { fmt: 'raw', note: 'OLA[255]=' + ola255 }),
-      node('Legend Talent 26', legendMulti, null, { fmt: 'x', note: 'legend 26' }),
-      node('Orion Companion', 1 + comp51, null, { fmt: 'x', note: 'companion 51' }),
+      node(label('Legend', 26), legendMulti, null, { fmt: 'x', note: 'legend 26' }),
+      node(label('Companion', 51), 1 + comp51, null, { fmt: 'x', note: 'companion 51' }),
       node('Megafeather Bonus', 1 + owlAll / 100, mfChildren.length ? mfChildren : null, { fmt: 'x', note: 'OLA[262]=' + ola262 }),
     ], { fmt: '+', note: 'owl ' + id });
   },

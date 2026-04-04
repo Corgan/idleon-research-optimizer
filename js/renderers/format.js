@@ -54,3 +54,21 @@ export function fmtVal(v) {
 export function fmtExact(v) {
   return Math.round(v).toLocaleString();
 }
+
+/** General-purpose number formatter with guards and finer precision for small values. */
+export function fmtNum(n) {
+  if (n === 0) return '0';
+  if (typeof n !== 'number' || !isFinite(n)) return String(n);
+  const a = Math.abs(n);
+  if (a >= 1e24) return n.toExponential(2);
+  if (a >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
+  if (a >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
+  if (a >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
+  if (a >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  if (a >= 100) return Math.round(n).toLocaleString();
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(2);
+}

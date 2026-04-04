@@ -2,11 +2,8 @@
 // Checks OLA (optionsListData) flag entries for threshold bonuses.
 
 import { node } from '../../node.js';
+import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
-
-var OLA_NAMES = {
-  232: 'Sneaking Mastery',
-};
 
 export var ola = {
   resolve: function(id, ctx, args) {
@@ -14,7 +11,7 @@ export var ola = {
     var bonus = args ? args[1] : 0;
     var val = Number(optionsListData && optionsListData[id]) || 0;
     var active = val >= threshold;
-    var name = OLA_NAMES[id] || 'OLA ' + id;
+    var name = label('Ola', id);
     return node(name, active ? bonus : 0, [
       node('Value', val, null, { fmt: 'raw' }),
       node('Threshold', threshold, null, { fmt: 'raw' }),

@@ -1,7 +1,7 @@
 // ===== upgrade-eval.js - Shape Tier System & Upgrade Evaluation =====
 // Merged from upgrade-eval.js + shape-tiers.js (originally split from render-upgrades.js).
 
-import { S } from '../state.js';
+import { saveData } from '../state.js';
 import { buildSaveContext } from '../save/context.js';
 import {
   GRID_COLS,
@@ -31,7 +31,7 @@ import {
 import {
   cancelWorkerTask,
   runWorkerTask,
-} from './worker-pool.js';
+} from '../workers/worker-pool.js';
 import { attachTooltip } from '../ui/tooltip.js';
 import { showGridTooltip } from '../ui/dashboard.js';
 import { formatDesc } from './grid-desc.js';
@@ -51,41 +51,41 @@ export const UE_NON_EXP_NODES = (() => {
 // 'above' = shapes always placed here alongside EXP nodes
 // 'below' = shapes placed here only with leftover shapes
 // Initialize with all non-EXP nodes in 'below' (pure EXP optimization default)
-S.shapeTiers.above = []; S.shapeTiers.below = UE_NON_EXP_NODES.slice();
+saveData.shapeTiers.above = []; saveData.shapeTiers.below = UE_NON_EXP_NODES.slice();
 
 export function saveShapeTiers() {
   _dedupTiers();
-  try { localStorage.setItem('idleon_shapeTiers', JSON.stringify({ above: S.shapeTiers.above, below: S.shapeTiers.below })); } catch(e) { console.warn('Failed to save shapeTiers:', e); }
+  try { localStorage.setItem('idleon_shapeTiers', JSON.stringify({ above: saveData.shapeTiers.above, below: saveData.shapeTiers.below })); } catch(e) { console.warn('Failed to save shapeTiers:', e); }
 }
 function _loadShapeTiers() {
   try {
     const raw = JSON.parse(localStorage.getItem('idleon_shapeTiers'));
     if (raw && Array.isArray(raw.below)) {
-      S.shapeTiers.above = raw.above || [];
-      S.shapeTiers.below = [...(raw.below || []), ...(raw.disabled || [])];
+      saveData.shapeTiers.above = raw.above || [];
+      saveData.shapeTiers.below = [...(raw.below || []), ...(raw.disabled || [])];
     }
   } catch(e) { console.warn('Failed to load shapeTiers:', e); }
   _dedupTiers();
   // Reconcile: ensure every non-EXP node appears in exactly one tier
-  const allTiered = new Set([...S.shapeTiers.above, ...S.shapeTiers.below]);
+  const allTiered = new Set([...saveData.shapeTiers.above, ...saveData.shapeTiers.below]);
   for (const idx of UE_NON_EXP_NODES) {
-    if (!allTiered.has(idx)) S.shapeTiers.below.push(idx);
+    if (!allTiered.has(idx)) saveData.shapeTiers.below.push(idx);
   }
   // Remove stale nodes
   const validNonExp = new Set(UE_NON_EXP_NODES);
   const allNodes = new Set(GRID_INDICES);
   // Above allows any valid node (including EXP nodes for presets like Insight)
-  for (let i = S.shapeTiers.above.length - 1; i >= 0; i--) {
-    if (!allNodes.has(S.shapeTiers.above[i])) S.shapeTiers.above.splice(i, 1);
+  for (let i = saveData.shapeTiers.above.length - 1; i >= 0; i--) {
+    if (!allNodes.has(saveData.shapeTiers.above[i])) saveData.shapeTiers.above.splice(i, 1);
   }
   // Below only allows non-EXP nodes
-  for (let i = S.shapeTiers.below.length - 1; i >= 0; i--) {
-    if (!validNonExp.has(S.shapeTiers.below[i])) S.shapeTiers.below.splice(i, 1);
+  for (let i = saveData.shapeTiers.below.length - 1; i >= 0; i--) {
+    if (!validNonExp.has(saveData.shapeTiers.below[i])) saveData.shapeTiers.below.splice(i, 1);
   }
 }
 function _dedupTiers() {
   const seen = new Set();
-  for (const list of [S.shapeTiers.above, S.shapeTiers.below]) {
+  for (const list of [saveData.shapeTiers.above, saveData.shapeTiers.below]) {
     for (let i = list.length - 1; i >= 0; i--) {
       if (seen.has(list[i])) list.splice(i, 1); else seen.add(list[i]);
     }
@@ -153,8 +153,8 @@ function _isBasePreset(id) { return id && id.startsWith('_'); }
 function _applyPreset(preset) {
   const tiers = _stringToTiers(preset.data);
   if (!tiers) return;
-  S.shapeTiers.above = tiers.above;
-  S.shapeTiers.below = tiers.below;
+  saveData.shapeTiers.above = tiers.above;
+  saveData.shapeTiers.below = tiers.below;
   _dedupTiers();
   // Base presets don't save tiers to localStorage
   if (!_isBasePreset(preset.id)) saveShapeTiers();
@@ -167,7 +167,7 @@ function _applyPreset(preset) {
     const bp = SP_BASE_PRESETS.find(p => p.id === activeId);
     if (bp) {
       const tiers = _stringToTiers(bp.data);
-      if (tiers) { S.shapeTiers.above = tiers.above; S.shapeTiers.below = tiers.below; }
+      if (tiers) { saveData.shapeTiers.above = tiers.above; saveData.shapeTiers.below = tiers.below; }
     }
   }
 })();
@@ -285,7 +285,7 @@ function _renderPresetSidebar() {
     saveBtn.title = 'Overwrite current preset';
     saveBtn.addEventListener('click', () => {
       const existing = presets.find(p => p.id === activeId);
-      existing.data = _tiersToString(S.shapeTiers);
+      existing.data = _tiersToString(saveData.shapeTiers);
       _savePresets(presets);
       _renderPresetSidebar();
     });
@@ -305,7 +305,7 @@ function _renderPresetSidebar() {
     newBtn.style.display = 'none';
     const inp = _makeInlineInput('', (name) => {
       const id = Date.now().toString(36);
-      presets.push({ id, name, data: _tiersToString(S.shapeTiers) });
+      presets.push({ id, name, data: _tiersToString(saveData.shapeTiers) });
       _savePresets(presets);
       _setActivePresetId(id);
       _renderPresetSidebar();
@@ -342,7 +342,7 @@ function _renderPresetSidebar() {
       if (bp) name = bp.name;
       else { const up = presets.find(p => p.id === aid); if (up) name = up.name; }
     }
-    ioBox.value = (name ? name + ':' : '') + _tiersToString(S.shapeTiers);
+    ioBox.value = (name ? name + ':' : '') + _tiersToString(saveData.shapeTiers);
     ioBox.select();
   });
   const impBtn = document.createElement('button');
@@ -361,8 +361,8 @@ function _renderPresetSidebar() {
     }
     const tiers = _stringToTiers(raw);
     if (!tiers) { ioBox.style.borderColor = '#e74c3c'; setTimeout(() => ioBox.style.borderColor = '', 1000); return; }
-    S.shapeTiers.above = tiers.above;
-    S.shapeTiers.below = tiers.below;
+    saveData.shapeTiers.above = tiers.above;
+    saveData.shapeTiers.below = tiers.below;
     _dedupTiers();
     saveShapeTiers();
     // Create a new user preset if name was included
@@ -375,7 +375,7 @@ function _renderPresetSidebar() {
         finalName = finalName + ' ' + suffix;
       }
       const id = Date.now().toString(36);
-      presets.push({ id, name: finalName, data: _tiersToString(S.shapeTiers) });
+      presets.push({ id, name: finalName, data: _tiersToString(saveData.shapeTiers) });
       _savePresets(presets);
       _setActivePresetId(id);
     } else {
@@ -591,7 +591,7 @@ function _renderTierList(containerId, tiers, onChange, opts) {
 function _updateAboveWarning() {
   const warn = document.getElementById('ue-warn-above');
   if (!warn) return;
-  warn.style.display = S.shapeTiers.above.length > 0 ? '' : 'none';
+  warn.style.display = saveData.shapeTiers.above.length > 0 ? '' : 'none';
 }
 
 // ===== UPGRADE EVALUATION =====

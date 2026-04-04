@@ -33,14 +33,14 @@
 //
 // JACKPOT TILE (value 30): cascade-reveals random safe unrevealed tiles
 
-import { TILE_MULTIPLIERS } from './game-data.js';
+import { TILE_MULTIPLIERS } from '../stats/data/w7/minehead.js';
 import {
   minesOnFloor, floorHP, maxHPYou,
   bluecrownOdds, jackpotOdds, jackpotTiles, upgradeQTY,
   gridDims, goldTilesTotal, blocksTotal, instaRevealsTotal,
   currentOutgoingDMG, bonusDMGperTilePCT,
   WIGGLE_CHANCE, wiggleMaxPerGame,
-} from './formulas.js';
+} from '../stats/systems/w7/minehead.js';
 
 // ===== STRATEGIES =====
 

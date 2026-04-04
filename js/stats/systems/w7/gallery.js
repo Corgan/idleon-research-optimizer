@@ -1,23 +1,30 @@
-// ===== GALLERY SYSTEM (W7) =====
+﻿// ===== GALLERY SYSTEM (W7) =====
 // Nametag/PremHat bonus systems.
 
 import { node } from '../../node.js';
+import { label } from '../../entity-names.js';
 import { optionsListData, numCharacters, cauldronInfoData, labData } from '../../../save/data.js';
-import { formulaEval } from '../../../save/engine.js';
+import { formulaEval } from '../../../formulas.js';
 import { computeCardLv } from '../common/cards.js';
-import { S } from '../../../state.js';
-import { NAMETAG_TIER_SCALE } from '../../../game-data.js';
+import { saveData } from '../../../state.js';
+import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
+import { NAMETAG_DR, NAMETAG_NAMES, TROPHY_DR, TROPHY_NAMES,
+  PREMHAT_DR, PREMHAT_NAMES, GALLERY_STAT_FOR_ID } from '../../data/w7/gallery.js';
 import { mineheadBonusQTY } from './research.js';
+import { rogBonusQTY } from './sushi.js';
 import { legendPTSbonus } from './spelunking.js';
-import { eventShopOwned, emporiumBonus } from '../../../save/helpers.js';
+import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
+import { companionBonus } from '../../data/common/companions.js';
+import { bubbleParams } from '../../data/w2/alchemy.js';
+import { GALLERY_TROPH_CHIP_MULTI } from '../../data/game-constants.js';
 
 // GalleryBonusMulti: 1 + (3*Spelunk[13][4] + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
 // GalleryBonusMulti: 1 + (3*GalleryLv + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
-function galleryBonusMulti() {
-  var sp = S.spelunkData || [];
+export function galleryBonusMulti() {
+  var sp = saveData.spelunkData || [];
   var galleryLv = Number((sp[13] && sp[13][4]) || 0);
   var trophChip = 0;
   if (labData) {
@@ -30,146 +37,72 @@ function galleryBonusMulti() {
       if (trophChip) break;
     }
   }
+  var _y13bp = bubbleParams(3, 32);
   var y13lv = Number((cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][32]) || 0);
-  var y13base = y13lv > 0 ? formulaEval('decay', 5, 500, y13lv) : 0;
+  var y13base = y13lv > 0 ? formulaEval(_y13bp.formula, _y13bp.x1, _y13bp.x2, y13lv) : 0;
   var y13prisma = isBubblePrismad(3, 32) ? Math.max(1, getPrismaBonusMult()) : 1;
   var y13capped = Math.min(20, y13base * y13prisma);
   var cardLv = Math.min(computeCardLv('w7a11'), 10);
-  var comp49 = S.companionIds && S.companionIds.has(49) ? 30 : 0;
+  var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
   var ola467 = Number(optionsListData[467]) || 0;
   var killroy3 = ola467 / (200 + ola467) * 10;
-  var sum = 3 * galleryLv + 10 * trophChip + 3 * clamWork7 + killroy3 + y13capped + cardLv + comp49;
+  var sum = 3 * galleryLv + GALLERY_TROPH_CHIP_MULTI * trophChip + 3 * clamWork7 + killroy3 + y13capped + cardLv + comp49;
   var val = 1 + sum / 100;
   var ch = [];
   if (galleryLv > 0) ch.push(node('Gallery Level', 3 * galleryLv, [node('Level', galleryLv, null, { fmt: 'raw' })], { fmt: 'raw', note: '3 per level' }));
-  if (trophChip) ch.push(node('Silkrode Trophy Chip', 10, null, { fmt: 'raw', note: 'chip 16' }));
-  if (clamWork7) ch.push(node('ClamWork 7 Bonus', 3, null, { fmt: 'raw' }));
-  if (killroy3 > 0) ch.push(node('Killroy 3 Bonus', killroy3, null, { fmt: 'raw' }));
-  if (y13capped > 0) ch.push(node('Bubble Y13 (capped 20)', y13capped, [
+  if (trophChip) ch.push(node(label('Chip', 16), GALLERY_TROPH_CHIP_MULTI, null, { fmt: 'raw', note: 'chip 16' }));
+  if (clamWork7) ch.push(node(label('ClamWork', 7), 3, null, { fmt: 'raw' }));
+  if (killroy3 > 0) ch.push(node(label('Killroy', 3), killroy3, null, { fmt: 'raw' }));
+  if (y13capped > 0) ch.push(node(label('Bubble', 'Y13', ' (capped 20)'), y13capped, [
     node('Y13 Level', y13lv, null, { fmt: 'raw' }),
     node('Y13 Base', y13base, null, { fmt: 'raw' }),
     node('Prisma Bonus', y13prisma, null, { fmt: 'x' }),
   ], { fmt: 'raw' }));
   if (cardLv > 0) ch.push(node('Card w7a11 (capped 10)', cardLv, null, { fmt: 'raw' }));
-  if (comp49 > 0) ch.push(node('Bubba Companion', comp49, null, { fmt: 'raw', note: 'companion 49' }));
+  if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw', note: 'companion 49' }));
   return { val: val, children: ch };
 }
 
-// HatrackBonusMulti: 1 + (Spelunk[46].length + 10*EventShopOwned(30) + MineheadBonusQTY(21)) / 100
-function hatrackBonusMulti() {
-  var sp = S.spelunkData || [];
+// HatrackBonusMulti: 1 + (Spelunk[46].length + 10*EventShopOwned(30) + MineheadBonusQTY(21) + RoG_BonusQTY(36)) / 100
+export function hatrackBonusMulti() {
+  var sp = saveData.spelunkData || [];
   var hatCount = (sp[46] && sp[46].length) || 0;
-  var mineFloor = (S.stateR7 && S.stateR7[4]) || 0;
+  var mineFloor = (saveData.stateR7 && saveData.stateR7[4]) || 0;
   var mhq21 = mineheadBonusQTY(21, mineFloor);
-  var evStr = S.cachedEventShopStr || '';
+  var evStr = saveData.cachedEventShopStr || '';
   var evShop30 = eventShopOwned(30, evStr);
-  var sum = hatCount + 10 * evShop30 + mhq21;
+  var sushiRoG36 = rogBonusQTY(36, saveData.cachedUniqueSushi || 0);
+  var sum = hatCount + 10 * evShop30 + mhq21 + sushiRoG36;
   var val = 1 + sum / 100;
   var ch = [];
   if (hatCount > 0) ch.push(node('Hats Owned', hatCount, null, { fmt: 'raw' }));
-  if (evShop30 > 0) ch.push(node('Event Shop 30 Bonus', 10 * evShop30, null, { fmt: 'raw' }));
-  if (mhq21 > 0) ch.push(node('Minehead Bonus 21', mhq21, null, { fmt: 'raw', note: 'minehead 21' }));
+  if (evShop30 > 0) ch.push(node(label('Event', 30), 10 * evShop30, null, { fmt: 'raw' }));
+  if (mhq21 > 0) ch.push(node(label('Minehead Floor', 21), mhq21, null, { fmt: 'raw', note: 'minehead 21' }));
+  if (sushiRoG36 > 0) ch.push(node(label('Sushi', 36), sushiRoG36, null, { fmt: 'raw', note: 'RoG_BonusQTY(36)' }));
   return { val: val, children: ch };
 }
-
-// Static UQ data for nametag items that affect DR
-// Keyed by nametag ID (= Spelunk[17] index = EquipmentNametag{N}).
-// { nametagId: [{ stat, val }] }
-var NAMETAG_DR = {
-  3:  [{ stat: '%_DROP_RATE', val: 40 }],         // Balling_Nametag
-  10: [{ stat: '%_DROP_RATE', val: 3 }],           // 3rd_Anniversary
-  19: [{ stat: '%_DROP_RATE', val: 10 }],          // Aethermoon
-  20: [{ stat: '%_DROP_RATE_MULTI', val: 25 },     // Deadbones
-       { stat: '%_DROP_RATE', val: 35 }],
-  21: [{ stat: '%_DROP_RATE', val: 25 }],          // Treasure
-  22: [{ stat: '%_DROP_RATE', val: 5 }],           // Tome_Apprentice
-  28: [{ stat: '%_DROP_RATE_MULTI', val: 20 }],    // Tome_Legend
-  29: [{ stat: '%_DROP_RATE_MULTI', val: 20 }],    // Reliquarium
-  32: [{ stat: '%_DROP_RATE', val: 10 }],          // Sweet_Chocolate
-  33: [{ stat: '%_DROP_RATE_MULTI', val: 30 }],    // Pot_of_Gold
-};
-var NAMETAG_NAMES = {
-  3: 'Balling Nametag', 10: '3rd Anniversary', 19: 'Aethermoon',
-  20: 'Deadbones', 21: 'Treasure', 22: 'Tome Apprentice',
-  28: 'Tome Legend', 29: 'Reliquarium', 32: 'Sweet Chocolate',
-  33: 'Pot of Gold',
-};
-
-// Static UQ data for trophy items that affect DR
-// Keyed by trophy item ID (Trophy2=Lucky_Lad, etc.)
-// { trophyItemId: [{ stat, val }] }
-var TROPHY_DR = {
-  2:  [{ stat: '%_DROP_RATE', val: 7 }],       // Lucky_Lad
-  9:  [{ stat: '%_DROP_RATE', val: 3 }],       // Ultra_Unboxer
-  17: [{ stat: '%_DROP_RATE', val: 42 }],      // One_of_the_Divine
-  20: [{ stat: '%_DROP_RATE', val: 50 }],      // Luckier_Lad
-  24: [{ stat: '%_DROP_RATE_MULTI', val: 9 }], // Nine_Dart_Finish
-  25: [{ stat: '%_DROP_RATE', val: 777 }],     // Luckiest_Lad
-};
-var TROPHY_NAMES = {
-  2: 'Lucky Lad', 9: 'Ultra Unboxer', 17: 'One of the Divine',
-  20: 'Luckier Lad', 24: 'Nine Dart Finish', 25: 'Luckiest Lad',
-};
-
-// Static UQ data for premhat items that affect DR
-// { itemName: [{ stat, val }] }
-var PREMHAT_DR = {
-  EquipmentHats32:  [{ stat: '%_DROP_RATE', val: 2 }],     // Bandit_Bob_Mask
-  EquipmentHats34:  [{ stat: '%_DROP_RATE', val: 3 }],     // Parasite
-  EquipmentHats40:  [{ stat: '%_DROP_RATE', val: 2 }],     // Pardoned_Turkey
-  EquipmentHats46:  [{ stat: '%_DROP_RATE', val: 4 }],     // Strawbiggy
-  EquipmentHats50:  [{ stat: '%_DROP_RATE', val: 3 }],     // Green_Beanie
-  EquipmentHats81:  [{ stat: '%_DROP_RATE', val: 10 }],    // Siege_Captain_Cap
-  EquipmentHats86:  [{ stat: '%_DROP_RATE_MULTI', val: 1 }], // Carrotman_Mask
-  EquipmentHats90:  [{ stat: '%_DROP_RATE', val: 5 }],     // Straw_Hat
-  EquipmentHats96:  [{ stat: '%_DROP_RATE_MULTI', val: 1 }], // Bamboo_Hat
-  EquipmentHats102: [{ stat: '%_DROP_RATE_MULTI', val: 2 }], // Fanned_Blossomage
-  EquipmentHats108: [{ stat: '%_DROP_RATE', val: 3 }],     // 3rd_Anniversary_Ice_Cream
-  EquipmentHats116: [{ stat: '%_DROP_RATE', val: 10 }],    // Goldberry
-  EquipmentHats127: [{ stat: '%_DROP_RATE', val: 100 }],   // Seal_Team_Skipper_Hat
-  EquipmentHats129: [{ stat: '%_DROP_RATE', val: 1 }],     // Polkadot_Beanie
-  EquipmentHats130: [{ stat: '%_DROP_RATE', val: 2 }],     // Leprechaun_Hat
-};
-var PREMHAT_NAMES = {
-  EquipmentHats32: 'Bandit Bob Mask', EquipmentHats34: 'Parasite',
-  EquipmentHats40: 'Pardoned Turkey', EquipmentHats46: 'Strawbiggy',
-  EquipmentHats50: 'Green Beanie', EquipmentHats81: 'Siege Captain Cap',
-  EquipmentHats86: 'Carrotman Mask', EquipmentHats90: 'Straw Hat',
-  EquipmentHats96: 'Bamboo Hat', EquipmentHats102: 'Fanned Blossomage',
-  EquipmentHats108: '3rd Anniv Ice Cream', EquipmentHats116: 'Goldberry',
-  EquipmentHats127: 'Seal Team Skipper', EquipmentHats129: 'Polkadot Beanie',
-  EquipmentHats130: 'Leprechaun Hat',
-};
-
-// Map EtcBonuses IDs to stat names
-var STAT_FOR_ID = {
-  2: '%_DROP_RATE',
-  91: '%_DROP_RATE_MULTI',
-  99: '%_BONUS_DROP_RATE',
-  102: '%_DROP_CHANCE',
-};
 
 // Podium tier computation for trophy slots 48+.
 // Game: PodiumsOwned_Lv4/Lv3/Lv2 from _customBlock_Gallery.
 function podiumsOwnedLv4() {
-  var sail33 = Number((S.sailingData && S.sailingData[3] && S.sailingData[3][33]) || 0);
-  var comp28 = S.companionIds && S.companionIds.has(28) ? 1 : 0;
-  var evStr = S.cachedEventShopStr || '';
+  var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
+  var comp28 = saveData.companionIds && saveData.companionIds.has(28) ? 1 : 0;
+  var evStr = saveData.cachedEventShopStr || '';
   var evShop29 = eventShopOwned(29, evStr);
   return Math.round(Math.min(1, comp28) + evShop29 + Math.min(1, Math.floor(sail33 / 6)));
 }
 
 function podiumsOwnedLv3() {
-  var gem40 = Number((S.gemItemsData && S.gemItemsData[40]) || 0);
-  var sail33 = Number((S.sailingData && S.sailingData[3] && S.sailingData[3][33]) || 0);
+  var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
+  var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
   return Math.round(Math.floor(gem40 / 3) + Math.min(1, Math.floor(sail33 / 5)) + podiumsOwnedLv4());
 }
 
 function podiumsOwnedLv2() {
-  var gem40 = Number((S.gemItemsData && S.gemItemsData[40]) || 0);
-  var sail33 = Number((S.sailingData && S.sailingData[3] && S.sailingData[3][33]) || 0);
-  var comp42 = S.companionIds && S.companionIds.has(42) ? 1 : 0;
+  var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
+  var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
+  var comp42 = saveData.companionIds && saveData.companionIds.has(42) ? 1 : 0;
   // ClamWorkBonus(0): OLA[464] > 0 ? 1 : 0
   var clamWork0 = (Number(optionsListData[464]) || 0) > 0 ? 1 : 0;
   // KillroyBonuses(3): OLA[467] / (200 + OLA[467]) * 10
@@ -182,21 +115,21 @@ function podiumsOwnedLv2() {
 }
 
 function podiumsOwned() {
-  var sp = S.spelunkData || [];
+  var sp = saveData.spelunkData || [];
   var galleryLv = Number((sp[13] && sp[13][4]) || 0);
-  var gem40 = Number((S.gemItemsData && S.gemItemsData[40]) || 0);
-  var sail33 = Number((S.sailingData && S.sailingData[3] && S.sailingData[3][33]) || 0);
-  var ninjaStr = String((S.ninjaData && S.ninjaData[102] && S.ninjaData[102][9]) || '');
+  var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
+  var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
+  var ninjaStr = String((saveData.ninjaData && saveData.ninjaData[102] && saveData.ninjaData[102][9]) || '');
   var emp42 = emporiumBonus(42, ninjaStr);
   var loreFlag5 = (Number((sp[0] && sp[0][5]) || 0) >= 1) ? 1 : 0;
-  var evStr = S.cachedEventShopStr || '';
+  var evStr = saveData.cachedEventShopStr || '';
   var evShop26 = eventShopOwned(26, evStr);
   return Math.min(19, 1 + Math.ceil(galleryLv / 4) + Math.min(1, emp42)
     + Math.floor(gem40 / 1) + 2 * loreFlag5
     + Math.min(2, Math.round(sail33)) + evShop26);
 }
 
-function trophyTier(slotIndex) {
+export function trophyTier(slotIndex) {
   if (slotIndex < 48) return 0.3;
   var offset = slotIndex - 48;
   if (podiumsOwnedLv4() > offset) return 2.5;
@@ -206,14 +139,15 @@ function trophyTier(slotIndex) {
 }
 
 // Gallery Nametag system: sums nametag UQ stat bonuses for a given EtcBonuses ID.
-// Game: GalleryNametagBonTOT[statName] += tier × GalleryBonusMulti × UQ_val
+// Game: GalleryNametagBonTOT[statName] += tier Ã— GalleryBonusMulti Ã— UQ_val
 export var nametag = {
   resolve: function(id, ctx) {
     var ids = Array.isArray(id) ? id : [id];
     var statNameMap = {};
-    for (var si = 0; si < ids.length; si++) { var s = STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
+    for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Nametag ' + id, 0, null, { note: 'nametag ' + id });
-    var sp = S.spelunkData || [];
+    var saveData = ctx.saveData;
+    var sp = saveData.spelunkData || [];
     var levels = sp[17] || [];
     var gbmObj = galleryBonusMulti();
     var gbm = gbmObj.val;
@@ -242,16 +176,17 @@ export var nametag = {
 };
 
 // Gallery Trophy system: sums trophy UQ stat bonuses for a given EtcBonuses ID.
-// Game: GalleryTrophyBonTOT[statName] += tier × GalleryBonusMulti × UQ_val
+// Game: GalleryTrophyBonTOT[statName] += tier Ã— GalleryBonusMulti Ã— UQ_val
 // Trophy tier: slots 0-47 = 0.3, slots 48+ = podium-dependent (1/1.5/2/2.5)
 // The trophy item looked up is Trophy{Spelunk[16][slot]}.
 export var trophy = {
   resolve: function(id, ctx) {
     var ids = Array.isArray(id) ? id : [id];
     var statNameMap = {};
-    for (var si = 0; si < ids.length; si++) { var s = STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
+    for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Trophy ' + id, 0, null, { note: 'trophy ' + id });
-    var sp = S.spelunkData || [];
+    var saveData = ctx.saveData;
+    var sp = saveData.spelunkData || [];
     var trophySlots = sp[16] || [];
     var gbmObj = galleryBonusMulti();
     var gbm = gbmObj.val;
@@ -280,14 +215,15 @@ export var trophy = {
 };
 
 // PremHat (Hatrack) system: sums hat UQ stat bonuses for a given EtcBonuses ID.
-// Game: PremHatBonTOT[statName] += HatrackBonusMulti × UQ_val
+// Game: PremHatBonTOT[statName] += HatrackBonusMulti Ã— UQ_val
 export var premhat = {
   resolve: function(id, ctx) {
     var ids = Array.isArray(id) ? id : [id];
     var statNameMap = {};
-    for (var si = 0; si < ids.length; si++) { var s = STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
+    for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Hatrack ' + id, 0, null, { note: 'premhat ' + id });
-    var sp = S.spelunkData || [];
+    var saveData = ctx.saveData;
+    var sp = saveData.spelunkData || [];
     var hats = sp[46] || [];
     var hbmObj = hatrackBonusMulti();
     var hbm = hbmObj.val;

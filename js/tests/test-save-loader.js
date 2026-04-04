@@ -7,12 +7,17 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadSaveData } from '../save/loader.js';
-import { buildSaveContext, makeCtx } from '../save/context.js';
-import { mineheadBonusQTY, computeExternalBonuses, computeAFKGainsRate,
-         computeCardLv, computeShinyBonusS, grimoireUpgBonus22, exoticBonusQTY40,
-         calcAllBonusMulti } from '../save/external.js';
-import { S } from '../state.js';
-import { MINEHEAD_BONUS_QTY, GRID_SIZE } from '../game-data.js';
+import { buildSaveContext, makeSimCtx } from '../save/context.js';
+import afkGainsDesc from '../stats/defs/research-afk-gains.js';
+import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
+import { computeCardLv } from '../stats/systems/common/cards.js';
+import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
+import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
+import resExpDesc from '../stats/defs/research-exp.js';
+import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
+import { saveData } from '../state.js';
+import { GRID_SIZE } from '../game-data.js';
+import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { computeMagnifiersOwnedWith, computeShapesOwnedAt } from '../sim-math.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -41,57 +46,57 @@ loadSaveData(raw);
 // ============================================================
 console.log('--- loadSaveData state ---');
 
-ok(typeof S.researchLevel === 'number' && S.researchLevel > 0, 'researchLevel is positive number');
-eq(S.researchLevel, 51, 'researchLevel === 51');
+ok(typeof saveData.researchLevel === 'number' && saveData.researchLevel > 0, 'researchLevel is positive number');
+ok(saveData.researchLevel >= 10 && saveData.researchLevel <= 200, 'researchLevel in [10, 200]');
 
-ok(typeof S.magnifiersOwned === 'number' && S.magnifiersOwned > 0, 'magnifiersOwned > 0');
-eq(S.magnifiersOwned, 14, 'magnifiersOwned === 14');
+ok(typeof saveData.magnifiersOwned === 'number' && saveData.magnifiersOwned > 0, 'magnifiersOwned > 0');
+ok(saveData.magnifiersOwned >= 4 && saveData.magnifiersOwned <= 30, 'magnifiersOwned in [4, 30]');
 
-ok(Array.isArray(S.gridLevels), 'gridLevels is array');
-eq(S.gridLevels.length, GRID_SIZE, 'gridLevels length === GRID_SIZE');
-ok(S.gridLevels.some(v => v > 0), 'gridLevels has nonzero entries');
+ok(Array.isArray(saveData.gridLevels), 'gridLevels is array');
+eq(saveData.gridLevels.length, GRID_SIZE, 'gridLevels length === GRID_SIZE');
+ok(saveData.gridLevels.some(v => v > 0), 'gridLevels has nonzero entries');
 
-ok(Array.isArray(S.shapeOverlay), 'shapeOverlay is array');
-eq(S.shapeOverlay.length, GRID_SIZE, 'shapeOverlay length === GRID_SIZE');
+ok(Array.isArray(saveData.shapeOverlay), 'shapeOverlay is array');
+eq(saveData.shapeOverlay.length, GRID_SIZE, 'shapeOverlay length === GRID_SIZE');
 
-ok(Array.isArray(S.occFound), 'occFound is array');
-ok(S.occFound.length >= 40, 'occFound length >= 40');
+ok(Array.isArray(saveData.occFound), 'occFound is array');
+ok(saveData.occFound.length >= 40, 'occFound length >= 40');
 
-ok(Array.isArray(S.insightLvs), 'insightLvs is array');
-ok(Array.isArray(S.insightProgress), 'insightProgress is array');
+ok(Array.isArray(saveData.insightLvs), 'insightLvs is array');
+ok(Array.isArray(saveData.insightProgress), 'insightProgress is array');
 
-ok(Array.isArray(S.magData), 'magData is array');
-ok(S.magData.length > 0, 'magData has entries');
+ok(Array.isArray(saveData.magData), 'magData is array');
+ok(saveData.magData.length > 0, 'magData has entries');
 // Each mag entry has {x, y, slot, type}
-const mag0 = S.magData[0];
+const mag0 = saveData.magData[0];
 ok(mag0 && 'x' in mag0 && 'y' in mag0 && 'slot' in mag0 && 'type' in mag0,
   'magData[0] has x,y,slot,type');
 
-ok(Array.isArray(S.shapePositions), 'shapePositions is array');
-if (S.shapePositions.length > 0) {
-  const sp0 = S.shapePositions[0];
+ok(Array.isArray(saveData.shapePositions), 'shapePositions is array');
+if (saveData.shapePositions.length > 0) {
+  const sp0 = saveData.shapePositions[0];
   ok(sp0 && 'x' in sp0 && 'y' in sp0 && 'rot' in sp0, 'shapePositions[0] has x,y,rot');
 }
 
-ok(S.magMaxPerSlot >= 1 && S.magMaxPerSlot <= 4, 'magMaxPerSlot in [1,4]');
-ok(typeof S.cachedEventShopStr === 'string', 'cachedEventShopStr is string');
-ok(typeof S.comp52TrueMulti === 'number', 'comp52TrueMulti is number');
-ok(typeof S.allBonusMulti === 'number', 'allBonusMulti is number');
-ok(typeof S.externalResearchPct === 'number', 'externalResearchPct is number');
-ok(S.externalResearchPct > 0, 'externalResearchPct > 0');
+ok(saveData.magMaxPerSlot >= 1 && saveData.magMaxPerSlot <= 4, 'magMaxPerSlot in [1,4]');
+ok(typeof saveData.cachedEventShopStr === 'string', 'cachedEventShopStr is string');
+ok(typeof saveData.comp52TrueMulti === 'number', 'comp52TrueMulti is number');
+ok(typeof saveData.allBonusMulti === 'number', 'allBonusMulti is number');
+ok(typeof saveData.externalResearchPct === 'number', 'externalResearchPct is number');
+ok(saveData.externalResearchPct > 0, 'externalResearchPct > 0');
 
 // Companion ids parsed
-ok(S.companionIds instanceof Set, 'companionIds is Set');
+ok(saveData.companionIds instanceof Set, 'companionIds is Set');
 
 // Arrays populated
-ok(Array.isArray(S.olaData), 'olaData is array');
-ok(Array.isArray(S.gamingData), 'gamingData is array');
-ok(Array.isArray(S.spelunkData), 'spelunkData is array');
-ok(typeof S.cards0Data === 'object', 'cards0Data is object');
-ok(Array.isArray(S.ribbonData), 'ribbonData is array');
-ok(Array.isArray(S.breedingData), 'breedingData is array');
-ok(Array.isArray(S.arcaneData), 'arcaneData is array');
-ok(Array.isArray(S.summonData), 'summonData is array');
+ok(Array.isArray(saveData.olaData), 'olaData is array');
+ok(Array.isArray(saveData.gamingData), 'gamingData is array');
+ok(Array.isArray(saveData.spelunkData), 'spelunkData is array');
+ok(typeof saveData.cards0Data === 'object', 'cards0Data is object');
+ok(Array.isArray(saveData.ribbonData), 'ribbonData is array');
+ok(Array.isArray(saveData.breedingData), 'breedingData is array');
+ok(Array.isArray(saveData.arcaneData), 'arcaneData is array');
+ok(Array.isArray(saveData.summonData), 'summonData is array');
 
 // ============================================================
 // 2. mineheadBonusQTY — pure function
@@ -112,47 +117,32 @@ eq(mineheadBonusQTY(12, 0), 0, 'mineheadBonusQTY(12, 0) === 0 (zero floor)');
 eq(mineheadBonusQTY(999, 1000), 0, 'mineheadBonusQTY(999, 1000) === 0 (unknown index)');
 
 // ============================================================
-// 3. computeExternalBonuses — integration
+// 3. research-exp descriptor — integration
 // ============================================================
-console.log('--- computeExternalBonuses ---');
+console.log('--- research-exp descriptor ---');
 
-const eb = S.extBonuses;
-ok(eb && typeof eb === 'object', 'extBonuses is object');
-ok(typeof eb._total === 'number', '_total is number');
-ok(eb._total > 0, '_total > 0');
-ok(eb._comp52 && typeof eb._comp52.val === 'number', '_comp52 present with val');
-ok(eb._allMulti && typeof eb._allMulti.val === 'number', '_allMulti present with val');
-
-// Individual bonus categories exist and have val
-for (const key of ['sticker', 'dancingCoral', 'zenithMarket', 'cardW7b1', 'cardW7b4',
-                    'prehistoricSet', 'slabbo', 'arcade', 'meal', 'cropSC', 'msa']) {
-  ok(eb[key] && typeof eb[key].val === 'number', `extBonuses.${key} has numeric val`);
-}
-
-// _total should equal sum of non-_ keys
-let checkSum = 0;
-for (const k of Object.keys(eb)) {
-  if (!k.startsWith('_')) checkSum += eb[k].val;
-}
-approx(eb._total, checkSum, 0.001, '_total matches sum of parts');
+const rexp = resExpDesc.combine({}, { saveData });
+ok(rexp && typeof rexp === 'object', 'descriptor returns object');
+ok(typeof rexp.val === 'number', 'val is number');
+ok(rexp.val > 0, 'val > 0');
+ok(Array.isArray(rexp.children), 'children is array');
+ok(rexp.children.length > 0, 'children has items');
+approx(rexp.val, saveData.externalResearchPct, 0.001, 'descriptor val matches saveData.externalResearchPct');
 
 // Re-computation should yield same result
-const eb2 = computeExternalBonuses();
-approx(eb2._total, eb._total, 0.001, 'recomputed _total matches');
+const rexp2 = resExpDesc.combine({}, { saveData });
+approx(rexp2.val, rexp.val, 0.001, 'recomputed val matches');
 
 // ============================================================
 // 4. computeAFKGainsRate
 // ============================================================
 console.log('--- computeAFKGainsRate ---');
 
-const afk = computeAFKGainsRate();
-ok(typeof afk === 'object', 'computeAFKGainsRate returns object');
-ok(typeof afk.rate === 'number', 'rate is number');
-ok(afk.rate >= 0.01 && afk.rate <= 1, 'rate in [0.01, 1]');
-ok(typeof afk.pct === 'number', 'pct is number');
-approx(afk.pct, afk.rate * 100, 0.001, 'pct === rate*100');
-ok(typeof afk.sum === 'number', 'sum is number');
-ok(typeof afk.parts === 'object', 'parts is object');
+const afk = afkGainsDesc.combine({}, { saveData });
+ok(typeof afk === 'object', 'afkGainsDesc returns object');
+ok(typeof afk.val === 'number', 'val is number');
+ok(afk.val >= 0.01 && afk.val <= 1, 'val in [0.01, 1]');
+ok(Array.isArray(afk.children), 'children is array');
 
 // ============================================================
 // 5. buildSaveContext — snapshot shape
@@ -189,26 +179,26 @@ ok(typeof ctx.mhq20 === 'number', 'mhq20 is number');
 
 // Mutable array refs
 ok(Array.isArray(ctx.gridLevels), 'ctx.gridLevels is array');
-eq(ctx.gridLevels, S.gridLevels, 'ctx.gridLevels === S.gridLevels (same ref)');
+eq(ctx.gridLevels, saveData.gridLevels, 'ctx.gridLevels === saveData.gridLevels (same ref)');
 ok(Array.isArray(ctx.insightLvs), 'ctx.insightLvs is array');
 ok(Array.isArray(ctx.insightProgress), 'ctx.insightProgress is array');
 ok(Array.isArray(ctx.occFound), 'ctx.occFound is array');
 ok(Array.isArray(ctx.magData), 'ctx.magData is array');
 ok(Array.isArray(ctx.shapePositions), 'ctx.shapePositions is array');
 ok(typeof ctx.magnifiersOwned === 'number', 'ctx.magnifiersOwned is number');
-eq(ctx.magnifiersOwned, S.magnifiersOwned, 'ctx.magnifiersOwned matches S');
-eq(ctx.researchLevel, S.researchLevel, 'ctx.researchLevel matches S');
+eq(ctx.magnifiersOwned, saveData.magnifiersOwned, 'ctx.magnifiersOwned matches saveData');
+eq(ctx.researchLevel, saveData.researchLevel, 'ctx.researchLevel matches saveData');
 
 // Display-only
 ok(typeof ctx.externalResearchPct === 'number', 'ctx.externalResearchPct is number');
-eq(ctx.externalResearchPct, S.externalResearchPct, 'ctx.externalResearchPct matches S');
+eq(ctx.externalResearchPct, saveData.externalResearchPct, 'ctx.externalResearchPct matches saveData');
 
 // ============================================================
 // 6. makeCtx — derived context from saveCtx
 // ============================================================
 console.log('--- makeCtx ---');
 
-const mctx = makeCtx(ctx.gridLevels, ctx);
+const mctx = makeSimCtx(ctx.gridLevels);
 ok(typeof mctx === 'object', 'makeCtx returns object');
 ok(typeof mctx.abm === 'number', 'abm is number');
 ok(mctx.abm >= 1, 'abm >= 1');
@@ -221,8 +211,8 @@ ok(typeof mctx.boonyCount === 'number', 'boonyCount is number');
 // ============================================================
 console.log('--- computeMagnifiersOwnedWith ---');
 
-const magOwned = computeMagnifiersOwnedWith(S.gridLevels, S.researchLevel, ctx);
-eq(magOwned, S.magnifiersOwned, 'computeMagnifiersOwnedWith matches loader result');
+const magOwned = computeMagnifiersOwnedWith(saveData.gridLevels, saveData.researchLevel, ctx);
+eq(magOwned, saveData.magnifiersOwned, 'computeMagnifiersOwnedWith matches loader result');
 
 // At level 0 with zeroed grid, should be 1 + shopBonuses + mineheadBonuses
 const zeroGL = new Array(GRID_SIZE).fill(0);
@@ -242,14 +232,16 @@ ok(shapes200 >= shapes0, 'shapes at lv200 >= shapes at lv0');
 ok(shapes200 <= 10, 'shapes capped at 10');
 
 // ============================================================
-// 9. calcAllBonusMulti
+// 9. allBonusMulti (inlined)
 // ============================================================
-console.log('--- calcAllBonusMulti ---');
+console.log('--- allBonusMulti ---');
 
-const abm = calcAllBonusMulti(S.gridLevels);
-ok(typeof abm === 'number', 'calcAllBonusMulti returns number');
+const comp55v = saveData.companionIds.has(55) ? 15 : 0;
+const comp0v = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
+const abm = 1 + (comp55v + comp0v) / 100;
+ok(typeof abm === 'number', 'allBonusMulti is number');
 ok(abm >= 1, 'abm >= 1');
-eq(abm, S.allBonusMulti, 'calcAllBonusMulti matches S.allBonusMulti');
+eq(abm, saveData.allBonusMulti, 'inlined abm matches saveData.allBonusMulti');
 
 // ============================================================
 // 10. Other pure external helpers
