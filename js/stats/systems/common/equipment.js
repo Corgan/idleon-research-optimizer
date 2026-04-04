@@ -62,7 +62,7 @@ export var equipment = {
       if (names) for (var j = 0; j < names.length; j++) statNames.push(names[j]);
     }
     if (!statNames.length) return node('Equipment ' + id, 0, null, { note: 'equipment ' + id });
-    var label = statNames[0]; // display name
+    var statLabel = statNames[0]; // display name
     var emm = emmData[ctx.charIdx];
     if (!emm) return node('Equipment Bonuses', 0, null, { note: 'equipment ' + id });
 
