@@ -98,9 +98,38 @@ export function buildSaveContext() {
   };
 }
 
-// ===== Sim context factory — reads saveData directly =====
+// ===== Sim context factory =====
+// When sc (saveCtx) is provided, builds from it instead of the global saveData.
+// This is required for Web Workers where saveData is a separate, unpopulated module.
 
-export function makeSimCtx(gl) {
+export function makeSimCtx(gl, sc) {
+  if (sc) {
+    const hasComp55 = sc.companionHas55;
+    const hasComp0DivOk = sc.companionHas0 && sc.cachedComp0DivOk;
+    return {
+      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk),
+      c52:            sc.comp52TrueMulti,
+      stickerFixed:   sc.cachedStickerFixed,
+      boonyCount:     sc.cachedBoonyCount,
+      evShop37:       sc.cachedEvShop37,
+      extPctExSticker:sc.cachedExtPctExSticker,
+      hasComp55,
+      hasComp0DivOk,
+      hasComp54:      sc.companionHas54,
+      companionHas153: sc.companionHas153,
+      evShop33:       sc.evShop33,
+      evShop34:       sc.evShop34,
+      evShop36:       sc.evShop36,
+      mhq2:          sc.mhq2,
+      mhq12:         sc.mhq12,
+      mhq20:         sc.mhq20,
+      spelunkyUpg7:   sc.cachedSpelunkyUpg7,
+      serverVarResXP: sc.serverVarResXP,
+      rog0:           sc.rog0 || 0,
+      rog8:           sc.rog8 || 0,
+    };
+  }
+
   const mineFloor = saveData.stateR7[4] || 0;
   const eventShopStr = saveData.cachedEventShopStr;
   const gamingData12 = saveData.gamingData[12];
