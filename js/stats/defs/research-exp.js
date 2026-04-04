@@ -19,7 +19,7 @@ import { exoticBonusQTY40 } from '../systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../systems/mc/grimoire.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { gridBonusFinal } from './_helpers.js';
+import { gridBonusFinal } from './helpers.js';
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';
 import { equipSetBonus } from '../data/common/equipment.js';
