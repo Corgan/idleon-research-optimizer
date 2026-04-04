@@ -293,7 +293,8 @@ export async function unifiedSim(config, saveCtx) {
   const _extendInsightLA = !!config.extendInsightLA;
 
   // Sync ctx to match the (possibly overridden) gl state
-  const ctx = makeSimCtx(gl);
+  // Pass _sc so the ctx can be built from saveCtx in worker environments
+  const ctx = makeSimCtx(gl, _sc);
 
   // Recompute mOwned from (possibly overridden) gl/rLv so beam search +1 on #72/#91 is reflected
   s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);

@@ -53,6 +53,7 @@ import researchExp from './defs/research-exp.js';
 import researchAfkGains from './defs/research-afk-gains.js';
 import sushiBucks from './defs/sushi-bucks.js';
 import mineheadCurrency from './defs/minehead-currency.js';
+import coinMulti from './defs/coin-multi.js';
 
 // ----- Internal storage -----
 var _systems = {
@@ -110,3 +111,4 @@ registerDescriptor(researchExp);
 registerDescriptor(researchAfkGains);
 registerDescriptor(sushiBucks);
 registerDescriptor(mineheadCurrency);
+registerDescriptor(coinMulti);
