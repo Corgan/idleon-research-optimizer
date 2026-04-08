@@ -28,8 +28,8 @@ function arcaneMapBonus(kills) {
 
 // ArcaneMapMulti_bonMAX = 100 * (getbonus2(1,589,-1) - 1) + min(10, ArcaneUpgBonus(58))
 // getbonus2(1,589,-1) = max talent 589 value across all characters (decayMulti: 1 + lv/(lv+500))
-function arcaneMapMultiBonMax() {
-  var t589 = maxTalentBonus(589);   // decayMulti → value >= 1
+function arcaneMapMultiBonMax(activeCharIdx) {
+  var t589 = maxTalentBonus(589, activeCharIdx);   // decayMulti → value >= 1
   return 100 * (t589 - 1) + Math.min(10, arcaneUpgBonus(58));
 }
 
@@ -41,7 +41,7 @@ export function computeArcaneMapMultiBon(idx, ctx) {
   if (!mapData || mapData.length < 3) return 0;
   var kills = Number(mapData[idx]) || 0;
   var raw = arcaneMapBonus(kills);
-  var cap = arcaneMapMultiBonMax();
+  var cap = arcaneMapMultiBonMax(ctx.charIdx);
   return Math.min(cap, raw);
 }
 

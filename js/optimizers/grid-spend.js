@@ -334,7 +334,7 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
   let so = sc.so, md = sc.md;
   let rLv = sc.rLv, rExp = sc.rExp, mMax = sc.mMax, mOwned = sc.mOwned;
 
-  const ctx = makeSimCtx(sc.gl);
+  const ctx = makeSimCtx(sc.gl, saveCtx);
 
   let curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   let currentTime = 0;
@@ -386,7 +386,7 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
           if ((occ[aoi] || 0) < 1 && OCC_DATA[aoi].roll <= rLv) occ[aoi] = 1;
         }
       }
-      const spendResult = _exhaustiveSpendAtLevel({gl:gl, so:so, md:md, il:il, occ:occ, rLv:rLv, mMax:mMax}, ctx);
+      const spendResult = _exhaustiveSpendAtLevel({gl:gl, so:so, md:md, il:il, occ:occ, rLv:rLv, mMax:mMax, saveCtx:saveCtx}, ctx);
       if (spendResult.changed) so = spendResult.so;
       mOwned = computeMagnifiersOwnedWith(gl, rLv, ctx);
       growMagPoolTyped(md, gl, rLv, mOwned, ctx);

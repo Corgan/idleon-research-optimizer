@@ -9,9 +9,9 @@ import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent } from '../systems/common/talent.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
-import { computeCardBonusByType, computeBoxReward } from '../systems/common/stats.js';
+import { computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
-import { pvStatListData, charClassData, optionsListData } from '../../save/data.js';
+import { charClassData, optionsListData } from '../../save/data.js';
 import { AlchemyDescription } from '../data/game/customlists.js';
 import { cauldronInfoData } from '../../save/data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
@@ -157,7 +157,7 @@ export default {
     //    Additional power from stamps/meals/etc enters via separate multiplier pools.
 
     // 4. Main efficiency formula
-    var totalStat = Number((pvStatListData[ci] || [])[sk.statIdx]) || 0;
+    var _statR = computeTotalStat(sk.stat, ci, ctx); var totalStat = _statR.computed || _statR.fromSave;
     var effTalent = rval(talent, sk.effTalent, ctx);
     var stampBase = safe(computeStampBonusOfTypeX, sk.stampType);
     var allBaseEff = computeAllBaseSkillEff(ci, ctx);

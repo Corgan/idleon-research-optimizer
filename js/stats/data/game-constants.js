@@ -35,8 +35,8 @@ export var TOME_DATA = {
 // Game: 46==t?5*Holes[11][26], 47==t?25*Holes[11][27], 48==t?10*Holes[11][28]
 // For 82-84: caller passes i param (20 for DR context)
 export var HOLE_MULTIPLIERS = {
-  upg46:   { buildIdx: 26, dataIdx: 26, multi: 5 },
-  upg82:   { buildIdx: 55, dataIdx: 55, multi: 20 },
+  upg46:   { buildIdx: 46, dataIdx: 26, multi: 5 },
+  upg82:   { buildIdx: 82, dataIdx: 55, multi: 20 },
   brass20: { buildIdx: 20, dataIdx: 14, multi: 5 },
 };
 

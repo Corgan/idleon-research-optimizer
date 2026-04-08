@@ -11,7 +11,7 @@ import { talent } from '../systems/common/talent.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
-import { pvStatListData, charClassData, optionsListData } from '../../save/data.js';
+import { charClassData, optionsListData } from '../../save/data.js';
 import { AlchemyDescription } from '../data/game/customlists.js';
 import { cauldronInfoData } from '../../save/data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
@@ -119,8 +119,9 @@ export default {
 
     // === MAX DAMAGE (MaxDmg812) ===
     // Step 1: DamageDealtSTATtype = TotalStats(primaryStat) * (1 + (talent95+talent455+talent20 + bubbles W6+A6+M6)/100)
-    var pStatIdx = primaryStatIdx(ci);
-    var pStatVal = Number((pvStatListData[ci] || [])[pStatIdx]) || 0;
+    var pStatName = primaryStatForClass(ci);
+    var pStatResult = computeTotalStat(pStatName, ci, ctx);
+    var pStatVal = pStatResult.computed || pStatResult.fromSave;
     var talent95 = rval(talent, 95, ctx);
     var talent455 = rval(talent, 455, ctx);
     var talent20 = rval(talent, 20, ctx);

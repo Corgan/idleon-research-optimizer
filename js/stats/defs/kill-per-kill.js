@@ -11,7 +11,7 @@ import { talent } from '../systems/common/talent.js';
 import { legendPTSbonus, computeBigFishBonus } from '../systems/w7/spelunking.js';
 import { computeWinBonus } from '../systems/w6/summoning.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
-import { pvStatListData, currentMapData } from '../../save/data.js';
+import { currentMapData } from '../../save/data.js';
 import { computeTotalStat } from '../systems/common/stats.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { AlchemyDescription } from '../data/game/customlists.js';
@@ -113,9 +113,9 @@ export default {
     // KpKDumm2 — stat-based talent bonus (not for W7+)
     var kpkDumm2 = 0;
     if (mapIdx < 300) {
-      var totalSTR = Number((pvStatListData[ci] || [])[0]) || 0;
-      var totalAGI = Number((pvStatListData[ci] || [])[1]) || 0;
-      var totalWIS = Number((pvStatListData[ci] || [])[2]) || 0;
+      var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed || _strR.fromSave;
+      var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed || _agiR.fromSave;
+      var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed || _wisR.fromSave;
       var talent141 = rval(talent, 141, ctx);
       var talent366 = rval(talent, 366, ctx);
       var talent531 = rval(talent, 531, ctx);

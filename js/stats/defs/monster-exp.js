@@ -18,7 +18,7 @@ import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { AlchemyDescription, DungPassiveStats2, StatueInfo,
   SaltLicks } from '../data/game/customlists.js';
 import { cauldronInfoData, optionsListData, prayersPerCharData,
-  numCharacters, divinityData, pvStatListData, charClassData,
+  numCharacters, divinityData, charClassData,
   cauldronBubblesData, currentMapData } from '../../save/data.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { prayerBaseBonus } from '../data/w3/prayer.js';
@@ -282,7 +282,7 @@ export default {
     var ci = ctx.charIdx || 0;
 
     // ======= STAGE 1: ExpGainLUK = TotalStats("LUK") → piecewise transform =======
-    var totalLUK = Number((pvStatListData[ci] || [])[3]) || 0;
+    var _lukR = computeTotalStat('LUK', ci, ctx); var totalLUK = _lukR.computed || _lukR.fromSave;
     var expGainLUK;
     if (totalLUK < 1000) {
       expGainLUK = (Math.pow(totalLUK + 1, 0.37) - 1) / 30;

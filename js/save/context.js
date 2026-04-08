@@ -173,11 +173,12 @@ export function makeSimCtx(gl, sc) {
 }
 
 export function getResearchCurrentExp(_saveCtx) {
+  if (_saveCtx && _saveCtx.cachedResearchExp !== undefined) return _saveCtx.cachedResearchExp;
   return saveData.cachedResearchExp;
 }
 
 export function computeShapesOwned(rLv, gl, _saveCtx) {
-  return computeShapesOwnedAt(rLv, makeSimCtx(gl));
+  return computeShapesOwnedAt(rLv, makeSimCtx(gl, _saveCtx));
 }
 
 export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7, bonusPts) {
@@ -186,6 +187,6 @@ export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7, bonusPts) {
 
 export function simTotalExp(opts, _saveCtx) {
   const { gridLevels: gl, shapeOverlay: so, magData: md, insightLvs: il, occFound: occ, researchLevel: rLv } = opts;
-  const ctx = makeSimCtx(gl);
+  const ctx = makeSimCtx(gl, _saveCtx);
   return simTotalExpWith(gl, so, md, il, occ, rLv, ctx, true);
 }

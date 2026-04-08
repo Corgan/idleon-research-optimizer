@@ -78,15 +78,16 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
   var y2BubbleLv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
   var y2Value = y2BubbleLv > 0 ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2BubbleLv) : 0;
   var allBubblesActive = saveData.companionIds.has(4);
+  // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character's
+  // own divinity level, NOT the max across all characters.
   var divMinor = 0;
   var coralKid3 = Number(optionsListData && optionsListData[430]) || 0;
-  for (var ci2 = 0; ci2 < numCharacters; ci2++) {
-    if (!hasBonusMajor(ci2, 2)) continue;
-    var divLv = saveData.lv0AllData[ci2] && saveData.lv0AllData[ci2][14] || 0;
-    if (divLv <= 0) continue;
-    var y2Active = (allBubblesActive || (cauldronBubblesData && cauldronBubblesData[ci2] || []).includes('d21')) ? y2Value : 0;
-    var val = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (DIVINITY_MINOR_DENOM + divLv) * godMinorX1(2);
-    if (val > divMinor) divMinor = val;
+  if (ctxSlot >= 0 && hasBonusMajor(ctxSlot, 2)) {
+    var divLv = saveData.lv0AllData[ctxSlot] && saveData.lv0AllData[ctxSlot][14] || 0;
+    if (divLv > 0) {
+      var y2Active = (allBubblesActive || (cauldronBubblesData && cauldronBubblesData[ctxSlot] || []).includes('d21')) ? y2Value : 0;
+      divMinor = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (DIVINITY_MINOR_DENOM + divLv) * godMinorX1(2);
+    }
   }
 
   var dream12 = Number(dreamData && dreamData[12]) || 0;
@@ -200,15 +201,15 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   var y2BubbleLv2 = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
   var y2Value2 = y2BubbleLv2 > 0 ? formulaEval(_y2bp2.formula, _y2bp2.x1, _y2bp2.x2, y2BubbleLv2) : 0;
   var allBubblesActive2 = saveData.companionIds.has(4);
+  // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character.
   var divMinor2 = 0;
   var coralKid32 = Number(optionsListData && optionsListData[430]) || 0;
-  for (var ci4 = 0; ci4 < numCharacters; ci4++) {
-    if (!hasBonusMajor(ci4, 2)) continue;
-    var divLv2 = saveData.lv0AllData[ci4] && saveData.lv0AllData[ci4][14] || 0;
-    if (divLv2 <= 0) continue;
-    var y2Active2 = (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[ci4] || []).includes('d21')) ? y2Value2 : 0;
-    var val2 = Math.max(1, y2Active2) * (1 + coralKid32 / 100) * divLv2 / (DIVINITY_MINOR_DENOM + divLv2) * godMinorX1(2);
-    if (val2 > divMinor2) divMinor2 = val2;
+  if (slotIdx >= 0 && hasBonusMajor(slotIdx, 2)) {
+    var divLv2 = saveData.lv0AllData[slotIdx] && saveData.lv0AllData[slotIdx][14] || 0;
+    if (divLv2 > 0) {
+      var y2Active2 = (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[slotIdx] || []).includes('d21')) ? y2Value2 : 0;
+      divMinor2 = Math.max(1, y2Active2) * (1 + coralKid32 / 100) * divLv2 / (DIVINITY_MINOR_DENOM + divLv2) * godMinorX1(2);
+    }
   }
   var divCeil = Math.ceil(divMinor2);
   if (divCeil > 0) children.push(node('Divinity Minor 2 (Arctis)', divCeil, null, { fmt: 'raw' }));
@@ -277,11 +278,12 @@ function getbonus2(talentIdx, data, activeCharIdx) {
   return { val: best, bestChar: bestChar, detail: bestR };
 }
 
-// Public helper: max talent value across all characters (getbonus2 with -1).
-export function maxTalentBonus(talentIdx) {
+// Public helper: max talent value across all characters (getbonus2).
+// activeCharIdx: optional — which character's AllTalentLVz context to use.
+export function maxTalentBonus(talentIdx, activeCharIdx) {
   var data = getTalentData(talentIdx);
   if (!data) return 0;
-  return getbonus2(talentIdx, data).val;
+  return getbonus2(talentIdx, data, activeCharIdx).val;
 }
 
 export var talent = {
@@ -311,8 +313,9 @@ export var talent = {
 
     // Talent 328 (Archlord of the Pirates): multiplicative DR factor
     // Game: 1 + getbonus2(1,328,-1) * log10(plunderousKills) / 100
-    // The -1 means "search all chars for best" in getbonus2.
-    // AllTalentLVz always uses the active character's context (Spelunk, talents, level).
+    // Game's getbonus2(-1) still applies AllTalentLVz for talents >= 100,
+    // using the active in-game character's context. We approximate this
+    // with ctx.charIdx since there's no "active" character in save data.
     if (id === 328) {
       var gb = getbonus2(id, data, ctx.charIdx);
       var plunderKills = Number(optionsListData && optionsListData[139]) || 0;

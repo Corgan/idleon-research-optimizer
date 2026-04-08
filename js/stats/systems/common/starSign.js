@@ -120,9 +120,21 @@ export var starSign = {
 // ==================== STAR SIGN BONUS (aggregated) ====================
 
 import { starSignData as starSignCharData } from '../../../save/data.js';
-import { StarSigns as StarSignsData } from '../../data/game/customlists.js';
+
+// Game hardcodes per-sign bonuses by index. Description strings don't match keys.
+// Map: effectKey → { signIndex: baseValue }
+var SIGN_BONUSES = {
+  FightAFK: { 19: 2, 28: 6, 29: -6, 56: 4 },
+  SkillAFK: { 20: 2, 25: 1, 29: -6, 55: 4 },
+  SkillEXP: { 30: 3, 50: 6 },
+  MainXP:   { 2: 1, 24: 3, 52: 6 },
+  WorshExp: { 46: 15 },
+  Drop:     { 14: 5, 76: 12 },
+};
 
 export function computeStarSignBonus(key, ci) {
+  var bonusMap = SIGN_BONUSES[key];
+  if (!bonusMap) return 0;
   var equipped = starSignCharData && starSignCharData[ci];
   if (!equipped) return 0;
   var parts = String(equipped).split(',');
@@ -130,15 +142,11 @@ export function computeStarSignBonus(key, ci) {
   for (var si = 0; si < parts.length; si++) {
     var signIdx = parseInt(parts[si]);
     if (isNaN(signIdx) || signIdx < 0) continue;
-    var sign = StarSignsData[signIdx];
-    if (!sign) continue;
-    for (var ei = 0; ei < 4; ei++) {
-      var effectType = sign[4 + ei * 2];
-      var effectVal = Number(sign[5 + ei * 2]) || 0;
-      if (effectType === key && effectVal !== 0) {
-        total += effectVal;
-      }
-    }
+    var val = bonusMap[signIdx];
+    if (val != null) total += val;
+  }
+  if (total > 0) {
+    total *= computeSeraphMulti(ci);
   }
   return total;
 }

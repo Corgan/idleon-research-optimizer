@@ -12,12 +12,12 @@ import { grid, mainframeBonus, computePetArenaBonus } from '../systems/w4/lab.js
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
-import { computeCardBonusByType, computeBoxReward } from '../systems/common/stats.js';
+import { computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { AlchemyDescription, MealINFO, DungPassiveStats2, GodsInfo,
   StatueInfo, ArtifactInfo, HolesInfo, ZenithMarket } from '../data/game/customlists.js';
 import { cauldronInfoData, optionsListData, prayersPerCharData,
-  numCharacters, klaData, divinityData, pvStatListData, charClassData,
+  numCharacters, klaData, divinityData, charClassData,
   cauldronBubblesData, currentMapData } from '../../save/data.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { prayerBaseBonus } from '../data/w3/prayer.js';
@@ -348,11 +348,9 @@ export default {
     var cashSTR = safe(bubbleValByKey, 'CashSTR', ci);
     var cashAGI = safe(bubbleValByKey, 'CashAGI', ci);
     var cashWIS = safe(bubbleValByKey, 'CashWIS', ci);
-    // Use pre-computed stat totals from PVStatList (indices: 0=STR, 1=AGI, 2=WIS, 3=LUK)
-    var pvStats = pvStatListData[ci] || [];
-    var totalSTR = Number(pvStats[0]) || 0;
-    var totalAGI = Number(pvStats[1]) || 0;
-    var totalWIS = Number(pvStats[2]) || 0;
+    var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed || _strR.fromSave;
+    var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed || _agiR.fromSave;
+    var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed || _wisR.fromSave;
     var g1strPart = cashSTR * Math.floor(totalSTR / 250);
     var g1agiPart = cashAGI * Math.floor(totalAGI / 250);
     var g1wisPart = cashWIS * Math.floor(totalWIS / 250);

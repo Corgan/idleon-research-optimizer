@@ -341,7 +341,13 @@ export function mainframeBonus(e) {
   if (!saveData.labJewelConnected[ji]) return 0;
   var base = JEWEL_DESC[ji][2];
   if (e === 119) return base;
-  return base * mainframeBonus(8);
+  // Jewel doubling: certain jewels get ×2 if all adjacent jewels are active
+  var doubler = 1;
+  if (e === 100 && mainframeBonus(101) > 0 && mainframeBonus(102) > 0) doubler = 2;
+  else if (e === 103 && mainframeBonus(104) > 0 && mainframeBonus(105) > 0 && mainframeBonus(106) > 0) doubler = 2;
+  else if (e === 110 && mainframeBonus(107) > 0 && mainframeBonus(108) > 0 && mainframeBonus(109) > 0) doubler = 2;
+  else if (e === 112 && mainframeBonus(111) > 0 && mainframeBonus(113) > 0 && mainframeBonus(114) > 0 && mainframeBonus(115) > 0) doubler = 2;
+  return doubler * base * mainframeBonus(8);
 }
 
 // ==================== CHIP BONUS BY KEY ====================
@@ -359,10 +365,25 @@ export function computeChipBonus(effectKey) {
       var chipType = Number(chips[slot]) || 0;
       if (chipType <= 0) continue;
       if (!ChipDesc[chipType]) continue;
-      var chipKey = ChipDesc[chipType][12];
+      var chipKey = ChipDesc[chipType][10];
       if (chipKey !== effectKey) continue;
       total += Number(ChipDesc[chipType][11]) || 0;
     }
   }
   return total;
+}
+
+// Check if a specific character has a chip with the given effectKey equipped
+export function charHasChip(charIdx, effectKey) {
+  var labChips = saveData.labChipsData;
+  if (!labChips) return false;
+  var chips = labChips[charIdx];
+  if (!chips) return false;
+  for (var slot = 0; slot < chips.length; slot++) {
+    var chipType = Number(chips[slot]) || 0;
+    if (chipType <= 0) continue;
+    if (!ChipDesc[chipType]) continue;
+    if (ChipDesc[chipType][10] === effectKey) return true;
+  }
+  return false;
 }

@@ -7,6 +7,7 @@ import { saveData } from '../../../state.js';
 import { cardEquipData, csetEqData } from '../../../save/data.js';
 import { CARD_BASE_REQ, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
+import { charHasChip } from '../w4/lab.js';
 
 export function computeCardLv(cardKey) {
   var qty = saveData.cards0Data[cardKey] || 0;
@@ -90,14 +91,21 @@ export var card = {
       var rift5star = (saveData.riftData[0] || 0) >= 45 ? 1 : 0;
       var spelunk6star = (saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][2] || 0) >= 1 ? 1 : 0;
       var maxStars = Math.round(4 + rift5star + spelunk6star);
-      var contrib = lv * bonusVal * legendMulti;
-      children.push(node(label('Card', cardKey) + ' Lv' + lv, contrib, [
+      // Chip doubler: slot 0 + "card1" chip, slot 7 + "card2" chip
+      var chipDouble = (i === 0 && charHasChip(ctx.charIdx, 'card1'))
+                     || (i === 7 && charHasChip(ctx.charIdx, 'card2')) ? 2 : 1;
+      var contrib = chipDouble * lv * bonusVal * legendMulti;
+      var slotChildren = [
         node('Card Qty', qty, null, { fmt: 'raw' }),
         node('Star Lv', lv, null, { fmt: 'raw', note: 'max ' + maxStars + ' stars' }),
         node('Bonus/Star', bonusVal, null, { fmt: 'raw' }),
         node('Rift 5th Star', rift5star, null, { fmt: 'raw' }),
         node('Spelunk 6th Star', spelunk6star, null, { fmt: 'raw' }),
-      ], {
+      ];
+      if (chipDouble > 1) {
+        slotChildren.push(node('Chip ×2', 2, null, { fmt: 'x', note: i === 0 ? 'card1' : 'card2' }));
+      }
+      children.push(node(label('Card', cardKey) + ' Lv' + lv, contrib, slotChildren, {
         fmt: '+',
       }));
       total += contrib;
