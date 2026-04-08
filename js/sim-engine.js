@@ -38,7 +38,7 @@ export function optimizeShapesFor(s, simOpts, precomputedCellValues, saveCtx) {
   const opts = Object.assign({}, simOpts || {},
     { gridLevels: gl, shapeOverlay: so, magData: md || _sc.magData, insightLvs: il || _sc.insightLvs, occFound: occ || _sc.occFound });
   if (rLv !== undefined) opts.researchLevel = rLv;
-  if (saveCtx) opts.saveCtx = saveCtx;
+  opts.saveCtx = _sc;
   const result = optimizeShapePlacement(opts, undefined, precomputedCellValues);
   // Keep existing overlay if no improvement - avoids cosmetic churn
   if (result.currentTotal > 0 && result.improvPct <= 0) {
