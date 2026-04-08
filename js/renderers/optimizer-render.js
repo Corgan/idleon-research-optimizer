@@ -49,7 +49,7 @@ export function buildPhaseDetails(p, prev, diff) {
   const gridDetails = [];
   const gridGoalKeys = Object.keys(diff.grid);
   if (gridGoalKeys.length > 0) {
-    const goalOrder = ['Res EXP','Res True\u00d7','Obs\u00d7Insight','Insight','Kaleido','Rolls','AFK'];
+    const goalOrder = ['Res EXP','Res True\u00d7','Obs\u00d7Insight','Insight','Kaleido','Rolls','AFK','Path'];
     gridGoalKeys.sort((a,b) => {
       const ai = goalOrder.indexOf(a), bi = goalOrder.indexOf(b);
       return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
@@ -60,7 +60,8 @@ export function buildPhaseDetails(p, prev, diff) {
         const name = gridCoord(n.idx) + ' ' + RES_GRID_RAW[n.idx][0].replace(/_/g,' ');
         return `<span style="color:var(--gold);">${name}</span> ${n.from}\u2192${n.to}`;
       }).join(', ');
-      gridDetails.push(`<div>Grid <span style="color:${gc};font-weight:600;">[${goal}]</span>: ${nodes}</div>`);
+      const label = goal === 'Path' ? `[Path] <span style="font-weight:400;opacity:.7;font-size:.85em;">(needed to reach EXP nodes)</span>` : `[${goal}]`;
+      gridDetails.push(`<div>Grid <span style="color:${gc};font-weight:600;">${label}</span>: ${nodes}</div>`);
     }
   }
 

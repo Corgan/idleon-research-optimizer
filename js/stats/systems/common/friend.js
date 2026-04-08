@@ -6,21 +6,25 @@ import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
 import { FRIEND_DR, COMPANION_BONUS } from '../../data/game-constants.js';
 
+// Per-type FriendBonusQTY scales from game source
+var FRIEND_SCALE = { 0: 100, 1: 30, 2: 50, 3: 25, 4: 30, 5: 40 };
+
 export var friend = {
   resolve: function(id, ctx) {
-    // id = stat type (3 = DR)
+    // id = stat type (0=speed, 1=?, 2=?, 3=DR, 4=?, 5=money)
     var friendStr = String((optionsListData && optionsListData[476]) || '');
     if (!friendStr) return node('Friend Bonus', 0, null, { note: 'friend ' + id });
     var entries = friendStr.split(';');
     var total = 0;
     var children = [];
+    var scale = FRIEND_SCALE[id] != null ? FRIEND_SCALE[id] : FRIEND_DR.scale;
     for (var i = 0; i < entries.length; i++) {
       var parts = entries[i].split(',');
       var type = parseInt(parts[0]);
       var count = parseInt(parts[1]);
       if (type === id && count > 0) {
         var c = Math.min(FRIEND_DR.cap, Math.max(0, count));
-        var contrib = FRIEND_DR.scale * Math.min(1, FRIEND_DR.base + c / (c + FRIEND_DR.half));
+        var contrib = scale * Math.min(1, FRIEND_DR.base + c / (c + FRIEND_DR.half));
         children.push(node(parts[2] || '?', contrib, [
           node('Score', count, null, { fmt: 'raw' }),
         ], { fmt: '+' }));

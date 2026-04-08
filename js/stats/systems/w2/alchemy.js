@@ -3,9 +3,9 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { cauldronInfoData, optionsListData } from '../../../save/data.js';
+import { cauldronInfoData, optionsListData, charClassData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
-import { sigilBonus as _sigilBonus } from '../common/goldenFood.js';
+import { sigilBonus as _sigilBonus, vaultUpgBonus } from '../common/goldenFood.js';
 import { saveData } from '../../../state.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
@@ -17,6 +17,8 @@ import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { companionBonus } from '../../data/common/companions.js';
+import { AlchemyDescription } from '../../data/game/customlists.js';
+import { mainframeBonus } from '../w4/lab.js';
 
 // Number2Letter: cauldron index → letter used in prisma encoding
 // Game's Number2Letter maps: 0→'_', 1→'a', 2→'b', 3→'c'
@@ -161,3 +163,64 @@ export var sigil = {
     ], { fmt: '+', note: 'sigil ' + id });
   },
 };
+
+// ==================== BUBBLE BY KEY ====================
+// Look up a bubble by its effect key (e.g. 'expACTIVE', 'kpkACTIVE') and return its value.
+
+export function bubbleValByKey(key, charIdx) {
+  for (var c2 = 0; c2 < 4; c2++) {
+    var arr = AlchemyDescription[c2];
+    if (!arr) continue;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i][15] === key) {
+        var lv = Number((cauldronInfoData && cauldronInfoData[c2] && cauldronInfoData[c2][i]) || 0);
+        if (lv <= 0) return 0;
+        var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
+        var isPrisma = isBubblePrismad(c2, i);
+        var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+        var val = baseVal * prismaMult;
+        var cls = Number(charClassData && charClassData[charIdx]) || 0;
+        if (cls > 6 && i !== 16 && i < 30 &&
+            key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
+          if (c2 === 0 && cls < 18 && key !== 'Construction') {
+            val *= Math.max(1, bubbleValByKey('Opassz'));
+          } else if (c2 === 1 && cls >= 18 && cls < 30) {
+            val *= Math.max(1, bubbleValByKey('Gpassz'));
+          } else if (c2 === 2 && cls >= 30 && cls < 42) {
+            val *= Math.max(1, bubbleValByKey('Ppassz'));
+          }
+        }
+        return val;
+      }
+    }
+  }
+  return 0;
+}
+
+// ==================== VIAL BY KEY ====================
+// Sum of all vials matching effect key, with lab/rift/vault/meritoc multipliers.
+
+export function computeVialByKey(effectKey) {
+  var vials = AlchemyDescription[4];
+  if (!vials) return 0;
+  var total = 0;
+  for (var vi = 0; vi < vials.length; vi++) {
+    if (!vials[vi] || vials[vi][11] !== effectKey) continue;
+    var vialLv = Number((cauldronInfoData && cauldronInfoData[4] && cauldronInfoData[4][vi]) || 0);
+    if (vialLv <= 0) continue;
+    var rawVal = formulaEval(vials[vi][3], Number(vials[vi][1]) || 0, Number(vials[vi][2]) || 0, vialLv);
+    var labMult = mainframeBonus(10) === 2 ? 2 : 1;
+    var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
+    var maxLvVials = 0;
+    if (riftActive) {
+      var ci4 = cauldronInfoData && cauldronInfoData[4];
+      for (var rvi = 0; ci4 && rvi < ci4.length; rvi++) {
+        if ((Number(ci4[rvi]) || 0) >= 13) maxLvVials++;
+      }
+    }
+    var dNzz = (riftActive ? 2 * maxLvVials : 0) + (vaultUpgBonus(42) || 0);
+    var meritoc20 = computeMeritocBonusz(20) || 0;
+    total += labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
+  }
+  return total;
+}

@@ -9,6 +9,7 @@ import { mainframeBonus } from '../w4/lab.js';
 import { vaultUpgBonus } from '../common/goldenFood.js';
 import { emporiumBonus } from '../../../game-helpers.js';
 import { grimoireUpgBonus22 } from '../mc/grimoire.js';
+import { exoticParams } from '../../data/w5/farming.js';
 import { ninjaInfo } from '../../data/w5/farming.js';
 
 export function exoticBonusQTY40() {
@@ -109,3 +110,54 @@ export var farm = {
     return node('Farm ' + id, 0, null, { note: 'farm ' + id });
   },
 };
+
+// ==================== CROP SC ====================
+
+export function computeCropSC(idx) {
+  var s = saveData;
+  var ninjaData102_9 = s.ninjaData && s.ninjaData[102] && s.ninjaData[102][9];
+  var emp23 = emporiumBonus(23, ninjaData102_9);
+  if (!emp23) return 0;
+  var cropCount = s.farmCropCount || 0;
+  var mf17 = _safe(mainframeBonus, 17);
+  var gub22 = _safe(grimoireUpgBonus22);
+  var exo40 = _safe(exoticBonusQTY40);
+  var vub79 = _safe(vaultUpgBonus, 79);
+  var multi = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
+  var baseMap = { 4: 15, 8: 10 };
+  var baseVal = baseMap[idx] || 10;
+  return baseVal * cropCount * multi;
+}
+
+function _safe(fn) {
+  try {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    var v = fn.apply(null, args);
+    return (v !== v || v == null) ? 0 : v;
+  } catch(e) { return 0; }
+}
+
+// ==================== STICKER BONUS ====================
+
+export function computeStickerBonus(stickerIdx) {
+  var s = saveData;
+  var stickers = s.stickerData;
+  if (!stickers) return 0;
+  var count = 0;
+  for (var i = 0; i < stickers.length; i++) {
+    if (Number(stickers[i]) === stickerIdx) count++;
+  }
+  return count;
+}
+
+// ==================== EXOTIC BONUS (GENERIC) ====================
+
+export function computeExoticBonus(idx) {
+  var s = saveData;
+  var ex = exoticParams(idx);
+  if (!ex) return 0;
+  var lv = Number(s.farmUpgData && s.farmUpgData[ex.farmSlot]) || 0;
+  if (lv <= 0) return 0;
+  return ex.base * lv / (ex.denom + lv);
+}

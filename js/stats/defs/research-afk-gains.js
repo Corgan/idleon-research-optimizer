@@ -56,6 +56,10 @@ export default {
     var clvW7b11 = computeCardLv('w7b11');
     items.push({ name: 'Pirate Deckhand Card', val: Math.min(clvW7b11, 10) });
 
+    // Gem Shop slot: 2 * GemItemsPurchased[45]
+    var gemShop45 = Number(saveData.gemItemsData && saveData.gemItemsData[45]) || 0;
+    items.push({ name: 'Gem Shop (Research AFK)', val: 2 * gemShop45 });
+
     // Sushi RoG
     var rog4 = rogBonusQTY(4, saveData.cachedUniqueSushi);
     var rog24 = rogBonusQTY(24, saveData.cachedUniqueSushi);

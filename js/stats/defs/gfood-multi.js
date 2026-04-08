@@ -16,6 +16,7 @@ export default {
     // Get voting multi from descriptor
     var votingResult = ctx.resolve('voting-multi');
     var overrides = { votingBonuszMulti: votingResult.val, votingTree: votingResult };
+    if (ctx.dnsmCache) overrides.dnsmCache = ctx.dnsmCache;
 
     var val = gfoodBonusMULTI(ctx.charIdx, overrides);
     var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, overrides);

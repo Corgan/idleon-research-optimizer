@@ -43,6 +43,7 @@ export function createStatContext(opts) {
   ctx.mapIdx   = mapIdx;
   ctx.saveData = saveData;
   ctx.mapBon   = mapBon;
+  ctx.dnsmCache = opts.dnsmCache || null;
 
   // Spread Layer 1 (save-frozen)
   var k;

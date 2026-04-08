@@ -17,3 +17,13 @@ export var dream = {
     ], { fmt: '+', note: 'dream ' + id });
   },
 };
+
+// ==================== SHIMMER BONUSES ====================
+
+import { saveData as _eqSaveData } from '../../../state.js';
+
+export function computeAllShimmerBonuses() {
+  var artTier31 = Number(_eqSaveData.sailingData && _eqSaveData.sailingData[3] && _eqSaveData.sailingData[3][31]) || 0;
+  var shimmerMulti = artTier31 > 0 ? Math.max(1, Math.min(4, 1 + artTier31)) : 1;
+  return shimmerMulti;
+}

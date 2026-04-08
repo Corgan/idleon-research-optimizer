@@ -1,7 +1,61 @@
 // ===== SHARED DESCRIPTOR HELPERS =====
 
 import { gbWith } from '../../sim-math.js';
+import { companionBonus } from '../data/common/companions.js';
 
 export function gridBonusFinal(S, idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
+}
+
+export function safe(fn) {
+  try {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    var v = fn.apply(null, args);
+    return (v !== v || v == null) ? 0 : v;
+  } catch(e) { return 0; }
+}
+
+export function rval(resolver, id, ctx, args) {
+  try { return resolver.resolve(id, ctx, args).val || 0; }
+  catch(e) { return 0; }
+}
+
+// Button_Bonuses(slotIdx): presses rotate through 9 slots in groups of 5.
+// Rate per slot: [2, 3, 2, 2, 4, 5, 4, 25, 5]
+// MULTI = (1 + Comp(147)/100) × (1 + Grid(125)/100)
+// Result = slotHits × rate[slotIdx] × MULTI
+var BUTTON_RATES = [2, 3, 2, 2, 4, 5, 4, 25, 5];
+export function computeButtonBonus(slotIdx, saveData) {
+  var presses = Number(saveData.olaData[594]) || 0;
+  if (presses <= 0) return 0;
+  var fullCycles = Math.floor(presses / 45);
+  var rem = presses % 45;
+  var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
+  var comp147 = saveData.companionIds.has(147) ? companionBonus(147) : 0;
+  var grid125 = gridBonusFinal(saveData, 125);
+  var multi = (1 + comp147 / 100) * (1 + grid125 / 100);
+  return hits * (BUTTON_RATES[slotIdx] || 0) * multi;
+}
+
+// KillroyBonuses OLA indices and formula coefficients per slot:
+// KB(idx) = 1 + OLA[olaIdx] / (denom + OLA[olaIdx]) * scale  (for "multiplier" types)
+// KB(idx) = OLA[olaIdx] / (denom + OLA[olaIdx]) * scale        (for "additive" types 3,6)
+var KB_CONFIG = [
+  { ola: 228, d: 300, s: 1 },   // 0: gfood (true mult via max(1,...))
+  { ola: 229, d: 300, s: 9 },   // 1: sticker/exotic
+  { ola: 230, d: 300, s: 2 },   // 2: jade
+  { ola: 467, d: 200, s: 10, additive: true }, // 3: mastery loot
+  { ola: 468, d: 200, s: 1.3 }, // 4: masterclass drops
+  { ola: 469, d: 150, s: 0.8 }, // 5: research EXP
+  { ola: 470, d: 250, s: 25, additive: true }, // 6: coral
+  { ola: 471, d: 200, s: 2 },   // 7: display only
+];
+export function computeKillroyBonus(idx, saveData) {
+  var cfg = KB_CONFIG[idx];
+  if (!cfg) return 0;
+  var ola = Number(saveData.olaData[cfg.ola]) || 0;
+  if (ola <= 0) return 0;
+  var raw = ola / (cfg.d + ola) * cfg.s;
+  return cfg.additive ? raw : 1 + raw;
 }

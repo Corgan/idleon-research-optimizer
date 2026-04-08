@@ -9,6 +9,7 @@ import { superBitType } from '../../game-helpers.js';
 import { MINEHEAD_BONUS_QTY } from '../data/w7/minehead.js';
 import { MAX_SLOTS, MAX_TIER } from '../data/w7/sushi.js';
 import { label } from '../entity-names.js';
+import { computeButtonBonus } from './helpers.js';
 import {
   totalBucksPerHr, computeCurrencyMulti, currencyPerTier,
   knowledgeBonusTotals, computeOrangeFireSum, fireplaceEffectBase,
@@ -29,6 +30,7 @@ function _gatherExternal(S) {
     sailing39: Number(S.sailingData && S.sailingData[3] && S.sailingData[3][39]) || 0,
     hasBundleV: !!(S.bundlesData && S.bundlesData.bon_v),
     gamingSuperBit67: superBitType(67, S.gamingData && S.gamingData[12]),
+    buttonBonus2: computeButtonBonus(2, S),
   };
 }
 
@@ -65,6 +67,7 @@ export default {
       { name: 'Bundle V', val: ext.hasBundleV ? 2 : 1, fmt: 'x' },
       { name: 'Surcharge sum', val: surchargeSum, fmt: 'raw' },
       { name: 'Knowledge[0]', val: kt[0] || 0, fmt: 'raw' },
+      { name: 'Button Bonus', val: ext.buttonBonus2, fmt: 'raw' },
       { name: label('Grid', 189), val: ext.gridBonus189, fmt: 'raw' },
       { name: label('Sushi', 40), val: upgradeQTY(40, ul), fmt: 'raw' },
       { name: label('Minehead Floor', 11), val: ext.mineheadBonus11, fmt: 'raw', note: 'min(1.25x)' },

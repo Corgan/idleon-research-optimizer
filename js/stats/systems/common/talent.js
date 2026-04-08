@@ -277,6 +277,13 @@ function getbonus2(talentIdx, data, activeCharIdx) {
   return { val: best, bestChar: bestChar, detail: bestR };
 }
 
+// Public helper: max talent value across all characters (getbonus2 with -1).
+export function maxTalentBonus(talentIdx) {
+  var data = getTalentData(talentIdx);
+  if (!data) return 0;
+  return getbonus2(talentIdx, data).val;
+}
+
 export var talent = {
   resolve: function(id, ctx, args) {
     var data = getTalentData(id);
@@ -327,7 +334,7 @@ export var talent = {
       ], { fmt: 'x', note: 'talent 328' });
     }
 
-    r = getTalentNumber(ctx.charIdx, id, data);
+    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx);
     if (r.val === 0) return node(name, 0, null, { note: 'talent ' + id });
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;

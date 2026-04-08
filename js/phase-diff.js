@@ -21,7 +21,7 @@ export function diffPhaseConfigs(prev, cur) {
   for (const idx of GRID_INDICES) {
     const pgl = prev.config.gl[idx] || 0, cgl = cur.config.gl[idx] || 0;
     if (cgl > pgl) {
-      const goal = NODE_GOAL[idx] || 'Other';
+      const goal = NODE_GOAL[idx] || 'Path';
       if (!grid[goal]) grid[goal] = [];
       grid[goal].push({ idx, from: pgl, to: cgl });
     }

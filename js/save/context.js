@@ -66,6 +66,11 @@ export function buildSaveContext() {
     mhq12: mineheadBonusQTY(12, mineFloor),
     mhq20: mineheadBonusQTY(20, mineFloor),
 
+    // Button & Killroy research multipliers
+    button0: saveData.cachedButtonBonus0,
+    btnBaseNoGrid: saveData.cachedBtnBaseNoGrid,
+    killroy5: saveData.cachedKillroy5,
+
     // Sushi RoG bonuses affecting research
     rog0:  rogBonusQTY(0, saveData.cachedUniqueSushi),
     rog3:  rogBonusQTY(3, saveData.cachedUniqueSushi),
@@ -127,6 +132,9 @@ export function makeSimCtx(gl, sc) {
       serverVarResXP: sc.serverVarResXP,
       rog0:           sc.rog0 || 0,
       rog8:           sc.rog8 || 0,
+      button0:        sc.button0 || 0,
+      btnBaseNoGrid:  sc.btnBaseNoGrid || 0,
+      killroy5:       sc.killroy5 || 0,
     };
   }
 
@@ -158,6 +166,9 @@ export function makeSimCtx(gl, sc) {
     serverVarResXP: saveData.serverVarResXP,
     rog0:           rogBonusQTY(0, saveData.cachedUniqueSushi) || 0,
     rog8:           rogBonusQTY(8, saveData.cachedUniqueSushi) || 0,
+    button0:        saveData.cachedButtonBonus0 || 0,
+    btnBaseNoGrid:  saveData.cachedBtnBaseNoGrid || 0,
+    killroy5:       saveData.cachedKillroy5 || 0,
   };
 }
 

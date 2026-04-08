@@ -5,6 +5,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { computeCardLv, computeCardLvDetail } from '../common/cards.js';
 import { shrineBase, shrinePerLevel } from '../../data/w3/shrine.js';
+import { SaltLicks } from '../../data/game/customlists.js';
 import { BOSS3B_CARD_PCT } from '../../data/game-constants.js';
 
 var SHRINE_DATA = {
@@ -40,3 +41,30 @@ export var shrine = {
     ], { fmt: '+', note: 'shrine ' + id });
   },
 };
+
+// ==================== SHRINE BY INDEX ====================
+// Simplified shrine value lookup by index (no breakdown tree).
+
+import { saveData as _consSaveData } from '../../../state.js';
+import { cardLv as _consCardLv } from '../common/goldenFood.js';
+
+export function computeShrine(idx) {
+  var shrineLv = Number(_consSaveData.shrineData && _consSaveData.shrineData[idx] && _consSaveData.shrineData[idx][0]) || 0;
+  if (shrineLv <= 0) return 0;
+  var base = shrineBase(idx);
+  var perLv = shrinePerLevel(idx);
+  var rawVal = base + perLv * shrineLv;
+  var boss3bLv = _consCardLv('Boss3B') || 0;
+  var boss3bMulti = boss3bLv >= 6 ? 2 : 1;
+  return rawVal * boss3bMulti;
+}
+
+// ==================== SALT LICK ====================
+
+export function computeSaltLick(idx) {
+  if (!_consSaveData.saltLickData) return 0;
+  var purchased = Number(_consSaveData.saltLickData[idx]) || 0;
+  if (purchased <= 0) return 0;
+  if (!SaltLicks[idx]) return 0;
+  return Number(SaltLicks[idx][2]) || 0;
+}

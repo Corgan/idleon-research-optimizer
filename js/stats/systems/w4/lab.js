@@ -112,7 +112,7 @@ function euclidDist(x1, y1, x2, y2) {
   return 0.9604339 * Math.max(dx, dy) + 0.397824735 * Math.min(dx, dy);
 }
 
-function computePetArenaBonus(idx) {
+export function computePetArenaBonus(idx) {
   var waves = optionsListData[89] || 0;
   var tier = 0;
   for (var s = 0; s < 16; s++) {
@@ -342,4 +342,27 @@ export function mainframeBonus(e) {
   var base = JEWEL_DESC[ji][2];
   if (e === 119) return base;
   return base * mainframeBonus(8);
+}
+
+// ==================== CHIP BONUS BY KEY ====================
+
+import { ChipDesc } from '../../data/game/customlists.js';
+
+export function computeChipBonus(effectKey) {
+  var labChips = saveData.labChipsData;
+  if (!labChips) return 0;
+  var total = 0;
+  for (var ci = 0; ci < numCharacters; ci++) {
+    var chips = labChips[ci];
+    if (!chips) continue;
+    for (var slot = 0; slot < chips.length; slot++) {
+      var chipType = Number(chips[slot]) || 0;
+      if (chipType <= 0) continue;
+      if (!ChipDesc[chipType]) continue;
+      var chipKey = ChipDesc[chipType][12];
+      if (chipKey !== effectKey) continue;
+      total += Number(ChipDesc[chipType][11]) || 0;
+    }
+  }
+  return total;
 }

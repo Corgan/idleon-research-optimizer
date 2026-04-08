@@ -142,3 +142,15 @@ export var cardSingle = {
     ], { fmt: '+' });
   },
 };
+
+// ==================== CARD SET BONUS ====================
+
+export function computeCardSetBonus(setIdx) {
+  var cardSets = saveData.cardSetData;
+  if (!cardSets) return 0;
+  var idx = Number(setIdx);
+  if (typeof cardSets === 'object' && !Array.isArray(cardSets)) {
+    return Number(cardSets[setIdx]) || 0;
+  }
+  return Number(cardSets[idx]) || 0;
+}

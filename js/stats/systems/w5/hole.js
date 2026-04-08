@@ -224,3 +224,16 @@ export function gambitBonus15(S) {
   var req = 2000 + 1000 * 16 * (1 + 15 / 5) * Math.pow(1.26, 15);
   return totalPts >= req ? 3 : 0;
 }
+
+// ==================== COSMO BONUS (save-based) ====================
+
+import { saveData as _holesSaveData } from '../../../state.js';
+
+export function computeCosmoBonus(tier, idx) {
+  var holesArr = _holesSaveData.holesData && _holesSaveData.holesData[4 + tier];
+  if (!holesArr) return 0;
+  var lv = Number(holesArr[idx]) || 0;
+  if (lv <= 0) return 0;
+  var base = cosmoUpgBase(tier, idx);
+  return base * lv;
+}

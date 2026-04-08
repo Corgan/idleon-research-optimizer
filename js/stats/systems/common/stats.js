@@ -68,39 +68,125 @@ import { COMPANION_BONUS } from '../../data/game-constants.js';
 // ==================== STAT CONFIG ====================
 // Per-stat IDs. Only LUK is fully filled in; others can be added.
 var STAT_CONFIG = {
+  STR: {
+    pvStatIdx: 0,
+    totalBubble: 'TotalSTR',
+    dnPctTalent: 96,       // ABSOLUTE_UNIT: %STR from equipment
+    dnPctStampType: 'PctSTR',
+    dn2PctTalent: 111,     // Obol STR Boost
+    pctTalent: 143,        // OVERBLOWN_TESTOSTERONE: %STR
+    pctBubble: 'W8',       // TOME_STRENGTH: %STR per 2000 Tome pts
+    etcPct: 57,            // %_STR
+    pristineIdx: 4,
+    flatTalent: 10,        // FIST_OF_RAGE: add(1, 0)
+    guildTalent: 51,       // Eternal STR: getbonus2 max across chars
+    stampBaseType: 'BaseSTR',
+    boxRewardsBase: null,  // STR has no box reward in flat base
+    etcFlat: 51,           // _STR
+    olaShimmer: 174,
+    extraTalents: [98, 203],  // ABSOLUTE_UNIT, BUILT_DIFFERENT
+    extraTab2Talent: 142,     // SKILL_STRENGTHEN
+    buffBonus: [94, 1],       // GetBuffBonuses(94,1) [NOT YET COMPUTED]
+    boxRewardsStat: '23b',
+    famBonusIdx: 14,
+    starSignStat: 'STR',
+    cardType: 9,
+    flatTalent2: null,
+    sigilIdx: 0,
+    shinyIdx: 6,
+    arcadeIdx: 19,
+    a4Bubble: 'W4',        // SLABI_STRENGTH (slab-based)
+    questsTal618: false,
+  },
+  AGI: {
+    pvStatIdx: 1,
+    totalBubble: 'TotalAGI',
+    dnPctTalent: 276,      // SANIC_SPEED-related: %AGI from equipment
+    dnPctStampType: 'PctAGI',
+    dn2PctTalent: 291,     // Obol AGI Boost
+    pctTalent: 368,        // ADAPTATION_REVELATION: %AGI
+    pctBubble: 'A9',       // TOME_AGILITY: %AGI per 2000 Tome pts
+    etcPct: 25,            // %_AGI
+    pristineIdx: 1,
+    flatTalent: 11,        // QUICKNESS_BOOTS: add(1, 0)
+    guildTalent: 52,       // Eternal AGI: getbonus2 max across chars
+    stampBaseType: 'BaseAGI',
+    boxRewardsBase: null,  // AGI has no box reward in flat base
+    etcFlat: 52,           // _AGI
+    olaShimmer: 175,
+    extraTalents: [278, 428],  // SANIC_SPEED, UNREAL_AGILITY
+    extraTab2Talent: 367,      // SKILL_AMBIDEXTERITY
+    buffBonus: null,
+    boxRewardsStat: '21b',
+    famBonusIdx: 38,
+    starSignStat: 'AGI',
+    cardType: 7,
+    flatTalent2: null,
+    sigilIdx: 1,
+    shinyIdx: 7,
+    arcadeIdx: 20,
+    a4Bubble: 'A4',        // SLABO_AGILITY (slab-based, shared AGI+LUK)
+    questsTal618: false,
+  },
+  WIS: {
+    pvStatIdx: 2,
+    totalBubble: 'TotalWIS',
+    dnPctTalent: 456,      // %WIS from equipment (mage talent)
+    dnPctStampType: 'PctWIS',
+    dn2PctTalent: 486,     // Obol WIS Boost
+    pctTalent: 533,        // UTMOST_INTELLECT: %WIS
+    pctBubble: 'M9',       // TOME_WISDOM: %WIS per 2000 Tome pts
+    etcPct: 58,            // %_WIS
+    pristineIdx: 10,
+    flatTalent: 12,        // BOOK_OF_THE_WISE: add(1, 0)
+    guildTalent: 53,       // Eternal WIS: getbonus2 max across chars
+    stampBaseType: 'BaseWIS',
+    boxRewardsBase: null,  // WIS has no box reward in flat base
+    etcFlat: 53,           // _WIS
+    olaShimmer: 176,
+    extraTalents: [459, 593],  // INDIVIDUAL_INSIGHT, INDIVIDUALITY
+    extraTab2Talent: 532,      // SKILL_WIZ
+    buffBonus: null,
+    boxRewardsStat: '22b',
+    famBonusIdx: 62,
+    starSignStat: 'WIS',
+    cardType: 5,
+    flatTalent2: null,
+    sigilIdx: 2,
+    shinyIdx: 8,
+    arcadeIdx: 21,
+    a4Bubble: 'M4',        // SLABE_WISDOM (slab-based)
+    questsTal618: false,
+  },
   LUK: {
     pvStatIdx: 3,
     totalBubble: 'TotalLUK',
-    // DN pct: (1 + (dnPctTalent + stampPct) / 100)
-    dnPctTalent: 21,       // F'luk'ey Fabrics: decay(220, 250)
+    dnPctTalent: 21,       // F'LUK'EY_FABRICS: decay(220, 250)
     dnPctStampType: 'PctLUK',
-    // DN2 pct (obol): (1 + (dn2PctTalent + 40*superBit) / 100)
-    dn2PctTalent: 36,      // Obol Stat Boost: add(1, 0)
-    // Pct pool
-    pctTalent: null,       // LUK has NO pct talent (STR=143, AGI=368, WIS=533)
-    pctBubble: null,       // LUK has NO pct bubble (STR=W8, AGI=A9, WIS=M9)
+    dn2PctTalent: 36,      // CLEVER_CLOVER_OBOLS: add(1, 0)
+    pctTalent: null,       // LUK has NO pct talent
+    pctBubble: null,       // LUK has NO pct bubble
     etcPct: 17,            // %_LUK
     pristineIdx: 5,
-    // Flat base
-    flatTalent: 13,        // Lucky Clover: add(1, 0)
-    guildTalent: 54,       // Eternal LUK: add(2, 0) — getbonus2 max across chars
+    flatTalent: 13,        // LUCKY_CLOVER: add(1, 0)
+    guildTalent: 54,       // Eternal LUK: getbonus2 max across chars
     stampBaseType: 'BaseLUK',
     boxRewardsBase: '15c', // Science_Spare_Parts slot 2
     etcFlat: 54,           // _LUK
     olaShimmer: 177,
-    extraTalents: [],      // STR:[98,203], AGI:[278,428], WIS:[459]
-    extraTab2Talent: null,  // STR=142, AGI=367, WIS=532
-    buffBonus: null,       // STR has GetBuffBonuses(94,1)
-    // Flat add
+    extraTalents: [],
+    extraTab2Talent: null,
+    buffBonus: null,
     boxRewardsStat: 'LUK', // Non_Predatory_Loot_Box slot 1
-    famBonusIdx: 4,        // FamBonusQTYs key = 2 * ClassFamilyBonuses[2]
+    famBonusIdx: 4,
     starSignStat: 'LUK',
     cardType: 2,           // IDforCardBonus["2"] = "+{_Base_LUK"
-    flatTalent2: 23,       // Lucky Horseshoe: add(1, 0)
+    flatTalent2: 23,       // LUCKY_HORSESHOE: add(1, 0)
     sigilIdx: 3,
     shinyIdx: 9,
     arcadeIdx: 22,
-    a4Bubble: true,        // shared AGI+LUK
+    a4Bubble: 'A4',        // SLABO_AGILITY (shared AGI+LUK)
+    questsTal618: true,    // Only LUK has min(QuestsComplete, tal618)
   },
 };
 
@@ -142,7 +228,7 @@ function computeStarSignStatBonuses(statName, charIdx) {
 // CardBonusREAL(typeId): sum of EQUIPPED cards matching the type for given character.
 // typeId maps via IDforCardBonus (e.g. 2 -> "+{_Base_LUK").
 // Game reads from DNSM.CardBonusS which is pre-computed from equipped cards only.
-function computeCardBonusByType(typeId, charIdx) {
+export function computeCardBonusByType(typeId, charIdx) {
   var targetDesc = IDforCardBonus[String(typeId)];
   if (!targetDesc) return { val: 0, children: [] };
   var legend21 = legendPTSbonus(21);
@@ -169,7 +255,7 @@ function computeCardBonusByType(typeId, charIdx) {
 
 // ==================== BOX REWARDS ====================
 // Compute a BoxRewards value by key from PostOffUpgradeInfo + postOfficeData.
-function computeBoxReward(charIdx, key) {
+export function computeBoxReward(charIdx, key) {
   for (var boxIdx = 0; boxIdx < PostOffUpgradeInfo.length; boxIdx++) {
     var box = PostOffUpgradeInfo[boxIdx];
     for (var slot = 0; slot < 3; slot++) {
@@ -413,7 +499,12 @@ var BUBBLE_KEYS = {
   TotalSTR: { cauldron: 0, index: 0, slab: false },
   TotalAGI: { cauldron: 1, index: 0, slab: false },
   TotalWIS: { cauldron: 2, index: 0, slab: false },
-  A4:       { cauldron: 1, index: 23, slab: true },
+  W4:       { cauldron: 0, index: 23, slab: true },   // SLABI_STRENGTH
+  W8:       { cauldron: 0, index: 27, tome: true },    // TOME_STRENGTH
+  A4:       { cauldron: 1, index: 23, slab: true },    // SLABO_AGILITY
+  A9:       { cauldron: 1, index: 28, tome: true },    // TOME_AGILITY
+  M4:       { cauldron: 2, index: 23, slab: true },    // SLABE_WISDOM
+  M9:       { cauldron: 2, index: 28, tome: true },    // TOME_WISDOM
 };
 
 function computeAlchBubble(bonusType) {
@@ -428,20 +519,28 @@ function computeAlchBubble(bonusType) {
   var baseVal = formulaEval(params.formula, params.x1, params.x2, lv);
   var isPrisma = isBubblePrismad(params.cauldron, params.index);
   var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
-  // Slab multiplier: some bubbles (W2,W4,A2,A4,M2,M4) multiply by floor(slabCount/100)
+  // Slab multiplier: some bubbles (W4,A4,M4) multiply by floor(slabCount/100)
   var slabMult = 1;
   if (params.slab) {
     var slabCount = (saveData.cards1Data && saveData.cards1Data.length) || 0;
     slabMult = Math.floor(slabCount / 100);
     if (slabMult < 1) slabMult = 1;
   }
-  var val = baseVal * prismaMult * slabMult;
+  // Tome multiplier: W8/A9/M9 multiply by floor(max(0, tomePoints-5000)/2000)
+  var tomeMult = 1;
+  if (params.tome) {
+    var tomePoints = saveData.totalTomePoints || 0;
+    tomeMult = Math.max(0, Math.floor((tomePoints - 5000) / 2000));
+    if (tomeMult < 1) tomeMult = 1;
+  }
+  var val = baseVal * prismaMult * slabMult * tomeMult;
   var children = [
     node('Level', lv, null, { fmt: 'raw' }),
     node('Base', baseVal, null, { fmt: 'raw' }),
   ];
   if (isPrisma) children.push(node('Prisma Multi', prismaMult, null, { fmt: 'x' }));
   if (params.slab && slabMult > 1) children.push(node('Slab Multi', slabMult, null, { fmt: 'x', note: 'floor(slabItems/100)' }));
+  if (params.tome && tomeMult > 1) children.push(node('Tome Multi', tomeMult, null, { fmt: 'x', note: 'floor((tome-5000)/2000)' }));
   return { val: val, children: children, name: params.name };
 }
 
@@ -835,13 +934,15 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var starSignFlat = signBonuses.flat.val;
   addComputed(starSignFlat);
 
-  // min(TotalQuestsComplete, talent618)
-  // Game uses GetTalentNumber(1,618) which applies AllTalentLVz bonus
-  var totalQC = saveData.totalQuestsComplete || 0;
-  var tal618node = talentResolver.resolve(618, ctx);
-  var tal618eff = tal618node.val;
-  var questsTal618 = Math.min(totalQC, tal618eff);
-  addComputed(questsTal618);
+  // min(TotalQuestsComplete, talent618) — only LUK uses this
+  var questsTal618 = 0;
+  if (cfg.questsTal618) {
+    var totalQC = saveData.totalQuestsComplete || 0;
+    var tal618node = talentResolver.resolve(618, ctx);
+    var tal618eff = tal618node.val;
+    questsTal618 = Math.min(totalQC, tal618eff);
+    addComputed(questsTal618);
+  }
 
   // TalentCalc(620) = min(effectiveTalentLevel620, floor(maxCharLevel/10))
   // Game also applies AllTalentLVz to 620
@@ -887,11 +988,11 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var sigilVal = sigilResolver.resolve(cfg.sigilIdx, ctx).val;
   addComputed(sigilVal);
 
-  // A4 bubble (SLABO_AGILITY — shared AGI+LUK)
+  // A4/W4/M4 bubble (stat-specific slab bubble)
   var a4Val = 0;
   var a4bubble;
   if (cfg.a4Bubble) {
-    a4bubble = computeAlchBubble('A4');
+    a4bubble = computeAlchBubble(cfg.a4Bubble);
     a4Val = a4bubble.val;
     addComputed(a4Val);
   }
@@ -914,10 +1015,10 @@ export function computeTotalStat(statName, charIdx, ctx) {
       node('Base Sum', signBonuses.flat.baseVal, signBonuses.flat.children, { fmt: 'raw' }),
       node('Seraph Multi', signBonuses.flat.seraphMulti, null, { fmt: 'x' }),
     ] : null, { fmt: 'raw' }),
-    node('min(Quests,tal618)', questsTal618, [
-      node('TotalQuestsComplete', totalQC, null, { fmt: 'raw' }),
-      node(label('Talent', 618, ' Eff'), tal618eff, null, { fmt: 'raw' }),
-    ], { fmt: 'raw' }),
+    node('min(Quests,tal618)', questsTal618, cfg.questsTal618 ? [
+      node('TotalQuestsComplete', saveData.totalQuestsComplete || 0, null, { fmt: 'raw' }),
+      node(label('Talent', 618, ' Eff'), questsTal618, null, { fmt: 'raw' }),
+    ] : null, { fmt: 'raw' }),
     node('TalentCalc(620)', tal620raw, null, { fmt: 'raw', note: 'min(eff' + tal620eff + ', maxLv/10)' }),
     node('CardBonusREAL(' + cfg.cardType + ')', cardResult.val, cardResult.children, { fmt: 'raw' }),
   ];
@@ -931,7 +1032,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
     ], { fmt: 'raw' }),
     node('Sigil(' + cfg.sigilIdx + ')', sigilVal, null, { fmt: 'raw' })
   );
-  if (cfg.a4Bubble) flatAddChildren.push(node('AlchBubble A4', a4Val,
+  if (cfg.a4Bubble) flatAddChildren.push(node('AlchBubble ' + cfg.a4Bubble, a4Val,
     a4bubble ? a4bubble.children : null, { fmt: 'raw', note: a4bubble ? a4bubble.name : '' }));
   flatAddChildren.push(
     node('Shiny(' + cfg.shinyIdx + ')', shinyVal, null, { fmt: 'raw' }),
@@ -1016,3 +1117,119 @@ export var lukScaling = {
     return node('LUK Scaling', drLUK, lukChildren, { fmt: 'raw' });
   },
 };
+
+// ==================== STATUE BONUS ====================
+
+import { StatueInfo, ZenithMarket, MealINFO } from '../../data/game/customlists.js';
+import { eventShopOwned, ribbonBonusAt } from '../../../game-helpers.js';
+import { computeShinyBonusS } from '../w4/breeding.js';
+
+function _rval(resolver, id, ctx, args) {
+  try { return resolver.resolve(id, ctx, args).val || 0; }
+  catch(e) { return 0; }
+}
+
+function _safe(fn) {
+  try {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    var v = fn.apply(null, args);
+    return (v !== v || v == null) ? 0 : v;
+  } catch(e) { return 0; }
+}
+
+export function computeStatueBonusGiven(idx) {
+  var s = saveData;
+  var statueLv = Number(s.statueData && s.statueData[idx]) || 0;
+  if (statueLv <= 0) return 0;
+  var baseBonus = Number(StatueInfo[idx] && StatueInfo[idx][3]) || 1;
+  var val = statueLv * baseBonus;
+  if (idx === 0 || idx === 2 || idx === 8 || idx === 7) {
+    if (idx !== 7) val *= Math.max(1, 1 + _rval(talentResolver, 112, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 8) val *= Math.max(1, 1 + _rval(talentResolver, 127, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+  } else if (idx === 1 || idx === 11 || idx === 9 || idx === 14) {
+    if (idx !== 14) val *= Math.max(1, 1 + _rval(talentResolver, 292, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 9) val *= Math.max(1, 1 + _rval(talentResolver, 307, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+  } else if (idx === 10 || idx === 6 || idx === 12 || idx === 13) {
+    if (idx !== 13) val *= Math.max(1, 1 + _rval(talentResolver, 487, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 12) val *= Math.max(1, 1 + _rval(talentResolver, 472, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+  } else if (idx === 3 || idx === 5 || idx === 17) {
+    val *= Math.max(1, 1 + _rval(talentResolver, 37, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+  }
+  var statueG = Number(s.statueGData && s.statueGData[idx]) || 0;
+  if (statueG >= 2) {
+    var art30tier = Number(s.sailingData && s.sailingData[3] && s.sailingData[3][30]) || 0;
+    var art30val = art30tier > 0 ? artifactBase(30) * Math.max(1, art30tier) : 0;
+    val *= Math.max(1, 1 + (100 + art30val) / 100);
+  }
+  if (statueG >= 3) {
+    var zmLv = Number(s.spelunkData && s.spelunkData[45] && s.spelunkData[45][0]) || 0;
+    var zmMulti = Number(ZenithMarket && ZenithMarket[0] && ZenithMarket[0][4]) || 1;
+    val *= Math.max(1, 1 + (50 + Math.floor(zmMulti * zmLv)) / 100);
+  }
+  if (idx === 0 || idx === 1 || idx === 2 || idx === 6) {
+    val *= Math.max(1, 1 + _safe(vaultUpgBonus, 25) / 100);
+  }
+  if (idx !== 29) {
+    val *= Math.max(1, 1 + computeStatueBonusGiven(29) / 100);
+  }
+  val *= (1 + 0.3 * eventShopOwned(19, s.cachedEventShopStr));
+  val *= Math.max(1, 1 + _rval(talentResolver, 56, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+  val *= (1 + _safe(computeMeritocBonusz, 26) / 100);
+  return val;
+}
+
+// ==================== MEAL BONUS ====================
+
+export function computeMealBonus(effectKey) {
+  var s = saveData;
+  var meals0 = s.mealsData && s.mealsData[0];
+  if (!meals0) return 0;
+  var mf116 = _safe(mainframeBonus, 116);
+  var shinyS20 = _safe(computeShinyBonusS, 20);
+  var winBon26 = _safe(computeWinBonus, 26);
+  var cookMulti = (1 + (mf116 + shinyS20) / 100) * (1 + winBon26 / 100);
+  var total = 0;
+  for (var mi = 0; mi < MealINFO.length; mi++) {
+    if (!MealINFO[mi] || MealINFO[mi][5] !== effectKey) continue;
+    var mealLv = Number(meals0[mi]) || 0;
+    if (mealLv <= 0) continue;
+    var bonusPerLv = Number(MealINFO[mi][2]) || 0;
+    var ribIdx = 28 + mi;
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''));
+    total += cookMulti * ribMeal * mealLv * bonusPerLv;
+  }
+  return total;
+}
+
+// ==================== FAMILIAR BONUSES ====================
+
+export function computeFamBonusQTY(famIdx) {
+  var s = saveData;
+  if (!ClassFamilyBonuses || !ClassFamilyBonuses[famIdx]) return 0;
+  var info = ClassFamilyBonuses[famIdx];
+  var bonusPerChar = Number(info[1]) || 0;
+  var total = 0;
+  for (var ci2 = 0; ci2 < numCharacters; ci2++) {
+    var cls2 = Number(charClassData && charClassData[ci2]) || 0;
+    if (cls2 <= 0) continue;
+    var lvArr = s.lv0AllData && s.lv0AllData[ci2];
+    var classLv = Number(lvArr && lvArr[0]) || 0;
+    if (classLv > 0) total += bonusPerChar;
+  }
+  return total;
+}
+
+// ==================== WORKBENCH (WORLD BOSS) ====================
+
+export function computeWorkbenchStuff() {
+  var s = saveData;
+  var wboss = s.worldBossData;
+  if (!wboss) return 1;
+  var total = 1;
+  for (var bi = 0; bi < 4; bi++) {
+    var bossLv = Number(wboss[bi]) || 0;
+    if (bossLv > 0) total *= 1 + bossLv / 100;
+  }
+  return total;
+}

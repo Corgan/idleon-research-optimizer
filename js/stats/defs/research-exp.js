@@ -2,9 +2,9 @@
 // Replaces computeExternalBonuses() from save/external.js.
 // Computes the additive research EXP percentage and true multipliers.
 //
-// Additive pool: sticker, dancingCoral, zenith, cardW7b1, cardW7b4,
+// Additive pool: sticker, dancingCoral, zenith, cardW7b1, cardW7b4, cardW7a11,
 //   prehistoricSet, slabbo, arcade, meal, cropSC, msa, loreEpi
-// True multipliers: comp52 (1.5x), comp153 (2x), rog0 (2x), allMulti
+// True multipliers: comp52 (1.5x), comp153 (2x), rog0 (2x), button0, killroy5
 
 import { dancingCoralBase, stickerBase } from '../data/w7/research.js';
 import { gbWith } from '../../sim-math.js';
@@ -19,7 +19,7 @@ import { exoticBonusQTY40 } from '../systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../systems/mc/grimoire.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { gridBonusFinal } from './helpers.js';
+import { gridBonusFinal, computeButtonBonus, computeKillroyBonus } from './helpers.js';
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';
 import { equipSetBonus } from '../data/common/equipment.js';
@@ -72,15 +72,17 @@ export default {
     var zmLevel = saveData.spelunkData && saveData.spelunkData[45] && saveData.spelunkData[45][8] || 0;
     items.push({ name: 'Zenith Market', val: Math.floor(1 * zmLevel) });
 
-    // 4-5. Cards
+    // 4-6. Cards
     var clvW7b1 = computeCardLv('w7b1');
     var clvW7b4 = computeCardLv('w7b4');
+    var clvW7a11 = computeCardLv('w7a11');
     items.push({ name: 'Trench Fish Card', val: Math.min(clvW7b1, 10) });
     items.push({ name: 'Eggroll Card', val: Math.min(2 * clvW7b4, 10) });
+    items.push({ name: 'Coralcave Crab Card', val: Math.min(clvW7a11, 10) });
 
-    // 6. Prehistoric Set
+    // 6. Prehistoric Set (game caps at 50)
     var ola379 = String(saveData.olaData[379] || '');
-    items.push({ name: 'Prehistoric Set', val: ola379.includes('PREHISTORIC_SET') ? equipSetBonus('PREHISTORIC_SET') : 0 });
+    items.push({ name: 'Prehistoric Set', val: ola379.includes('PREHISTORIC_SET') ? Math.min(50, equipSetBonus('PREHISTORIC_SET')) : 0 });
 
     // 7. Slabbo
     var hasSB34 = superBitType(34, gd12);
@@ -158,12 +160,33 @@ export default {
         { name: 'Tome PTS', val: saveData.totalTomePoints, fmt: 'raw' },
       ] : null });
 
+    // 13-19. Grid bonuses (additive, game source confirmed)
+    items.push({ name: label('Grid', 50), val: gridBonusFinal(saveData, 50) });
+    items.push({ name: label('Grid', 90), val: gridBonusFinal(saveData, 90) });
+    items.push({ name: label('Grid', 110), val: gridBonusFinal(saveData, 110) });
+    items.push({ name: label('Grid', 112), val: gridBonusFinal(saveData, 112) });
+    items.push({ name: label('Grid', 94), val: gridBonusFinal(saveData, 94) });
+    items.push({ name: label('Grid', 31), val: gridBonusFinal(saveData, 31) });
+
     // ---- Sum additive ----
     var totalAdd = 0;
     for (var i = 0; i < items.length; i++) totalAdd += items[i].val;
 
     // ---- True multipliers ----
+    // Game: (1+add/100) × (1+Grid70/100) × (1+Button(0)/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)) × (1+RoG0/100)
     var multItems = [];
+
+    var grid70 = gridBonusFinal(saveData, 70);
+    multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x' });
+
+    // Button_Bonuses(0): button presses contribute to 9 rotating slots
+    var buttonPresses = Number(saveData.olaData[594]) || 0;
+    var buttonBonus0 = computeButtonBonus(0, saveData);
+    multItems.push({ name: 'Button Bonus', val: 1 + buttonBonus0 / 100, fmt: 'x', note: buttonPresses + ' presses' });
+
+    // KillroyBonuses(5): game uses (1 + KB(5)/100) where KB(5) = 1 + OLA[469]/(150+OLA[469])*0.8
+    var killroy5raw = computeKillroyBonus(5, saveData);
+    multItems.push({ name: label('Killroy', 5), val: 1 + killroy5raw / 100, fmt: 'x' });
 
     var comp52owned = saveData.companionIds.has(52);
     var comp52val = comp52owned ? companionBonus(52) : 0;
@@ -176,20 +199,11 @@ export default {
     var rog0val = rogBonusQTY(0, saveData.cachedUniqueSushi);
     multItems.push({ name: 'Sushi RoG (2x)', val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
 
-    var comp55val = saveData.companionIds.has(55) ? companionBonus(55) : 0;
-    var comp0val = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
-    var allMulti = 1 + (comp55val + comp0val) / 100;
-    multItems.push({ name: 'Grid AllBonusMulti', val: allMulti, fmt: 'x', note: 'Comp55=' + comp55val + ' Comp0=' + comp0val });
-
-    // ---- Gambit (AFK rate contribution) ----
-    var gambit15 = gambitBonus15(saveData);
-
     // ---- Build result ----
     var children = [];
     for (var i = 0; i < items.length; i++) {
       if (items[i].val > 0) children.push(items[i]);
     }
-    if (gambit15 > 0) children.push({ name: label('Gambit', 15), val: gambit15, fmt: 'raw' });
     children.push({ name: 'True Multipliers', val: 0, children: multItems, fmt: 'raw', note: 'Applied separately in sim' });
 
     return { val: totalAdd, children: children };

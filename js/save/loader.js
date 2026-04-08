@@ -12,7 +12,9 @@ import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
 import { SceneNPCquestOrder } from '../stats/data/game/customlists.js';
 import { rogBonusQTY, computeUniqueSushi } from '../stats/systems/w7/sushi.js';
 import { stickerBase } from '../stats/data/w7/research.js';
-import { computeMagnifiersOwnedWith, magMaxForLevel } from '../sim-math.js';
+import { computeMagnifiersOwnedWith, magMaxForLevel, gbWith } from '../sim-math.js';
+import { computeTomeScore } from '../stats/systems/w4/tome-score.js';
+import { companionBonus } from '../stats/data/common/companions.js';
 import resExpDesc from '../stats/defs/research-exp.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 
@@ -43,6 +45,7 @@ export function loadSaveData(raw) {
   assignState({ lv0Data: parseSaveKey(save, 'Lv0_0') || parseSaveKey(save, 'Lv0') || [] });
   assignState({ totemInfoData: parseSaveKey(save, 'TotemInfo') || [] });
   assignState({ gamingData: parseSaveKey(save, 'Gaming') || [] });
+  assignState({ gamingSproutData: parseSaveKey(save, 'GamingSprout') || [] });
   assignState({ ninjaData: parseSaveKey(save, 'Ninja') || [] });
   assignState({ ribbonData: parseSaveKey(save, 'Ribbon') || [] });
   assignState({ mealsData: parseSaveKey(save, 'Meals') || [] });
@@ -58,6 +61,27 @@ export function loadSaveData(raw) {
   assignState({ summonData: parseSaveKey(save, 'Summon') || [] });
   assignState({ arcaneData: parseSaveKey(save, 'Arcane') || [] });
   assignState({ sushiData: parseSaveKey(save, 'Sushi') || [] });
+  assignState({ dungUpgData: parseSaveKey(save, 'DungUpg') || [] });
+
+  // Tome score computation — additional save fields
+  assignState({ weeklyBossData: parseSaveKey(save, 'WeeklyBoss') || {} });
+  assignState({ refineryData: parseSaveKey(save, 'Refinery') || [] });
+  assignState({ boatsData: parseSaveKey(save, 'Boats') || [] });
+  assignState({ cookingData: parseSaveKey(save, 'Cooking') || [] });
+  assignState({ petsData: parseSaveKey(save, 'Pets') || [] });
+  assignState({ petsStoredData: parseSaveKey(save, 'PetsStored') || [] });
+  assignState({ captainsData: parseSaveKey(save, 'Captains') || [] });
+  assignState({ bubbaData: parseSaveKey(save, 'Bubba') || [] });
+  assignState({ currenciesData: parseSaveKey(save, 'CurrenciesOwned') || {} });
+  assignState({ deliveryBoxComplete: Number(save.CYDeliveryBoxComplete) || 0 });
+  assignState({ deliveryBoxStreak: Number(save.CYDeliveryBoxStreak) || 0 });
+  assignState({ deliveryBoxMisc: Number(save.CYDeliveryBoxMisc) || 0 });
+  assignState({ familyValuesData: parseSaveKey(save, 'FamilyValuesMap') || {} });
+  assignState({ colosseumHighscores: parseSaveKey(save, 'FamValColosseumHighscores') || [] });
+  assignState({ minigameHiscores: parseSaveKey(save, 'FamValMinigameHiscores') || [] });
+  assignState({ chestOrderData: parseSaveKey(save, 'ChestOrder') || [] });
+  assignState({ chestQuantityData: parseSaveKey(save, 'ChestQuantity') || [] });
+  assignState({ krBestData: parseSaveKey(save, 'KRbest') || {} });
 
   // StarSg: stored as a char-by-char object {0:'{',1:'"',...} — reconstruct and parse
   const starSgRaw = save.StarSg;
@@ -67,6 +91,8 @@ export function loadSaveData(raw) {
   } else if (typeof starSgRaw === 'string') {
     try { assignState({ starSignsUnlocked: JSON.parse(starSgRaw) }); } catch(e) { assignState({ starSignsUnlocked: {} }); }
   }
+  // SSprog: array of [name, status] pairs for constellation completion
+  assignState({ starSignProgData: parseSaveKey(save, 'SSprog') || [] });
   assignState({ compassData: parseSaveKey(save, 'Compass') || [] });
   assignState({ atomsData: parseSaveKey(save, 'Atoms') || [] });
   assignState({ gemItemsData: parseSaveKey(save, 'GemItemsPurchased') || [] });
@@ -92,18 +118,29 @@ export function loadSaveData(raw) {
   assignSaveData({ numCharacters: nChars });
 
   // Per-character data
-  const lv0All = [], exp0All = [], charClass = [], skillLv = [], playerStuff = [], pvStatList = [];
+  const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], pvStatList = [], statueLvAll = [];
   for (let ci = 0; ci < nChars; ci++) {
     lv0All.push(parseSaveKey(save, 'Lv0_' + ci) || []);
     exp0All.push(parseSaveKey(save, 'Exp0_' + ci) || []);
     charClass.push(Number(parseSaveKey(save, 'CharacterClass_' + ci)) || 0);
     skillLv.push(parseSaveKey(save, 'SL_' + ci) || {});
+    skillLvMax.push(parseSaveKey(save, 'SM_' + ci) || {});
     playerStuff.push(parseSaveKey(save, 'PlayerStuff_' + ci) || []);
     pvStatList.push(parseSaveKey(save, 'PVStatList_' + ci) || []);
+    statueLvAll.push(parseSaveKey(save, 'StatueLevels_' + ci) || []);
   }
+  // Statue levels: each char's array is [[level, exp], [level, exp], ...]. Extract level-only flat array from char 0.
+  const statueLevels = (statueLvAll[0] || []).map(s => Number(Array.isArray(s) ? s[0] : s) || 0);
+  assignState({ statueData: statueLevels });
+  assignState({ statueLvAllData: statueLvAll });
+  // Statue tiers (Onyx/Zenith): StuG is a JSON array "[3,3,3,...]"
+  const stuGRaw = parseSaveKey(save, 'StuG');
+  assignState({ statueGData: Array.isArray(stuGRaw) ? stuGRaw : (typeof stuGRaw === 'string' ? JSON.parse(stuGRaw) : []) });
   assignState({ lv0AllData: lv0All });
+  assignState({ cyTalentPointsData: parseSaveKey(save, 'CYTalentPoints') || [] });
   assignSaveData({ charClassData: charClass });
   assignSaveData({ skillLvData: skillLv });
+  assignSaveData({ skillLvMaxData: skillLvMax });
   assignSaveData({ playerStuffData: playerStuff });
   assignSaveData({ pvStatListData: pvStatList });
   assignSaveData({ cauldronInfoData: parseSaveKey(save, 'CauldronInfo') || [] });
@@ -151,18 +188,25 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyNames: parseSaveKey(save, 'ObolEqO1') || [] });
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
-  // Per-character prayers, post office, card equip
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [];
+  // Per-character prayers, post office, card equip, currentMap
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
     cardEquip.push(parseSaveKey(save, 'CardEquip_' + ci) || []);
     csetEq.push(parseSaveKey(save, 'CSetEq_' + ci) || {});
+    currentMapData.push(Number(parseSaveKey(save, 'CurrentMap_' + ci)) || 0);
   }
   assignSaveData({ prayersPerCharData: prayersPerChar });
   assignSaveData({ postOfficeData: postOffice });
   assignSaveData({ cardEquipData: cardEquip });
   assignSaveData({ csetEqData: csetEq });
+  assignSaveData({ currentMapData: currentMapData });
+
+  // MapBon — account-wide per-map kill counts (arcane map bonus)
+  const mapBonRaw = parseSaveKey(save, 'MapBon');
+  const mapBonData = mapBonRaw ? (typeof mapBonRaw === 'string' ? JSON.parse(mapBonRaw) : mapBonRaw) : [];
+  assignSaveData({ mapBonData: mapBonData });
 
   // Companion ownership from it.json
   if (companionRaw && Array.isArray(companionRaw.l)) {
@@ -181,7 +225,6 @@ export function loadSaveData(raw) {
   }
   assignState({ questCompleteData: questComplete });
 
-  if (raw.extraData?.totalTomePoints != null) assignState({ totalTomePoints: raw.extraData.totalTomePoints });
   if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
   if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
   if (raw.serverVars?.A_MineCost != null) assignState({ serverVarMineCost: Number(raw.serverVars.A_MineCost) || 1 });
@@ -213,6 +256,10 @@ export function loadSaveData(raw) {
 
   const uniqueSushi = computeUniqueSushi(saveData.sushiData);
   assignState({ cachedUniqueSushi: uniqueSushi });
+
+  // Compute Tome Score from save data instead of stale extraData snapshot.
+  // Must be after cachedUniqueSushi (slot 116) and cachedEventShopStr (unlocks).
+  assignState({ totalTomePoints: computeTomeScore(saveData) });
 
   // Sailing artifact 37 bonus (capped at 10) — flat grid PTS
   const sailArt37 = Math.min(10, Math.round(Number(saveData.sailingData?.[3]?.[37]) || 0));
@@ -284,10 +331,41 @@ export function recomputeDerivedBonuses() {
       if (rexp.children[i].name === 'Sticker Bonus') { _stickerVal = rexp.children[i].val; break; }
     }
   }
+  // simTotalExpWith adds grid bonuses dynamically (so optimizer sees changes),
+  // so extPctExSticker must exclude both sticker AND grids to avoid double-counting.
+  const _abmCtx = { abm: saveData.allBonusMulti };
+  const _gridAdd =
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 50, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 90, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 110, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 112, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 94, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 31, _abmCtx);
   assignState({
     externalResearchPct: rexp.val,
-    cachedExtPctExSticker: rexp.val - _stickerVal,
+    cachedExtPctExSticker: rexp.val - _stickerVal - _gridAdd,
     comp52TrueMulti: (1 + (saveData.companionIds.has(52) ? 0.5 : 0)) * (1 + (saveData.companionIds.has(153) ? 1 : 0)),
   });
+
+  // Button_Bonuses(0): presses rotate through 9 slots, slot 0 rate = 2
+  // btnBaseNoGrid = button0 value WITHOUT grid 125 contribution (for dynamic recompute in sim)
+  var _btnPresses = Number(saveData.olaData[594]) || 0;
+  var _btn0 = 0, _btnBase = 0;
+  if (_btnPresses > 0) {
+    var _c147 = saveData.companionIds.has(147) ? companionBonus(147) : 0;
+    var _g125 = gbWith(saveData.gridLevels, saveData.shapeOverlay, 125, { abm: saveData.allBonusMulti });
+    var _baseMulti = 1 + _c147 / 100;
+    var _btnMULTI = _baseMulti * (1 + _g125 / 100);
+    var _slot0Count = Math.floor(_btnPresses / 45) * 5 + Math.min(5, _btnPresses % 45);
+    _btnBase = _slot0Count * 2 * _baseMulti;
+    _btn0 = _slot0Count * 2 * _btnMULTI;
+  }
+  assignState({ cachedButtonBonus0: _btn0, cachedBtnBaseNoGrid: _btnBase });
+
+  // KillroyBonuses(5): 1 + OLA[469] / (150 + OLA[469]) * 0.8
+  // Game uses (1 + KB(5)/100) in ResearchEXPmulti, so we store the full KB return value
+  var _ola469 = Number(saveData.olaData[469]) || 0;
+  assignState({ cachedKillroy5: _ola469 > 0 ? 1 + _ola469 / (150 + _ola469) * 0.8 : 0 });
+
   assignSaveData({ cachedAFKRate: afkGainsDesc.combine({}, { saveData }) });
 }

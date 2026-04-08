@@ -71,15 +71,17 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
         break;
       }
 
-      // Check 3: does any insight rate change?
-      let insightChanged = false;
-      for (let oi2 = 0; oi2 < monoObs.length; oi2++) {
-        const testIR = insightExpRate(monoObs[oi2], md, il, gl, so, testCtx);
-        if (Math.abs(testIR - baseInsightRates[oi2]) > 1e-6) { insightChanged = true; break; }
-      }
-      if (insightChanged) {
-        relevant.add(idx);
-        break;
+      // Check 3: does any insight rate change? (only if insight levels affect EXP)
+      if (insightAffectsExp(gl, so, testCtx)) {
+        let insightChanged = false;
+        for (let oi2 = 0; oi2 < monoObs.length; oi2++) {
+          const testIR = insightExpRate(monoObs[oi2], md, il, gl, so, testCtx);
+          if (Math.abs(testIR - baseInsightRates[oi2]) > 1e-6) { insightChanged = true; break; }
+        }
+        if (insightChanged) {
+          relevant.add(idx);
+          break;
+        }
       }
     }
     // Restore original level

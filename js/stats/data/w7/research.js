@@ -38,6 +38,7 @@ export var NODE_GOAL = {
   67:'Crowns', 68:'Crowns', 69:'Cogs', 70:'Res True\u00d7', 71:'AFK', 72:'Kaleido',
   87:'Gaming', 88:'Stickers', 89:'Cogs', 90:'Res EXP', 91:'Insight', 92:'Insight', 93:'Obs\u00d7Insight', 94:'Res EXP',
   107:'Crowns', 108:'Rat King', 109:'Artifacts', 110:'Res EXP', 111:'AFK', 112:'Res EXP',
+  125:'Res EXP', 126:'Res EXP',
   127:'Sigils', 128:'Sigils', 129:'Minehead', 130:'Class EXP', 131:'Class EXP', 132:'Class EXP',
   146:'Minehead', 147:'Minehead', 148:'Minehead', 149:'Glimbo', 166:'Minehead', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
   167:'Minehead', 168:'DR Multi', 169:'Glimbo', 170:'All Quick', 171:'Day/Nite', 172:'Clothing', 173:'Drop Rate',
@@ -46,6 +47,7 @@ export var NODE_GOAL = {
 export var NODE_GOAL_COLORS = {
   'Res EXP':'var(--green)', 'Res True\u00d7':'#ff6b6b', 'Obs\u00d7Insight':'var(--gold)',
   'Insight':'var(--purple)', 'Kaleido':'var(--cyan)', 'Rolls':'#aaa', 'AFK':'#888',
+  'Path':'#888',
 };
 
 // Shape vertices from Research[0], dimensions from Research[1]

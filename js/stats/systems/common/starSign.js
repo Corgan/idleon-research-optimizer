@@ -116,3 +116,29 @@ export var starSign = {
     return node('Star Signs', total, children, { fmt: '+', note: 'starSign:' + id });
   },
 };
+
+// ==================== STAR SIGN BONUS (aggregated) ====================
+
+import { starSignData as starSignCharData } from '../../../save/data.js';
+import { StarSigns as StarSignsData } from '../../data/game/customlists.js';
+
+export function computeStarSignBonus(key, ci) {
+  var equipped = starSignCharData && starSignCharData[ci];
+  if (!equipped) return 0;
+  var parts = String(equipped).split(',');
+  var total = 0;
+  for (var si = 0; si < parts.length; si++) {
+    var signIdx = parseInt(parts[si]);
+    if (isNaN(signIdx) || signIdx < 0) continue;
+    var sign = StarSignsData[signIdx];
+    if (!sign) continue;
+    for (var ei = 0; ei < 4; ei++) {
+      var effectType = sign[4 + ei * 2];
+      var effectVal = Number(sign[5 + ei * 2]) || 0;
+      if (effectType === key && effectVal !== 0) {
+        total += effectVal;
+      }
+    }
+  }
+  return total;
+}

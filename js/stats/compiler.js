@@ -47,6 +47,7 @@ export function compileContext(opts) {
     mapBon:  opts.mapBon,
     layer1:  saveCtx,
     layer2:  opts.layer2 || {},
+    dnsmCache: opts.dnsmCache,
   });
 }
 

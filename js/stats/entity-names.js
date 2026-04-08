@@ -39,7 +39,7 @@ function clean(s) {
 // Systems without data exports
 var EVENT_SHOP_NAMES = { 18: 'Plant Evo', 23: 'Isotope Discovery', 30: 'Snail Omega' };
 var CLAMWORK_NAMES = { 3: 'Bubba Boon', 7: '2nd Slice' };
-var KILLROY_NAMES = { 3: 'Mastery Loot' };
+var KILLROY_NAMES = { 3: 'Mastery Loot', 5: 'Research EXP' };
 
 var LOOKUPS = {
   Talent:      function(id) { return clean(TalentIconNames[id]); },

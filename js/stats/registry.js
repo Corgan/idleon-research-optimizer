@@ -54,6 +54,15 @@ import researchAfkGains from './defs/research-afk-gains.js';
 import sushiBucks from './defs/sushi-bucks.js';
 import mineheadCurrency from './defs/minehead-currency.js';
 import coinMulti from './defs/coin-multi.js';
+import monsterExp from './defs/monster-exp.js';
+import killPerKill from './defs/kill-per-kill.js';
+import fightingAfk from './defs/fighting-afk.js';
+import skillAfk from './defs/skill-afk.js';
+import damage from './defs/damage.js';
+import spelunkingPow from './defs/spelunking-pow.js';
+import skillEfficiency from './defs/skill-efficiency.js';
+import skillExp from './defs/skill-exp.js';
+import tomeScore from './defs/tome-score.js';
 
 // ----- Internal storage -----
 var _systems = {
@@ -112,3 +121,12 @@ registerDescriptor(researchAfkGains);
 registerDescriptor(sushiBucks);
 registerDescriptor(mineheadCurrency);
 registerDescriptor(coinMulti);
+registerDescriptor(monsterExp);
+registerDescriptor(killPerKill);
+registerDescriptor(fightingAfk);
+registerDescriptor(skillAfk);
+registerDescriptor(damage);
+registerDescriptor(spelunkingPow);
+registerDescriptor(skillEfficiency);
+registerDescriptor(skillExp);
+registerDescriptor(tomeScore);

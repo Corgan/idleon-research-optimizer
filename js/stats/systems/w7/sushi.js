@@ -9,6 +9,10 @@ import {
   KNOWLEDGE_CAT_VALUE, MAX_TIER, MAX_SLOTS,
   CURRENCY_PER_TIER, ROG_BONUS_QTY,
 } from '../../data/w7/sushi.js';
+import { legendPTSbonus } from '../w7/spelunking.js';
+import { companions } from '../common/goldenFood.js';
+import { optionsListData } from '../../../save/data.js';
+import { getLOG } from '../../../formulas.js';
 
 // ===== ROG & UNIQUE SUSHI =====
 
@@ -201,7 +205,7 @@ export function computeOrangeFireSum(sushiData, fireplaceEffBase) {
 export function fireplaceEffectBase(knowledgeTotals, sparks) {
   var s = Math.max(sparks, 1);
   var sparkMulti = sparks > 0
-    ? 0.2 * Math.log2(s) + Math.log10(s)
+    ? 0.2 * (Math.log(s) / Math.log(2)) + getLOG(s)
     : 0;
   return (1 + (knowledgeTotals?.[9] || 0) / 100) * (1 + sparkMulti / 100);
 }
@@ -244,6 +248,7 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
   var sailing39 = externalSources?.sailing39 || 0;
   var hasBundleV = externalSources?.hasBundleV ? 1 : 0;
   var gamingSuperBit67 = externalSources?.gamingSuperBit67 || 0;
+  var buttonBonus2 = externalSources?.buttonBonus2 || 0;
 
   var surchargeSum = upgradeQTY(30, upgLevels) + upgradeQTY(31, upgLevels)
     + upgradeQTY(32, upgLevels) + upgradeQTY(33, upgLevels) + upgradeQTY(34, upgLevels)
@@ -254,6 +259,7 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
     * (1 + Math.min(1, hasBundleV))
     * (1 + surchargeSum / 100)
     * (1 + (knowledgeTotals?.[0] || 0) / 100)
+    * (1 + buttonBonus2 / 100)
     * (1 + gridBonus189 / 100)
     * (1 + upgradeQTY(40, upgLevels) / 100)
     * Math.max(1, Math.min(1.25, 1 + mineheadBonus11 / 100))
@@ -282,7 +288,7 @@ export function computeOvertunedMulti(sushiData) {
   var spa = Number(sushiData?.[4]?.[1]) || 0;
   if (spa <= 0) return 0;
   var x = Math.max(spa / 1e6, 1);
-  return 5 * Math.log2(x) + 10 * Math.log10(x);
+  return 5 * (Math.log(x) / Math.log(2)) + 10 * getLOG(x);
 }
 
 // ===== SLOTS =====
@@ -373,4 +379,23 @@ export function buildSushiSummary(sushiData, upgLevels, uniqueSushi, knowledgeTo
   var maxCook = maxCookTier(upgLevels);
 
   return { upgLvs: upgLvs, currMulti: currMulti, totalBucks: totalBucks, fuelGen: fuelGen, fuelCap: fuelCap, activeSlots: activeSlots, maxCook: maxCook, uniqueSushi: uniqueSushi };
+}
+
+// ==================== ROO BONUS ====================
+
+export function computeRooBonus(idx) {
+  var ola271 = Number(optionsListData[271]) || 0;
+  var tiers = Math.max(0, Math.ceil((ola271 - idx) / 7));
+  if (tiers <= 0) return 0;
+  var legend26 = legendPTSbonus(26) || 0;
+  var comp51 = 0;
+  try { comp51 = companions(51) || 0; } catch(e) {}
+  var rooAll = 0;
+  var megaIdxs = [1, 3, 6, 8, 11];
+  for (var mi = 0; mi < megaIdxs.length; mi++) {
+    var feat = Number(optionsListData[279 + megaIdxs[mi]]) || 0;
+    rooAll += 50 * Math.min(1, feat);
+    if (mi === 4) rooAll += 25 * Math.max(0, feat - 1);
+  }
+  return 3 * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
 }

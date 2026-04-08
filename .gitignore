@@ -8,3 +8,4 @@ states/
 js/snapshots
 history/
 _*
+node_modules/

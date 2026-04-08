@@ -101,6 +101,7 @@ import { getCatalog } from './js/stats/registry.js';
 import coinMultiDesc from './js/stats/defs/coin-multi.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { ClassNames } from './js/stats/data/game/customlists.js';
+import { fmtVal } from './js/renderers/format.js';
 
 var SAVE_RAW = null;
 var CHARS = [];
@@ -120,7 +121,7 @@ function recalc() {
     return;
   }
 
-  document.getElementById('dr-total').textContent = (result.val || 0).toFixed(2) + 'x';
+  document.getElementById('dr-total').textContent = fmtVal(result.val || 0) + 'x';
   document.getElementById('dr-sub').textContent =
     'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
 

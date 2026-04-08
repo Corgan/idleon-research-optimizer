@@ -4,6 +4,7 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
+import { saveData as _owlSaveData } from '../../../state.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { OWL_BASE } from '../../data/game-constants.js';
@@ -44,3 +45,12 @@ export var owl = {
     ], { fmt: '+', note: 'owl ' + id });
   },
 };
+
+// ==================== OWL BONUS (aggregated) ====================
+
+export function computeOwlBonus(idx) {
+  var owlLv = Number(_owlSaveData.owlData && _owlSaveData.owlData[idx]) || 0;
+  if (owlLv <= 0) return 0;
+  var base = Number(OWL_BASE[idx]) || 1;
+  return base * owlLv;
+}

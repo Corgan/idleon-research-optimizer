@@ -18,6 +18,7 @@ import { paletteParams } from '../../data/w4/gaming.js';
 import { compassUpgPerLevel } from '../../data/common/compass.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { STAMP_DATA } from '../../data/w1/stamp.js';
+import { ITEMS } from '../../data/game/items.js';
 
 // Number2Letter mapping for stamp key encoding: cat → letter
 // Game's Number2Letter: [0]='_', [1]='a', [2]='b', [3]='c'
@@ -166,3 +167,57 @@ export var stamp = {
     return node(label('Stamp', id), val, stampChildren, { fmt: '+', note: 'stamp ' + id });
   },
 };
+
+// ==================== STAMP BONUS OF TYPE X ====================
+// Sums all stamps of a given bonus type (e.g. "classxp", "BaseMinEff").
+// The bonus type is derived from ITEMS[stampKey].desc_line1.
+
+var _stampTypeCache = null;
+function buildStampTypeMap() {
+  if (_stampTypeCache) return _stampTypeCache;
+  _stampTypeCache = {};
+  var keys = Object.keys(ITEMS);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (k.indexOf('Stamp') !== 0 || k.length < 7) continue;
+    var item = ITEMS[k];
+    var parts = item.desc_line1.split(',');
+    var type = parts[0];
+    var catLetter = k[5]; // A, B, C
+    var catNum = catLetter === 'A' ? 0 : catLetter === 'B' ? 1 : 2;
+    var idx = item.ID - catNum * 1000;
+    if (!_stampTypeCache[type]) _stampTypeCache[type] = [];
+    _stampTypeCache[type].push({ cat: catNum, idx: idx, x1: Number(parts[2]), x2: Number(parts[3]), formula: parts[1] });
+  }
+  return _stampTypeCache;
+}
+
+export function computeStampBonusOfTypeX(typeKey) {
+  var map = buildStampTypeMap();
+  var stamps = map[typeKey];
+  if (!stamps) return 0;
+  var total = 0;
+  var doublerTotal = null; // lazy-computed
+  var labDouble = mainframeBonus(7) === 2 ? 2 : 1;
+  var prist17 = pristineBon(17) || 0;
+  var pristMulti = prist17 > 0 ? 1 + prist17 / 100 : 1;
+
+  for (var si = 0; si < stamps.length; si++) {
+    var st = stamps[si];
+    var lv = Number((stampLvData && stampLvData[st.cat] && stampLvData[st.cat][st.idx]) || 0);
+    if (lv <= 0) continue;
+    var val = formulaEval(st.formula, st.x1, st.x2, lv);
+    if (isExalted(st.cat, st.idx)) {
+      if (doublerTotal === null) {
+        var _d = computeStampDoublerSources();
+        doublerTotal = (typeof _d === 'object' && _d) ? (_d.total || 0) : (Number(_d) || 0);
+      }
+      val *= 1 + doublerTotal / 100;
+    }
+    if (st.cat < 2) {
+      val *= labDouble * pristMulti;
+    }
+    total += val;
+  }
+  return total;
+}

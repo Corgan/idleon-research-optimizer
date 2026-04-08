@@ -11,6 +11,7 @@ import { mainframeBonus } from '../w4/lab.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { computeShinyBonusS } from '../w4/breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
+import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
 
 // ===== FLOOR REWARD BONUS =====
@@ -261,15 +262,16 @@ export function currencyPerHour(opts) {
   var compMulti = Math.max(1, Math.min(2, comp143));
   var bqMulti = Math.min(3, 1 + bonusQTY6 / 100);
 
-  var logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
+  var logDmg = highestDmg > 0 ? getLOG(highestDmg) : 0;
   var farmPCT = 1 + (upgradeQTY(5, upgLevels[5])
                     + upgradeQTY(22, upgLevels[22])
                     + upgradeQTY(28, upgLevels[28]) * logDmg
                     + arcade62) / 100;
   var atomMulti = 1 + atom13 / 100;
+  var buttonMulti = 1 + (opts.buttonBonus1 || 0) / 100;
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
-  return base * multi148 * rogMulti * compMulti * bqMulti * farmPCT * atomMulti * passiveMulti;
+  return base * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti;
 }
 
 // ===== WIGGLE =====

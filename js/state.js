@@ -38,6 +38,7 @@ export const saveData = {
   lv0Data: [],
   totemInfoData: [],
   gamingData: [],
+  gamingSproutData: [],
   ninjaData: [],
   ribbonData: [],
   mealsData: [],
@@ -78,17 +79,46 @@ export const saveData = {
   cachedBoonyCount: 0,
   cachedEvShop37: 0,
   cachedExtPctExSticker: 0,
+  cachedButtonBonus0: 0,
+  cachedBtnBaseNoGrid: 0,
+  cachedKillroy5: 0,
   guildData: [],
+  cyTalentPointsData: [],
   prayOwnedData: [],
   shrineData: [],
   bundlesData: {},
   farmRankData: {},
   forgeLvData: [],
   sushiData: [],
+  statueData: [],
+  statueGData: [],
+  starSignProgData: [],
+  dungUpgData: [],
   questCompleteData: [],
   totalQuestsComplete: 0,
   cachedUniqueSushi: 0,
   cachedSailingArt37: 0,
+  weeklyBossData: {},
+  refineryData: [],
+  boatsData: [],
+  cookingData: [],
+  petsData: [],
+  petsStoredData: [],
+  captainsData: [],
+  bubbaData: [],
+  currenciesData: {},
+  deliveryBoxComplete: 0,
+  deliveryBoxStreak: 0,
+  deliveryBoxMisc: 0,
+  familyValuesData: {},
+  colosseumHighscores: [],
+  minigameHiscores: [],
+  chestOrderData: [],
+  chestQuantityData: [],
+  krBestData: {},
+  divinityAllData: [],
+  labChipData: [],
+  saltLickData: [],
   shapeTiers: { above: [], below: [] },
   _covLUTCache: null,
   _covLUTCacheN: -1,
@@ -168,6 +198,10 @@ export function restoreState(s) {
   if (!saveData.gemItemsData) saveData.gemItemsData = [];
   if (!saveData.achieveRegData) saveData.achieveRegData = [];
   if (!saveData.tasksGlobalData) saveData.tasksGlobalData = [];
+  if (!saveData.statueData) saveData.statueData = [];
+  if (!saveData.statueGData) saveData.statueGData = [];
+  if (!saveData.starSignProgData) saveData.starSignProgData = [];
+  if (!saveData.dungUpgData) saveData.dungUpgData = [];
   if (!saveData.lv0AllData) saveData.lv0AllData = [];
   if (!saveData.labBonusConnected) saveData.labBonusConnected = [];
   if (!saveData.labJewelConnected) saveData.labJewelConnected = [];

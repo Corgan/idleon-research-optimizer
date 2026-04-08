@@ -9,6 +9,7 @@ import { _bNode } from '../stats/node-helpers.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import { fmtNum as _fmt } from '../renderers/format.js';
 import { superBitType } from '../game-helpers.js';
+import { computeButtonBonus } from '../stats/defs/helpers.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
   KNOWLEDGE_CAT_DESC, KNOWLEDGE_CAT_VALUE, ROG_DESC, ROG_BONUS_QTY as ROG_VALUES,
@@ -103,6 +104,7 @@ function _getExternalSources() {
     sailing39: Number(saveData.sailingData?.[3]?.[39]) || 0,
     hasBundleV: saveData.bundlesData?.bon_v ? true : false,
     gamingSuperBit67: superBitType(67, saveData.gamingData?.[12]),
+    buttonBonus2: computeButtonBonus(2, saveData),
   };
 }
 
@@ -457,6 +459,7 @@ function _renderCurrency() {
     _bNode('Minehead #11', Math.max(1, Math.min(1.25, 1 + ext.mineheadBonus11 / 100)), null, { fmt: 'x' }),
     _bNode('Hourly Wage + Tier Vision', 1 + (hourlyWage41 + tierVision43) / 100, null, { fmt: 'x' }),
     _bNode('Overtuned Multi', 1 + overtunedMulti / 100, null, { fmt: 'x' }),
+    _bNode('Button Bonus', 1 + (ext.buttonBonus2 || 0) / 100, null, { fmt: 'x' }),
     _bNode('Atom 14 (Phosphorus)', 1 + ext.atom14 / 100, null, { fmt: 'x' }),
     _bNode('Sailing Art #39', 1 + sailing39 / 100, null, { fmt: 'x' }),
   ], { fmt: 'x' });

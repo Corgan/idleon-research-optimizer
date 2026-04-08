@@ -7,6 +7,7 @@ import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { hideTooltip, moveTooltip } from './tooltip.js';
 import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
+import { computeButtonBonus } from '../stats/defs/helpers.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../stats/data/w7/minehead.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
@@ -159,7 +160,7 @@ function _renderDashboard() {
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
-    rogBonus12: rogB12,
+    rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     upgLevels: lvs, highestDmg,
   });
   const rLv = saveData.researchLevel || 0;
@@ -305,7 +306,7 @@ function _renderCurrencyTab() {
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
-    rogBonus12: rogB12,
+    rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     upgLevels: lvs, highestDmg,
   });
 
@@ -419,9 +420,12 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     fmt: 'x', note: rogB12 > 0 ? `+${rogB12}% (50% when unlocked)` : 'Not unlocked',
   });
 
+  var bb1 = computeButtonBonus(1, saveData);
+  var buttonNode = _bNode('Button Bonus', 1 + bb1 / 100, null, { fmt: 'x' });
+
   return _bNode('Mine Currency/hr', cph, [
     gb129node, gb148node, rogNode, comp143node, bossNode,
-    upgNode, atomNode, passiveNode,
+    upgNode, buttonNode, atomNode, passiveNode,
   ], { fmt: '/hr' });
 }
 

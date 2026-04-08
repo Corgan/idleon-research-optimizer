@@ -48,6 +48,7 @@ export function equipSetBonus(setName) {
 // Legacy named exports (computed from generic accessor)
 export const GODSHARD_SET_BONUS = equipSetBonus('GODSHARD_SET');
 export const SET_BONUS_VALUES = {
+  GOLD_SET: equipSetBonus('GOLD_SET'),
   SECRET_SET: equipSetBonus('SECRET_SET'),
   EMPEROR_SET: equipSetBonus('EMPEROR_SET'),
 };

@@ -33,6 +33,7 @@ import { GOLD_FOOD_INFO, EMPORIUM_FOOD_SLOTS } from '../../data/common/goldenFoo
 import { bribeValue } from '../../data/common/bribes.js';
 import { ACHIEVE_STATUS } from '../../data/game/hardcoded.js';
 import { vaultUpgPerLevel } from '../../data/common/vault.js';
+import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
 import { sigilTiers, pristineCharmBonus } from '../../data/common/sigils.js';
 import { votingBonusValue } from '../../data/common/voting.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
@@ -89,7 +90,17 @@ export function vaultUpgBonus(idx) {
   if (level <= 0) return 0;
   var perLv = vaultUpgPerLevel(idx);
   if (perLv == null) return 0;
-  return level * perLv;
+  var base = level * perLv;
+  // Mastery multiplier for non-whitelist indices
+  if (!VAULT_NO_MASTERY.has(idx)) {
+    var masteryLv = 0;
+    var vd = saveData.vaultData;
+    if (idx < 32)       masteryLv = Number(vd[32]) || 0;
+    else if (idx <= 60) masteryLv = Number(vd[61]) || 0;
+    else if (idx <= 88) masteryLv = Number(vd[89]) || 0;
+    base *= 1 + masteryLv / 100;
+  }
+  return base;
 }
 
 export function grimoireUpgBonus(idx, grimoireGameData) {
@@ -126,7 +137,7 @@ export function getSetBonus(setName) {
 }
 
 export function gfoodBonusMULTI(charIdx, opts) {
-  var inputs = computeGFoodInputs(charIdx);
+  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache);
   var setMul = 1 + getSetBonus('SECRET_SET') / 100;
   var famBonus = Math.max(inputs.famBonusQTYs66, 1);
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
@@ -193,7 +204,7 @@ export function goldFoodBonuses(effectType, charIdx, preMulti) {
 }
 
 export function gfoodBonusMULTIBreakdown(charIdx, opts) {
-  var inputs = computeGFoodInputs(charIdx);
+  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache);
   var T = inputs._trees;
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
   var votingTree = (opts && opts.votingTree) || null;
@@ -279,10 +290,11 @@ export function createGFoodInputs(overrides) {
   }, overrides || {});
 }
 
-export function computeGFoodInputs(charIdx) {
+export function computeGFoodInputs(charIdx, dnsmCache) {
   charIdx = charIdx || 0;
   var inputs = createGFoodInputs();
   var T = inputs._trees;
+  var dc = dnsmCache || null;
 
   // === meritocBonusz21 ===
   inputs.meritocBonusz21 = computeMeritocBonusz(21);
@@ -341,7 +353,10 @@ export function computeGFoodInputs(charIdx) {
   }
 
   // === calcTalentMAP209 ===
-  {
+  if (dc && dc.calcTalentMAP209 != null) {
+    inputs.calcTalentMAP209 = dc.calcTalentMAP209;
+    T.calcTalentMAP209 = node('1B+ Overkill Maps', dc.calcTalentMAP209, null, { fmt: 'raw', note: 'DNSM cached' });
+  } else {
     var dkIdx = -1;
     for (var ci = 0; ci < numCharacters; ci++) {
       var classId = charClassData[ci] || 0;
@@ -389,7 +404,10 @@ export function computeGFoodInputs(charIdx) {
   }
 
   // === alchBubblesGFoodz ===
-  {
+  if (dc && dc.alchBubblesGFoodz != null) {
+    inputs.alchBubblesGFoodz = dc.alchBubblesGFoodz;
+    T.alchBubblesGFoodz = node(label('Bubble', 'O18'), dc.alchBubblesGFoodz, null, { fmt: 'raw', note: 'DNSM cached' });
+  } else {
     var _shim = bubbleParams(0, 18);
     var _wr = bubbleParams(0, 1);
     var bubbleLv = Number((cauldronInfoData[0] || [])[_shim.index]) || 0;
@@ -432,7 +450,10 @@ export function computeGFoodInputs(charIdx) {
   }
 
   // === starSigns69 ===
-  {
+  if (dc && dc.starSigns69 != null) {
+    inputs.starSigns69 = dc.starSigns69;
+    T.starSigns69 = node(label('Star Sign', 69), dc.starSigns69, null, { fmt: 'raw', note: 'DNSM cached' });
+  } else {
     var _ss69 = starSignDropVal(69);
     var seraphMul = computeSeraphMulti(charIdx);
     var val = _ss69 * seraphMul;
@@ -444,7 +465,10 @@ export function computeGFoodInputs(charIdx) {
   }
 
   // === mealBonusZGoldFood ===
-  {
+  if (dc && dc.mealBonusZGoldFood != null) {
+    inputs.mealBonusZGoldFood = dc.mealBonusZGoldFood;
+    T.mealBonusZGoldFood = node(label('Meal', 64), dc.mealBonusZGoldFood, null, { fmt: 'raw', note: 'DNSM cached' });
+  } else {
     var mealLv = Number((saveData.mealsData && saveData.mealsData[0] || [])[64]) || 0;
     if (mealLv > 0) {
       var mfb116 = mainframeBonus(116);
@@ -471,7 +495,10 @@ export function computeGFoodInputs(charIdx) {
   }
 
   // === famBonusQTYs66 ===
-  {
+  if (dc && dc.famBonusQTYs66 != null) {
+    inputs.famBonusQTYs66 = dc.famBonusQTYs66;
+    T.famBonusQTYs66 = node(label('Family', 66), dc.famBonusQTYs66, null, { fmt: 'raw', note: 'DNSM cached' });
+  } else {
     var maxBonus = 0, bestCi = -1, bestLv = 0, bestEff = 0;
     var talent144Val = 0;
     {

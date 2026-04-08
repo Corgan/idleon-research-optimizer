@@ -270,7 +270,11 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
   additive += gbWith(gl, so, 94, ctx) * totalObsLV;
   const takinNotes = gbWith(gl, so, 70, ctx);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
+  // Compute button0 dynamically from grid 125 so optimizer sees changes to gl[125]
+  const button0 = ctx.btnBaseNoGrid > 0
+    ? ctx.btnBaseNoGrid * (1 + gbWith(gl, so, 125, ctx) / 100)
+    : (ctx.button0 || 0);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;

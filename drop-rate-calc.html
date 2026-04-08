@@ -121,9 +121,10 @@ function fN(n, d) {
   return n.toFixed(d);
 }
 
+function _getLOG(x) { return Math.log(Math.max(x, 1)) / 2.30259; }
 function _arcaneMulti(kills) {
   if (kills < 1) return 0;
-  var lg = Math.log10(kills), lg2 = Math.log2(kills);
+  var lg = _getLOG(kills), lg2 = Math.log(Math.max(kills, 1)) / Math.log(2);
   return (2 * Math.max(0, lg - 3.5) + Math.max(0, lg2 - 12)) * (lg / 2.5)
     + Math.min(2, kills / 1000) + Math.max(5 * (lg - 5), 0);
 }
@@ -168,6 +169,43 @@ function recalc() {
   renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
 }
 
+function populateMapSel(data, charIdx, curMap) {
+  var mapSel = document.getElementById('map-sel');
+  mapSel.innerHTML = '';
+  var mb = data.MapBon ? _j(data.MapBon) : [];
+  var added = new Set();
+
+  // 1) Generic "Town" entry
+  var oTown = document.createElement('option');
+  oTown.value = 0;
+  oTown.textContent = 'Town';
+  mapSel.appendChild(oTown);
+  added.add(0);
+
+  // 2) All maps with arcane kills
+  for (var i = 0; i < mb.length; i++) {
+    if (added.has(i)) continue;
+    if (!Array.isArray(mb[i]) || !mb[i][0]) continue;
+    if (!MapDispName[i]) continue;
+    var o = document.createElement('option');
+    o.value = i;
+    o.textContent = _mapLabel(i, mb[i]);
+    mapSel.appendChild(o);
+    added.add(i);
+  }
+
+  // 3) If current map isn't in the list, add it as a special entry
+  if (curMap != null && !added.has(curMap)) {
+    var name = MapDispName[curMap]
+      ? MapDispName[curMap].replace(/_/g, ' ')
+      : 'Map ' + curMap;
+    var oC = document.createElement('option');
+    oC.value = curMap;
+    oC.textContent = name + ' (current)';
+    mapSel.insertBefore(oC, mapSel.firstChild.nextSibling);
+  }
+}
+
 // ======================= IMPORT =======================
 function doImport() {
   var msgEl = document.getElementById('import-msg');
@@ -193,20 +231,10 @@ function doImport() {
     CUR_CHAR = 0;
 
     var mapSel = document.getElementById('map-sel');
-    mapSel.innerHTML = '<option value="0">' + _mapLabel(0, null) + '</option>';
-    if (data.MapBon) {
-      var mb = _j(data.MapBon);
-      for (var i = 0; i < mb.length; i++) {
-        if (Array.isArray(mb[i]) && mb[i].length >= 3 && mb[i].some(function(v) { return v > 0; })) {
-          var o = document.createElement('option');
-          o.value = i;
-          o.textContent = _mapLabel(i, mb[i]);
-          mapSel.appendChild(o);
-        }
-      }
-    }
-    mapSel.disabled = false;
     CUR_MAP = data['CurrentMap_' + CUR_CHAR] || 0;
+    populateMapSel(data, CUR_CHAR, CUR_MAP);
+    mapSel.disabled = false;
+    mapSel.value = CUR_MAP;
 
     msgEl.className = 'import-msg ok';
     msgEl.textContent = '\u2713 Loaded ' + CHARS.length + ' characters.';
@@ -218,7 +246,17 @@ function doImport() {
   }
 }
 
-function switchChar(idx) { CUR_CHAR = idx; recalc(); }
+function switchChar(idx) {
+  CUR_CHAR = idx;
+  var data = SAVE_RAW && (SAVE_RAW.data || SAVE_RAW);
+  if (data) {
+    CUR_MAP = data['CurrentMap_' + idx] || 0;
+    populateMapSel(data, idx, CUR_MAP);
+    var mapSel = document.getElementById('map-sel');
+    mapSel.value = CUR_MAP;
+  }
+  recalc();
+}
 function switchMap(idx) { CUR_MAP = idx; recalc(); }
 
 window.doImport = doImport;

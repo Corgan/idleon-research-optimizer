@@ -29,6 +29,8 @@ import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import { fmtExact, fmtVal } from '../renderers/format.js';
 import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
+import { computeButtonBonus, computeKillroyBonus } from '../stats/defs/helpers.js';
+import { label } from '../stats/entity-names.js';
 
 // ===== Tree node helpers =====
 // _bNode imported from stats/node-helpers.js
@@ -124,8 +126,10 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   // Cards
   const clvW7b1 = computeCardLv('w7b1');
   const clvW7b4 = computeCardLv('w7b4');
+  const clvW7a11 = computeCardLv('w7a11');
   addChildren.push(_bNode('Card: Trench Fish', Math.min(clvW7b1, 10), null, { fmt: '%' }));
   addChildren.push(_bNode('Card: Eggroll', Math.min(2 * clvW7b4, 10), null, { fmt: '%' }));
+  addChildren.push(_bNode('Card: Coralcave Crab', Math.min(clvW7a11, 10), null, { fmt: '%' }));
 
   // Prehistoric Set
   const _prehistoricSet = String(saveData.olaData[379] || '').includes('PREHISTORIC_SET') ? 50 : 0;
@@ -291,8 +295,15 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const rog0val = saveData.cachedUniqueSushi > 0 ? 1 : 0;
   const rog0Node = _bNode('Sushi RoG', 1 + rog0val, null, { fmt: 'x', note: rog0val > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'Not unlocked' });
 
+  const buttonBonus0 = computeButtonBonus(0, saveData);
+  const buttonPresses = Number(saveData.olaData[594]) || 0;
+  const buttonNode = _bNode('Button Bonus', 1 + buttonBonus0 / 100, null, { fmt: 'x', note: buttonPresses + ' presses' });
+
+  const killroy5raw = computeKillroyBonus(5, saveData);
+  const killroyNode = _bNode(label('Killroy', 5), 1 + killroy5raw / 100, null, { fmt: 'x' });
+
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val);
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100);
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -305,6 +316,8 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   rootChildren.push(jellyNode);
   rootChildren.push(nightmareNode);
   rootChildren.push(rog0Node);
+  rootChildren.push(buttonNode);
+  rootChildren.push(killroyNode);
   rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
 
   return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });
@@ -384,10 +397,10 @@ export function renderBreakdownTree(root, container, opts) {
     if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
-    if (node.fmt === 'x') return '\u00d7' + parseFloat(v.toFixed(4));
-    if (node.fmt === '+') return (v >= 0 ? '+' : '') + parseFloat(v.toFixed(4));
-    if (Number.isInteger(v)) return String(v);
-    return parseFloat(v.toFixed(4));
+    if (node.fmt === 'x') return '\u00d7' + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));
+    if (node.fmt === '+') return (v >= 0 ? '+' : '') + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));
+    if (Number.isInteger(v)) return v >= 1e4 ? fmtVal(v) : String(v);
+    return Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4));
   }
 
   function valColor(node) {
