@@ -878,7 +878,7 @@ function _renderSushi() {
           </tr>`;
           const rowOpacity = !r.discovered && !r.rogUnlocked ? 'opacity:.4;' : r.rogVal === 0 && !r.discovered ? 'opacity:.35;' : '';
           const perfCell = r.isPerfecto ? '<span style="color:var(--gold);">*</span>'
-            : r.perfChance >= 0 ? `<span style="color:var(--text2);">${(r.perfChance * 100).toFixed(1)}%</span>` : '';
+            : r.perfChance > 0 ? `<span style="color:var(--text2);">1 in ${Math.round(1 / r.perfChance).toLocaleString()}</span>` : '';
           return `<tr style="border-bottom:1px solid #222;${rowOpacity}">
             <td style="padding:2px 4px;color:var(--text2);font-weight:600;">T${r.t + 1}</td>
             <td style="text-align:right;padding:2px 4px;">${r.discovered ? r.knLv : '--'}</td>
