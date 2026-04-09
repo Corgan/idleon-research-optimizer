@@ -157,7 +157,7 @@ export default {
     //    Additional power from stamps/meals/etc enters via separate multiplier pools.
 
     // 4. Main efficiency formula
-    var _statR = computeTotalStat(sk.stat, ci, ctx); var totalStat = _statR.computed || _statR.fromSave;
+    var _statR = computeTotalStat(sk.stat, ci, ctx); var totalStat = _statR.computed;
     var effTalent = rval(talent, sk.effTalent, ctx);
     var stampBase = safe(computeStampBonusOfTypeX, sk.stampType);
     var allBaseEff = computeAllBaseSkillEff(ci, ctx);

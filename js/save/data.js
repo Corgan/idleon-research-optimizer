@@ -27,7 +27,6 @@ export let cardEquipData = [];
 export let csetEqData = [];
 export let currentMapData = [];
 export let mapBonData = [];
-export let pvStatListData = [];
 export let obolNamesData = [];
 export let obolMapsData = [];
 export let obolFamilyNames = [];
@@ -61,7 +60,6 @@ export function assignSaveData(u) {
   if ('csetEqData' in u) csetEqData = u.csetEqData;
   if ('currentMapData' in u) currentMapData = u.currentMapData;
   if ('mapBonData' in u) mapBonData = u.mapBonData;
-  if ('pvStatListData' in u) pvStatListData = u.pvStatListData;
   if ('obolNamesData' in u) obolNamesData = u.obolNamesData;
   if ('obolMapsData' in u) obolMapsData = u.obolMapsData;
   if ('obolFamilyNames' in u) obolFamilyNames = u.obolFamilyNames;

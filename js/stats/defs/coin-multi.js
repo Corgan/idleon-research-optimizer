@@ -348,9 +348,9 @@ export default {
     var cashSTR = safe(bubbleValByKey, 'CashSTR', ci);
     var cashAGI = safe(bubbleValByKey, 'CashAGI', ci);
     var cashWIS = safe(bubbleValByKey, 'CashWIS', ci);
-    var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed || _strR.fromSave;
-    var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed || _agiR.fromSave;
-    var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed || _wisR.fromSave;
+    var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed;
+    var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed;
+    var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed;
     var g1strPart = cashSTR * Math.floor(totalSTR / 250);
     var g1agiPart = cashAGI * Math.floor(totalAGI / 250);
     var g1wisPart = cashWIS * Math.floor(totalWIS / 250);

@@ -393,8 +393,7 @@ export function renderBreakdownTree(root, container, opts) {
   const ttId = opts.tooltipId || 'tooltip';
 
   function fmtNodeVal(node) {
-    const v = Number(node.val) || 0;
-    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
+    const v = Number(node.val) || 0;    if (node.fmt === 'full') return fmtExact(v);    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
     if (node.fmt === 'x') return '\u00d7' + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));

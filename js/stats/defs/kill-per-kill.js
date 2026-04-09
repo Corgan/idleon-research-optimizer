@@ -113,9 +113,9 @@ export default {
     // KpKDumm2 — stat-based talent bonus (not for W7+)
     var kpkDumm2 = 0;
     if (mapIdx < 300) {
-      var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed || _strR.fromSave;
-      var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed || _agiR.fromSave;
-      var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed || _wisR.fromSave;
+      var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed;
+      var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed;
+      var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed;
       var talent141 = rval(talent, 141, ctx);
       var talent366 = rval(talent, 366, ctx);
       var talent531 = rval(talent, 531, ctx);

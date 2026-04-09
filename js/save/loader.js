@@ -118,7 +118,7 @@ export function loadSaveData(raw) {
   assignSaveData({ numCharacters: nChars });
 
   // Per-character data
-  const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], pvStatList = [], statueLvAll = [];
+  const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], statueLvAll = [];
   for (let ci = 0; ci < nChars; ci++) {
     lv0All.push(parseSaveKey(save, 'Lv0_' + ci) || []);
     exp0All.push(parseSaveKey(save, 'Exp0_' + ci) || []);
@@ -126,7 +126,6 @@ export function loadSaveData(raw) {
     skillLv.push(parseSaveKey(save, 'SL_' + ci) || {});
     skillLvMax.push(parseSaveKey(save, 'SM_' + ci) || {});
     playerStuff.push(parseSaveKey(save, 'PlayerStuff_' + ci) || []);
-    pvStatList.push(parseSaveKey(save, 'PVStatList_' + ci) || []);
     statueLvAll.push(parseSaveKey(save, 'StatueLevels_' + ci) || []);
   }
   // Statue levels: each char's array is [[level, exp], [level, exp], ...]. Extract level-only flat array from char 0.
@@ -142,7 +141,6 @@ export function loadSaveData(raw) {
   assignSaveData({ skillLvData: skillLv });
   assignSaveData({ skillLvMaxData: skillLvMax });
   assignSaveData({ playerStuffData: playerStuff });
-  assignSaveData({ pvStatListData: pvStatList });
   assignSaveData({ cauldronInfoData: parseSaveKey(save, 'CauldronInfo') || [] });
   assignSaveData({ cauldronBubblesData: parseSaveKey(save, 'CauldronBubbles') || [] });
   assignSaveData({ stampLvData: parseSaveKey(save, 'StampLv') || {} });

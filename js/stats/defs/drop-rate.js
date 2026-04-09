@@ -145,10 +145,8 @@ export default {
       { name: 'Sum / 100 + 1', val: base - chipApplied, fmt: 'raw',
         note: '(' + lukC.toFixed(2) + ' + ' + addSum.toFixed(1) + '/100 + 1)' },
     ];
-    if (chipApplied > 0) {
-      children.push({ name: 'Chip Cap-Break', val: chipApplied,
-        children: pools.chipDR.items, fmt: '+', note: 'Applies when base < 5×' });
-    }
+    children.push({ name: 'Chip Cap-Break', val: chipApplied,
+      children: pools.chipDR.items, fmt: '+', note: chipApplied > 0 ? 'Applies when base < 5×' : 'Inactive (base ≥ 5× or no chip)' });
     children.push({ name: 'Post-Processing', val: postMult,
       children: allPostItems, fmt: 'x' });
 

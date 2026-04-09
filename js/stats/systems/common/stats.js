@@ -16,7 +16,6 @@ import {
   equipOrderData,
   cauldronInfoData,
   optionsListData,
-  pvStatListData,
   stampLvData,
   skillLvData,
   obolNamesData,
@@ -69,7 +68,6 @@ import { COMPANION_BONUS } from '../../data/game-constants.js';
 // Per-stat IDs. Only LUK is fully filled in; others can be added.
 var STAT_CONFIG = {
   STR: {
-    pvStatIdx: 0,
     totalBubble: 'TotalSTR',
     dnPctTalent: 96,       // ABSOLUTE_UNIT: %STR from equipment
     dnPctStampType: 'PctSTR',
@@ -99,7 +97,6 @@ var STAT_CONFIG = {
     questsTal618: false,
   },
   AGI: {
-    pvStatIdx: 1,
     totalBubble: 'TotalAGI',
     dnPctTalent: 276,      // SANIC_SPEED-related: %AGI from equipment
     dnPctStampType: 'PctAGI',
@@ -129,7 +126,6 @@ var STAT_CONFIG = {
     questsTal618: false,
   },
   WIS: {
-    pvStatIdx: 2,
     totalBubble: 'TotalWIS',
     dnPctTalent: 456,      // %WIS from equipment (mage talent)
     dnPctStampType: 'PctWIS',
@@ -159,7 +155,6 @@ var STAT_CONFIG = {
     questsTal618: false,
   },
   LUK: {
-    pvStatIdx: 3,
     totalBubble: 'TotalLUK',
     dnPctTalent: 21,       // F'LUK'EY_FABRICS: decay(220, 250)
     dnPctStampType: 'PctLUK',
@@ -762,7 +757,7 @@ function computeAllStatPCT(charIdx, ctx) {
 // ==================== MAIN: computeTotalStat ====================
 export function computeTotalStat(statName, charIdx, ctx) {
   var cfg = STAT_CONFIG[statName];
-  if (!cfg) return { computed: 0, fromSave: 0, gap: 0, coverage: 0, missingCount: 1,
+  if (!cfg) return { computed: 0, missingCount: 1,
     missingNames: ['Unknown stat: ' + statName], tree: node('Total ' + statName, 0) };
 
   var tracked = { computed: 0, missing: 0, missingNames: [] };
@@ -1061,35 +1056,20 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var inner = pctMult * (totalStatsDN + flatBaseSum + flatAddSum);
   var computed = Math.floor(topLevel + inner);
 
-  var pvs = pvStatListData[charIdx] || [];
-  var pvStat = Math.floor(Number(pvs[cfg.pvStatIdx]) || 0);
-
-  var gap = pvStat - computed;
-  var coveragePct = pvStat > 0 ? Math.round(computed / pvStat * 10000) / 100 : 0;
-
   var treeChildren = [
     node('Top Level', topLevel, topChildren, { fmt: 'raw' }),
     node('Pct Multiplier (1 + pct/100)', pctMult, pctChildren, { fmt: 'x' }),
     node('TotalStatsDN', totalStatsDN, equipDNchildren, { fmt: 'raw' }),
     node('Flat Base', flatBaseSum, flatBaseChildren, { fmt: 'raw' }),
     node('Flat Add', flatAddSum, flatAddChildren, { fmt: 'raw' }),
-    node('Computed Total', computed, null, { fmt: 'raw', note: coveragePct + '% of PVStatList' }),
-    node('PVStatList (save)', pvStat, null, { fmt: 'raw', note: 'reference' }),
+    node('Computed Total', computed, null, { fmt: 'full' }),
   ];
-
-  if (gap !== 0) {
-    treeChildren.push(node('Gap (save - computed)', gap, null,
-      { fmt: 'raw', note: tracked.missing + ' sources not yet computed' }));
-  }
 
   return {
     computed: computed,
-    fromSave: pvStat,
-    gap: gap,
-    coverage: coveragePct,
     missingCount: tracked.missing,
     missingNames: tracked.missingNames,
-    tree: node('Total ' + statName, pvStat, treeChildren, { fmt: 'raw' }),
+    tree: node('Total ' + statName, computed, treeChildren, { fmt: 'full' }),
   };
 }
 
@@ -1103,7 +1083,7 @@ export var lukScaling = {
   resolve: function(id, ctx) {
     var charIdx = ctx.charIdx;
     var lukResult = computeTotalStat('LUK', charIdx, ctx);
-    var totalLUK = lukResult.computed || lukResult.fromSave;
+    var totalLUK = lukResult.computed;
     var drLUK = lukCurve(totalLUK);
 
     var lukChildren = lukResult.tree.children || [];

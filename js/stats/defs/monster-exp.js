@@ -282,7 +282,7 @@ export default {
     var ci = ctx.charIdx || 0;
 
     // ======= STAGE 1: ExpGainLUK = TotalStats("LUK") → piecewise transform =======
-    var _lukR = computeTotalStat('LUK', ci, ctx); var totalLUK = _lukR.computed || _lukR.fromSave;
+    var _lukR = computeTotalStat('LUK', ci, ctx); var totalLUK = _lukR.computed;
     var expGainLUK;
     if (totalLUK < 1000) {
       expGainLUK = (Math.pow(totalLUK + 1, 0.37) - 1) / 30;
