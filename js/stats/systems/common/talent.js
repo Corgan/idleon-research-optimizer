@@ -61,19 +61,34 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
   // Game iterates family bonuses in index order: bonus 33 (→key 66) before bonus 34 (→key 68).
   // When computing bonus 66, the game reads DNSM.FamBonusQTYs[68] which is still 0.
   // opts.skipFamBonus68 replicates this ordering dependency.
+  // Game also applies talent 144 multiplier to FamBonusQTYs when the active character provides
+  // the max contribution: FamBonusQTYs[key] = raw * (1 + GetTalentNumber(1,144) / 100).
   var famBonus68 = 0;
   if (!(opts && opts.skipFamBonus68)) {
     var _fb34 = familyBonusParams(34);
     var maxMageCharLv = 0;
+    var maxMageCharIdx = -1;
     for (var ci = 0; ci < numCharacters; ci++) {
       var cls = charClassData[ci];
-      if (cls === 34 || cls === 35) {
+      // Classes whose ReturnClasses tree includes 34: class 34 (mod 4) and class 38 (mod 8)
+      if (cls === 34 || cls === 38) {
         var lv = saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0] || 0;
-        if (lv > maxMageCharLv) maxMageCharLv = lv;
+        if (lv > maxMageCharLv) { maxMageCharLv = lv; maxMageCharIdx = ci; }
       }
     }
     var famN = Math.max(0, Math.round(maxMageCharLv - _fb34.lvOffset));
     famBonus68 = famN > 0 ? formulaEval(_fb34.formula, _fb34.x1, _fb34.x2, famN) : 0;
+    // Talent 144 multiplier: applied only when the active char IS the max provider
+    if (famBonus68 > 0 && maxMageCharIdx === ctxSlot && !(opts && opts.skipTal144FamMult)) {
+      var _rawLv144 = Number(skillLvData[ctxSlot] && skillLvData[ctxSlot][144]) || 0;
+      if (_rawLv144 > 0) {
+        var _atlFor144 = computeAllTalentLVz(144, slotIdx, Object.assign({}, opts, { skipTal144FamMult: true }));
+        var _effLv144 = _rawLv144 + _atlFor144;
+        var _t144 = talentParams(144);
+        var _tal144Val = formulaEval(_t144.formula, _t144.x1, _t144.x2, _effLv144);
+        famBonus68 = famBonus68 * (1 + _tal144Val / 100);
+      }
+    }
   }
 
   // Companions(1): Rift Slug = +talent levels if owned
@@ -181,15 +196,27 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   // Family bonus 68 (mage chars)
   var _fb342 = familyBonusParams(34);
   var maxMageCharLv = 0;
+  var maxMageCharIdx2 = -1;
   for (var ci3 = 0; ci3 < numCharacters; ci3++) {
     var cls = charClassData[ci3];
-    if (cls === 34 || cls === 35) {
+    if (cls === 34 || cls === 38) {
       var lv3 = saveData.lv0AllData[ci3] && saveData.lv0AllData[ci3][0] || 0;
-      if (lv3 > maxMageCharLv) maxMageCharLv = lv3;
+      if (lv3 > maxMageCharLv) { maxMageCharLv = lv3; maxMageCharIdx2 = ci3; }
     }
   }
   var famN2 = Math.max(0, Math.round(maxMageCharLv - _fb342.lvOffset));
   var famBonus682 = famN2 > 0 ? formulaEval(_fb342.formula, _fb342.x1, _fb342.x2, famN2) : 0;
+  // Talent 144 multiplier: applied when context char is the max provider
+  if (famBonus682 > 0 && maxMageCharIdx2 === slotIdx) {
+    var _rawLv1442 = Number(skillLvData[slotIdx] && skillLvData[slotIdx][144]) || 0;
+    if (_rawLv1442 > 0) {
+      var _atlFor1442 = computeAllTalentLVz(144, slotIdx, { skipTal144FamMult: true });
+      var _effLv1442 = _rawLv1442 + _atlFor1442;
+      var _t1442 = talentParams(144);
+      var _tal144Val2 = formulaEval(_t1442.formula, _t1442.x1, _t1442.x2, _effLv1442);
+      famBonus682 = famBonus682 * (1 + _tal144Val2 / 100);
+    }
+  }
   var famFloor = Math.floor(famBonus682);
   if (famFloor > 0) {
     children.push(node('Family Bonus 68 (Mage)', famFloor, [
