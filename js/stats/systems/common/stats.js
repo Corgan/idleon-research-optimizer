@@ -502,7 +502,42 @@ var BUBBLE_KEYS = {
   M9:       { cauldron: 2, index: 28, tome: true },    // TOME_WISDOM
 };
 
-function computeAlchBubble(bonusType) {
+// Passz multiplier: cauldron-matching class boost (Opassz/Gpassz/Ppassz).
+// Game: TalentCalc(-2) multiplies non-passz/ACTIVE/AllCharz bubbles (idx!=16, idx<30)
+// by the passz value of the matching cauldron when the character's class fits.
+// Opassz = c0 i1 (warriors: class 7-17)
+// Gpassz = c1 i1 (archers: class 18-29)
+// Ppassz = c2 i1 (mages:   class 30-41)
+// Cauldron 3: no passz (multiply by 1).
+function getPasszMult(cauldron, charIdx) {
+  if (cauldron === 3) return { val: 1, children: [] };
+  var charClass = Number(charClassData[charIdx] || 0);
+  if (charClass <= 6) return { val: 1, children: [] };
+  // Check if character class matches the cauldron
+  var match = false;
+  if (cauldron === 0 && charClass < 18) match = true;       // warrior
+  else if (cauldron === 1 && charClass >= 18 && charClass < 30) match = true;  // archer
+  else if (cauldron === 2 && charClass >= 30 && charClass < 42) match = true;  // mage
+  if (!match) return { val: 1, children: [] };
+  // Compute the passz bubble value (always at index 1 of the matching cauldron)
+  var passzParams = bubbleParams(cauldron, 1);
+  if (!passzParams) return { val: 1, children: [] };
+  var passzLv = Number((cauldronInfoData && cauldronInfoData[cauldron]
+    && cauldronInfoData[cauldron][1]) || 0);
+  if (passzLv <= 0) return { val: 1, children: [] };
+  var passzBase = formulaEval(passzParams.formula, passzParams.x1, passzParams.x2, passzLv);
+  var passzPrisma = isBubblePrismad(cauldron, 1) ? Math.max(1, getPrismaBonusMult()) : 1;
+  var passzVal = Math.max(1, passzBase * passzPrisma);
+  return { val: passzVal, children: [
+    node(passzParams.name, passzVal, [
+      node('Level', passzLv, null, { fmt: 'raw' }),
+      node('Base', passzBase, null, { fmt: 'raw' }),
+    ].concat(passzPrisma > 1 ? [node('Prisma', passzPrisma, null, { fmt: 'x' })] : []),
+    { fmt: 'x' })
+  ] };
+}
+
+function computeAlchBubble(bonusType, charIdx) {
   var bk = BUBBLE_KEYS[bonusType];
   if (!bk) return { val: 0, children: [] };
   var params = bubbleParams(bk.cauldron, bk.index);
@@ -528,12 +563,16 @@ function computeAlchBubble(bonusType) {
     tomeMult = Math.max(0, Math.floor((tomePoints - 5000) / 2000));
     if (tomeMult < 1) tomeMult = 1;
   }
-  var val = baseVal * prismaMult * slabMult * tomeMult;
+  // Passz multiplier: class-matched cauldron boost (Opassz/Gpassz/Ppassz)
+  var passz = (charIdx != null) ? getPasszMult(bk.cauldron, charIdx) : { val: 1, children: [] };
+  var passzMult = passz.val;
+  var val = baseVal * prismaMult * passzMult * slabMult * tomeMult;
   var children = [
     node('Level', lv, null, { fmt: 'raw' }),
     node('Base', baseVal, null, { fmt: 'raw' }),
   ];
   if (isPrisma) children.push(node('Prisma Multi', prismaMult, null, { fmt: 'x' }));
+  if (passzMult > 1) children = children.concat(passz.children);
   if (params.slab && slabMult > 1) children.push(node('Slab Multi', slabMult, null, { fmt: 'x', note: 'floor(slabItems/100)' }));
   if (params.tome && tomeMult > 1) children.push(node('Tome Multi', tomeMult, null, { fmt: 'x', note: 'floor((tome-5000)/2000)' }));
   return { val: val, children: children, name: params.name };
@@ -835,7 +874,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // Stat-specific pct bubble (STR=W8, AGI=A9, WIS=M9; LUK=none)
   var pctBubbleVal = 0;
   if (cfg.pctBubble) {
-    var pctBbl = computeAlchBubble(cfg.pctBubble);
+    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx);
     pctBubbleVal = pctBbl.val;
     addComputed(pctBubbleVal);
   }
@@ -987,7 +1026,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var a4Val = 0;
   var a4bubble;
   if (cfg.a4Bubble) {
-    a4bubble = computeAlchBubble(cfg.a4Bubble);
+    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx);
     a4Val = a4bubble.val;
     addComputed(a4Val);
   }
@@ -1036,7 +1075,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   );
 
   // ==================== TOP LEVEL ====================
-  var totalBubble = computeAlchBubble(cfg.totalBubble);
+  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx);
   addComputed(totalBubble.val);
   var tal652 = talentResolver.resolve(652, ctx).val;
   addComputed(tal652);
