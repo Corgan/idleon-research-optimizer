@@ -112,12 +112,15 @@ function _pct(n) { return n.toFixed(2) + '%'; }
 function _mult(n) { return n.toFixed(3) + 'x'; }
 
 /** Format a knowledge category description, replacing {, }, ^ with the bonus total. */
-function _fmtKnDesc(catIdx, total) {
+function _fmtKnDesc(catIdx, total, perLv) {
   const t = total || 0;
+  const d = perLv || 0;
+  const cv = s => `<span style="color:var(--cyan);font-weight:700;">${s}</span>`;
+  const nv = s => `<span style="color:#5a9ea8;">${s}</span>`;
   return (KNOWLEDGE_CAT_DESC[catIdx] || '')
-    .replace('{', _fmt(t))
-    .replace('^', _fmt(t))
-    .replace('}', (1 + t / 100).toFixed(2));
+    .replace(/\{(.)/, (_, s) => cv(_fmt(t) + s) + (d > 0 ? ' ' + nv(`(+${_fmt(d)}${s})`) : ''))
+    .replace(/\^(.)/, (_, s) => cv(_fmt(t) + s) + (d > 0 ? ' ' + nv(`(+${_fmt(d)}${s})`) : ''))
+    .replace(/\}(.)/, (_, s) => cv((1 + t / 100).toFixed(2) + s) + (d > 0 ? ' ' + nv(`(+${(d / 100).toFixed(2)}${s})`) : ''));
 }
 
 /**
@@ -818,11 +821,9 @@ function _renderSushi() {
       <table style="width:100%;border-collapse:collapse;font-size:.82em;">
         <tr style="border-bottom:1px solid #444;">
           <th style="text-align:left;padding:3px 6px;">Category</th>
-          <th style="text-align:right;padding:3px 6px;">Bonus</th>
         </tr>
         ${kt.map((v, i) => `<tr style="border-bottom:1px solid #333;">
           <td style="padding:3px 6px;">${_fmtKnDesc(i, v)}</td>
-          <td style="text-align:right;padding:3px 6px;font-weight:700;color:var(--cyan);">${_fmt(v)}</td>
         </tr>`).join('')}
       </table>
     </div>`;
@@ -837,6 +838,9 @@ function _renderSushi() {
     const cat = TIER_TO_KNOWLEDGE_CAT[t];
     const knBonus = knowledgeBonusSpecific(t, sd);
     const isPerfecto = (Number(sd?.[5]?.[t]) || 0) > 0;
+    const discoveryMult = Math.min(2, 1 + (Number(sd?.[5]?.[t]) || 0));
+    const baseVal = KNOWLEDGE_CAT_VALUE[cat] || 0;
+    const knNext = discovered ? baseVal * discoveryMult * (1 + t / 30) : 0;
     const perfChance = !isPerfecto && discovered ? perfectoOdds(t, kt) : -1;
     const rogUnlocked = us > t;
     const rogIsNext = t === us;
@@ -844,7 +848,7 @@ function _renderSushi() {
     const rogDesc = t < rogLen
       ? (ROG_DESC[t] || '').replace('{', String(rogVal)).replace('}', (1 + rogVal / 100).toFixed(2))
       : '';
-    tierRows.push({ t, discovered, knLv, cat, knBonus, isPerfecto, perfChance, rogUnlocked, rogIsNext, rogVal, rogDesc });
+    tierRows.push({ t, discovered, knLv, cat, knBonus, knNext, isPerfecto, perfChance, rogUnlocked, rogIsNext, rogVal, rogDesc });
   }
 
   const tierHtml = `
@@ -859,10 +863,9 @@ function _renderSushi() {
       <table style="width:100%;border-collapse:collapse;font-size:.78em;">
         <thead><tr style="border-bottom:2px solid #555;">
           <th style="text-align:left;padding:3px 4px;">Tier</th>
+          <th style="text-align:right;padding:3px 4px;">Perfecto</th>
           <th style="text-align:right;padding:3px 4px;">KnLv</th>
-          <th style="text-align:right;padding:3px 4px;">Kn Bonus</th>
-          <th style="text-align:center;padding:3px 4px;">*</th>
-          <th style="text-align:right;padding:3px 4px;">Perf %</th>
+          <th style="text-align:left;padding:3px 4px;">Kn Bonus</th>
           <th style="text-align:left;padding:3px 4px;">RoG Reward</th>
         </tr></thead>
         <tbody>
@@ -872,8 +875,7 @@ function _renderSushi() {
             <td style="padding:2px 4px;color:var(--text2);">T${r.t + 1}</td>
             <td style="text-align:right;padding:2px 4px;">--</td>
             <td style="text-align:right;padding:2px 4px;">--</td>
-            <td style="text-align:center;padding:2px 4px;"></td>
-            <td style="text-align:right;padding:2px 4px;">--</td>
+            <td style="padding:2px 4px;">--</td>
             <td style="padding:2px 4px;">???</td>
           </tr>`;
           const rowOpacity = !r.discovered && !r.rogUnlocked ? 'opacity:.4;' : r.rogVal === 0 && !r.discovered ? 'opacity:.35;' : '';
@@ -881,10 +883,9 @@ function _renderSushi() {
             : r.perfChance > 0 ? `<span style="color:var(--text2);">1 in ${Math.round(1 / r.perfChance).toLocaleString()}</span>` : '';
           return `<tr style="border-bottom:1px solid #222;${rowOpacity}">
             <td style="padding:2px 4px;color:var(--text2);font-weight:600;">T${r.t + 1}</td>
-            <td style="text-align:right;padding:2px 4px;">${r.discovered ? r.knLv : '--'}</td>
-            <td style="text-align:right;padding:2px 4px;color:var(--cyan);">${r.discovered ? _fmt(r.knBonus) : '--'}</td>
-            <td style="text-align:center;padding:2px 4px;">${r.isPerfecto ? '<span style="color:var(--gold);">*</span>' : ''}</td>
             <td style="text-align:right;padding:2px 4px;">${perfCell}</td>
+            <td style="text-align:right;padding:2px 4px;">${r.discovered ? r.knLv : '--'}</td>
+            <td style="padding:2px 4px;">${r.discovered ? _fmtKnDesc(r.cat, r.knBonus, r.knNext) : '--'}</td>
             <td style="padding:2px 4px;font-size:.92em;">${r.rogDesc || '--'}</td>
           </tr>`;
         }).join('')}
