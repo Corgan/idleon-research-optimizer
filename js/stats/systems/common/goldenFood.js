@@ -315,17 +315,16 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
   }
 
   // === getbonus2_1_209 ===
-  // Game's getbonus2(-1) passes raw talent level to AllTalentLVz (not the talent
-  // index), so the super talent indexOf(rawLevel) always fails. It also uses the
-  // active character's context for talents 149/374/539 and player level bonuses.
+  // Game's getbonus2(-1) passes SkillLevels[t] (raw talent level) to AllTalentLVz
+  // instead of the talent index. We replicate this by passing rawLv as talentIdx.
   {
     var maxVal = 0, bestCi = -1, bestBase = 0, bestBonus = 0, bestEff = 0;
     for (var ci = 0; ci < numCharacters; ci++) {
       var sl = skillLvData[ci] || {};
       var rawLv = Number(sl[209]) || 0;
       if (rawLv > 0) {
-        var allTalentLv = computeAllTalentLVz(209, ci, {
-          contextSlot: charIdx, skipSuperTalent: true
+        var allTalentLv = computeAllTalentLVz(rawLv, ci, {
+          contextSlot: charIdx
         });
         var effectiveLv = rawLv + allTalentLv;
         var _t209 = talentParams(209);

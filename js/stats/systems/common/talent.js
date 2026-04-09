@@ -27,17 +27,18 @@ import { godMinorX1 } from '../../data/w5/divinity.js';
 import { DIVINITY_MINOR_DENOM } from '../../data/game-constants.js';
 
 export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
-  // Replicates AllTalentLVz from the game. The argument is the TALENT INDEX.
+  // Replicates AllTalentLVz from the game.
+  // talentIdx is normally the talent index, but game's getbonus2 passes the raw
+  // talent LEVEL (SkillLevels[t]) instead — callers replicate this by passing
+  // rawLv directly as talentIdx.
   // opts.contextSlot: use this slot for per-char bonus lookups (149/374/539, player level)
-  // opts.skipSuperTalent: skip spelunk super talent (game's getbonus2(-1) passes
-  //   raw talent level to AllTalentLVz, making indexOf(rawLevel) always fail)
   var ctxSlot = (opts && opts.contextSlot !== undefined) ? opts.contextSlot : slotIdx;
   if ((talentIdx >= 49 && talentIdx <= 59) || talentIdx === 149 || talentIdx === 374
       || talentIdx === 539 || talentIdx === 505 || talentIdx > 614) return 0;
 
   // Spelunk super talent
   var spelunkBonus = 0;
-  if (!(opts && opts.skipSuperTalent) && slotIdx >= 0) {
+  if (slotIdx >= 0) {
     var preset = Number(playerStuffData[slotIdx] && playerStuffData[slotIdx][1]) || 0;
     var superArr = saveData.spelunkData && saveData.spelunkData[20 + slotIdx + 12 * preset];
     if (Array.isArray(superArr) && superArr.indexOf(talentIdx) !== -1) {
@@ -146,7 +147,10 @@ function getTalentData(id) {
 }
 
 // Returns { total, children } for AllTalentLVz bonus breakdown
-function resolveAllTalentLVz(talentIdx, slotIdx) {
+// talentIdx is normally the talent index, but game's getbonus2 passes the raw
+// talent LEVEL (SkillLevels[t]) instead — callers replicate this by passing
+// rawLv directly as talentIdx.
+function resolveAllTalentLVz(talentIdx, slotIdx, opts) {
   if ((talentIdx >= 49 && talentIdx <= 59) || talentIdx === 149 || talentIdx === 374
       || talentIdx === 539 || talentIdx === 505 || talentIdx > 614)
     return { total: 0, children: [] };
@@ -291,21 +295,27 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
 // activeCharIdx: the character whose DR is being computed.
 // In getbonus2, raw talent level comes from charIdx but AllTalentLVz
 // uses the active character's context (Spelunk, talents 149/374/539).
-function getTalentNumber(charIdx, talentIdx, data, activeCharIdx) {
+// atlIdx: override for the index passed to resolveAllTalentLVz (game's getbonus2
+//   passes raw talent LEVEL instead of the talent index).
+function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx) {
   var sl = skillLvData[charIdx] || {};
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return { val: 0, rawLv: 0, effectiveLv: 0, bonusDetail: null };
   var ctxChar = activeCharIdx != null ? activeCharIdx : charIdx;
-  var bd = resolveAllTalentLVz(talentIdx, ctxChar);
+  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar);
   var effectiveLv = rawLv + bd.total;
   var result = formulaEval(data.formula, data.x1, data.x2, effectiveLv);
   return { val: result, rawLv: rawLv, bonus: bd.total, effectiveLv: effectiveLv, bonusDetail: bd };
 }
 
+// Game's getbonus2 passes SkillLevels[t] (raw talent level) to AllTalentLVz
+// instead of the talent index. We replicate this by passing rawLv as atlIdx.
 function getbonus2(talentIdx, data, activeCharIdx) {
   var best = 0, bestChar = -1, bestR = null;
   for (var ci = 0; ci < numCharacters; ci++) {
-    var r = getTalentNumber(ci, talentIdx, data, activeCharIdx);
+    var sl = skillLvData[ci] || {};
+    var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
+    var r = getTalentNumber(ci, talentIdx, data, activeCharIdx, rawLv);
     if (r.val > best) { best = r.val; bestChar = ci; bestR = r; }
   }
   return { val: best, bestChar: bestChar, detail: bestR };
