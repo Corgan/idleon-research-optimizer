@@ -58,17 +58,23 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
   var achieve291 = saveData.achieveRegData[291] === -1 ? 1 : 0;
 
   // FamBonusQTYs[68]: ClassFamilyBonuses[34], decay formula with lvOffset from ClassAccountBonus
-  var _fb34 = familyBonusParams(34);
-  var maxMageCharLv = 0;
-  for (var ci = 0; ci < numCharacters; ci++) {
-    var cls = charClassData[ci];
-    if (cls === 34 || cls === 35) {
-      var lv = saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0] || 0;
-      if (lv > maxMageCharLv) maxMageCharLv = lv;
+  // Game iterates family bonuses in index order: bonus 33 (→key 66) before bonus 34 (→key 68).
+  // When computing bonus 66, the game reads DNSM.FamBonusQTYs[68] which is still 0.
+  // opts.skipFamBonus68 replicates this ordering dependency.
+  var famBonus68 = 0;
+  if (!(opts && opts.skipFamBonus68)) {
+    var _fb34 = familyBonusParams(34);
+    var maxMageCharLv = 0;
+    for (var ci = 0; ci < numCharacters; ci++) {
+      var cls = charClassData[ci];
+      if (cls === 34 || cls === 35) {
+        var lv = saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0] || 0;
+        if (lv > maxMageCharLv) maxMageCharLv = lv;
+      }
     }
+    var famN = Math.max(0, Math.round(maxMageCharLv - _fb34.lvOffset));
+    famBonus68 = famN > 0 ? formulaEval(_fb34.formula, _fb34.x1, _fb34.x2, famN) : 0;
   }
-  var famN = Math.max(0, Math.round(maxMageCharLv - _fb34.lvOffset));
-  var famBonus68 = famN > 0 ? formulaEval(_fb34.formula, _fb34.x1, _fb34.x2, famN) : 0;
 
   // Companions(1): Rift Slug = +talent levels if owned
   var comp1 = saveData.companionIds.has(1) ? companionBonus(1) : 0;

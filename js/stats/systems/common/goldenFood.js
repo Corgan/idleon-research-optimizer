@@ -505,7 +505,10 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
       var sl144 = skillLvData[charIdx] || {};
       var rawLv144 = Number(sl144[144] || sl144['144']) || 0;
       if (rawLv144 > 0) {
-        var bonus144Lv = computeAllTalentLVz(144, charIdx);
+        // Game computes FamBonusQTYs in index order: bonus 33 (key 66) before
+        // bonus 34 (key 68). So AllTalentLVz(144) during bonus 66 sees
+        // FamBonusQTYs[68] = 0 (not yet computed).
+        var bonus144Lv = computeAllTalentLVz(144, charIdx, { skipFamBonus68: true });
         var eff144 = rawLv144 + bonus144Lv;
         talent144Val = formulaEval(TALENT_144.formula, TALENT_144.x1, TALENT_144.x2, eff144);
       }
