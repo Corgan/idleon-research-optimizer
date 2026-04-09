@@ -310,12 +310,26 @@ function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx) {
 
 // Game's getbonus2 passes SkillLevels[t] (raw talent level) to AllTalentLVz
 // instead of the talent index. We replicate this by passing rawLv as atlIdx.
+// Game gate: AllTalentLVz is only applied when talentIdx >= 100.
+// For talents < 100, getbonus2 uses raw level without ATL bonus.
 function getbonus2(talentIdx, data, activeCharIdx) {
   var best = 0, bestChar = -1, bestR = null;
   for (var ci = 0; ci < numCharacters; ci++) {
     var sl = skillLvData[ci] || {};
     var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
-    var r = getTalentNumber(ci, talentIdx, data, activeCharIdx, rawLv);
+    var r;
+    if (talentIdx >= 100) {
+      r = getTalentNumber(ci, talentIdx, data, activeCharIdx, rawLv);
+    } else {
+      // No ATL for talents < 100 in getbonus2
+      if (rawLv <= 0) {
+        r = { val: 0, rawLv: 0, effectiveLv: 0, bonusDetail: null };
+      } else {
+        var result = formulaEval(data.formula, data.x1, data.x2, rawLv);
+        r = { val: result, rawLv: rawLv, bonus: 0, effectiveLv: rawLv,
+          bonusDetail: { total: 0, children: [] } };
+      }
+    }
     if (r.val > best) { best = r.val; bestChar = ci; bestR = r; }
   }
   return { val: best, bestChar: bestChar, detail: bestR };
