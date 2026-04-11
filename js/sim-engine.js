@@ -142,10 +142,10 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
     const iProgress = ip[i] || 0;
     const grindHrs = Math.max(0, iReq - iProgress) / iRate;
     if (grindHrs <= 0 || grindHrs > remainingHrs * 0.8) continue;
-    const grindExpHr = simTotalExpWith(gl, so, grindMD, il, projOcc, rLv, ctx);
+    const grindExpHr = simTotalExpWith(gl, so, grindMD, il, occ, rLv, ctx);
     const newIL = il.slice(); newIL[i] = (il[i] || 0) + 1;
-    const quickPostExpHr = simTotalExpWith(gl, so, md, newIL, projOcc, rLv, ctx);
-    const quickRateGain = quickPostExpHr - projCurExpHr;
+    const quickPostExpHr = simTotalExpWith(gl, so, md, newIL, occ, rLv, ctx);
+    const quickRateGain = quickPostExpHr - curExpHr;
     if (quickRateGain <= 0) continue;
     candidates.push({ obsIdx: i, grindMD, grindHrs, grindExpHr, newIL, quickRateGain });
   }
@@ -171,14 +171,14 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   const viable = [];
   for (const c of topN) {
     const obsName = OCC_DATA[c.obsIdx] ? OCC_DATA[c.obsIdx].name.replace(/_/g, ' ') : '#' + c.obsIdx;
-    const post = await optimizePostGrind({gl, so, md, ip, occ: projOcc, rLv, mOwned, mMax}, c.newIL, ctx, Math.max(1, remainingHrs - c.grindHrs), saveCtx);
+    const post = await optimizePostGrind({gl, so, md, ip, occ, rLv, mOwned, mMax}, c.newIL, ctx, Math.max(1, remainingHrs - c.grindHrs), saveCtx);
     const postExpHr = post.expHr;
-    const rateGain = postExpHr - projCurExpHr;
+    const rateGain = postExpHr - curExpHr;
     if (rateGain <= 0) continue;
     // Decompose: permanent gain (102 only) = new IL with current mag layout
-    const permExpHr = simTotalExpWith(gl, so, md, c.newIL, projOcc, rLv, ctx);
-    const permGain = Math.max(0, permExpHr - projCurExpHr);
-    const expLostPerHr = Math.max(0, projCurExpHr - c.grindExpHr);
+    const permExpHr = simTotalExpWith(gl, so, md, c.newIL, occ, rLv, ctx);
+    const permGain = Math.max(0, permExpHr - curExpHr);
+    const expLostPerHr = Math.max(0, curExpHr - c.grindExpHr);
     const totalExpLost = expLostPerHr * c.grindHrs;
     // Use permanent gain for break-even filter (conservative; Phase 2b scores accurately)
     const recoupHrs = permGain > 0 ? totalExpLost / permGain : Infinity;
@@ -192,7 +192,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   function _simGrindSequence(seq, afterMD, baseIL, baseIP, baseRLv, baseRExp, remainHrs) {
     const simIL = baseIL.slice();
     const simIP = baseIP.slice();
-    const simOcc = projOcc.slice();
+    const simOcc = occ.slice();
     let simRLv = baseRLv, simRExp = baseRExp;
     let totalExp = 0, simTime = 0;
 
