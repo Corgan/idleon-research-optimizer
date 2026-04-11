@@ -1,6 +1,6 @@
 // ===== EQUIPMENT SYSTEM =====
 // Sums equipment UQ stat bonuses across all gear slots.
-// Handles pendant ×2 and grid 172 multiplier.
+// Handles pendant ×2 (chip), keychain ×2 (chip), grid 172 multiplier.
 
 import { node } from '../../node.js';
 import { label, entityName } from '../../entity-names.js';
@@ -9,8 +9,9 @@ import { gbWith } from '../../../sim-math.js';
 import { SHAPE_BONUS_PCT } from '../../../game-data.js';
 import { saveData } from '../../../state.js';
 import { ETC_STAT_NAMES, itemUqMatch } from '../../data/common/equipment.js';
+import { charHasChip } from '../w4/lab.js';
 
-function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots) {
+function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots, chipDoubles) {
   var data = emm[row] || {};
   var eqRow = (equipOrder && equipOrder[row]) || {};
   var results = [];
@@ -43,8 +44,8 @@ function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots) {
     }
     if (val <= 0) continue;
     var rawVal = val;
-    // Pendant(3), keychain(9), trophy(10) get 2× from chip bonuses
-    if (row === 0 && (slot === 3 || slot === 9 || slot === 10)) val *= 2;
+    // Pendant(3), keychain(9), trophy(10) get 2× ONLY when chip bonus is active
+    if (row === 0 && chipDoubles && chipDoubles[slot]) val *= 2;
     // Clothing slot 15 gets grid 172 multiplier
     if (row === 0 && slot === 15) val *= grid172Multi;
     results.push({ row: row, slot: slot, rawVal: rawVal, val: val, itemName: itemName });
@@ -84,9 +85,15 @@ export var equipment = {
       if (premhatOn) { skipSlots[8] = true; }
     }
 
+    // Chip doublings: pendant(3)=pend, keychain(9)=key1, trophy(10)=troph
+    var chipDoubles = {};
+    if (charHasChip(ctx.charIdx, 'pend')) chipDoubles[3] = true;
+    if (charHasChip(ctx.charIdx, 'key1')) chipDoubles[9] = true;
+    if (charHasChip(ctx.charIdx, 'troph')) chipDoubles[10] = true;
+
     var equipOrder = equipOrderData[ctx.charIdx];
-    var slots0 = scanSlots(emm, equipOrder, 0, statNames, grid172Multi, skipSlots);
-    var slots1 = scanSlots(emm, equipOrder, 1, statNames, grid172Multi, null);
+    var slots0 = scanSlots(emm, equipOrder, 0, statNames, grid172Multi, skipSlots, chipDoubles);
+    var slots1 = scanSlots(emm, equipOrder, 1, statNames, grid172Multi, null, null);
     var allSlots = slots0.concat(slots1);
 
     var total = 0;

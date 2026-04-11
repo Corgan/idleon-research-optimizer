@@ -395,11 +395,11 @@ export function simulateGame({
   floor, upgLevels,
   strategy = tunableStrategy(),
   gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0, sailing38 = 0,
-  svarHP = 1, maxTurns = 200, rng = Math.random,
+  svarHP = 1, maxTurns = 200, rng = Math.random, mineReduction = 0,
 }) {
   const { cols, rows } = gridDims(upgLevels[2]);
   const numTiles = cols * rows;
-  const mines = minesOnFloor(floor);
+  const mines = minesOnFloor(floor, mineReduction);
   const hp = floorHP(floor, svarHP);
   let livesLeft = maxHPYou(upgLevels);
 

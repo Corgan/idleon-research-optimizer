@@ -26,6 +26,7 @@ onmessage = function(e) {
         seed: d.seed,
         svarHP: d.svarHP || 1,
         maxTurns: d.maxTurns || 200,
+        mineReduction: d.mineReduction || 0,
       });
       postMessage({ type: 'done', id: d.id, result });
     } catch (err) {

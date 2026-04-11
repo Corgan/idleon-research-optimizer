@@ -3,8 +3,7 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { optionsListData, numCharacters, cauldronInfoData, labData } from '../../../save/data.js';
-import { formulaEval } from '../../../formulas.js';
+import { optionsListData, numCharacters, labData } from '../../../save/data.js';
 import { computeCardLv } from '../common/cards.js';
 import { saveData } from '../../../state.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
@@ -14,9 +13,7 @@ import { mineheadBonusQTY } from './research.js';
 import { rogBonusQTY } from './sushi.js';
 import { legendPTSbonus } from './spelunking.js';
 import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';
-import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
 import { companionBonus } from '../../data/common/companions.js';
-import { bubbleParams } from '../../data/w2/alchemy.js';
 import { GALLERY_TROPH_CHIP_MULTI } from '../../data/game-constants.js';
 
 // GalleryBonusMulti: 1 + (3*Spelunk[13][4] + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
@@ -37,11 +34,10 @@ export function galleryBonusMulti() {
       if (trophChip) break;
     }
   }
-  var _y13bp = bubbleParams(3, 32);
-  var y13lv = Number((cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][32]) || 0);
-  var y13base = y13lv > 0 ? formulaEval(_y13bp.formula, _y13bp.x1, _y13bp.x2, y13lv) : 0;
-  var y13prisma = isBubblePrismad(3, 32) ? Math.max(1, getPrismaBonusMult()) : 1;
-  var y13capped = Math.min(20, y13base * y13prisma);
+  // NOTE: Game order-of-evaluation bug: InitializeNametagBonuses (which calls
+  // GalleryBonusMulti) runs BEFORE TalentCalc(-2) builds AlchBubbles, so
+  // AlchBubbles.Y13 is always 0/undefined at that point. We replicate this.
+  var y13capped = 0;
   var cardLv = Math.min(computeCardLv('w7a11'), 10);
   var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
@@ -54,11 +50,6 @@ export function galleryBonusMulti() {
   if (trophChip) ch.push(node(label('Chip', 16), GALLERY_TROPH_CHIP_MULTI, null, { fmt: 'raw', note: 'chip 16' }));
   if (clamWork7) ch.push(node(label('ClamWork', 7), 3, null, { fmt: 'raw' }));
   if (killroy3 > 0) ch.push(node(label('Killroy', 3), killroy3, null, { fmt: 'raw' }));
-  if (y13capped > 0) ch.push(node(label('Bubble', 'Y13', ' (capped 20)'), y13capped, [
-    node('Y13 Level', y13lv, null, { fmt: 'raw' }),
-    node('Y13 Base', y13base, null, { fmt: 'raw' }),
-    node('Prisma Bonus', y13prisma, null, { fmt: 'x' }),
-  ], { fmt: 'raw' }));
   if (cardLv > 0) ch.push(node('Card w7a11 (capped 10)', cardLv, null, { fmt: 'raw' }));
   if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw', note: 'companion 49' }));
   return { val: val, children: ch };

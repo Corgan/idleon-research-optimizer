@@ -6,7 +6,7 @@
 import {  saveData, assignState  } from '../state.js';
 import { assignSaveData } from './data.js';
 import { parseSaveKey } from './helpers.js';
-import { eventShopOwned, superBitType } from '../game-helpers.js';
+import { eventShopOwned, superBitType, cloudBonus } from '../game-helpers.js';
 import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
 import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
 import { SceneNPCquestOrder } from '../stats/data/game/customlists.js';
@@ -311,7 +311,8 @@ export function loadSaveData(raw) {
 export function recomputeDerivedBonuses() {
   const _comp55val = saveData.companionIds.has(55) ? 15 : 0;
   const _comp0val = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
-  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val) / 100 });
+  const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
+  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val + _cbGridAll) / 100 });
 
   const stkLv = saveData.research?.[9]?.[1] || 0;
   const stkBase = stickerBase(1) || 5;

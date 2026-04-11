@@ -306,7 +306,7 @@ export function computeDNSM(charIdx = 0) {
       const winBon26 = computeWinBonus(26);
       const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
       const ribbonIdx = 28 + 64;
-      const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379]);
+      const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData);
       dnsm.mealBonusZGoldFood = cookMulti * ribbon * mealLv * 2;
 
       var cookCh = [];

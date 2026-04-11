@@ -24,6 +24,7 @@ import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
+import { dreamData } from '../../save/data.js';
 
 export default {
   id: 'research-exp',
@@ -106,7 +107,7 @@ export default {
 
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;
-    var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379);
+    var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
     var mealBase = ribBon * mealLv * 0.01;
     var mfb116 = mainframeBonus(116);
     var shinyS20 = computeShinyBonusS(20);
@@ -178,6 +179,10 @@ export default {
 
     var grid70 = gridBonusFinal(saveData, 70);
     multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x' });
+
+    // Nonstop_Studies: DreamUpg[12], coeff 3. Dream save array uses +2 offset, so Dream[14] is correct.
+    var dream14Lv = Number((dreamData && dreamData[14]) || 0);
+    multItems.push({ name: 'Nonstop Studies', val: 1 + 3 * dream14Lv / 100, fmt: 'x' });
 
     // Button_Bonuses(0): button presses contribute to 9 rotating slots
     var buttonPresses = Number(saveData.olaData[594]) || 0;

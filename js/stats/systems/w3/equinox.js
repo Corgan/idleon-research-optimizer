@@ -5,6 +5,8 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { dreamData } from '../../../save/data.js';
 import { DR_DREAM_COEFF } from '../../data/game-constants.js';
+import { cloudBonus as _cb } from '../../../game-helpers.js';
+import { saveData as _cbSaveData } from '../../../state.js';
 
 export var dream = {
   resolve: function(id, ctx) {
@@ -15,6 +17,22 @@ export var dream = {
       node('Dream Upgrade Level', lv, null, { fmt: 'raw' }),
       node('Per Level', DR_DREAM_COEFF, null, { fmt: 'raw' }),
     ], { fmt: '+', note: 'dream ' + id });
+  },
+};
+
+// ==================== SHIMMER BONUSES ====================
+
+// CloudBonus(n): 1 if dream challenge n completed, 0 otherwise.
+// Game: (1 + args[0] * CloudBonus(id) / 100)
+export var cloudBonusSys = {
+  resolve: function(id, ctx, args) {
+    var coeff = (args && args[0]) || 5;
+    var completed = _cb(id, (ctx.saveData || _cbSaveData).weeklyBossData);
+    var val = coeff * completed;
+    return node('Dream Challenge ' + id, val, [
+      node('Completed', completed, null, { fmt: 'raw' }),
+      node('Coefficient', coeff, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'cloudBonus ' + id });
   },
 };
 

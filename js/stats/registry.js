@@ -26,7 +26,7 @@ import { arcade } from './systems/w2/arcade.js';
 import { voting } from './systems/w2/voting.js';
 import { prayer } from './systems/w3/prayer.js';
 import { setBonus } from './systems/w3/setBonus.js';
-import { dream } from './systems/w3/equinox.js';
+import { dream, cloudBonusSys } from './systems/w3/equinox.js';
 import { grid, chip } from './systems/w4/lab.js';
 import { tome } from './systems/w4/tome.js';
 import { shiny } from './systems/w4/breeding.js';
@@ -72,6 +72,7 @@ var _systems = {
   stamp, owl,
   alchemy, sigil, postOffice, arcade, voting,
   prayer, setBonus, dream,
+  cloudBonus: cloudBonusSys,
   grid, chip, tome, shiny,
   shrine, holes,
   winBonus, farm, emperor, pristine,

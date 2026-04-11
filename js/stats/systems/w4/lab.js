@@ -7,6 +7,7 @@ import { saveData } from '../../../state.js';
 import {
   charClassData,
   dreamData,
+  klaData,
   labData,
   numCharacters,
   optionsListData,
@@ -18,7 +19,8 @@ import {
 } from '../../../game-data.js';
 import { JEWEL_DESC, LAB_BONUS_BASE, LAB_BONUS_DYNAMIC } from '../../data/w4/lab.js';
 import { labJewelUnlocked } from '../../../save/helpers.js';
-import { emporiumBonus, ribbonBonusAt } from '../../../game-helpers.js';
+import { MapAFKtarget, MapDetails } from '../../data/game/customlists.js';
+import { emporiumBonus, ribbonBonusAt, cloudBonus } from '../../../game-helpers.js';
 import { computeCardLv } from '../common/cards.js';
 import { computeShinyBonusS } from './breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
@@ -30,12 +32,44 @@ import { gridBonusPerLv } from '../../data/w7/research.js';
 import { talentParams } from '../../data/common/talent.js';
 import { formulaEval } from '../../../formulas.js';
 
+// Total green mushroom kills across all characters (for mainframeBonus 9)
+function _totalMushGKills() {
+  var mushGIdx = MapAFKtarget.indexOf('mushG');
+  if (mushGIdx < 0) return 0;
+  var req = Number(MapDetails[mushGIdx] && MapDetails[mushGIdx][0] && MapDetails[mushGIdx][0][0]) || 0;
+  var total = 0;
+  for (var ci = 0; ci < numCharacters; ci++) {
+    var kla = klaData[ci];
+    if (!kla || !kla[mushGIdx]) continue;
+    var left = Number(Array.isArray(kla[mushGIdx]) ? kla[mushGIdx][0] : kla[mushGIdx]) || 0;
+    total += req - left;
+  }
+  return Math.max(0, total);
+}
+
+// Count unique green stacks (>=10M items) in bank (for mainframeBonus 11)
+function _greenStackCount() {
+  var order = saveData.chestOrderData;
+  var qty = saveData.chestQuantityData;
+  if (!order || !qty) return 0;
+  var seen = new Set();
+  for (var i = 0; i < order.length; i++) {
+    if (Number(qty[i]) >= 1e7) {
+      seen.add(order[i]);
+    }
+  }
+  return seen.size;
+}
+
 function gridAllMulti(saveData) {
   var comp55 = saveData.companionIds && saveData.companionIds.has(55) ? companionBonus(55) : 0;
   var comp0 = saveData.companionIds && saveData.companionIds.has(0) ? companionBonus(0) : 0;
   var grid173Lv = saveData.gridLevels[173] || 0;
-  var sum = comp55 + 5 * Math.min(1, grid173Lv * comp0);
-  return { val: 1 + sum / 100, comp55: comp55, comp0: comp0, grid173Lv: grid173Lv };
+  var cb71 = cloudBonus(71, saveData.weeklyBossData);
+  var cb72 = cloudBonus(72, saveData.weeklyBossData);
+  var cb76 = cloudBonus(76, saveData.weeklyBossData);
+  var sum = comp55 + 5 * Math.min(1, grid173Lv * comp0) + cb71 + cb72 + cb76;
+  return { val: 1 + sum / 100, comp55: comp55, comp0: comp0, grid173Lv: grid173Lv, cb71: cb71, cb72: cb72, cb76: cb76 };
 }
 
 export var grid = {
@@ -154,7 +188,7 @@ function computeMealBonusLinePct() {
   var eelLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][40]) || 0;
   if (eelLv <= 0) return 0;
   var cookMulti = computeCookingMealMulti();
-  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData[379]);
+  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData[379], saveData.weeklyBossData);
   return cookMulti * ribbon * eelLv * 1;
 }
 
@@ -323,13 +357,21 @@ export function mainframeBonus(e) {
     if (e >= lmbLen) return 0;
     if (!saveData.labBonusConnected[e]) return saveData.labMainBonusFull[e][3];
     var active = saveData.labMainBonusFull[e][4];
-    if (e === 9) return active + mainframeBonus(113);
+    if (e === 9) {
+      var base9 = active + mainframeBonus(113);
+      var mushKills = _totalMushGKills();
+      var millions = mushKills / 1e6;
+      return base9 * (millions < 1e8 ? Math.floor(millions) : millions);
+    }
     if (e === 0) {
       var totPets = (saveData.breedingData && saveData.breedingData[1] || []).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
       return (active + mainframeBonus(101)) * totPets;
     }
     if (e === 3) return active + mainframeBonus(107);
-    if (e === 11) return active + mainframeBonus(117);
+    if (e === 11) {
+      var base11 = active + mainframeBonus(117);
+      return base11 * _greenStackCount();
+    }
     if (e === 13) return active;
     if (e === 15) return active + mainframeBonus(118);
     if (e === 17) return active + mainframeBonus(120);
@@ -355,11 +397,10 @@ export function mainframeBonus(e) {
 import { ChipDesc } from '../../data/game/customlists.js';
 
 export function computeChipBonus(effectKey) {
-  var labChips = saveData.labChipsData;
-  if (!labChips) return 0;
+  if (!labData) return 0;
   var total = 0;
   for (var ci = 0; ci < numCharacters; ci++) {
-    var chips = labChips[ci];
+    var chips = labData[1 + ci];
     if (!chips) continue;
     for (var slot = 0; slot < chips.length; slot++) {
       var chipType = Number(chips[slot]) || 0;
@@ -375,9 +416,8 @@ export function computeChipBonus(effectKey) {
 
 // Check if a specific character has a chip with the given effectKey equipped
 export function charHasChip(charIdx, effectKey) {
-  var labChips = saveData.labChipsData;
-  if (!labChips) return false;
-  var chips = labChips[charIdx];
+  if (!labData) return false;
+  var chips = labData[1 + charIdx];
   if (!chips) return false;
   for (var slot = 0; slot < chips.length; slot++) {
     var chipType = Number(chips[slot]) || 0;

@@ -6,7 +6,7 @@
 import { companions, pristineBon, vaultUpgBonus, sigilBonus as sigilBonusFn,
   getSetBonus, votingBonusz, goldFoodBonuses, cardLv,
 } from '../systems/common/goldenFood.js';
-import { eventShopOwned, superBitType } from '../../game-helpers.js';
+import { eventShopOwned, superBitType, cloudBonus as _cloudBonus } from '../../game-helpers.js';
 import { getLOG, formulaEval } from '../../formulas.js';
 import { label } from '../entity-names.js';
 import { grid, mainframeBonus, computePetArenaBonus } from '../systems/w4/lab.js';
@@ -257,7 +257,7 @@ function computeMealBonus(key) {
     if (mealLv <= 0) continue;
     var bonusPerLv = Number(MealINFO[mi][2]) || 0;
     var ribIdx = 28 + mi;
-    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String(s.olaData[379] || ''));
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String(s.olaData[379] || ''), s.weeklyBossData);
     total += cookMulti * ribMeal * mealLv * bonusPerLv;
   }
   return total;
@@ -439,7 +439,8 @@ export default {
 
     egl5 *= (1 + arcaneMapMulti1 / 100) * (1 + bigFish4 / 100)
       * (1 + dancingCoralVal / 100) * coralKidPow
-      * (1 + cardSet12 / 100) * (1 + bubbaRoG6 / 100) * (1 + rog15 / 100);
+      * (1 + cardSet12 / 100) * (1 + bubbaRoG6 / 100) * (1 + rog15 / 100)
+      * (1 + 5 * _cloudBonus(70, s.weeklyBossData) / 100);
 
     // Third chain: Spelunk6.length as pow(1.03, count), SuperBit(24), MeritocBonusz(27), OLA[464]
     var spelunk6len = (s.spelunkData && s.spelunkData[6]) ? s.spelunkData[6].length : 0;

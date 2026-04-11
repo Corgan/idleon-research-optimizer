@@ -82,6 +82,7 @@ export default {
       { system: 'tome', id: 7 },
       { system: 'etcBonus', id: 99 },
       { system: 'minehead', id: 0 },
+      { system: 'cloudBonus', id: 69, args: [5] },
       { system: 'pristine', id: 3 },
       { system: 'etcBonus', id: 91 },
       { system: 'compMulti', id: 26, args: [1.3] },

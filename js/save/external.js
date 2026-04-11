@@ -19,7 +19,8 @@ import {
   eventShopOwned,
   ribbonBonusAt,
   superBitType,
-} from './helpers.js';
+  cloudBonus,
+} from '../game-helpers.js';
 import { mainframeBonus } from '../stats/systems/w4/lab.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import { arcaneUpgBonus } from '../stats/systems/mc/tesseract.js';
@@ -148,7 +149,8 @@ export function computeExternalBonuses() {
   // Compute S.allBonusMulti early so getGridBonusFinal calls below use the correct value
   const _comp55val = S.companionIds.has(55) ? 15 : 0;
   const _comp0val = S.companionIds.has(0) && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
-  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val) / 100 });
+  const _cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);
+  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val + _cbGridAll) / 100 });
 
   // 1. StickerBonus(1) = (1 + (Grid_Bonus(68,2) + 30*EventShop(37))/100) * (1 + 20*SuperBit(62)/100) * R[9][1] * base
   const stkLv = S.research?.[9]?.[1] || 0;
@@ -209,7 +211,7 @@ export function computeExternalBonuses() {
   // 8. MealBonusesS  Giga_Chip (Meals[0][72], base 0.01, MealINFO[72][5]="ResearchXP")
   const mealLv = S.mealsData?.[0]?.[72] || 0;
   const ribT = S.ribbonData[100] || 0;
-  const ribBon = ribbonBonusAt(100, S.ribbonData, _olaStr379);
+  const ribBon = ribbonBonusAt(100, S.ribbonData, _olaStr379, S.weeklyBossData);
   const mealBase = ribBon * mealLv * 0.01;
   // CookingMealBonusMultioo = (1 + (MainframeBonus(116) + ShinyBonusS(20))/100) x (1 + WinBonus(26)/100)
   const mfb116 = mainframeBonus(116);
@@ -284,7 +286,8 @@ export function computeExternalBonuses() {
   const comp55val = comp55owned ? 15 : 0; // CompanionDB[55][2] = 15  1.15x all grid bonuses
   const comp0owned = S.companionIds.has(0);
   const comp0val = comp0owned && (S.lv0AllData[0]?.[14] || 0) >= 2 && (S.gridLevels[173] || 0) > 0 ? 5 : 0; // 5*min(1, lv*1)
-  b._allMulti = { val: 1 + (comp55val + comp0val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val})/100` };
+  const cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);
+  b._allMulti = { val: 1 + (comp55val + comp0val + cbGridAll) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val}+${cbGridAll})/100` };
 
   return b;
 }

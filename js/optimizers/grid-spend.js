@@ -55,7 +55,7 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
     for (let rank = 1; rank <= maxLv; rank++) {
       if (rank <= origLv) continue; // already at or past this rank
       gl[idx] = rank;
-      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk) };
+      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll) };
 
       // Check 1: does research EXP rate change?
       const testExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, testCtx);
@@ -308,7 +308,7 @@ function _exhaustiveSpendAtLevel(s, ctx) {
   // Score each combo by simTotalExpWith (immediate EXP/hr rate)
   let bestCombo = null, bestRate = -Infinity;
   for (let ci = 0; ci < combos.length; ci++) {
-    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk);
+    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll);
     const rate = simTotalExpWith(combos[ci].gl, so, md, il, occ, rLv, { ...ctx, abm: trialABM });
     if (rate > bestRate) { bestRate = rate; bestCombo = combos[ci]; }
   }

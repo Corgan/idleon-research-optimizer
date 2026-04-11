@@ -18,10 +18,17 @@ import {
   WIGGLE_CHANCE, wiggleMaxPerGame,
 } from '../stats/systems/w7/minehead.js';
 import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
+import { superBitType, cloudBonus, emporiumBonus } from '../game-helpers.js';
 import { inferStrategy, analyzeSpatial } from '../minehead/strategy-inferrer.js';
 import { fmtNum as _fmt } from '../renderers/format.js';
 
 let PLAY_RIGGED = false;
+
+function _mineReduction() {
+  return Math.min(1, superBitType(66, saveData.gamingData?.[12]))
+       + Math.min(1, cloudBonus(41, saveData.weeklyBossData))
+       + Math.min(1, emporiumBonus(45, saveData.ninjaData?.[102]?.[9]));
+}
 
 let _activeSubtab = 'mh-dashboard';
 let _showSpoilerMH = false;
@@ -135,7 +142,7 @@ function _renderDashboard() {
   const gridExp = lvs[2] || 0;
   const { cols, rows } = gridDims(gridExp);
   const tiles = totalTiles(gridExp);
-  const mines = minesOnFloor(floor);
+  const mines = minesOnFloor(floor, _mineReduction());
   const lives = maxHPYou(lvs);
   const svarHP = saveData.serverVarMineHP || 1;
   const svarCost = saveData.serverVarMineCost || 1;
@@ -439,7 +446,7 @@ function _renderOptimize() {
   const floor = saveData.stateR7?.[4] || 0;
   const svarHP = saveData.serverVarMineHP || 1;
   const hp = floorHP(floor, svarHP);
-  const mines = minesOnFloor(floor);
+  const mines = minesOnFloor(floor, _mineReduction());
 
   container.innerHTML = `
     <div style="margin-bottom:16px;">
@@ -488,7 +495,7 @@ function _showInferredCard(floor, upgLevels, svarHP) {
 
   const infR = evaluateTunableParams({
     params: infP, floor, upgLevels, nTrials: 2000,
-    seed: 42 + floor, svarHP,
+    seed: 42 + floor, svarHP, mineReduction: _mineReduction(),
   });
   const profile = _inferResult?.profile || '';
   const agreement = _inferResult?.agreement ? (_inferResult.agreement * 100).toFixed(1) + '% match' : '';
@@ -1083,6 +1090,7 @@ function _showOptResults(cache) {
       params: _infP, floor: cache.floor,
       upgLevels: _infLvs, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _infSvar,
+      mineReduction: _mineReduction(),
     });
     const ip = _infP, ir = _infR;
     const profile = _inferResult?.profile || '';
@@ -1253,7 +1261,7 @@ function _runUpgradeRank(lvs, floor, svarHP) {
 }
 
 function _dispatchRankTask(worker, task, floor, params, nTrials, seed, svarHP) {
-  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP });
+  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
 }
 
 function _onRankComplete(results, affordable, floor, nTrials, lvs) {
@@ -1306,6 +1314,7 @@ function _showRankResults(cache) {
       params: _rInfP, floor: cache.floor,
       upgLevels: cache.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: cache.svarHP || 1,
+      mineReduction: _mineReduction(),
     });
     const dmgDelta = b.avgDmg > 0 ? ((_rInfR.avgDmg - b.avgDmg) / b.avgDmg * 100) : 0;
     const winDelta = (_rInfR.winRate - b.winRate) * 100;
@@ -1415,7 +1424,7 @@ function _runUpgradePath(lvs, floor, svarHP) {
     _runPathStep(currentLvs, path, baseline, 0, maxSteps, params, nTrials, seed, svarHP, floor, hp,
       researchLv, mineCurrency, workers, statusEl, barEl, pctEl, progressEl, cancelEl, btnEl);
   };
-  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP });
+  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
 }
 
 function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, seed, svarHP, floor, hp,
@@ -1435,7 +1444,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
       if (btnEl) btnEl.disabled = false;
       _showPathResults(_pathCache);
     };
-    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP });
+    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP, mineReduction: _mineReduction() });
     return;
   }
 
@@ -1507,7 +1516,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
   function dispatch(worker) {
     if (!_pathWorkers || taskIdx >= tasks.length) return;
     const task = tasks[taskIdx++];
-    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP });
+    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
   }
 
   for (const w of workers) {
@@ -1537,6 +1546,7 @@ function _showPathResults(cache) {
       params: _pInfP, floor: cache.floor,
       upgLevels: _pathStartCtx.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _pathStartCtx.svarHP || 1,
+      mineReduction: _mineReduction(),
     });
     const dmgDelta = baseline.avgDmg > 0 ? ((_pInfR.avgDmg - baseline.avgDmg) / baseline.avgDmg * 100) : 0;
     const winDelta = (_pInfR.winRate - baseline.winRate) * 100;
@@ -1596,7 +1606,7 @@ function _renderPlayfield() {
   const svarHP = saveData.serverVarMineHP || 1;
   const { cols, rows } = gridDims(lvs[2]);
   const numTiles = cols * rows;
-  const mines = minesOnFloor(floor);
+  const mines = minesOnFloor(floor, _mineReduction());
   const hp = floorHP(floor, svarHP);
   const maxLives = maxHPYou(lvs);
   const maxGoldens = goldTilesTotal(lvs);

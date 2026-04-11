@@ -537,12 +537,48 @@ function getPasszMult(cauldron, charIdx) {
   ] };
 }
 
+// Multi bubble second-pass: game RecalcBubbles multiplies specific bubble indices
+// by the corresponding Multi* bubble value after the first-pass computation.
+// Orange (c=0): indices 0,2,4,7,14 × MultiOr (c0 i16)
+// Green  (c=1): indices 0,6,9,12,14 × MultiGr (c1 i16)
+// Purple (c=2): indices 0,2,6,12,14 × MultiPu (c2 i16)
+var MULTI_AFFECTED = {
+  0: [0, 2, 4, 7, 14],
+  1: [0, 6, 9, 12, 14],
+  2: [0, 2, 6, 12, 14],
+};
+var MULTI_BUBBLE_INDEX = 16;
+
+function getMultiBubbleMult(cauldron, bubbleIndex) {
+  var affected = MULTI_AFFECTED[cauldron];
+  if (!affected || affected.indexOf(bubbleIndex) === -1) return { val: 1, children: [] };
+  var multiParams = bubbleParams(cauldron, MULTI_BUBBLE_INDEX);
+  if (!multiParams) return { val: 1, children: [] };
+  var multiLv = Number((cauldronInfoData && cauldronInfoData[cauldron]
+    && cauldronInfoData[cauldron][MULTI_BUBBLE_INDEX]) || 0);
+  if (multiLv <= 0) return { val: 1, children: [] };
+  var multiBase = formulaEval(multiParams.formula, multiParams.x1, multiParams.x2, multiLv);
+  var multiPrisma = isBubblePrismad(cauldron, MULTI_BUBBLE_INDEX)
+    ? Math.max(1, getPrismaBonusMult()) : 1;
+  var multiVal = Math.max(1, multiBase * multiPrisma);
+  return {
+    val: multiVal,
+    children: [node(multiParams.name + ' Multi', multiVal, [
+      node('Level', multiLv, null, { fmt: 'raw' }),
+      node('Base', multiBase, null, { fmt: 'raw' }),
+    ].concat(multiPrisma > 1
+      ? [node('Prisma', multiPrisma, null, { fmt: 'x' })] : []),
+    { fmt: 'x' })]
+  };
+}
+
 function computeAlchBubble(bonusType, charIdx) {
   var bk = BUBBLE_KEYS[bonusType];
   if (!bk) return { val: 0, children: [] };
   var params = bubbleParams(bk.cauldron, bk.index);
   if (!params) return { val: 0, children: [] };
   params.slab = bk.slab;
+  params.tome = bk.tome;
   var lv = Number((cauldronInfoData && cauldronInfoData[params.cauldron]
     && cauldronInfoData[params.cauldron][params.index]) || 0);
   if (lv <= 0) return { val: 0, children: [] };
@@ -557,16 +593,27 @@ function computeAlchBubble(bonusType, charIdx) {
     if (slabMult < 1) slabMult = 1;
   }
   // Tome multiplier: W8/A9/M9 multiply by floor(max(0, tomePoints-5000)/2000)
+  //   × (1 + (GrimoireUpgBonus(17) + GetSetBonus("TROLL_SET")) / 100)
   var tomeMult = 1;
+  var tomeExtraMult = 1;
   if (params.tome) {
     var tomePoints = saveData.totalTomePoints || 0;
     tomeMult = Math.max(0, Math.floor((tomePoints - 5000) / 2000));
     if (tomeMult < 1) tomeMult = 1;
+    // Game post-processing: W8/A9/M9 *= CalcTalentDN2 * (1 + (GrimoireUpg(17) + TrollSet) / 100)
+    var g17 = Number((saveData.grimoireData && saveData.grimoireData[17]) || 0);
+    var trollSet = String((optionsListData && optionsListData[379]) || '').indexOf('TROLL_SET') !== -1 ? equipSetBonus('TROLL_SET') : 0;
+    tomeExtraMult = 1 + (g17 + trollSet) / 100;
   }
   // Passz multiplier: class-matched cauldron boost (Opassz/Gpassz/Ppassz)
-  var passz = (charIdx != null) ? getPasszMult(bk.cauldron, charIdx) : { val: 1, children: [] };
+  // Game order dependency: index 0 bubbles (TotalSTR/TotalAGI/TotalWIS/TotalLUK)
+  // are processed BEFORE Passz at index 1, so Passz is unavailable → max(1,0)=1.
+  var passz = (charIdx != null && bk.index > 0) ? getPasszMult(bk.cauldron, charIdx) : { val: 1, children: [] };
   var passzMult = passz.val;
-  var val = baseVal * prismaMult * passzMult * slabMult * tomeMult;
+  var val = baseVal * prismaMult * passzMult * slabMult * tomeMult * tomeExtraMult;
+  // Multi bubble second-pass multiplication
+  var multi = getMultiBubbleMult(bk.cauldron, bk.index);
+  val *= multi.val;
   var children = [
     node('Level', lv, null, { fmt: 'raw' }),
     node('Base', baseVal, null, { fmt: 'raw' }),
@@ -575,6 +622,8 @@ function computeAlchBubble(bonusType, charIdx) {
   if (passzMult > 1) children = children.concat(passz.children);
   if (params.slab && slabMult > 1) children.push(node('Slab Multi', slabMult, null, { fmt: 'x', note: 'floor(slabItems/100)' }));
   if (params.tome && tomeMult > 1) children.push(node('Tome Multi', tomeMult, null, { fmt: 'x', note: 'floor((tome-5000)/2000)' }));
+  if (params.tome && tomeExtraMult > 1) children.push(node('Tome Bonus', tomeExtraMult, null, { fmt: 'x', note: 'GrimoireUpg(17)+TrollSet' }));
+  if (multi.val > 1) children = children.concat(multi.children);
   return { val: val, children: children, name: params.name };
 }
 
@@ -1215,7 +1264,7 @@ export function computeMealBonus(effectKey) {
     if (mealLv <= 0) continue;
     var bonusPerLv = Number(MealINFO[mi][2]) || 0;
     var ribIdx = 28 + mi;
-    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''));
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData);
     total += cookMulti * ribMeal * mealLv * bonusPerLv;
   }
   return total;

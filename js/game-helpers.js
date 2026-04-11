@@ -20,10 +20,17 @@ export function emporiumBonus(t, ninjaData102_9) {
   return String(ninjaData102_9 || '').includes(N2L[t]) ? 1 : 0;
 }
 
-export function ribbonBonusAt(index, ribbonData, olaStr379) {
+export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData) {
   const t = ribbonData[index] || 0;
   if (t <= 0) return 1;
   const hasEmperorSet = String(olaStr379 || '').includes('EMPEROR_SET');
   const empTerm = hasEmperorSet ? Math.floor(t / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
-  return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm) / 100;
+  const cb73 = weeklyBossData ? Math.floor(t / 10) * cloudBonus(73, weeklyBossData) : 0;
+  return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm + cb73) / 100;
+}
+
+// CloudBonus(n): returns 1 if dream challenge n is completed, 0 otherwise.
+// Game: -1 == WeeklyBoss.h["d_" + n] ? 1 : 0
+export function cloudBonus(n, weeklyBossData) {
+  return (Number(weeklyBossData && weeklyBossData['d_' + n]) === -1) ? 1 : 0;
 }

@@ -475,7 +475,7 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
       var winBon26 = computeWinBonus(26);
       var cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
       var ribbonIdx = 28 + 64;
-      var ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379]);
+      var ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData);
       inputs.mealBonusZGoldFood = cookMulti * ribbon * mealLv * 2;
 
       var cookCh = [];

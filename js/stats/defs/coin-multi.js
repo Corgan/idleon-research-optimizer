@@ -1,5 +1,5 @@
 // ===== COIN MULTI DESCRIPTOR =====
-// MonsterCash formula: 22 multiplicative groups, each (1 + bonus/100).
+// MonsterCash formula: 23 multiplicative groups, each (1 + bonus/100).
 // Scope: character (TotalStats is per-character).
 
 import { companions, pristineBon, vaultUpgBonus,
@@ -67,8 +67,9 @@ function bubbleValByKey(key, charIdx) {
         var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
         var val = baseVal * prismaMult;
         // Apply class-passz matching game's DNSM.AlchBubbles logic
+        // Game order: index 0 is processed before Passz at index 1, so skip Passz for i===0.
         var cls = Number(charClassData && charClassData[charIdx]) || 0;
-        if (cls > 6 && i !== 16 && i < 30 &&
+        if (cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c === 0 && cls < 18 && key !== 'Construction') {
             val *= Math.max(1, bubbleValByKey('Opassz'));
@@ -147,7 +148,7 @@ function computeMealCashBonus() {
     if (mealLv <= 0) continue;
     var bonusPerLv = Number(MealINFO[mi][2]) || 0;
     var ribIdx = 28 + mi;
-    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String(s.olaData[379] || ''));
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String(s.olaData[379] || ''), s.weeklyBossData);
     total += cookMulti * ribMeal * mealLv * bonusPerLv;
   }
   return total;
@@ -172,6 +173,13 @@ function computeArtifactBonus1() {
   return val;
 }
 
+// RooMegafeather(idx): OLA[279] is the total megafeather count
+function rooMegafeather(idx) {
+  var count = Number(optionsListData[279]) || 0;
+  if (count <= idx) return 0;
+  return idx === 11 ? count - 11 : 1;
+}
+
 // Compute RooBonuses(6): coins from roo summoning tiers
 function computeRooBonus6() {
   var ola271 = Number(optionsListData[271]) || 0;
@@ -179,13 +187,9 @@ function computeRooBonus6() {
   if (tiers <= 0) return 0;
   var legend26 = safe(legendPTSbonus, 26);
   var comp51 = safe(companions, 51);
-  var rooAll = 0;
-  var megaIdxs = [1, 3, 6, 8, 11];
-  for (var mi = 0; mi < megaIdxs.length; mi++) {
-    var feat = Number(optionsListData[279 + megaIdxs[mi]]) || 0;
-    rooAll += 50 * Math.min(1, feat);
-    if (mi === 4) rooAll += 25 * Math.max(0, feat - 1);
-  }
+  var rooAll = 50 * rooMegafeather(1) + 50 * rooMegafeather(3)
+    + 50 * rooMegafeather(6) + 50 * rooMegafeather(8)
+    + 50 * Math.min(1, rooMegafeather(11)) + 25 * Math.max(0, rooMegafeather(11) - 1);
   return 3 * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
 }
 
@@ -365,6 +369,10 @@ export default {
     var g3 = 1 + comp45;
     var g4 = 1 + comp159;
 
+    // ===== GROUP 4b: CoinDropMulti = 1 + Companions(38) (no cap) =====
+    var comp38 = safe(companions, 38);
+    var g4b = 1 + comp38;
+
     // ===== GROUPS 5-6: EventShop =====
     var evStr = s.cachedEventShopStr;
     var evShop9 = eventShopOwned(9, evStr);
@@ -481,9 +489,9 @@ export default {
     var guildMapFactor = 1 + Math.floor(mapIdx / 50);
     var guildContrib = guild8 * guildMapFactor;
     var overkillTier = ctx.overkillTier || 1;
-    var talentCalc643 = overkillTier;
+    var talentCalc643 = rval(talent, 643, ctx) * overkillTier;
     var lv0_10 = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][10]) || 0;
-    var talentCalc644 = lv0_10 / 10;
+    var talentCalc644 = rval(talent, 644, ctx) * lv0_10 / 10;
     var _gf = null;
     try { _gf = goldFoodBonuses('MonsterCash', ci); } catch(e) {}
     var gfoodMC = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
@@ -512,7 +520,7 @@ export default {
     var g22 = 1 + g22sum / 100;
 
     // NaN guard — clamp broken groups to 1
-    var groups = [g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,g13,g14,g15,g16,g17,g18,g19,g20,g21,g22];
+    var groups = [g1,g2,g3,g4,g4b,g5,g6,g7,g8,g9,g10,g11,g12,g13,g14,g15,g16,g17,g18,g19,g20,g21,g22];
     for (var gi = 0; gi < groups.length; gi++) {
       if (groups[gi] !== groups[gi] || groups[gi] == null) {
         groups[gi] = 1;
@@ -541,43 +549,46 @@ export default {
     children.push({ name: label('Companion', 45), val: groups[2], fmt: 'x', note: 'cap 4' });
     children.push({ name: label('Companion', 159), val: groups[3], fmt: 'x', note: 'cap 4' });
 
+    // G4b: CoinDropMulti
+    children.push({ name: 'CoinDropMulti (' + label('Companion', 38) + ')', val: groups[4], fmt: 'x' });
+
     // G5-6: EventShop
-    children.push({ name: label('EventShop', 9) + ' x0.5', val: groups[4], fmt: 'x' });
-    children.push({ name: label('EventShop', 20) + ' x0.6', val: groups[5], fmt: 'x' });
+    children.push({ name: label('EventShop', 9) + ' x0.5', val: groups[5], fmt: 'x' });
+    children.push({ name: label('EventShop', 20) + ' x0.6', val: groups[6], fmt: 'x' });
 
     // G7: EtcBonuses 77
-    children.push({ name: 'Equip Bonus Money', val: groups[6],
+    children.push({ name: 'Equip Bonus Money', val: groups[7],
       children: etc77 > 0 ? [{ name: 'EtcBonuses(77)', val: etc77, fmt: 'raw' }] : null, fmt: 'x' });
 
     // G8-9: RoG Sushi bonuses
-    children.push({ name: 'RoG Bonus 18', val: groups[7], fmt: 'x', note: rog18 + '%' });
-    children.push({ name: 'RoG Bonus 37', val: groups[8], fmt: 'x', note: rog37 + '%' });
+    children.push({ name: 'RoG Bonus 18', val: groups[8], fmt: 'x', note: rog18 + '%' });
+    children.push({ name: 'RoG Bonus 37', val: groups[9], fmt: 'x', note: rog37 + '%' });
 
     // G10: Grid
     var g10ch = [];
     if (grid149 > 0) g10ch.push({ name: label('Grid', 149), val: grid149, fmt: 'raw' });
     if (grid169 > 0) g10ch.push({ name: label('Grid', 169), val: grid169, fmt: 'raw' });
-    children.push({ name: 'Grid Bonus', val: groups[9], children: g10ch.length ? g10ch : null, fmt: 'x' });
+    children.push({ name: 'Grid Bonus', val: groups[10], children: g10ch.length ? g10ch : null, fmt: 'x' });
 
     // G11: EtcBonuses 100
-    children.push({ name: 'Equip Extra Money', val: groups[10],
+    children.push({ name: 'Equip Extra Money', val: groups[11],
       children: etc100 > 0 ? [{ name: 'EtcBonuses(100)', val: etc100, fmt: 'raw' }] : null, fmt: 'x' });
 
     // G12: GOLD_SET
-    children.push({ name: label('SetBonus', 'GOLD_SET'), val: groups[11], fmt: 'x' });
+    children.push({ name: label('SetBonus', 'GOLD_SET'), val: groups[12], fmt: 'x' });
 
     // G13: Gambit
-    children.push({ name: label('Gambit', 7), val: groups[12], fmt: 'x',
+    children.push({ name: label('Gambit', 7), val: groups[13], fmt: 'x',
       note: gambit7 > 0 ? gambit7.toFixed(1) + '%' : 'Not unlocked' });
 
     // G14: Bundle
-    children.push({ name: label('Bundle', 'bun_y') + ' x250', val: groups[13], fmt: 'x' });
+    children.push({ name: label('Bundle', 'bun_y') + ' x250', val: groups[14], fmt: 'x' });
 
     // G15: Talent 433 x log
     var g15ch = [];
     if (chipBonus433 > 0) g15ch.push({ name: label('Talent', 433), val: chipBonus433, fmt: 'raw' });
     if (ola362 > 0) g15ch.push({ name: 'log(OLA[362])', val: getLOG(ola362), fmt: 'raw', note: 'raw=' + ola362 });
-    children.push({ name: label('Talent', 433) + ' x log', val: groups[14], children: g15ch.length ? g15ch : null, fmt: 'x' });
+    children.push({ name: label('Talent', 433) + ' x log', val: groups[15], children: g15ch.length ? g15ch : null, fmt: 'x' });
 
     // G16: Meal + Artifact + Roo + Voting
     var g16ch = [];
@@ -585,7 +596,7 @@ export default {
     if (artifactBonus1 > 0) g16ch.push({ name: label('Artifact', 1) + ' (Maneki Kat)', val: artifactBonus1, fmt: 'raw' });
     if (rooBonus6 > 0) g16ch.push({ name: 'Roo Bonus 6', val: rooBonus6, fmt: 'raw' });
     if (voting34 > 0) g16ch.push({ name: label('Voting', 34), val: voting34, fmt: 'raw' });
-    children.push({ name: 'Meal + Artifact + Roo + Voting', val: groups[15],
+    children.push({ name: 'Meal + Artifact + Roo + Voting', val: groups[16],
       children: g16ch.length ? g16ch : null, fmt: 'x' });
 
     // G17: PetArena + Friend + Statue
@@ -595,7 +606,7 @@ export default {
     if (petArena14 > 0) g17ch.push({ name: 'PetArena 14', val: petArena14, fmt: 'raw' });
     if (statue19 > 0) g17ch.push({ name: label('Statue', 19) + ' (Pecunia)', val: statue19 / 100,
       fmt: 'raw', note: 'raw=' + statue19.toFixed(1) });
-    children.push({ name: 'PetArena + Friend + Statue', val: groups[16],
+    children.push({ name: 'PetArena + Friend + Statue', val: groups[17],
       children: g17ch.length ? g17ch : null, fmt: 'x' });
 
     // G18: Mainframe + Vault x Killz
@@ -605,14 +616,14 @@ export default {
       fmt: 'raw', note: 'tasks=' + killz8 });
     if (vault37 * killz9 > 0) g18ch.push({ name: label('Vault', 37) + ' x Killz9', val: vault37 * killz9,
       fmt: 'raw', note: 'bubbles=' + killz9 });
-    children.push({ name: 'Mainframe + Vault x Killz', val: groups[17],
+    children.push({ name: 'Mainframe + Vault x Killz', val: groups[18],
       children: g18ch.length ? g18ch : null, fmt: 'x' });
 
     // G19: Pristine
-    children.push({ name: label('Pristine', 16), val: groups[18], fmt: 'x' });
+    children.push({ name: label('Pristine', 16), val: groups[19], fmt: 'x' });
 
     // G20: Prayer
-    children.push({ name: label('Prayer', 8), val: groups[19],
+    children.push({ name: label('Prayer', 8), val: groups[20],
       children: prayer8val > 0 ? [
         { name: 'Prayer Level', val: prayerLv8, fmt: 'raw' },
         { name: 'Base Bonus', val: pBase8, fmt: 'raw' },
@@ -623,7 +634,7 @@ export default {
     if (divMinor > 0) g21ch.push({ name: 'Divinity Minor (Harriep)', val: divMinor, fmt: 'raw' });
     if (cropSC4 > 0) g21ch.push({ name: 'CropSC(4)', val: cropSC4, fmt: 'raw',
       note: s.farmCropCount + ' crops' });
-    children.push({ name: 'Divinity + CropSC', val: groups[20],
+    children.push({ name: 'Divinity + CropSC', val: groups[21],
       children: g21ch.length ? g21ch : null, fmt: 'x' });
 
     // G22: Big additive group
@@ -658,7 +669,7 @@ export default {
     if (ola420 > 0) g22ch.push({ name: 'OLA[420]', val: ola420, fmt: 'raw' });
     if (vault70 * cardsCollected > 0) g22ch.push({ name: label('Vault', 70) + ' x Cards', val: vault70 * cardsCollected,
       fmt: 'raw', note: cardsCollected + ' cards' });
-    children.push({ name: 'Big Additive Group', val: groups[21], children: g22ch.length ? g22ch : null, fmt: 'x' });
+    children.push({ name: 'Big Additive Group', val: groups[22], children: g22ch.length ? g22ch : null, fmt: 'x' });
 
     return { val: val, children: children };
   },

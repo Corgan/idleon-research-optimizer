@@ -15,7 +15,7 @@ import {
   computeShapesOwnedAt,
   simTotalExpWith,
 } from '../sim-math.js';
-import { eventShopOwned, superBitType, emporiumBonus, ribbonBonusAt } from '../game-helpers.js';
+import { eventShopOwned, superBitType, emporiumBonus, ribbonBonusAt, cloudBonus } from '../game-helpers.js';
 import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 import { saveData } from '../state.js';
@@ -61,7 +61,9 @@ export function buildSaveContext() {
     sb44: superBitType(44, gamingData12),
     sb62: superBitType(62, gamingData12),
     emp44: emporiumBonus(44, ninjaData102_9),
-    ribbon100: ribbonBonusAt(100, saveData.ribbonData, olaStr379),
+    emp46: emporiumBonus(46, ninjaData102_9),
+    cbGridAll: cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData),
+    ribbon100: ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData),
     mhq2:  mineheadBonusQTY(2, mineFloor),
     mhq12: mineheadBonusQTY(12, mineFloor),
     mhq20: mineheadBonusQTY(20, mineFloor),
@@ -112,7 +114,7 @@ export function makeSimCtx(gl, sc) {
     const hasComp55 = sc.companionHas55;
     const hasComp0DivOk = sc.companionHas0 && sc.cachedComp0DivOk;
     return {
-      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk),
+      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll),
       c52:            sc.comp52TrueMulti,
       stickerFixed:   sc.cachedStickerFixed,
       boonyCount:     sc.cachedBoonyCount,
@@ -125,6 +127,8 @@ export function makeSimCtx(gl, sc) {
       evShop33:       sc.evShop33,
       evShop34:       sc.evShop34,
       evShop36:       sc.evShop36,
+      emp46:          sc.emp46,
+      cbGridAll:      sc.cbGridAll,
       mhq2:          sc.mhq2,
       mhq12:         sc.mhq12,
       mhq20:         sc.mhq20,
@@ -145,8 +149,9 @@ export function makeSimCtx(gl, sc) {
 
   const hasComp55 = saveData.companionIds.has(55);
   const hasComp0DivOk = saveData.companionIds.has(0) && saveData.cachedComp0DivOk;
+  const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
   return {
-    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk),
+    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll),
     c52:            saveData.comp52TrueMulti,
     stickerFixed:   saveData.cachedStickerFixed,
     boonyCount:     saveData.cachedBoonyCount,
@@ -159,6 +164,8 @@ export function makeSimCtx(gl, sc) {
     evShop33:       eventShopOwned(33, eventShopStr),
     evShop34:       eventShopOwned(34, eventShopStr),
     evShop36:       eventShopOwned(36, eventShopStr),
+    emp46:          emporiumBonus(46, ninjaData102_9),
+    cbGridAll:      _cbGridAll,
     mhq2:          mineheadBonusQTY(2, mineFloor),
     mhq12:         mineheadBonusQTY(12, mineFloor),
     mhq20:         mineheadBonusQTY(20, mineFloor),

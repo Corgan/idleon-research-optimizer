@@ -125,10 +125,11 @@ export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
   const count = countMagsOfType(md, 1, obsIdx);
   if (count === 0) return 0;
   const insightBonus = gbWith(gl, so, 92, ctx) + gbWith(gl, so, 91, ctx);
+  const emp46 = ctx.emp46 || 0;
   const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
   const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
-  return 3 * count * (1 + insightBonus / 100) * kalMulti;
+  return 3 * count * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100) * kalMulti;
 }
 
 /** Whether insight levels affect EXP (gd93 or gd94 > 0). */
@@ -136,9 +137,9 @@ export function insightAffectsExp(gl, so, ctx) {
   return gbWith(gl, so, 93, ctx) > 0 || gbWith(gl, so, 94, ctx) > 0;
 }
 
-/** Kaleidoscope base multiplier from grid bonuses. */
+/** Kaleidoscope base multiplier from grid bonuses + EmporiumBonus(46). */
 export function getKaleiMultiBase(gl, so, ctx) {
-  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx)) / 100;
+  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx) + 6 * (ctx.emp46 || 0)) / 100;
 }
 
 // ----- Magnifier slot cap -----
@@ -451,15 +452,15 @@ export function gridPointsAvail(gl, rLv, saveCtx) {
  * Compute allBonusMulti from explicit companion booleans.
  * Pure - no globals.
  */
-export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk) {
+export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll) {
   const comp55val = hasComp55 ? 15 : 0;
   const comp0val = hasComp0DivOk && (gl[173] || 0) > 0 ? 5 : 0;
-  return 1 + (comp55val + comp0val) / 100;
+  return 1 + (comp55val + comp0val + (cbGridAll || 0)) / 100;
 }
 
 /** Recompute ctx.abm from gl. Mutates ctx in place. */
 export function refreshAbm(ctx, gl) {
-  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk);
+  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll);
 }
 
 // ----- Magnifiers owned -----

@@ -38,7 +38,7 @@ export function computeMineheadCurrSources() {
   var mealRibT = 0;
   if (mealLv > 0) {
     mealRibT = saveData.ribbonData[101] || 0;
-    mealRibBon = ribbonBonusAt(101, saveData.ribbonData, olaStr379);
+    mealRibBon = ribbonBonusAt(101, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
     mealMfb116 = mainframeBonus(116);
     mealShinyS20 = computeShinyBonusS(20);
     mealWinBon26 = computeWinBonus(26);
@@ -157,11 +157,12 @@ export function floorHP(floor, svar) {
     * Math.pow(Math.max(1, svar), Math.max(0, t - 9));
 }
 
-export function minesOnFloor(floor) {
+export function minesOnFloor(floor, reduction) {
   var t = floor;
+  var red = reduction || 0;  // sum of SuperBit(66) + CB(41) + EmporiumBonus(45), each 0 or 1
   return Math.round(Math.min(40,
-    1 + Math.floor(t / 3) + Math.floor(t / 7) + Math.floor(t / 13)
-      + Math.min(1, Math.floor(t / 15)) + Math.floor(t / 17)
+    Math.max(1, 1 - red + Math.floor(t / 3) + Math.floor(t / 7) + Math.floor(t / 13)
+      + Math.min(1, Math.floor(t / 15)) + Math.floor(t / 17))
   ));
 }
 
