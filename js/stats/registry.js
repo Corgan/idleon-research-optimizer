@@ -44,6 +44,7 @@ import { meritoc } from './systems/w7/meritoc.js';
 import { grimoire } from './systems/mc/grimoire.js';
 import { arcaneMap } from './systems/mc/tesseract.js';
 import { sushiRoG } from './systems/w7/sushi.js';
+import { glimbo, workshop } from './systems/common/wrappers.js';
 
 // ----- Descriptor imports -----
 import dropRate from './defs/drop-rate.js';
@@ -78,6 +79,7 @@ var _systems = {
   winBonus, farm, emperor, pristine,
   legendPTS, spelunkShop, nametag, premhat, trophy, minehead, meritoc,
   grimoire, arcaneMap, sushiRoG,
+  glimbo, workshop,
 };
 
 var _descriptors = {};
