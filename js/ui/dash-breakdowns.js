@@ -302,8 +302,11 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const killroy5raw = computeKillroyBonus(5, saveData);
   const killroyNode = _bNode(label('Killroy', 5), 1 + killroy5raw / 100, null, { fmt: 'x' });
 
+  const dream14val = dCtx.dream14 || 0;
+  const nonstopNode = _bNode('Nonstop Studies', 1 + 3 * dream14val / 100, null, { fmt: 'x', note: dream14val > 0 ? 'LV ' + dream14val : 'Not unlocked' });
+
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100);
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * (1 + 3 * dream14val / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100);
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -313,6 +316,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   tnNode.val = 1 + takinNotesVal / 100;
   tnNode.fmt = 'x';
   rootChildren.push(tnNode);
+  rootChildren.push(nonstopNode);
   rootChildren.push(jellyNode);
   rootChildren.push(nightmareNode);
   rootChildren.push(rog0Node);
@@ -370,10 +374,13 @@ export function buildInsightBreakdownTree(dSaveCtx, dCtx) {
   children.sort(function(a, b) { return b.val - a.val; });
 
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
-  const multi = 1 + insightBonus / 100;
+  const emp46 = dCtx.emp46 || 0;
+  const multi = (1 + insightBonus / 100) * (1 + 35 * emp46 / 100);
   const totalPerMono = 3 * multi;
 
-  const bonusNode = _bNode('Insight Bonus', insightBonus, children, { fmt: '%' });
+  if (emp46 > 0) children.push(_bNode('Optimal Optometry', 35 * emp46, null, { fmt: '%' }));
+
+  const bonusNode = _bNode('Insight Bonus', insightBonus + 35 * emp46, children, { fmt: '%' });
   return _bNode('Insight/hr per Monocle', totalPerMono, [
     _bNode('Monocle Base', 3, null, { fmt: '/hr' }),
     bonusNode,

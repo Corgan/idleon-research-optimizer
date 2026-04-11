@@ -133,7 +133,8 @@ function _dtObsWireTooltips(bySlot, kalMap) {
       const perMagFinal = basePerMag * gd101Multi * kalMulti;
       const totalExp = perMagFinal * mags;
       const insightBonus = gbWith(s.gl, s.so, 92, _ctx2) + gbWith(s.gl, s.so, 91, _ctx2);
-      const monoRate = 3 * (1 + insightBonus / 100) * kalMulti;
+      const emp46 = _ctx2.emp46 || 0;
+      const monoRate = 3 * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100) * kalMulti;
       const resMulti = simTotalExp({ gridLevels: s.gl, shapeOverlay: s.so, magData: s.md, insightLvs: s.il, occFound: s.occ, researchLevel: s.rLv }, s.saveCtx).multi;
       const totalFinal = totalExp * resMulti;
 

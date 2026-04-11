@@ -179,7 +179,8 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   const totalExp = perMagFinal * mags;
 
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
-  const monoRate = 3 * (1 + insightBonus / 100) * kalMulti;
+  const _emp46 = _dCtx.emp46 || 0;
+  const monoRate = 3 * (1 + insightBonus / 100) * (1 + 35 * _emp46 / 100) * kalMulti;
 
   let html = '<div class="tt-name">' + name + ' (#' + obsIdx + ')</div>';
   html += '<div class="tt-lv">Insight LV: ' + lv + '</div>';
