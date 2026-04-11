@@ -124,25 +124,18 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   if (monoCount === 0) return null;
   if (!insightAffectsExp(gl, so, ctx)) return null;
 
-  const futureRLv = assumeObsUnlocked ? rLv + 10 : rLv;
-  const occTBF = computeOccurrencesToBeFound(futureRLv, occ);
-
-  let projOcc = occ;
-  if (assumeObsUnlocked) {
-    projOcc = occ.slice();
-    for (let oi = 0; oi < OCC_DATA.length; oi++) {
-      if ((projOcc[oi] || 0) < 1 && OCC_DATA[oi].roll <= futureRLv) projOcc[oi] = 1;
-    }
-  }
-  const projCurExpHr = assumeObsUnlocked ? simTotalExpWith(gl, so, md, il, projOcc, rLv, ctx) : curExpHr;
+  // With assumeObsUnlocked, the main sim loop already auto-unlocks obs when
+  // rLv >= OCC_DATA[i].roll. No need for lookahead — obs are available at their
+  // proper research level, not ahead of time.
+  const occTBF = computeOccurrencesToBeFound(rLv, occ);
 
   // Phase 1: cheap screening
+  // Only grind obs that are CURRENTLY usable — you can't place monocles
+  // on observations you haven't found or that require a higher research level.
   const candidates = [];
   for (let i = 0; i < Math.min(occTBF, OCC_DATA.length); i++) {
-    if (assumeObsUnlocked && (occ[i] || 0) < 1 && OCC_DATA[i].roll <= futureRLv) {
-      // will be unlocked soon - allow as candidate
-    } else if (!isObsUsable(i, rLv, occ)) continue;
-    const grindMD = buildConcentratedLayout({...s, occ: projOcc}, i, ctx);
+    if (!isObsUsable(i, rLv, occ)) continue;
+    const grindMD = buildConcentratedLayout(s, i, ctx);
     const iRate = insightExpRate(i, grindMD, il, gl, so, ctx);
     if (iRate <= 0) continue;
     const iReq = insightExpReqAt(i, il[i] || 0);

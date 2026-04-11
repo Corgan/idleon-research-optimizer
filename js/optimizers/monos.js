@@ -149,6 +149,9 @@ export function buildConcentratedLayout(s, targetObs, ctx) {
   for (let i = 0; i < result.length; i++) if (result[i].type === 1) monoCount++;
   if (monoCount === 0) return result;
 
+  // Guard: target obs must be usable (found + research level met)
+  if (!isObsUsable(targetObs, rLv, occ)) return result;
+
   let nonMonoOnTarget = 0;
   for (let i2 = 0; i2 < result.length; i2++) if (result[i2].type !== 1 && result[i2].slot === targetObs) nonMonoOnTarget++;
   const roomForMonos = Math.max(0, mMax - nonMonoOnTarget);
