@@ -174,7 +174,7 @@ export default {
     for (var i = 0; i < items.length; i++) totalAdd += items[i].val;
 
     // ---- True multipliers ----
-    // Game: (1+add/100) × (1+Grid70/100) × (1+Button(0)/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)) × (1+RoG0/100)
+    // Game: (1+add/100) × (1+Grid70/100) × (1+3*Dream14/100) × (1+Button(0)/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)) × (1+RoG0/100)
     var multItems = [];
 
     var grid70 = gridBonusFinal(saveData, 70);

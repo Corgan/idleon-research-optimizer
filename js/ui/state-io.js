@@ -48,7 +48,7 @@ async function exportState() {
     companionIds: [...saveData.companionIds], totalTomePoints: saveData.totalTomePoints, serverVarResXP: saveData.serverVarResXP, serverVarMineHP: saveData.serverVarMineHP,
     cachedEventShopStr: saveData.cachedEventShopStr, cachedResearchExp: saveData.cachedResearchExp, cachedSpelunkyUpg7: saveData.cachedSpelunkyUpg7, cachedFailedRolls: saveData.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: saveData.cachedComp0DivOk,
     cachedStickerFixed: saveData.cachedStickerFixed, cachedBoonyCount: saveData.cachedBoonyCount, cachedEvShop37: saveData.cachedEvShop37, cachedExtPctExSticker: saveData.cachedExtPctExSticker,
-    cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5,
+    cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5, cachedDream14: saveData.cachedDream14,
     extBonusOverrides: saveData.extBonusOverrides, loadedSaveFormat,
     shapeTiers: { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() },
   };
@@ -135,6 +135,7 @@ function importState(raw) {
   assignState({ cachedButtonBonus0: raw.cachedButtonBonus0 || 0 });
   assignState({ cachedBtnBaseNoGrid: raw.cachedBtnBaseNoGrid || 0 });
   assignState({ cachedKillroy5: raw.cachedKillroy5 || 0 });
+  assignState({ cachedDream14: raw.cachedDream14 || 0 });
   // Backward compat: old state exports lack sticker cache fields - derive from saveData.extBonuses
   if ('saveData.cachedStickerFixed' in raw) {
     assignState({ cachedStickerFixed: raw.cachedStickerFixed || 0 });

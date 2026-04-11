@@ -4,7 +4,7 @@
 // mutable state via assignState().  Does NOT perform any UI operations.
 
 import {  saveData, assignState  } from '../state.js';
-import { assignSaveData } from './data.js';
+import { assignSaveData, dreamData } from './data.js';
 import { parseSaveKey } from './helpers.js';
 import { eventShopOwned, superBitType, cloudBonus } from '../game-helpers.js';
 import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
@@ -365,6 +365,9 @@ export function recomputeDerivedBonuses() {
   // Game uses (1 + KB(5)/100) in ResearchEXPmulti, so we store the full KB return value
   var _ola469 = Number(saveData.olaData[469]) || 0;
   assignState({ cachedKillroy5: _ola469 > 0 ? 1 + _ola469 / (150 + _ola469) * 0.8 : 0 });
+
+  // Nonstop Studies: DreamUpg[12] → Dream[14] (offset +2). Coeff = 3.
+  assignState({ cachedDream14: Number(dreamData[14]) || 0 });
 
   assignSaveData({ cachedAFKRate: afkGainsDesc.combine({}, { saveData }) });
 }

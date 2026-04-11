@@ -92,7 +92,8 @@ function getInsightExpPerObs(obsIdx) {
   const count = countMagsOfType(_dSaveCtx.magData, 1, obsIdx);
   if (count === 0) return 0;
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
-  let rate = 3 * count * (1 + insightBonus / 100);
+  const emp46 = _dCtx.emp46 || 0;
+  let rate = 3 * count * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100);
   rate *= _getKaleiMultiTot(obsIdx);
   return rate;
 }

@@ -72,6 +72,7 @@ export function buildSaveContext() {
     button0: saveData.cachedButtonBonus0,
     btnBaseNoGrid: saveData.cachedBtnBaseNoGrid,
     killroy5: saveData.cachedKillroy5,
+    dream14: saveData.cachedDream14,
 
     // Sushi RoG bonuses affecting research
     rog0:  rogBonusQTY(0, saveData.cachedUniqueSushi),
@@ -139,6 +140,7 @@ export function makeSimCtx(gl, sc) {
       button0:        sc.button0 || 0,
       btnBaseNoGrid:  sc.btnBaseNoGrid || 0,
       killroy5:       sc.killroy5 || 0,
+      dream14:        sc.dream14 || 0,
     };
   }
 
@@ -171,6 +173,7 @@ export function makeSimCtx(gl, sc) {
     mhq20:         mineheadBonusQTY(20, mineFloor),
     spelunkyUpg7:   saveData.cachedSpelunkyUpg7,
     serverVarResXP: saveData.serverVarResXP,
+    dream14:        saveData.cachedDream14 || 0,
     rog0:           rogBonusQTY(0, saveData.cachedUniqueSushi) || 0,
     rog8:           rogBonusQTY(8, saveData.cachedUniqueSushi) || 0,
     button0:        saveData.cachedButtonBonus0 || 0,

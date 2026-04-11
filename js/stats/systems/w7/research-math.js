@@ -275,7 +275,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + gbWith(gl, so, 125, ctx) / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;

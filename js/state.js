@@ -82,6 +82,7 @@ export const saveData = {
   cachedButtonBonus0: 0,
   cachedBtnBaseNoGrid: 0,
   cachedKillroy5: 0,
+  cachedDream14: 0,
   guildData: [],
   cyTalentPointsData: [],
   prayOwnedData: [],
