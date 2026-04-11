@@ -15,6 +15,7 @@ import { legendPTSbonus } from './spelunking.js';
 import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { GALLERY_TROPH_CHIP_MULTI } from '../../data/game-constants.js';
+import { bubbleBonusY13 } from '../w2/alchemy.js';
 
 // GalleryBonusMulti: 1 + (3*Spelunk[13][4] + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
@@ -34,10 +35,9 @@ export function galleryBonusMulti() {
       if (trophChip) break;
     }
   }
-  // NOTE: Game order-of-evaluation bug: InitializeNametagBonuses (which calls
-  // GalleryBonusMulti) runs BEFORE TalentCalc(-2) builds AlchBubbles, so
-  // AlchBubbles.Y13 is always 0/undefined at that point. We replicate this.
-  var y13capped = 0;
+  // AlchBubbles.Y13: Kazam cauldron bubble 13, gallery bonus.
+  // TalentCalc(-2) computes AlchBubbles at login, before gallery bonuses run.
+  var y13capped = Math.min(20, bubbleBonusY13());
   var cardLv = Math.min(computeCardLv('w7a11'), 10);
   var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
@@ -50,6 +50,7 @@ export function galleryBonusMulti() {
   if (trophChip) ch.push(node(label('Chip', 16), GALLERY_TROPH_CHIP_MULTI, null, { fmt: 'raw', note: 'chip 16' }));
   if (clamWork7) ch.push(node(label('ClamWork', 7), 3, null, { fmt: 'raw' }));
   if (killroy3 > 0) ch.push(node(label('Killroy', 3), killroy3, null, { fmt: 'raw' }));
+  if (y13capped > 0) ch.push(node('Bubble Y13 (capped 20)', y13capped, null, { fmt: 'raw', note: 'kazam bubble 13' }));
   if (cardLv > 0) ch.push(node('Card w7a11 (capped 10)', cardLv, null, { fmt: 'raw' }));
   if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw', note: 'companion 49' }));
   return { val: val, children: ch };

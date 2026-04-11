@@ -78,6 +78,20 @@ function getPrismaBonusMult() {
 
 export { isBubblePrismad, getPrismaBonusMult };
 
+// Compute the Y13 bubble bonus (CODFREY_RULZ_OK, Kazam index 32) for GalleryBonusMulti.
+// Game: AlchBubbles.Y13 = CauldronStats("BubbleBonus", 3, 32, 0)
+// "Y13" is the effect key (AlchemyDescription[3][32][15]), NOT array index 13.
+export function bubbleBonusY13() {
+  var data = bubbleParams(3, 32);
+  if (!data) return 0;
+  var lv = Number((cauldronInfoData && cauldronInfoData[data.cauldron] && cauldronInfoData[data.cauldron][data.index]) || 0);
+  if (lv <= 0) return 0;
+  var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
+  var isPrisma = isBubblePrismad(data.cauldron, data.index);
+  var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+  return baseVal * prismaMult;
+}
+
 export var alchemy = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
