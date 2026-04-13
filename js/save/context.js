@@ -191,8 +191,8 @@ export function computeShapesOwned(rLv, gl, _saveCtx) {
   return computeShapesOwnedAt(rLv, makeSimCtx(gl, _saveCtx));
 }
 
-export function computeGridPointsAvailable(rLv, gl, spelunkyUpg7, bonusPts) {
-  return Math.max(0, computeGridPointsEarned(rLv, spelunkyUpg7, bonusPts) - computeGridPointsSpent(gl));
+export function computeGridPointsAvailable(rLv, gl, bonusPts) {
+  return Math.max(0, computeGridPointsEarned(rLv, gl[50] || 0, bonusPts) - computeGridPointsSpent(gl));
 }
 
 export function simTotalExp(opts, _saveCtx) {
