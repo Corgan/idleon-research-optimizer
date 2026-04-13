@@ -107,7 +107,7 @@ export default {
     var _cb46 = safe(computeCardBonusByType, 46, ci);
     card46 = 2 + ((typeof _cb46 === 'object' && _cb46) ? (_cb46.val || 0) : Number(_cb46) || 0);
     var guild7 = rval(guild, 7, ctx);
-    var cardSet7 = safe(computeCardSetBonus, '7');
+    var cardSet7 = safe(computeCardSetBonus, ci, '7');
     var talentEnh79 = rval(talent, 79, ctx); // TalentEnh(79) — different from GetTalentNumber
     var sigilBonus16 = safe(sigilBonus, 16);
     var chipSafk = safe(computeChipBonus, 'safk');

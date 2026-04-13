@@ -124,8 +124,8 @@ export function computeCropSC(idx) {
   var exo40 = _safe(exoticBonusQTY40);
   var vub79 = _safe(vaultUpgBonus, 79);
   var multi = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
-  var baseMap = { 4: 15, 8: 10 };
-  var baseVal = baseMap[idx] || 10;
+  var baseMap = { 0: 20, 2: 8, 4: 15, 5: 7, 8: 10 };
+  var baseVal = baseMap[idx] || 0;
   return baseVal * cropCount * multi;
 }
 

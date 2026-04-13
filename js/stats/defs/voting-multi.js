@@ -44,7 +44,7 @@ export default {
     var paletteBonus32 = 0;
     if (paletteLv > 0) {
       var _pp32 = paletteParams(32);
-      var paletteRaw = paletteLv / (paletteLv + _pp32.denom) * _pp32.base;
+      var paletteRaw = paletteLv / (paletteLv + _pp32.denom) * _pp32.coeff;
       var legendMulti = 1 + legendPTSbonus(10) / 100;
       var loreFlag8 = (Number(saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
       var loreMulti = 1 + 0.5 * loreFlag8;

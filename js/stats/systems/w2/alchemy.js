@@ -19,10 +19,7 @@ import { bubbleParams } from '../../data/w2/alchemy.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { AlchemyDescription } from '../../data/game/customlists.js';
 import { mainframeBonus } from '../w4/lab.js';
-
-// Number2Letter: cauldron index → letter used in prisma encoding
-// Game's Number2Letter maps: 0→'_', 1→'a', 2→'b', 3→'c'
-var CAULDRON_LETTER = ['_','a','b','c'];
+import { N2L } from '../../data/common/encoding.js';
 
 // Bubble keys: cauldron/index pairs for named bubble lookups
 var BUBBLE_KEYS = {
@@ -33,7 +30,7 @@ var BUBBLE_KEYS = {
 // Check: does the string contain letter + bubbleIndex + ","
 function isBubblePrismad(cauldron, bubbleIdx) {
   var prismaStr = String(optionsListData && optionsListData[384] || '');
-  var letter = CAULDRON_LETTER[cauldron] || '';
+  var letter = N2L[cauldron] || '';
   return prismaStr.indexOf(letter + Math.round(bubbleIdx) + ',') !== -1;
 }
 
@@ -49,7 +46,7 @@ function getPrismaBonusMult() {
   // PaletteBonus(28): decay formula lv/(lv+25)*base, then ×legendMulti ×loreMulti
   var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
   var pal28 = paletteParams(28);
-  var palRaw = palLv > 0 ? palLv / (palLv + pal28.denom) * pal28.base : 0;
+  var palRaw = palLv > 0 ? palLv / (palLv + pal28.denom) * pal28.coeff : 0;
   var palLegendMulti = 1 + legendPTSbonus(10) / 100;
   var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;
@@ -119,7 +116,7 @@ export var alchemy = {
         : JSON.stringify(cards1).indexOf('Trophy23') >= 0) ? 10 : 0;
       var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
       var _pal28 = paletteParams(28);
-      var palRaw = palLv > 0 ? palLv / (palLv + _pal28.denom) * _pal28.base : 0;
+      var palRaw = palLv > 0 ? palLv / (palLv + _pal28.denom) * _pal28.coeff : 0;
       var palLegendMulti = 1 + legendPTSbonus(10) / 100;
       var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
       var palLoreMulti = 1 + 0.5 * loreFlag8;

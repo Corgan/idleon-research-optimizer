@@ -72,6 +72,12 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
     <select id="char-sel" onchange="switchChar(+this.value)" disabled>
       <option value="-1">-- load save first --</option>
     </select>
+    <label style="margin-left:12px;font-size:.85em;color:var(--text2)">Overkill Tier
+      <input id="overkill-tier" type="number" min="0" max="50" value="0"
+             style="width:50px;margin-left:4px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 4px"
+             onchange="setOverkillTier(+this.value)"
+             title="0 = auto-compute from damage calc">
+    </label>
   </div>
   <div id="import-msg" class="import-msg"></div>
 </details>
@@ -81,6 +87,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   <div class="dr-sub">Total Coin Multiplier (MonsterCash)</div>
   <div class="dr-total" id="dr-total">1.00x</div>
   <div class="dr-sub" id="dr-sub"></div>
+  <div class="dr-sub" id="dr-damage" style="margin-top:4px;font-size:.85em;color:var(--text2)"></div>
 </div>
 
 <!-- Breakdown tree -->
@@ -101,16 +108,33 @@ import { getCatalog } from './js/stats/registry.js';
 import coinMultiDesc from './js/stats/defs/coin-multi.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { ClassNames } from './js/stats/data/game/customlists.js';
-import { fmtVal } from './js/renderers/format.js';
+import { fmtVal, fmtMonsterCash } from './js/renderers/format.js';
+import { computeOverkillTier } from './js/stats/systems/common/overkill.js';
+import damageDesc from './js/stats/defs/damage.js';
 
 var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
+var OVERKILL_TIER = 0; // 0 = auto-compute
 
 function recalc() {
   if (!SAVE_RAW) return;
 
-  var ctx = { charIdx: CUR_CHAR, mapIdx: 0, saveData: saveData };
+  var okTier = OVERKILL_TIER;
+  var okInfo = null;
+  var dmgResult = null;
+  try {
+    dmgResult = damageDesc.combine({}, { charIdx: CUR_CHAR, saveData: saveData });
+  } catch(e) {}
+  if (okTier <= 0) {
+    try {
+      var maxDmg = dmgResult ? dmgResult.val : 0;
+      okInfo = computeOverkillTier(CUR_CHAR, { saveData: saveData }, { maxDmg: maxDmg });
+      okTier = okInfo.tier;
+    } catch(e) { okTier = 1; }
+  }
+
+  var ctx = { charIdx: CUR_CHAR, saveData: saveData, overkillTier: okTier };
   var result;
   try {
     result = coinMultiDesc.combine({}, ctx);
@@ -121,9 +145,31 @@ function recalc() {
     return;
   }
 
-  document.getElementById('dr-total').textContent = fmtVal(result.val || 0) + 'x';
-  document.getElementById('dr-sub').textContent =
-    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
+  document.getElementById('dr-total').textContent = fmtMonsterCash(result.val || 0) + 'x';
+  var subText = 'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
+  if (okInfo) subText += ' | OverkillTier: ' + okInfo.tier + ' (auto, map ' + okInfo.mapIdx + ')';
+  else subText += ' | OverkillTier: ' + okTier + ' (manual)';
+  document.getElementById('dr-sub').textContent = subText;
+
+  // Damage range display
+  var dmgEl = document.getElementById('dr-damage');
+  if (dmgEl) {
+    if (dmgResult && dmgResult.val) {
+      var maxD = dmgResult.val;
+      var mastery = 0;
+      var minD = 0;
+      if (dmgResult.children) {
+        for (var ch of dmgResult.children) {
+          if (ch.name === 'Min Damage') minD = ch.val;
+          if (ch.name && ch.name.indexOf('Mastery') === 0) mastery = ch.val;
+        }
+      }
+      dmgEl.textContent = 'Damage: ' + fmtVal(minD) + ' – ' + fmtVal(maxD)
+        + ' (mastery: ' + (mastery * 100).toFixed(1) + '%)';
+    } else {
+      dmgEl.textContent = '';
+    }
+  }
 
   var renderRoot = toRenderNode({
     name: 'Coin Multiplier',
@@ -168,9 +214,11 @@ function doImport() {
 }
 
 function switchChar(idx) { CUR_CHAR = idx; recalc(); }
+function setOverkillTier(t) { OVERKILL_TIER = Math.max(0, Math.min(50, t || 0)); recalc(); }
 
 window.doImport = doImport;
 window.switchChar = switchChar;
+window.setOverkillTier = setOverkillTier;
 </script>
 </body>
 </html>

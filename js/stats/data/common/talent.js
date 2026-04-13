@@ -34,9 +34,14 @@ for (var _ti = 0; _ti < ClassPromotionChoices.length; _ti++) {
 }
 
 // Generic talent params accessor
-export function talentParams(idx) {
+// tab: 1 (default) reads indices [0,1,2]; tab 2 reads indices [3,4,5]
+export function talentParams(idx, tab) {
   var t = TalentDescriptions[idx]?.[1];
-  return t ? { x1: Number(t[0]), x2: Number(t[1]), formula: t[2] } : null;
+  if (!t) return null;
+  if (tab === 2) {
+    return (t[3] && t[5] && t[5] !== '_') ? { x1: Number(t[3]), x2: Number(t[4]), formula: t[5] } : null;
+  }
+  return { x1: Number(t[0]), x2: Number(t[1]), formula: t[2] };
 }
 
 // Generic family bonus accessor

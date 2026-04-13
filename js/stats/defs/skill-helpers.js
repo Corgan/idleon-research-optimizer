@@ -105,7 +105,7 @@ export function computeAllEfficiencies(ci, ctx) {
   var g4 = 1 + winBonus14 / 100;
 
   var guild6 = rval(guild, 6, ctx);
-  var cardSet2 = safe(computeCardSetBonus, '2');
+  var cardSet2 = safe(computeCardSetBonus, ci, '2');
   var prayer1 = computePrayerReal(1, 0, ci);
   var g5 = 1 + (guild6 + cardSet2 + prayer1) / 100;
 
@@ -153,7 +153,7 @@ export function computeAllSkillxpz(ci, ctx) {
   } catch(e) {}
 
   var bubonicGreen = 0; // lab bonus — runtime context-dependent, not available from save
-  var cardSet3 = safe(computeCardSetBonus, '3');
+  var cardSet3 = safe(computeCardSetBonus, ci, '3');
   var cardW5a4 = 5 * safe(cardLv, 'w5a4');
   var talent35capped = Math.min(150, rval(talent, 35, ctx));
   var shrine5 = safe(computeShrine, 5);

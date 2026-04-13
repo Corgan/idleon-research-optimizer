@@ -4,6 +4,7 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
+import { getLOG } from '../../../formulas.js';
 import { cosmoUpgBase, holesBolaiaPerLv, HOLES_JAR_BONUS_PER_LV,
   holesMeasBase, holesMeasType, holesMonBonus } from '../../data/w5/hole.js';
 import { DN_MOB_DATA } from '../../data/w7/deathNote.js';
@@ -52,7 +53,7 @@ export var holes = {
       // MeasurementMulti for type 10 (HOLES_MEAS_TYPE[15]=10)
       // MeasurementQTYfound(10, 99) = max(0, log10(Holes[11][63]) - 2)
       var raw63 = Number((hd[11] && hd[11][63]) || 0);
-      var qty = raw63 > 1 ? Math.max(0, Math.log(raw63) / 2.30259 - 2) : 0;
+      var qty = raw63 > 1 ? Math.max(0, getLOG(raw63) - 2) : 0;
       var measMulti = qty < 5 ? 1 + 18 * qty / 100 : 1 + (18 * qty + 8 * (qty - 5)) / 100;
 
       var val = baseBonus * measMulti;
@@ -123,7 +124,8 @@ export function cosmoBonus(S, t, i) {
   return Math.floor(base * (Number(S.holesData && S.holesData[4 + t] && S.holesData[4 + t][i]) || 0));
 }
 
-function _computeOverkillQTY() {
+function _computeOverkillQTY(riftLv) {
+  var riftBonus3 = (riftLv || 0) >= 20 ? 1 : 0;
   var total = 0;
   for (var w = 0; w < 7; w++) {
     var mobs = DN_MOB_DATA[w];
@@ -137,19 +139,20 @@ function _computeOverkillQTY() {
         var left = Number(kla && kla[klaIdx] && kla[klaIdx][0]) || 0;
         kills += killReq - left;
       }
-      total += deathNoteRank(Math.max(0, kills), 0);
+      total += deathNoteRank(Math.max(0, kills), 0, riftBonus3 ? riftLv : 0);
     }
   }
   return total;
 }
 
 function _measurementMulti(S, typeIdx) {
+  var riftLv = Number(S.riftData && S.riftData[0]) || 0;
   var qty = 0;
   switch (typeIdx) {
-    case 0: { var raw = Number(S.holesData && S.holesData[11] && S.holesData[11][28]) || 0; qty = raw > 0 ? Math.log(raw) : 0; break; }
+    case 0: { var raw = Number(S.holesData && S.holesData[11] && S.holesData[11][28]) || 0; qty = raw > 0 ? getLOG(raw) : 0; break; }
     case 1: qty = S.farmCropCount / 14; break;
     case 3: qty = S.totalTomePoints / 2500; break;
-    case 6: qty = _computeOverkillQTY() / 125; break;
+    case 6: qty = _computeOverkillQTY(riftLv) / 125; break;
     case 8: qty = (S.cards1Data.length || 0) / 150; break;
     case 9: {
       var sum = 0;
@@ -228,6 +231,7 @@ export function gambitBonus15(S) {
 // ==================== COSMO BONUS (save-based) ====================
 
 import { saveData as _holesSaveData } from '../../../state.js';
+import { HolesInfo } from '../../data/game/customlists.js';
 
 export function computeCosmoBonus(tier, idx) {
   var holesArr = _holesSaveData.holesData && _holesSaveData.holesData[4 + tier];
@@ -236,4 +240,29 @@ export function computeCosmoBonus(tier, idx) {
   if (lv <= 0) return 0;
   var base = cosmoUpgBase(tier, idx);
   return base * lv;
+}
+
+// MonumentROGbonuses(t, i): monument bonus from HolesInfo[37] and Holes[15]
+// Formula: if bonusInfo < 30: level * bonusInfo * max(1, HoleozDN)
+//   else: 0.1 * ceil(level / (250+level) * 10 * bonusInfo * max(1, HoleozDN))
+// HoleozDN (for i != 9) = 1 + MonumentROGbonuses(t, 9)/100 + CosmoBonusQTY(0, 0)/100
+export function computeMonumentROGbonus(t, i) {
+  var holesArr = _holesSaveData.holesData && _holesSaveData.holesData[15];
+  if (!holesArr) return 0;
+  var slot = 10 * t + i;
+  var level = Number(holesArr[slot]) || 0;
+  if (level <= 0) return 0;
+  var bonusInfo = Number(HolesInfo[37] && HolesInfo[37][slot]) || 0;
+  if (bonusInfo <= 0) return 0;
+
+  var holeozDN = 1;
+  if (i !== 9) {
+    holeozDN = 1 + computeMonumentROGbonus(t, 9) / 100 + computeCosmoBonus(0, 0) / 100;
+  }
+
+  if (bonusInfo < 30) {
+    return level * bonusInfo * Math.max(1, holeozDN);
+  } else {
+    return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN));
+  }
 }

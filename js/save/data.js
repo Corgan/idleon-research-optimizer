@@ -31,6 +31,7 @@ export let obolNamesData = [];
 export let obolMapsData = [];
 export let obolFamilyNames = [];
 export let obolFamilyMaps = {};
+export let buffsActiveData = [];
 export let loadedSaveFormat = '';
 export let saveGlobalTime = 0;
 export let cachedAFKRate = null;
@@ -64,6 +65,7 @@ export function assignSaveData(u) {
   if ('obolMapsData' in u) obolMapsData = u.obolMapsData;
   if ('obolFamilyNames' in u) obolFamilyNames = u.obolFamilyNames;
   if ('obolFamilyMaps' in u) obolFamilyMaps = u.obolFamilyMaps;
+  if ('buffsActiveData' in u) buffsActiveData = u.buffsActiveData;
   if ('loadedSaveFormat' in u) loadedSaveFormat = u.loadedSaveFormat;
   if ('saveGlobalTime' in u) saveGlobalTime = u.saveGlobalTime;
   if ('cachedAFKRate' in u) cachedAFKRate = u.cachedAFKRate;

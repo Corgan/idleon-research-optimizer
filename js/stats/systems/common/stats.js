@@ -11,6 +11,7 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
+import { getLOG } from '../../../formulas.js';
 import { saveData } from '../../../state.js';
 import {
   equipOrderData,
@@ -27,6 +28,7 @@ import {
   numCharacters,
   charClassData,
   cardEquipData,
+  buffsActiveData,
 } from '../../../save/data.js';
 import { ITEMS } from '../../data/game/items.js';
 import { formulaEval } from '../../../formulas.js';
@@ -49,7 +51,7 @@ import { computeSeraphMulti } from './starSign.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { achieveStatus } from './achievement.js';
 import { computeWinBonus } from '../w6/summoning.js';
-import { mainframeBonus } from '../w4/lab.js';
+import { mainframeBonus, charHasChip } from '../w4/lab.js';
 import { goldFoodBonuses, votingBonusz, vaultUpgBonus, pristineBon } from './goldenFood.js';
 import { isExalted, computeStampDoublerSources } from '../w1/stamp.js';
 import { artifactBase } from '../../data/w5/sailing.js';
@@ -229,21 +231,21 @@ export function computeCardBonusByType(typeId, charIdx) {
   var legend21 = legendPTSbonus(21);
   var legendMulti = 1 + legend21 / 100;
   var equipped = cardEquipData[charIdx] || [];
-  var equippedSet = {};
-  for (var ei = 0; ei < equipped.length; ei++) {
-    if (equipped[ei] && equipped[ei] !== 'B') equippedSet[equipped[ei]] = true;
-  }
   var total = 0;
   var children = [];
-  for (var cardKey in equippedSet) {
+  for (var i = 0; i < equipped.length; i++) {
+    var cardKey = equipped[i];
+    if (!cardKey || cardKey === 'B') continue;
     var cb = CARD_BONUS[cardKey];
     if (!cb || cb.desc !== targetDesc) continue;
     var lv = computeCardLv(cardKey);
     if (lv <= 0) continue;
-    var contrib = lv * cb.val * legendMulti;
+    var chipDouble = (i === 0 && charHasChip(charIdx, 'card1'))
+                   || (i === 7 && charHasChip(charIdx, 'card2')) ? 2 : 1;
+    var contrib = chipDouble * lv * cb.val * legendMulti;
     total += contrib;
     children.push(node(cardKey + ' Lv' + lv, contrib, null,
-      { fmt: 'raw', note: 'per-star=' + cb.val }));
+      { fmt: 'raw', note: 'per-star=' + cb.val + (chipDouble > 1 ? ' ×2chip' : '') }));
   }
   return { val: total, children: children };
 }
@@ -328,7 +330,7 @@ function computeEquipBaseStat(charIdx, statName) {
 }
 
 // ==================== GALLERY BASE STAT ====================
-function computeGalleryBaseStat(charIdx, ctx, statName) {
+export function computeGalleryBaseStat(charIdx, ctx, statName) {
   var total = 0;
   var children = [];
   var sp = saveData.spelunkData || [];
@@ -404,7 +406,7 @@ function computeGalleryBaseStat(charIdx, ctx, statName) {
 }
 
 // ==================== OBOL BASE STAT ====================
-function computeObolBaseStat(charIdx, statName) {
+export function computeObolBaseStat(charIdx, statName) {
   var total = 0;
   var children = [];
   var pNames = obolNamesData && obolNamesData[charIdx];
@@ -652,21 +654,20 @@ function returnClasses(classId) {
   return chain;
 }
 
-function computeFamBonusQTYs(activeCharIdx) {
+export function computeFamBonusQTYs(activeCharIdx) {
   // Game: for each player, for each class in ReturnClasses(playerClass),
   // compute FamilyBonsuesREAL and keep max per key.
   // Talent 144 multiplier: if the active character sets the max for a key,
   // that entry is multiplied by (1 + GetTalentNumber(1, 144) / 100).
   // Keys "24" and "44" use getbonus2(1, 144, -1) for ALL characters.
-  var tal144val = 0;
+  //
+  // Game computes GetTalentNumber(1, 144) lazily inside the iteration,
+  // reading DNSM.FamBonusQTYs.h[68] from the partially-built map.
+  // We replicate this by passing the partial result map to computeAllTalentLVz.
+  var rawLv144 = 0;
   if (activeCharIdx >= 0) {
     var sl144 = skillLvData[activeCharIdx] || {};
-    var rawLv144 = Number(sl144[144] || sl144['144']) || 0;
-    if (rawLv144 > 0) {
-      var bonus144 = computeAllTalentLVz(144, activeCharIdx);
-      var t144 = talentParams(144);
-      tal144val = formulaEval(t144.formula, t144.x1, t144.x2, rawLv144 + bonus144);
-    }
+    rawLv144 = Number(sl144[144] || sl144['144']) || 0;
   }
   var result = {};
   for (var ci = 0; ci < numCharacters; ci++) {
@@ -692,7 +693,12 @@ function computeFamBonusQTYs(activeCharIdx) {
         var key = Math.round(2 * clsIdx + type);
         if (!result[key] || bonus > result[key]) {
           result[key] = bonus;
-          if (tal144val > 0 && ci === activeCharIdx) {
+          if (rawLv144 > 0 && ci === activeCharIdx) {
+            // Compute tal144val lazily, reading FamBonusQTYs[68] from the
+            // partially-built map to match the game's AllTalentLVz behavior.
+            var bonus144 = computeAllTalentLVz(144, activeCharIdx, { partialFamBonusMap: result });
+            var t144 = talentParams(144);
+            var tal144val = formulaEval(t144.formula, t144.x1, t144.x2, rawLv144 + bonus144);
             result[key] = bonus * (1 + tal144val / 100);
           }
         }
@@ -805,7 +811,7 @@ function computeAllStatPCT(charIdx, ctx) {
 
   // 11. min(15, getLOG(OLA[172]) * GetTalentNumber(1, 653))
   var ola172 = Number((optionsListData && optionsListData[172]) || 0);
-  var logOla172 = ola172 > 0 ? Math.log(ola172) / 2.30259 : 0;
+  var logOla172 = ola172 > 0 ? getLOG(ola172) : 0;
   var tal653node = talentResolver.resolve(653, ctx);
   var tal653eff = tal653node.val;
   var tal653val = Math.min(15, logOla172 * tal653eff);
@@ -946,6 +952,8 @@ export function computeTotalStat(statName, charIdx, ctx) {
   if (cfg.pctBubble) pctChildren.push(node('AlchBubble ' + cfg.pctBubble, pctBubbleVal, null, { fmt: 'raw' }));
 
   // ==================== FLAT BASE POOL ====================
+  // Game grouping: (flatTalent + guildTalent + stampBase + [boxBase] + etcFlat + [shimmer])
+  // LUK includes boxRewardsBase and shimmer in flatBase; other stats don't.
   var flatTalentVal = talentResolver.resolve(cfg.flatTalent, ctx).val;
   addComputed(flatTalentVal);
 
@@ -964,13 +972,13 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var etcFlat = etcBonusResolver.resolve(cfg.etcFlat, ctx).val;
   addComputed(etcFlat);
 
-  // OLA[shimmer] * DreamShimmer
+  // OLA[shimmer] * DreamShimmer — LUK includes this in flatBase; others put it in flatAdd
   var olaVal = Number(optionsListData && optionsListData[cfg.olaShimmer]) || 0;
   var dreamShimmer = computeDreamShimmer();
   var shimmerVal = olaVal * dreamShimmer;
   addComputed(shimmerVal);
 
-  // Extra stat-specific talents (STR:[98,203], AGI:[278,428], WIS:[459]; LUK:none)
+  // Extra stat-specific talents (STR:[98,203], AGI:[278,428], WIS:[459,593]; LUK:none)
   var extraTalentSum = 0;
   var extraTalentCh = [];
   if (cfg.extraTalents) {
@@ -982,26 +990,46 @@ export function computeTotalStat(statName, charIdx, ctx) {
     }
   }
   if (cfg.extraTab2Talent) {
-    var et2v = talentResolver.resolve(cfg.extraTab2Talent, ctx).val;
+    var et2v = talentResolver.resolve(cfg.extraTab2Talent, ctx, { tab: 2 }).val;
     extraTalentSum += et2v;
     addComputed(et2v);
     extraTalentCh.push(node('Tab2 Talent ' + cfg.extraTab2Talent, et2v, null, { fmt: 'raw' }));
   }
 
-  var flatBaseSum = flatTalentVal + guildVal + stampBase.val + boxBase.val + etcFlat + shimmerVal + extraTalentSum;
+  // GetBuffBonuses (STR only: buff 94)
+  var buffVal = 0;
+  if (cfg.buffBonus) {
+    var buffId = cfg.buffBonus[0], buffTab = cfg.buffBonus[1];
+    var charBuffs = buffsActiveData[charIdx] || [];
+    var buffActive = false;
+    for (var bi = 0; bi < charBuffs.length; bi++) {
+      if (Number(charBuffs[bi][0] || charBuffs[bi]['0']) === buffId) { buffActive = true; break; }
+    }
+    if (buffActive) {
+      buffVal = talentResolver.resolve(buffId, ctx, { tab: buffTab }).val;
+    }
+  }
+
+  // Game flatBase = tal + guild + stampBase + etcFlat
+  //   + (LUK only: boxBase + shimmer)
+  var flatBaseSum = flatTalentVal + guildVal + stampBase.val + etcFlat;
+  if (statName === 'LUK') flatBaseSum += boxBase.val + shimmerVal;
 
   var flatBaseChildren = [
     node('Talent ' + cfg.flatTalent, flatTalentVal, null, { fmt: 'raw' }),
     node('Guild (max tal ' + cfg.guildTalent + ')', guildVal, null, { fmt: 'raw' }),
     node('Stamp ' + cfg.stampBaseType, stampBase.val, stampBase.children, { fmt: 'raw' }),
-    node('BoxRewards[' + cfg.boxRewardsBase + ']', boxBase.val, boxBase.children, { fmt: 'raw' }),
     node('EtcBonuses(' + cfg.etcFlat + ') _' + statName, etcFlat, null, { fmt: 'raw' }),
-    node('OLA[' + cfg.olaShimmer + ']*Shimmer', shimmerVal, [
-      node('OLA Count', olaVal, null, { fmt: 'raw' }),
-      node('DreamShimmer', dreamShimmer, null, { fmt: 'x' }),
-    ], { fmt: 'raw' }),
   ];
-  if (extraTalentCh.length) flatBaseChildren.push(node('Extra Talents', extraTalentSum, extraTalentCh, { fmt: 'raw' }));
+  if (statName === 'LUK') {
+    flatBaseChildren.push(
+      node('BoxRewards[' + cfg.boxRewardsBase + ']', boxBase.val, boxBase.children, { fmt: 'raw' }),
+      node('OLA[' + cfg.olaShimmer + ']*Shimmer', shimmerVal, [
+        node('OLA Count', olaVal, null, { fmt: 'raw' }),
+        node('DreamShimmer', dreamShimmer, null, { fmt: 'x' }),
+      ], { fmt: 'raw' })
+    );
+  }
 
   // ==================== FLAT ADD POOL ====================
   // BoxRewards stat (e.g. "LUK" from Non_Predatory_Loot_Box)
@@ -1087,11 +1115,22 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var owlVal = owlResolver.resolve(5, ctx).val;
   addComputed(owlVal);
 
-  var flatAddSum = boxStat.val + famBonus + starSignFlat + questsTal618
+  var flatAddSum = extraTalentSum + buffVal + shimmerVal + boxStat.val + famBonus + starSignFlat + questsTal618
     + tal620raw + cardResult.val + flatTal2Val + stampBaseAllStat.val + allStat
     + sigilVal + a4Val + shinyVal + arcadeVal + owlVal;
+  // LUK already counted boxBase and shimmer in flatBase
+  if (statName === 'LUK') flatAddSum -= shimmerVal;
 
-  var flatAddChildren = [
+  var flatAddChildren = [];
+  if (extraTalentCh.length) flatAddChildren.push(node('Extra Talents', extraTalentSum, extraTalentCh, { fmt: 'raw' }));
+  if (buffVal > 0) flatAddChildren.push(node('Buff Bonus', buffVal, null, { fmt: 'raw' }));
+  if (statName !== 'LUK') {
+    flatAddChildren.push(node('OLA[' + cfg.olaShimmer + ']*Shimmer', shimmerVal, [
+      node('OLA Count', olaVal, null, { fmt: 'raw' }),
+      node('DreamShimmer', dreamShimmer, null, { fmt: 'x' }),
+    ], { fmt: 'raw' }));
+  }
+  flatAddChildren.push(
     node('BoxRewards[' + cfg.boxRewardsStat + ']', boxStat.val, boxStat.children, { fmt: 'raw' }),
     node('FamBonusQTYs[' + cfg.famBonusIdx + ']', famBonus, null, { fmt: 'raw' }),
     node('StarSigns.' + statName, starSignFlat, signBonuses.flat.children.length ? [
@@ -1103,8 +1142,8 @@ export function computeTotalStat(statName, charIdx, ctx) {
       node(label('Talent', 618, ' Eff'), questsTal618, null, { fmt: 'raw' }),
     ] : null, { fmt: 'raw' }),
     node('TalentCalc(620)', tal620raw, null, { fmt: 'raw', note: 'min(eff' + tal620eff + ', maxLv/10)' }),
-    node('CardBonusREAL(' + cfg.cardType + ')', cardResult.val, cardResult.children, { fmt: 'raw' }),
-  ];
+    node('CardBonusREAL(' + cfg.cardType + ')', cardResult.val, cardResult.children, { fmt: 'raw' })
+  );
   if (cfg.flatTalent2) flatAddChildren.push(node('Talent ' + cfg.flatTalent2, flatTal2Val, null, { fmt: 'raw' }));
   flatAddChildren.push(
     node('Stamp BaseAllStat', stampBaseAllStat.val, stampBaseAllStat.children, { fmt: 'raw' }),
@@ -1206,23 +1245,28 @@ function _safe(fn) {
   } catch(e) { return 0; }
 }
 
-export function computeStatueBonusGiven(idx) {
+export function computeStatueBonusGiven(idx, charIdx) {
   var s = saveData;
   var statueLv = Number(s.statueData && s.statueData[idx]) || 0;
   if (statueLv <= 0) return 0;
   var baseBonus = Number(StatueInfo[idx] && StatueInfo[idx][3]) || 1;
   var val = statueLv * baseBonus;
+  var _dbg = false;
+  if (_dbg) console.log('[statue'+idx+'] base:', val.toFixed(2));
+  // Game uses GetTalentNumber(1, X) = current character's talent, NOT max scan
+  var _ci = charIdx != null ? charIdx : 0;
+  var _ctx = { saveData: s, charIdx: _ci };
   if (idx === 0 || idx === 2 || idx === 8 || idx === 7) {
-    if (idx !== 7) val *= Math.max(1, 1 + _rval(talentResolver, 112, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
-    if (idx !== 8) val *= Math.max(1, 1 + _rval(talentResolver, 127, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 7) val *= Math.max(1, 1 + _rval(talentResolver, 112, _ctx) / 100);
+    if (idx !== 8) val *= Math.max(1, 1 + _rval(talentResolver, 127, _ctx) / 100);
   } else if (idx === 1 || idx === 11 || idx === 9 || idx === 14) {
-    if (idx !== 14) val *= Math.max(1, 1 + _rval(talentResolver, 292, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
-    if (idx !== 9) val *= Math.max(1, 1 + _rval(talentResolver, 307, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 14) val *= Math.max(1, 1 + _rval(talentResolver, 292, _ctx) / 100);
+    if (idx !== 9) val *= Math.max(1, 1 + _rval(talentResolver, 307, _ctx) / 100);
   } else if (idx === 10 || idx === 6 || idx === 12 || idx === 13) {
-    if (idx !== 13) val *= Math.max(1, 1 + _rval(talentResolver, 487, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
-    if (idx !== 12) val *= Math.max(1, 1 + _rval(talentResolver, 472, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    if (idx !== 13) val *= Math.max(1, 1 + _rval(talentResolver, 487, _ctx) / 100);
+    if (idx !== 12) val *= Math.max(1, 1 + _rval(talentResolver, 472, _ctx) / 100);
   } else if (idx === 3 || idx === 5 || idx === 17) {
-    val *= Math.max(1, 1 + _rval(talentResolver, 37, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
+    val *= Math.max(1, 1 + _rval(talentResolver, 37, _ctx) / 100);
   }
   var statueG = Number(s.statueGData && s.statueGData[idx]) || 0;
   if (statueG >= 2) {
@@ -1239,11 +1283,16 @@ export function computeStatueBonusGiven(idx) {
     val *= Math.max(1, 1 + _safe(vaultUpgBonus, 25) / 100);
   }
   if (idx !== 29) {
-    val *= Math.max(1, 1 + computeStatueBonusGiven(29) / 100);
+    val *= Math.max(1, 1 + computeStatueBonusGiven(29, charIdx) / 100);
   }
-  val *= (1 + 0.3 * eventShopOwned(19, s.cachedEventShopStr));
-  val *= Math.max(1, 1 + _rval(talentResolver, 56, { saveData: s, charIdx: 0 }, { mode: 'max' }) / 100);
-  val *= (1 + _safe(computeMeritocBonusz, 26) / 100);
+  var _evShop = eventShopOwned(19, s.cachedEventShopStr);
+  var _t56 = _rval(talentResolver, 56, { saveData: s, charIdx: charIdx != null ? charIdx : 0 }, { mode: 'max' });
+  var _m26 = _safe(computeMeritocBonusz, 26);
+  if (_dbg) console.log('[statue'+idx+'] before finals:', val.toFixed(2), 'evShop:', _evShop, 't56:', _t56, 'm26:', _m26);
+  val *= (1 + 0.3 * _evShop);
+  val *= Math.max(1, 1 + _t56 / 100);
+  val *= (1 + _m26 / 100);
+  if (_dbg) console.log('[statue'+idx+'] final:', val.toFixed(2));
   return val;
 }
 

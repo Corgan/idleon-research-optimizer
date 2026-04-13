@@ -15,7 +15,9 @@ export var tome = {
     var saveData = ctx.saveData;
 
     var unlocked;
-    if (data.unlockType === 'eventShop') {
+    if (data.unlockType === 'always') {
+      unlocked = true;
+    } else if (data.unlockType === 'eventShop') {
       var evStr = saveData.cachedEventShopStr || '';
       unlocked = eventShopOwned(data.unlockIdx, evStr) >= 1;
     } else {

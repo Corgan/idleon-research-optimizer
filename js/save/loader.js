@@ -62,6 +62,8 @@ export function loadSaveData(raw) {
   assignState({ arcaneData: parseSaveKey(save, 'Arcane') || [] });
   assignState({ sushiData: parseSaveKey(save, 'Sushi') || [] });
   assignState({ dungUpgData: parseSaveKey(save, 'DungUpg') || [] });
+  assignState({ cogOrderData: parseSaveKey(save, 'CogO') || [] });
+  assignState({ cogMapData: parseSaveKey(save, 'CogM') || {} });
 
   // Tome score computation — additional save fields
   assignState({ weeklyBossData: parseSaveKey(save, 'WeeklyBoss') || {} });
@@ -110,6 +112,7 @@ export function loadSaveData(raw) {
   assignState({ guildData: parseSaveKey(save, 'Guild') || [] });
   assignState({ prayOwnedData: parseSaveKey(save, 'PrayOwned') || [] });
   assignState({ shrineData: parseSaveKey(save, 'Shrine') || [] });
+  assignState({ saltLickData: parseSaveKey(save, 'SaltLick') || [] });
   assignState({ bundlesData: parseSaveKey(save, 'BundlesReceived') || {} });
   assignState({ farmRankData: parseSaveKey(save, 'FarmRank') || {} });
   assignState({ forgeLvData: parseSaveKey(save, 'ForgeLV') || [] });
@@ -187,19 +190,21 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
   // Per-character prayers, post office, card equip, currentMap
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [];
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], buffsActive = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
     cardEquip.push(parseSaveKey(save, 'CardEquip_' + ci) || []);
     csetEq.push(parseSaveKey(save, 'CSetEq_' + ci) || {});
     currentMapData.push(Number(parseSaveKey(save, 'CurrentMap_' + ci)) || 0);
+    buffsActive.push(parseSaveKey(save, 'BuffsActive_' + ci) || []);
   }
   assignSaveData({ prayersPerCharData: prayersPerChar });
   assignSaveData({ postOfficeData: postOffice });
   assignSaveData({ cardEquipData: cardEquip });
   assignSaveData({ csetEqData: csetEq });
   assignSaveData({ currentMapData: currentMapData });
+  assignSaveData({ buffsActiveData: buffsActive });
 
   // MapBon — account-wide per-map kill counts (arcane map bonus)
   const mapBonRaw = parseSaveKey(save, 'MapBon');

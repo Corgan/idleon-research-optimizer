@@ -6,6 +6,7 @@ import { divinityData, optionsListData, numCharacters, cauldronInfoData, cauldro
 import { godsType } from '../../data/w4/gods.js';
 import { GodsInfo } from '../../data/game/customlists.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
+import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
 import { formulaEval } from '../../../formulas.js';
 
 export function hasBonusMajor(playerIdx, godType) {
@@ -43,30 +44,44 @@ export function computeDivinityMinor(ci, style) {
     if (GodsInfo[g] && Number(GodsInfo[g][13]) === style) { targetGod = g; break; }
   }
   if (targetGod < 0) return 0;
-  var godBase = Number(GodsInfo[targetGod][3]) || 0;
+  // Game uses double-indexed base: GodsInfo[GodsInfo[godIdx][13]][3]
+  function godBaseForIdx(godIdx) {
+    var st = Number(GodsInfo[godIdx] && GodsInfo[godIdx][13]);
+    return Number(GodsInfo[st] && GodsInfo[st][3]) || 0;
+  }
   var _y2bp = bubbleParams(3, 21);
   var y2Lv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
-  var y2Value = (y2Lv > 0 && _y2bp) ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2Lv) : 0;
+  var y2Raw = (y2Lv > 0 && _y2bp) ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2Lv) : 0;
+  var y2Prisma = isBubblePrismad(3, 21) ? Math.max(1, getPrismaBonusMult()) : 1;
+  var y2Value = y2Raw * y2Prisma;
   var allBub = s.companionIds && s.companionIds.has(4);
-  var coralKid3 = Number(optionsListData && optionsListData[430]) || 0;
+  var coralKid3 = Math.round(Number(optionsListData && optionsListData[430]) || 0);
+
+  function divMinorBonus(charIdx, godIdx) {
+    var divLv = Number(s.lv0AllData && s.lv0AllData[charIdx] && s.lv0AllData[charIdx][14]) || 0;
+    if (divLv <= 0) return 0;
+    var y2Active = (allBub || (cauldronBubblesData && (cauldronBubblesData[charIdx] || []).includes('d21'))) ? y2Value : 0;
+    return Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBaseForIdx(godIdx);
+  }
 
   if (style === 3 || style === 5) {
     var total = 0;
     for (var c = 0; c < numCharacters; c++) {
-      var divLv = Number(s.lv0AllData && s.lv0AllData[c] && s.lv0AllData[c][14]) || 0;
-      if (divLv <= 0) continue;
-      var y2Active = (allBub || (cauldronBubblesData && (cauldronBubblesData[c] || []).includes('d21'))) ? y2Value : 0;
-      total += Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBase;
+      total += divMinorBonus(c, targetGod);
     }
     return total;
   }
   if (ci < 0) return 0;
-  var divLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][14]) || 0;
-  if (divLv <= 0) return 0;
+  // Universal condition: Companion(0) active → all gods' minor bonuses available
+  var hasUniversal = s.companionIds && s.companionIds.has(0);
+  if (hasUniversal) {
+    return divMinorBonus(ci, targetGod);
+  }
   var linkedGod = Number(divinityData && divinityData[ci]) || -1;
-  if (linkedGod !== targetGod) return 0;
-  var y2Active = (allBub || (cauldronBubblesData && (cauldronBubblesData[ci] || []).includes('d21'))) ? y2Value : 0;
-  return Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBase;
+  if (linkedGod < 0) return 0;
+  var linkedStyle = Number(GodsInfo[linkedGod] && GodsInfo[linkedGod][13]);
+  if (linkedStyle !== style) return 0;
+  return divMinorBonus(ci, linkedGod);
 }
 
 // ==================== DIVINITY MAJOR ====================
@@ -87,8 +102,20 @@ export function computeDivinityMajor(ci, style) {
 
 // ==================== DIVINITY BLESS ====================
 
+// Game's Number2Letter alphabet for EmporiumBonus checks
+var N2L = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+
 export function computeDivinityBless(blessIdx) {
-  var blessLv = Number(divinityData && divinityData[20 + blessIdx]) || 0;
+  var blessLv = Number(divinityData && divinityData[28 + blessIdx]) || 0;
   if (blessLv <= 0) return 0;
-  return blessLv;
+  var basePerLv = Number(GodsInfo[blessIdx] && GodsInfo[blessIdx][14]) || 0;
+  if (basePerLv <= 0) basePerLv = 1;
+  // Emporium scaling: 1 + 0.05 * EmporiumBonus(33) * max(0, Divinity[25] - 10)
+  // Game: EmporiumBonus(t) = Ninja[102][9].indexOf(Number2Letter[t]) != -1 ? 1 : 0
+  var div25 = Number(divinityData && divinityData[25]) || 0;
+  var ninjaData = saveData.ninjaData || [];
+  var empStr = String(ninjaData[102] && ninjaData[102][9] || '');
+  var emp33 = (N2L[33] && empStr.indexOf(N2L[33]) !== -1) ? 1 : 0;
+  var empScale = 1 + 0.05 * emp33 * Math.max(0, div25 - 10);
+  return blessLv * basePerLv * empScale;
 }

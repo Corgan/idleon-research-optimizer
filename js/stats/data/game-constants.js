@@ -27,7 +27,10 @@ export var VAULT_NO_MASTERY = new Set([32, 1, 6, 7, 8, 9, 13, 999, 33, 36, 40, 4
 // Tome bonus formula parameters per tome index (TomeBonus function)
 // Game: each tome has unique hardcoded base/threshold/divisor/exp
 export var TOME_DATA = {
+  0: { unlockType: 'always', unlockIdx: 0, threshold: 0, divisor: 100, base: 10, exp: 0.7 },
+  1: { unlockType: 'ola', unlockIdx: 196, threshold: 4000, divisor: 100, base: 4, exp: 0.7 },
   2: { unlockType: 'ola', unlockIdx: 197, threshold: 8000, divisor: 100, base: 2, exp: 0.7 },
+  6: { unlockType: 'eventShop', unlockIdx: 0, threshold: 0, divisor: 1000, base: 4, exp: 0.4 },
   7: { unlockType: 'eventShop', unlockIdx: 27, threshold: 0, divisor: 1000, base: 3, exp: 0.3 },
 };
 

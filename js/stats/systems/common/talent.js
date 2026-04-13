@@ -62,10 +62,17 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
   // Game iterates family bonuses in index order: bonus 33 (→key 66) before bonus 34 (→key 68).
   // When computing bonus 66, the game reads DNSM.FamBonusQTYs[68] which is still 0.
   // opts.skipFamBonus68 replicates this ordering dependency.
+  // opts.partialFamBonusMap: when computing ATL during FamBonusQTYs iteration, the game reads
+  // FamBonusQTYs[68] from the partially-built map (which may be 0 if class-34 chars haven't
+  // been processed yet). Pass the current result map to replicate this behavior.
   // Game also applies talent 144 multiplier to FamBonusQTYs when the active character provides
   // the max contribution: FamBonusQTYs[key] = raw * (1 + GetTalentNumber(1,144) / 100).
   var famBonus68 = 0;
-  if (!(opts && opts.skipFamBonus68)) {
+  if (opts && opts.partialFamBonusMap !== undefined) {
+    // During FamBonusQTYs computation: read from the partially-built map,
+    // matching the game's AllTalentLVz reading DNSM.FamBonusQTYs.h[68]
+    famBonus68 = Number(opts.partialFamBonusMap[68]) || 0;
+  } else if (!(opts && opts.skipFamBonus68)) {
     var _fb34 = familyBonusParams(34);
     var maxMageCharLv = 0;
     var maxMageCharIdx = -1;
@@ -139,8 +146,9 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts) {
 
 // Dynamic talent data lookup from TalentDescriptions game data.
 // No more cherry-picking — any talent index works.
-function getTalentData(id) {
-  var p = talentParams(id);
+// tab: 1 (default) or 2 — selects which formula set to use.
+function getTalentData(id, tab) {
+  var p = talentParams(id, tab);
   if (!p || !p.formula || p.formula === 'txt' || p.formula === '_') return null;
   var name = entityName('Talent', id) || ('Talent ' + id);
   return { x1: p.x1, x2: p.x2, formula: p.formula, name: name };
@@ -345,7 +353,8 @@ export function maxTalentBonus(talentIdx, activeCharIdx) {
 
 export var talent = {
   resolve: function(id, ctx, args) {
-    var data = getTalentData(id);
+    var tab = args && args.tab;
+    var data = getTalentData(id, tab);
     if (!data) return node(label('Talent', id), 0, null, { note: 'talent ' + id + ' no data' });
     var name = label('Talent', id);
 

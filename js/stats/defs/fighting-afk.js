@@ -119,7 +119,7 @@ export default {
     var talent88 = rval(talent, 88, ctx);
     var bribe3 = safe(getBribeBonus, 3);
     var talent268 = rval(talent, 268, ctx);
-    var cardSet10 = safe(computeCardSetBonus, '10');
+    var cardSet10 = safe(computeCardSetBonus, ci, '10');
     var talent448 = rval(talent, 448, ctx);
     var talent621 = rval(talent, 621, ctx);
     var _cb43 = safe(computeCardBonusByType, 43, ci);

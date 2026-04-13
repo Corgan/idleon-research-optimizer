@@ -52,6 +52,16 @@ export function computeVaultKillzTotal(idx) {
     }
   }
   result.push(totalBubbles);
+  // Indices 10-11: map 101 kills (same pattern as indices 0-3/4-7)
+  var map101Kills = 0;
+  for (var ci2 = 0; ci2 < numCharacters; ci2++) {
+    var kla2 = klaData && klaData[ci2];
+    if (!kla2 || !kla2[101]) continue;
+    var kl101 = Number(Array.isArray(kla2[101]) ? kla2[101][0] : kla2[101]) || 0;
+    map101Kills += Math.max(0, -kl101);
+  }
+  result.push(map101Kills);
+  result.push(map101Kills < 10 ? 0 : Math.floor(getLOG(map101Kills)));
   _cache = result;
   return result[idx] || 0;
 }

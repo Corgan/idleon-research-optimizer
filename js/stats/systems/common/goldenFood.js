@@ -91,6 +91,18 @@ export function vaultUpgBonus(idx) {
   var perLv = vaultUpgPerLevel(idx);
   if (perLv == null) return 0;
   var base = level * perLv;
+  // Index 0: breakpoint bonuses added before mastery
+  if (idx === 0) {
+    base += Math.max(0, level - 25) + Math.max(0, level - 50) + Math.max(0, level - 100);
+  }
+  // Index 60: extended breakpoints + extra scaling
+  if (idx === 60) {
+    base += Math.max(0, level - 25) + Math.max(0, level - 50)
+      + 2 * Math.max(0, level - 100) + 3 * Math.max(0, level - 200)
+      + 5 * Math.max(0, level - 300) + 7 * Math.max(0, level - 400)
+      + 10 * Math.max(0, level - 450);
+    base *= 1 + Math.floor(level / 25) / 5;
+  }
   // Mastery multiplier for non-whitelist indices
   if (!VAULT_NO_MASTERY.has(idx)) {
     var masteryLv = 0;

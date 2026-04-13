@@ -120,6 +120,8 @@ export const saveData = {
   divinityAllData: [],
   labChipData: [],
   saltLickData: [],
+  cogOrderData: [],
+  cogMapData: {},
   shapeTiers: { above: [], below: [] },
   _covLUTCache: null,
   _covLUTCacheN: -1,

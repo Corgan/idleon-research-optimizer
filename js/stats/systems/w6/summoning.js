@@ -6,6 +6,7 @@ import { label } from '../../entity-names.js';
 import { saveData } from '../../../state.js';
 import { artifactBase } from '../../data/w5/sailing.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
+import { SummonUPG } from '../../data/game/customlists.js';
 import {
   SUMMON_ENDLESS_TYPE,
   SUMMON_ENDLESS_VAL,
@@ -34,7 +35,7 @@ export function computeSummWinBonus() {
   return bonus;
 }
 
-export function computeWinBonus(idx) {
+export function computeWinBonus(idx, opts) {
   var swb = computeSummWinBonus();
   if (idx === 20 || idx === 22 || idx === 24 || idx === 31) return swb[idx] || 0;
   var raw = swb[idx] || 0;
@@ -42,7 +43,7 @@ export function computeWinBonus(idx) {
   var pristine8 = (saveData.ninjaData && saveData.ninjaData[107] && saveData.ninjaData[107][8] === 1) ? 30 : 0;
   var gemItems11 = Number(saveData.gemItemsData[11]) || 0;
   var artRarity = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][32]) || 0;
-  var artBonus32 = artRarity > 0 ? artifactBase(32) * artRarity : 0;
+  var artBonus32 = (opts && opts.noArt32) ? 0 : (artRarity > 0 ? artifactBase(32) * artRarity : 0);
   var taskVal = Math.min(10, Number(saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][5] && saveData.tasksGlobalData[2][5][4]) || 0);
   var wb31 = swb[31] || 0;
   var empBon8 = computeEmperorBon(8);
@@ -64,6 +65,40 @@ export function computeWinBonus(idx) {
     * (1 + pristine8 / 100)
     * (1 + 10 * gemItems11 / 100)
     * (1 + (artBonus32 + taskVal + achieveStatus(379) + achieveStatus(373) + wb31 + empBon8 + godshardSet) / 100);
+}
+
+export function computeSummUpgBonus(t) {
+  // Game: SummUpgBonus(t) = SumUpgMoltoz * Summon[0][t] * SummonUPG[t][6]
+  var s = saveData;
+  var level = Number(s.summonData && s.summonData[0] && s.summonData[0][t]) || 0;
+  if (level <= 0) return 0;
+  var perLv = Number(SummonUPG[t] && SummonUPG[t][6]) || 0;
+  if (perLv <= 0) return 0;
+  // SumUpgMoltoz: default 1, boosted if gilded (Holes[28])
+  var moltoz = 1;
+  var gilded = s.holesData && s.holesData[28];
+  if (gilded && gilded.indexOf(t) !== -1) {
+    moltoz = 2; // simplified: 2 + ( max(0, getbonus2(1,597,-1)/100 - 1) + SummUpgBonus(78)/100 )
+    // Full formula: 2 + max(0, talent597_max/100 - 1) + SummUpgBonus(78)/100
+    // For accuracy, add recursive SummUpgBonus(78):
+    var bonus78 = 0;
+    if (t !== 78) {
+      var lv78 = Number(s.summonData[0][78]) || 0;
+      var pLv78 = Number(SummonUPG[78] && SummonUPG[78][6]) || 0;
+      bonus78 = lv78 * pLv78; // base without moltoz
+    }
+    moltoz += bonus78 / 100;
+    // talent 597 contribution — skip for now (requires talent resolver context)
+  }
+  // SumStoneTrialz multiplier: if SummonUPG[t][10] == 1 and KRbest has SummzTrz+stoneType
+  var stoneEligible = Number(SummonUPG[t] && SummonUPG[t][10]) || 0;
+  if (stoneEligible === 1) {
+    var stoneType = Number(SummonUPG[t][2]) || 0;
+    var kr = s.krBestData;
+    var trialVal = kr && kr['SummzTrz' + stoneType] ? Number(kr['SummzTrz' + stoneType]) : 0;
+    if (trialVal > 0) moltoz *= (1 + trialVal);
+  }
+  return moltoz * level * perLv;
 }
 
 export var winBonus = {

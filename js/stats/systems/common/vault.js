@@ -18,6 +18,18 @@ export var vault = {
     // VaultUpgBonus: perLevel * level (perLevel is always 1 for currently used upgrades)
     var perLevel = 1;
     var baseVal = perLevel * lv;
+    // Index 0: breakpoint bonuses added before mastery
+    if (id === 0) {
+      baseVal += Math.max(0, lv - 25) + Math.max(0, lv - 50) + Math.max(0, lv - 100);
+    }
+    // Index 60: extended breakpoints + extra scaling
+    if (id === 60) {
+      baseVal += Math.max(0, lv - 25) + Math.max(0, lv - 50)
+        + 2 * Math.max(0, lv - 100) + 3 * Math.max(0, lv - 200)
+        + 5 * Math.max(0, lv - 300) + 7 * Math.max(0, lv - 400)
+        + 10 * Math.max(0, lv - 450);
+      baseVal *= 1 + Math.floor(lv / 25) / 5;
+    }
 
     // Mastery multiplier for non-whitelist indices
     var masteryLv = 0;

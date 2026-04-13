@@ -55,6 +55,80 @@ export function fmtExact(v) {
   return Math.round(v).toLocaleString();
 }
 
+/**
+ * Damage display tiers matching the game's character sheet.
+ * Each entry: [maxThreshold, divisor, postDiv, prefix, suffix]
+ *   - Values are divided by divisor, then by postDiv
+ *   - prefix is prepended to the whole string, suffix appended to each number
+ */
+export const DMG_TIERS = [
+  // max <        divisor  postDiv  prefix  suffix
+  [1e7,           1,       1,       '',     '' ],   // raw integers
+  [1e9,           1e3,     1e3,     '',     'M'],   // thousands
+  [1e11,          1e5,     10,      '',     'M'],
+  [1e13,          1e6,     1,       '',     'M'],
+  [1e15,          1e9,     1e3,     '',     'T'],   // billions
+  [1e17,          1e11,    10,      '',     'T'],
+  [1e19,          1e12,    1,       '',     'T'],
+  [1e21,          1e15,    1e3,     '💎',    '' ],   // quadrillions
+  [1e23,          1e17,    10,      '💎',    '' ],
+  [1e25,          1e18,    1,       '💎',    '' ],
+  [1e27,          1e21,    1e3,     '💎',    'M'],  // 棘
+  [1e28,          1e23,    10,      '💎',    'M'],
+  [Infinity,      1e24,    1,       '💎',    'M'],
+];
+
+/**
+ * Format Min~Max damage exactly like the game's character sheet.
+ * Uses DMG_TIERS for notation — modify that array to change symbols.
+ */
+export function fmtDmgRange(min, max) {
+  for (var t of DMG_TIERS) {
+    if (max < t[0] || t[0] === Infinity) {
+      var lo = Math.ceil(min / t[1]) / t[2];
+      var hi = Math.ceil(max / t[1]) / t[2];
+      return t[3] + lo + t[4] + '~' + hi + t[4];
+    }
+  }
+}
+
+/**
+ * Format a number exactly like the game's MonsterCash vault display.
+ * Game uses NotateNumber(MC, "Big") for MC > 1e16, with floor-truncation
+ * rather than standard rounding. Matches the in-game Monster Tax tooltip.
+ */
+export function fmtMonsterCash(e) {
+  if (e > 1e16) {
+    // NotateNumber(e, "Big") — generic chain
+    if (e < 100) return Math.floor(e) + '';
+    if (e < 1e3) return Math.floor(e) + '';
+    if (e < 1e4) return Math.ceil(e / 10) / 100 + 'K';
+    if (e < 1e5) return Math.ceil(e / 100) / 10 + 'K';
+    if (e < 1e6) return Math.ceil(e / 1e3) + 'K';
+    if (e < 1e7) return Math.ceil(e / 1e4) / 100 + 'M';
+    if (e < 1e8) return Math.ceil(e / 1e5) / 10 + 'M';
+    if (e < 1e10) return Math.ceil(e / 1e6) + 'M';
+    if (e < 1e13) return Math.ceil(e / 1e9) + 'B';
+    if (e < 1e16) return Math.ceil(e / 1e12) + 'T';
+    if (e < 1e19) return Math.ceil(e / 1e15) + 'Q';
+    if (e < 1e22) return Math.ceil(e / 1e18) + 'QQ';
+    if (e < 1e24) return Math.ceil(e / 1e21) + 'QQQ';
+    var lg = Math.floor(Math.log10(e));
+    return Math.floor(e / Math.pow(10, lg) * 100) / 100 + 'E' + lg;
+  }
+  if (e > 1e10) return Math.floor(e / 1e8) / 10 + 'B';
+  if (e > 1e7) return Math.floor(e / 1e5) / 10 + 'M';
+  // NotateNumber(e, "MultiplierInfo")
+  if (e > 1e6) {
+    if (Math.round(e / 1e6 * 100) % 100 === 0) return Math.round(e / 1e6) + '.00M';
+    if (Math.round(e / 1e6 * 100) % 10 === 0) return Math.round(e / 1e6 * 10) / 10 + '0M';
+    return Math.round(e / 1e6 * 100) / 100 + 'M';
+  }
+  if (Math.round(100 * e) % 100 === 0) return Math.round(e) + '.00';
+  if (Math.round(100 * e) % 10 === 0) return Math.round(10 * e) / 10 + '0';
+  return Math.round(100 * e) / 100 + '';
+}
+
 /** General-purpose number formatter with guards and finer precision for small values. */
 export function fmtNum(n) {
   if (n === 0) return '0';

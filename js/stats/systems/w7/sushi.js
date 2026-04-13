@@ -390,12 +390,17 @@ export function computeRooBonus(idx) {
   var legend26 = legendPTSbonus(26) || 0;
   var comp51 = 0;
   try { comp51 = companions(51) || 0; } catch(e) {}
-  var rooAll = 0;
+  // RooMegafeather uses ola[279] as single progress counter
+  var ola279 = Number(optionsListData[279]) || 0;
   var megaIdxs = [1, 3, 6, 8, 11];
+  var rooAll = 0;
   for (var mi = 0; mi < megaIdxs.length; mi++) {
-    var feat = Number(optionsListData[279 + megaIdxs[mi]]) || 0;
+    var feat = ola279 > megaIdxs[mi] ? (megaIdxs[mi] === 11 ? ola279 - 11 : 1) : 0;
     rooAll += 50 * Math.min(1, feat);
     if (mi === 4) rooAll += 25 * Math.max(0, feat - 1);
   }
-  return 3 * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
+  // Per-index multipliers: [3, 3, 5, 2, 2, 0.5, 3]
+  var perIdx = [3, 3, 5, 2, 2, 0.5, 3];
+  var multi = perIdx[idx] != null ? perIdx[idx] : 3;
+  return multi * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
 }

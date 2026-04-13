@@ -38,13 +38,29 @@ export var spelunkShop = {
 
 import { paletteParams } from '../../data/w4/gaming.js';
 import { Spelunky } from '../../data/game/customlists.js';
+import { superBitType } from '../../../game-helpers.js';
+
+// SuperBit → palette index pairs for doubling
+var PALETTE_SUPERBIT_PAIRS = [
+  [49, 25], [51, 13], [52, 31], [54, 18], [58, 3], [61, 12]
+];
 
 export function computePaletteBonus(paletteIdx) {
   var paletteLv = Number(saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][paletteIdx]) || 0;
   if (paletteLv <= 0) return 0;
   var pal = paletteParams(paletteIdx);
   if (!pal) return 0;
-  var raw = paletteLv / (paletteLv + pal.denom) * pal.base;
+  var raw = pal.isDecay
+    ? paletteLv / (paletteLv + pal.denom) * pal.coeff
+    : paletteLv * pal.coeff;
+  // SuperBit doubling for specific palette indices
+  var g12 = saveData.gamingData && saveData.gamingData[12];
+  for (var pi = 0; pi < PALETTE_SUPERBIT_PAIRS.length; pi++) {
+    if (PALETTE_SUPERBIT_PAIRS[pi][1] === paletteIdx && superBitType(PALETTE_SUPERBIT_PAIRS[pi][0], g12) === 1) {
+      raw *= 2 + 0.5 * superBitType(59, g12);
+      break;
+    }
+  }
   var palLegendMulti = 1 + (legendPTSbonus(10) || 0) / 100;
   var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;

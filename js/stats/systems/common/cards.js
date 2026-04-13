@@ -6,6 +6,7 @@ import { label } from '../../entity-names.js';
 import { saveData } from '../../../state.js';
 import { cardEquipData, csetEqData } from '../../../save/data.js';
 import { CARD_BASE_REQ, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
+import { IDforCardSETbonus } from '../../data/game/custommaps.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { charHasChip } from '../w4/lab.js';
 
@@ -153,12 +154,10 @@ export var cardSingle = {
 
 // ==================== CARD SET BONUS ====================
 
-export function computeCardSetBonus(setIdx) {
-  var cardSets = saveData.cardSetData;
-  if (!cardSets) return 0;
-  var idx = Number(setIdx);
-  if (typeof cardSets === 'object' && !Array.isArray(cardSets)) {
-    return Number(cardSets[setIdx]) || 0;
-  }
-  return Number(cardSets[idx]) || 0;
+export function computeCardSetBonus(charIdx, setKey) {
+  var csetMap = csetEqData && csetEqData[charIdx];
+  if (!csetMap || typeof csetMap !== 'object') return 0;
+  var key = IDforCardSETbonus[setKey];
+  if (!key) return 0;
+  return Number(csetMap[key]) || 0;
 }

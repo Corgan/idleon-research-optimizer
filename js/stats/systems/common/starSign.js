@@ -9,6 +9,7 @@ import { saveData } from '../../../state.js';
 import { labData } from '../../../save/data.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
+import { computeShinyBonusS } from '../w4/breeding.js';
 
 // Map bonus type → sign indices and accessor
 var SIGN_TABLES = {
@@ -119,7 +120,7 @@ export var starSign = {
 
 // ==================== STAR SIGN BONUS (aggregated) ====================
 
-import { starSignData as starSignCharData } from '../../../save/data.js';
+import { starSignData as starSignCharData, numCharacters as _ssNumChars } from '../../../save/data.js';
 
 // Game hardcodes per-sign bonuses by index. Description strings don't match keys.
 // Map: effectKey → { signIndex: baseValue }
@@ -130,20 +131,33 @@ var SIGN_BONUSES = {
   MainXP:   { 2: 1, 24: 3, 52: 6 },
   WorshExp: { 46: 15 },
   Drop:     { 14: 5, 76: 12 },
+  PctDmg:   { 0: 1, 32: 2, 51: 20, 53: 6, 54: 15, 70: 25 },
+  WepPow:   { 12: 2 },
+  MoveSpd:  { 1: 2, 8: 4, 13: 2, 32: -3, 51: -12 },
+  TotalHP:  { 28: -80 },
+  FoodEffect: { 22: 15 },
 };
+
+// Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)
+// AND equipped signs, then multiplies by the seraph multi for the current char.
+// Infinite Star Signs (Rift): if signIndex < enabledStarSigns, negative bonuses are removed.
+function getEnabledStarSigns() {
+  var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
+  return riftLv >= 10 ? 5 + computeShinyBonusS(3) : 0;
+}
 
 export function computeStarSignBonus(key, ci) {
   var bonusMap = SIGN_BONUSES[key];
   if (!bonusMap) return 0;
-  var equipped = starSignCharData && starSignCharData[ci];
-  if (!equipped) return 0;
-  var parts = String(equipped).split(',');
+  var enabled = getEnabledStarSigns();
   var total = 0;
-  for (var si = 0; si < parts.length; si++) {
-    var signIdx = parseInt(parts[si]);
-    if (isNaN(signIdx) || signIdx < 0) continue;
-    var val = bonusMap[signIdx];
-    if (val != null) total += val;
+  var signIndices = Object.keys(bonusMap);
+  for (var i = 0; i < signIndices.length; i++) {
+    var sigIdx = Number(signIndices[i]);
+    var val = bonusMap[sigIdx];
+    // Game: if (signIndex > enabledStarSigns - 1) → apply negatives; else skip them
+    if (val < 0 && sigIdx < enabled) continue;
+    total += val;
   }
   if (total > 0) {
     total *= computeSeraphMulti(ci);

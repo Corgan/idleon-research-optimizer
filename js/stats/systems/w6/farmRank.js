@@ -13,7 +13,7 @@ function rval(resolver, id, ctx, args) {
   catch(e) { return 0; }
 }
 
-export function farmRankUpgBonus(idx) {
+export function farmRankUpgBonus(idx, activeCharIdx) {
   var s = saveData;
   var farmRank2 = s.farmRankData && s.farmRankData[2];
   if (!farmRank2) return 0;
@@ -21,7 +21,8 @@ export function farmRankUpgBonus(idx) {
   if (rankLv <= 0) return 0;
 
   // getbonus2(1, 207, -1) = max talent 207 across all chars
-  var t207 = rval(talent, 207, { saveData: s, charIdx: 0 }, { mode: 'max' });
+  // Game uses the active character's context for AllTalentLVz
+  var t207 = rval(talent, 207, { saveData: s, charIdx: activeCharIdx || 0 }, { mode: 'max' });
   var talentMult = Math.max(1, t207);
 
   var exotic14 = 0;

@@ -364,7 +364,10 @@ export function mainframeBonus(e) {
       return base9 * (millions < 1e8 ? Math.floor(millions) : millions);
     }
     if (e === 0) {
-      var totPets = (saveData.breedingData && saveData.breedingData[1] || []).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
+      var territories = Math.max(3, Number(optionsListData[117]) || 0);
+      var petsArr = saveData.breedingData && saveData.breedingData[1] || [];
+      var totPets = 0;
+      for (var pi = 0; pi < territories && pi < petsArr.length; pi++) totPets += Number(petsArr[pi]) || 0;
       return (active + mainframeBonus(101)) * totPets;
     }
     if (e === 3) return active + mainframeBonus(107);

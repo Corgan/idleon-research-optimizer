@@ -10,7 +10,7 @@ import { saveData } from '../../../state.js';
 import { stampLvData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
 import { eventShopOwned } from '../../../game-helpers.js';
-import { pristineBon, getSetBonus } from '../common/goldenFood.js';
+import { pristineBon, getSetBonus, vaultUpgBonus } from '../common/goldenFood.js';
 import { mainframeBonus } from '../w4/lab.js';
 import { legendPTSbonus } from '../../systems/w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
@@ -58,7 +58,7 @@ function computeStampDoublerSources() {
   var paletteLv = (saveData.spelunkData && saveData.spelunkData[9] && Number(saveData.spelunkData[9][23])) || 0;
   var pal23 = paletteParams(23);
   var palRaw23 = paletteLv > 0
-    ? paletteLv / (paletteLv + pal23.denom) * pal23.base
+    ? paletteLv / (paletteLv + pal23.denom) * pal23.coeff
     : 0;
   var palLegendMulti = 1 + legendPTSbonus(10) / 100;
   var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
@@ -218,6 +218,11 @@ export function computeStampBonusOfTypeX(typeKey) {
       val *= labDouble * pristMulti;
     }
     total += val;
+  }
+  // Post-loop: VaultUpgBonus(16) multiplier for base stat stamps (game applies this for BaseDmg/BaseHP/BaseAcc/BaseDef)
+  if (typeKey === 'BaseDmg' || typeKey === 'BaseHP' || typeKey === 'BaseAcc' || typeKey === 'BaseDef') {
+    var vault16 = vaultUpgBonus(16);
+    if (vault16 > 0) total *= 1 + vault16 / 100;
   }
   return total;
 }

@@ -51,4 +51,6 @@ export const SET_BONUS_VALUES = {
   GOLD_SET: equipSetBonus('GOLD_SET'),
   SECRET_SET: equipSetBonus('SECRET_SET'),
   EMPEROR_SET: equipSetBonus('EMPEROR_SET'),
+  LUSTRE_SET: equipSetBonus('LUSTRE_SET'),
+  TROLL_SET: equipSetBonus('TROLL_SET'),
 };

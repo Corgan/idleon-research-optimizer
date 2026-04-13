@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdleOn Damage Breakdown</title>
+<style>
+:root {
+  --bg: #101020; --bg2: #181830; --bg3: #222244;
+  --text: #ddd; --text1: #ddd; --text2: #888; --accent: #66ccff;
+  --green: #6f6; --gold: #ffd700; --orange: #ffa060; --purple: #b388ff;
+  --red: #f66; --cyan: #5ff; --blue: #66f; --border: #333;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5em; }
+.subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 14px; }
+.container { max-width: 960px; margin: 0 auto; padding: 0 12px 40px; }
+
+/* Top controls */
+.top-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.top-bar select { padding: 6px 10px; background: var(--bg2); color: var(--accent); border: 1px solid var(--border); border-radius: 4px; font-size: .9em; }
+.top-bar .btn { padding: 6px 16px; background: var(--accent); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85em; }
+.top-bar .btn:hover { filter: brightness(1.2); }
+
+/* Import */
+.import-box { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.import-box summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.import-box textarea { width: 100%; height: 80px; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: .82em; font-family: monospace; padding: 6px; resize: vertical; }
+.import-msg { font-size: .82em; margin-top: 6px; }
+.import-msg.ok { color: var(--green); }
+.import-msg.err { color: var(--red); }
+
+/* Summary cards */
+.summary-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.dmg-card { flex: 1; min-width: 200px; background: var(--bg2); border-radius: 10px; padding: 18px; text-align: center; }
+.dmg-card .dmg-label { color: var(--text2); font-size: .85em; margin-bottom: 4px; }
+.dmg-card .dmg-val { font-size: 2em; font-weight: 800; }
+.dmg-card .dmg-sub { color: var(--text2); font-size: .82em; margin-top: 4px; }
+.mastery-card { background: var(--bg2); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+.mastery-card .mastery-bar-wrap { height: 24px; background: #1a1a2e; border-radius: 12px; overflow: hidden; border: 1px solid #333; position: relative; margin-top: 6px; }
+.mastery-card .mastery-bar { height: 100%; border-radius: 12px; transition: width .3s; }
+.mastery-card .mastery-pct { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9em; text-shadow: 0 1px 3px #000; }
+
+/* Breakdown Tree */
+.tree { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.tree h2 { color: var(--cyan); margin-bottom: 10px; font-size: 1.1em; }
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #444; }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-tag { font-size: .7em; opacity: .7; margin-left: 4px; }
+.bt-tooltip { position: fixed; background: #1a1a2e; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
+
+/* Layer tabs */
+.layer-tabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
+.layer-tab { padding: 7px 16px; cursor: pointer; color: var(--text2); border-radius: 6px; font-size: .85em; font-weight: 600; transition: all .15s; user-select: none; }
+.layer-tab:hover { color: var(--text); background: rgba(255,255,255,.06); }
+.layer-tab.active { color: var(--accent); background: var(--bg2); }
+.layer-panel { display: none; }
+.layer-panel.active { display: block; }
+
+/* Debug terms table */
+.dbg-table { width: 100%; border-collapse: collapse; font-size: .85em; }
+.dbg-table th { text-align: left; padding: 6px 8px; color: var(--text2); border-bottom: 1px solid #333; }
+.dbg-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.dbg-table tr:hover td { background: rgba(255,255,255,.03); }
+.dbg-table .val-col { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dbg-table .zero { color: #555; }
+.dbg-table .nonzero { color: var(--green); }
+</style>
+</head>
+<body>
+<h1>&#x2694; IdleOn Damage Breakdown</h1>
+<p class="subtitle">MaxDmg = DDL[0] &times; DDL[1] &times; DDL[2] &nbsp;|&nbsp; MinDmg = MaxDmg &times; Mastery</p>
+<div class="container">
+
+<!-- Import -->
+<details class="import-box" open>
+  <summary>&#x1F4CB; Import Save JSON</summary>
+  <div style="margin-top:8px;">
+    <label style="font-size:.85em;color:var(--text2)">Load save (it.json or save.json):</label>
+    <input type="file" id="file-input" accept=".json" style="margin-left:6px;">
+  </div>
+  <textarea id="json-in" placeholder="...or paste your it.json / save.json contents here..." style="margin-top:6px;"></textarea>
+  <div class="top-bar">
+    <button class="btn" onclick="doImport()">Load Pasted JSON</button>
+    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
+      <option value="-1">-- load save first --</option>
+    </select>
+  </div>
+  <div id="import-msg" class="import-msg"></div>
+</details>
+
+<!-- Summary -->
+<div class="summary-row">
+  <div class="dmg-card" style="flex:1 1 100%;text-align:center">
+    <div class="dmg-label">Damage (as shown in-game)</div>
+    <div class="dmg-val" id="dmg-game" style="color:var(--gold);font-size:1.5em">—</div>
+  </div>
+</div>
+<div class="summary-row">
+  <div class="dmg-card">
+    <div class="dmg-label">Min Damage</div>
+    <div class="dmg-val" id="min-dmg" style="color:var(--cyan)">—</div>
+    <div class="dmg-sub" id="min-dmg-exact"></div>
+  </div>
+  <div class="dmg-card">
+    <div class="dmg-label">Max Damage</div>
+    <div class="dmg-val" id="max-dmg" style="color:var(--gold)">—</div>
+    <div class="dmg-sub" id="max-dmg-exact"></div>
+  </div>
+</div>
+
+<!-- Mastery -->
+<div class="mastery-card" id="mastery-card" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-weight:700;color:var(--purple)">Mastery</span>
+    <span id="mastery-val" style="font-size:1.2em;font-weight:800;color:var(--purple)"></span>
+    <span id="mastery-sub" style="color:var(--text2);font-size:.82em"></span>
+  </div>
+  <div class="mastery-bar-wrap">
+    <div class="mastery-bar" id="mastery-bar" style="width:0;background:linear-gradient(90deg,var(--purple),#e040fb)"></div>
+    <div class="mastery-pct" id="mastery-pct"></div>
+  </div>
+</div>
+
+<!-- DDL layers -->
+<div id="ddl-section" style="display:none">
+  <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <div class="dmg-card" style="flex:1;min-width:140px">
+      <div class="dmg-label">DDL[0] — Base Damage</div>
+      <div class="dmg-val" id="ddl0-val" style="font-size:1.3em;color:var(--text)">—</div>
+      <div class="dmg-sub" id="ddl0-note"></div>
+    </div>
+    <div class="dmg-card" style="flex:1;min-width:140px">
+      <div class="dmg-label">DDL[1] — % Multiplier</div>
+      <div class="dmg-val" id="ddl1-val" style="font-size:1.3em;color:var(--cyan)">—</div>
+      <div class="dmg-sub" id="ddl1-note"></div>
+    </div>
+    <div class="dmg-card" style="flex:1;min-width:140px">
+      <div class="dmg-label">DDL[2] — Big Multiplier</div>
+      <div class="dmg-val" id="ddl2-val" style="font-size:1.3em;color:var(--green)">—</div>
+      <div class="dmg-sub" id="ddl2-note"></div>
+    </div>
+  </div>
+
+  <!-- Tabbed detail view -->
+  <div class="layer-tabs" id="layer-tabs">
+    <div class="layer-tab active" data-tab="mastery">Mastery</div>
+    <div class="layer-tab" data-tab="damage">Damage</div>
+  </div>
+
+  <div class="layer-panel active" id="panel-mastery">
+    <div class="tree"><h2>Mastery Breakdown</h2><div id="tree-mastery"></div></div>
+  </div>
+  <div class="layer-panel" id="panel-damage">
+    <div class="tree"><h2>Damage Breakdown</h2><div id="tree-damage"></div></div>
+  </div>
+</div>
+
+</div>
+<div class="bt-tooltip" id="bt-tooltip"></div>
+<script type="module">
+'use strict';
+
+import { loadSaveData } from './js/save/loader.js';
+import { saveData } from './js/state.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
+import { ClassNames } from './js/stats/data/game/customlists.js';
+import { fmtVal, fmtExact, fmtDmgRange } from './js/renderers/format.js';
+import damageDesc from './js/stats/defs/damage.js';
+
+var SAVE_RAW = null;
+var CHARS = [];
+var CUR_CHAR = 0;
+
+// Friendly names for _debug keys
+var DDL0_LABELS = {
+  wpRaw: ['Weapon Power (raw)', 'raw'],
+  wp: ['Weapon Power (final)', 'raw'],
+  gfBaseDmg: ['Golden Food: Base Damage', '+'],
+  stampBaseDmg: ['Stamp: Base Damage', '+'],
+  hpMax: ['HP Max', 'raw'],
+  mpMax: ['MP Max', 'raw'],
+  bdmgHP: ['Bubble W4: Base Dmg from HP', '+'],
+  bdmgMP: ['Bubble A4: Base Dmg from MP', '+'],
+  bdmgSPD: ['Bubble M4: Base Dmg from SPD', '+'],
+  bubbleHP: ['Bubble HP%', '%'],
+  bubbleMP: ['Bubble MP%', '%'],
+  bubbleSPD: ['Bubble SPD%', '%'],
+  playerSpeed: ['Player Speed', 'raw'],
+  boxBaseDmg: ['Box Reward: Base Damage', '+'],
+  preSoftcap: ['Pre-Softcap DDL[0]', 'raw'],
+  owlBonus1: ['Owl Bonus (1)', '+'],
+  card4: ['Card Bonus (4)', '+'],
+  vault0: ['Vault Upgrade (0)', '+'],
+  arcade0: ['Arcade Bonus (0)', '+'],
+  statue0: ['Statue: Power', '+'],
+  sigil4: ['Sigil (4)', '+'],
+  equipWP: ['Equipment WP (base)', 'raw'],
+  galleryWP: ['Gallery WP', '+'],
+  obolWP: ['Obol WP', '+'],
+  _box12a: ['Box 12a: WP', '+'],
+  _flurbo: ['Flurbo Shop: WP', '+'],
+  _foodWP: ['Food: WP Boost', '+'],
+  _card18: ['Card Bonus (18): WP', '+'],
+  _cardW5b2: ['Card Level w5b2', '+'],
+  _sigil17: ['Sigil (17): WP', '+'],
+  _guild3: ['Guild Bonus (3)', '+'],
+  _chipWP: ['Lab Chip: WP', '%'],
+  _bubW1: ['Bubble W1: WP%', '%'],
+  _bubA1: ['Bubble A1: WP%', '%'],
+  _bubM1: ['Bubble M1: WP%', '%'],
+  _tc616: ['Talent 616: Beginner WP', '+'],
+  _vialWP: ['Vial: WP', '+'],
+  _fam16: ['Family Bonus (16): WP', '+'],
+  _starWP: ['Star Sign: WP', '+'],
+  _arc17: ['Arcade (17): WP', '+'],
+  _t530: ['Talent 530: Constr/10', '+'],
+  _t140: ['Talent 140: Mining/10', '+'],
+  _t170: ['Talent 170: Gaming/10', '+'],
+  _t320: ['Talent 320: Sailing/10', '+'],
+  _t500: ['Talent 500: Divinity/10', '+'],
+  _t365: ['Talent 365: Pet LOG', '+'],
+};
+
+var DDL1_LABELS = {
+  preSoftcap: ['Pre-Softcap DDL[1]', 'x'],
+  postSoftcap: ['Post-Softcap DDL[1]', 'x'],
+  addBase: ['Additive Base', '+'],
+  pctMultBase: ['Pct Mult Base', 'x'],
+  smithMult: ['Smith Multi', 'x'],
+  winMult: ['Win Multi', 'x'],
+  winBonus0: ['Win Bonus (0)', '%'],
+  talentChainSum: ['Talent Chain Sum', '+'],
+  talentChainMult: ['Talent Chain Multi', 'x'],
+  gfDamage: ['Golden Food: Damage%', '%'],
+  statPow: ['Stat^0.7 term', '+'],
+  vault27: ['Vault (27)', '%'],
+  vault15: ['Vault (15)', '%'],
+  ola338: ['OLA[338]', '%'],
+  vault10: ['Vault (10)', '%'],
+  vault80: ['Vault (80)', '%'],
+  farmRank14: ['Farm Rank 14', '%'],
+  statue22: ['Statue 22', '%'],
+  hpLog: ['LOG(HPmax) x bubble', '+'],
+  talent86: ['Talent 86', '%'],
+  mpLog: ['LOG(MPmax) x bubble', '+'],
+  talent446: ['Talent 446', '%'],
+  bubbleW12: ['Bubble W12', '%'],
+  bubbleA12: ['Bubble A12', '%'],
+  bubbleM12: ['Bubble M12', '%'],
+  tc485: ['Talent 485', '%'],
+  bUpg57: ['Bubba Upgrade 57', '%'],
+  tc656: ['Talent 656', '%'],
+  divMinor7: ['Divinity Minor (7)', '%'],
+  talent658: ['Talent 658 (max)', '%'],
+  tc31: ['Talent 31', '%'],
+  tc110: ['Talent 110', '%'],
+  tc125: ['Talent 125 (calc)', '%'],
+  tc305d50: ['Talent 305 / 50', '%'],
+  tc470d10: ['Talent 470 / 10', '%'],
+  t290speed: ['Talent 290 × Speed', '%'],
+  quests658: ['Quests × t658', '%'],
+  owlBonus2: ['Owl Bonus (2)', '%'],
+  rooBonus4: ['Roo Bonus (4)', '%'],
+  bubbaRoG4: ['Bubba RoG (4)', '%'],
+  talent463: ['Talent 463', 'raw'],
+  minigameHS: ['Minigame HS', 'raw'],
+};
+
+var DDL2_LABELS = {
+  preSoftcap: ['Pre-Softcap DDL[2]', 'x'],
+  postSoftcap: ['Post-Softcap DDL[2]', 'x'],
+  final: ['Final DDL[2]', 'x'],
+  penaltyMult: ['Penalty Multiplier', 'x'],
+  compMult: ['Companion Multi', 'x'],
+  etc72: ['EtcBonus 72', '%'],
+  etc75: ['EtcBonus 75', '%'],
+  etc104: ['EtcBonus 104', '%'],
+  votingDmg: ['Voting Damage', '%'],
+  comp12: ['Companion 12', '%'],
+  comp33: ['Companion 33', '%'],
+  comp160: ['Companion 160', '%'],
+  ola232: ['OLA[232]', 'raw'],
+  ola232Bonus: ['OLA[232] Bonus', '%'],
+  card96: ['Card Bonus (96)', '%'],
+  ach371: ['Achievement 371', '%'],
+  ach384: ['Achievement 384', '%'],
+  rog49: ['Rog Bonus (49)', '%'],
+  superBit64: ['Super Bit (64)', '%'],
+  tomeBonus6: ['Tome Bonus (6)', '%'],
+  crystal6Bonus: ['Crystal Card LV 6', '%'],
+  meritoc5: ['Meritocracy (5)', '%'],
+  famBonus80: ['Family Bonus (80)', '%'],
+  bundleApplied: ['Bundle Bonus Applied', 'raw'],
+};
+
+function buildDebugTree(debug, labels) {
+  if (!debug) return [];
+  var nodes = [];
+  for (var key in debug) {
+    if (key === 'steps') continue; // handled separately
+    var info = labels[key];
+    var lbl = info ? info[0] : key;
+    var fmt = info ? info[1] : 'raw';
+    var v = debug[key];
+    if (v === true) v = 1;
+    if (v === false) v = 0;
+    if (typeof v !== 'number') continue;
+    nodes.push(_bNode(lbl, v, null, { fmt: fmt }));
+  }
+  // Sort: nonzero first, then by absolute value descending
+  nodes.sort(function(a, b) {
+    var za = a.val === 0 ? 1 : 0, zb = b.val === 0 ? 1 : 0;
+    if (za !== zb) return za - zb;
+    return Math.abs(b.val) - Math.abs(a.val);
+  });
+  return nodes;
+}
+
+function recalc() {
+  if (!SAVE_RAW) return;
+
+  var ctx = { charIdx: CUR_CHAR, saveData: saveData };
+  var result;
+  try {
+    result = damageDesc.combine({}, ctx);
+  } catch (err) {
+    document.getElementById('max-dmg').textContent = 'Error';
+    document.getElementById('min-dmg').textContent = err.message;
+    console.error(err);
+    return;
+  }
+
+  var maxDmg = result.val || 0;
+  var minDmg = 0, mastery = 0, statType = 0, baseDmg = 0, pctMult = 0, bigMult = 0;
+  var masteryChildren = null;
+  var ddl0Debug = null, ddl1Debug = null, ddl2Debug = null;
+  var ddl0Note = '', ddl1Note = '', ddl2Note = '';
+
+  if (result.children) {
+    for (var ch of result.children) {
+      if (ch.name === 'Max Damage') maxDmg = ch.val;
+      if (ch.name === 'Min Damage') minDmg = ch.val;
+      if (ch.name && ch.name.indexOf('Mastery') === 0) {
+        mastery = ch.val;
+        masteryChildren = ch.children;
+      }
+      if (ch.name && ch.name.indexOf('Primary Stat') === 0) statType = ch.val;
+      if (ch.name && ch.name.indexOf('Base Damage') === 0) {
+        baseDmg = ch.val;
+        ddl0Debug = ch._debug;
+        ddl0Note = ch.note || '';
+      }
+      if (ch.name && ch.name.indexOf('Percent Multiplier') === 0) {
+        pctMult = ch.val;
+        ddl1Debug = ch._debug;
+        ddl1Note = ch.note || '';
+      }
+      if (ch.name && ch.name.indexOf('Big Multiplier') === 0) {
+        bigMult = ch.val;
+        ddl2Debug = ch._debug;
+        ddl2Note = ch.note || '';
+      }
+    }
+  }
+
+  // Summary
+  document.getElementById('dmg-game').textContent = maxDmg > 0 ? fmtDmgRange(minDmg, maxDmg) : '—';
+  document.getElementById('max-dmg').textContent = fmtVal(maxDmg);
+  document.getElementById('max-dmg-exact').textContent = maxDmg > 0 ? fmtExact(maxDmg) : '';
+  document.getElementById('min-dmg').textContent = fmtVal(minDmg);
+  document.getElementById('min-dmg-exact').textContent = minDmg > 0 ? fmtExact(minDmg) : '';
+
+  // Mastery bar
+  var mc = document.getElementById('mastery-card');
+  mc.style.display = '';
+  var pct = Math.min(100, mastery / 0.8 * 100);
+  document.getElementById('mastery-val').textContent = (mastery * 100).toFixed(1) + '%';
+  document.getElementById('mastery-pct').textContent = (mastery * 100).toFixed(1) + '% / 80%';
+  document.getElementById('mastery-bar').style.width = pct + '%';
+  var sub = 'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
+  document.getElementById('mastery-sub').textContent = sub;
+
+  // DDL summary
+  document.getElementById('ddl-section').style.display = '';
+  document.getElementById('ddl0-val').textContent = fmtVal(baseDmg);
+  document.getElementById('ddl0-note').textContent = ddl0Debug ? 'pre-softcap: ' + fmtVal(ddl0Debug.preSoftcap || 0) : '';
+  document.getElementById('ddl1-val').textContent = '\u00d7' + fmtVal(pctMult);
+  document.getElementById('ddl1-note').textContent = ddl1Debug ? 'pre-softcap: ' + fmtVal(ddl1Debug.preSoftcap || 0) : '';
+  document.getElementById('ddl2-val').textContent = '\u00d7' + fmtVal(bigMult);
+  document.getElementById('ddl2-note').textContent = ddl2Debug ? 'pre-softcap: ' + fmtVal(ddl2Debug.preSoftcap || 0) : '';
+
+  // Mastery tree
+  var masteryNodes = [];
+  masteryNodes.push(_bNode('Base', 0.35, null, { fmt: 'raw', note: 'Starting mastery value' }));
+  if (masteryChildren) {
+    for (var mc2 of masteryChildren) {
+      masteryNodes.push(_bNode(mc2.name, mc2.val, null, { fmt: 'raw' }));
+    }
+  }
+  var masteryRoot = _bNode('Mastery (min/max ratio)', mastery, masteryNodes, { fmt: 'raw', note: 'cap 0.8; min(0.8, sum of terms)' });
+  renderBreakdownTree(masteryRoot, document.getElementById('tree-mastery'), { tooltipId: 'bt-tooltip' });
+
+  // Combined damage tree: DDL[0], DDL[1], DDL[2] as children of MaxDmg
+  var ddl0Nodes = buildDebugTree(ddl0Debug, DDL0_LABELS);
+  var ddl0Root = _bNode('DDL[0] — Base Damage', baseDmg, ddl0Nodes, { fmt: 'raw', note: 'pow(WP/3, 2) + statType + flat adds, then softcap at 4000/15000. Pre-softcap: ' + fmtVal(ddl0Debug ? ddl0Debug.preSoftcap || 0 : 0) });
+
+  var ddl1Nodes = buildDebugTree(ddl1Debug, DDL1_LABELS);
+  var ddl1Root = _bNode('DDL[1] — Percent Multiplier', pctMult, ddl1Nodes, { fmt: 'x', note: 'stat^0.7 + pct adds, then softcaps. Pre-softcap: ' + fmtVal(ddl1Debug ? ddl1Debug.preSoftcap || 0 : 0) });
+
+  var ddl2Nodes = buildDebugTree(ddl2Debug, DDL2_LABELS);
+  if (ddl2Debug && ddl2Debug.steps) {
+    var stepsChildren = [];
+    for (var si = 0; si < ddl2Debug.steps.length; si++) {
+      var step = ddl2Debug.steps[si];
+      var sLabel = step[0] || 'step ' + si;
+      var sGroupVal = step.length > 2 ? step[1] : step[1];
+      var sRunning = step.length > 2 ? step[2] : step[1];
+      stepsChildren.push(_bNode(sLabel, sRunning, null, { fmt: 'raw', note: 'group=' + (typeof sGroupVal === 'number' ? sGroupVal.toFixed(4) : sGroupVal) }));
+    }
+    ddl2Nodes.unshift(_bNode('Build-up Steps (pre-softcap)', ddl2Debug.preSoftcap || 0, stepsChildren, { fmt: 'raw', note: 'Running product of multiplicative groups before softcap' }));
+  }
+  var ddl2Root = _bNode('DDL[2] — Big Multiplier', bigMult, ddl2Nodes, { fmt: 'x', note: 'Large multiplicative bonuses, softcap chain, then post-cap multipliers. Pre-softcap: ' + fmtVal(ddl2Debug ? ddl2Debug.preSoftcap || 0 : 0) });
+
+  var damageRoot = _bNode('Max Damage', maxDmg, [ddl0Root, ddl1Root, ddl2Root], { fmt: 'raw', note: 'DDL[0] × DDL[1] × DDL[2]' });
+  renderBreakdownTree(damageRoot, document.getElementById('tree-damage'), { tooltipId: 'bt-tooltip' });
+}
+
+// Tab switching
+document.getElementById('layer-tabs').onclick = function(e) {
+  var tab = e.target.closest('.layer-tab');
+  if (!tab) return;
+  var name = tab.dataset.tab;
+  document.querySelectorAll('.layer-tab').forEach(function(t) { t.classList.toggle('active', t === tab); });
+  document.querySelectorAll('.layer-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + name); });
+};
+
+function doImport() {
+  var msgEl = document.getElementById('import-msg');
+  try {
+    var raw = JSON.parse(document.getElementById('json-in').value);
+    SAVE_RAW = raw;
+    loadSaveData(raw);
+
+    CHARS = raw.charNames || [];
+
+    var sel = document.getElementById('char-sel');
+    sel.innerHTML = '';
+    CHARS.forEach(function(name, i) {
+      var data = raw.data || raw;
+      var classId = data['CharacterClass_' + i];
+      var className = (ClassNames[classId] || '?').replace(/_/g, ' ');
+      var o = document.createElement('option');
+      o.value = i;
+      o.textContent = i + ': ' + name + ' (' + className + ')';
+      sel.appendChild(o);
+    });
+    sel.disabled = false;
+    CUR_CHAR = 0;
+
+    msgEl.className = 'import-msg ok';
+    msgEl.textContent = '\u2713 Loaded ' + CHARS.length + ' characters.';
+    recalc();
+  } catch (err) {
+    msgEl.className = 'import-msg err';
+    msgEl.textContent = '\u2717 ' + err.message;
+    console.error(err);
+  }
+}
+
+function switchChar(idx) { CUR_CHAR = idx; recalc(); }
+
+window.doImport = doImport;
+window.switchChar = switchChar;
+
+// File input handler
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('json-in').value = ev.target.result;
+    doImport();
+  };
+  reader.readAsText(file);
+});
+</script>
+</body>
+</html>

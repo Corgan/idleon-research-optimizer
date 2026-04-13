@@ -33,6 +33,7 @@ import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
 import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
 import { computeWinBonus } from '../stats/systems/w6/summoning.js';
 import { rogBonusQTY } from '../stats/data/w7/sushi.js';
+import { getLOG } from '../formulas.js';
 // Grid bonus helper - uses _gbWith directly to avoid circular dep with calculations.js
 function _gridBonusFinal(idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
@@ -68,7 +69,7 @@ function computeMeasurementMulti(typeIdx) {
   // MeasurementQTYfound(type, 99)  normalized quantity
   let qty = 0;
   switch (typeIdx) {
-    case 0: { const raw = Number(S.holesData?.[11]?.[28]) || 0; qty = raw > 0 ? Math.log(raw) : 0; break; }
+    case 0: { const raw = Number(S.holesData?.[11]?.[28]) || 0; qty = raw > 0 ? getLOG(raw) : 0; break; }
     case 1: qty = S.farmCropCount / 14; break;
     case 3: qty = S.totalTomePoints / 2500; break;
     case 6: qty = computeOverkillQTY() / 125; break;
