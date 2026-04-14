@@ -64,6 +64,7 @@ export function loadSaveData(raw) {
   assignState({ dungUpgData: parseSaveKey(save, 'DungUpg') || [] });
   assignState({ cogOrderData: parseSaveKey(save, 'CogO') || [] });
   assignState({ cogMapData: parseSaveKey(save, 'CogM') || {} });
+  assignState({ flagUnlockData: parseSaveKey(save, 'FlagU') || [] });
 
   // Tome score computation — additional save fields
   assignState({ weeklyBossData: parseSaveKey(save, 'WeeklyBoss') || {} });
