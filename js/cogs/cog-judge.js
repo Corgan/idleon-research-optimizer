@@ -293,9 +293,9 @@ export function perfectCogStats(tier, conLv) {
   var perD = Math.max(Math.floor(Math.pow(mag, 0.4) + 10 * Math.log(Math.max(mag, 1)) / 2.30259 - 5), 2);
   var perfectD = perD * rolls;
 
-  // Surround max for crystal cogs (CogCry tier 1-5)
-  // e/f range: randomInt(30,40) + 23*(cryTier), max = 40 + 23*cryTier
-  var perfectSurr = 40 + 23 * Math.min(tier, 5);
+  // Surround max: T3 → randomInt(20,65), crystal → randomInt(30,40)+23*cryLv
+  // T3 max = 65; CogCry5 max = 40 + 23*5 = 155
+  var perfectSurr = tier >= 4 ? 155 : tier === 3 ? 65 : 0;
 
   return { perfectA: perfectA, perfectC: perfectC, perfectD: perfectD, perfectSurr: perfectSurr, mag: mag, rolls: rolls };
 }

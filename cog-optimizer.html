@@ -351,6 +351,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
         <button class="btn-opt" id="btn-perfect" onclick="showPerfectBoard()" disabled style="background:linear-gradient(135deg,#b8860b,#8b6914)">&#x1F451; Perfect Board</button>
         <button class="btn-opt" id="btn-reset" onclick="resetBoard()" style="background:linear-gradient(135deg,#666,#444);display:none">&#x21BA; Reset</button>
       </div>
+      <div class="opt-line" id="strat-buttons" style="display:none;flex-wrap:wrap;gap:4px"></div>
       <div class="opt-line">
         <div class="progress-bar" id="opt-progress"><div class="fill" id="opt-progress-fill"></div></div>
         <div id="opt-status" style="font-size:.75em;color:var(--text2)"></div>
@@ -720,7 +721,7 @@ function computeBoardInsights(board, goal) {
   return { weakest: weakest, best: best, impacts: impacts, rollTargets: rollTargets.slice(0, 3), baseScore: baseScore };
 }
 
-function toggleInsights() {
+window.toggleInsights = function() {
   var body = document.getElementById('insights-body');
   var arrow = document.getElementById('insights-arrow');
   var panel = document.getElementById('insights-banner');
@@ -1420,6 +1421,7 @@ window.resetBoard = function() {
   CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
   IS_OPTIMIZED = false; OPT_RESULT = null;
   document.getElementById('result-banner').style.display = 'none';
+  document.getElementById('strat-buttons').style.display = 'none';
   hideOptButtons(); hideSwapGuide();
   renderBoard('board-current', CURRENT_BOARD, null);
   renderStats(CURRENT_TOTALS);
@@ -1441,7 +1443,7 @@ window.showPerfectBoard = function() {
   var perfT3 = perfectCogStats(3, conLv);
   var perfT4 = perfectCogStats(4, conLv);
   var maxSurrT3 = 65;
-  var maxSurrCry5 = 40 + 23 * 6;
+  var maxSurrCry5 = 155; // CogCry5: randomInt(30,40) + 23*5 = 40+115
   var crystalCanSurr = (goalSurr === 'e' || goalSurr === 'f');
 
   function maxBase(perf) {
@@ -1451,18 +1453,18 @@ window.showPerfectBoard = function() {
     var o = { e: 0, f: 0, g: 0, j: 0 }; o[key] = val; return o;
   }
 
-  // Yang (CogY) surround scales with con level (game code line 82556)
-  var yangE = Math.floor(50 + conLv / (conLv + 80) * 120); // build%
-  var yangF = Math.floor(50 + conLv / (conLv + 80) * 160); // con%
+  // Yang surround (scales with con level)
+  var yangE = Math.floor(50 + conLv / (conLv + 80) * 120);
+  var yangF = Math.floor(50 + conLv / (conLv + 80) * 160);
 
-  // Yin (CogZA) base stats scale with con level (game code line 83740)
+  // Yin base stats (scale with con level)
   var yinTier = conLv < 15 ? 0 : conLv < 40 ? 1 : conLv < 70 ? 2 : 3;
   var yinBudget = 2.5 * (Math.pow(3, yinTier) + 0.25 * Math.pow(conLv / 3 + 0.7, 1.4 + 0.05 * yinTier)) * (1.5 + 0.5 * yinTier);
-  var yinA = Math.floor(yinBudget);              // build speed
-  var yinC = Math.floor(Math.pow(yinBudget, 0.8)); // flaggy rate
-  var yinD = Math.max(Math.floor(Math.pow(yinBudget, 0.4) + 10 * Math.log10(yinBudget) - 5), 2); // con exp %
+  var yinA = Math.floor(yinBudget);
+  var yinC = Math.floor(Math.pow(yinBudget, 0.8));
+  var yinD = Math.max(Math.floor(Math.pow(yinBudget, 0.4) + 10 * Math.log10(yinBudget) - 5), 2);
 
-  // Count yin (CogZA) and yang (CogY) from board + shelf (slots 0-227)
+  // Count yin/yang from save
   var yinCount = 0, yangCount = 0;
   if (COG_ORDER) {
     for (var i = 0; i < 228; i++) {
@@ -1473,14 +1475,15 @@ window.showPerfectBoard = function() {
   }
   var exBlocks = Math.floor(yinCount / 4);
 
-  // Get save player cog data (take the first one)
+  // Get player cog from save
   var savePlayerCog = null;
   for (var i = 0; i < BOARD_SIZE; i++) {
     if (SAVE_BOARD[i] && SAVE_BOARD[i].isPlayer) { savePlayerCog = SAVE_BOARD[i]; break; }
   }
   if (!savePlayerCog) return showMsg('No player cog found on board', true);
 
-  // canTarget: does slot S with direction D target slot P?
+  var scoreGoal = goal === 'build' ? 'totalBuild' : goal === 'flaggy' ? 'totalFlaggy' : 'playerConExpHr';
+
   function canTarget(fromSlot, dir, targetSlot) {
     if (dir === 'everything') return true;
     var fp = slotToPos(fromSlot), tp = slotToPos(targetSlot);
@@ -1495,144 +1498,278 @@ window.showPerfectBoard = function() {
     return false;
   }
 
-  // Find optimal player position: maximize slots that can target it
-  // with any useful direction (row, column, up, down, left, right, corners, around)
-  var allDirs = ['row', 'column', 'up', 'down', 'left', 'right', 'corners', 'around'];
-  var bestPSlot = -1, bestPScore = -1;
-  for (var p = 0; p < BOARD_SIZE; p++) {
-    var score = 0;
-    for (var s = 0; s < BOARD_SIZE; s++) {
-      if (s === p) continue;
-      for (var di = 0; di < allDirs.length; di++) {
-        if (canTarget(s, allDirs[di], p)) { score++; break; }
-      }
-    }
-    if (score > bestPScore) { bestPScore = score; bestPSlot = p; }
-  }
+  // Build a candidate board using layered eviction strategy.
+  // 1. Fill all slots with T3 non-directional (base stats only)
+  // 2. Place player
+  // 3. T3 directionals — best direction per slot if gain
+  // 4. CogCry5 non-directional — replace non-dir T3 if higher base stats
+  // 5. CogCry5 directional (row/col) — evict if gain (crystal can do e/f, not g)
+  // 6. Excogia 2×2 — evaluated against final board state so eviction cost is accurate
+  // 7. Yang — evict best "around" slot if gain
+  function buildCandidate(pSlot) {
+    var board = new Array(BOARD_SIZE);
 
-  var playerSlot = bestPSlot;
-
-  var board = new Array(BOARD_SIZE);
-  var used = {};
-
-  // 1. Place player cog at optimal position
-  board[playerSlot] = Object.assign({}, savePlayerCog, { _slot: playerSlot });
-  used[playerSlot] = true;
-
-  // 2. Crystal CogCry5 on player's row + column (highest surround: 178%)
-  if (crystalCanSurr) {
+    // Layer 1: Fill entire board with T3 non-directional
     for (var i = 0; i < BOARD_SIZE; i++) {
-      if (used[i]) continue;
-      var onRow = canTarget(i, 'row', playerSlot);
-      var onCol = canTarget(i, 'column', playerSlot);
-      if (!onRow && !onCol) continue;
-      var dir = onRow ? 'row' : 'column';
-      var s = makeSurr(goalSurr, maxSurrCry5);
       board[i] = {
-        name: 'CogCry5',
-        a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
-        c: goalBase === 'c' ? maxBase(perfT4) : 0,
-        d: goalBase === 'd' ? maxBase(perfT4) : 0,
-        e: s.e, f: s.f, g: s.g, j: s.j,
-        h: dir, i: 0, l: 0, _slot: i, isPlayer: false,
+        name: 'Cog3',
+        a: goalBase === 'a' ? maxBase(perfT3) : 0, b: 0,
+        c: goalBase === 'c' ? maxBase(perfT3) : 0,
+        d: goalBase === 'd' ? maxBase(perfT3) : 0,
+        e: 0, f: 0, g: 0, j: 0,
+        h: null, i: 0, l: 0, _slot: i, isPlayer: false,
       };
-      used[i] = true;
     }
-  }
 
-  // 3. Yang (CogY): direction "around", surround scales with con level
-  //    e = build%, f = con% (g is deleted by game recalc — no flaggy surround)
-  //    Place where "around" targets player
-  var yangCandidates = [];
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (used[i]) continue;
-    if (canTarget(i, 'around', playerSlot)) yangCandidates.push(i);
-  }
-  var yangPlaced = 0;
-  for (var yi = 0; yi < yangCount; yi++) {
-    var slot = -1;
-    if (yi < yangCandidates.length) slot = yangCandidates[yi];
-    else { for (var i = 0; i < BOARD_SIZE; i++) { if (!used[i]) { slot = i; break; } } }
-    if (slot < 0) break;
-    board[slot] = {
-      name: 'CogY', a: 0, b: 0, c: 0, d: 0,
-      e: yangE, f: yangF, g: 0, j: 0,
-      h: 'around', i: 0, l: 0, _slot: slot, isPlayer: false,
-    };
-    used[slot] = true;
-    yangPlaced++;
-  }
+    // Layer 2: Place player
+    board[pSlot] = Object.assign({}, savePlayerCog, { _slot: pSlot });
 
-  // 4. Ulti directionals (up/down/left/right/corners) targeting player
-  var ultiDirs = ['up', 'down', 'left', 'right', 'corners'];
-  var dirNameMap = { up: 'Cog3up', down: 'Cog3do', left: 'Cog3le', right: 'Cog3ri', corners: 'Cog3cn' };
-  // Flaggy: crystals can't do g surround, so ulti also covers row/column
-  if (!crystalCanSurr) {
-    ultiDirs.push('row', 'column');
-    dirNameMap.row = 'Cog3ro'; dirNameMap.column = 'Cog3co';
-  }
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (used[i]) continue;
-    for (var di = 0; di < ultiDirs.length; di++) {
-      if (canTarget(i, ultiDirs[di], playerSlot)) {
+    // score helper
+    function score(b) {
+      var t = computeBoardTotals(b);
+      return t[scoreGoal];
+    }
+
+    // Try placing a cog at slot; keep if it improves score
+    function tryEvict(slot, newCog) {
+      if (board[slot].isPlayer) return false;
+      if (board[slot].name && board[slot].name.indexOf('CogZA') === 0) return false;
+      var old = board[slot];
+      board[slot] = newCog;
+      var newSc = score(board);
+      board[slot] = old;
+      var oldSc = score(board);
+      if (newSc > oldSc) {
+        board[slot] = newCog;
+        return true;
+      }
+      return false;
+    }
+
+    // Layer 3: T3 directionals — try every slot × every direction, pick best
+    // Build/flaggy surround benefits ALL cogs, not just the player.
+    // ConExp surround (f) only matters at the player, but base stats are the same.
+    // tryEvict will only keep it if the surround actually improves the score.
+    var uDirs = ['row', 'column', 'up', 'down', 'left', 'right', 'corners'];
+    var dMap = { up: 'Cog3up', down: 'Cog3do', left: 'Cog3le', right: 'Cog3ri',
+                 corners: 'Cog3cn', row: 'Cog3ro', column: 'Cog3co' };
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (i === pSlot) continue;
+      var bestDir = null, bestDirSc = -Infinity;
+      var baseSc = score(board);
+      for (var di = 0; di < uDirs.length; di++) {
         var s = makeSurr(goalSurr, maxSurrT3);
-        board[i] = {
-          name: dirNameMap[ultiDirs[di]],
+        var ultiCog = {
+          name: dMap[uDirs[di]],
           a: goalBase === 'a' ? maxBase(perfT3) : 0, b: 0,
           c: goalBase === 'c' ? maxBase(perfT3) : 0,
           d: goalBase === 'd' ? maxBase(perfT3) : 0,
           e: s.e, f: s.f, g: s.g, j: s.j,
-          h: ultiDirs[di], i: 0, l: 0, _slot: i, isPlayer: false,
+          h: uDirs[di], i: 0, l: 0, _slot: i, isPlayer: false,
         };
-        used[i] = true;
-        break;
+        var old = board[i];
+        board[i] = ultiCog;
+        var sc = score(board);
+        board[i] = old;
+        if (sc > bestDirSc) { bestDirSc = sc; bestDir = uDirs[di]; }
+      }
+      if (bestDir && bestDirSc > baseSc) {
+        var s = makeSurr(goalSurr, maxSurrT3);
+        board[i] = {
+          name: dMap[bestDir],
+          a: goalBase === 'a' ? maxBase(perfT3) : 0, b: 0,
+          c: goalBase === 'c' ? maxBase(perfT3) : 0,
+          d: goalBase === 'd' ? maxBase(perfT3) : 0,
+          e: s.e, f: s.f, g: s.g, j: s.j,
+          h: bestDir, i: 0, l: 0, _slot: i, isPlayer: false,
+        };
       }
     }
-  }
 
-  // 5. Yin (excogia) — direction "everything" + base stats scale with con level.
-  //    Place 2×2 blocks in remaining free slots.
-  var exPieceNames = ['CogZA00', 'CogZA01', 'CogZA02', 'CogZA03'];
-  for (var bi = 0; bi < exBlocks; bi++) {
-    var placed = false;
-    for (var r = 0; r < BOARD_H - 1 && !placed; r++) {
-      for (var c = 0; c < BOARD_W - 1 && !placed; c++) {
-        var s0 = posToSlot(c, r), s1 = posToSlot(c + 1, r);
-        var s2 = posToSlot(c, r + 1), s3 = posToSlot(c + 1, r + 1);
-        if (used[s0] || used[s1] || used[s2] || used[s3]) continue;
-        var slots = [s0, s1, s2, s3];
-        for (var ei = 0; ei < 4; ei++) {
-          board[slots[ei]] = {
-            name: exPieceNames[ei], a: yinA, b: 0, c: yinC, d: yinD,
-            e: 1.25, f: 20, g: 0, j: 0,
-            h: 'everything', i: 0, l: 1, _slot: slots[ei], isPlayer: false,
+    // Layer 4: CogCry5 non-directional — replace remaining non-dir T3 if higher base stats
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (i === pSlot) continue;
+      if (board[i].h) continue; // already directional, skip
+      var crFiller = {
+        name: 'CogCry5',
+        a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
+        c: goalBase === 'c' ? maxBase(perfT4) : 0,
+        d: goalBase === 'd' ? maxBase(perfT4) : 0,
+        e: 0, f: 0, g: 0, j: 0,
+        h: null, i: 0, l: 0, _slot: i, isPlayer: false,
+      };
+      tryEvict(i, crFiller);
+    }
+
+    // Layer 5: CogCry5 directional (row/col) — crystal can do e/f but not g
+    // Build/conexp surround affects ALL cogs in that row/col, not just the player.
+    // Try both row and column at every slot, pick the best direction.
+    if (crystalCanSurr) {
+      var crySurrKey = goalSurr; // 'e' or 'f'
+      var cryDirs = ['row', 'column'];
+      for (var i = 0; i < BOARD_SIZE; i++) {
+        if (i === pSlot) continue;
+        var bestCryDir = null, bestCrySc = -Infinity;
+        var baseSc = score(board);
+        for (var di = 0; di < cryDirs.length; di++) {
+          var s = makeSurr(crySurrKey, maxSurrCry5);
+          var dirCog = {
+            name: 'CogCry5',
+            a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
+            c: goalBase === 'c' ? maxBase(perfT4) : 0,
+            d: goalBase === 'd' ? maxBase(perfT4) : 0,
+            e: s.e, f: s.f, g: s.g, j: s.j,
+            h: cryDirs[di], i: 0, l: 0, _slot: i, isPlayer: false,
           };
-          used[slots[ei]] = true;
+          var old = board[i];
+          board[i] = dirCog;
+          var sc = score(board);
+          board[i] = old;
+          if (sc > bestCrySc) { bestCrySc = sc; bestCryDir = cryDirs[di]; }
         }
-        placed = true;
+        if (bestCryDir && bestCrySc > baseSc) {
+          var s = makeSurr(crySurrKey, maxSurrCry5);
+          board[i] = {
+            name: 'CogCry5',
+            a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
+            c: goalBase === 'c' ? maxBase(perfT4) : 0,
+            d: goalBase === 'd' ? maxBase(perfT4) : 0,
+            e: s.e, f: s.f, g: s.g, j: s.j,
+            h: bestCryDir, i: 0, l: 0, _slot: i, isPlayer: false,
+          };
+        }
+      }
+    }
+
+    // Layer 6: Excogia 2×2 blocks — evaluated against the final board state.
+    // Their "everything" f=20 surround reaches all slots including the player.
+    // Scored against fully-placed directionals so the eviction cost is accurate.
+    var exNames = ['CogZA00', 'CogZA01', 'CogZA02', 'CogZA03'];
+    for (var bi = 0; bi < exBlocks; bi++) {
+      var bestExScore = -Infinity, bestExSlots = null;
+      for (var r = 0; r < BOARD_H - 1; r++) {
+        for (var cc = 0; cc < BOARD_W - 1; cc++) {
+          var s0 = posToSlot(cc, r), s1 = posToSlot(cc + 1, r);
+          var s2 = posToSlot(cc, r + 1), s3 = posToSlot(cc + 1, r + 1);
+          var slots = [s0, s1, s2, s3];
+          var ok = true;
+          for (var ei = 0; ei < 4; ei++) {
+            if (slots[ei] === pSlot) { ok = false; break; }
+            if (board[slots[ei]].name && board[slots[ei]].name.indexOf('CogZA') === 0) { ok = false; break; }
+          }
+          if (!ok) continue;
+          var saved = [];
+          for (var ei = 0; ei < 4; ei++) saved.push(board[slots[ei]]);
+          for (var ei = 0; ei < 4; ei++) {
+            board[slots[ei]] = {
+              name: exNames[ei], a: yinA, b: 0, c: yinC, d: yinD,
+              e: 1.25, f: 20, g: 0, j: 0,
+              h: 'everything', i: 0, l: 1, _slot: slots[ei], isPlayer: false,
+            };
+          }
+          var sc = score(board);
+          for (var ei = 0; ei < 4; ei++) board[slots[ei]] = saved[ei];
+          if (sc > bestExScore) { bestExScore = sc; bestExSlots = slots.slice(); }
+        }
+      }
+      if (bestExSlots) {
+        var baseScore = score(board);
+        if (bestExScore > baseScore) {
+          for (var ei = 0; ei < 4; ei++) {
+            board[bestExSlots[ei]] = {
+              name: exNames[ei], a: yinA, b: 0, c: yinC, d: yinD,
+              e: 1.25, f: 20, g: 0, j: 0,
+              h: 'everything', i: 0, l: 1, _slot: bestExSlots[ei], isPlayer: false,
+            };
+          }
+        }
+      }
+    }
+
+    // Layer 7: Yang — evict best "around" slot if gain
+    var yp = 0;
+    for (var yi = 0; yi < yangCount; yi++) {
+      var bestSlot = -1, bestGain = 0;
+      for (var i = 0; i < BOARD_SIZE; i++) {
+        if (i === pSlot) continue;
+        if (board[i].name === 'CogY') continue;
+        if (board[i].name && board[i].name.indexOf('CogZA') === 0) continue;
+        if (!canTarget(i, 'around', pSlot)) continue;
+        var old = board[i];
+        var yangCog = {
+          name: 'CogY', a: 0, b: 0, c: 0, d: 0,
+          e: yangE, f: yangF, g: 0, j: 0,
+          h: 'around', i: 0, l: 0, _slot: i, isPlayer: false,
+        };
+        board[i] = yangCog;
+        var newSc = score(board);
+        board[i] = old;
+        var oldSc = score(board);
+        var gain = newSc - oldSc;
+        if (gain > bestGain || (gain > 0 && bestSlot < 0)) {
+          bestGain = gain; bestSlot = i;
+        }
+      }
+      if (bestSlot < 0) break;
+      board[bestSlot] = {
+        name: 'CogY', a: 0, b: 0, c: 0, d: 0,
+        e: yangE, f: yangF, g: 0, j: 0,
+        h: 'around', i: 0, l: 0, _slot: bestSlot, isPlayer: false,
+      };
+      yp++;
+    }
+
+    return { board: board, yangPlaced: yp, playerSlot: pSlot };
+  }
+
+  // Single "Layered eviction" strategy — tested at every position
+  var strats = [
+    { name: 'Layered eviction' },
+  ];
+
+  // Test every board position for the player
+  var testPositions = [];
+  for (var i = 0; i < BOARD_SIZE; i++) testPositions.push(i);
+
+  var bestBoard = null, bestTotals = null, bestScore = -Infinity;
+  var bestStratName = '', bestYangP = 0, bestPSlot = -1;
+
+  // Track best per strategy for logging
+  var stratBest = [];
+  for (var si = 0; si < strats.length; si++) stratBest.push({ sc: -Infinity, pos: -1 });
+
+  for (var si = 0; si < strats.length; si++) {
+    var st = strats[si];
+    for (var pi = 0; pi < testPositions.length; pi++) {
+      var pSlot = testPositions[pi];
+      var res = buildCandidate(pSlot);
+      var tot = computeBoardTotals(res.board);
+      var sc = tot[scoreGoal];
+      if (sc > stratBest[si].sc) { stratBest[si].sc = sc; stratBest[si].pos = pSlot; }
+      if (sc > bestScore) {
+        bestScore = sc; bestBoard = res.board; bestTotals = tot;
+        bestStratName = st.name; bestYangP = res.yangPlaced; bestPSlot = pSlot;
       }
     }
   }
 
-  // 6. Fill remaining with non-directional CogCry5, max base stats
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (used[i]) continue;
-    board[i] = {
-      name: 'CogCry5',
-      a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
-      c: goalBase === 'c' ? maxBase(perfT4) : 0,
-      d: goalBase === 'd' ? maxBase(perfT4) : 0,
-      e: 0, f: 0, g: 0, j: 0,
-      h: null, i: 0, l: 0, _slot: i, isPlayer: false,
-    };
+  var logLines = [];
+  // Store full results per strategy for buttons
+  var stratResults = [];
+  for (var si = 0; si < strats.length; si++) {
+    var pp = slotToPos(stratBest[si].pos);
+    logLines.push(strats[si].name + ' @(' + pp.col + ',' + pp.row + '): ' + fmtBig(stratBest[si].sc));
+    // Rebuild the best candidate for this strategy to store its board
+    var res = buildCandidate(stratBest[si].pos);
+    stratResults.push({ name: strats[si].name, board: res.board, yangPlaced: res.yangPlaced, pSlot: stratBest[si].pos, score: stratBest[si].sc });
   }
+  console.log('[Perfect Board] ' + goal + ' strategies:\n' + logLines.join('\n'));
 
-  // Save original tiny cog state
+  // Tiny cogs
   SAVE_COG_ORDER_TINY = [];
   for (var t = 0; t < 24; t++) SAVE_COG_ORDER_TINY[t] = (COG_ORDER && COG_ORDER[228 + t]) || 'Blank';
   if (ALL_COGS) SAVE_TINY_BOARD = ALL_COGS.tinyBoard;
 
-  // All 24 tiny cogs → T10 (level 9) of goal type
   var tinyChar = goalTinyType === 0 ? '_' : goalTinyType === 1 ? 'a' : 'b';
   var perfTiny = [];
   for (var t = 0; t < 24; t++) {
@@ -1643,8 +1780,8 @@ window.showPerfectBoard = function() {
   if (ALL_COGS) ALL_COGS.tinyBoard = perfTiny;
 
   IS_PERFECT = true;
-  CURRENT_BOARD = board;
-  CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
+  CURRENT_BOARD = bestBoard;
+  CURRENT_TOTALS = bestTotals;
   renderBoard('board-current', CURRENT_BOARD, null);
   renderStats(CURRENT_TOTALS, SAVE_TOTALS);
   renderBoardJudge();
@@ -1652,10 +1789,52 @@ window.showPerfectBoard = function() {
   renderSmallCogs();
   document.getElementById('btn-reset').style.display = '';
   var goalName = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
-  var pPos = slotToPos(playerSlot);
+  var pPos = slotToPos(bestPSlot);
   document.getElementById('opt-status').textContent =
-    'Perfect ' + goalName + ' — player at (' + pPos.col + ',' + pPos.row + '), ' +
-    exBlocks + ' excogia, ' + yangPlaced + ' yang, CogCry5 row/col, Ulti dirs, T10 tiny.';
+    'Perfect ' + goalName + ' — ' + bestStratName + ', player (' +
+    pPos.col + ',' + pPos.row + '), ' + exBlocks + ' excogia, ' +
+    bestYangP + ' yang, T10 tiny.';
+
+  // Render strategy buttons
+  var sbBox = document.getElementById('strat-buttons');
+  sbBox.innerHTML = '';
+  sbBox.style.display = 'flex';
+  for (var si = 0; si < stratResults.length; si++) {
+    (function(idx) {
+      var sr = stratResults[idx];
+      var btn = document.createElement('button');
+      btn.className = 'btn-opt';
+      btn.style.cssText = 'font-size:.7em;padding:4px 8px;' +
+        (sr.name === bestStratName
+          ? 'background:linear-gradient(135deg,#b8860b,#8b6914);border:1px solid #daa520'
+          : 'background:linear-gradient(135deg,#444,#333)');
+      var pp = slotToPos(sr.pSlot);
+      btn.textContent = sr.name + ' ' + fmtBig(sr.score);
+      btn.title = 'Player (' + pp.col + ',' + pp.row + ')';
+      btn.onclick = function() {
+        var tot = computeBoardTotals(sr.board);
+        CURRENT_BOARD = sr.board;
+        CURRENT_TOTALS = tot;
+        renderBoard('board-current', CURRENT_BOARD, null);
+        renderStats(CURRENT_TOTALS, SAVE_TOTALS);
+        renderBoardJudge();
+        renderInsights();
+        var gn = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
+        var p = slotToPos(sr.pSlot);
+        document.getElementById('opt-status').textContent =
+          'Perfect ' + gn + ' — ' + sr.name + ', player (' + p.col + ',' + p.row + '), ' +
+          exBlocks + ' excogia, ' + sr.yangPlaced + ' yang, T10 tiny.';
+        // Highlight active button
+        for (var bi = 0; bi < sbBox.children.length; bi++) {
+          sbBox.children[bi].style.background = 'linear-gradient(135deg,#444,#333)';
+          sbBox.children[bi].style.border = '';
+        }
+        btn.style.background = 'linear-gradient(135deg,#b8860b,#8b6914)';
+        btn.style.border = '1px solid #daa520';
+      };
+      sbBox.appendChild(btn);
+    })(si);
+  }
 };
 
 /* ========== SWAP GUIDE ========== */
