@@ -259,7 +259,12 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   background: var(--bg2); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); display: none;
 }
-.insights-banner h3 { color: var(--cyan); font-size: .9em; margin-bottom: 8px; }
+.insights-banner > h3 { color: var(--cyan); font-size: .9em; margin-bottom: 0; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+.insights-banner > h3 .collapse-arrow { display: inline-block; transition: transform .15s; font-size: .7em; }
+.insights-banner > h3 .collapse-arrow.open { transform: rotate(90deg); }
+.insights-banner.expanded > h3 { margin-bottom: 8px; }
+.insights-columns { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .insights-columns { grid-template-columns: 1fr; } }
 .insight-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85em; margin-bottom: 6px; }
 .insight-item { display: flex; gap: 6px; align-items: baseline; }
 .insight-label { color: var(--text2); font-size: .85em; }
@@ -270,6 +275,15 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .suggestion-item .sug-slot { color: var(--cyan); font-weight: 600; }
 .suggestion-item .sug-gain { color: var(--green); font-weight: 600; }
 .suggestion-item .sug-roll { color: var(--purple); }
+/* Roll ranges info box */
+.roll-ranges-box { border-left: 1px solid #333; padding-left: 14px; font-size: .82em; }
+.roll-ranges-box h4 { color: var(--cyan); font-size: .88em; margin: 0 0 6px; font-weight: 600; }
+.rr-tier { margin-bottom: 8px; }
+.rr-tier-label { color: var(--gold); font-weight: 600; font-size: .85em; margin-bottom: 2px; }
+.rr-row { display: flex; justify-content: space-between; color: var(--text2); line-height: 1.5; }
+.rr-row .rr-val { color: var(--text); font-weight: 600; }
+.rr-next { margin-top: 8px; padding-top: 6px; border-top: 1px solid #333; color: var(--text2); font-size: .8em; line-height: 1.5; }
+.rr-next .rr-gain { color: var(--green); font-weight: 600; }
 
 /* Tooltip */
 .cog-tooltip {
@@ -334,6 +348,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
     <div class="opt-panel">
       <div class="opt-line">
         <button class="btn-opt" id="btn-optimize" onclick="runOptimizer()" disabled>&#x1F680; Optimize</button>
+        <button class="btn-opt" id="btn-perfect" onclick="showPerfectBoard()" disabled style="background:linear-gradient(135deg,#b8860b,#8b6914)">&#x1F451; Perfect Board</button>
         <button class="btn-opt" id="btn-reset" onclick="resetBoard()" style="background:linear-gradient(135deg,#666,#444);display:none">&#x21BA; Reset</button>
       </div>
       <div class="opt-line">
@@ -378,8 +393,11 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 
   <!-- Board insights -->
   <div class="insights-banner" id="insights-banner">
-    <h3>&#x1F50D; Board Insights</h3>
-    <div id="insights-content"></div>
+    <h3 onclick="toggleInsights()"><span class="collapse-arrow" id="insights-arrow">&#x25B6;</span>&#x1F50D; Board Insights</h3>
+    <div class="insights-columns" id="insights-body" style="display:none">
+      <div id="insights-content"></div>
+      <div class="roll-ranges-box" id="roll-ranges-box"></div>
+    </div>
   </div>
 </div>
 
@@ -438,14 +456,34 @@ var COG_ORDER = null, COG_MAP = null;
 var CURRENT_BOARD = null, SAVE_BOARD = null;
 var CURRENT_TOTALS = null, SAVE_TOTALS = null;
 var ALL_COGS = null, MAX_CON_LV = 100, SAVE_OBJ = null;
-var OPT_RESULT = null, IS_OPTIMIZED = false;
+var OPT_RESULT = null, IS_OPTIMIZED = false, IS_PERFECT = false;
+var SAVE_COG_ORDER_TINY = null, SAVE_TINY_BOARD = null;
 var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
 var ACTIVE_STAT_OVERLAY = 'conexp';
 var CURRENT_INSIGHTS = null;
 var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
 var DAILY_CRYSTAL_ROLLS = 1; // 1 + Math.round(Cog_Lover_level * 2)
+var GRID69_TIER_UP_PCT = 0; // Grid node 69 "Adequate Sized, Actually": level * 50% chance for +1 tiny cog tier
 function dailyRollsForTier(tier) { return tier >= 4 ? DAILY_CRYSTAL_ROLLS : 50; }
+function smallCogEffectiveOneInN(baseLevel) {
+  // With grid 69, there's a GRID69_TIER_UP_PCT% chance that a cog rolled at (baseLevel-1) gets bumped to baseLevel.
+  // P(exactly level L) without grid69: 0.5^(L+1) for L<9, 0.5^9 for L=9
+  // With grid69 tier-up chance p:
+  //   P(get L) = (1-p)*P_base(L) + p*P_base(L-1)  [you can reach L by rolling L naturally, or rolling L-1 and getting bumped]
+  // For odds display: effective P(>= L) = P_base(>= L) + p * P_base(exactly L-1)
+  // Simplified: oneInN for level L accounting for tier-up
+  if (baseLevel <= 0) return 1;
+  var p = GRID69_TIER_UP_PCT / 100;
+  var pBase = Math.pow(0.5, baseLevel); // P(>= baseLevel) without boost
+  var pPrev = baseLevel >= 1 ? Math.pow(0.5, baseLevel) : 0; // P(exactly baseLevel-1) = 0.5^baseLevel
+  var pEff = pBase + p * pPrev;
+  return pEff > 0 ? Math.round(1 / pEff) : 1;
+}
+function smallCogMinObtainableTier() {
+  // At 100% tier-up, tier 0 is impossible (always bumped to 1+)
+  return GRID69_TIER_UP_PCT >= 100 ? 1 : 0;
+}
 
 
 /* ========== IMPORT ========== */
@@ -488,15 +526,19 @@ function loadFromParsed(parsed) {
     // Daily crystal cog claims: 1 + legendPTSbonus(18) where perPt=2
     var cogLoverLv = Number((saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][18]) || 0);
     DAILY_CRYSTAL_ROLLS = 1 + Math.round(cogLoverLv * 2);
+    // Grid node 69: "Adequate Sized, Actually" — level * 50% chance for +1 tiny cog tier
+    var gridLevels = saveData.gridLevels || [];
+    GRID69_TIER_UP_PCT = Math.min((Number(gridLevels[69]) || 0) * 50, 100);
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
     SAVE_TOTALS = CURRENT_TOTALS;
-    IS_OPTIMIZED = false; OPT_RESULT = null; SHELF_PAGE = 0;
+    IS_OPTIMIZED = false; IS_PERFECT = false; OPT_RESULT = null; SHELF_PAGE = 0;
     showMsg('Loaded! ' + countFilled(CURRENT_BOARD) + '/96 board cogs, ' +
             ALL_COGS.shelfCogs.length + ' shelf | Max Con Lv: ' + MAX_CON_LV +
             ' | Crystal/day: ' + DAILY_CRYSTAL_ROLLS, false);
     document.getElementById('summary-section').style.display = '';
     document.getElementById('board-container').style.display = '';
     document.getElementById('btn-optimize').disabled = false;
+    document.getElementById('btn-perfect').disabled = false;
     renderAll(); hideOptButtons(); hideSwapGuide();
   // Set conexp card active by default
   var cards = document.querySelectorAll('.stat-card');
@@ -678,6 +720,16 @@ function computeBoardInsights(board, goal) {
   return { weakest: weakest, best: best, impacts: impacts, rollTargets: rollTargets.slice(0, 3), baseScore: baseScore };
 }
 
+function toggleInsights() {
+  var body = document.getElementById('insights-body');
+  var arrow = document.getElementById('insights-arrow');
+  var panel = document.getElementById('insights-banner');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  arrow.classList.toggle('open', !open);
+  panel.classList.toggle('expanded', !open);
+}
+
 function renderInsights() {
   var panel = document.getElementById('insights-banner');
   var content = document.getElementById('insights-content');
@@ -726,8 +778,115 @@ function renderInsights() {
   content.innerHTML = html;
   panel.style.display = 'block';
 
+  // Render roll ranges info box
+  renderRollRanges(goal);
+
   // Apply highlights to board cells
   applyInsightHighlights(ins);
+}
+
+function _rollRangeStats(tier, conLv) {
+  // Compute min/max for each stat at this tier+conLv
+  // rawMag formula from cog-judge
+  var rawMag = Math.pow(3, Math.min(3.4, tier)) + 0.25 * Math.pow(conLv / 3 + 0.7, 1.4 + 0.05 * tier);
+  var minMult = 0.4, maxMult = 3.0;
+  var minRolls = tier < 2 ? 2 : 3;
+  var maxRolls = tier < 2 ? 3 : 4;
+
+  // Per-roll value range
+  var minV = Math.floor(minMult * rawMag);
+  var maxV = Math.floor(maxMult * rawMag);
+
+  // Max per stat = all rolls land on that stat with max multiplier
+  // Min per stat = 0 (no rolls may land on it)
+  var maxA = Math.round(maxV) * maxRolls;
+  var maxC = Math.round(Math.pow(Math.max(maxV, 1), 0.8)) * maxRolls;
+
+  function dConvert(v) { return Math.max(Math.floor(Math.pow(Math.max(v,1), 0.4) + 10 * Math.log(Math.max(v,1)) / 2.30259 - 5), 2); }
+  var maxD = dConvert(maxV) * maxRolls;
+
+  // Surround ranges — fixed per tier, NOT con-level dependent
+  // T0: 5-10, T1: 8-15, T2: 12-40, T3: 20-65
+  // Crystal: 30-40 + 23*(cryLv+1)
+  var surrRanges = [
+    [5, 10], [8, 15], [12, 40], [20, 65]
+  ];
+  var minSurr, maxSurr;
+  if (tier <= 3) {
+    minSurr = surrRanges[tier][0];
+    maxSurr = surrRanges[tier][1];
+  } else {
+    // Crystal tier: depends on crystal upgrade level, show range for max (CogCry4 = emerald)
+    minSurr = 30 + 23 * 1;  // CogCry0 upgrade = level 1
+    maxSurr = 40 + 23 * 5;  // CogCry4 upgrade = level 5
+  }
+
+  return { maxA: maxA, maxC: maxC, maxD: maxD, perRollA: Math.round(maxV), perRollC: Math.round(Math.pow(Math.max(maxV, 1), 0.8)), perRollD: dConvert(maxV), perRollMinA: Math.round(minV), perRollMinC: Math.round(Math.pow(Math.max(minV, 1), 0.8)), perRollMinD: dConvert(minV), maxRolls: maxRolls, minSurr: minSurr, maxSurr: maxSurr, rawMag: rawMag };
+}
+
+function renderRollRanges(goal) {
+  var box = document.getElementById('roll-ranges-box');
+  if (!box) return;
+
+  var conLv = MAX_CON_LV;
+  var goalBase = goal === 'build' ? 'a' : goal === 'flaggy' ? 'c' : 'd';
+  var goalLabel = goal === 'build' ? 'Build (a)' : goal === 'flaggy' ? 'Flaggy (c)' : 'ConExp (d)';
+
+  var tiers = [
+    { tier: 3, name: 'Ulti (T3)' },
+    { tier: 4, name: 'Jewelled (T4)' }
+  ];
+
+  var html = '<h4>&#x1F3B2; Roll Ranges <span style="color:var(--text2);font-weight:400">(Con Lv ' + conLv + ')</span></h4>';
+
+  // Find con level needed for next increase in a roll stat field
+  function _findConForPlus1(tier, field) {
+    var cur = _rollRangeStats(tier, conLv);
+    var curVal = cur[field];
+    for (var test = conLv + 1; test <= conLv + 500; test++) {
+      var ts = _rollRangeStats(tier, test);
+      if (ts[field] > curVal) return { needed: test, from: curVal, to: ts[field] };
+    }
+    return { needed: conLv + 500, from: curVal, to: curVal + 1 };
+  }
+
+  var maxField = goalBase === 'a' ? 'perRollA' : goalBase === 'c' ? 'perRollC' : 'perRollD';
+  var minField = goalBase === 'a' ? 'perRollMinA' : goalBase === 'c' ? 'perRollMinC' : 'perRollMinD';
+
+  for (var t = 0; t < tiers.length; t++) {
+    var info = tiers[t];
+    var s = _rollRangeStats(info.tier, conLv);
+
+    var maxStat, perRoll, perRollMin;
+    if (goalBase === 'a') { maxStat = s.maxA; perRoll = s.perRollA; perRollMin = s.perRollMinA; }
+    else if (goalBase === 'c') { maxStat = s.maxC; perRoll = s.perRollC; perRollMin = s.perRollMinC; }
+    else { maxStat = s.maxD; perRoll = s.perRollD; perRollMin = s.perRollMinD; }
+
+    var nMax = _findConForPlus1(info.tier, maxField);
+    var nMin = _findConForPlus1(info.tier, minField);
+
+    html += '<div class="rr-tier">';
+    html += '<div class="rr-tier-label">' + info.name + ' <span style="color:var(--text2);font-weight:400">(' + s.maxRolls + ' rolls)</span></div>';
+    html += '<div class="rr-row"><span>Per-roll:</span> <span class="rr-val">' + perRollMin + ' \u2013 ' + perRoll + '</span></div>';
+    html += '<div class="rr-row"><span>Total max:</span> <span class="rr-val">' + maxStat.toLocaleString() + ' <span style="color:var(--text2)">(' + perRoll + ' \u00d7 ' + s.maxRolls + ')</span></span></div>';
+    html += '<div class="rr-row" style="margin-top:2px"><span>Lv ' + nMin.needed + ' <span style="color:var(--text2);font-weight:400">(+' + (nMin.needed - conLv) + ')</span>:</span> <span class="rr-val">' + nMin.to + ' <span style="color:var(--text2)">min</span></span></div>';
+    html += '<div class="rr-row"><span>Lv ' + nMax.needed + ' <span style="color:var(--text2);font-weight:400">(+' + (nMax.needed - conLv) + ')</span>:</span> <span class="rr-val">' + nMax.to + ' <span style="color:var(--text2)">max</span></span></div>';
+    html += '</div>';
+  }
+
+  // Tiny cog tier-up info
+  if (GRID69_TIER_UP_PCT > 0) {
+    html += '<div class="rr-next">';
+    html += '<div style="margin-bottom:4px"><b>Tiny Cog Tier-Up:</b></div>';
+    html += '<div class="rr-row"><span>Grid 69 bonus:</span> <span class="rr-val" style="color:var(--green)">' + GRID69_TIER_UP_PCT + '%</span></div>';
+    var minTier = smallCogMinObtainableTier();
+    if (minTier > 0) {
+      html += '<div class="rr-row"><span style="color:var(--red)">T1' + (minTier > 1 ? '\u2013T' + minTier : '') + ' unobtainable</span></div>';
+    }
+    html += '</div>';
+  }
+
+  box.innerHTML = html;
 }
 
 function applyInsightHighlights(ins) {
@@ -901,6 +1060,10 @@ function renderSmallCogs() {
       var parsed = parseSmallCog(name);
       if (parsed) {
         cell.classList.add(SM_TYPE_CLASSES[parsed.type] || '');
+        if (parsed.level < smallCogMinObtainableTier()) {
+          cell.style.opacity = '0.4';
+          cell.title = 'T' + (parsed.level + 1) + ' no longer obtainable (Grid 69)';
+        }
         var lbl = document.createElement('div'); lbl.className = 'sc-lbl';
         lbl.textContent = SM_TYPE_SHORT[parsed.type] + (parsed.level + 1);
         cell.appendChild(lbl);
@@ -1031,14 +1194,18 @@ function cogTooltipHtml(cog, slot) {
     if (sm) {
       var smTypeNames = ['Flaggy Rate', 'Build Speed', 'Con EXP'];
       var smj = judgeSmallCog(sm.type, sm.level);
+      var effOneInN = smallCogEffectiveOneInN(sm.level);
       html += '<div style="margin-top:4px;border-top:1px solid #333;padding-top:4px">';
       html += '<div class="tt-stat"><span class="lbl">Type</span><span class="val">' + smTypeNames[sm.type] + '</span></div>';
       html += '<div class="tt-stat"><span class="lbl">Level</span><span class="val">' + sm.level + '</span></div>';
-      html += '<div class="tt-stat"><span class="lbl">Bonus</span><span class="val">+' + fmtBig(sm.bonus) + '</span></div>';
+      html += '<div class="tt-stat"><span class="lbl">Bonus</span><span class="val">' + (1 + sm.bonus / 100).toFixed(2) + 'x (+' + fmtBig(sm.bonus) + '%)</span></div>';
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + smj.grade + '">' + smj.grade + '</span></div>';
-      if (smj.oneInN > 1) {
-        var smOddsColor = smj.oneInN >= 128 ? 'var(--gold)' : smj.oneInN >= 32 ? 'var(--green)' : smj.oneInN >= 8 ? 'var(--cyan)' : 'var(--text2)';
-        html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + smOddsColor + '">1 in ' + smj.oneInN + '</span></div>';
+      if (effOneInN > 1) {
+        var smOddsColor = effOneInN >= 128 ? 'var(--gold)' : effOneInN >= 32 ? 'var(--green)' : effOneInN >= 8 ? 'var(--cyan)' : 'var(--text2)';
+        html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + smOddsColor + '">1 in ' + effOneInN + '</span></div>';
+      }
+      if (GRID69_TIER_UP_PCT > 0) {
+        html += '<div class="tt-stat"><span class="lbl">Tier-Up</span><span class="val" style="color:var(--green)">' + GRID69_TIER_UP_PCT + '% (Grid 69)</span></div>';
       }
       html += '</div>';
     }
@@ -1070,15 +1237,23 @@ function showSmallTooltip(e) {
   var parsed = parseSmallCog(name);
   if (!parsed) { tooltipEl.style.display = 'none'; return; }
   var j = judgeSmallCog(parsed.type, parsed.level);
+  var effOneInN = smallCogEffectiveOneInN(parsed.level);
   var typeNames = ['Flaggy Rate', 'Build Speed', 'Con EXP'];
   var html = '<div class="tt-name">' + esc(cogDisplayName(name)) + '</div>';
   html += '<div class="tt-stat"><span class="lbl">Type</span><span class="val">' + typeNames[parsed.type] + '</span></div>';
   html += '<div class="tt-stat"><span class="lbl">Level</span><span class="val">' + parsed.level + '</span></div>';
-  html += '<div class="tt-stat"><span class="lbl">Bonus</span><span class="val">+' + fmtBig(parsed.bonus) + '</span></div>';
+  html += '<div class="tt-stat"><span class="lbl">Bonus</span><span class="val">' + (1 + parsed.bonus / 100).toFixed(2) + 'x (+' + fmtBig(parsed.bonus) + '%)</span></div>';
   html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + j.grade + '</span></div>';
-  if (j.oneInN > 1) {
-    var smOC = j.oneInN >= 128 ? 'var(--gold)' : j.oneInN >= 32 ? 'var(--green)' : j.oneInN >= 8 ? 'var(--cyan)' : 'var(--text2)';
-    html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + smOC + '">1 in ' + j.oneInN + '</span></div>';
+  if (effOneInN > 1) {
+    var smOC = effOneInN >= 128 ? 'var(--gold)' : effOneInN >= 32 ? 'var(--green)' : effOneInN >= 8 ? 'var(--cyan)' : 'var(--text2)';
+    html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + smOC + '">1 in ' + effOneInN + '</span></div>';
+  }
+  if (GRID69_TIER_UP_PCT > 0) {
+    html += '<div class="tt-stat"><span class="lbl">Tier-Up</span><span class="val" style="color:var(--green)">' + GRID69_TIER_UP_PCT + '% (Grid 69)</span></div>';
+    var minTier = smallCogMinObtainableTier();
+    if (parsed.level < minTier) {
+      html += '<div class="tt-stat"><span class="lbl" style="color:var(--red)">Unobtainable</span><span class="val" style="color:var(--red)">T' + (parsed.level + 1) + ' can no longer roll</span></div>';
+    }
   }
   tooltipEl.innerHTML = html;
   tooltipEl.style.display = 'block'; moveTooltip(e);
@@ -1208,8 +1383,8 @@ function showResults(result) {
       if (tr.bonusAfter[si] !== tr.bonusBefore[si]) {
         var d = tr.bonusAfter[si] - tr.bonusBefore[si];
         resultHtml += '<div class="ri-tiny-bonus">' + smLabels[si] + ': ' +
-          tr.bonusBefore[si] + ' → ' + tr.bonusAfter[si] +
-          ' <span class="ri-up">(+' + d + ')</span></div>';
+          (1 + tr.bonusBefore[si] / 100).toFixed(2) + 'x → ' + (1 + tr.bonusAfter[si] / 100).toFixed(2) + 'x' +
+          ' <span class="ri-up">(+' + d + '%)</span></div>';
       }
     }
     resultHtml += '</div>';
@@ -1235,6 +1410,12 @@ function _resultItem(label, oldVal, newVal, isPct) {
 }
 
 window.resetBoard = function() {
+  // Restore tiny cogs if perfect board overrode them
+  if (IS_PERFECT && SAVE_COG_ORDER_TINY && COG_ORDER) {
+    for (var t = 0; t < 24; t++) COG_ORDER[228 + t] = SAVE_COG_ORDER_TINY[t];
+    if (ALL_COGS && SAVE_TINY_BOARD) ALL_COGS.tinyBoard = SAVE_TINY_BOARD;
+  }
+  IS_PERFECT = false; SAVE_COG_ORDER_TINY = null; SAVE_TINY_BOARD = null;
   CURRENT_BOARD = cloneBoard(SAVE_BOARD);
   CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
   IS_OPTIMIZED = false; OPT_RESULT = null;
@@ -1243,7 +1424,238 @@ window.resetBoard = function() {
   renderBoard('board-current', CURRENT_BOARD, null);
   renderStats(CURRENT_TOTALS);
   renderBoardJudge();
+  renderInsights();
+  renderSmallCogs();
   document.getElementById('opt-status').textContent = 'Board reset to save state.';
+};
+
+window.showPerfectBoard = function() {
+  if (!SAVE_BOARD) return showMsg('Load a save first', true);
+
+  var conLv = MAX_CON_LV;
+  var goal = ACTIVE_STAT_OVERLAY || 'conexp';
+  var goalBase = goal === 'build' ? 'a' : goal === 'flaggy' ? 'c' : 'd';
+  var goalSurr = goal === 'build' ? 'e' : goal === 'flaggy' ? 'g' : 'f';
+  var goalTinyType = goal === 'build' ? 1 : goal === 'flaggy' ? 0 : 2;
+
+  var perfT3 = perfectCogStats(3, conLv);
+  var perfT4 = perfectCogStats(4, conLv);
+  var maxSurrT3 = 65;
+  var maxSurrCry5 = 40 + 23 * 6;
+  var crystalCanSurr = (goalSurr === 'e' || goalSurr === 'f');
+
+  function maxBase(perf) {
+    return goalBase === 'a' ? perf.perfectA : goalBase === 'c' ? perf.perfectC : perf.perfectD;
+  }
+  function makeSurr(key, val) {
+    var o = { e: 0, f: 0, g: 0, j: 0 }; o[key] = val; return o;
+  }
+
+  // Yang (CogY) surround scales with con level (game code line 82556)
+  var yangE = Math.floor(50 + conLv / (conLv + 80) * 120); // build%
+  var yangF = Math.floor(50 + conLv / (conLv + 80) * 160); // con%
+
+  // Yin (CogZA) base stats scale with con level (game code line 83740)
+  var yinTier = conLv < 15 ? 0 : conLv < 40 ? 1 : conLv < 70 ? 2 : 3;
+  var yinBudget = 2.5 * (Math.pow(3, yinTier) + 0.25 * Math.pow(conLv / 3 + 0.7, 1.4 + 0.05 * yinTier)) * (1.5 + 0.5 * yinTier);
+  var yinA = Math.floor(yinBudget);              // build speed
+  var yinC = Math.floor(Math.pow(yinBudget, 0.8)); // flaggy rate
+  var yinD = Math.max(Math.floor(Math.pow(yinBudget, 0.4) + 10 * Math.log10(yinBudget) - 5), 2); // con exp %
+
+  // Count yin (CogZA) and yang (CogY) from board + shelf (slots 0-227)
+  var yinCount = 0, yangCount = 0;
+  if (COG_ORDER) {
+    for (var i = 0; i < 228; i++) {
+      var n = COG_ORDER[i] || 'Blank';
+      if (n.indexOf('CogZA') === 0) yinCount++;
+      else if (n === 'CogY') yangCount++;
+    }
+  }
+  var exBlocks = Math.floor(yinCount / 4);
+
+  // Get save player cog data (take the first one)
+  var savePlayerCog = null;
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (SAVE_BOARD[i] && SAVE_BOARD[i].isPlayer) { savePlayerCog = SAVE_BOARD[i]; break; }
+  }
+  if (!savePlayerCog) return showMsg('No player cog found on board', true);
+
+  // canTarget: does slot S with direction D target slot P?
+  function canTarget(fromSlot, dir, targetSlot) {
+    if (dir === 'everything') return true;
+    var fp = slotToPos(fromSlot), tp = slotToPos(targetSlot);
+    if (dir === 'row') return fp.row === tp.row;
+    if (dir === 'column') return fp.col === tp.col;
+    var mIdx = DIR_TO_INDEX[dir];
+    if (mIdx === undefined) return false;
+    var offsets = COG_MATRICES[mIdx];
+    for (var oi = 0; oi < offsets.length; oi++) {
+      if (fp.col + offsets[oi][0] === tp.col && fp.row + offsets[oi][1] === tp.row) return true;
+    }
+    return false;
+  }
+
+  // Find optimal player position: maximize slots that can target it
+  // with any useful direction (row, column, up, down, left, right, corners, around)
+  var allDirs = ['row', 'column', 'up', 'down', 'left', 'right', 'corners', 'around'];
+  var bestPSlot = -1, bestPScore = -1;
+  for (var p = 0; p < BOARD_SIZE; p++) {
+    var score = 0;
+    for (var s = 0; s < BOARD_SIZE; s++) {
+      if (s === p) continue;
+      for (var di = 0; di < allDirs.length; di++) {
+        if (canTarget(s, allDirs[di], p)) { score++; break; }
+      }
+    }
+    if (score > bestPScore) { bestPScore = score; bestPSlot = p; }
+  }
+
+  var playerSlot = bestPSlot;
+
+  var board = new Array(BOARD_SIZE);
+  var used = {};
+
+  // 1. Place player cog at optimal position
+  board[playerSlot] = Object.assign({}, savePlayerCog, { _slot: playerSlot });
+  used[playerSlot] = true;
+
+  // 2. Crystal CogCry5 on player's row + column (highest surround: 178%)
+  if (crystalCanSurr) {
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (used[i]) continue;
+      var onRow = canTarget(i, 'row', playerSlot);
+      var onCol = canTarget(i, 'column', playerSlot);
+      if (!onRow && !onCol) continue;
+      var dir = onRow ? 'row' : 'column';
+      var s = makeSurr(goalSurr, maxSurrCry5);
+      board[i] = {
+        name: 'CogCry5',
+        a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
+        c: goalBase === 'c' ? maxBase(perfT4) : 0,
+        d: goalBase === 'd' ? maxBase(perfT4) : 0,
+        e: s.e, f: s.f, g: s.g, j: s.j,
+        h: dir, i: 0, l: 0, _slot: i, isPlayer: false,
+      };
+      used[i] = true;
+    }
+  }
+
+  // 3. Yang (CogY): direction "around", surround scales with con level
+  //    e = build%, f = con% (g is deleted by game recalc — no flaggy surround)
+  //    Place where "around" targets player
+  var yangCandidates = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (used[i]) continue;
+    if (canTarget(i, 'around', playerSlot)) yangCandidates.push(i);
+  }
+  var yangPlaced = 0;
+  for (var yi = 0; yi < yangCount; yi++) {
+    var slot = -1;
+    if (yi < yangCandidates.length) slot = yangCandidates[yi];
+    else { for (var i = 0; i < BOARD_SIZE; i++) { if (!used[i]) { slot = i; break; } } }
+    if (slot < 0) break;
+    board[slot] = {
+      name: 'CogY', a: 0, b: 0, c: 0, d: 0,
+      e: yangE, f: yangF, g: 0, j: 0,
+      h: 'around', i: 0, l: 0, _slot: slot, isPlayer: false,
+    };
+    used[slot] = true;
+    yangPlaced++;
+  }
+
+  // 4. Ulti directionals (up/down/left/right/corners) targeting player
+  var ultiDirs = ['up', 'down', 'left', 'right', 'corners'];
+  var dirNameMap = { up: 'Cog3up', down: 'Cog3do', left: 'Cog3le', right: 'Cog3ri', corners: 'Cog3cn' };
+  // Flaggy: crystals can't do g surround, so ulti also covers row/column
+  if (!crystalCanSurr) {
+    ultiDirs.push('row', 'column');
+    dirNameMap.row = 'Cog3ro'; dirNameMap.column = 'Cog3co';
+  }
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (used[i]) continue;
+    for (var di = 0; di < ultiDirs.length; di++) {
+      if (canTarget(i, ultiDirs[di], playerSlot)) {
+        var s = makeSurr(goalSurr, maxSurrT3);
+        board[i] = {
+          name: dirNameMap[ultiDirs[di]],
+          a: goalBase === 'a' ? maxBase(perfT3) : 0, b: 0,
+          c: goalBase === 'c' ? maxBase(perfT3) : 0,
+          d: goalBase === 'd' ? maxBase(perfT3) : 0,
+          e: s.e, f: s.f, g: s.g, j: s.j,
+          h: ultiDirs[di], i: 0, l: 0, _slot: i, isPlayer: false,
+        };
+        used[i] = true;
+        break;
+      }
+    }
+  }
+
+  // 5. Yin (excogia) — direction "everything" + base stats scale with con level.
+  //    Place 2×2 blocks in remaining free slots.
+  var exPieceNames = ['CogZA00', 'CogZA01', 'CogZA02', 'CogZA03'];
+  for (var bi = 0; bi < exBlocks; bi++) {
+    var placed = false;
+    for (var r = 0; r < BOARD_H - 1 && !placed; r++) {
+      for (var c = 0; c < BOARD_W - 1 && !placed; c++) {
+        var s0 = posToSlot(c, r), s1 = posToSlot(c + 1, r);
+        var s2 = posToSlot(c, r + 1), s3 = posToSlot(c + 1, r + 1);
+        if (used[s0] || used[s1] || used[s2] || used[s3]) continue;
+        var slots = [s0, s1, s2, s3];
+        for (var ei = 0; ei < 4; ei++) {
+          board[slots[ei]] = {
+            name: exPieceNames[ei], a: yinA, b: 0, c: yinC, d: yinD,
+            e: 1.25, f: 20, g: 0, j: 0,
+            h: 'everything', i: 0, l: 1, _slot: slots[ei], isPlayer: false,
+          };
+          used[slots[ei]] = true;
+        }
+        placed = true;
+      }
+    }
+  }
+
+  // 6. Fill remaining with non-directional CogCry5, max base stats
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (used[i]) continue;
+    board[i] = {
+      name: 'CogCry5',
+      a: goalBase === 'a' ? maxBase(perfT4) : 0, b: 0,
+      c: goalBase === 'c' ? maxBase(perfT4) : 0,
+      d: goalBase === 'd' ? maxBase(perfT4) : 0,
+      e: 0, f: 0, g: 0, j: 0,
+      h: null, i: 0, l: 0, _slot: i, isPlayer: false,
+    };
+  }
+
+  // Save original tiny cog state
+  SAVE_COG_ORDER_TINY = [];
+  for (var t = 0; t < 24; t++) SAVE_COG_ORDER_TINY[t] = (COG_ORDER && COG_ORDER[228 + t]) || 'Blank';
+  if (ALL_COGS) SAVE_TINY_BOARD = ALL_COGS.tinyBoard;
+
+  // All 24 tiny cogs → T10 (level 9) of goal type
+  var tinyChar = goalTinyType === 0 ? '_' : goalTinyType === 1 ? 'a' : 'b';
+  var perfTiny = [];
+  for (var t = 0; t < 24; t++) {
+    var tinyName = 'CogSm' + tinyChar + '9';
+    if (COG_ORDER) COG_ORDER[228 + t] = tinyName;
+    perfTiny.push({ name: tinyName, _slot: 228 + t });
+  }
+  if (ALL_COGS) ALL_COGS.tinyBoard = perfTiny;
+
+  IS_PERFECT = true;
+  CURRENT_BOARD = board;
+  CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
+  renderBoard('board-current', CURRENT_BOARD, null);
+  renderStats(CURRENT_TOTALS, SAVE_TOTALS);
+  renderBoardJudge();
+  renderInsights();
+  renderSmallCogs();
+  document.getElementById('btn-reset').style.display = '';
+  var goalName = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
+  var pPos = slotToPos(playerSlot);
+  document.getElementById('opt-status').textContent =
+    'Perfect ' + goalName + ' — player at (' + pPos.col + ',' + pPos.row + '), ' +
+    exBlocks + ' excogia, ' + yangPlaced + ' yang, CogCry5 row/col, Ulti dirs, T10 tiny.';
 };
 
 /* ========== SWAP GUIDE ========== */
