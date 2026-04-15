@@ -351,18 +351,34 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   // Otherwise: d-only odds (surround is wasted if not hitting a player)
   var gradeOneInN = (affectsPlayer && hasSurround) ? jointOneInN : dOneInN;
 
+  var dailyRolls = (opts && opts.dailyRolls) || 1;
+  var expectedDays = gradeOneInN / dailyRolls;
+
   var grade;
-  if (gradeOneInN >= 100000) grade = 'SSS';
-  else if (gradeOneInN >= 10000) grade = 'SS';
-  else if (gradeOneInN >= 1000) grade = 'S';
-  else if (gradeOneInN >= 100) grade = 'A';
-  else if (gradeOneInN >= 20) grade = 'B';
-  else if (gradeOneInN >= 4) grade = 'C';
-  else grade = 'D';
+  if (tier >= 4) {
+    // Crystal cogs: grade on expected days (time-gated by daily limit)
+    if      (expectedDays >= 1825) grade = 'SSS'; // 5+ years
+    else if (expectedDays >= 365)  grade = 'SS';  // 1-5 years
+    else if (expectedDays >= 90)   grade = 'S';   // 3-12 months
+    else if (expectedDays >= 30)   grade = 'A';   // 1-3 months
+    else if (expectedDays >= 7)    grade = 'B';   // 1-4 weeks
+    else if (expectedDays >= 1)    grade = 'C';   // 1-7 days
+    else                           grade = 'D';   // < 1 day
+  } else {
+    // Ulti cogs: grade on raw 1-in-N odds
+    if      (gradeOneInN >= 1000000) grade = 'SSS';
+    else if (gradeOneInN >= 250000)  grade = 'SS';
+    else if (gradeOneInN >= 50000)   grade = 'S';
+    else if (gradeOneInN >= 5000)    grade = 'A';
+    else if (gradeOneInN >= 2500)    grade = 'B';
+    else if (gradeOneInN >= 1000)    grade = 'C';
+    else                             grade = 'D';
+  }
 
   return {
     grade: grade,
     gradeOneInN: gradeOneInN,
+    expectedDays: expectedDays,
     hasSurround: hasSurround,
     affectsPlayer: !!affectsPlayer,
     perfect: perfect,

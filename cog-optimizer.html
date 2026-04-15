@@ -427,6 +427,8 @@ var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
 var ACTIVE_STAT_OVERLAY = null;
 var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
+var DAILY_CRYSTAL_ROLLS = 1; // 1 + Math.round(Cog_Lover_level * 2)
+function dailyRollsForTier(tier) { return tier >= 4 ? DAILY_CRYSTAL_ROLLS : 50; }
 
 
 /* ========== IMPORT ========== */
@@ -466,11 +468,15 @@ function loadFromParsed(parsed) {
     // Fluorescent Flaggies gem shop bonus (game: GenINFO[12][2] *= 1 + 50*GemItemsPurchased[118]/100)
     var gip = saveData.gemItemsData || [];
     FLUO_FLAGGY_MULT = 1 + 50 * (Number(gip[118]) || 0) / 100;
+    // Daily crystal cog claims: 1 + legendPTSbonus(18) where perPt=2
+    var cogLoverLv = Number((saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][18]) || 0);
+    DAILY_CRYSTAL_ROLLS = 1 + Math.round(cogLoverLv * 2);
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
     SAVE_TOTALS = CURRENT_TOTALS;
     IS_OPTIMIZED = false; OPT_RESULT = null; SHELF_PAGE = 0;
     showMsg('Loaded! ' + countFilled(CURRENT_BOARD) + '/96 board cogs, ' +
-            ALL_COGS.shelfCogs.length + ' shelf | Max Con Lv: ' + MAX_CON_LV, false);
+            ALL_COGS.shelfCogs.length + ' shelf | Max Con Lv: ' + MAX_CON_LV +
+            ' | Crystal/day: ' + DAILY_CRYSTAL_ROLLS, false);
     document.getElementById('summary-section').style.display = '';
     document.getElementById('board-container').style.display = '';
     document.getElementById('btn-optimize').disabled = false;
@@ -557,7 +563,7 @@ function renderBoardJudge() {
     var cog = CURRENT_BOARD[i]; if (!cog) continue;
     var tier = cogStatTier(cog.name); if (tier < 0) continue;
     var ap = cogAffectsPlayer(CURRENT_BOARD, i);
-    var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround });
+    var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround, dailyRolls: dailyRollsForTier(tier) });
     if (j.grade && GRADE_RANK[j.grade] >= 0) { totalRank += GRADE_RANK[j.grade]; count++; }
   }
   if (count === 0) { gradeEl.textContent = '\u2014'; subEl.textContent = 'No gradeable cogs'; return; }
@@ -618,7 +624,7 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
   if (tierNum >= 0 && idx >= 0 && idx < BOARD_SIZE && CURRENT_BOARD) {
     var ap = cogAffectsPlayer(CURRENT_BOARD, idx);
     var _ctx = boardGradeContext(CURRENT_BOARD);
-    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround });
+    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround, dailyRolls: dailyRollsForTier(tierNum) });
     if (judgment.grade && judgment.grade !== '?' && judgment.grade !== '-') {
       var badge = document.createElement('div');
       badge.className = 'grade-badge grade-' + judgment.grade;
@@ -778,13 +784,17 @@ function cogTooltipHtml(cog, slot) {
   if (tierNum >= 0 && slot >= 0 && slot < BOARD_SIZE && CURRENT_BOARD) {
     var ap = cogAffectsPlayer(CURRENT_BOARD, slot);
     var _ctx2 = boardGradeContext(CURRENT_BOARD);
-    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround });
+    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround, dailyRolls: dailyRollsForTier(tierNum) });
     html += '<div style="margin-top:4px;border-top:1px solid #333;padding-top:4px">';
     if (j.grade === '-') {
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val" style="color:var(--text2)">Not rated (shelf)</span></div>';
     } else {
       var gradeLabel = j.gradeOneInN > 1 ? j.grade + ' (1 in ' + fmtBig(j.gradeOneInN) + ')' : j.grade;
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
+      if (j.expectedDays >= 1) {
+        var daysText = j.expectedDays >= 365 ? (j.expectedDays / 365).toFixed(1) + ' yrs' : j.expectedDays >= 30 ? (j.expectedDays / 30).toFixed(1) + ' mo' : Math.round(j.expectedDays) + 'd';
+        html += '<div class="tt-stat"><span class="lbl">Avg time</span><span class="val" style="color:var(--text2)">~' + daysText + ' @ ' + dailyRollsForTier(tierNum) + '/day</span></div>';
+      }
       if (j.affectsPlayer && j.hasSurround) {
         html += '<div class="tt-stat"><span class="lbl">Basis</span><span class="val" style="color:var(--cyan)">Surround (affects player)</span></div>';
       }
