@@ -336,9 +336,9 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   var perfect = perfectCogStats(tier, maxConLv);
   var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
 
-  // Roll odds: fully from sim — joint P(a >= X AND c >= Y AND d >= Z AND surr >= W)
-  var bestSurr = Math.max(cogStats.e || 0, cogStats.f || 0, cogStats.g || 0, cogStats.j || 0);
-  var oddsResult = _jointOddsProb(tier, maxConLv, cogStats.a || 0, cogStats.c || 0, cogStats.d || 0, bestSurr);
+  // Roll odds: only con exp % (d) and con exp surround (f) affecting player
+  var conSurr = cogStats.f || 0;
+  var oddsResult = _jointOddsProb(tier, maxConLv, 0, 0, cogStats.d || 0, conSurr);
   var jointP = oddsResult.prob;
   var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : (oddsResult.pairN > 0 ? oddsResult.pairN : 1);
   if (jointOneInN < 1) jointOneInN = 1;
@@ -350,7 +350,7 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   // Marginal value of +1 base d   = 1 + totalSurround / 100
   var ratio, grade;
   if (affectsPlayer && hasSurround) {
-    var surrRatio = perfect.perfectSurr > 0 ? bestSurr / perfect.perfectSurr : 0;
+    var surrRatio = perfect.perfectSurr > 0 ? conSurr / perfect.perfectSurr : 0;
     var baseRatio = perfect.perfectD > 0 ? (cogStats.d || 0) / perfect.perfectD : 0;
     var totalBaseD = (opts && opts.totalBaseD) || 1;
     var totalSurround = (opts && opts.totalSurround) || 0;
