@@ -205,10 +205,10 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .cog-cell.cog-player { background: #1a3a1a; color: #6f6; }
 .cog-cell.cog-standard { background: #3a3018; color: #d4a860; }
 .cog-cell.changed { box-shadow: 0 0 0 2px var(--gold); }
-.cog-cell .cog-pct { font-size: .65em; line-height: 1; }
-.cog-cell .cog-type { font-size: .45em; opacity: .7; line-height: 1; margin-top: 1px; }
+.cog-cell .cog-pct { font-size: .75em; line-height: 1; }
+.cog-cell .cog-type { font-size: .55em; opacity: .7; line-height: 1; margin-top: 1px; }
 .cog-cell .cog-dir {
-  position: absolute; bottom: 1px; font-size: .4em;
+  position: absolute; bottom: 1px; font-size: .6em;
   opacity: .6; letter-spacing: -.5px;
 }
 .cog-cell .grade-badge {
@@ -630,6 +630,16 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
       badge.className = 'grade-badge grade-' + judgment.grade;
       badge.textContent = judgment.grade; cell.appendChild(badge);
     }
+    if (ap && cog.f && cog.h) {
+      var dirEl = document.createElement('div'); dirEl.className = 'cog-dir';
+      dirEl.textContent = '▸' + cog.f + '%'; cell.appendChild(dirEl);
+    }
+  }
+
+  // Yin/yang cogs: show directional f% if affects player (they have h='everything', f=20)
+  if (tierNum < 0 && idx >= 0 && idx < BOARD_SIZE && cog.f && cog.h) {
+    var dirEl2 = document.createElement('div'); dirEl2.className = 'cog-dir';
+    dirEl2.textContent = '▸' + cog.f + '%'; cell.appendChild(dirEl2);
   }
 
   if (refBoard) {
