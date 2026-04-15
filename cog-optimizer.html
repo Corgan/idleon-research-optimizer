@@ -424,6 +424,7 @@ var OPT_RESULT = null, IS_OPTIMIZED = false;
 var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
 var ACTIVE_STAT_OVERLAY = null;
+var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
 
 
 /* ========== IMPORT ========== */
@@ -460,6 +461,9 @@ function loadFromParsed(parsed) {
     recoverRawPlayerStats(CURRENT_BOARD);
     SAVE_BOARD = cloneBoard(CURRENT_BOARD);
     ALL_COGS = extractAllCogs(COG_ORDER, COG_MAP, saveData.flagUnlockData);
+    // Fluorescent Flaggies gem shop bonus (game: GenINFO[12][2] *= 1 + 50*GemItemsPurchased[118]/100)
+    var gip = saveData.gemItemsData || [];
+    FLUO_FLAGGY_MULT = 1 + 50 * (Number(gip[118]) || 0) / 100;
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
     SAVE_TOTALS = CURRENT_TOTALS;
     IS_OPTIMIZED = false; OPT_RESULT = null; SHELF_PAGE = 0;
@@ -504,30 +508,29 @@ function computeTinyCogBonus(type) {
   return total;
 }
 
-function effectiveFlaggy(totalFlaggy) {
-  var tinyCogPct = computeTinyCogBonus(0);
-  return totalFlaggy * (1 + tinyCogPct / 100);
+// Game: GenINFO[12][1] = totalD * (1 + SmallCogBonusTOTAL(2)/100)
+function effectivePlayerXpBonus(totalConExp) {
+  var tinyCogExp = computeTinyCogBonus(2);
+  return totalConExp * (1 + tinyCogExp / 100);
 }
 
 function renderStats(totals, baseTotals) {
   document.getElementById('stat-build').textContent = fmtBig(totals.totalBuild);
   document.getElementById('stat-conexp').textContent = fmtBig(totals.playerConExpHr || 0);
-  document.getElementById('stat-flaggy').textContent = fmtBig(effectiveFlaggy(totals.totalFlaggy));
-  var ps = totals.playerSlot;
-  var surrExp = (ps >= 0 && totals.perSlot[ps]) ? totals.perSlot[ps].surroundConExp : 0;
-  document.getElementById('stat-exppct').textContent = '+' + fmtPct(surrExp);
+  document.getElementById('stat-flaggy').textContent = fmtBig(totals.totalFlaggy * FLUO_FLAGGY_MULT);
+  var xpBonus = effectivePlayerXpBonus(totals.totalConExp);
+  document.getElementById('stat-exppct').textContent = '+' + fmtPct(xpBonus);
   if (baseTotals) {
     renderDelta('stat-build-sub', baseTotals.totalBuild, totals.totalBuild);
     renderDelta('stat-conexp-sub', baseTotals.playerConExpHr || 0, totals.playerConExpHr || 0);
-    renderDelta('stat-flaggy-sub', effectiveFlaggy(baseTotals.totalFlaggy), effectiveFlaggy(totals.totalFlaggy));
-    var oldPs = baseTotals.playerSlot;
-    var oldSurrExp = (oldPs >= 0 && baseTotals.perSlot[oldPs]) ? baseTotals.perSlot[oldPs].surroundConExp : 0;
-    renderDelta('stat-exppct-sub', oldSurrExp, surrExp, true);
+    renderDelta('stat-flaggy-sub', baseTotals.totalFlaggy * FLUO_FLAGGY_MULT, totals.totalFlaggy * FLUO_FLAGGY_MULT);
+    var oldXpBonus = effectivePlayerXpBonus(baseTotals.totalConExp);
+    renderDelta('stat-exppct-sub', oldXpBonus, xpBonus, true);
   } else {
     document.getElementById('stat-build-sub').textContent = '';
     document.getElementById('stat-conexp-sub').textContent = '';
     document.getElementById('stat-flaggy-sub').textContent = '';
-    document.getElementById('stat-exppct-sub').textContent = totals.totalConExp > 0 ? 'Board %d pool: +' + fmtPct(totals.totalConExp) : '';
+    document.getElementById('stat-exppct-sub').textContent = '';
   }
 }
 
@@ -976,7 +979,7 @@ function showResults(result) {
   var resultHtml =
     _resultItem('Build', SAVE_TOTALS.totalBuild, CURRENT_TOTALS.totalBuild) +
     _resultItem('Con EXP/hr', SAVE_TOTALS.playerConExpHr || 0, CURRENT_TOTALS.playerConExpHr || 0) +
-    _resultItem('Flaggy', effectiveFlaggy(SAVE_TOTALS.totalFlaggy), effectiveFlaggy(CURRENT_TOTALS.totalFlaggy));
+    _resultItem('Flaggy', SAVE_TOTALS.totalFlaggy * FLUO_FLAGGY_MULT, CURRENT_TOTALS.totalFlaggy * FLUO_FLAGGY_MULT);
   if (result.tinyResult && result.tinyResult.moves.length > 0) {
     var tr = result.tinyResult;
     var smLabels = ['Flaggy%', 'Build%', 'ConXP%'];
@@ -1240,27 +1243,33 @@ function renderSwapList() {
 }
 
 /* ========== FORMATTING ========== */
+// Matches IdleOn's _customBlock_NotateNumber "Big" mode exactly.
 function fmtBig(n) {
-  if (n === 0 || n === undefined || n === null) return '0';
-  var abs = Math.abs(n);
-  if (abs >= 1e24) return n.toExponential(2);
-  if (abs >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
-  if (abs >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
-  if (abs >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-  if (abs >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-  if (abs >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
-  if (abs >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
-  if (abs >= 1e4)  return (n / 1e3).toFixed(1) + 'K';
-  if (abs >= 100)  return Math.round(n).toLocaleString();
-  if (Number.isInteger(n)) return String(n);
-  return n.toFixed(2);
+  if (n === 0 || n == null) return '0';
+  var v = Math.abs(n);
+  var s = n < 0 ? '-' : '';
+  if (v < 100)  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+  if (v < 1e3)  return s + Math.floor(v);
+  if (v < 1e4)  return s + Math.ceil(v / 10) / 100 + 'K';
+  if (v < 1e5)  return s + Math.ceil(v / 100) / 10 + 'K';
+  if (v < 1e6)  return s + Math.ceil(v / 1e3) + 'K';
+  if (v < 1e7)  return s + Math.ceil(v / 1e4) / 100 + 'M';
+  if (v < 1e8)  return s + Math.ceil(v / 1e5) / 10 + 'M';
+  if (v < 1e10) return s + Math.ceil(v / 1e6) + 'M';
+  if (v < 1e13) return s + Math.ceil(v / 1e9) + 'B';
+  if (v < 1e16) return s + Math.ceil(v / 1e12) + 'T';
+  if (v < 1e19) return s + Math.ceil(v / 1e15) + 'Q';
+  if (v < 1e22) return s + Math.ceil(v / 1e18) + 'QQ';
+  if (v < 1e24) return s + Math.ceil(v / 1e21) + 'QQQ';
+  return s + v.toExponential(2);
 }
 
 function fmtPct(n) {
   if (n === 0 || n === undefined) return '0%';
   var abs = Math.abs(n);
   if (abs >= 1e6) return fmtBig(n) + '%';
-  if (abs >= 1e4) return (n / 1e3).toFixed(1) + 'K%';
+  if (abs >= 1e5) return Math.ceil(abs / 1e3) + 'K%';
+  if (abs >= 1e4) return Math.ceil(abs / 100) / 10 + 'K%';
   if (abs >= 100) return Math.round(n).toLocaleString() + '%';
   if (abs >= 10) return n.toFixed(0) + '%';
   return n.toFixed(1) + '%';

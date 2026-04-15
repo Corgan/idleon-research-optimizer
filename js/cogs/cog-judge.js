@@ -395,12 +395,14 @@ export function smallCogBonus(type, level) {
 
 /**
  * Parse a small cog name into type + level.
- * e.g. "CogSma3" → { type: 0, level: 3 }, "CogSmb5" → { type: 1, level: 5 }
+ * Game uses Number2Letter.indexOf(char) for type:
+ *   CogSm_ → type 0 (flaggy, 2×), CogSma → type 1 (build, 4×), CogSmb → type 2 (exp, 1×)
  */
+var _SM_N2L = '_abcdefghijklmnopqrstuvwxyz';
 export function parseSmallCog(name) {
   if (!name || name.indexOf('CogSm') !== 0) return null;
-  var type = name.charCodeAt(5) - 97; // 'a'=0 (flaggy), 'b'=1 (build), 'c'=2 (exp)
-  if (type < 0 || type > 25) return null;
+  var type = _SM_N2L.indexOf(name.charAt(5));
+  if (type < 0) return null;
   var level = parseInt(name.substring(6)) || 0;
   return { type: type, level: level, bonus: smallCogBonus(type, level) };
 }

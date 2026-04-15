@@ -102,8 +102,9 @@ export function computeTotalTowerLv() {
 // ==================== SMALL COG BONUSES ====================
 // Game: ResearchStuff("SmallCogBonusTOTAL", type, 0)
 // Iterates CogOrder[228..251] for small cogs (name starts with "CogSm").
-// type: 0=flaggy, 1=build, 2=exp
-// N2L = "_abcdefghij..." → charAt(5) maps to type index.
+// Game uses Number2Letter.indexOf(charAt(5)) for type:
+//   CogSm_ → type 0 (flaggy, 2×), CogSma → type 1 (build, 4×), CogSmb → type 2 (exp, 1×)
+var _SM_N2L = '_abcdefghijklmnopqrstuvwxyz';
 
 function computeSmallCogBonus(type, level) {
   var base = (25 + 25 * level * level) * (1 + level / 5);
@@ -119,8 +120,8 @@ export function computeSmallCogBonusTOTAL(type) {
   for (var s = 0; s < 24; s++) {
     var name = String(cogOrder[228 + s] || '');
     if (name.indexOf('CogSm') !== 0) continue;
-    var cogType = name.charCodeAt(5) - 97; // 'a'=0 (flaggy), 'b'=1 (build), 'c'=2 (exp)
-    if (cogType !== type) continue;
+    var cogType = _SM_N2L.indexOf(name.charAt(5));
+    if (cogType < 0 || cogType !== type) continue;
     var cogLevel = Number(name.substring(6)) || 0;
     total += computeSmallCogBonus(cogType, cogLevel);
   }
