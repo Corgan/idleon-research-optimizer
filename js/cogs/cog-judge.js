@@ -55,11 +55,16 @@ function _multCdf(x, tier) {
 }
 
 /**
- * Convert a stat value into a d (con exp %) contribution.
- * Matches the game formula exactly.
+ * Convert a raw stat value into a contribution for a given stat mode.
+ * conexp (d): max(floor(v^0.4 + 10*log(v)/ln10 - 5), 2)
+ * flaggy (c): round(v^0.8)
+ * build  (a): round(v)
  */
-function _dFromVal(v) {
-  if (v <= 0) return 2; // max(floor(0 + 0 - 5), 2) = 2
+function _statFromVal(v, statMode) {
+  if (statMode === 'build') return Math.round(v);
+  if (statMode === 'flaggy') return Math.round(Math.pow(v, 0.8));
+  // conexp
+  if (v <= 0) return 2;
   return Math.max(
     Math.floor(Math.pow(v, 0.4) + 10 * Math.log(v) / 2.30259 - 5),
     2
@@ -67,32 +72,81 @@ function _dFromVal(v) {
 }
 
 /**
- * Build survival function: result[k] = P(total_d >= k).
- * Enumerates all possible val values, maps to d, then convolves per-roll PMF.
+ * Per-roll probability that a roll goes to the given stat.
+ * Game: randomInt(1,100) → <69 = build(a), <89 && tier!=4 = flaggy(c), else = conexp(d)
  */
-function _buildDSurvival(tier, conLv) {
+function _pStatPerRoll(tier, statMode) {
+  if (statMode === 'build') return 0.68; // 68 out of 100 (1..68)
+  if (statMode === 'flaggy') return tier === 4 ? 0 : 0.20; // 69..88 = 20; crystal skips c
+  // conexp: 89..100 for standard = 0.12; crystal: 69..100 = 0.32
+  return tier === 4 ? 0.32 : 0.12;
+}
+
+/**
+ * Standard normal CDF approximation (Abramowitz & Stegun 26.2.17).
+ */
+function _normCdf(x) {
+  if (x < -8) return 0;
+  if (x > 8) return 1;
+  var t = 1 / (1 + 0.2316419 * Math.abs(x));
+  var d = 0.3989422804014327; // 1/sqrt(2*pi)
+  var p = d * Math.exp(-x * x / 2) * t *
+    (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x > 0 ? 1 - p : p;
+}
+
+/**
+ * Build survival function for any stat: result[k] = P(total_stat >= k).
+ * For conexp (d), uses exact convolution (small arrays due to heavy compression).
+ * For build/flaggy, uses normal approximation (CLT) since arrays are too large for convolution.
+ * statMode: 'conexp' | 'build' | 'flaggy'
+ */
+function _buildStatSurvival(tier, conLv, statMode) {
   var base = _rawMag(tier, conLv);
-  var pD = tier === 4 ? 0.32 : 0.12; // probability a roll goes to d stat
+  var pStat = _pStatPerRoll(tier, statMode);
+  if (pStat <= 0) return new Float64Array([1]); // impossible stat (e.g. flaggy on crystal)
 
   // val range from mult range [0.4, 3.0)
   var minVal = Math.floor(0.4 * base);
   var maxVal = Math.floor(3.0 * base);
   if (maxVal < 0) maxVal = 0;
 
-  var maxD1 = _dFromVal(maxVal); // max d contribution per roll
+  var maxS1 = _statFromVal(maxVal, statMode); // max stat contribution per roll
 
-  // Build one-roll PMF: oneRoll[k] = P(d_contribution = k)
-  var oneRoll = new Float64Array(maxD1 + 1);
-  oneRoll[0] = 1 - pD; // roll goes to a or c instead
+  // Build one-roll PMF: oneRoll[k] = P(stat_contribution = k)
+  var oneRoll = new Float64Array(maxS1 + 1);
+  oneRoll[0] = 1 - pStat; // roll goes to other stats
 
   for (var v = minVal; v <= maxVal; v++) {
     var pVal = _multCdf((v + 1) / base, tier) - _multCdf(v / base, tier);
     if (pVal <= 1e-15) continue;
-    var dk = _dFromVal(v);
-    oneRoll[dk] += pD * pVal;
+    var sk = _statFromVal(v, statMode);
+    oneRoll[sk] += pStat * pVal;
   }
 
-  // Convolve two discrete PMFs (polynomial multiplication)
+  // For large PMFs (build/flaggy), use normal approximation via CLT
+  if (maxS1 > 500) {
+    // Compute mean and variance of one-roll PMF
+    var mu1 = 0, mu2 = 0;
+    for (var i = 0; i < oneRoll.length; i++) {
+      mu1 += i * oneRoll[i];
+      mu2 += i * i * oneRoll[i];
+    }
+    var var1 = mu2 - mu1 * mu1;
+
+    // N-roll sum: 50% chance of minRolls, 50% chance of minRolls+1
+    var nMin = _minRolls(tier);
+    var nMax = nMin + 1;
+    // mean/var for nMin rolls and nMax rolls
+    var muMin = nMin * mu1, varMin = nMin * var1;
+    var muMax = nMax * mu1, varMax = nMax * var1;
+
+    // Return a "virtual" survival function object with a lookup method
+    // Store as {normal: true, muMin, sdMin, muMax, sdMax} for _pStatGE to use
+    return { normal: true, muMin: muMin, sdMin: Math.sqrt(varMin), muMax: muMax, sdMax: Math.sqrt(varMax) };
+  }
+
+  // For small PMFs (conexp), use exact convolution
   function convolve(a, b) {
     var result = new Float64Array(a.length + b.length - 1);
     for (var i = 0; i < a.length; i++) {
@@ -105,13 +159,11 @@ function _buildDSurvival(tier, conLv) {
     return result;
   }
 
-  // nRolls = minRolls with 50% chance of +1
   var nMin = _minRolls(tier);
   var distMin = oneRoll;
   for (var r = 1; r < nMin; r++) distMin = convolve(distMin, oneRoll);
-  var distMax = convolve(distMin, oneRoll); // one extra roll
+  var distMax = convolve(distMin, oneRoll);
 
-  // Mix 50/50
   var len = Math.max(distMin.length, distMax.length);
   var dist = new Float64Array(len);
   for (var i = 0; i < len; i++) {
@@ -119,7 +171,6 @@ function _buildDSurvival(tier, conLv) {
               0.5 * (i < distMax.length ? distMax[i] : 0);
   }
 
-  // Convert to survival function: survival[k] = P(d >= k)
   var survival = new Float64Array(len);
   var cumRight = 0;
   for (var i = len - 1; i >= 0; i--) {
@@ -131,55 +182,83 @@ function _buildDSurvival(tier, conLv) {
 }
 
 /**
- * P(total_d >= minD) — exact, cached per (tier, conLv).
+ * P(total_stat >= minVal) — cached per (tier, conLv, statMode).
+ * Supports both exact survival arrays and normal approximation objects.
  */
-function _pDGE(tier, conLv, minD) {
-  if (minD <= 0) return 1;
-  var key = tier + ',' + conLv;
+function _pStatGE(tier, conLv, minVal, statMode) {
+  if (minVal <= 0) return 1;
+  var key = statMode + ',' + tier + ',' + conLv;
   if (!_dSurvivalCache[key]) {
-    _dSurvivalCache[key] = _buildDSurvival(tier, conLv);
+    _dSurvivalCache[key] = _buildStatSurvival(tier, conLv, statMode);
   }
   var surv = _dSurvivalCache[key];
-  if (minD >= surv.length) return 0;
-  return surv[minD];
+  if (surv.normal) {
+    // Normal approximation: P(X >= k) = 1 - Φ((k - μ) / σ), mix 50/50
+    var pMin = surv.sdMin > 0 ? 1 - _normCdf((minVal - surv.muMin) / surv.sdMin) : (minVal <= surv.muMin ? 1 : 0);
+    var pMax = surv.sdMax > 0 ? 1 - _normCdf((minVal - surv.muMax) / surv.sdMax) : (minVal <= surv.muMax ? 1 : 0);
+    return 0.5 * pMin + 0.5 * pMax;
+  }
+  if (minVal >= surv.length) return 0;
+  return surv[minVal];
 }
 
 /**
- * P(con exp directional) — flat probability of rolling any f-type surround.
- * Crystal: P(reached cascade level) × P(got direction) × P(it's f not e).
- * Standard: P(got direction) × P(surround type is f).
- * The specific f value doesn't affect odds — all values at a given
- * tier/cascade level are equally likely and equally "rare."
+ * P(directional surround of given type) — flat probability of rolling that surround type.
+ * surrType: 'e' (build surr), 'f' (conexp surr), 'g' (flaggy surr)
+ * Crystal: P(reached cascade level) × P(got direction) × P(type match).
+ * Standard: P(got direction) × P(surround type).
  */
-function _pSurrGE(tier, hasConSurr, cryLv) {
-  if (!hasConSurr) return 1;
+function _pSurrGE(tier, hasSurr, cryLv, surrType) {
+  if (!hasSurr) return 1;
 
   if (tier >= 4) {
-    // Crystal: P(stopped at this cascade level) × P(direction) × P(f not e)
+    // Crystal: only e and f, no g
+    if (surrType === 'g') return 0; // crystal never rolls g surround
     if (cryLv <= 0) return 1; // CogCry0 has no cascade surround
     var pStop = cryLv < 5 ? Math.pow(0.35, cryLv) * 0.65 : Math.pow(0.35, 5);
-    // P(gotDir) = 1 - (1-0.25)*(1-0.334) ≈ 0.5005, P(f not e) = 0.5
+    // P(gotDir) = 1 - (1-0.25)*(1-0.334) ≈ 0.5005, P(e or f) = 0.5 each
     return pStop * (1 - 0.75 * 0.666) * 0.5;
   }
 
-  // Standard tiers: P(got direction) × P(surround type is f)
-  if (tier <= 1) return 1; // tier 0-1 can't roll f-type surround
-  var dirChance = tier === 1 ? 0.25 : 0.1;
-  // P(f | got surround) = 0.105 for both tier 2 and tier 3
-  // tier 2: (1-0.65)×(1-0.4)×0.5 = 0.105
-  // tier 3: (1-0.5)×(1-0.3)×0.3 = 0.105
-  return dirChance * 0.105;
+  // Standard tiers
+  if (tier <= 0) {
+    // Tier 0: only e, range [5,10]
+    if (surrType === 'e') return 0.1; // P(dir)=0.1, always e
+    return 1; // f/g impossible at tier 0
+  }
+  if (tier === 1) {
+    // Tier 1: P(dir)=0.25, then 0.7→e, 0.3→g
+    var dirChance1 = 0.25;
+    if (surrType === 'e') return dirChance1 * 0.7;
+    if (surrType === 'g') return dirChance1 * 0.3;
+    return 1; // f impossible at tier 1
+  }
+
+  // Tier 2-3: P(dir)=0.1
+  var dirChance = 0.1;
+  if (tier === 2) {
+    // .65→e, .14→g, .105→f, .105→k
+    if (surrType === 'e') return dirChance * 0.65;
+    if (surrType === 'g') return dirChance * 0.14;
+    if (surrType === 'f') return dirChance * 0.105;
+    return 1;
+  }
+  // tier 3 (Ulti)
+  // .5→e, .15→g, .105→f, .245→j
+  if (surrType === 'e') return dirChance * 0.5;
+  if (surrType === 'g') return dirChance * 0.15;
+  if (surrType === 'f') return dirChance * 0.105;
+  return 1;
 }
 
 /**
- * Warm up the odds cache (pre-build d survival for relevant tiers).
- * Resolves immediately — odds are now computed analytically, no sim needed.
+ * Warm up the odds cache (pre-build survival tables for the default conexp mode).
+ * Build/flaggy use normal approximation and are computed lazily (instant).
  */
 export function warmOddsCache(conLv) {
-  // Pre-build d survival tables so the first judgeCog call is instant
   _dSurvivalCache = {};
-  _dSurvivalCache['3,' + conLv] = _buildDSurvival(3, conLv);
-  _dSurvivalCache['4,' + conLv] = _buildDSurvival(4, conLv);
+  _dSurvivalCache['conexp,3,' + conLv] = _buildStatSurvival(3, conLv, 'conexp');
+  _dSurvivalCache['conexp,4,' + conLv] = _buildStatSurvival(4, conLv, 'conexp');
 }
 
 /**
@@ -199,6 +278,8 @@ export function perfectCogStats(tier, conLv) {
 
   // Perfect build: all rolls → a (game uses round(mag))
   var perfectA = Math.round(mag) * rolls;
+  // Perfect flaggy: all rolls → c (game uses round(mag^0.8))
+  var perfectC = Math.round(Math.pow(mag, 0.8)) * rolls;
   // Perfect conExp: all rolls → d (game uses mag as float)
   var perD = Math.max(Math.floor(Math.pow(mag, 0.4) + 10 * Math.log(Math.max(mag, 1)) / 2.30259 - 5), 2);
   var perfectD = perD * rolls;
@@ -207,7 +288,7 @@ export function perfectCogStats(tier, conLv) {
   // e/f range: randomInt(30,40) + 23*(cryTier), max = 40 + 23*cryTier
   var perfectSurr = 40 + 23 * Math.min(tier, 5);
 
-  return { perfectA: perfectA, perfectD: perfectD, perfectSurr: perfectSurr, mag: mag, rolls: rolls };
+  return { perfectA: perfectA, perfectC: perfectC, perfectD: perfectD, perfectSurr: perfectSurr, mag: mag, rolls: rolls };
 }
 
 /**
@@ -299,21 +380,22 @@ export function crystalLevel(name) {
 
 /**
  * Judge a single cog's quality.
- * - Shelf cogs (isShelf=true) are not rated.
- * - Directional cogs affecting a player: graded on surround value / max surround.
- * - All others: graded on d / perfectD (con exp % ratio).
- * Odds (oneInN) still come from Monte Carlo for t3+t4.
+ * opts.statMode: 'conexp' (default) | 'build' | 'flaggy'
+ *   conexp → base stat d, surround f
+ *   build  → base stat a, surround e
+ *   flaggy → base stat c, surround g
  *
  * @param {{ a, c, d, e, f, g, h, name }} cogStats
  * @param {number} tier - Cog tier (0-4)
  * @param {number} maxConLv - Highest construction level
- * @param {Object} [opts] - { isShelf, affectsPlayer }
+ * @param {Object} [opts] - { isShelf, affectsPlayer, statMode, dailyRolls }
  */
 export function judgeCog(cogStats, tier, maxConLv, opts) {
   if (tier < 0) return { grade: '?', percentile: -1 };
 
   var isShelf = opts && opts.isShelf;
   var affectsPlayer = opts && opts.affectsPlayer;
+  var statMode = (opts && opts.statMode) || 'conexp';
 
   // Shelf cogs don't get graded
   if (isShelf) return { grade: '-', percentile: -1 };
@@ -322,25 +404,29 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   if (tier < 3) return { grade: 'F', gradeOneInN: 1, hasSurround: false, affectsPlayer: false, perfect: perfectCogStats(tier, maxConLv), odds: { oneInN: 1, dOneInN: 1 } };
 
   var perfect = perfectCogStats(tier, maxConLv);
-  var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
 
-  // Roll odds: exact probability from analytical d distribution × surround probability
-  var conSurr = cogStats.f || 0;
-  var hasConSurr = conSurr > 0 && !!cogStats.h;
+  // Map stat mode to base stat key and surround key
+  var baseKey = statMode === 'build' ? 'a' : statMode === 'flaggy' ? 'c' : 'd';
+  var surrKey = statMode === 'build' ? 'e' : statMode === 'flaggy' ? 'g' : 'f';
+
+  var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
+  var surrVal = cogStats[surrKey] || 0;
+  var hasSurrForMode = surrVal > 0 && !!cogStats.h;
+
+  // Roll odds: exact probability from analytical stat distribution × surround probability
   var cryLv = tier >= 4 ? crystalLevel(cogStats.name) : -1;
-  var pD = _pDGE(tier, maxConLv, cogStats.d || 0);
-  var pS = _pSurrGE(tier, hasConSurr, cryLv);
-  var jointP = pD * pS;
+  var baseVal = cogStats[baseKey] || 0;
+  var pBase = _pStatGE(tier, maxConLv, baseVal, statMode);
+  var pS = _pSurrGE(tier, hasSurrForMode, cryLv, surrKey);
+  var jointP = pBase * pS;
   var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
-  var dOneInN = pD > 0 ? Math.round(1 / pD) : 1e9;
-  if (dOneInN < 1) dOneInN = 1;
-  var odds = { oneInN: jointOneInN, dOneInN: dOneInN };
+  var baseOneInN = pBase > 0 ? Math.round(1 / pBase) : 1e9;
+  if (baseOneInN < 1) baseOneInN = 1;
+  var odds = { oneInN: jointOneInN, dOneInN: baseOneInN };
 
   // Grade based on 1-in-N odds (rarity-based)
-  // Directional cogs affecting a player: joint odds (d × surround rarity)
-  // Otherwise: d-only odds (surround is wasted if not hitting a player)
-  var gradeOneInN = (affectsPlayer && hasSurround) ? jointOneInN : dOneInN;
+  var gradeOneInN = (affectsPlayer && hasSurrForMode) ? jointOneInN : baseOneInN;
 
   var dailyRolls = (opts && opts.dailyRolls) || 1;
   var expectedDays = gradeOneInN / dailyRolls;

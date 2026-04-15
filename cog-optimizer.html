@@ -231,17 +231,6 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .grade-C { color: var(--orange); }
 .grade-D { color: var(--red); }
 
-/* Per-cog stat overlay — hides normal content, shows stat value */
-.cog-cell.stat-active .cog-pct,
-.cog-cell.stat-active .cog-type,
-.cog-cell.stat-active .cog-dir,
-.cog-cell.stat-active .grade-badge { display: none; }
-.cog-cell .stat-val,
-.shelf-cell .stat-val { display: none; font-weight: 800; font-size: .7em; }
-.cog-cell.stat-active .stat-val,
-.shelf-cell.stat-active .stat-val { display: flex; }
-.shelf-cell.stat-active .grade-badge { display: none; }
-
 /* Direction highlight on hover */
 .cog-cell.dir-highlight { box-shadow: 0 0 0 2px var(--cyan); z-index: 1; }
 .cog-cell.dir-source { box-shadow: 0 0 0 2px var(--gold); z-index: 2; }
@@ -425,7 +414,7 @@ var ALL_COGS = null, MAX_CON_LV = 100, SAVE_OBJ = null;
 var OPT_RESULT = null, IS_OPTIMIZED = false;
 var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
-var ACTIVE_STAT_OVERLAY = null;
+var ACTIVE_STAT_OVERLAY = 'conexp';
 var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
 var DAILY_CRYSTAL_ROLLS = 1; // 1 + Math.round(Cog_Lover_level * 2)
 function dailyRollsForTier(tier) { return tier >= 4 ? DAILY_CRYSTAL_ROLLS : 50; }
@@ -481,6 +470,9 @@ function loadFromParsed(parsed) {
     document.getElementById('board-container').style.display = '';
     document.getElementById('btn-optimize').disabled = false;
     renderAll(); hideOptButtons(); hideSwapGuide();
+  // Set conexp card active by default
+  var cards = document.querySelectorAll('.stat-card');
+  cards.forEach(function(c) { c.classList.toggle('active', c.dataset.stat === ACTIVE_STAT_OVERLAY); });
   } catch (e) { showMsg('Error loading save: ' + e.message, true); console.error(e); }
 }
 
@@ -490,7 +482,6 @@ function renderAll() {
   renderBoard('board-current', CURRENT_BOARD, null);
   renderShelf();
   renderSmallCogs();
-  applyStatOverlay();
 }
 
 function countFilled(board) {
@@ -558,12 +549,13 @@ function renderBoardJudge() {
   var subEl = document.getElementById('board-grade-sub');
   if (!CURRENT_BOARD) { gradeEl.textContent = '\u2014'; subEl.textContent = ''; return; }
   var ctx = boardGradeContext(CURRENT_BOARD);
+  var statMode = ACTIVE_STAT_OVERLAY || 'conexp';
   var totalRank = 0, count = 0;
   for (var i = 0; i < BOARD_SIZE; i++) {
     var cog = CURRENT_BOARD[i]; if (!cog) continue;
     var tier = cogStatTier(cog.name); if (tier < 0) continue;
     var ap = cogAffectsPlayer(CURRENT_BOARD, i);
-    var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround, dailyRolls: dailyRollsForTier(tier) });
+    var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround, dailyRolls: dailyRollsForTier(tier), statMode: statMode });
     if (j.grade && GRADE_RANK[j.grade] >= 0) { totalRank += GRADE_RANK[j.grade]; count++; }
   }
   if (count === 0) { gradeEl.textContent = '\u2014'; subEl.textContent = 'No gradeable cogs'; return; }
@@ -588,7 +580,13 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
   if (!cog) { cell.classList.add('empty'); return cell; }
 
   var cls = classifyCog(cog.name);
-  var pctVal = cog.d || 0, typeLabel = '';
+  var statMode = ACTIVE_STAT_OVERLAY || 'conexp';
+  var baseKey = statMode === 'build' ? 'a' : statMode === 'flaggy' ? 'c' : 'd';
+  var surrKey = statMode === 'build' ? 'e' : statMode === 'flaggy' ? 'g' : 'f';
+  var pctVal, pctSuffix;
+  if (baseKey === 'd') { pctVal = cog.d || 0; pctSuffix = '%'; }
+  else { pctVal = cog[baseKey] || 0; pctSuffix = ''; }
+  var typeLabel = '';
 
   if (cls.type === 'crystal') cell.classList.add('cog-cry' + cog.name.replace('CogCry', ''));
   else if (cls.type === 'yellow') cell.classList.add('cog-yellow');
@@ -613,7 +611,7 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
 
   if (pctVal >= 0) {
     var ps = document.createElement('div'); ps.className = 'cog-pct';
-    ps.textContent = pctVal + '%'; cell.appendChild(ps);
+    ps.textContent = pctSuffix ? pctVal + pctSuffix : fmtBig(pctVal); cell.appendChild(ps);
   }
   if (typeLabel) {
     var lbl = document.createElement('div'); lbl.className = 'cog-type';
@@ -624,22 +622,26 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
   if (tierNum >= 0 && idx >= 0 && idx < BOARD_SIZE && CURRENT_BOARD) {
     var ap = cogAffectsPlayer(CURRENT_BOARD, idx);
     var _ctx = boardGradeContext(CURRENT_BOARD);
-    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround, dailyRolls: dailyRollsForTier(tierNum) });
+    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
     if (judgment.grade && judgment.grade !== '?' && judgment.grade !== '-') {
       var badge = document.createElement('div');
       badge.className = 'grade-badge grade-' + judgment.grade;
       badge.textContent = judgment.grade; cell.appendChild(badge);
     }
-    if (ap && cog.f && cog.h) {
+    var surrVal = cog[surrKey] || 0;
+    if (ap && surrVal && cog.h) {
       var dirEl = document.createElement('div'); dirEl.className = 'cog-dir';
-      dirEl.textContent = '▸' + cog.f + '%'; cell.appendChild(dirEl);
+      dirEl.textContent = '▸' + surrVal + '%'; cell.appendChild(dirEl);
     }
   }
 
-  // Yin/yang cogs: show directional f% if affects player (they have h='everything', f=20)
-  if (tierNum < 0 && idx >= 0 && idx < BOARD_SIZE && cog.f && cog.h) {
-    var dirEl2 = document.createElement('div'); dirEl2.className = 'cog-dir';
-    dirEl2.textContent = '▸' + cog.f + '%'; cell.appendChild(dirEl2);
+  // Yin/yang cogs: show directional surround if present
+  if (tierNum < 0 && idx >= 0 && idx < BOARD_SIZE && cog.h) {
+    var yySurr = cog[surrKey] || 0;
+    if (yySurr) {
+      var dirEl2 = document.createElement('div'); dirEl2.className = 'cog-dir';
+      dirEl2.textContent = '▸' + yySurr + '%'; cell.appendChild(dirEl2);
+    }
   }
 
   if (refBoard) {
@@ -659,7 +661,6 @@ function renderBoard(containerId, board, refBoard) {
     cell.addEventListener('mouseleave', hideTooltip);
     container.appendChild(cell);
   }
-  if (ACTIVE_STAT_OVERLAY) applyStatOverlay();
 }
 
 /* ========== SHELF (paginated, positional) ========== */
@@ -792,15 +793,17 @@ function cogTooltipHtml(cog, slot) {
   }
   var tierNum = cogStatTier(cog.name);
   if (tierNum >= 0 && slot >= 0 && slot < BOARD_SIZE && CURRENT_BOARD) {
+    var statMode = ACTIVE_STAT_OVERLAY || 'conexp';
     var ap = cogAffectsPlayer(CURRENT_BOARD, slot);
     var _ctx2 = boardGradeContext(CURRENT_BOARD);
-    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround, dailyRolls: dailyRollsForTier(tierNum) });
+    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
+    var modeLabel = statMode === 'build' ? 'Build' : statMode === 'flaggy' ? 'Flaggy' : 'ConExp';
     html += '<div style="margin-top:4px;border-top:1px solid #333;padding-top:4px">';
     if (j.grade === '-') {
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val" style="color:var(--text2)">Not rated (shelf)</span></div>';
     } else {
       var gradeLabel = j.gradeOneInN > 1 ? j.grade + ' (1 in ' + fmtBig(j.gradeOneInN) + ')' : j.grade;
-      html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
+      html += '<div class="tt-stat"><span class="lbl">Grade (' + modeLabel + ')</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
       if (j.expectedDays >= 1) {
         var daysText = j.expectedDays >= 365 ? (j.expectedDays / 365).toFixed(1) + ' yrs' : j.expectedDays >= 30 ? (j.expectedDays / 30).toFixed(1) + ' mo' : Math.round(j.expectedDays) + 'd';
         html += '<div class="tt-stat"><span class="lbl">Avg time</span><span class="val" style="color:var(--text2)">~' + daysText + ' @ ' + dailyRollsForTier(tierNum) + '/day</span></div>';
@@ -816,6 +819,7 @@ function cogTooltipHtml(cog, slot) {
     }
     html += '<div class="tt-stat"><span class="lbl">ConExp%</span><span class="val">' + (cog.d||0) + ' / ' + j.perfect.perfectD + '</span></div>';
     html += '<div class="tt-stat"><span class="lbl">Build</span><span class="val">' + fmtBig(cog.a||0) + ' / ' + fmtBig(j.perfect.perfectA) + '</span></div>';
+    html += '<div class="tt-stat"><span class="lbl">Flaggy</span><span class="val">' + fmtBig(cog.c||0) + ' / ' + fmtBig(j.perfect.perfectC) + '</span></div>';
     html += '</div>';
   }
   if (cls.type === 'player') {
@@ -1300,69 +1304,18 @@ function fmtPct(n) {
 
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-/* ========== STAT OVERLAY ========== */
+/* ========== STAT MODE ========== */
 window.toggleStatOverlay = function(stat) {
+  if (ACTIVE_STAT_OVERLAY === stat) return;
+  ACTIVE_STAT_OVERLAY = stat;
   var cards = document.querySelectorAll('.stat-card');
-  if (ACTIVE_STAT_OVERLAY === stat) {
-    ACTIVE_STAT_OVERLAY = null;
-    cards.forEach(function(c) { c.classList.remove('active'); });
-  } else {
-    ACTIVE_STAT_OVERLAY = stat;
-    cards.forEach(function(c) {
-      c.classList.toggle('active', c.dataset.stat === stat);
-    });
-  }
-  applyStatOverlay();
+  cards.forEach(function(c) {
+    c.classList.toggle('active', c.dataset.stat === stat);
+  });
+  renderBoardJudge();
+  renderBoard('board-current', CURRENT_BOARD, IS_OPTIMIZED ? SAVE_BOARD : null);
+  renderShelf();
 };
-
-function applyStatOverlay() {
-  var stat = ACTIVE_STAT_OVERLAY;
-  var color = stat === 'build' ? 'var(--cyan)' : stat === 'conexp' ? 'var(--gold)' : 'var(--green)';
-  // Board cells
-  document.querySelectorAll('#board-current .cog-cell').forEach(function(cell) {
-    var old = cell.querySelector('.stat-val');
-    if (old) old.remove();
-    cell.classList.remove('stat-active');
-    if (!stat) return;
-    var slot = parseInt(cell.dataset.slot);
-    var cog = CURRENT_BOARD[slot]; if (!cog) return;
-    var val = getStatValue(cog, stat);
-    var sv = document.createElement('div');
-    sv.className = 'stat-val';
-    sv.textContent = val;
-    sv.style.color = color;
-    cell.appendChild(sv);
-    cell.classList.add('stat-active');
-  });
-  // Shelf cells
-  document.querySelectorAll('#shelf-grid .shelf-cell').forEach(function(cell) {
-    var old = cell.querySelector('.stat-val');
-    if (old) old.remove();
-    cell.classList.remove('stat-active');
-    if (!stat) return;
-    var shelfIdx = parseInt(cell.dataset.shelfIdx);
-    if (isNaN(shelfIdx)) return;
-    var cog = ALL_COGS.shelfSlots[shelfIdx]; if (!cog) return;
-    var val = getStatValue(cog, stat);
-    var sv = document.createElement('div');
-    sv.className = 'stat-val';
-    sv.textContent = val;
-    sv.style.color = color;
-    cell.appendChild(sv);
-    cell.classList.add('stat-active');
-  });
-}
-
-function getStatValue(cog, stat) {
-  if (stat === 'build') return cog.a ? fmtBig(cog.a) : '0';
-  if (stat === 'conexp') {
-    if (cog.d) return cog.d + '%';
-    if (cog.isPlayer && cog.b) return fmtBig(cog.b);
-    return '0';
-  }
-  if (stat === 'flaggy') return cog.c ? fmtBig(cog.c) : '0';
-  return '0';
-}
 
 </script>
 </body>
