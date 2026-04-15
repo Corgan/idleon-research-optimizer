@@ -239,9 +239,20 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .cog-cell.dir-highlight { box-shadow: 0 0 0 2px var(--cyan); z-index: 1; }
 .cog-cell.dir-source { box-shadow: 0 0 0 2px var(--gold); z-index: 2; }
 
-/* Board analysis highlights */
-.cog-cell.cog-weakest { box-shadow: 0 0 0 2px var(--red), 0 0 8px 2px rgba(255,100,100,.35); z-index: 1; }
-.cog-cell.cog-best { box-shadow: 0 0 0 2px var(--gold), 0 0 8px 2px rgba(255,215,0,.35); z-index: 1; }
+/* Board analysis highlights — corner triangles */
+.cog-cell.cog-weakest::after,
+.cog-cell.cog-best::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0;
+  border-style: solid; z-index: 3; pointer-events: none;
+}
+.cog-cell.cog-weakest::after {
+  border-width: 14px 14px 0 0;
+  border-color: var(--red) transparent transparent transparent;
+}
+.cog-cell.cog-best::after {
+  border-width: 14px 14px 0 0;
+  border-color: var(--gold) transparent transparent transparent;
+}
 
 /* Insights panel */
 .insights-banner {
@@ -591,12 +602,17 @@ function computeBoardInsights(board, goal) {
   var baseScore = scoreBoard(baseTotals, goal, board);
   if (baseScore <= 0) return null;
 
+  var goalSurr = goal === 'build' ? 'e' : goal === 'flaggy' ? 'g' : 'f';
+  var goalBase = goal === 'build' ? 'a' : goal === 'flaggy' ? 'c' : 'd';
+  var goalSurrLabel = goal === 'build' ? 'Build Surr (e)' : goal === 'flaggy' ? 'Flaggy Surr (g)' : 'ConExp Surr (f)';
+
+  // Compute marginal impact for each movable cog
   var impacts = [];
   for (var i = 0; i < BOARD_SIZE; i++) {
     var cog = board[i];
     if (!cog) continue;
     var cls = classifyCog(cog.name);
-    if (cls.type === 'player' || cls.type === 'excogia') continue;
+    if (cls.type === 'player' || cls.type === 'excogia' || cls.type === 'yellow') continue;
     var saved = board[i];
     board[i] = null;
     var tmpTotals = computeBoardTotals(board);
@@ -610,82 +626,56 @@ function computeBoardInsights(board, goal) {
   var weakest = impacts[0];
   var best = impacts[impacts.length - 1];
 
-  // Find shelf replacements for weakest slots
-  var suggestions = [];
-  var shelfCogs = (ALL_COGS && ALL_COGS.shelfCogs) || [];
-  var numWeak = Math.min(5, impacts.length);
-  for (var w = 0; w < numWeak; w++) {
-    var weak = impacts[w];
-    var bestGain = 0, bestCog = null;
-    for (var s = 0; s < shelfCogs.length; s++) {
-      var sc = shelfCogs[s];
-      if (!sc) continue;
-      var scCls = classifyCog(sc.name);
-      if (scCls.type === 'player' || scCls.type === 'excogia' || scCls.type === 'small') continue;
-      board[weak.slot] = sc;
-      var tryTotals = computeBoardTotals(board);
-      var tryScore = scoreBoard(tryTotals, goal, board);
-      board[weak.slot] = weak.cog;
-      var gain = tryScore - baseScore;
-      if (gain > bestGain) { bestGain = gain; bestCog = sc; }
-    }
-    if (bestCog) {
-      suggestions.push({ slot: weak.slot, current: weak.cog, replacement: bestCog, gain: bestGain, gainPct: bestGain / baseScore * 100 });
-    }
-  }
+  // Roll targets: for the weakest slots, describe what to roll for
+  var rollTargets = [];
+  var numUp = Math.min(5, impacts.length);
+  for (var u = 0; u < numUp; u++) {
+    var imp = impacts[u];
+    var cog = imp.cog;
+    var slot = imp.slot;
+    var pos = slotToPos(slot);
+    var cls = classifyCog(cog.name);
+    var tier = cls.tier >= 0 ? cls.tier : (cls.type === 'crystal' ? 4 : -1);
+    var ap = cogAffectsPlayer(board, slot);
 
-  // Roll suggestions: for weak directional coverage, suggest surround types to roll
-  var goalSurr = goal === 'build' ? 'e' : goal === 'flaggy' ? 'g' : 'f';
-  var goalSurrName = goal === 'build' ? 'Build Surround (e)' : goal === 'flaggy' ? 'Flaggy Surround (g)' : 'ConExp Surround (f)';
-  var rollTips = [];
+    var why = '';
+    var roll = '';
 
-  // Find player slots and check their directional coverage
-  var playerSlots = [];
-  for (var p = 0; p < BOARD_SIZE; p++) {
-    if (board[p] && classifyCog(board[p].name).type === 'player') playerSlots.push(p);
-  }
-  if (goal === 'conexp' && playerSlots.length > 0) {
-    // Check slots adjacent to players for missing/weak directional coverage
-    var adjSet = {};
-    for (var pi = 0; pi < playerSlots.length; pi++) {
-      var pp = slotToPos(playerSlots[pi]);
-      for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        var nr = pp.row + dr, nc = pp.col + dc;
-        if (nr >= 0 && nr < BOARD_H && nc >= 0 && nc < BOARD_W) {
-          var ns = posToSlot(nc, nr);
-          adjSet[ns] = true;
-        }
+    if (tier >= 0 && tier < 3) {
+      // Low-tier cog — always suggest upgrading to Ulti
+      why = 'T' + tier + ' cog (low tier)';
+      if (ap) {
+        roll = 'Roll Ulti directional with ' + goalSurrLabel + ' \u2265 15%';
+      } else {
+        roll = 'Roll any Ulti cog with high ' + goalBase;
       }
+    } else if (ap && !cog.h) {
+      // Non-directional next to player
+      why = 'no direction (player-adjacent)';
+      roll = 'Roll Ulti directional hitting player, with ' + goalSurrLabel + ' \u2265 15%';
+    } else if (ap && cog.h && !(cog[goalSurr] > 0)) {
+      // Has direction but wrong surround type
+      why = 'has ' + cog.h + ' direction but no ' + goalSurrLabel;
+      roll = 'Roll Ulti ' + cog.h + ' with ' + goalSurrLabel;
+    } else if (ap && cog.h && (cog[goalSurr] || 0) < 15) {
+      // Has the right surround but too low
+      why = goalSurr + ' = ' + (cog[goalSurr]||0) + '% (low)';
+      roll = 'Roll Ulti ' + cog.h + ' with ' + goalSurr + ' > ' + (cog[goalSurr]||0) + '%';
+    } else if (!cog.h) {
+      // Non-directional Ulti not near player
+      why = goalBase + ' = ' + fmtBig(cog[goalBase]||0) + ', non-directional';
+      roll = 'Roll Ulti with ' + goalBase + ' > ' + fmtBig(cog[goalBase]||0);
+    } else {
+      // Directional but low base stats
+      why = goalBase + ' = ' + fmtBig(cog[goalBase]||0) + ' (low)';
+      roll = 'Roll Ulti with ' + goalBase + ' > ' + fmtBig(cog[goalBase]||0);
+      if (ap && cog[goalSurr] > 0) roll += ' + ' + goalSurr + ' > ' + (cog[goalSurr]||0) + '%';
     }
-    for (var adjS in adjSet) {
-      var adjSlot = parseInt(adjS);
-      var ac = board[adjSlot];
-      if (!ac) {
-        var asp = slotToPos(adjSlot);
-        rollTips.push('Empty slot (' + asp.col + ',' + asp.row + ') next to player \u2014 place a directional cog with ' + goalSurrName);
-      } else if (ac.h && !(ac[goalSurr] > 0)) {
-        var asp2 = slotToPos(adjSlot);
-        rollTips.push('Slot (' + asp2.col + ',' + asp2.row + ') has direction but no ' + goalSurrName + ' \u2014 try rolling one with that surround');
-      }
-    }
-  } else if (playerSlots.length > 0) {
-    // For build/flaggy, check for slots that could benefit from more directionals with goal surround
-    var surrCount = 0, dirCount = 0;
-    for (var bi = 0; bi < BOARD_SIZE; bi++) {
-      var bc = board[bi];
-      if (!bc || !bc.h) continue;
-      dirCount++;
-      if (bc[goalSurr] > 0) surrCount++;
-    }
-    if (dirCount > 0 && surrCount < dirCount * 0.4) {
-      rollTips.push('Only ' + surrCount + '/' + dirCount + ' directional cogs have ' + goalSurrName + ' \u2014 roll more with that surround type');
-    }
+
+    rollTargets.push({ slot: slot, pos: pos, cog: cog, why: why, roll: roll, pct: imp.pct, delta: imp.delta });
   }
 
-  suggestions.sort(function(a, b) { return b.gain - a.gain; });
-
-  return { weakest: weakest, best: best, impacts: impacts, suggestions: suggestions.slice(0, 3), rollTips: rollTips.slice(0, 3), baseScore: baseScore };
+  return { weakest: weakest, best: best, impacts: impacts, rollTargets: rollTargets.slice(0, 3), baseScore: baseScore };
 }
 
 function renderInsights() {
@@ -694,11 +684,10 @@ function renderInsights() {
   if (!CURRENT_BOARD) { panel.style.display = 'none'; return; }
 
   var goal = ACTIVE_STAT_OVERLAY || 'conexp';
-  CURRENT_INSIGHTS = ins;
   var ins = computeBoardInsights(CURRENT_BOARD, goal);
+  CURRENT_INSIGHTS = ins;
   if (!ins) { panel.style.display = 'none'; return; }
 
-  var goalLabel = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'Con EXP/hr';
   var html = '<div class="insight-row">';
 
   // Weakest cog
@@ -707,7 +696,7 @@ function renderInsights() {
   html += '<span class="insight-val" style="color:var(--red)">' + esc(cogDisplayName(ins.weakest.cog.name)) + '</span>';
   html += ' <span class="insight-label">at (' + wPos.col + ',' + wPos.row + ') \u2014 ';
   if (ins.weakest.delta <= 0) html += 'hurting score by ' + fmtBig(Math.abs(ins.weakest.delta));
-  else html += 'contributes ' + ins.weakest.pct.toFixed(1) + '%';
+  else html += 'contributes ' + ins.weakest.pct.toFixed(2) + '%';
   html += '</span></div>';
   html += '</div>';
 
@@ -716,36 +705,26 @@ function renderInsights() {
   var bPos = slotToPos(ins.best.slot);
   html += '<div class="insight-item"><span class="insight-label">\u2B50 Strongest:</span> ';
   html += '<span class="insight-val" style="color:var(--gold)">' + esc(cogDisplayName(ins.best.cog.name)) + '</span>';
-  html += ' <span class="insight-label">at (' + bPos.col + ',' + bPos.row + ') \u2014 contributes ' + ins.best.pct.toFixed(1) + '%</span></div>';
+  html += ' <span class="insight-label">at (' + bPos.col + ',' + bPos.row + ') \u2014 contributes ' + ins.best.pct.toFixed(2) + '%</span></div>';
   html += '</div>';
 
-  // Shelf replacement suggestions
-  if (ins.suggestions.length > 0) {
-    html += '<div class="insight-section"><h4>&#x1F504; Shelf Replacements</h4>';
-    for (var i = 0; i < ins.suggestions.length; i++) {
-      var sg = ins.suggestions[i];
-      var sPos = slotToPos(sg.slot);
+  // Roll targets
+  if (ins.rollTargets.length > 0) {
+    html += '<div class="insight-section"><h4>&#x1F3AF; What to Roll For</h4>';
+    for (var i = 0; i < ins.rollTargets.length; i++) {
+      var rt = ins.rollTargets[i];
       html += '<div class="suggestion-item">';
-      html += '<span class="sug-slot">(' + sPos.col + ',' + sPos.row + ')</span> ';
-      html += 'Replace ' + esc(cogDisplayName(sg.current.name)) + ' with ';
-      html += '<span style="color:var(--accent)">' + esc(cogDisplayName(sg.replacement.name)) + '</span>';
-      html += ' <span class="sug-gain">+' + sg.gainPct.toFixed(1) + '% ' + goalLabel + '</span>';
+      html += '<span class="sug-slot">(' + rt.pos.col + ',' + rt.pos.row + ')</span> ';
+      html += '<span style="color:var(--text)">' + esc(cogDisplayName(rt.cog.name)) + '</span>';
+      html += ' <span class="insight-label">\u2014 ' + rt.why + '</span><br>';
+      html += '<span style="margin-left:42px" class="sug-roll">\u2192 ' + rt.roll + '</span>';
       html += '</div>';
     }
     html += '</div>';
   }
 
-  // Roll tips
-  if (ins.rollTips.length > 0) {
-    html += '<div class="insight-section"><h4>&#x1F3B2; Roll Suggestions</h4>';
-    for (var r = 0; r < ins.rollTips.length; r++) {
-      html += '<div class="suggestion-item"><span class="sug-roll">' + ins.rollTips[r] + '</span></div>';
-    }
-    html += '</div>';
-  }
-
   content.innerHTML = html;
-  panel.style.display = '';
+  panel.style.display = 'block';
 
   // Apply highlights to board cells
   applyInsightHighlights(ins);
@@ -1027,7 +1006,7 @@ function cogTooltipHtml(cog, slot) {
         if (CURRENT_INSIGHTS.impacts[ii].slot === slot) {
           var imp = CURRENT_INSIGHTS.impacts[ii];
           var impColor = imp.delta <= 0 ? 'var(--red)' : imp.pct < 1 ? 'var(--orange)' : 'var(--text2)';
-          var impText = imp.delta <= 0 ? 'Hurts score by ' + fmtBig(Math.abs(imp.delta)) : imp.pct.toFixed(1) + '% of total';
+          var impText = imp.delta <= 0 ? 'Hurts score by ' + fmtBig(Math.abs(imp.delta)) : imp.pct.toFixed(2) + '% of total';
           html += '<div class="tt-stat"><span class="lbl">Impact</span><span class="val" style="color:' + impColor + '">' + impText + '</span></div>';
           break;
         }
