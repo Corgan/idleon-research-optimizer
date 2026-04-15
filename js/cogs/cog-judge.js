@@ -145,41 +145,30 @@ function _pDGE(tier, conLv, minD) {
 }
 
 /**
- * P(surround magnitude >= minS) — exact, from the surround generation formula.
- * Matches the game's directional/crystal cascade logic.
+ * P(con exp directional) — flat probability of rolling any f-type surround.
+ * Crystal: P(reached cascade level) × P(got direction) × P(it's f not e).
+ * Standard: P(got direction) × P(surround type is f).
+ * The specific f value doesn't affect odds — all values at a given
+ * tier/cascade level are equally likely and equally "rare."
  */
-function _pSurrGE(tier, minS) {
-  if (minS <= 0) return 1;
+function _pSurrGE(tier, hasConSurr, cryLv) {
+  if (!hasConSurr) return 1;
 
   if (tier >= 4) {
-    // Crystal cascade: each level k (1-5) has P(reach) = 0.35^k,
-    // dirE is RESET at each level — only the final level's value matters.
-    var prob = 0;
-    for (var k = 1; k <= 5; k++) {
-      var pReachK = Math.pow(0.35, k);
-      var pStopAtK = k < 5 ? pReachK * 0.65 : pReachK;
-      // P(gotDir) = 1 - (1-0.25)*(1-0.334) = 0.5005
-      var pGotSurr = (1 - 0.75 * 0.666) * 0.5;
-      var sMin = 30 + 23 * k, sMax = 40 + 23 * k; // 11 values
-      if (minS > sMax) continue;
-      var count = sMax - Math.max(minS, sMin) + 1;
-      prob += pStopAtK * pGotSurr * (count / 11);
-    }
-    return prob;
+    // Crystal: P(stopped at this cascade level) × P(direction) × P(f not e)
+    if (cryLv <= 0) return 1; // CogCry0 has no cascade surround
+    var pStop = cryLv < 5 ? Math.pow(0.35, cryLv) * 0.65 : Math.pow(0.35, 5);
+    // P(gotDir) = 1 - (1-0.25)*(1-0.334) ≈ 0.5005, P(f not e) = 0.5
+    return pStop * (1 - 0.75 * 0.666) * 0.5;
   }
 
-  // Standard tiers
+  // Standard tiers: P(got direction) × P(surround type is f)
+  if (tier <= 1) return 1; // tier 0-1 can't roll f-type surround
   var dirChance = tier === 1 ? 0.25 : 0.1;
-  var eChance, eMin, eMax;
-  if (tier === 0) { eChance = 1; eMin = 5; eMax = 10; }
-  else if (tier === 1) { eChance = 0.7; eMin = 8; eMax = 15; }
-  else if (tier === 2) { eChance = 0.65; eMin = 12; eMax = 40; }
-  else { eChance = 0.5; eMin = 20; eMax = 65; }
-
-  if (minS > eMax) return 0;
-  var count = eMax - Math.max(minS, eMin) + 1;
-  var total = eMax - eMin + 1;
-  return dirChance * eChance * (count / total);
+  // P(f | got surround) = 0.105 for both tier 2 and tier 3
+  // tier 2: (1-0.65)×(1-0.4)×0.5 = 0.105
+  // tier 3: (1-0.5)×(1-0.3)×0.3 = 0.105
+  return dirChance * 0.105;
 }
 
 /**
@@ -337,8 +326,10 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
 
   // Roll odds: exact probability from analytical d distribution × surround probability
   var conSurr = cogStats.f || 0;
+  var hasConSurr = conSurr > 0 && !!cogStats.h;
+  var cryLv = tier >= 4 ? crystalLevel(cogStats.name) : -1;
   var pD = _pDGE(tier, maxConLv, cogStats.d || 0);
-  var pS = _pSurrGE(tier, conSurr);
+  var pS = _pSurrGE(tier, hasConSurr, cryLv);
   var jointP = pD * pS;
   var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
