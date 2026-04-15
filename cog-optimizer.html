@@ -46,9 +46,9 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .opt-panel {
   grid-column: 1; background: var(--bg2); border-radius: 8px; padding: 10px 14px;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
-  display: flex; flex-direction: column; gap: 5px; justify-content: center;
+  display: flex; flex-direction: column; gap: 5px; justify-content: center; align-items: center;
 }
-.opt-line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.opt-line { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .opt-panel label { color: var(--text2); font-size: .78em; }
 .opt-panel select {
   padding: 3px 6px; background: var(--bg); color: var(--accent);
@@ -202,6 +202,10 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .cog-cell.cog-cry5 { background: #182848; color: #60a0f0; } /* Bluegem */
 .cog-cell.cog-yellow { background: #4a4010; color: #ffd700; }
 .cog-cell.cog-excogia { background: #301850; color: #b888ff; }
+.cog-cell.excogia-tl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#b888ff; z-index:2; }
+.cog-cell.excogia-tl::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#b888ff; z-index:2; }
+.cog-cell.excogia-tr::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#b888ff; z-index:2; }
+.cog-cell.excogia-bl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#b888ff; z-index:2; }
 .cog-cell.cog-player { background: #1a3a1a; color: #6f6; }
 .cog-cell.cog-standard { background: #3a3018; color: #d4a860; }
 .cog-cell.changed { box-shadow: 0 0 0 2px var(--gold); }
@@ -234,6 +238,27 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 /* Direction highlight on hover */
 .cog-cell.dir-highlight { box-shadow: 0 0 0 2px var(--cyan); z-index: 1; }
 .cog-cell.dir-source { box-shadow: 0 0 0 2px var(--gold); z-index: 2; }
+
+/* Board analysis highlights */
+.cog-cell.cog-weakest { box-shadow: 0 0 0 2px var(--red), 0 0 8px 2px rgba(255,100,100,.35); z-index: 1; }
+.cog-cell.cog-best { box-shadow: 0 0 0 2px var(--gold), 0 0 8px 2px rgba(255,215,0,.35); z-index: 1; }
+
+/* Insights panel */
+.insights-banner {
+  background: var(--bg2); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); display: none;
+}
+.insights-banner h3 { color: var(--cyan); font-size: .9em; margin-bottom: 8px; }
+.insight-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85em; margin-bottom: 6px; }
+.insight-item { display: flex; gap: 6px; align-items: baseline; }
+.insight-label { color: var(--text2); font-size: .85em; }
+.insight-val { font-weight: 700; }
+.insight-section { width: 100%; margin-top: 6px; border-top: 1px solid #333; padding-top: 6px; }
+.insight-section h4 { color: var(--orange); font-size: .82em; margin-bottom: 4px; font-weight: 600; }
+.suggestion-item { font-size: .82em; padding: 3px 0; line-height: 1.4; }
+.suggestion-item .sug-slot { color: var(--cyan); font-weight: 600; }
+.suggestion-item .sug-gain { color: var(--green); font-weight: 600; }
+.suggestion-item .sug-roll { color: var(--purple); }
 
 /* Tooltip */
 .cog-tooltip {
@@ -297,23 +322,8 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   <div class="opt-grade-row">
     <div class="opt-panel">
       <div class="opt-line">
-        <label>Goal:</label>
-        <select id="opt-goal">
-          <option value="build">Build Speed</option>
-          <option value="conExp">Con EXP/hr</option>
-          <option value="flaggy">Flaggy Rate</option>
-        </select>
-        <label>Iters:</label>
-        <select id="opt-iters">
-          <option value="30000">30k</option>
-          <option value="80000" selected>80k</option>
-          <option value="200000">200k</option>
-        </select>
-      </div>
-      <div class="opt-line">
         <button class="btn-opt" id="btn-optimize" onclick="runOptimizer()" disabled>&#x1F680; Optimize</button>
         <button class="btn-opt" id="btn-reset" onclick="resetBoard()" style="background:linear-gradient(135deg,#666,#444);display:none">&#x21BA; Reset</button>
-        <button class="btn-opt" id="btn-start-moving" onclick="startMoving()" style="background:linear-gradient(135deg,var(--gold),#cc8800);display:none">&#x1F6B6; Steps</button>
       </div>
       <div class="opt-line">
         <div class="progress-bar" id="opt-progress"><div class="fill" id="opt-progress-fill"></div></div>
@@ -353,6 +363,12 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   <div class="result-banner" id="result-banner">
     <h3>&#x2728; Result</h3>
     <div class="result-row" id="result-row"></div>
+  </div>
+
+  <!-- Board insights -->
+  <div class="insights-banner" id="insights-banner">
+    <h3>&#x1F50D; Board Insights</h3>
+    <div id="insights-content"></div>
   </div>
 </div>
 
@@ -403,7 +419,7 @@ import {
   optimizeTinyCogs, cogAffectsPlayer, boardGradeContext
 } from './js/cogs/cog-board.js';
 import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, clearOddsCache, warmOddsCache } from './js/cogs/cog-judge.js';
-import { optimize } from './js/cogs/cog-optimizer.js';
+import { optimizeAsync } from './js/cogs/cog-optimizer.js';
 import { fmtVal } from './js/renderers/format.js';
 
 /* ========== STATE ========== */
@@ -415,6 +431,7 @@ var OPT_RESULT = null, IS_OPTIMIZED = false;
 var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
 var ACTIVE_STAT_OVERLAY = 'conexp';
+var CURRENT_INSIGHTS = null;
 var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
 var DAILY_CRYSTAL_ROLLS = 1; // 1 + Math.round(Cog_Lover_level * 2)
 function dailyRollsForTier(tier) { return tier >= 4 ? DAILY_CRYSTAL_ROLLS : 50; }
@@ -480,6 +497,7 @@ function renderAll() {
   renderStats(CURRENT_TOTALS);
   renderBoardJudge();
   renderBoard('board-current', CURRENT_BOARD, null);
+  renderInsights();
   renderShelf();
   renderSmallCogs();
 }
@@ -566,6 +584,184 @@ function renderBoardJudge() {
   subEl.textContent = 'Avg rank ' + avgRank.toFixed(1) + ' (' + count + ' cogs)';
 }
 
+/* ========== BOARD INSIGHTS ========== */
+function computeBoardInsights(board, goal) {
+  if (!board) return null;
+  var baseTotals = computeBoardTotals(board);
+  var baseScore = scoreBoard(baseTotals, goal, board);
+  if (baseScore <= 0) return null;
+
+  var impacts = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    var cog = board[i];
+    if (!cog) continue;
+    var cls = classifyCog(cog.name);
+    if (cls.type === 'player' || cls.type === 'excogia') continue;
+    var saved = board[i];
+    board[i] = null;
+    var tmpTotals = computeBoardTotals(board);
+    var tmpScore = scoreBoard(tmpTotals, goal, board);
+    board[i] = saved;
+    impacts.push({ slot: i, delta: baseScore - tmpScore, cog: cog, pct: (baseScore - tmpScore) / baseScore * 100 });
+  }
+  if (impacts.length === 0) return null;
+
+  impacts.sort(function(a, b) { return a.delta - b.delta; });
+  var weakest = impacts[0];
+  var best = impacts[impacts.length - 1];
+
+  // Find shelf replacements for weakest slots
+  var suggestions = [];
+  var shelfCogs = (ALL_COGS && ALL_COGS.shelfCogs) || [];
+  var numWeak = Math.min(5, impacts.length);
+  for (var w = 0; w < numWeak; w++) {
+    var weak = impacts[w];
+    var bestGain = 0, bestCog = null;
+    for (var s = 0; s < shelfCogs.length; s++) {
+      var sc = shelfCogs[s];
+      if (!sc) continue;
+      var scCls = classifyCog(sc.name);
+      if (scCls.type === 'player' || scCls.type === 'excogia' || scCls.type === 'small') continue;
+      board[weak.slot] = sc;
+      var tryTotals = computeBoardTotals(board);
+      var tryScore = scoreBoard(tryTotals, goal, board);
+      board[weak.slot] = weak.cog;
+      var gain = tryScore - baseScore;
+      if (gain > bestGain) { bestGain = gain; bestCog = sc; }
+    }
+    if (bestCog) {
+      suggestions.push({ slot: weak.slot, current: weak.cog, replacement: bestCog, gain: bestGain, gainPct: bestGain / baseScore * 100 });
+    }
+  }
+
+  // Roll suggestions: for weak directional coverage, suggest surround types to roll
+  var goalSurr = goal === 'build' ? 'e' : goal === 'flaggy' ? 'g' : 'f';
+  var goalSurrName = goal === 'build' ? 'Build Surround (e)' : goal === 'flaggy' ? 'Flaggy Surround (g)' : 'ConExp Surround (f)';
+  var rollTips = [];
+
+  // Find player slots and check their directional coverage
+  var playerSlots = [];
+  for (var p = 0; p < BOARD_SIZE; p++) {
+    if (board[p] && classifyCog(board[p].name).type === 'player') playerSlots.push(p);
+  }
+  if (goal === 'conexp' && playerSlots.length > 0) {
+    // Check slots adjacent to players for missing/weak directional coverage
+    var adjSet = {};
+    for (var pi = 0; pi < playerSlots.length; pi++) {
+      var pp = slotToPos(playerSlots[pi]);
+      for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        var nr = pp.row + dr, nc = pp.col + dc;
+        if (nr >= 0 && nr < BOARD_H && nc >= 0 && nc < BOARD_W) {
+          var ns = posToSlot(nc, nr);
+          adjSet[ns] = true;
+        }
+      }
+    }
+    for (var adjS in adjSet) {
+      var adjSlot = parseInt(adjS);
+      var ac = board[adjSlot];
+      if (!ac) {
+        var asp = slotToPos(adjSlot);
+        rollTips.push('Empty slot (' + asp.col + ',' + asp.row + ') next to player \u2014 place a directional cog with ' + goalSurrName);
+      } else if (ac.h && !(ac[goalSurr] > 0)) {
+        var asp2 = slotToPos(adjSlot);
+        rollTips.push('Slot (' + asp2.col + ',' + asp2.row + ') has direction but no ' + goalSurrName + ' \u2014 try rolling one with that surround');
+      }
+    }
+  } else if (playerSlots.length > 0) {
+    // For build/flaggy, check for slots that could benefit from more directionals with goal surround
+    var surrCount = 0, dirCount = 0;
+    for (var bi = 0; bi < BOARD_SIZE; bi++) {
+      var bc = board[bi];
+      if (!bc || !bc.h) continue;
+      dirCount++;
+      if (bc[goalSurr] > 0) surrCount++;
+    }
+    if (dirCount > 0 && surrCount < dirCount * 0.4) {
+      rollTips.push('Only ' + surrCount + '/' + dirCount + ' directional cogs have ' + goalSurrName + ' \u2014 roll more with that surround type');
+    }
+  }
+
+  suggestions.sort(function(a, b) { return b.gain - a.gain; });
+
+  return { weakest: weakest, best: best, impacts: impacts, suggestions: suggestions.slice(0, 3), rollTips: rollTips.slice(0, 3), baseScore: baseScore };
+}
+
+function renderInsights() {
+  var panel = document.getElementById('insights-banner');
+  var content = document.getElementById('insights-content');
+  if (!CURRENT_BOARD) { panel.style.display = 'none'; return; }
+
+  var goal = ACTIVE_STAT_OVERLAY || 'conexp';
+  CURRENT_INSIGHTS = ins;
+  var ins = computeBoardInsights(CURRENT_BOARD, goal);
+  if (!ins) { panel.style.display = 'none'; return; }
+
+  var goalLabel = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'Con EXP/hr';
+  var html = '<div class="insight-row">';
+
+  // Weakest cog
+  var wPos = slotToPos(ins.weakest.slot);
+  html += '<div class="insight-item"><span class="insight-label">\u274C Weakest:</span> ';
+  html += '<span class="insight-val" style="color:var(--red)">' + esc(cogDisplayName(ins.weakest.cog.name)) + '</span>';
+  html += ' <span class="insight-label">at (' + wPos.col + ',' + wPos.row + ') \u2014 ';
+  if (ins.weakest.delta <= 0) html += 'hurting score by ' + fmtBig(Math.abs(ins.weakest.delta));
+  else html += 'contributes ' + ins.weakest.pct.toFixed(1) + '%';
+  html += '</span></div>';
+  html += '</div>';
+
+  // Best cog
+  html += '<div class="insight-row">';
+  var bPos = slotToPos(ins.best.slot);
+  html += '<div class="insight-item"><span class="insight-label">\u2B50 Strongest:</span> ';
+  html += '<span class="insight-val" style="color:var(--gold)">' + esc(cogDisplayName(ins.best.cog.name)) + '</span>';
+  html += ' <span class="insight-label">at (' + bPos.col + ',' + bPos.row + ') \u2014 contributes ' + ins.best.pct.toFixed(1) + '%</span></div>';
+  html += '</div>';
+
+  // Shelf replacement suggestions
+  if (ins.suggestions.length > 0) {
+    html += '<div class="insight-section"><h4>&#x1F504; Shelf Replacements</h4>';
+    for (var i = 0; i < ins.suggestions.length; i++) {
+      var sg = ins.suggestions[i];
+      var sPos = slotToPos(sg.slot);
+      html += '<div class="suggestion-item">';
+      html += '<span class="sug-slot">(' + sPos.col + ',' + sPos.row + ')</span> ';
+      html += 'Replace ' + esc(cogDisplayName(sg.current.name)) + ' with ';
+      html += '<span style="color:var(--accent)">' + esc(cogDisplayName(sg.replacement.name)) + '</span>';
+      html += ' <span class="sug-gain">+' + sg.gainPct.toFixed(1) + '% ' + goalLabel + '</span>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Roll tips
+  if (ins.rollTips.length > 0) {
+    html += '<div class="insight-section"><h4>&#x1F3B2; Roll Suggestions</h4>';
+    for (var r = 0; r < ins.rollTips.length; r++) {
+      html += '<div class="suggestion-item"><span class="sug-roll">' + ins.rollTips[r] + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  content.innerHTML = html;
+  panel.style.display = '';
+
+  // Apply highlights to board cells
+  applyInsightHighlights(ins);
+}
+
+function applyInsightHighlights(ins) {
+  var container = document.getElementById('board-current');
+  if (!container || !ins) return;
+  var cells = container.children;
+  for (var i = 0; i < cells.length; i++) {
+    cells[i].classList.remove('cog-weakest', 'cog-best');
+  }
+  if (ins.weakest && cells[ins.weakest.slot]) cells[ins.weakest.slot].classList.add('cog-weakest');
+  if (ins.best && cells[ins.best.slot]) cells[ins.best.slot].classList.add('cog-best');
+}
+
 /* ========== BOARD RENDERING ========== */
 var DIR_SHORT = {
   row: '\u27F7', column: '\u27F0', around: '\u2726', everything: '\u2605',
@@ -590,7 +786,11 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
 
   if (cls.type === 'crystal') cell.classList.add('cog-cry' + cog.name.replace('CogCry', ''));
   else if (cls.type === 'yellow') cell.classList.add('cog-yellow');
-  else if (cls.type === 'excogia') cell.classList.add('cog-excogia');
+  else if (cls.type === 'excogia') {
+    cell.classList.add('cog-excogia');
+    var piece = parseInt(cog.name.substring(5)) || 0;
+    cell.classList.add(['excogia-tl','excogia-tr','excogia-bl','excogia-br'][piece] || 'excogia-tl');
+  }
   else if (cls.type === 'player') {
     cell.classList.add('cog-player');
     var cn = cog.name.replace('Player_', '');
@@ -802,9 +1002,9 @@ function cogTooltipHtml(cog, slot) {
     if (j.grade === '-') {
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val" style="color:var(--text2)">Not rated (shelf)</span></div>';
     } else {
-      var gradeLabel = j.gradeOneInN > 1 ? j.grade + ' (1 in ' + fmtBig(j.gradeOneInN) + ')' : j.grade;
+      var gradeLabel = j.gradeOneInN >= 1.5 ? j.grade + ' (1 in ' + fmtBig(Math.round(j.gradeOneInN)) + ')' : j.grade;
       html += '<div class="tt-stat"><span class="lbl">Grade (' + modeLabel + ')</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
-      if (j.expectedDays >= 1) {
+      if (tierNum >= 4 && j.expectedDays >= 1) {
         var daysText = j.expectedDays >= 365 ? (j.expectedDays / 365).toFixed(1) + ' yrs' : j.expectedDays >= 30 ? (j.expectedDays / 30).toFixed(1) + ' mo' : Math.round(j.expectedDays) + 'd';
         html += '<div class="tt-stat"><span class="lbl">Avg time</span><span class="val" style="color:var(--text2)">~' + daysText + ' @ ' + dailyRollsForTier(tierNum) + '/day</span></div>';
       }
@@ -813,13 +1013,26 @@ function cogTooltipHtml(cog, slot) {
       }
     }
     if (j.odds) {
-      var oddsColor = j.odds.oneInN >= 10000 ? 'var(--gold)' : j.odds.oneInN >= 1000 ? 'var(--green)' : j.odds.oneInN >= 100 ? 'var(--cyan)' : 'var(--text2)';
-      var oddsText = j.odds.oneInN <= 2 ? Math.round(100 / j.odds.oneInN) + '% of rolls' : '1 in ' + fmtBig(j.odds.oneInN);
+      var roundedOdds = Math.round(j.odds.oneInN);
+      var oddsColor = roundedOdds >= 10000 ? 'var(--gold)' : roundedOdds >= 1000 ? 'var(--green)' : roundedOdds >= 100 ? 'var(--cyan)' : 'var(--text2)';
+      var oddsText = j.odds.oneInN < 1.5 ? Math.round(100 / j.odds.oneInN) + '% of rolls' : roundedOdds <= 2 ? '~1 in 2' : '1 in ' + fmtBig(roundedOdds);
       html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + oddsColor + '">' + oddsText + '</span></div>';
     }
     html += '<div class="tt-stat"><span class="lbl">ConExp%</span><span class="val">' + (cog.d||0) + ' / ' + j.perfect.perfectD + '</span></div>';
     html += '<div class="tt-stat"><span class="lbl">Build</span><span class="val">' + fmtBig(cog.a||0) + ' / ' + fmtBig(j.perfect.perfectA) + '</span></div>';
     html += '<div class="tt-stat"><span class="lbl">Flaggy</span><span class="val">' + fmtBig(cog.c||0) + ' / ' + fmtBig(j.perfect.perfectC) + '</span></div>';
+    // Marginal impact from insights
+    if (CURRENT_INSIGHTS && slot >= 0 && slot < BOARD_SIZE) {
+      for (var ii = 0; ii < CURRENT_INSIGHTS.impacts.length; ii++) {
+        if (CURRENT_INSIGHTS.impacts[ii].slot === slot) {
+          var imp = CURRENT_INSIGHTS.impacts[ii];
+          var impColor = imp.delta <= 0 ? 'var(--red)' : imp.pct < 1 ? 'var(--orange)' : 'var(--text2)';
+          var impText = imp.delta <= 0 ? 'Hurts score by ' + fmtBig(Math.abs(imp.delta)) : imp.pct.toFixed(1) + '% of total';
+          html += '<div class="tt-stat"><span class="lbl">Impact</span><span class="val" style="color:' + impColor + '">' + impText + '</span></div>';
+          break;
+        }
+      }
+    }
     html += '</div>';
   }
   if (cls.type === 'player') {
@@ -948,27 +1161,25 @@ function clearDirectionHighlight() {
 window.runOptimizer = function() {
   if (!SAVE_BOARD) return;
   hideSwapGuide();
-  var goal = document.getElementById('opt-goal').value;
-  var iters = parseInt(document.getElementById('opt-iters').value) || 80000;
+  var goal = ACTIVE_STAT_OVERLAY || 'conexp';
+  var iters = 500000;
   var btn = document.getElementById('btn-optimize');
   var statusEl = document.getElementById('opt-status');
   var progressBar = document.getElementById('opt-progress');
   var progressFill = document.getElementById('opt-progress-fill');
   btn.disabled = true; progressBar.style.display = '';
   statusEl.textContent = 'Optimizing...';
-  setTimeout(function() {
-    var t0 = performance.now();
-    // Optimize tiny cogs first
-    var tinyResult = optimizeTinyCogs(
-      ALL_COGS.tinyBoard, ALL_COGS.tinyLocked, ALL_COGS.shelfSmallCogs, goal, parseSmallCog
-    );
-    var result = optimize(SAVE_BOARD, ALL_COGS.shelfCogs, ALL_COGS.playerCogs, goal, {
-      iterations: iters,
-      onProgress: function(p) {
-        progressFill.style.width = (p.iter / iters * 100).toFixed(0) + '%';
-        statusEl.textContent = 'Iter ' + p.iter + '/' + iters + ' | Best: ' + fmtBig(p.best);
-      }
-    });
+  var t0 = performance.now();
+  var tinyResult = optimizeTinyCogs(
+    ALL_COGS.tinyBoard, ALL_COGS.tinyLocked, ALL_COGS.shelfSmallCogs, goal, parseSmallCog
+  );
+  optimizeAsync(SAVE_BOARD, ALL_COGS.shelfCogs, ALL_COGS.playerCogs, goal, {
+    iterations: iters,
+    onProgress: function(p) {
+      progressFill.style.width = (p.iter / iters * 100).toFixed(0) + '%';
+      statusEl.textContent = 'Iter ' + p.iter + '/' + iters + ' | Best: ' + fmtBig(p.best);
+    }
+  }).then(function(result) {
     result.tinyResult = tinyResult;
     var elapsed = ((performance.now() - t0) / 1000).toFixed(1);
     progressFill.style.width = '100%';
@@ -978,7 +1189,7 @@ window.runOptimizer = function() {
     statusEl.textContent = statusMsg;
     btn.disabled = false;
     showResults(result);
-  }, 50);
+  });
 };
 
 function cloneBoard(board) {
@@ -989,7 +1200,6 @@ function cloneBoard(board) {
 
 function hideOptButtons() {
   document.getElementById('btn-reset').style.display = 'none';
-  document.getElementById('btn-start-moving').style.display = 'none';
 }
 
 function hideSwapGuide() {
@@ -999,7 +1209,7 @@ function hideSwapGuide() {
 
 function showResults(result) {
   OPT_RESULT = result; IS_OPTIMIZED = true;
-  CURRENT_BOARD = result.board;
+  CURRENT_BOARD = cloneBoard(result.board);
   CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
   var banner = document.getElementById('result-banner');
   banner.style.display = '';
@@ -1029,8 +1239,9 @@ function showResults(result) {
   renderBoard('board-current', CURRENT_BOARD, SAVE_BOARD);
   renderStats(CURRENT_TOTALS, SAVE_TOTALS);
   renderBoardJudge();
+  renderInsights();
   document.getElementById('btn-reset').style.display = '';
-  document.getElementById('btn-start-moving').style.display = '';
+  startMoving();
 }
 
 function _resultItem(label, oldVal, newVal, isPct) {
@@ -1038,6 +1249,7 @@ function _resultItem(label, oldVal, newVal, isPct) {
   var sign = delta > 0 ? '+' : '';
   var cls = delta > 0 ? 'ri-up' : delta < 0 ? 'ri-down' : '';
   var fmtV = isPct ? fmtPct : fmtBig;
+  renderInsights();
   return '<div class="result-item"><span class="ri-label">' + label + ':</span> ' +
     '<span class="ri-val">' + fmtV(newVal) + '</span> ' +
     (delta !== 0 ? '<span class="ri-delta ' + cls + '">(' + sign + fmtV(delta) + ')</span>' : '') + '</div>';
@@ -1076,7 +1288,6 @@ window.startMoving = function() {
     }
   }
   SWAP_MODE = true; SWAP_STEPS = allSteps; SWAP_INDEX = 0;
-  document.getElementById('btn-start-moving').style.display = 'none';
   document.getElementById('steps-row').style.display = 'grid';
   CURRENT_BOARD = cloneBoard(SAVE_BOARD);
   renderSwapList(); renderSwapStep();
@@ -1095,7 +1306,6 @@ window.finishMoving = function() {
   hideSwapGuide();
   renderBoard('board-current', CURRENT_BOARD, SAVE_BOARD);
   renderBoardJudge();
-  document.getElementById('btn-start-moving').style.display = '';
   document.getElementById('opt-status').textContent = 'All swaps applied!';
 };
 
@@ -1314,6 +1524,7 @@ window.toggleStatOverlay = function(stat) {
   });
   renderBoardJudge();
   renderBoard('board-current', CURRENT_BOARD, IS_OPTIMIZED ? SAVE_BOARD : null);
+  renderInsights();
   renderShelf();
 };
 

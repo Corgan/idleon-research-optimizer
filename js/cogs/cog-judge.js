@@ -208,6 +208,16 @@ function _pStatGE(tier, conLv, minVal, statMode) {
  * Crystal: P(reached cascade level) × P(got direction) × P(type match).
  * Standard: P(got direction) × P(surround type).
  */
+/**
+ * P(reaching exactly crystal level N) in the cascade.
+ * Each level has 35% chance to advance; you stop when you fail or hit max (5).
+ */
+function _pCrystalCascade(cryLv) {
+  if (cryLv < 0) return 1;  // not a crystal cog
+  if (cryLv >= 5) return Math.pow(0.35, 5);            // max level
+  return Math.pow(0.35, cryLv) * 0.65;                 // stopped at cryLv
+}
+
 function _pSurrGE(tier, hasSurr, cryLv, surrType) {
   if (!hasSurr) return 1;
 
@@ -215,9 +225,8 @@ function _pSurrGE(tier, hasSurr, cryLv, surrType) {
     // Crystal: only e and f, no g
     if (surrType === 'g') return 0; // crystal never rolls g surround
     if (cryLv <= 0) return 1; // CogCry0 has no cascade surround
-    var pStop = cryLv < 5 ? Math.pow(0.35, cryLv) * 0.65 : Math.pow(0.35, 5);
-    // P(gotDir) = 1 - (1-0.25)*(1-0.334) ≈ 0.5005, P(e or f) = 0.5 each
-    return pStop * (1 - 0.75 * 0.666) * 0.5;
+    // P(gotDir) × P(right type) — cascade probability applied separately
+    return (1 - 0.75 * 0.666) * 0.5;
   }
 
   // Standard tiers
@@ -415,13 +424,14 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
 
   // Roll odds: exact probability from analytical stat distribution × surround probability
   var cryLv = tier >= 4 ? crystalLevel(cogStats.name) : -1;
+  var pCascade = _pCrystalCascade(cryLv);  // 1.0 for non-crystal
   var baseVal = cogStats[baseKey] || 0;
-  var pBase = _pStatGE(tier, maxConLv, baseVal, statMode);
+  var pBase = _pStatGE(tier, maxConLv, baseVal, statMode) * pCascade;
   var pS = _pSurrGE(tier, hasSurrForMode, cryLv, surrKey);
   var jointP = pBase * pS;
-  var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : 1e9;
+  var jointOneInN = jointP > 0 ? 1 / jointP : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
-  var baseOneInN = pBase > 0 ? Math.round(1 / pBase) : 1e9;
+  var baseOneInN = pBase > 0 ? 1 / pBase : 1e9;
   if (baseOneInN < 1) baseOneInN = 1;
   var odds = { oneInN: jointOneInN, dOneInN: baseOneInN };
 

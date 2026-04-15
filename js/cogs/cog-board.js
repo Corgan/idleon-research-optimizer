@@ -397,13 +397,13 @@ export function classifyCog(name) {
  * For conExp: maximizes playerB × (1 + fT/100) × (1 + totalD/100),
  * which is the actual construction EXP/hr formula.
  * @param {{ totalBuild, totalConExp, totalFlaggy, playerConExpHr, perSlot }} totals
- * @param {'build'|'flaggy'|'conExp'} goal
- * @param {Array} [board] - needed for conExp goal to find player slots
+ * @param {'build'|'flaggy'|'conexp'} goal
+ * @param {Array} [board] - needed for conexp goal to find player slots
  */
 export function scoreBoard(totals, goal, board) {
   if (goal === 'build') return totals.totalBuild;
   if (goal === 'flaggy') return totals.totalFlaggy;
-  if (goal === 'conExp') {
+  if (goal === 'conexp') {
     // Use the pre-computed player con EXP/hr which includes:
     // playerB × (1 + surroundF/100) × (1 + totalD/100)
     return totals.playerConExpHr || 0;
@@ -419,13 +419,13 @@ export function scoreBoard(totals, goal, board) {
  * @param {Array} tinyBoard - 24-element array (null = empty, cog object for filled)
  * @param {Array} tinyLocked - 24-element boolean array (true = locked)
  * @param {Array} shelfSmallCogs - CogSm items found in shelf slots
- * @param {'build'|'flaggy'|'conExp'} goal
+ * @param {'build'|'flaggy'|'conexp'} goal
  * @param {Function} parseFn - parseSmallCog function
  * @returns {{ newTinyBoard, moves, bonusBefore, bonusAfter }}
  */
 export function optimizeTinyCogs(tinyBoard, tinyLocked, shelfSmallCogs, goal, parseFn) {
-  // Goal → preferred tiny cog type index (0=flaggy, 1=build, 2=conExp)
-  var goalType = goal === 'flaggy' ? 0 : goal === 'conExp' ? 2 : 1;
+  // Goal → preferred tiny cog type index (0=flaggy, 1=build, 2=conexp)
+  var goalType = goal === 'flaggy' ? 0 : goal === 'conexp' ? 2 : 1;
   var smTypes = ['Flaggy', 'Build', 'ConXP'];
 
   // Collect target-type shelf cogs, sorted strongest first

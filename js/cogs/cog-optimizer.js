@@ -8,7 +8,7 @@ import { BOARD_SIZE, BOARD_W, BOARD_H, computeBoardTotals, scoreBoard, slotToPos
  * @param {Array} boardCogs - Current board-placed cogs (96 elements, null=empty)
  * @param {Array} shelfCogs - Available shelf cogs
  * @param {Array} playerCogs - All player cogs (board + off-board)
- * @param {'build'|'flaggy'|'conExp'} goal
+ * @param {'build'|'flaggy'|'conexp'} goal
  * @param {Object} [opts]
  * @param {number} [opts.iterations=80000]
  * @param {number} [opts.tempStart=1.0]
@@ -136,6 +136,325 @@ export function optimize(boardCogs, shelfCogs, playerCogs, goal, opts) {
 }
 
 /**
+ * Async version of optimize with three phases:
+ *   1. Greedy initial construction — build a strong starting board
+ *   2. SA with smart moves — explore from that starting point
+ *   3. Enhanced greedy finish — board+pool pairwise swaps
+ * Yields to the UI every `chunkSize` iterations for live progress.
+ */
+export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
+  opts = opts || {};
+  var iterations = opts.iterations || 80000;
+  var tempStart = opts.tempStart || 1.0;
+  var tempEnd = opts.tempEnd || 0.001;
+  var chunkSize = opts.chunkSize || 10000;
+
+  var board = new Array(BOARD_SIZE);
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    board[i] = boardCogs[i] ? _cloneCog(boardCogs[i]) : null;
+  }
+  var pool = [];
+  for (var i = 0; i < shelfCogs.length; i++) {
+    pool.push(_cloneCog(shelfCogs[i]));
+  }
+  var lockedSlots = {};
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (board[i] && board[i].name && (
+        board[i].name.indexOf('CogZA') === 0 ||
+        board[i].isPlayer)) {
+      lockedSlots[i] = true;
+    }
+  }
+
+  // --- Phase 1: Greedy initial construction ---
+  // Score each cog for this goal, then greedily place best cogs on board
+  _greedyConstruct(board, pool, lockedSlots, goal);
+
+  var bestScore = scoreBoard(computeBoardTotals(board), goal, board);
+  var currentScore = bestScore;
+  var bestBoard = _cloneBoard(board);
+  var initialScore = bestScore;
+  var moveLog = [];
+  var logRatio = Math.log(tempEnd / tempStart);
+
+  // Pre-compute goal-aware bias slots
+  var biasSlots = {};
+  if (goal === 'conexp') {
+    // conexp: bias toward player-adjacent slots (surround f affects player exp)
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (board[i] && board[i].isPlayer) {
+        var pp = slotToPos(i);
+        for (var dr = -1; dr <= 1; dr++) {
+          for (var dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            var nr = pp.row + dr, nc = pp.col + dc;
+            if (nr >= 0 && nr < BOARD_H && nc >= 0 && nc < BOARD_W) {
+              biasSlots[posToSlot(nc, nr)] = true;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // build/flaggy: bias toward high-surround-coverage slots
+    // Find slots that receive the most surround bonus, and slots of directional cogs
+    var surrKey = goal === 'build' ? 'e' : 'g';
+    var totals = computeBoardTotals(board);
+    var surrField = goal === 'build' ? 'surroundBuild' : 'surroundFlaggy';
+    // Slots of directional cogs with relevant surround
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (board[i] && board[i].h && (board[i][surrKey] || 0) > 0) {
+        biasSlots[i] = true;
+      }
+    }
+    // Slots receiving top-quartile surround bonuses (these are where high-base cogs matter most)
+    var surrVals = [];
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (lockedSlots[i]) continue;
+      surrVals.push({ idx: i, val: totals.perSlot[i][surrField] || 0 });
+    }
+    surrVals.sort(function(a, b) { return b.val - a.val; });
+    var topN = Math.max(1, Math.floor(surrVals.length / 4));
+    for (var k = 0; k < topN; k++) {
+      if (surrVals[k].val > 0) biasSlots[surrVals[k].idx] = true;
+    }
+  }
+
+  return new Promise(function(resolve) {
+    var iter = 0;
+    function runChunk() {
+      var end = Math.min(iter + chunkSize, iterations);
+      for (; iter < end; iter++) {
+        var temp = tempStart * Math.exp(logRatio * iter / iterations);
+        // --- Phase 2: Smart SA moves ---
+        var move = _smartMove(board, pool, lockedSlots, goal, biasSlots);
+        if (!move) continue;
+        _applyMove(board, pool, move);
+        var newScore = scoreBoard(computeBoardTotals(board), goal, board);
+        var delta = newScore - currentScore;
+        var accept = false;
+        if (delta > 0) {
+          accept = true;
+        } else if (delta !== 0) {
+          var nd = currentScore > 0 ? delta / currentScore : delta;
+          accept = Math.random() < Math.exp(nd / temp);
+        }
+        if (accept) {
+          currentScore = newScore;
+          if (currentScore > bestScore) {
+            bestScore = currentScore;
+            bestBoard = _cloneBoard(board);
+            moveLog.push({ move: move, score: bestScore, iter: iter });
+          }
+        } else {
+          _undoMove(board, pool, move);
+        }
+      }
+      if (opts.onProgress) {
+        opts.onProgress({ iter: iter, score: currentScore, best: bestScore });
+      }
+      if (iter < iterations) {
+        setTimeout(runChunk, 0);
+      } else {
+        // --- Phase 3: Enhanced greedy finish (board + pool swaps) ---
+        _greedyFinish(bestBoard, pool, lockedSlots, goal);
+        bestScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+
+        var swaps = _computeSwapSequence(boardCogs, bestBoard);
+        resolve({
+          board: bestBoard,
+          score: bestScore,
+          initialScore: initialScore,
+          improvement: bestScore - initialScore,
+          improvementPct: initialScore > 0 ? ((bestScore - initialScore) / initialScore * 100) : 0,
+          swaps: swaps,
+          moveLog: moveLog,
+        });
+      }
+    }
+    setTimeout(runChunk, 0);
+  });
+}
+
+/**
+ * Phase 1: Greedy initial construction.
+ * For each unlocked board slot, try swapping with every pool cog.
+ * Keep the swap that gives the best score improvement. Repeat until no improvement.
+ */
+function _greedyConstruct(board, pool, lockedSlots, goal) {
+  if (pool.length === 0) return;
+  var improved = true;
+  var passes = 0;
+  while (improved && passes < 3) {
+    improved = false;
+    passes++;
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (lockedSlots[i]) continue;
+      var baseScore = scoreBoard(computeBoardTotals(board), goal, board);
+      var bestDelta = 0;
+      var bestPoolIdx = -1;
+      for (var pi = 0; pi < pool.length; pi++) {
+        // Try swapping board[i] with pool[pi]
+        var tmp = board[i];
+        board[i] = pool[pi];
+        pool[pi] = tmp;
+        var s = scoreBoard(computeBoardTotals(board), goal, board);
+        var d = s - baseScore;
+        if (d > bestDelta) {
+          bestDelta = d;
+          bestPoolIdx = pi;
+        }
+        // Undo
+        tmp = board[i];
+        board[i] = pool[pi];
+        pool[pi] = tmp;
+      }
+      if (bestPoolIdx >= 0) {
+        var tmp = board[i];
+        board[i] = pool[bestPoolIdx];
+        pool[bestPoolIdx] = tmp;
+        improved = true;
+      }
+    }
+  }
+}
+
+/**
+ * Phase 2: Smart SA move generation.
+ * Biased toward productive moves:
+ *   - 30%: swap a weak board cog (bottom quartile by contribution) with a random pool cog
+ *   - 25%: swap two board cogs, biased toward player-adjacent slots
+ *   - 20%: swap a board cog with a pool cog (random)
+ *   - 25%: fully random board swap (exploration)
+ */
+function _smartMove(board, pool, locked, goal, biasSlots) {
+  var r = Math.random();
+
+  if (r < 0.30 && pool.length > 0) {
+    // Swap weakest board cog with pool cog
+    var slot = _weakSlot(board, locked, goal);
+    if (slot < 0) slot = _randSlot(locked);
+    if (slot < 0) return null;
+    var pi = Math.floor(Math.random() * pool.length);
+    return { type: 'poolSwap', slot: slot, poolIdx: pi };
+  }
+
+  if (r < 0.55) {
+    // Board swap biased toward goal-relevant slots
+    var a, b;
+    if (Math.random() < 0.5) {
+      a = _randBiasSlot(locked, biasSlots);
+      if (a < 0) a = _randSlot(locked);
+    } else {
+      a = _randSlot(locked);
+    }
+    if (a < 0) return null;
+    b = _randSlot(locked);
+    if (b < 0) return null;
+    var tries = 0;
+    while ((b === a || (!board[a] && !board[b])) && tries < 20) {
+      b = _randSlot(locked);
+      if (b < 0) return null;
+      tries++;
+    }
+    if (a === b) return null;
+    return { type: 'boardSwap', a: a, b: b };
+  }
+
+  if (r < 0.75 && pool.length > 0) {
+    // Random pool swap
+    var slot = _randSlot(locked);
+    if (slot < 0) return null;
+    var pi = Math.floor(Math.random() * pool.length);
+    return { type: 'poolSwap', slot: slot, poolIdx: pi };
+  }
+
+  // Fully random board swap
+  var a = _randSlot(locked);
+  if (a < 0) return null;
+  var b = _randSlot(locked);
+  if (b < 0) return null;
+  if (a === b) return null;
+  return { type: 'boardSwap', a: a, b: b };
+}
+
+/** Pick a random unlocked bias slot (player-adjacent for conexp, surround-relevant for build/flaggy). */
+function _randBiasSlot(locked, biasSlots) {
+  var slots = [];
+  for (var s in biasSlots) {
+    var si = parseInt(s);
+    if (!locked[si]) slots.push(si);
+  }
+  if (slots.length === 0) return -1;
+  return slots[Math.floor(Math.random() * slots.length)];
+}
+
+/** Pick a weak board slot — one with low contribution for the goal. Bottom quartile. */
+function _weakSlot(board, locked, goal) {
+  var slots = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (locked[i] || !board[i]) continue;
+    var c = board[i];
+    var val;
+    if (goal === 'build') val = (c.a || 0) + (c.e || 0);  // base build + surround build
+    else if (goal === 'flaggy') val = (c.c || 0) + (c.g || 0);  // base flaggy + surround flaggy
+    else val = (c.d || 0) + (c.f || 0) + (c.b || 0);  // conexp: d% + surround + base exp
+    slots.push({ idx: i, val: val });
+  }
+  if (slots.length === 0) return -1;
+  slots.sort(function(a, b) { return a.val - b.val; });
+  // Pick from bottom quartile
+  var cutoff = Math.max(1, Math.floor(slots.length / 4));
+  return slots[Math.floor(Math.random() * cutoff)].idx;
+}
+
+/**
+ * Phase 3: Enhanced greedy finish.
+ * Board pairwise swaps + board↔pool swaps. Up to 5 passes.
+ */
+function _greedyFinish(bestBoard, pool, lockedSlots, goal) {
+  var improved = true;
+  var passes = 0;
+  while (improved && passes < 5) {
+    improved = false;
+    passes++;
+    // Board pairwise swaps
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (lockedSlots[i]) continue;
+      var prevScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+      for (var j = i + 1; j < BOARD_SIZE; j++) {
+        if (lockedSlots[j]) continue;
+        var tmp = bestBoard[i]; bestBoard[i] = bestBoard[j]; bestBoard[j] = tmp;
+        var swapScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+        if (swapScore > prevScore) {
+          prevScore = swapScore;
+          improved = true;
+        } else {
+          tmp = bestBoard[i]; bestBoard[i] = bestBoard[j]; bestBoard[j] = tmp;
+        }
+      }
+    }
+    // Board↔pool swaps
+    if (pool.length > 0) {
+      for (var i = 0; i < BOARD_SIZE; i++) {
+        if (lockedSlots[i]) continue;
+        var prevScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+        for (var pi = 0; pi < pool.length; pi++) {
+          var tmp = bestBoard[i]; bestBoard[i] = pool[pi]; pool[pi] = tmp;
+          var swapScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+          if (swapScore > prevScore) {
+            prevScore = swapScore;
+            improved = true;
+          } else {
+            tmp = bestBoard[i]; bestBoard[i] = pool[pi]; pool[pi] = tmp;
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Generate a random move.
  * Move types: swap two board cogs, swap board cog with pool cog, move pool cog to empty slot.
  */
@@ -237,16 +556,21 @@ function _cloneBoard(board) {
 function _computeSwapSequence(from, to) {
   var steps = [];
 
+  // Use _slot as unique cog identity (same-name cogs have different _slot values)
+  function _cogKey(cog) {
+    return cog ? cog._slot + ':' + cog.name : 'Blank';
+  }
+
   // Working copy of current board state (mutated as we generate steps)
   var current = new Array(BOARD_SIZE);
   for (var i = 0; i < BOARD_SIZE; i++) {
-    current[i] = (from[i] && from[i].name) || 'Blank';
+    current[i] = _cogKey(from[i]);
   }
 
   // Target board state
   var target = new Array(BOARD_SIZE);
   for (var i = 0; i < BOARD_SIZE; i++) {
-    target[i] = (to[i] && to[i].name) || 'Blank';
+    target[i] = _cogKey(to[i]);
   }
 
   // Find all slots that differ (skip pinned player/yin cogs)
@@ -266,23 +590,27 @@ function _computeSwapSequence(from, to) {
   // Process each changed slot, updating current state as we go
   for (var ci = 0; ci < changed.length; ci++) {
     var slot = changed[ci];
-    var toName = target[slot];
-    var fromName = current[slot];
+    var toKey = target[slot];
+    var fromKey = current[slot];
 
     // If this slot already has the right cog (from a previous swap), skip
-    if (current[slot] === toName) continue;
+    if (current[slot] === toKey) continue;
 
     // Find source: where the needed cog currently lives in the evolving board
     var srcSlot = -1;
-    if (toName !== 'Blank') {
+    if (toKey !== 'Blank') {
       for (var j = 0; j < BOARD_SIZE; j++) {
         if (j === slot) continue;
-        if (current[j] === toName) {
+        if (current[j] === toKey) {
           srcSlot = j;
           break;
         }
       }
     }
+
+    // Display names (strip the _slot prefix)
+    var fromName = fromKey === 'Blank' ? 'Blank' : fromKey.substring(fromKey.indexOf(':') + 1);
+    var toName = toKey === 'Blank' ? 'Blank' : toKey.substring(toKey.indexOf(':') + 1);
 
     steps.push({
       slot: slot,
@@ -295,10 +623,10 @@ function _computeSwapSequence(from, to) {
 
     // Update the working board state:
     // Place the target cog at this slot
-    current[slot] = toName;
+    current[slot] = toKey;
     // If the source was another board slot, put the displaced cog there
     if (srcSlot >= 0) {
-      current[srcSlot] = fromName;
+      current[srcSlot] = fromKey;
     }
   }
 
