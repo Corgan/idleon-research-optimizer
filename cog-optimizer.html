@@ -302,7 +302,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
     </div>
   </div>
 
-  <!-- Row 2: Optimize + Grade -->
+  <!-- Row 2: Optimize + EXP% + Grade -->
   <div class="opt-grade-row">
     <div class="opt-panel">
       <div class="opt-line">
@@ -328,6 +328,11 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
         <div class="progress-bar" id="opt-progress"><div class="fill" id="opt-progress-fill"></div></div>
         <div id="opt-status" style="font-size:.75em;color:var(--text2)"></div>
       </div>
+    </div>
+    <div class="grade-card" style="grid-column:2">
+      <div class="label">Player EXP %</div>
+      <div class="val" id="stat-exppct" style="color:var(--purple)">—</div>
+      <div class="sub" id="stat-exppct-sub"></div>
     </div>
     <div class="grade-card">
       <div class="label">Grade</div>
@@ -487,18 +492,42 @@ function showMsg(msg, isErr) {
 }
 
 /* ========== STATS ========== */
+function computeTinyCogBonus(type) {
+  if (!ALL_COGS || !ALL_COGS.tinyBoard) return 0;
+  var total = 0;
+  for (var i = 0; i < ALL_COGS.tinyBoard.length; i++) {
+    var cog = ALL_COGS.tinyBoard[i];
+    if (!cog) continue;
+    var sm = parseSmallCog(cog.name);
+    if (sm && sm.type === type) total += sm.bonus;
+  }
+  return total;
+}
+
+function effectiveFlaggy(totalFlaggy) {
+  var tinyCogPct = computeTinyCogBonus(0);
+  return totalFlaggy * (1 + tinyCogPct / 100);
+}
+
 function renderStats(totals, baseTotals) {
   document.getElementById('stat-build').textContent = fmtBig(totals.totalBuild);
   document.getElementById('stat-conexp').textContent = fmtBig(totals.playerConExpHr || 0);
-  document.getElementById('stat-flaggy').textContent = fmtBig(totals.totalFlaggy);
+  document.getElementById('stat-flaggy').textContent = fmtBig(effectiveFlaggy(totals.totalFlaggy));
+  var ps = totals.playerSlot;
+  var surrExp = (ps >= 0 && totals.perSlot[ps]) ? totals.perSlot[ps].surroundConExp : 0;
+  document.getElementById('stat-exppct').textContent = '+' + fmtPct(surrExp);
   if (baseTotals) {
     renderDelta('stat-build-sub', baseTotals.totalBuild, totals.totalBuild);
     renderDelta('stat-conexp-sub', baseTotals.playerConExpHr || 0, totals.playerConExpHr || 0);
-    renderDelta('stat-flaggy-sub', baseTotals.totalFlaggy, totals.totalFlaggy);
+    renderDelta('stat-flaggy-sub', effectiveFlaggy(baseTotals.totalFlaggy), effectiveFlaggy(totals.totalFlaggy));
+    var oldPs = baseTotals.playerSlot;
+    var oldSurrExp = (oldPs >= 0 && baseTotals.perSlot[oldPs]) ? baseTotals.perSlot[oldPs].surroundConExp : 0;
+    renderDelta('stat-exppct-sub', oldSurrExp, surrExp, true);
   } else {
     document.getElementById('stat-build-sub').textContent = '';
     document.getElementById('stat-conexp-sub').textContent = '';
     document.getElementById('stat-flaggy-sub').textContent = '';
+    document.getElementById('stat-exppct-sub').textContent = totals.totalConExp > 0 ? 'Board %d pool: +' + fmtPct(totals.totalConExp) : '';
   }
 }
 
@@ -947,7 +976,7 @@ function showResults(result) {
   var resultHtml =
     _resultItem('Build', SAVE_TOTALS.totalBuild, CURRENT_TOTALS.totalBuild) +
     _resultItem('Con EXP/hr', SAVE_TOTALS.playerConExpHr || 0, CURRENT_TOTALS.playerConExpHr || 0) +
-    _resultItem('Flaggy', SAVE_TOTALS.totalFlaggy, CURRENT_TOTALS.totalFlaggy);
+    _resultItem('Flaggy', effectiveFlaggy(SAVE_TOTALS.totalFlaggy), effectiveFlaggy(CURRENT_TOTALS.totalFlaggy));
   if (result.tinyResult && result.tinyResult.moves.length > 0) {
     var tr = result.tinyResult;
     var smLabels = ['Flaggy%', 'Build%', 'ConXP%'];
@@ -1214,19 +1243,26 @@ function renderSwapList() {
 function fmtBig(n) {
   if (n === 0 || n === undefined || n === null) return '0';
   var abs = Math.abs(n);
-  if (abs >= 1e18) return (n / 1e18).toFixed(2) + 'Qi';
+  if (abs >= 1e24) return n.toExponential(2);
+  if (abs >= 1e21) return (n / 1e21).toFixed(2) + 'QQQ';
+  if (abs >= 1e18) return (n / 1e18).toFixed(2) + 'QQ';
   if (abs >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
   if (abs >= 1e12) return (n / 1e12).toFixed(2) + 'T';
   if (abs >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
   if (abs >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
-  if (abs >= 1e3)  return (n / 1e3).toFixed(1) + 'K';
-  if (abs >= 1)    return n.toFixed(0);
+  if (abs >= 1e4)  return (n / 1e3).toFixed(1) + 'K';
+  if (abs >= 100)  return Math.round(n).toLocaleString();
+  if (Number.isInteger(n)) return String(n);
   return n.toFixed(2);
 }
 
 function fmtPct(n) {
   if (n === 0 || n === undefined) return '0%';
-  if (Math.abs(n) >= 1e6) return fmtBig(n) + '%';
+  var abs = Math.abs(n);
+  if (abs >= 1e6) return fmtBig(n) + '%';
+  if (abs >= 1e4) return (n / 1e3).toFixed(1) + 'K%';
+  if (abs >= 100) return Math.round(n).toLocaleString() + '%';
+  if (abs >= 10) return n.toFixed(0) + '%';
   return n.toFixed(1) + '%';
 }
 

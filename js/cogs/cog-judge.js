@@ -399,9 +399,8 @@ export function smallCogBonus(type, level) {
  */
 export function parseSmallCog(name) {
   if (!name || name.indexOf('CogSm') !== 0) return null;
-  var N2L = '_abcdefghijklmnopqrstuvwxyz';
-  var typeChar = name.charAt(5);
-  var type = N2L.indexOf(typeChar);
+  var type = name.charCodeAt(5) - 97; // 'a'=0 (flaggy), 'b'=1 (build), 'c'=2 (exp)
+  if (type < 0 || type > 25) return null;
   var level = parseInt(name.substring(6)) || 0;
   return { type: type, level: level, bonus: smallCogBonus(type, level) };
 }

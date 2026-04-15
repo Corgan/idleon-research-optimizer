@@ -115,12 +115,11 @@ function computeSmallCogBonus(type, level) {
 export function computeSmallCogBonusTOTAL(type) {
   var cogOrder = _consSaveData.cogOrderData;
   if (!cogOrder || !cogOrder.length) return 0;
-  var N2L = '_abcdefghijklmnopqrstuvwxyz';
   var total = 0;
   for (var s = 0; s < 24; s++) {
     var name = String(cogOrder[228 + s] || '');
     if (name.indexOf('CogSm') !== 0) continue;
-    var cogType = N2L.indexOf(name.charAt(5));
+    var cogType = name.charCodeAt(5) - 97; // 'a'=0 (flaggy), 'b'=1 (build), 'c'=2 (exp)
     if (cogType !== type) continue;
     var cogLevel = Number(name.substring(6)) || 0;
     total += computeSmallCogBonus(cogType, cogLevel);
@@ -137,9 +136,8 @@ export function computeCogBoardTotals() {
   var cogMap = _consSaveData.cogMapData;
   var result = { flatBuild: 0, flatExp: 0, flatFlaggy: 0, pctConstExp: 0, pctBuildRate: 0, pctPlayerConstXP: 0, pctFlaggyRate: 0 };
   if (!cogMap) return result;
-  var keys = Object.keys(cogMap);
-  for (var i = 0; i < keys.length; i++) {
-    var entry = cogMap[keys[i]];
+  for (var i = 0; i < 96; i++) {
+    var entry = cogMap[i];
     if (!entry) continue;
     result.flatBuild += Number(entry.a) || 0;
     result.flatExp += Number(entry.b) || 0;
