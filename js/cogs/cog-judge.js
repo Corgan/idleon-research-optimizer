@@ -33,7 +33,7 @@ function _minRolls(tier) {
 function _simFullRoll(tier, conLv) {
   var base = _rawMag(tier, conLv);
   var nRolls = _minRolls(tier) + (Math.random() < 0.5 ? 1 : 0);
-  var d = 0;
+  var a = 0, c = 0, d = 0;
   var maxBucket = 100 + 40 * Math.floor(tier / 4);
   for (var r = 0; r < nRolls; r++) {
     var bucket = Math.floor(Math.random() * maxBucket) + 1;
@@ -44,9 +44,9 @@ function _simFullRoll(tier, conLv) {
     var val = Math.floor(mult * base);
     var statRoll = Math.floor(Math.random() * 100) + 1;
     if (statRoll < 69) {
-      // build speed — ignored for d scoring
+      a += Math.round(val);
     } else if (statRoll < 89 && tier !== 4) {
-      // flaggy — ignored
+      c += Math.round(Math.pow(val, 0.8));
     } else {
       d += Math.max(Math.floor(Math.pow(val, 0.4) + 10 * Math.log(Math.max(val, 1)) / 2.30259 - 5), 2);
     }
@@ -76,29 +76,32 @@ function _simFullRoll(tier, conLv) {
       }
     }
   }
-  return { d: d, dirE: dirE, cryLevel: cryLevel };
+  return { a: a, c: c, d: d, dirE: dirE, cryLevel: cryLevel };
 }
 
 /**
  * Build sim data synchronously (fallback when worker cache not ready).
  */
 function _buildSimDataSync(tier, conLv, n) {
-  var allScores = new Float32Array(n);
-  var cryBuckets = [[], [], [], [], [], []];
+  // Sample 1M tuples (a,c,d,surr) for joint odds queries
+  var PAIR_N = Math.min(n, 1000000);
+  var sampleRate = Math.max(1, Math.floor(n / PAIR_N));
+  var pairA = new Float32Array(PAIR_N);
+  var pairC = new Float32Array(PAIR_N);
+  var pairD = new Float32Array(PAIR_N);
+  var pairS = new Float32Array(PAIR_N);
+  var pi = 0;
   for (var i = 0; i < n; i++) {
     var sim = _simFullRoll(tier, conLv);
-    var composite = sim.d + sim.dirE;
-    allScores[i] = composite;
-    if (tier >= 4) cryBuckets[sim.cryLevel].push(composite);
+    if (i % sampleRate === 0 && pi < PAIR_N) {
+      pairA[pi] = sim.a;
+      pairC[pi] = sim.c;
+      pairD[pi] = sim.d;
+      pairS[pi] = sim.dirE;
+      pi++;
+    }
   }
-  allScores.sort();
-  var sortedCry = [];
-  for (var c = 0; c <= 5; c++) {
-    var arr = new Float32Array(cryBuckets[c]);
-    arr.sort();
-    sortedCry.push(arr);
-  }
-  return { all: allScores, cry: sortedCry, n: n };
+  return { pairA: pairA, pairC: pairC, pairD: pairD, pairS: pairS, pairN: pi };
 }
 
 /** Sim cache — populated by workers or sync fallback */
@@ -111,8 +114,8 @@ var _simCache = {};
  */
 export function warmSimCache(conLv, onProgress) {
   _simCache = {};
-  var N = 1000000;
-  var tiers = [0, 1, 2, 3, 4];
+  var N = 50000000;
+  var tiers = [3, 4]; // only sim ulti + crystal
   var done = 0;
   var total = tiers.length;
 
@@ -139,9 +142,11 @@ export function warmSimCache(conLv, onProgress) {
         var w = new Worker(workerUrl);
         w.onmessage = function(ev) {
           _simCache[tier + ',' + conLv] = {
-            all: ev.data.all,
-            cry: ev.data.cry,
-            n: ev.data.n
+            pairA: ev.data.pairA,
+            pairC: ev.data.pairC,
+            pairD: ev.data.pairD,
+            pairS: ev.data.pairS,
+            pairN: ev.data.pairN
           };
           done++;
           if (onProgress) onProgress(done, total);
@@ -170,58 +175,23 @@ function _getSimData(tier, conLv) {
   if (_simCache[key]) return _simCache[key];
   // Fallback: build sync (shouldn't happen if warmSimCache was awaited)
   console.warn('Sim cache miss for tier=' + tier + ' conLv=' + conLv + ', running sync fallback');
-  _simCache[key] = _buildSimDataSync(tier, conLv, 1000000);
+  _simCache[key] = _buildSimDataSync(tier, conLv, 10000000);
   return _simCache[key];
 }
 
-/** Binary search: first index where arr[i] >= val */
-function _bisectLeft(arr, val) {
-  var lo = 0, hi = arr.length;
-  while (lo < hi) {
-    var mid = (lo + hi) >>> 1;
-    if (arr[mid] < val) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
 /**
- * Look up how rare a cog's composite score (d + dirE) is.
- * For crystal cogs, odds reflect the combined rarity of reaching that
- * crystal level AND rolling composite >= value — all from the same simulation.
- *
- * @param {number} composite - the cog's d (con exp %) + e (surround con exp %)
- * @param {number} tier - stat tier (0-4)
- * @param {number} conLv - construction level
- * @param {number} [cryLv] - crystal upgrade level (0-5), omit for standard cogs
- * @returns {{ oneInN, percentile }}
- *   oneInN: "1 in X" rarity relative to ALL rolls at this tier
- *   percentile: composite percentile within the cog's subgroup (for grading)
+ * Count how many sampled sims match all stat thresholds simultaneously.
+ * Returns { prob, pairN } where prob = P(a >= minA AND c >= minC AND d >= minD AND surr >= minS).
  */
-export function cogRollOdds(composite, tier, conLv, cryLv) {
+function _jointOddsProb(tier, conLv, minA, minC, minD, minS) {
   var data = _getSimData(tier, conLv);
-
-  // Pick the right d-value array
-  var subArr;
-  if (cryLv !== undefined && cryLv >= 0 && tier >= 4) {
-    subArr = data.cry[cryLv];
-  } else {
-    subArr = data.all;
+  if (!data.pairA || !data.pairN) return { prob: 0, pairN: 0 };
+  var count = 0;
+  var pA = data.pairA, pC = data.pairC, pD = data.pairD, pS = data.pairS, pN = data.pairN;
+  for (var i = 0; i < pN; i++) {
+    if (pA[i] >= minA && pC[i] >= minC && pD[i] >= minD && pS[i] >= minS) count++;
   }
-
-  var idx = _bisectLeft(subArr, composite);
-  var countAtOrAbove = subArr.length - idx;
-
-  // oneInN: rarity relative to ALL rolls (how many total rolls to get this)
-  var prob = countAtOrAbove / data.n;
-  var oneInN = prob > 0 ? Math.round(1 / prob) : data.n;
-  if (oneInN < 1) oneInN = 1;
-
-  // percentile: d-value rank within the subgroup (for grading)
-  var groupTotal = subArr.length;
-  var percentile = groupTotal > 0 ? Math.round(idx / groupTotal * 10000) / 100 : 0;
-
-  return { oneInN: oneInN, percentile: percentile };
+  return { prob: count / pN, pairN: pN };
 }
 
 /**
@@ -340,46 +310,73 @@ export function crystalLevel(name) {
 }
 
 /**
- * Judge a single cog's quality vs a perfect roll at maxConLv.
- * Crystal upgrade rarity and stat roll variance are all part of the
- * Monte Carlo simulation — no external probability multipliers.
- * @param {{ a, c, d, e, f, g, h, name }} cogStats - cog stats (name needed for crystal level)
- * @param {number} tier - Cog tier (0-4 for crystal variant, 0-3 for standard)
- * @param {number} maxConLv - Highest construction level across all characters
+ * Judge a single cog's quality.
+ * - Shelf cogs (isShelf=true) are not rated.
+ * - Directional cogs affecting a player: graded on surround value / max surround.
+ * - All others: graded on d / perfectD (con exp % ratio).
+ * Odds (oneInN) still come from Monte Carlo for t3+t4.
+ *
+ * @param {{ a, c, d, e, f, g, h, name }} cogStats
+ * @param {number} tier - Cog tier (0-4)
+ * @param {number} maxConLv - Highest construction level
+ * @param {Object} [opts] - { isShelf, affectsPlayer }
  */
-export function judgeCog(cogStats, tier, maxConLv) {
+export function judgeCog(cogStats, tier, maxConLv, opts) {
   if (tier < 0) return { grade: '?', percentile: -1 };
 
-  var perfect = perfectCogStats(tier, maxConLv);
+  var isShelf = opts && opts.isShelf;
+  var affectsPlayer = opts && opts.affectsPlayer;
 
-  // Surround quality
+  // Shelf cogs don't get graded
+  if (isShelf) return { grade: '-', percentile: -1 };
+
+  // Only grade ulti (tier 3) and crystal (tier 4) cogs — lower tiers get F
+  if (tier < 3) return { grade: 'F', ratio: 0, percentile: 0, hasSurround: false, affectsPlayer: false, perfect: perfectCogStats(tier, maxConLv), odds: { oneInN: 1 } };
+
+  var perfect = perfectCogStats(tier, maxConLv);
   var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
-  var surroundQuality = 'none';
-  if (hasSurround) {
-    var bestSurr = Math.max(cogStats.e || 0, cogStats.f || 0, cogStats.g || 0, cogStats.j || 0);
-    var surrPct = perfect.perfectSurr > 0 ? bestSurr / perfect.perfectSurr * 100 : 0;
-    surroundQuality = surrPct >= 85 ? 'excellent' : surrPct >= 65 ? 'good' : surrPct >= 45 ? 'average' : 'poor';
+
+  // Roll odds: fully from sim — joint P(a >= X AND c >= Y AND d >= Z AND surr >= W)
+  var bestSurr = Math.max(cogStats.e || 0, cogStats.f || 0, cogStats.g || 0, cogStats.j || 0);
+  var oddsResult = _jointOddsProb(tier, maxConLv, cogStats.a || 0, cogStats.c || 0, cogStats.d || 0, bestSurr);
+  var jointP = oddsResult.prob;
+  var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : (oddsResult.pairN > 0 ? oddsResult.pairN : 1);
+  if (jointOneInN < 1) jointOneInN = 1;
+  var odds = { oneInN: jointOneInN };
+
+  // Grade calculation — ratio of actual / perfect
+  // total = sum(all base d) × (1 + sum(player surround) / 100)
+  // Marginal value of +1 surround = totalBaseD / 100
+  // Marginal value of +1 base d   = 1 + totalSurround / 100
+  var ratio, grade;
+  if (affectsPlayer && hasSurround) {
+    var surrRatio = perfect.perfectSurr > 0 ? bestSurr / perfect.perfectSurr : 0;
+    var baseRatio = perfect.perfectD > 0 ? (cogStats.d || 0) / perfect.perfectD : 0;
+    var totalBaseD = (opts && opts.totalBaseD) || 1;
+    var totalSurround = (opts && opts.totalSurround) || 0;
+    var margSurr = totalBaseD / 100;
+    var margBase = 1 + totalSurround / 100;
+    var wTotal = margSurr + margBase;
+    var wS = wTotal > 0 ? margSurr / wTotal : 0.5;
+    var wB = wTotal > 0 ? margBase / wTotal : 0.5;
+    ratio = wS * surrRatio + wB * baseRatio;
+  } else {
+    // Non-directional or not affecting player: grade on d vs perfectD
+    ratio = perfect.perfectD > 0 ? (cogStats.d || 0) / perfect.perfectD : 0;
   }
 
-  // Roll odds via Monte Carlo — composite = own con exp + surround con exp
-  var cryLv = crystalLevel(cogStats.name);
-  var composite = (cogStats.d || 0) + (cogStats.e || 0);
-  var odds = cogRollOdds(composite, tier, maxConLv, cryLv > 0 ? cryLv : undefined);
-
-  // Grade from percentile (d-value rank within the cog's subgroup)
-  var pctl = odds.percentile;
-  var grade;
-  if (pctl >= 99) grade = 'S';
-  else if (pctl >= 90) grade = 'A';
-  else if (pctl >= 70) grade = 'B';
-  else if (pctl >= 40) grade = 'C';
+  if (ratio >= 0.85) grade = 'S';
+  else if (ratio >= 0.70) grade = 'A';
+  else if (ratio >= 0.50) grade = 'B';
+  else if (ratio >= 0.30) grade = 'C';
   else grade = 'D';
 
   return {
     grade: grade,
-    percentile: pctl,
+    ratio: Math.round(ratio * 10000) / 100, // pct of perfect (= percentile)
+    percentile: Math.round(ratio * 10000) / 100,
     hasSurround: hasSurround,
-    surroundQuality: surroundQuality,
+    affectsPlayer: !!affectsPlayer,
     perfect: perfect,
     odds: odds,
   };

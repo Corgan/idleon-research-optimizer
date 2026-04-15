@@ -9,7 +9,7 @@ function _minRolls(tier) { return tier < 2 ? 2 : 3; }
 function _simFullRoll(tier, conLv) {
   var base = _rawMag(tier, conLv);
   var nRolls = _minRolls(tier) + (Math.random() < 0.5 ? 1 : 0);
-  var d = 0;
+  var a = 0, c = 0, d = 0;
   var maxBucket = 100 + 40 * Math.floor(tier / 4);
   for (var r = 0; r < nRolls; r++) {
     var bucket = Math.floor(Math.random() * maxBucket) + 1;
@@ -20,9 +20,9 @@ function _simFullRoll(tier, conLv) {
     var val = Math.floor(mult * base);
     var statRoll = Math.floor(Math.random() * 100) + 1;
     if (statRoll < 69) {
-      // build speed
+      a += Math.round(val);
     } else if (statRoll < 89 && tier !== 4) {
-      // flaggy
+      c += Math.round(Math.pow(val, 0.8));
     } else {
       d += Math.max(Math.floor(Math.pow(val, 0.4) + 10 * Math.log(Math.max(val, 1)) / 2.30259 - 5), 2);
     }
@@ -57,7 +57,7 @@ function _simFullRoll(tier, conLv) {
     }
   }
 
-  return { d: d, dirE: dirE, cryLevel: cryLevel };
+  return { a: a, c: c, d: d, dirE: dirE, cryLevel: cryLevel };
 }
 
 self.onmessage = function(ev) {
@@ -65,30 +65,28 @@ self.onmessage = function(ev) {
   var conLv = ev.data.conLv;
   var n = ev.data.n;
 
-  var allScores = new Float32Array(n);
-  var cryBuckets = [[], [], [], [], [], []];
+  // Sample 1M tuples (a,c,d,surr) for joint odds queries
+  var PAIR_N = Math.min(n, 1000000);
+  var sampleRate = Math.max(1, Math.floor(n / PAIR_N));
+  var pairA = new Float32Array(PAIR_N);
+  var pairC = new Float32Array(PAIR_N);
+  var pairD = new Float32Array(PAIR_N);
+  var pairS = new Float32Array(PAIR_N);
+  var pi = 0;
 
   for (var i = 0; i < n; i++) {
     var sim = _simFullRoll(tier, conLv);
-    var composite = sim.d + sim.dirE;
-    allScores[i] = composite;
-    if (tier >= 4) {
-      cryBuckets[sim.cryLevel].push(composite);
+    if (i % sampleRate === 0 && pi < PAIR_N) {
+      pairA[pi] = sim.a;
+      pairC[pi] = sim.c;
+      pairD[pi] = sim.d;
+      pairS[pi] = sim.dirE;
+      pi++;
     }
   }
 
-  allScores.sort();
-
-  var sortedCry = [];
-  for (var c = 0; c <= 5; c++) {
-    var arr = new Float32Array(cryBuckets[c]);
-    arr.sort();
-    sortedCry.push(arr);
-  }
-
   // Transfer the large buffers for zero-copy
-  var transfers = [allScores.buffer];
-  for (var c = 0; c <= 5; c++) transfers.push(sortedCry[c].buffer);
+  var transfers = [pairA.buffer, pairC.buffer, pairD.buffer, pairS.buffer];
 
-  self.postMessage({ tier: tier, all: allScores, cry: sortedCry, n: n }, transfers);
+  self.postMessage({ tier: tier, pairA: pairA, pairC: pairC, pairD: pairD, pairS: pairS, pairN: pi }, transfers);
 };

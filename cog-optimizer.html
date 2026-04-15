@@ -277,7 +277,7 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   </div>
   <textarea id="json-in" placeholder="...or paste your it.json / save.json contents here..."></textarea>
   <div class="top-bar">
-    <button class="btn" onclick="doImport()">Load Pasted JSON</button>
+    <button class="btn" id="btn-import">Load Pasted JSON</button>
   </div>
   <div id="import-msg" class="import-msg"></div>
   <div id="sim-progress" style="display:none;margin-top:6px">
@@ -410,9 +410,9 @@ import {
   computeBoardTotals, scoreBoard,
   boardFromSave, extractAllCogs, classifyCog,
   slotToPos, posToSlot, recoverRawPlayerStats,
-  optimizeTinyCogs
+  optimizeTinyCogs, cogAffectsPlayer, boardGradeContext
 } from './js/cogs/cog-board.js';
-import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, cogRollOdds, clearOddsCache, warmSimCache } from './js/cogs/cog-judge.js';
+import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, clearOddsCache, warmSimCache } from './js/cogs/cog-judge.js';
 import { optimize } from './js/cogs/cog-optimizer.js';
 import { fmtVal } from './js/renderers/format.js';
 
@@ -428,12 +428,13 @@ var ACTIVE_STAT_OVERLAY = null;
 
 
 /* ========== IMPORT ========== */
-window.doImport = function() {
+function doImport() {
   var txt = document.getElementById('json-in').value.trim();
   if (!txt) return showMsg('Paste save JSON first', true);
   try { loadFromParsed(JSON.parse(txt)); }
   catch (e) { showMsg('Invalid JSON: ' + e.message, true); }
-};
+}
+document.getElementById('btn-import').addEventListener('click', doImport);
 
 document.getElementById('file-input').addEventListener('change', function(e) {
   var file = e.target.files[0]; if (!file) return;
@@ -536,19 +537,21 @@ function renderBoardJudge() {
   var gradeEl = document.getElementById('board-grade');
   var subEl = document.getElementById('board-grade-sub');
   if (!CURRENT_BOARD) { gradeEl.textContent = '\u2014'; subEl.textContent = ''; return; }
-  var totalPctl = 0, count = 0;
+  var ctx = boardGradeContext(CURRENT_BOARD);
+  var totalRatio = 0, count = 0;
   for (var i = 0; i < BOARD_SIZE; i++) {
     var cog = CURRENT_BOARD[i]; if (!cog) continue;
     var tier = cogStatTier(cog.name); if (tier < 0) continue;
-    var j = judgeCog(cog, tier, MAX_CON_LV);
-    totalPctl += j.percentile; count++;
+    var ap = cogAffectsPlayer(CURRENT_BOARD, i);
+    var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround });
+    if (j.ratio !== undefined) { totalRatio += j.ratio; count++; }
   }
   if (count === 0) { gradeEl.textContent = '\u2014'; subEl.textContent = 'No gradeable cogs'; return; }
-  var avgPctl = totalPctl / count;
-  var grade = avgPctl >= 99 ? 'S' : avgPctl >= 90 ? 'A' : avgPctl >= 70 ? 'B' : avgPctl >= 40 ? 'C' : 'D';
+  var avgRatio = totalRatio / count;
+  var grade = avgRatio >= 85 ? 'S' : avgRatio >= 70 ? 'A' : avgRatio >= 50 ? 'B' : avgRatio >= 30 ? 'C' : 'D';
   gradeEl.className = 'val grade-' + grade;
   gradeEl.textContent = grade;
-  subEl.textContent = 'Top ' + (100 - avgPctl).toFixed(1) + '% avg (' + count + ' cogs)';
+  subEl.textContent = avgRatio.toFixed(1) + '% of perfect avg (' + count + ' cogs)';
 }
 
 /* ========== BOARD RENDERING ========== */
@@ -598,9 +601,11 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
   }
 
   var tierNum = cogStatTier(cog.name);
-  if (tierNum >= 0) {
-    var judgment = judgeCog(cog, tierNum, MAX_CON_LV);
-    if (judgment.grade && judgment.grade !== '?') {
+  if (tierNum >= 0 && idx >= 0 && idx < BOARD_SIZE && CURRENT_BOARD) {
+    var ap = cogAffectsPlayer(CURRENT_BOARD, idx);
+    var _ctx = boardGradeContext(CURRENT_BOARD);
+    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround });
+    if (judgment.grade && judgment.grade !== '?' && judgment.grade !== '-') {
       var badge = document.createElement('div');
       badge.className = 'grade-badge grade-' + judgment.grade;
       badge.textContent = judgment.grade; cell.appendChild(badge);
@@ -756,10 +761,20 @@ function cogTooltipHtml(cog, slot) {
     html += '</div>';
   }
   var tierNum = cogStatTier(cog.name);
-  if (tierNum >= 0) {
-    var j = judgeCog(cog, tierNum, MAX_CON_LV);
+  if (tierNum >= 0 && slot >= 0 && slot < BOARD_SIZE && CURRENT_BOARD) {
+    var ap = cogAffectsPlayer(CURRENT_BOARD, slot);
+    var _ctx2 = boardGradeContext(CURRENT_BOARD);
+    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround });
     html += '<div style="margin-top:4px;border-top:1px solid #333;padding-top:4px">';
-    html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + j.grade + ' (top ' + (100 - j.percentile).toFixed(1) + '%)</span></div>';
+    if (j.grade === '-') {
+      html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val" style="color:var(--text2)">Not rated (shelf)</span></div>';
+    } else {
+      var gradeLabel = j.ratio !== undefined ? j.grade + ' (' + j.ratio.toFixed(1) + '% of perfect)' : j.grade;
+      html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
+      if (j.affectsPlayer && j.hasSurround) {
+        html += '<div class="tt-stat"><span class="lbl">Basis</span><span class="val" style="color:var(--cyan)">Surround (affects player)</span></div>';
+      }
+    }
     if (j.odds) {
       var oddsColor = j.odds.oneInN >= 500 ? 'var(--gold)' : j.odds.oneInN >= 50 ? 'var(--green)' : j.odds.oneInN >= 10 ? 'var(--cyan)' : 'var(--text2)';
       var oddsText = j.odds.oneInN <= 2 ? Math.round(100 / j.odds.oneInN) + '% of rolls' : '1 in ' + fmtBig(j.odds.oneInN);

@@ -159,6 +159,71 @@ export function computeBoardTotals(board) {
 }
 
 /**
+ * Compute board-level context needed for cog grading.
+ * Returns { totalBaseD, totalSurround } where:
+ *   totalBaseD = sum of all cog d values on the board
+ *   totalSurround = sum of surround con exp % (fT) reaching player cogs
+ */
+export function boardGradeContext(board) {
+  var totalBaseD = 0;
+  var playerFT = 0;
+  var totals = computeBoardTotals(board);
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    var cog = board[i];
+    if (cog) {
+      totalBaseD += cog.d || 0;
+      if (cog.isPlayer) {
+        playerFT += totals.perSlot[i].surroundConExp || 0;
+      }
+    }
+  }
+  return { totalBaseD: totalBaseD, totalSurround: playerFT };
+}
+
+/**
+ * Check if a directional cog at `slot` affects any player cog on the board.
+ * Returns true if any of the cog's direction targets contains a player cog.
+ */
+export function cogAffectsPlayer(board, slot) {
+  var cog = board[slot];
+  if (!cog || !cog.h) return false;
+  var dir = cog.h;
+  var pos = slotToPos(slot);
+
+  if (dir === 'everything') {
+    for (var t = 0; t < BOARD_SIZE; t++) {
+      if (board[t] && board[t].isPlayer) return true;
+    }
+    return false;
+  }
+  if (dir === 'row') {
+    for (var col = 0; col < BOARD_W; col++) {
+      var t = posToSlot(col, pos.row);
+      if (board[t] && board[t].isPlayer) return true;
+    }
+    return false;
+  }
+  if (dir === 'column') {
+    for (var row = 0; row < BOARD_H; row++) {
+      var t = posToSlot(pos.col, row);
+      if (board[t] && board[t].isPlayer) return true;
+    }
+    return false;
+  }
+  var mIdx = DIR_TO_INDEX[dir];
+  if (mIdx === undefined) return false;
+  var offsets = COG_MATRICES[mIdx];
+  for (var oi = 0; oi < offsets.length; oi++) {
+    var tc = pos.col + offsets[oi][0];
+    var tr = pos.row + offsets[oi][1];
+    if (tc < 0 || tc >= BOARD_W || tr < 0 || tr >= BOARD_H) continue;
+    var t = posToSlot(tc, tr);
+    if (board[t] && board[t].isPlayer) return true;
+  }
+  return false;
+}
+
+/**
  * Recover raw player base stats from a save-loaded board.
  * The game stores b = rawB × (1+fT/100) × (1+totalD/100).
  * This function divides out the board bonuses so that subsequent
