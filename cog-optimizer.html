@@ -223,6 +223,8 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
   background: #000a; border-radius: 3px;
   padding: 0 3px; line-height: 1.4;
 }
+.grade-SSS { color: #ff44ff; text-shadow: 0 0 6px #ff44ff88; }
+.grade-SS { color: #ff6644; text-shadow: 0 0 4px #ff664488; }
 .grade-S { color: var(--gold); }
 .grade-A { color: var(--green); }
 .grade-B { color: var(--accent); }
@@ -544,25 +546,26 @@ function renderDelta(id, oldVal, newVal, isPct) {
 }
 
 /* ========== BOARD JUDGE ========== */
+var GRADE_RANK = { SSS:7, SS:6, S:5, A:4, B:3, C:2, D:1, F:0, '?':-1, '-':-1 };
 function renderBoardJudge() {
   var gradeEl = document.getElementById('board-grade');
   var subEl = document.getElementById('board-grade-sub');
   if (!CURRENT_BOARD) { gradeEl.textContent = '\u2014'; subEl.textContent = ''; return; }
   var ctx = boardGradeContext(CURRENT_BOARD);
-  var totalRatio = 0, count = 0;
+  var totalRank = 0, count = 0;
   for (var i = 0; i < BOARD_SIZE; i++) {
     var cog = CURRENT_BOARD[i]; if (!cog) continue;
     var tier = cogStatTier(cog.name); if (tier < 0) continue;
     var ap = cogAffectsPlayer(CURRENT_BOARD, i);
     var j = judgeCog(cog, tier, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: ctx.totalBaseD, totalSurround: ctx.totalSurround });
-    if (j.ratio !== undefined) { totalRatio += j.ratio; count++; }
+    if (j.grade && GRADE_RANK[j.grade] >= 0) { totalRank += GRADE_RANK[j.grade]; count++; }
   }
   if (count === 0) { gradeEl.textContent = '\u2014'; subEl.textContent = 'No gradeable cogs'; return; }
-  var avgRatio = totalRatio / count;
-  var grade = avgRatio >= 85 ? 'S' : avgRatio >= 70 ? 'A' : avgRatio >= 50 ? 'B' : avgRatio >= 30 ? 'C' : 'D';
+  var avgRank = totalRank / count;
+  var grade = avgRank >= 6.5 ? 'SSS' : avgRank >= 5.5 ? 'SS' : avgRank >= 4.5 ? 'S' : avgRank >= 3.5 ? 'A' : avgRank >= 2.5 ? 'B' : avgRank >= 1.5 ? 'C' : 'D';
   gradeEl.className = 'val grade-' + grade;
   gradeEl.textContent = grade;
-  subEl.textContent = avgRatio.toFixed(1) + '% of perfect avg (' + count + ' cogs)';
+  subEl.textContent = 'Avg rank ' + avgRank.toFixed(1) + ' (' + count + ' cogs)';
 }
 
 /* ========== BOARD RENDERING ========== */
@@ -780,14 +783,14 @@ function cogTooltipHtml(cog, slot) {
     if (j.grade === '-') {
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val" style="color:var(--text2)">Not rated (shelf)</span></div>';
     } else {
-      var gradeLabel = j.ratio !== undefined ? j.grade + ' (' + j.ratio.toFixed(1) + '% of perfect)' : j.grade;
+      var gradeLabel = j.gradeOneInN > 1 ? j.grade + ' (1 in ' + fmtBig(j.gradeOneInN) + ')' : j.grade;
       html += '<div class="tt-stat"><span class="lbl">Grade</span><span class="val grade-' + j.grade + '">' + gradeLabel + '</span></div>';
       if (j.affectsPlayer && j.hasSurround) {
         html += '<div class="tt-stat"><span class="lbl">Basis</span><span class="val" style="color:var(--cyan)">Surround (affects player)</span></div>';
       }
     }
     if (j.odds) {
-      var oddsColor = j.odds.oneInN >= 500 ? 'var(--gold)' : j.odds.oneInN >= 50 ? 'var(--green)' : j.odds.oneInN >= 10 ? 'var(--cyan)' : 'var(--text2)';
+      var oddsColor = j.odds.oneInN >= 10000 ? 'var(--gold)' : j.odds.oneInN >= 1000 ? 'var(--green)' : j.odds.oneInN >= 100 ? 'var(--cyan)' : 'var(--text2)';
       var oddsText = j.odds.oneInN <= 2 ? Math.round(100 / j.odds.oneInN) + '% of rolls' : '1 in ' + fmtBig(j.odds.oneInN);
       html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + oddsColor + '">' + oddsText + '</span></div>';
     }

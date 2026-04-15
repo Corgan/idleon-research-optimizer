@@ -330,7 +330,7 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   if (isShelf) return { grade: '-', percentile: -1 };
 
   // Only grade ulti (tier 3) and crystal (tier 4) cogs — lower tiers get F
-  if (tier < 3) return { grade: 'F', ratio: 0, percentile: 0, hasSurround: false, affectsPlayer: false, perfect: perfectCogStats(tier, maxConLv), odds: { oneInN: 1 } };
+  if (tier < 3) return { grade: 'F', gradeOneInN: 1, hasSurround: false, affectsPlayer: false, perfect: perfectCogStats(tier, maxConLv), odds: { oneInN: 1, dOneInN: 1 } };
 
   var perfect = perfectCogStats(tier, maxConLv);
   var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
@@ -342,39 +342,27 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   var jointP = pD * pS;
   var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
-  var odds = { oneInN: jointOneInN };
+  var dOneInN = pD > 0 ? Math.round(1 / pD) : 1e9;
+  if (dOneInN < 1) dOneInN = 1;
+  var odds = { oneInN: jointOneInN, dOneInN: dOneInN };
 
-  // Grade calculation — ratio of actual / perfect
-  // total = sum(all base d) × (1 + sum(player surround) / 100)
-  // Marginal value of +1 surround = totalBaseD / 100
-  // Marginal value of +1 base d   = 1 + totalSurround / 100
-  var ratio, grade;
-  if (affectsPlayer && hasSurround) {
-    var surrRatio = perfect.perfectSurr > 0 ? conSurr / perfect.perfectSurr : 0;
-    var baseRatio = perfect.perfectD > 0 ? (cogStats.d || 0) / perfect.perfectD : 0;
-    var totalBaseD = (opts && opts.totalBaseD) || 1;
-    var totalSurround = (opts && opts.totalSurround) || 0;
-    var margSurr = totalBaseD / 100;
-    var margBase = 1 + totalSurround / 100;
-    var wTotal = margSurr + margBase;
-    var wS = wTotal > 0 ? margSurr / wTotal : 0.5;
-    var wB = wTotal > 0 ? margBase / wTotal : 0.5;
-    ratio = wS * surrRatio + wB * baseRatio;
-  } else {
-    // Non-directional or not affecting player: grade on d vs perfectD
-    ratio = perfect.perfectD > 0 ? (cogStats.d || 0) / perfect.perfectD : 0;
-  }
+  // Grade based on 1-in-N odds (rarity-based)
+  // Directional cogs affecting a player: joint odds (d × surround rarity)
+  // Otherwise: d-only odds (surround is wasted if not hitting a player)
+  var gradeOneInN = (affectsPlayer && hasSurround) ? jointOneInN : dOneInN;
 
-  if (ratio >= 0.85) grade = 'S';
-  else if (ratio >= 0.70) grade = 'A';
-  else if (ratio >= 0.50) grade = 'B';
-  else if (ratio >= 0.30) grade = 'C';
+  var grade;
+  if (gradeOneInN >= 100000) grade = 'SSS';
+  else if (gradeOneInN >= 10000) grade = 'SS';
+  else if (gradeOneInN >= 1000) grade = 'S';
+  else if (gradeOneInN >= 100) grade = 'A';
+  else if (gradeOneInN >= 20) grade = 'B';
+  else if (gradeOneInN >= 4) grade = 'C';
   else grade = 'D';
 
   return {
     grade: grade,
-    ratio: Math.round(ratio * 10000) / 100, // pct of perfect (= percentile)
-    percentile: Math.round(ratio * 10000) / 100,
+    gradeOneInN: gradeOneInN,
     hasSurround: hasSurround,
     affectsPlayer: !!affectsPlayer,
     perfect: perfect,
