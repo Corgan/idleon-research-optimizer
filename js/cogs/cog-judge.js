@@ -25,180 +25,179 @@ function _minRolls(tier) {
   return tier < 2 ? 2 : 3;
 }
 
+// ===== ANALYTICAL ODDS COMPUTATION =====
+// d and surround are generated independently, so:
+//   P(d >= D AND surr >= S) = P(d >= D) × P(surr >= S)
+// Both computed exactly from the game's roll formulas — no Monte Carlo needed.
+
+var _dSurvivalCache = {};
+
 /**
- * Simulate one full cog generation at a given tier and conLv.
- * Returns { d, dirE, cryLevel } matching the game's complete generation logic.
- * Used only as fallback when worker cache isn't ready (shouldn't normally happen).
+ * CDF of the multiplier distribution: P(mult <= x) for a given tier.
+ * mult is a mixture of 3 uniform distributions weighted by bucket probabilities.
  */
-function _simFullRoll(tier, conLv) {
-  var base = _rawMag(tier, conLv);
-  var nRolls = _minRolls(tier) + (Math.random() < 0.5 ? 1 : 0);
-  var a = 0, c = 0, d = 0;
+function _multCdf(x, tier) {
   var maxBucket = 100 + 40 * Math.floor(tier / 4);
-  for (var r = 0; r < nRolls; r++) {
-    var bucket = Math.floor(Math.random() * maxBucket) + 1;
-    var mult;
-    if (bucket < 50) mult = 0.4 + Math.random() * 1.1;
-    else if (bucket < 75) mult = 0.4 + Math.random() * 1.6;
-    else mult = 0.4 + Math.random() * 2.6;
-    var val = Math.floor(mult * base);
-    var statRoll = Math.floor(Math.random() * 100) + 1;
-    if (statRoll < 69) {
-      a += Math.round(val);
-    } else if (statRoll < 89 && tier !== 4) {
-      c += Math.round(Math.pow(val, 0.8));
-    } else {
-      d += Math.max(Math.floor(Math.pow(val, 0.4) + 10 * Math.log(Math.max(val, 1)) / 2.30259 - 5), 2);
-    }
+  // bucket uniform on {1..maxBucket}; thresholds at 50 and 75
+  var pLow  = 49 / maxBucket;             // mult ~ U[0.4, 1.5)
+  var pMid  = 25 / maxBucket;             // mult ~ U[0.4, 2.0)
+  var pHigh = (maxBucket - 74) / maxBucket; // mult ~ U[0.4, 3.0)
+
+  function uCdf(v, a, b) {
+    if (v <= a) return 0;
+    if (v >= b) return 1;
+    return (v - a) / (b - a);
   }
-  var dirE = 0;
-  var cryLevel = 0;
-  if (tier >= 4) {
-    for (var s = 0; s < 5; s++) {
-      if (Math.random() >= 0.35) break;
-      cryLevel = s + 1;
-      dirE = 0;
-      var gotDir = Math.random() < 0.25 || Math.random() < 0.334;
-      if (gotDir && Math.random() < 0.5) {
-        dirE = Math.floor(Math.random() * 11) + 30 + 23 * (s + 1);
-      }
-    }
-  } else {
-    var dirChance = tier === 1 ? 0.25 : 0.1;
-    if (Math.random() < dirChance) {
-      var eChance, eMin, eMax;
-      if (tier === 0) { eChance = 1; eMin = 5; eMax = 10; }
-      else if (tier === 1) { eChance = 0.7; eMin = 8; eMax = 15; }
-      else if (tier === 2) { eChance = 0.65; eMin = 12; eMax = 40; }
-      else { eChance = 0.5; eMin = 20; eMax = 65; }
-      if (Math.random() < eChance) {
-        dirE = Math.floor(Math.random() * (eMax - eMin + 1)) + eMin;
-      }
-    }
-  }
-  return { a: a, c: c, d: d, dirE: dirE, cryLevel: cryLevel };
+
+  return pLow  * uCdf(x, 0.4, 1.5) +
+         pMid  * uCdf(x, 0.4, 2.0) +
+         pHigh * uCdf(x, 0.4, 3.0);
 }
 
 /**
- * Build sim data synchronously (fallback when worker cache not ready).
+ * Convert a stat value into a d (con exp %) contribution.
+ * Matches the game formula exactly.
  */
-function _buildSimDataSync(tier, conLv, n) {
-  // Sample 1M tuples (a,c,d,surr) for joint odds queries
-  var PAIR_N = Math.min(n, 1000000);
-  var sampleRate = Math.max(1, Math.floor(n / PAIR_N));
-  var pairA = new Float32Array(PAIR_N);
-  var pairC = new Float32Array(PAIR_N);
-  var pairD = new Float32Array(PAIR_N);
-  var pairS = new Float32Array(PAIR_N);
-  var pi = 0;
-  for (var i = 0; i < n; i++) {
-    var sim = _simFullRoll(tier, conLv);
-    if (i % sampleRate === 0 && pi < PAIR_N) {
-      pairA[pi] = sim.a;
-      pairC[pi] = sim.c;
-      pairD[pi] = sim.d;
-      pairS[pi] = sim.dirE;
-      pi++;
-    }
-  }
-  return { pairA: pairA, pairC: pairC, pairD: pairD, pairS: pairS, pairN: pi };
+function _dFromVal(v) {
+  if (v <= 0) return 2; // max(floor(0 + 0 - 5), 2) = 2
+  return Math.max(
+    Math.floor(Math.pow(v, 0.4) + 10 * Math.log(v) / 2.30259 - 5),
+    2
+  );
 }
-
-/** Sim cache — populated by workers or sync fallback */
-var _simCache = {};
 
 /**
- * Warm up the sim cache for all 5 tiers using Web Workers.
- * Returns a Promise that resolves when all tiers are done.
- * onProgress(done, total) is called as each tier completes.
+ * Build survival function: result[k] = P(total_d >= k).
+ * Enumerates all possible val values, maps to d, then convolves per-roll PMF.
  */
-export function warmSimCache(conLv, onProgress) {
-  _simCache = {};
-  var N = 50000000;
-  var tiers = [3, 4]; // only sim ulti + crystal
-  var done = 0;
-  var total = tiers.length;
+function _buildDSurvival(tier, conLv) {
+  var base = _rawMag(tier, conLv);
+  var pD = tier === 4 ? 0.32 : 0.12; // probability a roll goes to d stat
 
-  return new Promise(function(resolve) {
-    // Try Web Workers first
-    var workerUrl;
-    try {
-      if (typeof Worker === 'undefined') throw new Error('no Worker');
-      workerUrl = new URL('./cog-sim-worker.js', import.meta.url).href;
-    } catch (e) {
-      // Fallback: run sync
-      for (var t = 0; t < total; t++) {
-        _simCache[tiers[t] + ',' + conLv] = _buildSimDataSync(tiers[t], conLv, N);
-        done++;
-        if (onProgress) onProgress(done, total);
+  // val range from mult range [0.4, 3.0)
+  var minVal = Math.floor(0.4 * base);
+  var maxVal = Math.floor(3.0 * base);
+  if (maxVal < 0) maxVal = 0;
+
+  var maxD1 = _dFromVal(maxVal); // max d contribution per roll
+
+  // Build one-roll PMF: oneRoll[k] = P(d_contribution = k)
+  var oneRoll = new Float64Array(maxD1 + 1);
+  oneRoll[0] = 1 - pD; // roll goes to a or c instead
+
+  for (var v = minVal; v <= maxVal; v++) {
+    var pVal = _multCdf((v + 1) / base, tier) - _multCdf(v / base, tier);
+    if (pVal <= 1e-15) continue;
+    var dk = _dFromVal(v);
+    oneRoll[dk] += pD * pVal;
+  }
+
+  // Convolve two discrete PMFs (polynomial multiplication)
+  function convolve(a, b) {
+    var result = new Float64Array(a.length + b.length - 1);
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] < 1e-15) continue;
+      for (var j = 0; j < b.length; j++) {
+        if (b[j] < 1e-15) continue;
+        result[i + j] += a[i] * b[j];
       }
-      resolve();
-      return;
     }
+    return result;
+  }
 
-    var pending = total;
-    for (var t = 0; t < total; t++) {
-      (function(tier) {
-        var w = new Worker(workerUrl);
-        w.onmessage = function(ev) {
-          _simCache[tier + ',' + conLv] = {
-            pairA: ev.data.pairA,
-            pairC: ev.data.pairC,
-            pairD: ev.data.pairD,
-            pairS: ev.data.pairS,
-            pairN: ev.data.pairN
-          };
-          done++;
-          if (onProgress) onProgress(done, total);
-          w.terminate();
-          pending--;
-          if (pending === 0) resolve();
-        };
-        w.onerror = function(err) {
-          // Worker failed — fallback to sync for this tier
-          console.warn('Sim worker failed for tier ' + tier + ', falling back to sync', err);
-          _simCache[tier + ',' + conLv] = _buildSimDataSync(tier, conLv, N);
-          done++;
-          if (onProgress) onProgress(done, total);
-          w.terminate();
-          pending--;
-          if (pending === 0) resolve();
-        };
-        w.postMessage({ tier: tier, conLv: conLv, n: N });
-      })(tiers[t]);
-    }
-  });
+  // nRolls = minRolls with 50% chance of +1
+  var nMin = _minRolls(tier);
+  var distMin = oneRoll;
+  for (var r = 1; r < nMin; r++) distMin = convolve(distMin, oneRoll);
+  var distMax = convolve(distMin, oneRoll); // one extra roll
+
+  // Mix 50/50
+  var len = Math.max(distMin.length, distMax.length);
+  var dist = new Float64Array(len);
+  for (var i = 0; i < len; i++) {
+    dist[i] = 0.5 * (i < distMin.length ? distMin[i] : 0) +
+              0.5 * (i < distMax.length ? distMax[i] : 0);
+  }
+
+  // Convert to survival function: survival[k] = P(d >= k)
+  var survival = new Float64Array(len);
+  var cumRight = 0;
+  for (var i = len - 1; i >= 0; i--) {
+    cumRight += dist[i];
+    survival[i] = cumRight;
+  }
+
+  return survival;
 }
 
-function _getSimData(tier, conLv) {
+/**
+ * P(total_d >= minD) — exact, cached per (tier, conLv).
+ */
+function _pDGE(tier, conLv, minD) {
+  if (minD <= 0) return 1;
   var key = tier + ',' + conLv;
-  if (_simCache[key]) return _simCache[key];
-  // Fallback: build sync (shouldn't happen if warmSimCache was awaited)
-  console.warn('Sim cache miss for tier=' + tier + ' conLv=' + conLv + ', running sync fallback');
-  _simCache[key] = _buildSimDataSync(tier, conLv, 10000000);
-  return _simCache[key];
+  if (!_dSurvivalCache[key]) {
+    _dSurvivalCache[key] = _buildDSurvival(tier, conLv);
+  }
+  var surv = _dSurvivalCache[key];
+  if (minD >= surv.length) return 0;
+  return surv[minD];
 }
 
 /**
- * Count how many sampled sims match all stat thresholds simultaneously.
- * Returns { prob, pairN } where prob = P(a >= minA AND c >= minC AND d >= minD AND surr >= minS).
+ * P(surround magnitude >= minS) — exact, from the surround generation formula.
+ * Matches the game's directional/crystal cascade logic.
  */
-function _jointOddsProb(tier, conLv, minA, minC, minD, minS) {
-  var data = _getSimData(tier, conLv);
-  if (!data.pairA || !data.pairN) return { prob: 0, pairN: 0 };
-  var count = 0;
-  var pA = data.pairA, pC = data.pairC, pD = data.pairD, pS = data.pairS, pN = data.pairN;
-  for (var i = 0; i < pN; i++) {
-    if (pA[i] >= minA && pC[i] >= minC && pD[i] >= minD && pS[i] >= minS) count++;
+function _pSurrGE(tier, minS) {
+  if (minS <= 0) return 1;
+
+  if (tier >= 4) {
+    // Crystal cascade: each level k (1-5) has P(reach) = 0.35^k,
+    // dirE is RESET at each level — only the final level's value matters.
+    var prob = 0;
+    for (var k = 1; k <= 5; k++) {
+      var pReachK = Math.pow(0.35, k);
+      var pStopAtK = k < 5 ? pReachK * 0.65 : pReachK;
+      // P(gotDir) = 1 - (1-0.25)*(1-0.334) = 0.5005
+      var pGotSurr = (1 - 0.75 * 0.666) * 0.5;
+      var sMin = 30 + 23 * k, sMax = 40 + 23 * k; // 11 values
+      if (minS > sMax) continue;
+      var count = sMax - Math.max(minS, sMin) + 1;
+      prob += pStopAtK * pGotSurr * (count / 11);
+    }
+    return prob;
   }
-  return { prob: count / pN, pairN: pN };
+
+  // Standard tiers
+  var dirChance = tier === 1 ? 0.25 : 0.1;
+  var eChance, eMin, eMax;
+  if (tier === 0) { eChance = 1; eMin = 5; eMax = 10; }
+  else if (tier === 1) { eChance = 0.7; eMin = 8; eMax = 15; }
+  else if (tier === 2) { eChance = 0.65; eMin = 12; eMax = 40; }
+  else { eChance = 0.5; eMin = 20; eMax = 65; }
+
+  if (minS > eMax) return 0;
+  var count = eMax - Math.max(minS, eMin) + 1;
+  var total = eMax - eMin + 1;
+  return dirChance * eChance * (count / total);
+}
+
+/**
+ * Warm up the odds cache (pre-build d survival for relevant tiers).
+ * Resolves immediately — odds are now computed analytically, no sim needed.
+ */
+export function warmOddsCache(conLv) {
+  // Pre-build d survival tables so the first judgeCog call is instant
+  _dSurvivalCache = {};
+  _dSurvivalCache['3,' + conLv] = _buildDSurvival(3, conLv);
+  _dSurvivalCache['4,' + conLv] = _buildDSurvival(4, conLv);
 }
 
 /**
  * Clear the odds cache (call when conLv changes).
  */
 export function clearOddsCache() {
-  _simCache = {};
+  _dSurvivalCache = {};
 }
 
 /**
@@ -336,11 +335,12 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   var perfect = perfectCogStats(tier, maxConLv);
   var hasSurround = !!(cogStats.h && (cogStats.e || cogStats.f || cogStats.g || cogStats.j));
 
-  // Roll odds: only con exp % (d) and con exp surround (f) affecting player
+  // Roll odds: exact probability from analytical d distribution × surround probability
   var conSurr = cogStats.f || 0;
-  var oddsResult = _jointOddsProb(tier, maxConLv, 0, 0, cogStats.d || 0, conSurr);
-  var jointP = oddsResult.prob;
-  var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : (oddsResult.pairN > 0 ? oddsResult.pairN : 1);
+  var pD = _pDGE(tier, maxConLv, cogStats.d || 0);
+  var pS = _pSurrGE(tier, conSurr);
+  var jointP = pD * pS;
+  var jointOneInN = jointP > 0 ? Math.round(1 / jointP) : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
   var odds = { oneInN: jointOneInN };
 

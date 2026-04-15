@@ -280,12 +280,6 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
     <button class="btn" id="btn-import">Load Pasted JSON</button>
   </div>
   <div id="import-msg" class="import-msg"></div>
-  <div id="sim-progress" style="display:none;margin-top:6px">
-    <div style="font-size:.82em;color:var(--text2);margin-bottom:3px" id="sim-label">Simulating cog rolls…</div>
-    <div style="background:#222;border-radius:4px;height:8px;overflow:hidden;max-width:300px">
-      <div id="sim-bar" style="height:100%;background:var(--cyan);width:0%;transition:width .15s"></div>
-    </div>
-  </div>
 </details>
 
 <!-- Row 1: Stat cards -->
@@ -412,7 +406,7 @@ import {
   slotToPos, posToSlot, recoverRawPlayerStats,
   optimizeTinyCogs, cogAffectsPlayer, boardGradeContext
 } from './js/cogs/cog-board.js';
-import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, clearOddsCache, warmSimCache } from './js/cogs/cog-judge.js';
+import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, clearOddsCache, warmOddsCache } from './js/cogs/cog-judge.js';
 import { optimize } from './js/cogs/cog-optimizer.js';
 import { fmtVal } from './js/renderers/format.js';
 
@@ -456,35 +450,20 @@ function loadFromParsed(parsed) {
       return showMsg('No cog data (CogO/CogM) found in save', true);
     MAX_CON_LV = findMaxConLevel(SAVE_OBJ, COG_ORDER, COG_MAP);
     clearOddsCache();
-
-    // Show progress bar and run sim workers
-    var progEl = document.getElementById('sim-progress');
-    var barEl = document.getElementById('sim-bar');
-    var labelEl = document.getElementById('sim-label');
-    progEl.style.display = '';
-    barEl.style.width = '0%';
-    labelEl.textContent = 'Simulating cog rolls… 0/5';
-    showMsg('Loading save data…', false);
-
-    warmSimCache(MAX_CON_LV, function(done, total) {
-      barEl.style.width = (done / total * 100) + '%';
-      labelEl.textContent = 'Simulating cog rolls… ' + done + '/' + total;
-    }).then(function() {
-      progEl.style.display = 'none';
-      CURRENT_BOARD = boardFromSave(COG_ORDER, COG_MAP);
-      recoverRawPlayerStats(CURRENT_BOARD);
-      SAVE_BOARD = cloneBoard(CURRENT_BOARD);
-      ALL_COGS = extractAllCogs(COG_ORDER, COG_MAP, saveData.flagUnlockData);
-      CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
-      SAVE_TOTALS = CURRENT_TOTALS;
-      IS_OPTIMIZED = false; OPT_RESULT = null; SHELF_PAGE = 0;
-      showMsg('Loaded! ' + countFilled(CURRENT_BOARD) + '/96 board cogs, ' +
-              ALL_COGS.shelfCogs.length + ' shelf | Max Con Lv: ' + MAX_CON_LV, false);
-      document.getElementById('summary-section').style.display = '';
-      document.getElementById('board-container').style.display = '';
-      document.getElementById('btn-optimize').disabled = false;
-      renderAll(); hideOptButtons(); hideSwapGuide();
-    });
+    warmOddsCache(MAX_CON_LV);
+    CURRENT_BOARD = boardFromSave(COG_ORDER, COG_MAP);
+    recoverRawPlayerStats(CURRENT_BOARD);
+    SAVE_BOARD = cloneBoard(CURRENT_BOARD);
+    ALL_COGS = extractAllCogs(COG_ORDER, COG_MAP, saveData.flagUnlockData);
+    CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
+    SAVE_TOTALS = CURRENT_TOTALS;
+    IS_OPTIMIZED = false; OPT_RESULT = null; SHELF_PAGE = 0;
+    showMsg('Loaded! ' + countFilled(CURRENT_BOARD) + '/96 board cogs, ' +
+            ALL_COGS.shelfCogs.length + ' shelf | Max Con Lv: ' + MAX_CON_LV, false);
+    document.getElementById('summary-section').style.display = '';
+    document.getElementById('board-container').style.display = '';
+    document.getElementById('btn-optimize').disabled = false;
+    renderAll(); hideOptButtons(); hideSwapGuide();
   } catch (e) { showMsg('Error loading save: ' + e.message, true); console.error(e); }
 }
 
