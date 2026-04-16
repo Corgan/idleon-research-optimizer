@@ -200,12 +200,12 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .cog-cell.cog-cry3 { background: #481020; color: #d04048; } /* Garnet */
 .cog-cell.cog-cry4 { background: #183818; color: #50d860; } /* Emerald */
 .cog-cell.cog-cry5 { background: #182848; color: #60a0f0; } /* Bluegem */
-.cog-cell.cog-yellow { background: #4a4010; color: #ffd700; }
-.cog-cell.cog-excogia { background: #301850; color: #b888ff; }
-.cog-cell.excogia-tl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#b888ff; z-index:2; }
-.cog-cell.excogia-tl::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#b888ff; z-index:2; }
-.cog-cell.excogia-tr::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#b888ff; z-index:2; }
-.cog-cell.excogia-bl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#b888ff; z-index:2; }
+.cog-cell.cog-yellow { background: #2e2e38; color: #c0c0d0; }
+.cog-cell.cog-excogia { background: #2e2e38; color: #c0c0d0; }
+.cog-cell.excogia-tl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tl::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tr::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-bl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#c0c0d0; z-index:2; }
 .cog-cell.cog-player { background: #1a3a1a; color: #6f6; }
 .cog-cell.cog-standard { background: #3a3018; color: #d4a860; }
 .cog-cell.changed { box-shadow: 0 0 0 2px var(--gold); }
@@ -351,6 +351,16 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
         <button class="btn-opt" id="btn-perfect" onclick="showPerfectBoard()" disabled style="background:linear-gradient(135deg,#b8860b,#8b6914)">&#x1F451; Perfect Board</button>
         <button class="btn-opt" id="btn-reset" onclick="resetBoard()" style="background:linear-gradient(135deg,#666,#444);display:none">&#x21BA; Reset</button>
       </div>
+      <div class="opt-line" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:.72em;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="chk-weighted" onchange="toggleWeighted()"> Custom weights
+        </label>
+        <span id="weight-inputs" style="display:none;gap:6px;align-items:center;font-size:.72em">
+          <label style="color:var(--cyan)">Build <input type="number" id="w-build" value="33" min="0" max="100" style="width:38px;background:#222;color:#fff;border:1px solid #555;border-radius:3px;text-align:center"></label>
+          <label style="color:var(--green)">ConExp <input type="number" id="w-conexp" value="34" min="0" max="100" style="width:38px;background:#222;color:#fff;border:1px solid #555;border-radius:3px;text-align:center"></label>
+          <label style="color:var(--green)">Flaggy <input type="number" id="w-flaggy" value="33" min="0" max="100" style="width:38px;background:#222;color:#fff;border:1px solid #555;border-radius:3px;text-align:center"></label>
+        </span>
+      </div>
       <div class="opt-line" id="strat-buttons" style="display:none;flex-wrap:wrap;gap:4px"></div>
       <div class="opt-line">
         <div class="progress-bar" id="opt-progress"><div class="fill" id="opt-progress-fill"></div></div>
@@ -450,6 +460,7 @@ import {
 } from './js/cogs/cog-board.js';
 import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog, judgeSmallCog, clearOddsCache, warmOddsCache } from './js/cogs/cog-judge.js';
 import { optimizeAsync } from './js/cogs/cog-optimizer.js';
+var COG_WORKER = null;
 import { fmtVal } from './js/renderers/format.js';
 
 /* ========== STATE ========== */
@@ -459,7 +470,7 @@ var CURRENT_TOTALS = null, SAVE_TOTALS = null;
 var ALL_COGS = null, MAX_CON_LV = 100, SAVE_OBJ = null;
 var OPT_RESULT = null, IS_OPTIMIZED = false, IS_PERFECT = false;
 var SAVE_COG_ORDER_TINY = null, SAVE_TINY_BOARD = null;
-var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false;
+var SWAP_STEPS = null, SWAP_INDEX = -1, SWAP_MODE = false, SWAP_SHELF = null;
 var SHELF_PAGE = 0, SHELF_PER_PAGE = 15;
 var ACTIVE_STAT_OVERLAY = 'conexp';
 var CURRENT_INSIGHTS = null;
@@ -504,6 +515,8 @@ document.getElementById('file-input').addEventListener('change', function(e) {
     catch (err) { showMsg('Failed to parse file: ' + err.message, true); }
   };
   reader.readAsText(file);
+  // Reset so re-importing the same file triggers 'change' again
+  e.target.value = '';
 });
 
 function loadFromParsed(parsed) {
@@ -1006,7 +1019,7 @@ function renderBoard(containerId, board, refBoard) {
 function renderShelf() {
   var grid = document.getElementById('shelf-grid');
   grid.innerHTML = '';
-  var slots = ALL_COGS.shelfSlots;
+  var slots = (SWAP_MODE && SWAP_SHELF) ? SWAP_SHELF : ALL_COGS.shelfSlots;
   var totalPages = Math.max(1, Math.ceil(slots.length / SHELF_PER_PAGE));
   if (SHELF_PAGE >= totalPages) SHELF_PAGE = totalPages - 1;
   if (SHELF_PAGE < 0) SHELF_PAGE = 0;
@@ -1313,10 +1326,36 @@ function clearDirectionHighlight() {
 }
 
 /* ========== OPTIMIZER ========== */
+window.toggleWeighted = function() {
+  var on = document.getElementById('chk-weighted').checked;
+  document.getElementById('weight-inputs').style.display = on ? 'flex' : 'none';
+};
+
+function _buildGoal() {
+  var weighted = document.getElementById('chk-weighted').checked;
+  if (!weighted) return ACTIVE_STAT_OVERLAY || 'conexp';
+  var wb = Number(document.getElementById('w-build').value) || 0;
+  var wc = Number(document.getElementById('w-conexp').value) || 0;
+  var wf = Number(document.getElementById('w-flaggy').value) || 0;
+  var total = wb + wc + wf;
+  if (total <= 0) return ACTIVE_STAT_OVERLAY || 'conexp';
+  var origTotals = computeBoardTotals(SAVE_BOARD);
+  return {
+    build: wb / total,
+    conexp: wc / total,
+    flaggy: wf / total,
+    ref: {
+      build: origTotals.totalBuild || 1,
+      conexp: origTotals.playerConExpHr || 1,
+      flaggy: origTotals.totalFlaggy || 1,
+    }
+  };
+}
+
 window.runOptimizer = function() {
   if (!SAVE_BOARD) return;
   hideSwapGuide();
-  var goal = ACTIVE_STAT_OVERLAY || 'conexp';
+  var goal = _buildGoal();
   var iters = 500000;
   var btn = document.getElementById('btn-optimize');
   var statusEl = document.getElementById('opt-status');
@@ -1325,25 +1364,65 @@ window.runOptimizer = function() {
   btn.disabled = true; progressBar.style.display = '';
   statusEl.textContent = 'Optimizing...';
   var t0 = performance.now();
+  var tinyGoal = typeof goal === 'string' ? goal : (ACTIVE_STAT_OVERLAY || 'conexp');
   var tinyResult = optimizeTinyCogs(
-    ALL_COGS.tinyBoard, ALL_COGS.tinyLocked, ALL_COGS.shelfSmallCogs, goal, parseSmallCog
+    ALL_COGS.tinyBoard, ALL_COGS.tinyLocked, ALL_COGS.shelfSmallCogs, tinyGoal, parseSmallCog
   );
-  optimizeAsync(SAVE_BOARD, ALL_COGS.shelfCogs, ALL_COGS.playerCogs, goal, {
-    iterations: iters,
-    onProgress: function(p) {
-      progressFill.style.width = (p.iter / iters * 100).toFixed(0) + '%';
-      statusEl.textContent = 'Iter ' + p.iter + '/' + iters + ' | Best: ' + fmtBig(p.best);
+
+  // Terminate any previous worker
+  if (COG_WORKER) { COG_WORKER.terminate(); COG_WORKER = null; }
+
+  COG_WORKER = new Worker('./js/cogs/cog-worker.js', { type: 'module' });
+  COG_WORKER.onmessage = function(e) {
+    var d = e.data;
+    if (d.type === 'phase') {
+      var pct = (d.progress * 100).toFixed(0);
+      statusEl.textContent = 'Phase ' + d.phase + '/3: ' + d.label + (pct > 0 ? ' (' + pct + '%)' : '...');
+      progressFill.style.width = pct + '%';
+    } else if (d.type === 'progress') {
+      progressFill.style.width = (d.iter / iters * 100).toFixed(0) + '%';
+      statusEl.textContent = 'Phase 2/3: SA — Iter ' + d.iter + '/' + iters + ' | Best: ' + fmtBig(d.best);
+    } else if (d.type === 'done') {
+      COG_WORKER.terminate(); COG_WORKER = null;
+      var result = d.result;
+      result.tinyResult = tinyResult;
+      var elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      progressFill.style.width = '100%';
+      var statusMsg = 'Done in ' + elapsed + 's | ' + _catDeltaMsg(result);
+      if (tinyResult.moves.length > 0) statusMsg += ' | ' + tinyResult.moves.length + ' tiny cog move(s)';
+      statusEl.textContent = statusMsg;
+      btn.disabled = false;
+      showResults(result);
     }
-  }).then(function(result) {
-    result.tinyResult = tinyResult;
-    var elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-    progressFill.style.width = '100%';
-    var statusMsg = 'Done in ' + elapsed + 's | ' +
-      (result.improvementPct > 0 ? '+' : '') + result.improvementPct.toFixed(2) + '% improvement';
-    if (tinyResult.moves.length > 0) statusMsg += ' | ' + tinyResult.moves.length + ' tiny cog move(s)';
-    statusEl.textContent = statusMsg;
-    btn.disabled = false;
-    showResults(result);
+  };
+  COG_WORKER.onerror = function(err) {
+    console.error('[Worker error]', err);
+    // Fallback to main-thread async optimizer
+    COG_WORKER = null;
+    statusEl.textContent = 'Worker failed, running on main thread...';
+    optimizeAsync(SAVE_BOARD, ALL_COGS.shelfCogs, ALL_COGS.playerCogs, goal, {
+      iterations: iters,
+      onProgress: function(p) {
+        progressFill.style.width = (p.iter / iters * 100).toFixed(0) + '%';
+        statusEl.textContent = 'Iter ' + p.iter + '/' + iters + ' | Best: ' + fmtBig(p.best);
+      }
+    }).then(function(result) {
+      result.tinyResult = tinyResult;
+      var elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      progressFill.style.width = '100%';
+      var statusMsg = 'Done in ' + elapsed + 's | ' + _catDeltaMsg(result);
+      if (tinyResult.moves.length > 0) statusMsg += ' | ' + tinyResult.moves.length + ' tiny cog move(s)';
+      statusEl.textContent = statusMsg;
+      btn.disabled = false;
+      showResults(result);
+    });
+  };
+  COG_WORKER.postMessage({
+    board: SAVE_BOARD,
+    shelfCogs: ALL_COGS.shelfCogs,
+    playerCogs: ALL_COGS.playerCogs,
+    goal: goal,
+    iterations: iters
   });
 };
 
@@ -1359,7 +1438,24 @@ function hideOptButtons() {
 
 function hideSwapGuide() {
   document.getElementById('steps-row').style.display = 'none';
-  SWAP_MODE = false; SWAP_STEPS = null; SWAP_INDEX = -1;
+  SWAP_MODE = false; SWAP_STEPS = null; SWAP_INDEX = -1; SWAP_SHELF = null;
+  renderShelf();
+}
+
+function _catDeltaMsg(result) {
+  var t = computeBoardTotals(result.board);
+  var cats = [
+    ['Build', SAVE_TOTALS.totalBuild, t.totalBuild],
+    ['ConEXP', SAVE_TOTALS.playerConExpHr || 0, t.playerConExpHr || 0],
+    ['Flaggy', SAVE_TOTALS.totalFlaggy * FLUO_FLAGGY_MULT, t.totalFlaggy * FLUO_FLAGGY_MULT]
+  ];
+  var parts = [];
+  for (var i = 0; i < cats.length; i++) {
+    var oldV = cats[i][1], newV = cats[i][2];
+    var pct = oldV > 0 ? ((newV - oldV) / oldV * 100) : 0;
+    parts.push(cats[i][0] + ' ' + (pct > 0 ? '+' : '') + pct.toFixed(2) + '%');
+  }
+  return parts.join(', ');
 }
 
 function showResults(result) {
@@ -1858,6 +1954,7 @@ window.startMoving = function() {
     }
   }
   SWAP_MODE = true; SWAP_STEPS = allSteps; SWAP_INDEX = 0;
+  SWAP_SHELF = ALL_COGS.shelfSlots.map(function(c) { return c ? Object.assign({}, c) : null; });
   document.getElementById('steps-row').style.display = 'grid';
   CURRENT_BOARD = cloneBoard(SAVE_BOARD);
   renderSwapList(); renderSwapStep();
@@ -1892,11 +1989,12 @@ function renderSwapStep() {
   if (SWAP_INDEX >= total) {
     current.innerHTML = '<span style="color:var(--green);font-weight:700">All swaps complete!</span>';
     nextBtn.style.display = 'none'; doneBtn.style.display = '';
-    CURRENT_BOARD = cloneBoard(OPT_RESULT.board);
+    CURRENT_BOARD = cloneBoard(SAVE_BOARD);
+    applySwapsUpTo(total - 1);  // rebuilds SWAP_SHELF to final state
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
     renderBoard('board-current', CURRENT_BOARD, SAVE_BOARD);
     renderStats(CURRENT_TOTALS, SAVE_TOTALS);
-    renderBoardJudge();
+    renderBoardJudge(); renderShelf();
     highlightSwapCells(-1, -1); clearShelfHighlight(); clearTinyHighlight();
     return;
   }
@@ -1916,18 +2014,23 @@ function renderSwapStep() {
   }
 
   // Board swap step
+  // Build board state BEFORE this step (to show what's about to change)
   CURRENT_BOARD = cloneBoard(SAVE_BOARD);
-  applySwapsUpTo(SWAP_INDEX);
-  CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
+  applySwapsUpTo(SWAP_INDEX - 1);  // also rebuilds SWAP_SHELF to pre-step state
+  renderBoard('board-current', CURRENT_BOARD, null);
+
   var posStr = '(' + s.col + ',' + s.row + ')';
   var fromShelf = s.srcSlot < 0;
   var srcStr;
   if (fromShelf) {
     var shelfIdx = findShelfCogIndex(s.to);
     srcStr = 'shelf' + (shelfIdx >= 0 ? ' (pg ' + (shelfPageForIndex(shelfIdx) + 1) + ')' : '');
-    if (shelfIdx >= 0) { SHELF_PAGE = shelfPageForIndex(shelfIdx); renderShelf(); highlightShelfCog(shelfIdx); }
+    if (shelfIdx >= 0) { SHELF_PAGE = shelfPageForIndex(shelfIdx); }
+    renderShelf();
+    if (shelfIdx >= 0) highlightShelfCog(shelfIdx);
   } else {
     srcStr = '(' + (s.srcSlot % BOARD_W) + ',' + Math.floor(s.srcSlot / BOARD_W) + ')';
+    renderShelf();
     clearShelfHighlight();
   }
   clearTinyHighlight();
@@ -1939,19 +2042,36 @@ function renderSwapStep() {
     (s.from !== 'Blank' ? ' (replacing <span style="color:var(--red)">' + esc(cogDisplayName(s.from)) + '</span>)' : '') +
     ' \u2014 from <span style="color:' + (fromShelf ? 'var(--purple)' : 'var(--accent)') + '">' + srcStr + '</span>';
 
-  var boardBefore = cloneBoard(SAVE_BOARD);
-  applySwapsUpTo(SWAP_INDEX - 1, boardBefore);
-  renderBoard('board-current', boardBefore, null);
+  // Compute totals after this step for stats display
+  var boardAfter = cloneBoard(SAVE_BOARD);
+  applySwapsUpTo(SWAP_INDEX, boardAfter);
+  CURRENT_TOTALS = computeBoardTotals(boardAfter);
+
   highlightSwapCells(s.slot, s.srcSlot);
   renderStats(CURRENT_TOTALS, SAVE_TOTALS);
   renderBoardJudge();
   updateSwapListHighlight();
 }
 
-function findShelfCogIndex(cogName) {
-  for (var i = 0; i < ALL_COGS.shelfSlots.length; i++)
-    if (ALL_COGS.shelfSlots[i] && ALL_COGS.shelfSlots[i].name === cogName) return i;
+function findShelfCogIndex(cogName, shelf) {
+  var slots = shelf || SWAP_SHELF || ALL_COGS.shelfSlots;
+  for (var i = 0; i < slots.length; i++)
+    if (slots[i] && slots[i].name === cogName) return i;
   return -1;
+}
+
+function _shelfRemove(shelf, cogName) {
+  for (var i = 0; i < shelf.length; i++) {
+    if (shelf[i] && shelf[i].name === cogName) { shelf[i] = null; return; }
+  }
+}
+
+function _shelfAdd(shelf, cog) {
+  // Place in first empty slot, or append
+  for (var i = 0; i < shelf.length; i++) {
+    if (!shelf[i]) { shelf[i] = Object.assign({}, cog); return; }
+  }
+  shelf.push(Object.assign({}, cog));
 }
 
 function highlightShelfCog(idx) {
@@ -1967,6 +2087,8 @@ function clearShelfHighlight() {
 
 function applySwapsUpTo(idx, board) {
   if (!board) board = CURRENT_BOARD;
+  // Reset working shelf to original state
+  SWAP_SHELF = ALL_COGS.shelfSlots.map(function(c) { return c ? Object.assign({}, c) : null; });
   for (var i = 0; i <= idx && i < SWAP_STEPS.length; i++) {
     var s = SWAP_STEPS[i];
     if (s.isTiny) continue; // tiny cog steps don't affect the main board
@@ -1976,6 +2098,11 @@ function applySwapsUpTo(idx, board) {
     board[s.slot] = newCog ? Object.assign({}, newCog) : null;
     // If the cog came from another board slot, put the displaced cog there
     if (s.srcSlot >= 0) {
+      board[s.srcSlot] = displaced ? Object.assign({}, displaced) : null;
+    } else {
+      // Cog came from shelf: remove it from working shelf, add displaced cog
+      _shelfRemove(SWAP_SHELF, s.to);
+      if (displaced && displaced.name !== 'Blank') _shelfAdd(SWAP_SHELF, displaced)
       board[s.srcSlot] = displaced ? Object.assign({}, displaced) : null;
     }
   }

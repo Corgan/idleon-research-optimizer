@@ -36,6 +36,12 @@ export function posToSlot(col, row) {
   return col + row * BOARD_W;
 }
 
+/** Extract Yin/Excogia piece number (0-3) from cog name. Returns -1 if not a Yin cog. */
+export function _yinPiece(cog) {
+  if (!cog || !cog.l || !cog.name) return -1;
+  return parseInt(cog.name.charAt(cog.name.length - 1)) || 0;
+}
+
 /**
  * Compute board totals from a board layout.
  * @param {Array} board - Array of 96 cog objects, each with: { a, b, c, d, e, f, g, j, h, i }
@@ -52,9 +58,31 @@ export function computeBoardTotals(board) {
     accum[i] = { eT: 0, fT: 0, gT: 0, jT: 0 };
   }
 
+  // Pre-scan: find Yin cogs (l=1) in valid 2x2 Excogia blocks.
+  // Yin surround bonus only activates when the 4 pieces are in correct positions:
+  //   TL=piece0, TR=piece1, BL=piece2, BR=piece3
+  var excogiActive = {};
+  for (var r = 0; r < BOARD_H - 1; r++) {
+    for (var c = 0; c < BOARD_W - 1; c++) {
+      var s0 = posToSlot(c, r), s1 = posToSlot(c + 1, r);
+      var s2 = posToSlot(c, r + 1), s3 = posToSlot(c + 1, r + 1);
+      if (board[s0] && board[s0].l && board[s1] && board[s1].l &&
+          board[s2] && board[s2].l && board[s3] && board[s3].l &&
+          _yinPiece(board[s0]) === 0 && _yinPiece(board[s1]) === 1 &&
+          _yinPiece(board[s2]) === 2 && _yinPiece(board[s3]) === 3) {
+        excogiActive[s0] = true;
+        excogiActive[s1] = true;
+        excogiActive[s2] = true;
+        excogiActive[s3] = true;
+      }
+    }
+  }
+
   for (var src = 0; src < BOARD_SIZE; src++) {
     var cog = board[src];
     if (!cog || !cog.h) continue;
+    // Yin cogs only get surround bonus when in a valid 2x2 block
+    if (cog.l && !excogiActive[src]) continue;
     var se = cog.e || 0, sf = cog.f || 0, sg = cog.g || 0, sj = cog.j || 0;
     if (se === 0 && sf === 0 && sg === 0 && sj === 0) continue;
 
@@ -407,6 +435,17 @@ export function scoreBoard(totals, goal, board) {
     // Use the pre-computed player con EXP/hr which includes:
     // playerB × (1 + surroundF/100) × (1 + totalD/100)
     return totals.playerConExpHr || 0;
+  }
+  // Weighted multi-objective: goal = { build: w, conexp: w, flaggy: w, ref: { build, conexp, flaggy } }
+  if (typeof goal === 'object' && goal.ref) {
+    var score = 0;
+    if (goal.build && goal.ref.build > 0)
+      score += goal.build * (totals.totalBuild / goal.ref.build);
+    if (goal.conexp && goal.ref.conexp > 0)
+      score += goal.conexp * ((totals.playerConExpHr || 0) / goal.ref.conexp);
+    if (goal.flaggy && goal.ref.flaggy > 0)
+      score += goal.flaggy * (totals.totalFlaggy / goal.ref.flaggy);
+    return score;
   }
   return totals.totalBuild;
 }

@@ -1,7 +1,7 @@
 // ===== COG OPTIMIZER =====
 // Simulated annealing optimizer for cog board placement.
 
-import { BOARD_SIZE, BOARD_W, BOARD_H, computeBoardTotals, scoreBoard, slotToPos, posToSlot } from './cog-board.js';  // same directory
+import { BOARD_SIZE, BOARD_W, BOARD_H, computeBoardTotals, scoreBoard, slotToPos, posToSlot, _yinPiece } from './cog-board.js';  // same directory
 
 /**
  * Run simulated annealing to optimize cog board for a given goal.
@@ -34,27 +34,45 @@ export function optimize(boardCogs, shelfCogs, playerCogs, goal, opts) {
     pool.push(_cloneCog(shelfCogs[i]));
   }
 
-  // Lock Excogia 2×2 and player cog slots — players don't impact rates enough to move
+  // No slots are locked — player, excogia, everything can be repositioned
   var lockedSlots = {};
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (board[i] && board[i].name && (
-        board[i].name.indexOf('CogZA') === 0 ||
-        board[i].isPlayer)) {
-      lockedSlots[i] = true;
-    }
+
+  var onPhase = opts.onPhase || function() {};
+
+  // Measure original score
+  var originalScore = scoreBoard(computeBoardTotals(board), goal, board);
+
+  // Phase 1: Greedy initial construction on a clone
+  onPhase({ phase: 1, label: 'Greedy construction', progress: 0 });
+  var greedyBoard = _cloneBoard(board);
+  var greedyPool = pool.map(function(c) { return _cloneCog(c); });
+  _greedyConstruct(greedyBoard, greedyPool, lockedSlots, goal, onPhase);
+  var greedyScore = scoreBoard(computeBoardTotals(greedyBoard), goal, greedyBoard);
+
+  var pctG = originalScore > 0 ? ((greedyScore - originalScore) / originalScore * 100).toFixed(4) : 'N/A';
+  console.log('[Optimizer] Greedy: ' + greedyScore.toFixed(2) + ' vs Original: ' + originalScore.toFixed(2) + ' (' + pctG + '%)');
+  console.log('[Optimizer] Using ' + (greedyScore > originalScore ? 'GREEDY' : 'ORIGINAL') + ' as SA starting point');
+
+  if (greedyScore > originalScore) {
+    board = greedyBoard;
+    pool = greedyPool;
   }
+
+  // Lock Yin cog slots that form valid 2x2 Excogia blocks so SA won't scatter them
+  _lockYinBlocks(board, lockedSlots);
 
   // Compute initial score
   var bestScore = scoreBoard(computeBoardTotals(board), goal, board);
   var currentScore = bestScore;
   var bestBoard = _cloneBoard(board);
-  var initialScore = bestScore;
+  var initialScore = originalScore;
   var moves = [];
   var moveLog = [];
 
   // Temperature schedule: exponential decay
   var logRatio = Math.log(tempEnd / tempStart);
 
+  onPhase({ phase: 2, label: 'Simulated annealing', progress: 0 });
   for (var iter = 0; iter < iterations; iter++) {
     var temp = tempStart * Math.exp(logRatio * iter / iterations);
 
@@ -98,12 +116,15 @@ export function optimize(boardCogs, shelfCogs, playerCogs, goal, opts) {
     }
   }
 
-  // Greedy finishing pass: exhaustive pairwise swap on the best board
+  // Phase 3: Greedy finishing pass
+  onPhase({ phase: 3, label: 'Greedy refinement', progress: 0 });
+  // Exhaustive pairwise swap on the best board
   var greedyImproved = true;
   var greedyPasses = 0;
   while (greedyImproved && greedyPasses < 5) {
     greedyImproved = false;
     greedyPasses++;
+    onPhase({ phase: 3, label: 'Greedy refinement', progress: greedyPasses / 5 });
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (lockedSlots[i]) continue;
       for (var j = i + 1; j < BOARD_SIZE; j++) {
@@ -158,29 +179,41 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
     pool.push(_cloneCog(shelfCogs[i]));
   }
   var lockedSlots = {};
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (board[i] && board[i].name && (
-        board[i].name.indexOf('CogZA') === 0 ||
-        board[i].isPlayer)) {
-      lockedSlots[i] = true;
-    }
-  }
+
+  // Measure the ORIGINAL board score before any changes
+  var originalScore = scoreBoard(computeBoardTotals(board), goal, board);
 
   // --- Phase 1: Greedy initial construction ---
-  // Score each cog for this goal, then greedily place best cogs on board
-  _greedyConstruct(board, pool, lockedSlots, goal);
+  // Try greedy rebuild on a clone; only use if it's better than the original
+  var greedyBoard = _cloneBoard(board);
+  var greedyPool = pool.map(function(c) { return _cloneCog(c); });
+  _greedyConstruct(greedyBoard, greedyPool, lockedSlots, goal);
+  var greedyScore = scoreBoard(computeBoardTotals(greedyBoard), goal, greedyBoard);
+
+  var pctDiff = originalScore > 0 ? ((greedyScore - originalScore) / originalScore * 100).toFixed(4) : 'N/A';
+  console.log('[Optimizer] Phase 1 greedy: ' + greedyScore.toFixed(2) + ' vs original: ' + originalScore.toFixed(2) + ' (' + pctDiff + '%)');
+  console.log('[Optimizer] Phase 1 used ' + (greedyScore > originalScore ? 'GREEDY' : 'ORIGINAL') + ' board as SA starting point');
+
+  if (greedyScore > originalScore) {
+    board = greedyBoard;
+    pool = greedyPool;
+  }
+
+  // Lock Yin cog slots that form valid 2x2 Excogia blocks
+  _lockYinBlocks(board, lockedSlots);
 
   var bestScore = scoreBoard(computeBoardTotals(board), goal, board);
   var currentScore = bestScore;
   var bestBoard = _cloneBoard(board);
-  var initialScore = bestScore;
+  var bestPool = pool.map(function(c) { return _cloneCog(c); });
+  var initialScore = originalScore;
   var moveLog = [];
   var logRatio = Math.log(tempEnd / tempStart);
 
   // Pre-compute goal-aware bias slots
+  var _goalType = typeof goal === 'string' ? goal : _dominantGoal(goal);
   var biasSlots = {};
-  if (goal === 'conexp') {
-    // conexp: bias toward player-adjacent slots (surround f affects player exp)
+  if (_goalType === 'conexp') {
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (board[i] && board[i].isPlayer) {
         var pp = slotToPos(i);
@@ -196,18 +229,14 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
       }
     }
   } else {
-    // build/flaggy: bias toward high-surround-coverage slots
-    // Find slots that receive the most surround bonus, and slots of directional cogs
-    var surrKey = goal === 'build' ? 'e' : 'g';
+    var surrKey = _goalType === 'build' ? 'e' : 'g';
     var totals = computeBoardTotals(board);
-    var surrField = goal === 'build' ? 'surroundBuild' : 'surroundFlaggy';
-    // Slots of directional cogs with relevant surround
+    var surrField = _goalType === 'build' ? 'surroundBuild' : 'surroundFlaggy';
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (board[i] && board[i].h && (board[i][surrKey] || 0) > 0) {
         biasSlots[i] = true;
       }
     }
-    // Slots receiving top-quartile surround bonuses (these are where high-base cogs matter most)
     var surrVals = [];
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (lockedSlots[i]) continue;
@@ -244,6 +273,7 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
           if (currentScore > bestScore) {
             bestScore = currentScore;
             bestBoard = _cloneBoard(board);
+            bestPool = pool.map(function(c) { return _cloneCog(c); });
             moveLog.push({ move: move, score: bestScore, iter: iter });
           }
         } else {
@@ -257,7 +287,7 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
         setTimeout(runChunk, 0);
       } else {
         // --- Phase 3: Enhanced greedy finish (board + pool swaps) ---
-        _greedyFinish(bestBoard, pool, lockedSlots, goal);
+        _greedyFinish(bestBoard, bestPool, lockedSlots, goal);
         bestScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
 
         var swaps = _computeSwapSequence(boardCogs, bestBoard);
@@ -278,42 +308,315 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
 
 /**
  * Phase 1: Greedy initial construction.
- * For each unlocked board slot, try swapping with every pool cog.
- * Keep the swap that gives the best score improvement. Repeat until no improvement.
+ * 1. Collect all cogs, clear the board.
+ * 2. For conexp: try every player position (96), build the best board around each.
+ *    For build/flaggy: single pass — player first then directionals then filler.
+ * 3. Exhaustive pairwise + pool refinement until convergence.
  */
-function _greedyConstruct(board, pool, lockedSlots, goal) {
-  if (pool.length === 0) return;
+function _greedyConstruct(board, pool, lockedSlots, goal, onPhase) {
+  onPhase = onPhase || function() {};
+  // Collect all movable cogs into a unified set
+  var allCogs = [];
+  for (var i = 0; i < pool.length; i++) allCogs.push(pool[i]);
+  var boardBefore = board.filter(Boolean).length;
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (!lockedSlots[i] && board[i]) {
+      allCogs.push(board[i]);
+      board[i] = null;
+    }
+  }
+  pool.length = 0;
+  var boardAfterClear = board.filter(Boolean).length;
+  console.log('[Greedy] Collected ' + allCogs.length + ' cogs. Board: ' + boardBefore + ' → ' + boardAfterClear + ' (should be 0)');
+  if (allCogs.length === 0) return;
+
+  // Goal-relevant keys — for weighted goals, pick the dominant goal's keys
+  var _goalStr = typeof goal === 'string' ? goal : _dominantGoal(goal);
+  var surrKey = _goalStr === 'build' ? 'e' : _goalStr === 'flaggy' ? 'g' : 'f';
+  var baseKey = _goalStr === 'build' ? 'a' : _goalStr === 'flaggy' ? 'c' : 'd';
+  var surrField = _goalStr === 'build' ? 'surroundBuild' : _goalStr === 'flaggy' ? 'surroundFlaggy' : 'surroundConExp';
+
+  // For weighted goals with any conexp weight, capture ALL directional cogs (any surround key)
+  var isWeighted = typeof goal === 'object';
+
+  // Categorize cogs — Yin/excogia cogs (l=1) are separated for 2x2 block placement
+  var players = [], directional = [], nonDir = [], yinCogs = [];
+  for (var i = 0; i < allCogs.length; i++) {
+    var c = allCogs[i];
+    if (c.isPlayer) {
+      players.push(c);
+    } else if (c.l) {
+      yinCogs.push(c);
+    } else if (c.h && ((c[surrKey] || 0) > 0 || (isWeighted && ((c.e || 0) > 0 || (c.f || 0) > 0 || (c.g || 0) > 0)))) {
+      directional.push(c);
+    } else {
+      nonDir.push(c);
+    }
+  }
+  // Group yin cogs into blocks of 4 with correct piece order (0=TL,1=TR,2=BL,3=BR)
+  // Sort by piece number, then group sequentially
+  yinCogs.sort(function(a, b) { return _yinPiece(a) - _yinPiece(b); });
+  // Bucket by piece number
+  var yinByPiece = [[], [], [], []];
+  for (var yi = 0; yi < yinCogs.length; yi++) {
+    var p = _yinPiece(yinCogs[yi]);
+    if (p >= 0 && p <= 3) yinByPiece[p].push(yinCogs[yi]);
+  }
+  var yinBlocks = [];
+  var blockCount = Math.min(yinByPiece[0].length, yinByPiece[1].length, yinByPiece[2].length, yinByPiece[3].length);
+  for (var bi = 0; bi < blockCount; bi++) {
+    yinBlocks.push([yinByPiece[0][bi], yinByPiece[1][bi], yinByPiece[2][bi], yinByPiece[3][bi]]);
+  }
+  // Leftover yin cogs (incomplete blocks) go to nonDir for base-stat placement
+  for (var p = 0; p < 4; p++) {
+    for (var yi = blockCount; yi < yinByPiece[p].length; yi++) {
+      nonDir.push(yinByPiece[p][yi]);
+    }
+  }
+  directional.sort(function(a, b) { return (b[surrKey] || 0) - (a[surrKey] || 0); });
+  nonDir.sort(function(a, b) { return (b[baseKey] || 0) - (a[baseKey] || 0); });
+  players.sort(function(a, b) { return (b.b || 0) - (a.b || 0); });
+  console.log('[Greedy] Categories: ' + players.length + ' players, ' + directional.length + ' directional (' + surrKey + '), ' + yinBlocks.length + ' yin blocks (' + yinCogs.length + ' cogs), ' + nonDir.length + ' non-dir')
+
+  // For conexp or weighted goals with conexp, try all 96 player positions
+  var needsPlayerSweep = players.length > 0 && (_goalStr === 'conexp' || (isWeighted && goal.conexp > 0));
+  if (needsPlayerSweep) {
+    var bestBoard = null, bestPool = null, bestSc = -Infinity;
+    var bestPSlot = -1;
+    var mainPlayer = players[0]; // highest-b player
+    var otherPlayers = players.slice(1);
+    console.log('[Greedy] Main player: ' + mainPlayer.name + ' b=' + mainPlayer.b + ' _slot=' + mainPlayer._slot);
+
+    for (var pSlot = 0; pSlot < BOARD_SIZE; pSlot++) {
+      if (lockedSlots[pSlot]) continue;
+      if (pSlot % 12 === 0) onPhase({ phase: 1, label: 'Greedy construction', progress: pSlot / BOARD_SIZE });
+      // Build a candidate board with player fixed at pSlot
+      var cb = new Array(BOARD_SIZE);
+      for (var i = 0; i < BOARD_SIZE; i++) cb[i] = null;
+      var cp = [];
+      var candLocked = {};  // fresh locked set per candidate
+      cb[pSlot] = mainPlayer;
+
+      // Place other players greedily
+      for (var op = 0; op < otherPlayers.length; op++) {
+        var pcog = otherPlayers[op];
+        var bs2 = -1, bsc2 = -Infinity;
+        for (var i = 0; i < BOARD_SIZE; i++) {
+          if (candLocked[i] || cb[i]) continue;
+          cb[i] = pcog;
+          var sc = scoreBoard(computeBoardTotals(cb), goal, cb);
+          cb[i] = null;
+          if (sc > bsc2) { bsc2 = sc; bs2 = i; }
+        }
+        if (bs2 >= 0) cb[bs2] = pcog;
+        else cp.push(pcog);
+      }
+
+      // Place Yin blocks as 2x2 (surround bonus only works in valid 2x2)
+      _placeYinBlocks(cb, cp, yinBlocks, candLocked, goal);
+      // Place directionals
+      _placeGreedyList(cb, cp, directional, candLocked, goal);
+      // Place non-directionals by rearrangement inequality
+      _placeByRearrangement(cb, cp, nonDir, candLocked, surrField);
+      // Quick refinement (3 passes to keep it fast, full refinement on the winner)
+      _refine(cb, cp, candLocked, goal, 3);
+
+      var sc = scoreBoard(computeBoardTotals(cb), goal, cb);
+      if (sc > bestSc) { bestSc = sc; bestBoard = cb; bestPool = cp; bestPSlot = pSlot; }
+    }
+
+    console.log('[Greedy] Best player slot: ' + bestPSlot + ' (' + (bestPSlot % BOARD_W) + ',' + Math.floor(bestPSlot / BOARD_W) + ') score=' + bestSc.toFixed(2));
+
+    // Copy winner into board/pool
+    for (var i = 0; i < BOARD_SIZE; i++) board[i] = bestBoard[i];
+    pool.length = 0;
+    for (var i = 0; i < bestPool.length; i++) pool.push(bestPool[i]);
+
+  } else {
+    // build/flaggy: single pass
+    // Place players
+    _placeGreedyList(board, pool, players, lockedSlots, goal);
+    console.log('[Greedy] After players: board=' + board.filter(Boolean).length + ', pool=' + pool.length);
+    // Place Yin blocks as 2x2
+    _placeYinBlocks(board, pool, yinBlocks, lockedSlots, goal);
+    console.log('[Greedy] After yin blocks: board=' + board.filter(Boolean).length + ', pool=' + pool.length);
+    // Place directionals
+    _placeGreedyList(board, pool, directional, lockedSlots, goal);
+    console.log('[Greedy] After directionals: board=' + board.filter(Boolean).length + ', pool=' + pool.length);
+    // Place non-directional by rearrangement inequality
+    _placeByRearrangement(board, pool, nonDir, lockedSlots, surrField);
+    console.log('[Greedy] After rearrangement: board=' + board.filter(Boolean).length + ', pool=' + pool.length);
+  }
+
+  // Full refinement on the final board
+  // Lock Yin 2x2 blocks so refinement can't scatter them
+  _lockYinBlocks(board, lockedSlots);
+  var preRefineScore = scoreBoard(computeBoardTotals(board), goal, board);
+  _refine(board, pool, lockedSlots, goal, 15);
+  var postRefineScore = scoreBoard(computeBoardTotals(board), goal, board);
+  console.log('[Greedy] Refine: ' + preRefineScore.toFixed(2) + ' → ' + postRefineScore.toFixed(2) + ' (board=' + board.filter(Boolean).length + ', pool=' + pool.length + ')');
+
+  // Log final layout summary
+  var finalNames = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (board[i]) finalNames.push(i + ':' + board[i].name);
+  }
+  console.log('[Greedy] Final board (' + finalNames.length + ' cogs): ' + finalNames.slice(0, 20).join(', ') + (finalNames.length > 20 ? '...' : ''));
+}
+
+/** Place a list of cogs one at a time, each at the best empty slot. Overflow goes to pool. */
+function _placeGreedyList(board, pool, cogs, lockedSlots, goal) {
+  for (var d = 0; d < cogs.length; d++) {
+    var dcog = cogs[d];
+    var bestSlot = -1, bestSc = -Infinity;
+    for (var i = 0; i < BOARD_SIZE; i++) {
+      if (lockedSlots[i] || board[i]) continue;
+      board[i] = dcog;
+      var sc = scoreBoard(computeBoardTotals(board), goal, board);
+      board[i] = null;
+      if (sc > bestSc) { bestSc = sc; bestSlot = i; }
+    }
+    if (bestSlot >= 0) board[bestSlot] = dcog;
+    else pool.push(dcog);
+  }
+}
+
+/** Place non-directional cogs by rearrangement inequality: highest base → highest surround slot. */
+function _placeByRearrangement(board, pool, cogs, lockedSlots, surrField) {
+  var totals = computeBoardTotals(board);
+  var emptySlots = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (!lockedSlots[i] && !board[i]) {
+      emptySlots.push({ idx: i, surr: totals.perSlot[i][surrField] || 0 });
+    }
+  }
+  emptySlots.sort(function(a, b) { return b.surr - a.surr; });
+  var placed = Math.min(emptySlots.length, cogs.length);
+  for (var i = 0; i < placed; i++) {
+    board[emptySlots[i].idx] = cogs[i];
+  }
+  for (var i = placed; i < cogs.length; i++) pool.push(cogs[i]);
+}
+
+/**
+ * Place Yin cog blocks as 2x2 groups. Each block of 4 Yin cogs is tried at every
+ * valid 2x2 position; the best position (by full board score) is chosen, evicting
+ * any existing non-player, non-Yin cogs to the pool.
+ */
+function _placeYinBlocks(board, pool, yinBlocks, lockedSlots, goal) {
+  // Find player rows/cols to avoid — keep those rows/cols open for row/column directionals
+  var playerRows = {}, playerCols = {};
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (board[i] && board[i].isPlayer) {
+      var pp = slotToPos(i);
+      playerRows[pp.row] = true;
+      playerCols[pp.col] = true;
+    }
+  }
+
+  for (var bi = 0; bi < yinBlocks.length; bi++) {
+    var block = yinBlocks[bi];
+    var bestClear = -1, bestDist = -1, bestScore = -Infinity;
+    var bestSlots = null, bestSaved = null;
+
+    for (var r = 0; r < BOARD_H - 1; r++) {
+      for (var c = 0; c < BOARD_W - 1; c++) {
+        var s = [posToSlot(c, r), posToSlot(c + 1, r), posToSlot(c, r + 1), posToSlot(c + 1, r + 1)];
+        var ok = true;
+        for (var k = 0; k < 4; k++) {
+          if (lockedSlots[s[k]]) { ok = false; break; }
+          if (board[s[k]] && (board[s[k]].isPlayer || board[s[k]].l)) { ok = false; break; }
+        }
+        if (!ok) continue;
+
+        // Count how many block rows/cols avoid sharing with player rows/cols
+        // 2x2 block uses rows [r, r+1] and cols [c, c+1]
+        var clear = 0;
+        if (!playerRows[r]) clear++;
+        if (!playerRows[r + 1]) clear++;
+        if (!playerCols[c]) clear++;
+        if (!playerCols[c + 1]) clear++;
+
+        // Min Chebyshev distance as secondary metric
+        var minDist = Infinity;
+        for (var i = 0; i < BOARD_SIZE; i++) {
+          if (board[i] && board[i].isPlayer) {
+            var pp = slotToPos(i);
+            for (var k = 0; k < 4; k++) {
+              var kp = slotToPos(s[k]);
+              var d = Math.max(Math.abs(kp.row - pp.row), Math.abs(kp.col - pp.col));
+              if (d < minDist) minDist = d;
+            }
+          }
+        }
+        if (!isFinite(minDist)) minDist = 99;
+
+        var saved = [board[s[0]], board[s[1]], board[s[2]], board[s[3]]];
+        board[s[0]] = block[0]; board[s[1]] = block[1]; board[s[2]] = block[2]; board[s[3]] = block[3];
+        var sc = scoreBoard(computeBoardTotals(board), goal, board);
+        board[s[0]] = saved[0]; board[s[1]] = saved[1]; board[s[2]] = saved[2]; board[s[3]] = saved[3];
+
+        // Primary: maximize clear rows/cols, secondary: maximize distance, tertiary: maximize score
+        if (clear > bestClear ||
+            (clear === bestClear && minDist > bestDist) ||
+            (clear === bestClear && minDist === bestDist && sc > bestScore)) {
+          bestClear = clear; bestDist = minDist; bestScore = sc;
+          bestSlots = s.slice(); bestSaved = saved.slice();
+        }
+      }
+    }
+
+    if (bestSlots) {
+      for (var k = 0; k < 4; k++) {
+        if (bestSaved[k]) pool.push(bestSaved[k]);
+        board[bestSlots[k]] = block[k];
+        lockedSlots[bestSlots[k]] = true;
+      }
+    } else {
+      for (var k = 0; k < 4; k++) pool.push(block[k]);
+    }
+  }
+}
+
+/** Pairwise board swaps + pool↔board swaps for up to maxPasses. */
+function _refine(board, pool, lockedSlots, goal, maxPasses) {
   var improved = true;
   var passes = 0;
-  while (improved && passes < 3) {
+  while (improved && passes < maxPasses) {
     improved = false;
     passes++;
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (lockedSlots[i]) continue;
-      var baseScore = scoreBoard(computeBoardTotals(board), goal, board);
-      var bestDelta = 0;
-      var bestPoolIdx = -1;
-      for (var pi = 0; pi < pool.length; pi++) {
-        // Try swapping board[i] with pool[pi]
-        var tmp = board[i];
-        board[i] = pool[pi];
-        pool[pi] = tmp;
-        var s = scoreBoard(computeBoardTotals(board), goal, board);
-        var d = s - baseScore;
-        if (d > bestDelta) {
-          bestDelta = d;
-          bestPoolIdx = pi;
+      var prevSc = scoreBoard(computeBoardTotals(board), goal, board);
+      for (var j = i + 1; j < BOARD_SIZE; j++) {
+        if (lockedSlots[j]) continue;
+        if (!board[i] && !board[j]) continue;
+        var tmp = board[i]; board[i] = board[j]; board[j] = tmp;
+        var sc = scoreBoard(computeBoardTotals(board), goal, board);
+        if (sc > prevSc) {
+          prevSc = sc;
+          improved = true;
+        } else {
+          tmp = board[i]; board[i] = board[j]; board[j] = tmp;
         }
-        // Undo
-        tmp = board[i];
-        board[i] = pool[pi];
-        pool[pi] = tmp;
       }
-      if (bestPoolIdx >= 0) {
-        var tmp = board[i];
-        board[i] = pool[bestPoolIdx];
-        pool[bestPoolIdx] = tmp;
-        improved = true;
+    }
+    if (pool.length > 0) {
+      for (var i = 0; i < BOARD_SIZE; i++) {
+        if (lockedSlots[i]) continue;
+        var baseSc = scoreBoard(computeBoardTotals(board), goal, board);
+        var bestDelta = 0, bestPi = -1;
+        for (var pi = 0; pi < pool.length; pi++) {
+          var tmp = board[i]; board[i] = pool[pi]; pool[pi] = tmp;
+          var sc = scoreBoard(computeBoardTotals(board), goal, board);
+          var delta = sc - baseSc;
+          if (delta > bestDelta) { bestDelta = delta; bestPi = pi; }
+          tmp = board[i]; board[i] = pool[pi]; pool[pi] = tmp;
+        }
+        if (bestPi >= 0) {
+          var tmp = board[i]; board[i] = pool[bestPi]; pool[bestPi] = tmp;
+          improved = true;
+        }
       }
     }
   }
@@ -391,13 +694,14 @@ function _randBiasSlot(locked, biasSlots) {
 
 /** Pick a weak board slot — one with low contribution for the goal. Bottom quartile. */
 function _weakSlot(board, locked, goal) {
+  var g = typeof goal === 'string' ? goal : _dominantGoal(goal);
   var slots = [];
   for (var i = 0; i < BOARD_SIZE; i++) {
     if (locked[i] || !board[i]) continue;
     var c = board[i];
     var val;
-    if (goal === 'build') val = (c.a || 0) + (c.e || 0);  // base build + surround build
-    else if (goal === 'flaggy') val = (c.c || 0) + (c.g || 0);  // base flaggy + surround flaggy
+    if (g === 'build') val = (c.a || 0) + (c.e || 0);  // base build + surround build
+    else if (g === 'flaggy') val = (c.c || 0) + (c.g || 0);  // base flaggy + surround flaggy
     else val = (c.d || 0) + (c.f || 0) + (c.b || 0);  // conexp: d% + surround + base exp
     slots.push({ idx: i, val: val });
   }
@@ -406,6 +710,15 @@ function _weakSlot(board, locked, goal) {
   // Pick from bottom quartile
   var cutoff = Math.max(1, Math.floor(slots.length / 4));
   return slots[Math.floor(Math.random() * cutoff)].idx;
+}
+
+/** For a weighted goal object, return the dominant goal string. */
+function _dominantGoal(goal) {
+  if (typeof goal === 'string') return goal;
+  var best = 'build', bestW = goal.build || 0;
+  if ((goal.conexp || 0) > bestW) { best = 'conexp'; bestW = goal.conexp; }
+  if ((goal.flaggy || 0) > bestW) { best = 'flaggy'; }
+  return best;
 }
 
 /**
@@ -548,6 +861,26 @@ function _cloneBoard(board) {
   return out;
 }
 
+/** Scan the board for valid Yin 2x2 blocks and lock those slots. */
+function _lockYinBlocks(board, lockedSlots) {
+  for (var row = 0; row < BOARD_H - 1; row++) {
+    for (var col = 0; col < BOARD_W - 1; col++) {
+      var tl = posToSlot(col, row);
+      var tr = posToSlot(col + 1, row);
+      var bl = posToSlot(col, row + 1);
+      var br = posToSlot(col + 1, row + 1);
+      if (board[tl] && board[tr] && board[bl] && board[br] &&
+          _yinPiece(board[tl]) === 0 && _yinPiece(board[tr]) === 1 &&
+          _yinPiece(board[bl]) === 2 && _yinPiece(board[br]) === 3) {
+        lockedSlots[tl] = true;
+        lockedSlots[tr] = true;
+        lockedSlots[bl] = true;
+        lockedSlots[br] = true;
+      }
+    }
+  }
+}
+
 /**
  * Compute a swap sequence to transform `from` board into `to` board.
  * Each step tells the user where to place a cog and where it came from.
@@ -573,14 +906,10 @@ function _computeSwapSequence(from, to) {
     target[i] = _cogKey(to[i]);
   }
 
-  // Find all slots that differ (skip pinned player/yin cogs)
+  // Find all slots that differ
   var changed = [];
   for (var i = 0; i < BOARD_SIZE; i++) {
-    if (current[i] !== target[i] &&
-        !(from[i] && from[i].isPlayer) &&
-        !(to[i] && to[i].isPlayer) &&
-        !(from[i] && from[i].name && from[i].name.indexOf('CogZA') === 0) &&
-        !(to[i] && to[i].name && to[i].name.indexOf('CogZA') === 0)) {
+    if (current[i] !== target[i]) {
       changed.push(i);
     }
   }
@@ -644,13 +973,6 @@ export function optimizeGreedy(boardCogs, shelfCogs, playerCogs, goal) {
   }
 
   var lockedSlots = {};
-  for (var i = 0; i < BOARD_SIZE; i++) {
-    if (board[i] && board[i].name && (
-        board[i].name.indexOf('CogZA') === 0 ||
-        board[i].isPlayer)) {
-      lockedSlots[i] = true;
-    }
-  }
 
   var initialScore = scoreBoard(computeBoardTotals(board), goal, board);
   var improved = true;
