@@ -8,7 +8,7 @@
 
 import { dancingCoralBase, stickerBase } from '../data/w7/research.js';
 import { gbWith } from '../../sim-math.js';
-import { emporiumBonus, eventShopOwned, ribbonBonusAt, superBitType } from '../../game-helpers.js';
+import { emporiumBonus, eventShopOwned, ribbonBonusAt, superBitType, cloudBonus } from '../../game-helpers.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeCardLv } from '../systems/common/cards.js';
@@ -99,7 +99,12 @@ export default {
       children: hasSB34 && slabboBase > 0 ? [
         { name: 'Cards Found', val: c1len, fmt: 'raw' },
         { name: 'Base', val: slabboBase, fmt: 'raw', note: 'floor((cards-1300)/5)' },
-        { name: 'Multi', val: slabboMult, fmt: 'x', note: 'MF15+merit23+leg28+vub74' },
+        { name: 'Multi', val: slabboMult, fmt: 'x', children: [
+          { name: label('Mainframe', 15), val: slabboMF15 },
+          { name: label('Meritoc', 23), val: slabboMeritoc23 },
+          { name: label('Legend', 28), val: slabboLegend28 },
+          { name: label('Vault Upg', 74), val: vub74 },
+        ] },
       ] : null });
 
     // 8. Arcade
@@ -119,7 +124,12 @@ export default {
       children: mealLv > 0 ? [
         { name: 'Meal Lv', val: mealLv, fmt: 'raw' },
         { name: 'Ribbon', val: ribBon, fmt: 'x' },
-        { name: 'Cook Multi', val: cookMulti, fmt: 'x' },
+        { name: 'Cook Multi', val: cookMulti, fmt: 'x', children: [
+          { name: label('Mainframe', 116), val: mfb116 },
+          { name: 'Shiny S20', val: shinyS20 },
+          { name: label('Win Bonus', 26), val: winBon26 },
+          { name: label('Companion', 162, ' (1.25x meals)'), val: comp162, note: saveData.companionIds.has(162) ? 'Owned' : 'Not owned' },
+        ] },
       ] : null });
 
     // 10. Crop Scientist
@@ -162,13 +172,30 @@ export default {
         { name: 'Tome PTS', val: saveData.totalTomePoints, fmt: 'raw' },
       ] : null });
 
+    // ABM (Grid AllBonusMulti) — applied inside every gridBonusFinal call
+    var _comp55 = saveData.companionIds.has(55) ? 15 : 0;
+    var _comp0 = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
+    var _cbGA = (saveData.weeklyBossData ? cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData) : 0);
+    var _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
+    var abmVal = 1 + (_comp55 + _comp0 + _cbGA + _rog53) / 100;
+    var _abmChildren = [
+      { name: label('Companion', 55, ' (+15%)'), val: _comp55, note: saveData.companionIds.has(55) ? 'Owned' : 'Not owned' },
+      { name: label('Companion', 0, ' (+5%)'), val: _comp0, note: saveData.companionIds.has(0) ? 'Owned' : 'Not owned' },
+      { name: 'Cloud Bonus 71+72+76', val: _cbGA },
+      { name: 'RoG 53 (+1%)', val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
+    ];
+    function _gbItem(idx) {
+      return { name: label('Grid', idx), val: gridBonusFinal(saveData, idx),
+        children: [{ name: 'AllBonusMulti', val: abmVal, fmt: 'x', children: _abmChildren }] };
+    }
+
     // 13-19. Grid bonuses (additive, game source confirmed)
-    items.push({ name: label('Grid', 50), val: gridBonusFinal(saveData, 50) });
-    items.push({ name: label('Grid', 90), val: gridBonusFinal(saveData, 90) });
-    items.push({ name: label('Grid', 110), val: gridBonusFinal(saveData, 110) });
-    items.push({ name: label('Grid', 112), val: gridBonusFinal(saveData, 112) });
-    items.push({ name: label('Grid', 94), val: gridBonusFinal(saveData, 94) });
-    items.push({ name: label('Grid', 31), val: gridBonusFinal(saveData, 31) });
+    items.push(_gbItem(50));
+    items.push(_gbItem(90));
+    items.push(_gbItem(110));
+    items.push(_gbItem(112));
+    items.push(_gbItem(94));
+    items.push(_gbItem(31));
 
     // ---- Sum additive ----
     var totalAdd = 0;
@@ -179,7 +206,8 @@ export default {
     var multItems = [];
 
     var grid70 = gridBonusFinal(saveData, 70);
-    multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x' });
+    multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x',
+      children: [{ name: 'AllBonusMulti', val: abmVal, fmt: 'x', children: _abmChildren }] });
 
     // Nonstop_Studies: DreamUpg[12], coeff 3. Dream save array uses +2 offset, so Dream[14] is correct.
     var dream14Lv = Number((dreamData && dreamData[14]) || 0);
