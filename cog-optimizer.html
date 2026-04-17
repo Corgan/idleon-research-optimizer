@@ -1169,10 +1169,15 @@ function cogTooltipHtml(cog, slot) {
       }
     }
     if (j.odds) {
-      var roundedOdds = Math.round(j.odds.oneInN);
+      var roundedOdds = Math.round(j.gradeOneInN);
       var oddsColor = roundedOdds >= 10000 ? 'var(--gold)' : roundedOdds >= 1000 ? 'var(--green)' : roundedOdds >= 100 ? 'var(--cyan)' : 'var(--text2)';
-      var oddsText = j.odds.oneInN < 1.5 ? Math.round(100 / j.odds.oneInN) + '% of rolls' : roundedOdds <= 2 ? '~1 in 2' : '1 in ' + fmtBig(roundedOdds);
+      var oddsText = j.gradeOneInN < 1.5 ? Math.round(100 / j.gradeOneInN) + '% of rolls' : roundedOdds <= 2 ? '~1 in 2' : '1 in ' + fmtBig(roundedOdds);
       html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + oddsColor + '">' + oddsText + '</span></div>';
+      var trueR = Math.round(j.odds.trueOneInN);
+      if (trueR > 1 && trueR !== roundedOdds) {
+        var trueColor = trueR >= 10000 ? 'var(--gold)' : trueR >= 1000 ? 'var(--green)' : trueR >= 100 ? 'var(--cyan)' : 'var(--text2)';
+        html += '<div class="tt-stat"><span class="lbl">True Odds</span><span class="val" style="color:' + trueColor + '">1 in ' + fmtBig(trueR) + '</span></div>';
+      }
     }
     html += '<div class="tt-stat"><span class="lbl">ConExp%</span><span class="val">' + (cog.d||0) + ' / ' + j.perfect.perfectD + '</span></div>';
     html += '<div class="tt-stat"><span class="lbl">Build</span><span class="val">' + fmtBig(cog.a||0) + ' / ' + fmtBig(j.perfect.perfectA) + '</span></div>';

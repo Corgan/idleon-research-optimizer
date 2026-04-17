@@ -104,7 +104,7 @@ function _normCdf(x) {
 function _buildStatSurvival(tier, conLv, statMode) {
   var base = _rawMag(tier, conLv);
   var pStat = _pStatPerRoll(tier, statMode);
-  if (pStat <= 0) return new Float64Array([1]); // impossible stat (e.g. flaggy on crystal)
+  if (pStat <= 0) return { nMin: new Float64Array([1]), nMax: new Float64Array([1]) };
 
   // val range from mult range [0.4, 3.0)
   var minVal = Math.floor(0.4 * base);
@@ -134,19 +134,16 @@ function _buildStatSurvival(tier, conLv, statMode) {
     }
     var var1 = mu2 - mu1 * mu1;
 
-    // N-roll sum: 50% chance of minRolls, 50% chance of minRolls+1
     var nMin = _minRolls(tier);
     var nMax = nMin + 1;
-    // mean/var for nMin rolls and nMax rolls
-    var muMin = nMin * mu1, varMin = nMin * var1;
-    var muMax = nMax * mu1, varMax = nMax * var1;
-
-    // Return a "virtual" survival function object with a lookup method
-    // Store as {normal: true, muMin, sdMin, muMax, sdMax} for _pStatGE to use
-    return { normal: true, muMin: muMin, sdMin: Math.sqrt(varMin), muMax: muMax, sdMax: Math.sqrt(varMax) };
+    return {
+      normal: true,
+      muMin: nMin * mu1, sdMin: Math.sqrt(nMin * var1),
+      muMax: nMax * mu1, sdMax: Math.sqrt(nMax * var1)
+    };
   }
 
-  // For small PMFs (conexp), use exact convolution
+  // For small PMFs (conexp), use exact convolution — return separate nMin and nMax tables
   function convolve(a, b) {
     var result = new Float64Array(a.length + b.length - 1);
     for (var i = 0; i < a.length; i++) {
@@ -164,26 +161,21 @@ function _buildStatSurvival(tier, conLv, statMode) {
   for (var r = 1; r < nMin; r++) distMin = convolve(distMin, oneRoll);
   var distMax = convolve(distMin, oneRoll);
 
-  var len = Math.max(distMin.length, distMax.length);
-  var dist = new Float64Array(len);
-  for (var i = 0; i < len; i++) {
-    dist[i] = 0.5 * (i < distMin.length ? distMin[i] : 0) +
-              0.5 * (i < distMax.length ? distMax[i] : 0);
-  }
+  // Mix 50/50 for min/max roll counts
+  var mixed = new Float64Array(distMax.length);
+  for (var m = 0; m < distMin.length; m++) mixed[m] += 0.5 * distMin[m];
+  for (var m = 0; m < distMax.length; m++) mixed[m] += 0.5 * distMax[m];
 
-  var survival = new Float64Array(len);
-  var cumRight = 0;
-  for (var i = len - 1; i >= 0; i--) {
-    cumRight += dist[i];
-    survival[i] = cumRight;
-  }
-
-  return survival;
+  // Convert to survival (P >= x)
+  var surv = new Float64Array(mixed.length);
+  var cum = 0;
+  for (var i = mixed.length - 1; i >= 0; i--) { cum += mixed[i]; surv[i] = cum; }
+  return surv;
 }
 
 /**
  * P(total_stat >= minVal) — cached per (tier, conLv, statMode).
- * Supports both exact survival arrays and normal approximation objects.
+ * Uses 50/50 mix of min/max roll count distributions.
  */
 function _pStatGE(tier, conLv, minVal, statMode) {
   if (minVal <= 0) return 1;
@@ -193,13 +185,12 @@ function _pStatGE(tier, conLv, minVal, statMode) {
   }
   var surv = _dSurvivalCache[key];
   if (surv.normal) {
-    // Normal approximation: P(X >= k) = 1 - Φ((k - μ) / σ), mix 50/50
-    var pMin = surv.sdMin > 0 ? 1 - _normCdf((minVal - surv.muMin) / surv.sdMin) : (minVal <= surv.muMin ? 1 : 0);
-    var pMax = surv.sdMax > 0 ? 1 - _normCdf((minVal - surv.muMax) / surv.sdMax) : (minVal <= surv.muMax ? 1 : 0);
-    return 0.5 * pMin + 0.5 * pMax;
+    var mu = 0.5 * surv.muMin + 0.5 * surv.muMax;
+    var sd = Math.sqrt(0.5 * (surv.sdMin * surv.sdMin + surv.sdMax * surv.sdMax) + 0.25 * Math.pow(surv.muMax - surv.muMin, 2));
+    return sd > 0 ? 1 - _normCdf((minVal - mu) / sd) : (minVal <= mu ? 1 : 0);
   }
-  if (minVal >= surv.length) return 0;
-  return surv[minVal];
+  // Exact survival table (already 50/50 mixed)
+  return minVal < surv.length ? surv[minVal] : 0;
 }
 
 /**
@@ -398,6 +389,11 @@ export function crystalLevel(name) {
  * @param {number} tier - Cog tier (0-4)
  * @param {number} maxConLv - Highest construction level
  * @param {Object} [opts] - { isShelf, affectsPlayer, statMode, dailyRolls }
+/**
+ * Estimate the weight for maxRolls (0=definitely minRolls, 1=definitely maxRolls).
+ * Uses the observed stat values to guess how many rolls the cog got.
+ * Each non-zero stat had at least 1 roll; divide value by expected per-roll
+ * to estimate how many rolls went to each stat. Compare total to min/max.
  */
 export function judgeCog(cogStats, tier, maxConLv, opts) {
   if (tier < 0) return { grade: '?', percentile: -1 };
@@ -426,17 +422,33 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   var cryLv = tier >= 4 ? crystalLevel(cogStats.name) : -1;
   var pCascade = _pCrystalCascade(cryLv);  // 1.0 for non-crystal
   var baseVal = cogStats[baseKey] || 0;
-  var pBase = _pStatGE(tier, maxConLv, baseVal, statMode) * pCascade;
+
+  var pStatOnly = _pStatGE(tier, maxConLv, baseVal, statMode);
+  var pBase = pStatOnly * pCascade;
   var pS = _pSurrGE(tier, hasSurrForMode, cryLv, surrKey);
   var jointP = pBase * pS;
   var jointOneInN = jointP > 0 ? 1 / jointP : 1e9;
   if (jointOneInN < 1) jointOneInN = 1;
   var baseOneInN = pBase > 0 ? 1 / pBase : 1e9;
   if (baseOneInN < 1) baseOneInN = 1;
-  var odds = { oneInN: jointOneInN, dOneInN: baseOneInN };
+  // True odds: full cascade × stat × surround — the actual probability of this exact cog
+  var trueP = pCascade * pStatOnly * pS;
+  var trueOneInN = trueP > 0 ? 1 / trueP : 1e9;
+  if (trueOneInN < 1) trueOneInN = 1;
+  var odds = { oneInN: jointOneInN, dOneInN: baseOneInN, trueOneInN: trueOneInN };
 
-  // Grade based on 1-in-N odds (rarity-based)
-  var gradeOneInN = (affectsPlayer && hasSurrForMode) ? jointOneInN : baseOneInN;
+  // Grade: if directional affects player, use full joint odds (cascade + surround).
+  // If crystal doesn't affect player, ignore cascade — all crystal tiers share base stat odds.
+  var gradeOneInN;
+  if (affectsPlayer && hasSurrForMode) {
+    gradeOneInN = jointOneInN;
+  } else if (cryLv >= 0 && !affectsPlayer) {
+    // Crystal not affecting player: grade on base stat only (no cascade penalty)
+    gradeOneInN = pStatOnly > 0 ? 1 / pStatOnly : 1e9;
+    if (gradeOneInN < 1) gradeOneInN = 1;
+  } else {
+    gradeOneInN = baseOneInN;
+  }
 
   var dailyRolls = (opts && opts.dailyRolls) || 1;
   var expectedDays = gradeOneInN / dailyRolls;
