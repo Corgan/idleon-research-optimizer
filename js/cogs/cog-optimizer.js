@@ -1192,6 +1192,8 @@ function _computeSwapSequence(from, to) {
       slot: slot,
       from: fromName,
       to: toName,
+      toFP: toKey,
+      fromFP: fromKey,
       srcSlot: srcSlot,
       col: slot % BOARD_W,
       row: Math.floor(slot / BOARD_W),

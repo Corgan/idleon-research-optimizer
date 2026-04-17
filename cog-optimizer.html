@@ -212,10 +212,14 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .cog-cell.cog-cry5 { background: #182848; color: #60a0f0; } /* Bluegem */
 .cog-cell.cog-yellow { background: #2e2e38; color: #c0c0d0; }
 .cog-cell.cog-excogia { background: #2e2e38; color: #c0c0d0; }
-.cog-cell.excogia-tl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#c0c0d0; z-index:2; }
-.cog-cell.excogia-tl::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#c0c0d0; z-index:2; }
-.cog-cell.excogia-tr::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:2px; background:#c0c0d0; z-index:2; }
-.cog-cell.excogia-bl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:2px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tl::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tr::after { content:''; position:absolute; left:-1px; top:20%; height:60%; width:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-tr::before { content:''; position:absolute; bottom:-1px; left:20%; width:60%; height:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-bl::after { content:''; position:absolute; right:-1px; top:20%; height:60%; width:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-bl::before { content:''; position:absolute; top:-1px; left:20%; width:60%; height:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-br::after { content:''; position:absolute; left:-1px; top:20%; height:60%; width:1px; background:#c0c0d0; z-index:2; }
+.cog-cell.excogia-br::before { content:''; position:absolute; top:-1px; left:20%; width:60%; height:1px; background:#c0c0d0; z-index:2; }
 .cog-cell.cog-player { background: #1a3a1a; color: #6f6; }
 .cog-cell.cog-standard { background: #3a3018; color: #d4a860; }
 .cog-cell.changed { box-shadow: 0 0 0 2px var(--gold); }
@@ -2042,7 +2046,7 @@ function renderSwapStep() {
   var fromShelf = s.srcSlot < 0;
   var srcStr;
   if (fromShelf) {
-    var shelfIdx = findShelfCogIndex(s.to);
+    var shelfIdx = findShelfCogIndex(s.toFP || s.to);
     srcStr = 'shelf' + (shelfIdx >= 0 ? ' (pg ' + (shelfPageForIndex(shelfIdx) + 1) + ')' : '');
     if (shelfIdx >= 0) { SHELF_PAGE = shelfPageForIndex(shelfIdx); }
     renderShelf();
@@ -2072,16 +2076,35 @@ function renderSwapStep() {
   updateSwapListHighlight();
 }
 
-function findShelfCogIndex(cogName, shelf) {
+function _shelfCogFP(c) {
+  if (!c) return 'Blank';
+  return c.name + '|' + (c.a||0) + '|' + (c.c||0) + '|' + (c.d||0) + '|' + (c.e||0) + '|' + (c.f||0) + '|' + (c.g||0) + '|' + (c.h||'') + '|' + (c.j||0) + '|' + (c.b||0) + '|' + (c.isPlayer ? 1 : 0);
+}
+
+function findShelfCogIndex(cogNameOrFP, shelf) {
   var slots = shelf || SWAP_SHELF || ALL_COGS.shelfSlots;
+  // If a fingerprint (contains '|'), match by fingerprint
+  var isFP = cogNameOrFP && cogNameOrFP.indexOf('|') >= 0;
+  if (isFP) {
+    for (var i = 0; i < slots.length; i++)
+      if (slots[i] && _shelfCogFP(slots[i]) === cogNameOrFP) return i;
+  }
+  // Fallback: match by name
   for (var i = 0; i < slots.length; i++)
-    if (slots[i] && slots[i].name === cogName) return i;
+    if (slots[i] && slots[i].name === cogNameOrFP) return i;
   return -1;
 }
 
-function _shelfRemove(shelf, cogName) {
+function _shelfRemove(shelf, cogNameOrFP) {
+  var isFP = cogNameOrFP && cogNameOrFP.indexOf('|') >= 0;
+  if (isFP) {
+    for (var i = 0; i < shelf.length; i++) {
+      if (shelf[i] && _shelfCogFP(shelf[i]) === cogNameOrFP) { shelf[i] = null; return; }
+    }
+  }
+  // Fallback: match by name
   for (var i = 0; i < shelf.length; i++) {
-    if (shelf[i] && shelf[i].name === cogName) { shelf[i] = null; return; }
+    if (shelf[i] && shelf[i].name === cogNameOrFP) { shelf[i] = null; return; }
   }
 }
 
@@ -2120,7 +2143,7 @@ function applySwapsUpTo(idx, board) {
       board[s.srcSlot] = displaced ? Object.assign({}, displaced) : null;
     } else {
       // Cog came from shelf: remove it from working shelf, add displaced cog
-      _shelfRemove(SWAP_SHELF, s.to);
+      _shelfRemove(SWAP_SHELF, s.toFP || s.to);
       if (displaced && displaced.name !== 'Blank') _shelfAdd(SWAP_SHELF, displaced)
       board[s.srcSlot] = displaced ? Object.assign({}, displaced) : null;
     }

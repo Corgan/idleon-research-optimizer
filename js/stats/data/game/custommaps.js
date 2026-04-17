@@ -4837,7 +4837,10 @@ export var GemPopupBundleMessages = {
   "bon_s": "Holy..._now_that's_some_HEAVY_Armor!_Not_to_mention_that_Boomy_Mine_Pet_too,_with_190_Power_no_less,_that's_pretty_strong!_Click_that_bundle_to_buy!",
   "bon_t": "Vanillie_makes_her_appearance_after_being_taken_off_the_shelves_due_to_white_chocolate_poiso..._well,_never_mind_why._She's_here_now,_click_that_bundle_to_buy_them!",
   "bon_u": "...and_at_the_end_of_the_rainbow,_you_found_this_cute_lil'_Potluck_pet!_This_pack_also_boosts_EVERY_Vault_Upgrade_max_LV,_apart_from_those_with_Max_LV_1_of_course._Tap_to_take_a_look!",
-  "bon_v": "TWO_exclusive_items,_and_edible_ones_at_that!_You'll_get_the_Eggroll_pet_AND_the_Dragonroll_cape_from_this_here_bundle!_Tap_to_take_a_look!"
+  "bon_v": "TWO_exclusive_items,_and_edible_ones_at_that!_You'll_get_the_Eggroll_pet_AND_the_Dragonroll_cape_from_this_here_bundle!_Tap_to_take_a_look!",
+  "ban_a": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!",
+  "ban_b": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!",
+  "ban_c": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!"
 };
 
 export var GemShopExtraDisplay = {
@@ -5350,7 +5353,9 @@ export var IDforETCbonus = {
   "101": "%_MASTERCLASS_DROPS",
   "102": "%_DROP_CHANCE",
   "103": "%_MORE_KILLS",
-  "104": "%_BIGGER_DAMAGE"
+  "104": "%_BIGGER_DAMAGE",
+  "105": "%_KILLS_IN_WORLD_7",
+  "106": "%_BONUS_MC_DROPS"
 };
 
 export var ImgInstCards = {
@@ -5682,6 +5687,11 @@ export var ImgInstCards = {
   "luckEvent2": [
     834,
     110,
+    0
+  ],
+  "anni5Event1": [
+    835,
+    117,
     0
   ]
 };
@@ -6446,6 +6456,19 @@ export var MainQuests = {
     ]
   ],
   "Sushi_Station": [
+    [
+      0,
+      0
+    ],
+    [
+      -7,
+      -5
+    ],
+    [
+      99999
+    ]
+  ],
+  "The_Button": [
     [
       0,
       0
@@ -7574,7 +7597,7 @@ export var MonsterDrops = {
     ],
     [
       "CardsA0",
-      "0.005",
+      "0.002",
       "1",
       "N/A"
     ],
@@ -7688,7 +7711,7 @@ export var MonsterDrops = {
     ],
     [
       "CardsA2",
-      "0.050",
+      "0.003",
       "1",
       "N/A"
     ],
@@ -7750,7 +7773,7 @@ export var MonsterDrops = {
     ],
     [
       "CardsA3",
-      "0.030",
+      "0.004",
       "1",
       "N/A"
     ],
@@ -7794,7 +7817,7 @@ export var MonsterDrops = {
     ],
     [
       "CardsA4",
-      "0.025",
+      "0.050",
       "1",
       "N/A"
     ],
@@ -13005,7 +13028,7 @@ export var MonsterDrops = {
     [
       "COIN",
       "0.5",
-      "1100000",
+      "600000000",
       "N/A"
     ],
     [
@@ -15509,6 +15532,68 @@ export var MonsterDrops = {
     [
       "GfoodcouponS",
       "1",
+      "1",
+      "N/A"
+    ]
+  ],
+  "anni5Event1": [
+    [
+      "COIN",
+      "0.5",
+      "69",
+      "N/A"
+    ],
+    [
+      "CardsY2",
+      "0.00",
+      "1",
+      "N/A"
+    ],
+    [
+      "PremiumGem",
+      "0.2",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats135",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats133",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats134",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats117",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats115",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats109",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "EquipmentHats80",
+      "0.001",
       "1",
       "N/A"
     ]
@@ -18673,10 +18758,13 @@ export var PetIDtoBundle = {
   "36": "bon_n",
   "49": "bon_l",
   "51": "bon_p",
+  "135": "ban_c",
   "143": "bon_s",
   "145": "bon_v",
   "155": "bon_t",
-  "159": "bon_u"
+  "159": "bon_u",
+  "162": "ban_a",
+  "163": "ban_b"
 };
 
 export var RandoMap = {
