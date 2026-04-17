@@ -79,6 +79,7 @@ export function buildSaveContext() {
     rog3:  rogBonusQTY(3, saveData.cachedUniqueSushi),
     rog8:  rogBonusQTY(8, saveData.cachedUniqueSushi),
     rog13: rogBonusQTY(13, saveData.cachedUniqueSushi),
+    rog53: rogBonusQTY(53, saveData.cachedUniqueSushi),
     sailingArt37: saveData.cachedSailingArt37,
     cachedUniqueSushi: saveData.cachedUniqueSushi,
 
@@ -115,7 +116,7 @@ export function makeSimCtx(gl, sc) {
     const hasComp55 = sc.companionHas55;
     const hasComp0DivOk = sc.companionHas0 && sc.cachedComp0DivOk;
     return {
-      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll),
+      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll, sc.rog53),
       c52:            sc.comp52TrueMulti,
       stickerFixed:   sc.cachedStickerFixed,
       boonyCount:     sc.cachedBoonyCount,
@@ -130,6 +131,7 @@ export function makeSimCtx(gl, sc) {
       evShop36:       sc.evShop36,
       emp46:          sc.emp46,
       cbGridAll:      sc.cbGridAll,
+      rog53:          sc.rog53 || 0,
       mhq2:          sc.mhq2,
       mhq12:         sc.mhq12,
       mhq20:         sc.mhq20,
@@ -152,8 +154,9 @@ export function makeSimCtx(gl, sc) {
   const hasComp55 = saveData.companionIds.has(55);
   const hasComp0DivOk = saveData.companionIds.has(0) && saveData.cachedComp0DivOk;
   const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
+  const _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
   return {
-    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll),
+    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll, _rog53),
     c52:            saveData.comp52TrueMulti,
     stickerFixed:   saveData.cachedStickerFixed,
     boonyCount:     saveData.cachedBoonyCount,
@@ -168,6 +171,7 @@ export function makeSimCtx(gl, sc) {
     evShop36:       eventShopOwned(36, eventShopStr),
     emp46:          emporiumBonus(46, ninjaData102_9),
     cbGridAll:      _cbGridAll,
+    rog53:          _rog53,
     mhq2:          mineheadBonusQTY(2, mineFloor),
     mhq12:         mineheadBonusQTY(12, mineFloor),
     mhq20:         mineheadBonusQTY(20, mineFloor),

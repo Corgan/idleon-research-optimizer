@@ -127,6 +127,9 @@ export const saveData = {
   _covLUTCacheN: -1,
 };
 
+// Short alias for external.js and other modules that use `S` as state reference
+export { saveData as S };
+
 // Partial update — only touches keys present in u.
 export function assignState(u) {
   for (const k in u) {

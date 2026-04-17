@@ -9,6 +9,7 @@ import { eventShopOwned } from '../../../game-helpers.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { legendPTSbonus } from './spelunking.js';
 import { companionBonus } from '../../data/common/companions.js';
+import { rogBonusQTY } from './sushi.js';
 
 export function computeMeritocBonusz(optionIdx) {
   var activeVote = Number(saveData.olaData[453]) || 0;
@@ -21,13 +22,15 @@ export function computeMeritocBonusz(optionIdx) {
   var legend24 = legendPTSbonus(24);
   var arcade59 = arcadeBonus(59);
   var eventShop23 = eventShopOwned(23, saveData.cachedEventShopStr);
+  var rog51 = rogBonusQTY(51, saveData.cachedUniqueSushi);
+  var comp161 = saveData.companionIds.has(161) ? companionBonus(161) : 0;
   var multi;
   if (canVote) {
-    multi = 1 + (5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23) / 100;
+    multi = 1 + (5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23 + rog51) / 100;
   } else {
-    multi = 0.25 + (5 * clamWork3 + comp39 + legend24 + arcade59) / 100;
+    multi = 0.25 + (5 * clamWork3 + comp39 + legend24 + arcade59 + rog51) / 100;
   }
-  return baseVal * multi;
+  return baseVal * (1 + comp161 / 100) * multi;
 }
 
 export var meritoc = {

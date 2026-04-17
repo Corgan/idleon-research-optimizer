@@ -452,15 +452,15 @@ export function gridPointsAvail(gl, rLv, saveCtx) {
  * Compute allBonusMulti from explicit companion booleans.
  * Pure - no globals.
  */
-export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll) {
+export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll, rog53) {
   const comp55val = hasComp55 ? 15 : 0;
   const comp0val = hasComp0DivOk && (gl[173] || 0) > 0 ? 5 : 0;
-  return 1 + (comp55val + comp0val + (cbGridAll || 0)) / 100;
+  return 1 + (comp55val + comp0val + (cbGridAll || 0) + (rog53 || 0)) / 100;
 }
 
 /** Recompute ctx.abm from gl. Mutates ctx in place. */
 export function refreshAbm(ctx, gl) {
-  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll);
+  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, ctx.rog53);
 }
 
 // ----- Magnifiers owned -----

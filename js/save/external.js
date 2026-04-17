@@ -11,7 +11,8 @@ import {
   cosmoUpgBase, holesBolaiaPerLv, HOLES_JAR_BONUS_PER_LV,
   holesMeasBase, holesMeasType, holesMonBonus,
 } from '../stats/data/w5/hole.js';
-import { dancingCoralBase, MINEHEAD_BONUS_QTY, stickerBase } from '../stats/data/w7/research.js';
+import { dancingCoralBase, stickerBase } from '../stats/data/w7/research.js';
+import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { DN_MOB_DATA } from '../stats/data/w7/deathNote.js';
 import { gbWith, deathNoteRank } from '../sim-math.js';
 import {
@@ -151,7 +152,8 @@ export function computeExternalBonuses() {
   const _comp55val = S.companionIds.has(55) ? 15 : 0;
   const _comp0val = S.companionIds.has(0) && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
   const _cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);
-  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val + _cbGridAll) / 100 });
+  const _rog53val = S.cachedUniqueSushi > 53 ? 1 : 0;
+  assignState({ allBonusMulti: 1 + (_comp55val + _comp0val + _cbGridAll + _rog53val) / 100 });
 
   // 1. StickerBonus(1) = (1 + (Grid_Bonus(68,2) + 30*EventShop(37))/100) * (1 + 20*SuperBit(62)/100) * R[9][1] * base
   const stkLv = S.research?.[9]?.[1] || 0;
@@ -288,7 +290,8 @@ export function computeExternalBonuses() {
   const comp0owned = S.companionIds.has(0);
   const comp0val = comp0owned && (S.lv0AllData[0]?.[14] || 0) >= 2 && (S.gridLevels[173] || 0) > 0 ? 5 : 0; // 5*min(1, lv*1)
   const cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);
-  b._allMulti = { val: 1 + (comp55val + comp0val + cbGridAll) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val}+${cbGridAll})/100` };
+  const rog53val = S.cachedUniqueSushi > 53 ? 1 : 0;
+  b._allMulti = { val: 1 + (comp55val + comp0val + cbGridAll + rog53val) / 100, label: 'Grid AllBonusMulti', note: `1 + (${comp55val}+${comp0val}+${cbGridAll}+${rog53val})/100` };
 
   return b;
 }

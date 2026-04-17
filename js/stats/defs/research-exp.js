@@ -112,7 +112,8 @@ export default {
     var mfb116 = mainframeBonus(116);
     var shinyS20 = computeShinyBonusS(20);
     var winBon26 = computeWinBonus(26);
-    var cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+    var comp162 = saveData.companionIds.has(162) ? 25 : 0;
+    var cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100) * (1 + comp162 / 100);
     var meal = mealBase * cookMulti;
     items.push({ name: 'Meal (Giga Chip)', val: meal,
       children: mealLv > 0 ? [
