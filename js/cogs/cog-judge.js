@@ -402,8 +402,8 @@ export function judgeCog(cogStats, tier, maxConLv, opts) {
   var affectsPlayer = opts && opts.affectsPlayer;
   var statMode = (opts && opts.statMode) || 'conexp';
 
-  // Shelf cogs don't get graded
-  if (isShelf) return { grade: '-', percentile: -1 };
+  // Shelf cogs: grade normally but never count as affecting player
+  if (isShelf) affectsPlayer = false;
 
   // Only grade ulti (tier 3) and crystal (tier 4) cogs — lower tiers get F
   if (tier < 3) return { grade: 'F', gradeOneInN: 1, hasSurround: false, affectsPlayer: false, perfect: perfectCogStats(tier, maxConLv), odds: { oneInN: 1, dOneInN: 1 } };

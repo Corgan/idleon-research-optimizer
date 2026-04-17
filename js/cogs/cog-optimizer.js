@@ -142,6 +142,10 @@ export function optimize(boardCogs, shelfCogs, playerCogs, goal, opts) {
     }
   }
 
+  // Phase 4: Swap-back — restore original positions where score is unchanged
+  _swapBackPass(bestBoard, boardCogs, lockedSlots, goal);
+  bestScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+
   // Compute the diff between original and best boards
   var swaps = _computeSwapSequence(boardCogs, bestBoard);
 
@@ -288,6 +292,9 @@ export function optimizeAsync(boardCogs, shelfCogs, playerCogs, goal, opts) {
       } else {
         // --- Phase 3: Enhanced greedy finish (board + pool swaps) ---
         _greedyFinish(bestBoard, bestPool, lockedSlots, goal);
+
+        // Phase 4: Swap-back — restore original positions where score is unchanged
+        _swapBackPass(bestBoard, boardCogs, lockedSlots, goal);
         bestScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
 
         var swaps = _computeSwapSequence(boardCogs, bestBoard);
@@ -882,6 +889,246 @@ function _lockYinBlocks(board, lockedSlots) {
 }
 
 /**
+ * Stat fingerprint: two cogs with the same fingerprint are functionally identical
+ * from the user's perspective — no swap needed.
+ */
+function _cogFingerprint(cog) {
+  if (!cog) return 'Blank';
+  return cog.name + '|' + (cog.a || 0) + '|' + (cog.c || 0) + '|' + (cog.d || 0)
+    + '|' + (cog.e || 0) + '|' + (cog.f || 0) + '|' + (cog.g || 0) + '|' + (cog.h || '')
+    + '|' + (cog.j || 0) + '|' + (cog.b || 0) + '|' + (cog.isPlayer ? 1 : 0);
+}
+
+/**
+ * Swap-back pass: for each slot that differs from the original board,
+ * try restoring the original cog. Keep it if the score is unchanged.
+ * Uses stat fingerprints so any same-stat cog counts as a match.
+ * This minimizes the number of user-visible swaps without losing any score.
+ */
+function _swapBackPass(bestBoard, originalBoard, lockedSlots, goal) {
+  var bestScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+  var restored = 0;
+
+  // Build set of player-adjacent slots — cogs here with directionals should not be displaced
+  var playerSlots = [];
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    if (bestBoard[i] && bestBoard[i].isPlayer) playerSlots.push(i);
+  }
+
+  // Check if a directional cog at slot j actively reaches any player
+  function _directionalReachesPlayer(cog, j) {
+    if (!cog || !cog.h) return false;
+    var jp = slotToPos(j);
+    for (var pi = 0; pi < playerSlots.length; pi++) {
+      var pp = slotToPos(playerSlots[pi]);
+      if (cog.h === 'around' || cog.h === 'adjacent') {
+        if (Math.abs(jp.row - pp.row) <= 1 && Math.abs(jp.col - pp.col) <= 1) return true;
+      } else if (cog.h === 'row') {
+        if (jp.row === pp.row) return true;
+      } else if (cog.h === 'column') {
+        if (jp.col === pp.col) return true;
+      } else if (cog.h === 'everything') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Multiple passes: forward then reverse, to catch displacement cascades
+  var passes = 0;
+  var changed = true;
+  while (changed && passes < 4) {
+    changed = false;
+    passes++;
+    var start = (passes % 2 === 1) ? 0 : BOARD_SIZE - 1;
+    var end = (passes % 2 === 1) ? BOARD_SIZE : -1;
+    var step = (passes % 2 === 1) ? 1 : -1;
+    for (var i = start; i !== end; i += step) {
+      if (lockedSlots[i]) continue;
+      var origFP = _cogFingerprint(originalBoard[i]);
+      var curFP = _cogFingerprint(bestBoard[i]);
+      if (origFP === curFP) continue;
+      // Find any cog on the best board with the same fingerprint as the original
+      // Prefer non-directional sources; only use directional if no alternative
+      var srcIdx = -1;
+      var dirFallback = -1;
+      for (var j = 0; j < BOARD_SIZE; j++) {
+        if (j === i) continue;
+        if (lockedSlots[j]) continue;
+        if (_cogFingerprint(bestBoard[j]) !== origFP) continue;
+        // Don't displace a directional cog from player-affecting slot to non-affecting slot
+        if (_directionalReachesPlayer(bestBoard[j], j) && !_directionalReachesPlayer(bestBoard[j], i)) continue;
+        if (bestBoard[j].h && _directionalReachesPlayer(bestBoard[j], j)) {
+          if (dirFallback < 0) dirFallback = j;  // remember as fallback
+          continue;                                // keep looking for non-dir
+        }
+        srcIdx = j;
+        break;
+      }
+      if (srcIdx < 0) srcIdx = dirFallback;
+      if (srcIdx < 0) continue;
+      // Try swapping them
+      var tmp = bestBoard[i]; bestBoard[i] = bestBoard[srcIdx]; bestBoard[srcIdx] = tmp;
+      var newScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+      if (newScore < bestScore) {
+        tmp = bestBoard[i]; bestBoard[i] = bestBoard[srcIdx]; bestBoard[srcIdx] = tmp;
+      } else {
+        bestScore = newScore;
+        restored++;
+        changed = true;
+      }
+    }
+  }
+  if (restored > 0) console.log('[SwapBack] Restored ' + restored + ' cogs to original positions');
+
+  // Yin block swap-back: Yin effects are global, so their 2x2 position doesn't matter.
+  // Try swapping entire Yin blocks back to their original positions.
+  // Find Yin blocks on the original board
+  var origYinBlocks = [];
+  for (var row = 0; row < BOARD_H - 1; row++) {
+    for (var col = 0; col < BOARD_W - 1; col++) {
+      var tl = posToSlot(col, row);
+      var tr = posToSlot(col + 1, row);
+      var bl = posToSlot(col, row + 1);
+      var br = posToSlot(col + 1, row + 1);
+      if (originalBoard[tl] && originalBoard[tr] && originalBoard[bl] && originalBoard[br] &&
+          _yinPiece(originalBoard[tl]) === 0 && _yinPiece(originalBoard[tr]) === 1 &&
+          _yinPiece(originalBoard[bl]) === 2 && _yinPiece(originalBoard[br]) === 3) {
+        origYinBlocks.push([tl, tr, bl, br]);
+      }
+    }
+  }
+  // Find Yin blocks on the current best board
+  var curYinBlocks = [];
+  for (var row = 0; row < BOARD_H - 1; row++) {
+    for (var col = 0; col < BOARD_W - 1; col++) {
+      var tl = posToSlot(col, row);
+      var tr = posToSlot(col + 1, row);
+      var bl = posToSlot(col, row + 1);
+      var br = posToSlot(col + 1, row + 1);
+      if (bestBoard[tl] && bestBoard[tr] && bestBoard[bl] && bestBoard[br] &&
+          _yinPiece(bestBoard[tl]) === 0 && _yinPiece(bestBoard[tr]) === 1 &&
+          _yinPiece(bestBoard[bl]) === 2 && _yinPiece(bestBoard[br]) === 3) {
+        curYinBlocks.push([tl, tr, bl, br]);
+      }
+    }
+  }
+  // Try to move each current Yin block back to its original position
+  var yinRestored = 0;
+  var usedOrig = {};
+  for (var ci = 0; ci < curYinBlocks.length; ci++) {
+    var cur = curYinBlocks[ci];
+    // Check if it's already in an original position
+    var alreadyHome = false;
+    for (var oi = 0; oi < origYinBlocks.length; oi++) {
+      if (cur[0] === origYinBlocks[oi][0]) { alreadyHome = true; break; }
+    }
+    if (alreadyHome) continue;
+    // Find an original position that isn't already taken
+    for (var oi = 0; oi < origYinBlocks.length; oi++) {
+      if (usedOrig[oi]) continue;
+      var orig = origYinBlocks[oi];
+      // Check if original slots are currently occupied by non-Yin cogs we can displace
+      var blocked = false;
+      for (var k = 0; k < 4; k++) {
+        var oc = bestBoard[orig[k]];
+        if (oc && oc.l) {
+          // Another Yin block is here — can't swap into it
+          blocked = true; break;
+        }
+      }
+      if (blocked) continue;
+      // Try the swap: save the 8 cells, put Yin in orig slots, displaced cogs in cur slots
+      var savedCur = [bestBoard[cur[0]], bestBoard[cur[1]], bestBoard[cur[2]], bestBoard[cur[3]]];
+      var savedOrig = [bestBoard[orig[0]], bestBoard[orig[1]], bestBoard[orig[2]], bestBoard[orig[3]]];
+      for (var k = 0; k < 4; k++) {
+        bestBoard[orig[k]] = savedCur[k]; // Yin pieces go to original positions
+        bestBoard[cur[k]] = savedOrig[k]; // displaced cogs go to where Yin was
+      }
+      var newScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+      if (newScore < bestScore) {
+        // Undo
+        for (var k = 0; k < 4; k++) {
+          bestBoard[cur[k]] = savedCur[k];
+          bestBoard[orig[k]] = savedOrig[k];
+        }
+      } else {
+        bestScore = newScore;
+        usedOrig[oi] = true;
+        yinRestored++;
+        // Update lockedSlots: unlock old positions, lock new (original) positions
+        for (var k = 0; k < 4; k++) {
+          delete lockedSlots[cur[k]];
+          lockedSlots[orig[k]] = true;
+        }
+        break;
+      }
+    }
+  }
+  if (yinRestored > 0) console.log('[SwapBack] Restored ' + yinRestored + ' Yin blocks to original positions');
+
+  // Cosmetic pass: directional cogs in positions where they can't reach any player
+  // look odd. Swap them with non-directional cogs elsewhere if score doesn't drop.
+  var cosmeticSwaps = 0;
+  for (var i = 0; i < BOARD_SIZE; i++) {
+    var cog = bestBoard[i];
+    if (!cog || !cog.h || cog.h === 'everything') continue;
+    if (cog.l || cog.isPlayer) continue;
+    if (_directionalReachesPlayer(cog, i)) continue;  // useful here, leave it
+    // Wasted directional at slot i — find a non-directional to swap with
+    for (var j = 0; j < BOARD_SIZE; j++) {
+      if (j === i || lockedSlots[j]) continue;
+      var other = bestBoard[j];
+      if (!other || other.h || other.l || other.isPlayer) continue;
+      if (_cogFingerprint(cog) === _cogFingerprint(other)) continue;  // same cog, pointless
+      bestBoard[i] = other; bestBoard[j] = cog;
+      var newScore = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+      if (newScore < bestScore) {
+        bestBoard[i] = cog; bestBoard[j] = other;
+      } else {
+        bestScore = newScore;
+        cosmeticSwaps++;
+        break;
+      }
+    }
+  }
+  if (cosmeticSwaps > 0) console.log('[SwapBack] Cosmetic: relocated ' + cosmeticSwaps + ' wasted directionals');
+
+  // Post-cosmetic swap-back: the cosmetic pass may have created new diffs. Clean up.
+  if (cosmeticSwaps > 0) {
+    var postRestored = 0;
+    for (var pass2 = 0; pass2 < 2; pass2++) {
+      var start2 = (pass2 === 0) ? 0 : BOARD_SIZE - 1;
+      var end2 = (pass2 === 0) ? BOARD_SIZE : -1;
+      var step2 = (pass2 === 0) ? 1 : -1;
+      for (var i = start2; i !== end2; i += step2) {
+        if (lockedSlots[i]) continue;
+        var origFP2 = _cogFingerprint(originalBoard[i]);
+        if (origFP2 === _cogFingerprint(bestBoard[i])) continue;
+        var srcIdx2 = -1;
+        for (var j = 0; j < BOARD_SIZE; j++) {
+          if (j === i || lockedSlots[j]) continue;
+          if (_cogFingerprint(bestBoard[j]) !== origFP2) continue;
+          if (bestBoard[j].h && _directionalReachesPlayer(bestBoard[j], j)) continue;
+          srcIdx2 = j;
+          break;
+        }
+        if (srcIdx2 < 0) continue;
+        var tmp2 = bestBoard[i]; bestBoard[i] = bestBoard[srcIdx2]; bestBoard[srcIdx2] = tmp2;
+        var ns2 = scoreBoard(computeBoardTotals(bestBoard), goal, bestBoard);
+        if (ns2 < bestScore) {
+          tmp2 = bestBoard[i]; bestBoard[i] = bestBoard[srcIdx2]; bestBoard[srcIdx2] = tmp2;
+        } else {
+          bestScore = ns2;
+          postRestored++;
+        }
+      }
+    }
+    if (postRestored > 0) console.log('[SwapBack] Post-cosmetic cleanup: restored ' + postRestored + ' more cogs');
+  }
+}
+
+/**
  * Compute a swap sequence to transform `from` board into `to` board.
  * Each step tells the user where to place a cog and where it came from.
  * Tracks the evolving board state so source locations are always correct.
@@ -889,21 +1136,15 @@ function _lockYinBlocks(board, lockedSlots) {
 function _computeSwapSequence(from, to) {
   var steps = [];
 
-  // Use _slot as unique cog identity (same-name cogs have different _slot values)
-  function _cogKey(cog) {
-    return cog ? cog._slot + ':' + cog.name : 'Blank';
-  }
-
-  // Working copy of current board state (mutated as we generate steps)
+  // Use stat fingerprint: two cogs with the same stats don't need a swap
   var current = new Array(BOARD_SIZE);
   for (var i = 0; i < BOARD_SIZE; i++) {
-    current[i] = _cogKey(from[i]);
+    current[i] = _cogFingerprint(from[i]);
   }
 
-  // Target board state
   var target = new Array(BOARD_SIZE);
   for (var i = 0; i < BOARD_SIZE; i++) {
-    target[i] = _cogKey(to[i]);
+    target[i] = _cogFingerprint(to[i]);
   }
 
   // Find all slots that differ
@@ -926,20 +1167,26 @@ function _computeSwapSequence(from, to) {
     if (current[slot] === toKey) continue;
 
     // Find source: where the needed cog currently lives in the evolving board
+    // Prefer a source slot that also needs to change (to avoid cascading extra swaps)
     var srcSlot = -1;
     if (toKey !== 'Blank') {
+      var bestSrc = -1, bestIsChanging = false;
       for (var j = 0; j < BOARD_SIZE; j++) {
         if (j === slot) continue;
         if (current[j] === toKey) {
-          srcSlot = j;
-          break;
+          var isChanging = current[j] !== target[j];
+          if (bestSrc < 0 || (isChanging && !bestIsChanging)) {
+            bestSrc = j;
+            bestIsChanging = isChanging;
+          }
         }
       }
+      srcSlot = bestSrc;
     }
 
-    // Display names (strip the _slot prefix)
-    var fromName = fromKey === 'Blank' ? 'Blank' : fromKey.substring(fromKey.indexOf(':') + 1);
-    var toName = toKey === 'Blank' ? 'Blank' : toKey.substring(toKey.indexOf(':') + 1);
+    // Display names (extract cog name from fingerprint)
+    var fromName = fromKey === 'Blank' ? 'Blank' : fromKey.substring(0, fromKey.indexOf('|'));
+    var toName = toKey === 'Blank' ? 'Blank' : toKey.substring(0, toKey.indexOf('|'));
 
     steps.push({
       slot: slot,

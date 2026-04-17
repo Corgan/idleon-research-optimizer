@@ -971,10 +971,12 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
   }
 
   var tierNum = cogStatTier(cog.name);
-  if (tierNum >= 0 && idx >= 0 && idx < BOARD_SIZE && CURRENT_BOARD) {
-    var ap = cogAffectsPlayer(CURRENT_BOARD, idx);
-    var _ctx = boardGradeContext(CURRENT_BOARD);
-    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
+  var isOnBoard = idx >= 0 && idx < BOARD_SIZE && CURRENT_BOARD;
+  var isShelfCog = !isOnBoard && idx >= 1000;
+  if (tierNum >= 0 && (isOnBoard || isShelfCog)) {
+    var ap = isOnBoard ? cogAffectsPlayer(CURRENT_BOARD, idx) : false;
+    var _ctx = isOnBoard ? boardGradeContext(CURRENT_BOARD) : {};
+    var judgment = judgeCog(cog, tierNum, MAX_CON_LV, { isShelf: isShelfCog, affectsPlayer: ap, totalBaseD: _ctx.totalBaseD, totalSurround: _ctx.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
     if (judgment.grade && judgment.grade !== '?' && judgment.grade !== '-') {
       var badge = document.createElement('div');
       badge.className = 'grade-badge grade-' + judgment.grade;
@@ -1148,11 +1150,13 @@ function cogTooltipHtml(cog, slot) {
     html += '</div>';
   }
   var tierNum = cogStatTier(cog.name);
-  if (tierNum >= 0 && slot >= 0 && slot < BOARD_SIZE && CURRENT_BOARD) {
+  var isOnBoard = slot >= 0 && slot < BOARD_SIZE && CURRENT_BOARD;
+  var isShelfSlot = slot < 0;
+  if (tierNum >= 0 && (isOnBoard || isShelfSlot)) {
     var statMode = ACTIVE_STAT_OVERLAY || 'conexp';
-    var ap = cogAffectsPlayer(CURRENT_BOARD, slot);
-    var _ctx2 = boardGradeContext(CURRENT_BOARD);
-    var j = judgeCog(cog, tierNum, MAX_CON_LV, { affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
+    var ap = isOnBoard ? cogAffectsPlayer(CURRENT_BOARD, slot) : false;
+    var _ctx2 = isOnBoard ? boardGradeContext(CURRENT_BOARD) : {};
+    var j = judgeCog(cog, tierNum, MAX_CON_LV, { isShelf: isShelfSlot, affectsPlayer: ap, totalBaseD: _ctx2.totalBaseD, totalSurround: _ctx2.totalSurround, dailyRolls: dailyRollsForTier(tierNum), statMode: statMode });
     var modeLabel = statMode === 'build' ? 'Build' : statMode === 'flaggy' ? 'Flaggy' : 'ConExp';
     html += '<div style="margin-top:4px;border-top:1px solid #333;padding-top:4px">';
     if (j.grade === '-') {
@@ -1174,7 +1178,7 @@ function cogTooltipHtml(cog, slot) {
       var oddsText = j.gradeOneInN < 1.5 ? Math.round(100 / j.gradeOneInN) + '% of rolls' : roundedOdds <= 2 ? '~1 in 2' : '1 in ' + fmtBig(roundedOdds);
       html += '<div class="tt-stat"><span class="lbl">Roll Odds</span><span class="val" style="color:' + oddsColor + '">' + oddsText + '</span></div>';
       var trueR = Math.round(j.odds.trueOneInN);
-      if (trueR > 1 && trueR !== roundedOdds) {
+      if (trueR > 1 && trueR !== roundedOdds && j.affectsPlayer) {
         var trueColor = trueR >= 10000 ? 'var(--gold)' : trueR >= 1000 ? 'var(--green)' : trueR >= 100 ? 'var(--cyan)' : 'var(--text2)';
         html += '<div class="tt-stat"><span class="lbl">True Odds</span><span class="val" style="color:' + trueColor + '">1 in ' + fmtBig(trueR) + '</span></div>';
       }
