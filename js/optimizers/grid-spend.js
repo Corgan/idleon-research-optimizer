@@ -432,25 +432,37 @@ export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
     return { changed: true, so: so, steps: combos[0].steps, freePoints: freePoints };
   }
 
+  // Pre-filter: if too many combos, score by immediate EXP rate and keep top N
+  const MAX_BEAM_COMBOS = 30;
+  let scoredCombos = combos;
+  if (combos.length > MAX_BEAM_COMBOS) {
+    for (let pi = 0; pi < combos.length; pi++) {
+      const trialABM = calcAllBonusMultiWith(combos[pi].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, ctx.rog53);
+      combos[pi]._qr = simTotalExpWith(combos[pi].gl, so, md, il, occ, rLv, Object.assign({}, ctx, { abm: trialABM }));
+    }
+    combos.sort(function(a, b) { return b._qr - a._qr; });
+    scoredCombos = combos.slice(0, MAX_BEAM_COMBOS);
+  }
+
   // Score each combo by forward sim to target (lookahead scoring)
   let bestCombo = null, bestScore = target.type === 'level' ? Infinity : -Infinity;
 
-  for (let ci = 0; ci < combos.length; ci++) {
-    const trialMOwned = computeMagnifiersOwnedWith(combos[ci].gl, rLv, ctx);
+  for (let ci = 0; ci < scoredCombos.length; ci++) {
+    const trialMOwned = computeMagnifiersOwnedWith(scoredCombos[ci].gl, rLv, ctx);
     const trialMD = md.map(function(m) { return {type:m.type, slot:m.slot, x:m.x, y:m.y}; });
-    growMagPoolTyped(trialMD, combos[ci].gl, rLv, trialMOwned, ctx);
+    growMagPoolTyped(trialMD, scoredCombos[ci].gl, rLv, trialMOwned, ctx);
 
     const result = _beamForwardSim({
-      gl: combos[ci].gl, so: so, md: trialMD,
+      gl: scoredCombos[ci].gl, so: so, md: trialMD,
       il: il, ip: ip, occ: occ,
       rLv: rLv, rExp: rExp, mMax: mMax, mOwned: trialMOwned
     }, target, assumeObs, saveCtx);
 
     // Level target: lower time is better. Hours target: higher totalExp is better.
     if (target.type === 'level') {
-      if (result.totalTimeHrs < bestScore) { bestScore = result.totalTimeHrs; bestCombo = combos[ci]; }
+      if (result.totalTimeHrs < bestScore) { bestScore = result.totalTimeHrs; bestCombo = scoredCombos[ci]; }
     } else {
-      if (result.totalExp > bestScore) { bestScore = result.totalExp; bestCombo = combos[ci]; }
+      if (result.totalExp > bestScore) { bestScore = result.totalExp; bestCombo = scoredCombos[ci]; }
     }
   }
 
