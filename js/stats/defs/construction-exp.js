@@ -21,13 +21,13 @@ import { label } from '../entity-names.js';
 import { skillLvData, postOfficeData } from '../../save/data.js';
 import { safe, createDescriptor } from './helpers.js';
 
-function _talVal(talentIdx, ci) {
+function _talVal(talentIdx, ci, saveData) {
   var sl = skillLvData[ci] || {};
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return 0;
   var tp = talentParams(talentIdx);
   if (!tp || !tp.formula) return 0;
-  var bonus = computeAllTalentLVz(talentIdx, ci, ctx.saveData);
+  var bonus = computeAllTalentLVz(talentIdx, ci, saveData);
   return formulaEval(tp.formula, tp.x1, tp.x2, rawLv + bonus);
 }
 
@@ -54,14 +54,14 @@ export default createDescriptor({
     var cogTotals = computeCogBoardTotals(ctx.saveData);
 
     // Breakdown for active char
-    var conEXPbubble = safe(bubbleValByKey, 'conEXPACTIVE', ci);
-    var tal132 = _talVal(132, ci);
-    var tal104 = _talVal(104, ci);
-    var vialConsExp = safe(computeVialByKey, 'ConsExp');
-    var statue18 = safe(computeStatueBonusGiven, 18);
-    var stampConstExp = safe(computeStampBonusOfTypeX, 'ConstructionExp');
-    var voting18 = safe(votingBonusz, 18, 1);
-    var starConstExp = safe(computeStarSignBonus, 'ConstExp', ci);
+    var conEXPbubble = safe(bubbleValByKey, 'conEXPACTIVE', ci, saveData);
+    var tal132 = _talVal(132, ci, saveData);
+    var tal104 = _talVal(104, ci, saveData);
+    var vialConsExp = safe(computeVialByKey, 'ConsExp', saveData);
+    var statue18 = safe(computeStatueBonusGiven, 18, ci, saveData);
+    var stampConstExp = safe(computeStampBonusOfTypeX, 'ConstructionExp', saveData);
+    var voting18 = safe(votingBonusz, 18, 1, saveData);
+    var starConstExp = safe(computeStarSignBonus, 'ConstExp', ci, saveData);
     var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
     var poBonus = Math.max(0, 0.5 * (postOffice17 - 100));
 

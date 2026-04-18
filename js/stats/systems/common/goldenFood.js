@@ -19,6 +19,8 @@ import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../../data/common/tale
 import { talentParams } from '../../data/common/talent.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
 import votingMultiDesc from '../../defs/voting-multi.js';
+import { buildTree } from '../../tree-builder.js';
+import { getCatalog } from '../../registry.js';
 import { itemUqMatch } from '../../data/common/equipment.js';
 import { isFightingMap, mapKillReq } from '../../../game-data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
@@ -300,7 +302,7 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
 
   // === votingBonuszMulti (delegated to voting-multi descriptor) ===
   {
-    var vr = votingMultiDesc.combine({}, { saveData });
+    var vr = buildTree(votingMultiDesc, getCatalog(), { saveData: saveData });
     inputs.votingBonuszMulti = vr.val;
     T.votingBonuszMulti = node('Voting Multi', vr.val, vr.children, { fmt: 'x' });
   }
@@ -552,7 +554,7 @@ export var goldenFood = {
     // Prefer gfood-multi descriptor for cached multi + breakdown
     var gfm = ctx.resolve ? ctx.resolve('gfood-multi') : null;
     var multi = gfm ? gfm.val : undefined;
-    var result = goldFoodBonuses(id, ctx.charIdx, multi, saveData);
+    var result = goldFoodBonuses(id, ctx.charIdx, multi, ctx.saveData);
     var total = result ? result.total : 0;
     if (total <= 0) return node('Golden Food: ' + id, 0);
 
@@ -562,7 +564,7 @@ export var goldenFood = {
     if (gfm) {
       children.push(node('GFood Multi', gfm.val, gfm.children, { fmt: 'x' }));
     } else {
-      var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, saveData);
+      var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, null, ctx.saveData);
       var multiChildren = [];
       for (var i = 0; i < bd.items.length; i++) {
         var it = bd.items[i];

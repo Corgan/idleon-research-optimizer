@@ -31,20 +31,20 @@ import { grid, chip } from './systems/w4/lab.js';
 import { tome } from './systems/w4/tome.js';
 import { shiny } from './systems/w4/breeding.js';
 import { shrine } from './systems/w3/construction.js';
-import { holes } from './systems/w5/hole.js';
+import { holes, cosmo } from './systems/w5/hole.js';
 import { winBonus } from './systems/w6/summoning.js';
 import { farm } from './systems/w6/farming.js';
 import { emperor } from './systems/w6/emperor.js';
 import { pristine } from './systems/w6/sneaking.js';
 import { legendPTS } from './systems/w7/legend.js';
-import { spelunkShop } from './systems/w7/spelunking.js';
+import { spelunkShop, palette } from './systems/w7/spelunking.js';
 import { nametag, premhat, trophy } from './systems/w7/gallery.js';
 import { minehead } from './systems/w7/research.js';
 import { meritoc } from './systems/w7/meritoc.js';
 import { grimoire } from './systems/mc/grimoire.js';
 import { arcaneMap } from './systems/mc/tesseract.js';
 import { sushiRoG } from './systems/w7/sushi.js';
-import { glimbo, workshop } from './systems/common/wrappers.js';
+import { glimbo, workshop, eventShop } from './systems/common/wrappers.js';
 
 // ----- Descriptor imports -----
 import dropRate from './defs/drop-rate.js';
@@ -64,6 +64,9 @@ import spelunkingPow from './defs/spelunking-pow.js';
 import skillEfficiency from './defs/skill-efficiency.js';
 import skillExp from './defs/skill-exp.js';
 import tomeScore from './defs/tome-score.js';
+import buildRate from './defs/build-rate.js';
+import constructionExp from './defs/construction-exp.js';
+import flaggySpeed from './defs/flaggy-speed.js';
 
 // ----- Internal storage -----
 var _systems = {
@@ -75,11 +78,11 @@ var _systems = {
   prayer, setBonus, dream,
   cloudBonus: cloudBonusSys,
   grid, chip, tome, shiny,
-  shrine, holes,
+  shrine, holes, cosmo,
   winBonus, farm, emperor, pristine,
-  legendPTS, spelunkShop, nametag, premhat, trophy, minehead, meritoc,
+  legendPTS, spelunkShop, palette, nametag, premhat, trophy, minehead, meritoc,
   grimoire, arcaneMap, sushiRoG,
-  glimbo, workshop,
+  glimbo, workshop, eventShop,
 };
 
 var _descriptors = {};
@@ -133,3 +136,6 @@ registerDescriptor(spelunkingPow);
 registerDescriptor(skillEfficiency);
 registerDescriptor(skillExp);
 registerDescriptor(tomeScore);
+registerDescriptor(buildRate);
+registerDescriptor(constructionExp);
+registerDescriptor(flaggySpeed);

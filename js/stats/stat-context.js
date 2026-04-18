@@ -55,7 +55,10 @@ export function createStatContext(opts) {
   // ----- Lazy descriptor resolution -----
 
   ctx.resolve = function(id) {
-    if (id in _cache) return _cache[id];
+    if (id in _cache) {
+      if (_cache[id] === null) throw new Error('Circular dependency detected: ' + id);
+      return _cache[id];
+    }
     var desc = getDescriptor(id);
     if (!desc) throw new Error('Unknown descriptor: ' + id);
     // Sentinel to detect circular dependencies

@@ -1,37 +1,17 @@
 // Minehead tab - Dashboard, Optimize, Rank, Path, and Play subtabs.
 import { saveData } from '../state.js';
-import { gbWith } from '../sim-math.js';
-import { computeMineheadCurrSources } from '../stats/systems/w7/minehead.js';
-import { renderBreakdownTree } from './dash-breakdowns.js';
-import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { hideTooltip, moveTooltip } from './tooltip.js';
-import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
-import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
-import { computeButtonBonus } from '../stats/defs/helpers.js';
-import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC, TILE_MULTIPLIERS } from '../stats/data/w7/minehead.js';
+import { MINEHEAD_UPG, MINEHEAD_NAMES } from '../stats/data/w7/minehead.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
-  maxHPYou, floorHP, minesOnFloor, baseDMG, bonusDMGperTilePCT,
-  bluecrownMulti, bluecrownOdds, jackpotOdds, jackpotTiles,
-  dailyTries, currencyPerHour, canBuyUpg,
-  goldTilesTotal, blocksTotal, instaRevealsTotal, currentOutgoingDMG,
-  WIGGLE_CHANCE, wiggleMaxPerGame,
+  maxHPYou, floorHP, minesOnFloor, canBuyUpg,
 } from '../stats/systems/w7/minehead.js';
-import { monteCarloFloor, tunableStrategy, expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS, generateGrid, _placeGoldens } from '../minehead/sim.js';
-import { superBitType, cloudBonus, emporiumBonus } from '../game-helpers.js';
-import { inferStrategy, analyzeSpatial } from '../minehead/strategy-inferrer.js';
-import { fmtNum as _fmt } from '../renderers/format.js';
-
-let PLAY_RIGGED = false;
-
-function _mineReduction() {
-  return Math.min(1, superBitType(66, saveData.gamingData?.[12]))
-       + Math.min(1, cloudBonus(41, saveData.weeklyBossData))
-       + Math.min(1, emporiumBonus(45, saveData.ninjaData?.[102]?.[9]));
-}
+import { expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS } from '../minehead/sim.js';
+import { mhState, mineReduction, getInferredParams, loadInferred, _fmt } from './minehead-helpers.js';
+import { renderDashboard, renderCurrencyTab } from './minehead-dashboard.js';
+import { renderPlayfield } from './minehead-play.js';
 
 let _activeSubtab = 'mh-dashboard';
-let _showSpoilerMH = false;
 
 let _rankCache = null;
 let _rankWorkers = null;
@@ -41,43 +21,8 @@ let _optWorkers = null;    // optimizer workers (for cancellation)
 let _pathCache = null;     // { floor, path, baseline, finalResult, finalLvs }
 let _pathWorkers = null;   // path workers (for cancellation)
 let _pathStartCtx = null;  // { upgLevels, svarHP } for comparison banner
-let _playDecisions = [];   // decision snapshots from Play tab games
-let _playGames = 0;        // games completed in Play tab
-let _inferResult = null;   // cached inference result
 
-const _LS_KEY = 'mh_inferred_strategy';
-
-const _LS_DECISIONS_KEY = 'mh_play_decisions';
-
-function _saveInferred() {
-  if (!_inferResult || !_inferResult.params) return;
-  try { localStorage.setItem(_LS_KEY, JSON.stringify(_inferResult)); } catch (e) { /* full */ }
-}
-
-function _saveDecisions() {
-  try { localStorage.setItem(_LS_DECISIONS_KEY, JSON.stringify({ d: _playDecisions, g: _playGames })); } catch (e) { /* full */ }
-}
-
-function _loadInferred() {
-  try {
-    const raw = localStorage.getItem(_LS_KEY);
-    if (raw) _inferResult = JSON.parse(raw);
-  } catch (e) { /* corrupt */ }
-  try {
-    const raw = localStorage.getItem(_LS_DECISIONS_KEY);
-    if (raw) {
-      const obj = JSON.parse(raw);
-      if (Array.isArray(obj.d)) { _playDecisions = obj.d; _playGames = obj.g || 0; }
-    }
-  } catch (e) { /* corrupt */ }
-}
-
-/** Get user's inferred params, or null. */
-function _getInferredParams() {
-  return _inferResult?.params ?? null;
-}
-
-_loadInferred();
+loadInferred();
 
 // ===== public entry =====
 
@@ -119,321 +64,12 @@ export function renderMineheadTab() {
 }
 
 function _renderActiveSubtab() {
-  if (_activeSubtab === 'mh-dashboard') _renderDashboard();
+  if (_activeSubtab === 'mh-dashboard') renderDashboard();
   else if (_activeSubtab === 'mh-optimize') _renderOptimize();
   else if (_activeSubtab === 'mh-rank') _renderRankTab();
   else if (_activeSubtab === 'mh-path') _renderPathTab();
-  else if (_activeSubtab === 'mh-currency') _renderCurrencyTab();
-  else if (_activeSubtab === 'mh-play') _renderPlayfield();
-}
-
-// ===== DASHBOARD SUBTAB =====
-
-function _renderDashboard() {
-  const container = document.getElementById('mh-dashboard');
-  if (!container) return;
-
-  const lvs = saveData.mineheadUpgLevels || [];
-  const floor = saveData.stateR7?.[4] || 0;
-  const mineCurrency = saveData.stateR7?.[5] || 0;
-  const highestDmg = saveData.stateR7?.[6] || 0;
-
-  // Summary cards
-  const gridExp = lvs[2] || 0;
-  const { cols, rows } = gridDims(gridExp);
-  const tiles = totalTiles(gridExp);
-  const mines = minesOnFloor(floor, _mineReduction());
-  const lives = maxHPYou(lvs);
-  const svarHP = saveData.serverVarMineHP || 1;
-  const svarCost = saveData.serverVarMineCost || 1;
-  const hp = floorHP(floor, svarHP);
-  const tries = dailyTries(0);
-
-  // Grid / sailing / RoG helpers used by both damage and currency
-  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
-  const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
-  const sail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
-  const uniqueSushi = saveData.cachedUniqueSushi || 0;
-  const gb167 = _gb(167);
-  const base = baseDMG(lvs, gb167, sail38);
-  const gb129 = _gb(129);
-  const gb148 = _gb(148);
-  const gb147 = _gb(147);
-  const gb166 = _gb(166);
-  const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
-  const mhSrc = computeMineheadCurrSources();
-  const rogB12 = rogBonusQTY(12, uniqueSushi);
-  const cph = currencyPerHour({
-    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
-    comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
-    mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
-    rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
-    upgLevels: lvs, highestDmg,
-  });
-  const rLv = saveData.researchLevel || 0;
-  let nextUpgReq = Infinity;
-  for (let i = 0; i < MINEHEAD_UPG.length; i++) {
-    const req = upgLvReq(i);
-    if (req > rLv && req < nextUpgReq) nextUpgReq = req;
-  }
-
-  container.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:20px;">
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Current Boss</div><div style="font-size:1.4em;font-weight:700;color:var(--gold);">${(MINEHEAD_NAMES[floor] || 'Boss ' + floor).replace(/_/g, ' ')}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Mine Currency</div><div style="font-size:1.4em;font-weight:700;color:var(--cyan);">${_fmt(mineCurrency)}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Grid</div><div style="font-size:1.4em;font-weight:700;">${cols}x${rows} <span style="color:var(--text2);font-size:.6em;">(${tiles} tiles)</span></div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Lives</div><div style="font-size:1.4em;font-weight:700;color:var(--green);">${lives}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Base Damage</div><div style="font-size:1.4em;font-weight:700;">${_fmt(base)}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Boss HP</div><div style="font-size:1.4em;font-weight:700;color:var(--accent);">${Math.round(hp).toLocaleString()}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Depth Charges</div><div style="font-size:1.4em;font-weight:700;">${mines}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Daily Tries</div><div style="font-size:1.4em;font-weight:700;">${tries}</div></div>
-      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Currency/hr</div><div style="font-size:1.4em;font-weight:700;color:var(--cyan);">${_fmt(cph)}</div></div>
-      <div class="opt-card">
-        <div style="color:var(--text2);font-size:.8em;">A_MineCost (server var)</div>
-        <input id="mh-svar-cost" type="number" step="0.01" min="1" value="${svarCost}" style="width:80px;background:var(--bg3);border:1px solid #444;border-radius:4px;color:var(--text);padding:2px 6px;font-size:1.1em;font-weight:700;"/>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
-      <label style="font-size:.8em;color:var(--text2);cursor:pointer;user-select:none;">
-        <input type="checkbox" id="mh-spoiler" ${_showSpoilerMH ? 'checked' : ''} style="margin-right:4px;cursor:pointer;" />Show all (spoilers)
-      </label>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
-    <div>
-    <h3 style="color:var(--cyan);margin-bottom:10px;">Upgrades</h3>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:.8em;">
-        <thead>
-          <tr style="text-align:left;color:var(--text2);border-bottom:1px solid #333;">
-            <th style="padding:4px 6px;">Name</th>
-            <th style="padding:4px 6px;">Lv</th>
-            <th style="padding:4px 6px;">Description</th>
-            <th style="padding:4px 6px;">Cost</th>
-            <th style="padding:4px 6px;">Req</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${MINEHEAD_UPG.map((u, i) => {
-            const lv = lvs[i] || 0;
-            const qty = upgradeQTY(i, lv);
-            const cost = lv < u.maxLv || u.maxLv > 998 ? upgCost(i, lv, upgradeQTY(26, lvs[26] || 0), svarCost) : '--';
-            const reqLv = upgLvReq(i);
-            const maxed = u.maxLv <= 998 && lv >= u.maxLv;
-            const infinite = u.maxLv > 998;
-            const locked = (saveData.researchLevel || 0) < reqLv;
-            const hidden = locked && reqLv > nextUpgReq;
-            const lvStr = maxed ? `${lv}/${u.maxLv} MAX` : infinite ? `${lv}` : `${lv}/${u.maxLv}`;
-            const desc = _fmtUpgDesc(i, lv, qty, lvs, highestDmg);
-            const rowBg = maxed ? 'background:rgba(255,215,0,.08);' : locked ? 'opacity:.45;' : '';
-            const lvColor = maxed ? 'var(--gold)' : locked ? 'var(--text2)' : 'var(--green)';
-            const reqColor = locked ? 'var(--accent)' : 'var(--green)';
-            if (hidden && !_showSpoilerMH) return `<tr style="border-bottom:1px solid #222;opacity:.3;">
-              <td style="padding:3px 6px;font-weight:600;">???</td>
-              <td style="padding:3px 6px;">--</td>
-              <td style="padding:3px 6px;color:var(--text2);font-size:.9em;">???</td>
-              <td style="padding:3px 6px;">--</td>
-              <td style="padding:3px 6px;color:var(--accent);text-align:center;">${reqLv}</td>
-            </tr>`;
-            return `<tr style="border-bottom:1px solid #222;${rowBg}">
-              <td style="padding:3px 6px;font-weight:600;white-space:nowrap;">${u.name.replace(/_/g, ' ')}</td>
-              <td style="padding:3px 6px;color:${lvColor};white-space:nowrap;">${lvStr}</td>
-              <td style="padding:3px 6px;color:var(--text2);font-size:.9em;">${desc}</td>
-              <td style="padding:3px 6px;color:var(--text2);white-space:nowrap;">${typeof cost === 'number' ? _fmt(cost) : cost}</td>
-              <td style="padding:3px 6px;color:${reqColor};text-align:center;">${reqLv}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-    </div>
-    <div>
-    <h3 style="color:var(--gold);margin-bottom:10px;">Boss Rewards</h3>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-      ${FLOOR_REWARD_QTY.slice(0, 23).map((q, i) => {
-        const unlocked = floor > i;
-        const isNext = i === floor;
-        const hidden = i > floor;
-        const rDesc = FLOOR_REWARD_DESC[i]
-          .replace(/\{/g, String(q))
-          .replace(/\}/g, (1 + q / 100).toFixed(2));
-        if (hidden && !_showSpoilerMH) return `<div class="opt-card" style="padding:5px 8px;opacity:.25;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:700;font-size:.85em;color:var(--text2)">???</span>
-            <span style="color:var(--text2);">--</span>
-          </div>
-          <div style="color:var(--text2);font-size:.78em;margin-top:2px;">???</div>
-        </div>`;
-        return `<div class="opt-card" style="padding:5px 8px;${unlocked ? '' : 'opacity:.4;'}">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:700;font-size:.85em;color:${unlocked ? 'var(--green)' : 'var(--text2)'}">${(MINEHEAD_NAMES[i] || 'Boss ' + (i + 1)).replace(/_/g, ' ')}</span>
-            <span style="color:${unlocked ? 'var(--green)' : 'var(--text2)'};">${unlocked ? 'Yes' : '--'}</span>
-          </div>
-          <div style="color:var(--text2);font-size:.78em;margin-top:2px;">${rDesc}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    </div>
-    </div>
-  `;
-
-  document.getElementById('mh-svar-cost').addEventListener('change', (e) => {
-    const v = Math.max(1, parseFloat(e.target.value) || 1);
-    e.target.value = v;
-    saveData.serverVarMineCost = v;
-    _renderDashboard();
-  });
-
-  document.getElementById('mh-spoiler').addEventListener('change', (e) => {
-    _showSpoilerMH = e.target.checked;
-    _renderDashboard();
-  });
-}
-
-// ===== CURRENCY BREAKDOWN SUBTAB =====
-
-function _renderCurrencyTab() {
-  const container = document.getElementById('mh-currency');
-  if (!container) return;
-
-  const lvs = saveData.mineheadUpgLevels || [];
-  const floor = saveData.stateR7?.[4] || 0;
-  const highestDmg = saveData.stateR7?.[6] || 0;
-
-  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
-  const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
-  const gb129 = _gb(129);
-  const gb148 = _gb(148);
-  const gb147 = _gb(147);
-  const gb166 = _gb(166);
-  const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
-  const uniqueSushi = saveData.cachedUniqueSushi || 0;
-  const rogB12 = rogBonusQTY(12, uniqueSushi);
-  const mhSrc = computeMineheadCurrSources();
-  const cph = currencyPerHour({
-    gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
-    comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
-    mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
-    rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
-    upgLevels: lvs, highestDmg,
-  });
-
-  container.innerHTML = `
-    <h3 style="color:var(--cyan);margin-bottom:12px;">Mine Currency/hr Breakdown</h3>
-    <p style="color:var(--text2);font-size:.85em;margin-bottom:12px;">Total: <span style="color:var(--green);font-weight:700;">${_fmt(cph)}/hr</span></p>
-    <div id="mh-curr-tree" style="max-width:600px;"></div>
-  `;
-
-  const treeEl = document.getElementById('mh-curr-tree');
-  if (treeEl) {
-    const tree = _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12);
-    renderBreakdownTree(tree, treeEl);
-  }
-}
-
-function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12 = 0) {
-  const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
-  const upg5 = upgradeQTY(5, lvs[5]);
-  const upg22 = upgradeQTY(22, lvs[22]);
-  const upg28raw = upgradeQTY(28, lvs[28]);
-  const upg28 = upg28raw * logDmg;
-  const upgAddSum = upg5 + upg22 + upg28 + mhSrc.arcade62;
-  const comp143mult = Math.max(1, Math.min(2, mhSrc.comp143));
-  const bqMult = Math.min(3, 1 + bqty6 / 100);
-  const atomMult = 1 + mhSrc.atom13 / 100;
-
-  // Grid 129 (base) — flat value, not a percentage; build manually
-  const info129 = RES_GRID_RAW[129];
-  const lv129 = saveData.gridLevels[129] || 0;
-  const bpLv129 = info129[2];
-  const base129 = bpLv129 * lv129;
-  const si129 = saveData.shapeOverlay[129];
-  const hasShape129 = si129 >= 0 && si129 < SHAPE_BONUS_PCT.length;
-  const shapeMult129 = 1 + (hasShape129 ? SHAPE_BONUS_PCT[si129] : 0) / 100;
-  const gb129node = _bNode('Grid ' + gridCoord(129) + ': ' + info129[0].replace(/_/g, ' '), gb129, [
-    _bNode('Base', base129, [
-      _bNode('Base per Lv', bpLv129, null, { note: info129[0].replace(/_/g, ' ') }),
-      _bNode('Level', lv129, null, { fmt: 'x' }),
-    ]),
-    _bNode('Shape' + (hasShape129 ? ' (' + SHAPE_NAMES[si129] + ')' : ''), shapeMult129, null, { fmt: 'x', note: hasShape129 ? '' : 'No shape' }),
-    _bNode('All Bonus Multi', saveData.allBonusMulti, null, { fmt: 'x' }),
-  ], { fmt: '/hr' });
-
-  // Grid 148 — percentage multiplier; use _gbNode for full decomposition
-  const gb148node = _gbNodeS(saveData, 148, 'Grid ' + gridCoord(148) + ': ' + RES_GRID_RAW[148][0].replace(/_/g, ' '));
-  gb148node.val = 1 + gb148 / 100;
-  gb148node.fmt = 'x';
-  if (gb148node.children?.[0]) gb148node.children[0].label = 'Base';
-
-  // Upgrade & Arcade additive group
-  const upgChildren = [];
-  upgChildren.push(_bNode('Miney Farmey I', upg5, null, { fmt: '%', note: `Upg 5, Lv ${lvs[5] || 0}` }));
-  upgChildren.push(_bNode('Miney Farmey II', upg22, null, { fmt: '%', note: `Upg 22, Lv ${lvs[22] || 0}` }));
-  upgChildren.push(_bNode('Miney Damagey Synergy', upg28, [
-    _bNode('Base per Lv', upg28raw, null, { fmt: '%', note: `Upg 28, Lv ${lvs[28] || 0}` }),
-    _bNode('log\u2081\u2080(Highest Dmg)', logDmg, null, { fmt: 'x', note: `Highest Dmg = ${_fmt(highestDmg)}` }),
-  ], { fmt: '%' }));
-  upgChildren.push(_bNode('Arcade: Minehead Currency', mhSrc.arcade62, null, {
-    fmt: '%', note: `Arcade 62, Lv ${mhSrc.arcade62lv}, decay(25, 100)`,
-  }));
-  const upgNode = _bNode('Upgrade & Arcade Bonus', 1 + upgAddSum / 100, upgChildren, { fmt: 'x' });
-
-  // Atom
-  const atomNode = _bNode('Atom: Silicon', atomMult, null, {
-    fmt: 'x', note: `Atom 13, Lv ${mhSrc.atom13}`,
-  });
-
-  // Grid 147 + Meal additive group
-  const gb147node = _gbNodeS(saveData, 147, 'Grid ' + gridCoord(147) + ': ' + RES_GRID_RAW[147][0].replace(/_/g, ' '));
-  gb147node.fmt = '%';
-  if (gb147node.children?.[0]) gb147node.children[0].label = 'Base';
-
-  const mealChildren = mhSrc.mealLv > 0 ? [
-    _bNode('Meal Value', 0.02 * mhSrc.mealLv, [
-      _bNode('Base', 0.02, null, { fmt: '%' }),
-      _bNode('Levels', mhSrc.mealLv, null, { fmt: 'x' }),
-    ], { fmt: '%' }),
-    _bNode('Ribbon (T' + mhSrc.mealRibT + ')', mhSrc.mealRibBon, null, { fmt: 'x' }),
-    _bNode('Meal Multi', mhSrc.mealCookMulti, [
-      _bNode('Cooking Multi', (1 + (mhSrc.mealMfb116 + mhSrc.mealShinyS20) / 100), [
-        _bNode('Black Diamond Rhinestone', mhSrc.mealMfb116, null, { fmt: '%' }),
-        _bNode('Shiny: Meal Bonus', mhSrc.mealShinyS20, null, { fmt: '%' }),
-      ], { fmt: 'x' }),
-      _bNode('Summoning Win Bonus', 1 + mhSrc.mealWinBon26 / 100, null, { fmt: 'x' }),
-    ], { fmt: 'x' }),
-  ] : null;
-  const mealNode = _bNode('Meal: 2nd Wedding Cake', mhSrc.mealMineCurr, mealChildren, {
-    fmt: '%', note: mhSrc.mealLv > 0 ? '' : 'Meal 73 not leveled',
-  });
-
-  const gb166node = _gbNodeS(saveData, 166, 'Grid ' + gridCoord(166) + ': ' + RES_GRID_RAW[166][0].replace(/_/g, ' '));
-  gb166node.fmt = '%';
-  if (gb166node.children?.[0]) gb166node.children[0].label = 'Base';
-
-  const passiveSum = gb147 + gb166 + mhSrc.mealMineCurr;
-  const passiveNode = _bNode('Grid & Meal Bonus', 1 + passiveSum / 100, [
-    gb147node, gb166node, mealNode,
-  ], { fmt: 'x' });
-
-  const comp143node = _bNode('Boomy Mine (Companion)', comp143mult, null, {
-    fmt: 'x', note: mhSrc.comp143 > 0 ? 'w7b2 owned \u2192 2\u00d7 Minehead Currency' : 'Not owned',
-  });
-
-  const bossNode = _bNode('Boss Reward: ' + (MINEHEAD_NAMES[6] || 'Floor 7').replace(/_/g, ' '), bqMult, null, {
-    fmt: 'x', note: bqty6 > 0 ? `+${bqty6}%, capped at \u00d73.00` : 'Floor 7 not reached',
-  });
-
-  const rogMult = 1 + rogB12 / 100;
-  const rogNode = _bNode('RoG #12: Minehead Currency', rogMult, null, {
-    fmt: 'x', note: rogB12 > 0 ? `+${rogB12}% (50% when unlocked)` : 'Not unlocked',
-  });
-
-  var bb1 = computeButtonBonus(1, saveData);
-  var buttonNode = _bNode('Button Bonus', 1 + bb1 / 100, null, { fmt: 'x' });
-
-  return _bNode('Mine Currency/hr', cph, [
-    gb129node, gb148node, rogNode, comp143node, bossNode,
-    upgNode, buttonNode, atomNode, passiveNode,
-  ], { fmt: '/hr' });
+  else if (_activeSubtab === 'mh-currency') renderCurrencyTab();
+  else if (_activeSubtab === 'mh-play') renderPlayfield();
 }
 
 // ===== OPTIMIZE STRATEGY SUBTAB =====
@@ -446,7 +82,7 @@ function _renderOptimize() {
   const floor = saveData.stateR7?.[4] || 0;
   const svarHP = saveData.serverVarMineHP || 1;
   const hp = floorHP(floor, svarHP);
-  const mines = minesOnFloor(floor, _mineReduction());
+  const mines = minesOnFloor(floor, mineReduction());
 
   container.innerHTML = `
     <div style="margin-bottom:16px;">
@@ -490,20 +126,20 @@ function _renderOptimize() {
 function _showInferredCard(floor, upgLevels, svarHP) {
   const resultsEl = document.getElementById('mh-opt-results');
   if (!resultsEl) return;
-  const infP = _getInferredParams();
+  const infP = getInferredParams();
   if (!infP) return;
 
   const infR = evaluateTunableParams({
     params: infP, floor, upgLevels, nTrials: 2000,
-    seed: 42 + floor, svarHP, mineReduction: _mineReduction(),
+    seed: 42 + floor, svarHP, mineReduction: mineReduction(),
   });
-  const profile = _inferResult?.profile || '';
-  const agreement = _inferResult?.agreement ? (_inferResult.agreement * 100).toFixed(1) + '% match' : '';
+  const profile = mhState.inferResult?.profile || '';
+  const agreement = mhState.inferResult?.agreement ? (mhState.inferResult.agreement * 100).toFixed(1) + '% match' : '';
 
   let html = `<div style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--cyan);border-radius:8px;">`;
   html += `<h4 style="color:var(--cyan);margin:0 0 8px;">Your Strategy</h4>`;
   if (profile) html += `<div style="font-size:.85em;color:var(--purple);font-weight:600;margin-bottom:4px;">${profile}</div>`;
-  if (agreement) html += `<div style="font-size:.78em;color:var(--text2);margin-bottom:8px;">${agreement} · ${_inferResult?.totalDecisions || 0} decisions</div>`;
+  if (agreement) html += `<div style="font-size:.78em;color:var(--text2);margin-bottom:8px;">${agreement} Â· ${mhState.inferResult?.totalDecisions || 0} decisions</div>`;
 
   // Stats row
   html += `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.9em;margin-bottom:8px;">`;
@@ -534,7 +170,7 @@ function _showInferredCard(floor, upgLevels, svarHP) {
   html += `<summary style="cursor:pointer;color:var(--cyan);">Your Knobs</summary>`;
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">`;
   html += _paramBadge('EV Mul', infP.evMultiplier, infP.evMultiplier < 1 ? 'Aggressive' : infP.evMultiplier > 1 ? 'Conservative' : 'Neutral', '');
-  html += _paramBadge('Min Rev', infP.minReveal, infP.minReveal === 0 ? 'No min' : `≥${infP.minReveal}`, '');
+  html += _paramBadge('Min Rev', infP.minReveal, infP.minReveal === 0 ? 'No min' : `â‰¥${infP.minReveal}`, '');
   html += _paramBadge('Mine Cap', (infP.mineCapPct * 100).toFixed(0) + '%', infP.mineCapPct < 1 ? 'Safety net' : 'No cap', '');
   html += _paramBadge('Goldens', infP.goldenMinePct < 1 ? (infP.goldenMinePct * 100).toFixed(0) + '%' : 'Last', '', '');
   html += _paramBadge('Blocks', infP.blockAggro ? 'Aggro' : 'Safe', '', '');
@@ -569,7 +205,7 @@ function _renderRankTab() {
         <button class="btn" id="mh-rank-btn" style="background:linear-gradient(135deg,#1a6b3c,#0d4d2b);">Rank Upgrades (+1 each)</button>
         <select id="mh-rank-strat" style="background:var(--bg3);color:var(--text);border:1px solid var(--bg3);border-radius:4px;padding:4px 8px;font-size:.85em;">
           <option value="optimized">Optimized Strategy</option>
-          <option value="yours" ${!_getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
+          <option value="yours" ${!getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
         </select>
         <button class="btn" id="mh-rank-cancel" style="background:var(--bg3);display:none;">Cancel</button>
         <span id="mh-rank-status" style="color:var(--text2);font-size:.85em;"></span>
@@ -612,7 +248,7 @@ function _renderPathTab() {
         <button class="btn" id="mh-path-btn" style="background:linear-gradient(135deg,#1a3c6b,#0d2b4d);">Find Upgrade Path</button>
         <select id="mh-path-strat" style="background:var(--bg3);color:var(--text);border:1px solid var(--bg3);border-radius:4px;padding:4px 8px;font-size:.85em;">
           <option value="optimized">Optimized Strategy</option>
-          <option value="yours" ${!_getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
+          <option value="yours" ${!getInferredParams() ? 'disabled title="Play 3+ games in Play tab first"' : ''}>Your Strategy</option>
         </select>
         <button class="btn" id="mh-path-cancel" style="background:var(--bg3);display:none;">Cancel</button>
         <span id="mh-path-status" style="color:var(--text2);font-size:.85em;"></span>
@@ -698,15 +334,15 @@ const _KNOB_DEFS = [
     min: 0, max: 0.6, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
   { key: 'hotStreak',     label: 'Hot Streak',      tip: 'Reduce EV threshold after 3+ safe reveals this turn. Momentum-based risk.',
     min: 0, max: 0.5, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
-  { key: 'blockHoard',    label: 'Block Hoard',     tip: 'Inflate EV threshold when blocks ≤ 1. More cautious when armor is low.',
+  { key: 'blockHoard',    label: 'Block Hoard',     tip: 'Inflate EV threshold when blocks â‰¤ 1. More cautious when armor is low.',
     min: 0, max: 0.6, step: 0.1, fmt: v => v > 0 ? (v * 100).toFixed(0) + '%' : 'Off', defaults: [0, 0] },
   // --- Spatial Knobs ---
   { key: 'cornerBias',    label: 'Corner Bias',     tip: 'Weight multiplier for corner tiles. >1 = prefer clicking corners. 1 = random.',
-    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
+    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + 'Ã—', defaults: [1, 1] },
   { key: 'edgeBias',      label: 'Edge Bias',       tip: 'Weight multiplier for edge tiles. >1 = prefer clicking edges. 1 = random.',
-    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
+    min: 0.5, max: 3.0, step: 0.5, fmt: v => v.toFixed(1) + 'Ã—', defaults: [1, 1] },
   { key: 'clusterBias',   label: 'Cluster Bias',    tip: 'Weight multiplier for tiles adjacent to known safe tiles. >1 = cluster near safe. 1 = random.',
-    min: 0.5, max: 4.0, step: 0.5, fmt: v => v.toFixed(1) + '×', defaults: [1, 1] },
+    min: 0.5, max: 4.0, step: 0.5, fmt: v => v.toFixed(1) + 'Ã—', defaults: [1, 1] },
 ];
 
 function _buildKnobSliders() {
@@ -1019,11 +655,11 @@ function _showOptResults(cache) {
   html += _paramBadge('Life Aggro', bp.lifeAggro,
     bp.lifeAggro < 1 ? 'Riskier with spare lives' : 'No change',
     'Multiplier on the EV threshold when you have spare lives. <1 = take more risks when you can afford to lose a life.');
-  html += _paramBadge('T1 EV Mul', bp.turn1EvMul || '—',
+  html += _paramBadge('T1 EV Mul', bp.turn1EvMul || 'â€”',
     bp.turn1EvMul > 0 ? `Turn 1 EV = ${bp.turn1EvMul}` : 'Same as EV Mul',
     'Separate EV multiplier for turn 1 only (no damage invested yet). Lower = more aggressive on the opening turn since you have nothing to lose.');
-  html += _paramBadge('Crown Chase', bp.crownChase || '—',
-    bp.crownChase > 0 ? `−${(bp.crownChase * 100).toFixed(0)}% EV at 2/3 crowns` : 'Off',
+  html += _paramBadge('Crown Chase', bp.crownChase || 'â€”',
+    bp.crownChase > 0 ? `âˆ’${(bp.crownChase * 100).toFixed(0)}% EV at 2/3 crowns` : 'Off',
     'When you have 2 of 3 blue crowns matched, reduce the EV threshold by this %. Encourages revealing one more tile to chase the big crown multiplier.');
   html += _paramBadge('Insta Mode',
     bp.instaMode > 0 ? (bp.instaMode * 100).toFixed(0) + '%' : 'Always',
@@ -1043,17 +679,17 @@ function _showOptResults(cache) {
   html += `<th style="padding:4px 6px;">T1 Dmg</th>`;
   html += `<th style="padding:4px 6px;">Turns</th>`;
   html += `<th style="padding:4px 6px;">Dmg/Cmt</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="EV Multiplier — how picky the strategy is about revealing vs attacking. >1 = conservative, <1 = aggressive.">EV Mul</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Minimum Reveals — must reveal at least this many safe tiles before attacking.">Min Rev</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Mine Cap — stop revealing if remaining tiles are this % mines.">Cap</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Goldens — when to use golden tiles. 'Last' = save for end. A % = use when mine density reaches that level.">Goldens</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="HP Threshold — attack when damage reaches this % of remaining boss HP.">HP Thr</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Block Aggro — 'Aggro' = factor blocks into EV (mine hit loses block, not life). 'Safe' = ignore blocks.">Blocks</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Commit Min — minimum damage as % of remaining HP before bothering to attack.">Cmt Min</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Life Aggro — EV multiplier when you have spare lives. &lt;1 = take more risks with extra lives.">Life Agg</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Turn 1 EV — separate EV multiplier for the first turn (no invested damage yet).">T1 EV</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Crown Chase — reduce EV threshold by this factor when 2/3 blue crowns are matched.">Crown</th>`;
-  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Insta Mode — mine% threshold for using insta-reveals. '—' = always use.">Insta</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="EV Multiplier â€” how picky the strategy is about revealing vs attacking. >1 = conservative, <1 = aggressive.">EV Mul</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Minimum Reveals â€” must reveal at least this many safe tiles before attacking.">Min Rev</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Mine Cap â€” stop revealing if remaining tiles are this % mines.">Cap</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Goldens â€” when to use golden tiles. 'Last' = save for end. A % = use when mine density reaches that level.">Goldens</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="HP Threshold â€” attack when damage reaches this % of remaining boss HP.">HP Thr</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Block Aggro â€” 'Aggro' = factor blocks into EV (mine hit loses block, not life). 'Safe' = ignore blocks.">Blocks</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Commit Min â€” minimum damage as % of remaining HP before bothering to attack.">Cmt Min</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Life Aggro â€” EV multiplier when you have spare lives. &lt;1 = take more risks with extra lives.">Life Agg</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Turn 1 EV â€” separate EV multiplier for the first turn (no invested damage yet).">T1 EV</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Crown Chase â€” reduce EV threshold by this factor when 2/3 blue crowns are matched.">Crown</th>`;
+  html += `<th style="padding:4px 6px;color:var(--purple);cursor:help;" data-tip="Insta Mode â€” mine% threshold for using insta-reveals. 'â€”' = always use.">Insta</th>`;
   html += `</tr></thead><tbody>`;
   for (let i = 0; i < topResults.length; i++) {
     const { params: p, result: r } = topResults[i];
@@ -1070,18 +706,18 @@ function _showOptResults(cache) {
     html += `<td style="padding:4px 6px;">${p.minReveal}</td>`;
     html += `<td style="padding:4px 6px;">${(p.mineCapPct * 100).toFixed(0)}%</td>`;
     html += `<td style="padding:4px 6px;">${p.goldenMinePct < 1 ? (p.goldenMinePct * 100).toFixed(0) + '%' : 'Last'}</td>`;
-    html += `<td style="padding:4px 6px;">${p.hpThreshold > 0 ? (p.hpThreshold * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${p.hpThreshold > 0 ? (p.hpThreshold * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `<td style="padding:4px 6px;">${p.blockAggro ? 'Aggro' : 'Safe'}</td>`;
-    html += `<td style="padding:4px 6px;">${p.commitMin ? (p.commitMin * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${p.commitMin ? (p.commitMin * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `<td style="padding:4px 6px;">${p.lifeAggro ?? 1}</td>`;
-    html += `<td style="padding:4px 6px;">${p.turn1EvMul || '—'}</td>`;
-    html += `<td style="padding:4px 6px;">${p.crownChase || '—'}</td>`;
-    html += `<td style="padding:4px 6px;">${p.instaMode > 0 ? (p.instaMode * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${p.turn1EvMul || 'â€”'}</td>`;
+    html += `<td style="padding:4px 6px;">${p.crownChase || 'â€”'}</td>`;
+    html += `<td style="padding:4px 6px;">${p.instaMode > 0 ? (p.instaMode * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `</tr>`;
   }
 
   // "Your Strategy" comparison row
-  const _infP = _getInferredParams();
+  const _infP = getInferredParams();
   let _infR = null;
   const _infLvs = cache.upgLevels || saveData.mineheadUpgLevels;
   const _infSvar = cache.svarHP || saveData.serverVarMineHP || 1;
@@ -1090,10 +726,10 @@ function _showOptResults(cache) {
       params: _infP, floor: cache.floor,
       upgLevels: _infLvs, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _infSvar,
-      mineReduction: _mineReduction(),
+      mineReduction: mineReduction(),
     });
     const ip = _infP, ir = _infR;
-    const profile = _inferResult?.profile || '';
+    const profile = mhState.inferResult?.profile || '';
     html += `<tr style="background:rgba(100,180,255,.15);border-top:2px solid var(--cyan);font-weight:600;">`;
     html += `<td style="padding:4px 6px;color:var(--cyan);font-size:.85em;" data-tip="${profile || 'Your inferred strategy from the Play tab'}">You</td>`;
     html += `<td style="padding:4px 6px;color:${ir.winRate > 0.8 ? 'var(--green)' : ir.winRate > 0.4 ? 'var(--gold)' : 'var(--accent)'};">${(ir.winRate * 100).toFixed(1)}%</td>`;
@@ -1105,13 +741,13 @@ function _showOptResults(cache) {
     html += `<td style="padding:4px 6px;">${ip.minReveal}</td>`;
     html += `<td style="padding:4px 6px;">${(ip.mineCapPct * 100).toFixed(0)}%</td>`;
     html += `<td style="padding:4px 6px;">${ip.goldenMinePct < 1 ? (ip.goldenMinePct * 100).toFixed(0) + '%' : 'Last'}</td>`;
-    html += `<td style="padding:4px 6px;">${ip.hpThreshold > 0 ? (ip.hpThreshold * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.hpThreshold > 0 ? (ip.hpThreshold * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `<td style="padding:4px 6px;">${ip.blockAggro ? 'Aggro' : 'Safe'}</td>`;
-    html += `<td style="padding:4px 6px;">${ip.commitMin ? (ip.commitMin * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.commitMin ? (ip.commitMin * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `<td style="padding:4px 6px;">${ip.lifeAggro ?? 1}</td>`;
-    html += `<td style="padding:4px 6px;">${ip.turn1EvMul || '—'}</td>`;
-    html += `<td style="padding:4px 6px;">${ip.crownChase || '—'}</td>`;
-    html += `<td style="padding:4px 6px;">${ip.instaMode > 0 ? (ip.instaMode * 100).toFixed(0) + '%' : '—'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.turn1EvMul || 'â€”'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.crownChase || 'â€”'}</td>`;
+    html += `<td style="padding:4px 6px;">${ip.instaMode > 0 ? (ip.instaMode * 100).toFixed(0) + '%' : 'â€”'}</td>`;
     html += `</tr>`;
   }
 
@@ -1128,7 +764,7 @@ function _showOptResults(cache) {
     html += `Win <b style="color:${wColor};">${winDelta >= 0 ? '+' : ''}${winDelta.toFixed(1)}%</b> &nbsp; `;
     html += `Avg Dmg <b style="color:${dColor};">${dmgDelta >= 0 ? '+' : ''}${dmgDelta.toFixed(1)}%</b> `;
     html += `(${_fmt(_infR.avgDmg)} vs ${_fmt(br.avgDmg)})`;
-    if (_inferResult?.profile) html += ` &nbsp; <span style="color:var(--text2);font-size:.85em;">${_inferResult.profile}</span>`;
+    if (mhState.inferResult?.profile) html += ` &nbsp; <span style="color:var(--text2);font-size:.85em;">${mhState.inferResult.profile}</span>`;
     html += `</div>`;
   }
 
@@ -1193,7 +829,7 @@ function _runUpgradeRank(lvs, floor, svarHP) {
   const mineCurrency = saveData.stateR7?.[5] || 0;
   const qty26 = upgradeQTY(26, lvs[26] || 0);
   const stratEl = document.getElementById('mh-rank-strat');
-  const params = (stratEl?.value === 'yours' && _getInferredParams()) || _getParams(floor);
+  const params = (stratEl?.value === 'yours' && getInferredParams()) || _getParams(floor);
 
   const researchLv = saveData.researchLevel || 0;
   const affordable = [];
@@ -1261,7 +897,7 @@ function _runUpgradeRank(lvs, floor, svarHP) {
 }
 
 function _dispatchRankTask(worker, task, floor, params, nTrials, seed, svarHP) {
-  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
+  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction() });
 }
 
 function _onRankComplete(results, affordable, floor, nTrials, lvs) {
@@ -1308,13 +944,13 @@ function _showRankResults(cache) {
   html += `<p style="color:var(--text2);font-size:.82em;margin-bottom:6px;">Baseline: <b>${_fmt(b.avgDmg)}</b> avg dmg, <b>${(b.winRate * 100).toFixed(1)}%</b> win (${nTrials.toLocaleString()} trials)</p>`;
 
   // Comparison banner if user has an inferred strategy and this was run with optimized
-  const _rInfP = _getInferredParams();
+  const _rInfP = getInferredParams();
   if (_rInfP && cache.upgLevels) {
     const _rInfR = evaluateTunableParams({
       params: _rInfP, floor: cache.floor,
       upgLevels: cache.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: cache.svarHP || 1,
-      mineReduction: _mineReduction(),
+      mineReduction: mineReduction(),
     });
     const dmgDelta = b.avgDmg > 0 ? ((_rInfR.avgDmg - b.avgDmg) / b.avgDmg * 100) : 0;
     const winDelta = (_rInfR.winRate - b.winRate) * 100;
@@ -1395,7 +1031,7 @@ function _runUpgradePath(lvs, floor, svarHP) {
   statusEl.style.color = 'var(--gold)';
 
   const stratEl = document.getElementById('mh-path-strat');
-  const params = (stratEl?.value === 'yours' && _getInferredParams()) || _getParams(floor);
+  const params = (stratEl?.value === 'yours' && getInferredParams()) || _getParams(floor);
   const nTrials = 2000;
   const seed = 42 + floor;
   const maxSteps = 50;
@@ -1424,7 +1060,7 @@ function _runUpgradePath(lvs, floor, svarHP) {
     _runPathStep(currentLvs, path, baseline, 0, maxSteps, params, nTrials, seed, svarHP, floor, hp,
       researchLv, mineCurrency, workers, statusEl, barEl, pctEl, progressEl, cancelEl, btnEl);
   };
-  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
+  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP, mineReduction: mineReduction() });
 }
 
 function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, seed, svarHP, floor, hp,
@@ -1444,7 +1080,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
       if (btnEl) btnEl.disabled = false;
       _showPathResults(_pathCache);
     };
-    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP, mineReduction: _mineReduction() });
+    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP, mineReduction: mineReduction() });
     return;
   }
 
@@ -1516,7 +1152,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
   function dispatch(worker) {
     if (!_pathWorkers || taskIdx >= tasks.length) return;
     const task = tasks[taskIdx++];
-    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: _mineReduction() });
+    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction() });
   }
 
   for (const w of workers) {
@@ -1540,13 +1176,13 @@ function _showPathResults(cache) {
   html += `<p style="color:var(--text2);font-size:.82em;margin-bottom:6px;">Each step picks the single best +1 upgrade. Baseline: <b>${_fmt(baseline.avgDmg)}</b> avg dmg, <b>${(baseline.winRate * 100).toFixed(1)}%</b> win</p>`;
 
   // Comparison banner if user has an inferred strategy
-  const _pInfP = _getInferredParams();
+  const _pInfP = getInferredParams();
   if (_pInfP && _pathStartCtx) {
     const _pInfR = evaluateTunableParams({
       params: _pInfP, floor: cache.floor,
       upgLevels: _pathStartCtx.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _pathStartCtx.svarHP || 1,
-      mineReduction: _mineReduction(),
+      mineReduction: mineReduction(),
     });
     const dmgDelta = baseline.avgDmg > 0 ? ((_pInfR.avgDmg - baseline.avgDmg) / baseline.avgDmg * 100) : 0;
     const winDelta = (_pInfR.winRate - baseline.winRate) * 100;
@@ -1595,636 +1231,3 @@ function _showPathResults(cache) {
   el.innerHTML = html;
 }
 
-// ===== MEME GAMEPLAY SUBTAB =====
-
-function _renderPlayfield() {
-  const container = document.getElementById('mh-play');
-  if (!container) return;
-
-  const lvs = saveData.mineheadUpgLevels || [];
-  const floor = saveData.stateR7?.[4] || 0;
-  const svarHP = saveData.serverVarMineHP || 1;
-  const { cols, rows } = gridDims(lvs[2]);
-  const numTiles = cols * rows;
-  const mines = minesOnFloor(floor, _mineReduction());
-  const hp = floorHP(floor, svarHP);
-  const maxLives = maxHPYou(lvs);
-  const maxGoldens = goldTilesTotal(lvs);
-  const maxBlocks = blocksTotal(lvs);
-  const maxInstas = instaRevealsTotal(lvs);
-  const crownOdds = bluecrownOdds(lvs);
-  const jpTileCount = jackpotTiles(lvs);
-  const bossName = (MINEHEAD_NAMES[floor] || 'Boss ' + floor).replace(/_/g, ' ');
-
-  container.innerHTML = `
-    <div style="text-align:center;margin-bottom:12px;">
-      <h3 style="color:var(--accent);margin-bottom:4px;">Depth Charge — Floor ${floor}: ${bossName}</h3>
-      <div id="mh-p-hud" style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-size:.88em;margin:8px 0;"></div>
-      <div id="mh-p-dmg-bar" style="max-width:400px;margin:8px auto;"></div>
-      <div id="mh-p-turn-info" style="color:var(--text2);font-size:.82em;margin-bottom:6px;"></div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;">
-        <button class="btn" id="mh-p-attack" style="background:var(--accent);font-weight:700;">⚔ Attack</button>
-        <button class="btn" id="mh-p-insta" style="background:#1a6b1a;">⚡ Insta-Reveal</button>
-        <button class="btn" id="mh-p-new" style="background:var(--bg3);">New Game</button>
-      </div>
-    </div>
-    <div id="mh-p-grid" style="display:grid;grid-template-columns:repeat(${cols}, 48px);gap:3px;justify-content:center;"></div>
-    <div id="mh-p-log" style="max-width:500px;margin:12px auto 0;max-height:160px;overflow-y:auto;font-size:.78em;color:var(--text2);"></div>
-    <div id="mh-p-strategy" style="max-width:500px;margin:16px auto 0;">
-      <div style="display:flex;align-items:center;gap:10px;justify-content:center;">
-        <span id="mh-p-stats" style="font-size:.82em;color:var(--text2);">Games: 0 | Decisions: 0</span>
-        <button class="btn" id="mh-p-clear-data" style="background:var(--bg3);font-size:.78em;">Reset</button>
-      </div>
-      <div id="mh-p-profile" style="margin-top:8px;"></div>
-    </div>
-  `;
-
-  _initPlayGame(container, cols, rows, numTiles, mines, hp, maxLives, maxGoldens, maxBlocks, maxInstas, crownOdds, jpTileCount, lvs, svarHP);
-}
-
-function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives, maxGoldens, maxBlocks, maxInstas, crownOdds, jpTileCount, lvs, svarHP) {
-  const gridEl = document.getElementById('mh-p-grid');
-  const hudEl = document.getElementById('mh-p-hud');
-  const dmgBarEl = document.getElementById('mh-p-dmg-bar');
-  const turnInfoEl = document.getElementById('mh-p-turn-info');
-  const logEl = document.getElementById('mh-p-log');
-  const attackBtn = document.getElementById('mh-p-attack');
-  const instaBtn = document.getElementById('mh-p-insta');
-  const newBtn = document.getElementById('mh-p-new');
-
-  const _gbCtxPlay = { abm: saveData.allBonusMulti || 1 };
-  const _gbPlay = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtxPlay);
-  const gridBonus167 = _gbPlay(167);
-  const gridBonus146 = _gbPlay(146);
-  const wepPowDmgPCT = 0;
-  const playSail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
-
-  // Wiggle (G5 research: Minehead_Copium, grid 166)
-  const _gbCtx = { abm: saveData.allBonusMulti || 1 };
-  const _gb166_1 = saveData.gridLevels?.[166] || 0; // mode 1 = level
-  const maxWiggles = wiggleMaxPerGame(_gb166_1);
-
-  let _rng = _makeRng();
-  let lives, goldens, blocks, instas, totalDmg, turnsPlayed, totalCommits;
-  let grid, crowns, goldenPos, revealed, turnValues, crownProgress, crownSets;
-  let safeRevealed, gameOver, turnActive, minesFound, wigglesUsed, firstClickDone;
-  let _lastTurnMineHit = false;
-
-  function _makeRng() {
-    let s = (Date.now() ^ 0xDEADBEEF) | 0;
-    return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  }
-
-  const stratStatsEl = document.getElementById('mh-p-stats');
-  const clearDataBtn = document.getElementById('mh-p-clear-data');
-  const profileEl = document.getElementById('mh-p-profile');
-
-  function _collectDecision(choice, tileIdx) {
-    const estMinesLeft = Math.max(0, mines - minesFound);
-    const unrevealed = revealed.filter(r => !r).length;
-    const goldensOnGrid = goldenPos.filter(p => !revealed[p]).length;
-
-    // Spatial data (only for reveal/golden, not attack)
-    let spatial = null;
-    if (tileIdx != null) {
-      const r = Math.floor(tileIdx / cols), c = tileIdx % cols;
-      const isEdge = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
-      const isCorner = (r === 0 || r === rows - 1) && (c === 0 || c === cols - 1);
-      // Count adjacent revealed mines and safe tiles
-      let adjMines = 0, adjSafe = 0, adjUnrevealed = 0;
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue;
-          const nr = r + dr, nc = c + dc;
-          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-          const ni = nr * cols + nc;
-          if (revealed[ni]) {
-            if (grid[ni] === 0) adjMines++;
-            else adjSafe++;
-          } else adjUnrevealed++;
-        }
-      }
-      spatial = {
-        idx: tileIdx, r, c, cols, rows,
-        isCorner, isEdge: isEdge && !isCorner,
-        isCenter: !isEdge,
-        adjMines, adjSafe, adjUnrevealed,
-        clickOrder: safeRevealed, // 0-based: how many tiles already revealed this turn
-      };
-    }
-
-    _playDecisions.push({
-      safeRevealedThisTurn: safeRevealed,
-      minesTotal: mines,
-      minesRemaining: estMinesLeft,
-      unrevealedCount: unrevealed,
-      livesLeft: lives,
-      totalDmgSoFar: totalDmg,
-      bossHP,
-      turnsPlayed,
-      blocksLeft: blocks,
-      goldensOnGrid,
-      currentTurnDmg: _calcTurnDmg(),
-      remainingHP: bossHP - totalDmg,
-      perTilePct: bonusDMGperTilePCT(lvs, gridBonus146),
-      tileCount: turnValues.length,
-      crownProgress,
-      lastTurnMineHit: _lastTurnMineHit,
-      choice,
-      spatial,
-    });
-    _updateStrategyStats();
-  }
-
-  function _updateStrategyStats() {
-    const need = Math.max(0, 3 - _playGames);
-    if (need > 0) {
-      if (stratStatsEl) stratStatsEl.textContent = `Games: ${_playGames} | Decisions: ${_playDecisions.length} — play ${need} more game${need > 1 ? 's' : ''} to start learning`;
-    } else {
-      if (stratStatsEl) stratStatsEl.textContent = `Games: ${_playGames} | Decisions: ${_playDecisions.length} — auto-analyzing after each game`;
-    }
-  }
-
-  _updateStrategyStats();
-
-  function _log(msg, color) {
-    const d = document.createElement('div');
-    if (color) d.style.color = color;
-    d.textContent = msg;
-    logEl.prepend(d);
-  }
-
-  function _hudItem(label, val, color) {
-    return `<div><span style="color:var(--text2);">${label}:</span> <b style="color:${color};">${val}</b></div>`;
-  }
-
-  function _updateHud() {
-    let h = '';
-    h += _hudItem('Lives', '❤'.repeat(lives) + '🖤'.repeat(Math.max(0, maxLives - lives)), 'var(--accent)');
-    if (maxBlocks > 0) h += _hudItem('Blocks', blocks, 'var(--cyan)');
-    if (maxGoldens > 0) h += _hudItem('Goldens', goldens, 'var(--gold)');
-    if (maxInstas > 0) h += _hudItem('Instas', instas, '#4caf50');
-    if (maxWiggles > 0) h += _hudItem('Wiggles', `${maxWiggles - wigglesUsed}/${maxWiggles}`, '#ff9800');
-    h += _hudItem('Turn', turnsPlayed, 'var(--text)');
-    if (crownOdds > 0) h += _hudItem('Crowns', `${crownProgress}/3 (${crownSets} sets)`, 'var(--purple)');
-    hudEl.innerHTML = h;
-    instaBtn.style.display = maxInstas > 0 ? '' : 'none';
-
-    const pct = Math.min(100, totalDmg / bossHP * 100);
-    const turnDmg = _calcTurnDmg();
-    const turnPct = Math.min(100 - pct, turnDmg / bossHP * 100);
-    dmgBarEl.innerHTML = `<div style="background:var(--bg3);border-radius:4px;height:16px;overflow:hidden;position:relative;">
-      <div style="width:${pct}%;height:100%;background:var(--green);position:absolute;left:0;top:0;transition:width .3s;"></div>
-      <div style="width:${turnPct}%;height:100%;background:var(--gold);opacity:.6;position:absolute;left:${pct}%;top:0;transition:width .2s;"></div>
-      <div style="position:absolute;width:100%;text-align:center;font-size:.72em;line-height:16px;color:#fff;font-weight:600;">${_fmt(totalDmg)} / ${_fmt(bossHP)} ${turnDmg > 0 ? '(+' + _fmt(turnDmg) + ')' : ''}</div>
-    </div>`;
-
-    const estMinesLeft = Math.max(0, mines - minesFound);
-    const unrevealed = grid ? revealed.filter(r => !r).length : 0;
-    const mPct = unrevealed > 0 ? (estMinesLeft / unrevealed * 100).toFixed(0) : 0;
-    turnInfoEl.textContent = `Tiles: ${safeRevealed} revealed | Mines left: ~${estMinesLeft}/${unrevealed} (${mPct}%) | Turn dmg: ${_fmt(_calcTurnDmg())}`;
-
-    attackBtn.disabled = gameOver || !turnActive || safeRevealed === 0;
-    instaBtn.disabled = gameOver || !turnActive || instas <= 0;
-    attackBtn.style.opacity = attackBtn.disabled ? '.4' : '1';
-    if (maxInstas > 0) instaBtn.style.opacity = instaBtn.disabled ? '.4' : '1';
-  }
-
-  function _calcTurnDmg() {
-    if (turnValues.length === 0) return 0;
-    return currentOutgoingDMG(turnValues, crownSets, lives <= 1, lvs, gridBonus167, gridBonus146, wepPowDmgPCT, playSail38);
-  }
-
-  function _newGame() {
-    _rng = _makeRng();
-    lives = maxLives;
-    goldens = maxGoldens;
-    blocks = maxBlocks;
-    instas = maxInstas;
-    totalDmg = 0;
-    turnsPlayed = 0;
-    totalCommits = 0;
-    wigglesUsed = 0;
-    _lastTurnMineHit = false;
-    gameOver = false;
-    logEl.innerHTML = '';
-    _log('Game started! Click tiles to reveal them.', 'var(--green)');
-    _newTurn(true);
-  }
-
-  function _newTurn(skipDispose) {
-    const setup = () => {
-      turnsPlayed++;
-      const g = generateGrid(numTiles, mines, lvs, crownOdds, _rng);
-      grid = g.grid;
-      crowns = g.crowns;
-      goldenPos = _placeGoldens(grid, numTiles, goldens, maxGoldens, _rng);
-      // Rigged mode: every non-golden tile becomes a mine
-      if (PLAY_RIGGED) {
-        const goldSet = new Set(goldenPos);
-        for (let i = 0; i < numTiles; i++) { if (!goldSet.has(i)) grid[i] = 0; }
-      }
-      revealed = new Array(numTiles).fill(false);
-      turnValues = [];
-      minesFound = 0;
-      crownProgress = 0;
-      crownSets = 0;
-      safeRevealed = 0;
-      firstClickDone = false;
-      turnActive = true;
-      _log(`── Turn ${turnsPlayed} ──`, 'var(--purple)');
-      _renderGrid(true);
-      _updateHud();
-    };
-    if (skipDispose) { setup(); return; }
-    _disposeTiles().then(setup);
-  }
-
-  function _tileStyle(i) {
-    if (!revealed[i]) {
-      const isGolden = goldenPos.includes(i);
-      return isGolden
-        ? 'background:linear-gradient(135deg,#8b6914,#c9a227);border-color:#daa520;color:#fff;cursor:pointer;'
-        : 'background:var(--bg3);border-color:#444;color:var(--text2);cursor:pointer;';
-    }
-    const v = grid[i];
-    if (v === 0) return 'background:rgba(233,69,96,.25);border-color:var(--accent);color:var(--accent);cursor:default;';
-    if (v === 30) return 'background:rgba(255,215,0,.2);border-color:var(--gold);color:var(--gold);cursor:default;';
-    if (v >= 40) return 'background:rgba(0,188,212,.15);border-color:var(--cyan);color:var(--cyan);cursor:default;';
-    if (v >= 20) return 'background:rgba(156,39,176,.2);border-color:var(--purple);color:var(--purple);cursor:default;';
-    return 'background:rgba(76,175,80,.15);border-color:var(--green);color:var(--green);cursor:default;';
-  }
-
-  function _tileLabel(i) {
-    if (!revealed[i]) return goldenPos.includes(i) ? '★' : '?';
-    const v = grid[i];
-    if (v === 0) return '💣';
-    if (v === 30) return '🎰';
-    if (v >= 40) return '$' + (v - 39);
-    if (v >= 20) return '×' + TILE_MULTIPLIERS[v - 20];
-    return v;
-  }
-
-  function _disposeTiles() {
-    return new Promise(resolve => {
-      const tiles = gridEl.children;
-      if (!tiles.length) { resolve(); return; }
-      const indices = Array.from({length: tiles.length}, (_, i) => i);
-      // Shuffle order for staggered dispose
-      for (let j = indices.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [indices[j], indices[k]] = [indices[k], indices[j]]; }
-      const stagger = Math.min(30, 400 / tiles.length);
-      indices.forEach((idx, order) => {
-        const t = tiles[idx];
-        if (!t) return;
-        setTimeout(() => {
-          t.style.transition = 'transform .3s ease-in, opacity .3s ease-in';
-          t.style.transform = `scale(0.3) rotate(${(Math.random() - 0.5) * 40}deg)`;
-          t.style.opacity = '0';
-        }, order * stagger);
-      });
-      setTimeout(resolve, indices.length * stagger + 320);
-    });
-  }
-
-  function _renderGrid(animate) {
-    gridEl.innerHTML = '';
-    for (let i = 0; i < numTiles; i++) {
-      const tile = document.createElement('div');
-      const baseStyle = `width:48px;height:48px;border:2px solid;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.2em;font-weight:700;user-select:none;`;
-      if (animate) {
-        tile.style.cssText = baseStyle + `opacity:0;transform:scale(0) rotate(${(Math.random()-0.5)*30}deg);transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease-out;${_tileStyle(i)}`;
-      } else {
-        tile.style.cssText = baseStyle + `transition:all .15s;${_tileStyle(i)}`;
-      }
-      tile.textContent = _tileLabel(i);
-      if (crowns[i] && revealed[i] && grid[i] !== 0) {
-        tile.innerHTML = _tileLabel(i) + '<span style="position:absolute;top:-2px;right:1px;font-size:.55em;">👑</span>';
-        tile.style.position = 'relative';
-      }
-      if (!revealed[i] && turnActive && !gameOver) {
-        tile.addEventListener('mouseenter', () => { tile.style.transform = 'scale(1.08)'; });
-        tile.addEventListener('mouseleave', () => { tile.style.transform = ''; });
-        tile.addEventListener('click', () => _onTileClick(i));
-      }
-      gridEl.appendChild(tile);
-    }
-    if (animate) {
-      const stagger = Math.min(25, 350 / numTiles);
-      const shuffled = Array.from({length: numTiles}, (_, i) => i);
-      for (let j = shuffled.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]]; }
-      shuffled.forEach((idx, order) => {
-        const t = gridEl.children[idx];
-        if (!t) return;
-        setTimeout(() => { t.style.opacity = '1'; t.style.transform = 'scale(1) rotate(0deg)'; }, order * stagger + 30);
-      });
-    }
-  }
-
-  function _revealTile(i, isInsta) {
-    if (revealed[i]) return 'already';
-    revealed[i] = true;
-
-    if (crowns[i]) {
-      crownProgress++;
-      if (crownProgress >= 3) { crownProgress = 0; crownSets++; _log('👑 Crown 3-match! Sets: ' + crownSets, 'var(--purple)'); }
-    }
-    if (goldenPos.includes(i)) { goldens--; }
-
-    const v = grid[i];
-    if (v === 0) {
-      minesFound++;
-      if (isInsta) { _log('⚡ Insta-reveal found a mine safely!', '#4caf50'); return 'mine-insta'; }
-      // Wiggle: first click of turn, chance to dodge
-      if (!firstClickDone && wigglesUsed < maxWiggles && _rng() < WIGGLE_CHANCE) {
-        wigglesUsed++;
-        _log('Wiggle! Mine dodged! (' + (maxWiggles - wigglesUsed) + ' left)', '#ff9800');
-        return 'mine-wiggle';
-      }
-      if (blocks > 0) { blocks--; _log('🛡 Block absorbed a mine hit!', 'var(--cyan)'); return 'mine-blocked'; }
-      lives--;
-      if (lives === 1 && upgradeQTY(19, lvs[19]) >= 1) { blocks = 1; _log('💀 Revival! Gained 1 block.', 'var(--gold)'); }
-      _log('💣 MINE HIT! Lives: ' + lives, 'var(--accent)');
-      return 'mine-hit';
-    }
-    if (v === 30) {
-      _log('🎰 JACKPOT! Cascade-revealing tiles...', 'var(--gold)');
-      let jpLeft = jpTileCount;
-      for (let attempt = 0; attempt < 1000 && jpLeft > 0; attempt++) {
-        const jPos = Math.floor(_rng() * numTiles);
-        if (grid[jPos] !== 0 && !revealed[jPos]) { _revealTile(jPos, false); jpLeft--; }
-      }
-      return 'jackpot';
-    }
-    if (v >= 1 && v <= 29) { turnValues.push(v); safeRevealed++; }
-    else if (v >= 40) { safeRevealed++; _log('💰 Currency tile +' + (v - 39), 'var(--cyan)'); }
-    return 'safe';
-  }
-
-  function _onTileClick(i) {
-    if (gameOver || !turnActive || revealed[i]) return;
-    // Collect decision snapshot before resolving
-    const isGolden = goldenPos.includes(i);
-    _collectDecision(isGolden ? 'golden' : 'reveal', i);
-    const wasFirstClick = !firstClickDone;
-    firstClickDone = true;
-    const result = _revealTile(i, false);
-
-    if (result === 'mine-hit') {
-      _lastTurnMineHit = true;
-      if (lives <= 0) {
-        turnActive = false;
-        gameOver = true;
-        _playGames++;
-        _saveDecisions();
-        _autoAnalyze();
-        _updateStrategyStats();
-        _log('☠ GAME OVER — All lives lost!', 'var(--accent)');
-      } else {
-        turnActive = false;
-        _log('Turn lost — 0 damage committed.', 'var(--accent)');
-        setTimeout(() => { if (!gameOver) _newTurn(false); }, 600);
-      }
-    } else if (result === 'mine-blocked') {
-      // keep playing
-    } else if (result === 'mine-wiggle') {
-      // keep playing — mine dodged
-    }
-
-    // Check if all tiles revealed
-    if (turnActive && revealed.every(r => r)) {
-      _commitDamage();
-      return;
-    }
-
-    _renderGrid();
-    _updateHud();
-
-    // Auto-win check
-    if (totalDmg >= bossHP) {
-      gameOver = true;
-      turnActive = false;
-      _log('🎉 BOSS DEFEATED! Total damage: ' + _fmt(totalDmg), 'var(--green)');
-    }
-  }
-
-  function _commitDamage() {
-    const dmg = _calcTurnDmg();
-    if (dmg > 0) {
-      totalDmg += dmg;
-      totalCommits++;
-      _log(`⚔ Attack! Dealt ${_fmt(dmg)} damage (${totalCommits} commits, total: ${_fmt(totalDmg)})`, 'var(--green)');
-    }
-    _lastTurnMineHit = false;
-    turnActive = false;
-
-    if (totalDmg >= bossHP) {
-      gameOver = true;
-      _playGames++;
-      _saveDecisions();
-      _autoAnalyze();
-      _updateStrategyStats();
-      _log(`🎉 BOSS DEFEATED in ${turnsPlayed} turns!`, 'var(--green)');
-    } else {
-      setTimeout(() => { if (!gameOver) _newTurn(false); }, 400);
-    }
-    _renderGrid();
-    _updateHud();
-  }
-
-  function _useInsta() {
-    if (gameOver || !turnActive || instas <= 0) return;
-    const unrevealed = [];
-    for (let i = 0; i < numTiles; i++) { if (grid[i] === 0 && !revealed[i]) unrevealed.push(i); }
-    if (unrevealed.length === 0) { _log('No mines left to reveal!', 'var(--text2)'); return; }
-    // Lockout check
-    const attempts = maxInstas - instas;
-    if (_rng() < Math.min(0.7, 0.2 + 0.15 * attempts)) {
-      instas = 0;
-      _log('⚡ Insta-reveal locked out!', 'var(--accent)');
-      _renderGrid();
-      _updateHud();
-      return;
-    }
-    instas--;
-    const target = unrevealed[Math.floor(_rng() * unrevealed.length)];
-    _revealTile(target, true);
-    _renderGrid();
-    _updateHud();
-  }
-
-  attackBtn.addEventListener('click', () => {
-    if (turnActive && safeRevealed > 0) {
-      _collectDecision('attack');
-      _commitDamage();
-    }
-  });
-  instaBtn.addEventListener('click', _useInsta);
-  newBtn.addEventListener('click', _newGame);
-
-  function _autoAnalyze() {
-    if (_playGames < 3 || _playDecisions.length < 10) return;
-    _inferResult = inferStrategy(_playDecisions);
-    _saveInferred();
-    _renderProfile();
-  }
-
-  clearDataBtn.addEventListener('click', () => {
-    _playDecisions.length = 0;
-    _playGames = 0;
-    _inferResult = null;
-    try { localStorage.removeItem(_LS_KEY); } catch (e) { /* */ }
-    try { localStorage.removeItem(_LS_DECISIONS_KEY); } catch (e) { /* */ }
-    _updateStrategyStats();
-    if (profileEl) profileEl.innerHTML = '';
-  });
-
-  function _renderProfile() {
-    if (!profileEl || !_inferResult || !_inferResult.params) return;
-    const r = _inferResult;
-    const pct = (r.agreement * 100).toFixed(1);
-    const p = r.params;
-    const knobRows = Object.entries(p).map(([k, v]) => {
-      const isDefault = v === 0 || v === false || v === 1.0 || (k === 'blockAggro' && v === true);
-      const color = isDefault ? 'var(--text2)' : 'var(--gold)';
-      return `<tr><td style="padding:2px 8px;color:${color};">${k}</td><td style="padding:2px 8px;color:${color};font-weight:600;">${v}</td></tr>`;
-    }).join('');
-
-    // Spatial analysis
-    let spatialHtml = '';
-    const sp = r.spatial;
-    if (sp) {
-      // Zone bias badges
-      const zb = sp.zoneBias;
-      const _zbBadge = (label, val) => {
-        const color = val > 1.3 ? 'var(--gold)' : val < 0.7 ? 'var(--cyan)' : 'var(--text2)';
-        return `<span style="display:inline-block;background:var(--bg3);border-radius:4px;padding:2px 6px;margin:2px;font-size:.82em;"><span style="color:var(--text2);">${label}</span> <b style="color:${color};">${val.toFixed(2)}×</b></span>`;
-      };
-
-      spatialHtml += `<div style="margin-top:6px;">`;
-      spatialHtml += `<div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">Zone Bias (1.0 = random)</div>`;
-      spatialHtml += _zbBadge('Corner', zb.corner) + _zbBadge('Edge', zb.edge) + _zbBadge('Center', zb.center);
-      spatialHtml += `</div>`;
-
-      if (sp.firstClickZone) {
-        const fc = sp.firstClickZone;
-        spatialHtml += `<div style="margin-top:4px;">`;
-        spatialHtml += `<div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">First Click Bias</div>`;
-        spatialHtml += _zbBadge('Corner', fc.corner) + _zbBadge('Edge', fc.edge) + _zbBadge('Center', fc.center);
-        spatialHtml += `</div>`;
-      }
-
-      // Adjacency
-      spatialHtml += `<div style="margin-top:4px;font-size:.82em;">`;
-      const mColor = sp.adjMineBias > 0.15 ? 'var(--accent)' : sp.adjMineBias < 0.03 ? 'var(--green)' : 'var(--text2)';
-      const sColor = sp.adjSafeBias > 0.5 ? 'var(--cyan)' : 'var(--text2)';
-      spatialHtml += `<span style="color:var(--text2);">Adj. Mines:</span> <b style="color:${mColor};">${(sp.adjMineBias * 100).toFixed(0)}%</b> &nbsp; `;
-      spatialHtml += `<span style="color:var(--text2);">Adj. Safe:</span> <b style="color:${sColor};">${(sp.adjSafeBias * 100).toFixed(0)}%</b>`;
-      spatialHtml += `</div>`;
-
-      // Mini heatmap
-      if (sp.heatmap) {
-        const maxVal = Math.max(...sp.heatmap.flat(), 0.001);
-        let hmHtml = `<div style="margin-top:6px;"><div style="color:var(--text2);font-size:.75em;margin-bottom:3px;">Click Heatmap</div>`;
-        hmHtml += `<div style="display:inline-grid;grid-template-columns:repeat(${sp.heatmapSize},20px);gap:1px;">`;
-        for (const row of sp.heatmap) {
-          for (const v of row) {
-            const intensity = v / maxVal;
-            const r = Math.round(50 + intensity * 205);
-            const g = Math.round(50 + (1 - intensity) * 100);
-            const b = 50;
-            const a = 0.3 + intensity * 0.7;
-            hmHtml += `<div style="width:20px;height:20px;border-radius:2px;background:rgba(${r},${g},${b},${a});" title="${(v * 100).toFixed(1)}%"></div>`;
-          }
-        }
-        hmHtml += `</div></div>`;
-        spatialHtml += hmHtml;
-      }
-
-      // Spatial traits summary
-      if (sp.traits.length > 0) {
-        spatialHtml += `<div style="margin-top:4px;font-size:.8em;color:var(--purple);">${sp.traits.join(' · ')}</div>`;
-      }
-    }
-
-    profileEl.innerHTML = `
-      <div class="opt-card" style="padding:10px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-weight:700;color:var(--purple);font-size:1.05em;">${r.profile}</span>
-          <span style="color:var(--green);font-weight:600;">${pct}% match</span>
-        </div>
-        <div style="font-size:.78em;color:var(--text2);margin-bottom:6px;">${r.totalDecisions} decisions from ${_playGames} games</div>
-        <details style="font-size:.82em;" open>
-          <summary style="cursor:pointer;color:var(--blue);margin-bottom:4px;">Click Tendencies</summary>
-          ${spatialHtml || '<div style="color:var(--text2);font-size:.82em;">Not enough reveal data yet</div>'}
-        </details>
-        <details style="font-size:.82em;">
-          <summary style="cursor:pointer;color:var(--blue);margin-bottom:4px;">Inferred Knobs</summary>
-          <table style="font-size:.85em;"><tbody>${knobRows}</tbody></table>
-        </details>
-      </div>`;
-  }
-
-  // Show saved profile on load
-  if (_inferResult && _inferResult.params) _renderProfile();
-
-  _newGame();
-}
-
-// ===== helpers =====
-
-// Format upgrade description matching game rendering logic.
-// {  = raw qty (comma-formatted)
-// }  = multiplier: (1 + qty/100) e.g. "7.20x"
-// $  = per-upgrade computed value
-const _MULTI_TILE_VALUES = [1.0,1.2,1.4,1.6,2,3,4,5,6,7,8,8,8,8];
-const _ADDITIVE_PCT = [0,10,20,50,100,200,500,1000,2000,5000,10000];
-
-function _fmtUpgDesc(i, lv, qty, lvs, highestDmg) {
-  const u = MINEHEAD_UPG[i];
-  let d = u.desc;
-
-  // {  comma-formatted qty
-  d = d.replace(/\{/g, qty.toLocaleString());
-
-  // }  multiplier (1 + qty/100)
-  d = d.replace(/\}/g, (1 + qty / 100).toFixed(2));
-
-  // $  per-upgrade computed value
-  if (i === 1) { // Numbahs
-    if (lv >= 17) d = 'Your max possible number is 19, the MAXIMUM!';
-    else d = d.replace(/\$/g, String(Math.round(1 + (qty + 1 + Math.min(1, Math.floor((qty + 1) / 9))))));
-  } else if (i === 2) { // Grid Expansion
-    if (lv >= 16) d = 'Your grid is 12x6, a full grid!';
-    else {
-      const next = GRID_DIMS[lv + 1] || GRID_DIMS[lv];
-      const [nc, nr] = next.split(',');
-      const cur = GRID_DIMS[lv];
-      const [cc, cr] = cur.split(',');
-      d = `Expands grid to ${nc}x${nr} (${nc * nr} tiles), current ${cc}x${cr}`;
-    }
-  } else if (i === 12) { // Multiplier Madness
-    if (qty === 0) d = 'Unlocks Multiplier Tiles!';
-    else d = d.replace(/\$/g, (_MULTI_TILE_VALUES[qty] || 1) + 'x');
-  } else if (i === 14) { // Triple Crown Hunter
-    const bcm = bluecrownMulti(lvs);
-    d = d.replace(/\$/g, bcm.toFixed(2) + 'x');
-  } else if (i === 17) { // Awesome Additives
-    if (qty === 0) d = 'Unlocks Additive Tiles!';
-    else d = d.replace(/\$/g, (_ADDITIVE_PCT[qty] || 0) + '%');
-  } else if (i === 23) { // Jackpot Time
-    const jo = jackpotOdds(lvs);
-    if (jo === 0) d = 'Unlocks JACKPOT Tiles!';
-    else d = d.replace(/\$/g, String(Math.ceil(1 / jo)));
-  } else if (i === 24) { // Record Breaking Jackpots
-    d = d.replace(/\$/g, String(Math.ceil(jackpotTiles(lvs))));
-  } else if (i === 26) { // El Cheapo
-    const disc = Math.round(1e4 * (1 - 1 / (1 + qty / 100))) / 100;
-    d = d.replace(/\$/g, String(disc));
-  } else if (i === 28) { // Miney Damagey Synergy
-    const log10 = highestDmg > 0 ? Math.log10(highestDmg) : 0;
-    const total = qty * log10;
-    d = `+${qty.toLocaleString()}% Mine Currency per POW 10 of best hit, +${_fmt(total)}% total`;
-  }
-
-  return d;
-}

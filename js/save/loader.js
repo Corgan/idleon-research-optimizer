@@ -17,6 +17,8 @@ import { computeTomeScore } from '../stats/systems/w4/tome-score.js';
 import { companionBonus } from '../stats/data/common/companions.js';
 import resExpDesc from '../stats/defs/research-exp.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
+import { buildTree } from '../stats/tree-builder.js';
+import { getCatalog } from '../stats/registry.js';
 
 export function loadSaveData(raw) {
   const save = raw.data ? raw.data : raw;
@@ -330,7 +332,7 @@ export function recomputeDerivedBonuses() {
     cachedEvShop37: eventShopOwned(37, saveData.cachedEventShopStr),
   });
 
-  const rexp = resExpDesc.combine({}, { saveData });
+  const rexp = buildTree(resExpDesc, getCatalog(), { saveData: saveData });
   let _stickerVal = 0;
   if (rexp.children) {
     for (let i = 0; i < rexp.children.length; i++) {
@@ -376,5 +378,5 @@ export function recomputeDerivedBonuses() {
   // Nonstop Studies: DreamUpg[12] → Dream[14] (offset +2). Coeff = 3.
   assignState({ cachedDream14: Number(dreamData[14]) || 0 });
 
-  assignSaveData({ cachedAFKRate: afkGainsDesc.combine({}, { saveData }) });
+  assignSaveData({ cachedAFKRate: buildTree(afkGainsDesc, getCatalog(), { saveData: saveData }) });
 }

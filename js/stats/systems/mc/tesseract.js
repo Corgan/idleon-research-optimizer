@@ -47,6 +47,7 @@ export function computeArcaneMapMultiBon(idx, ctx) {
 
 export var arcaneMap = {
   resolve: function(id, ctx) {
+    var saveData = ctx.saveData;
     // Arcane map bonus requires MapBon data + current map selection
     if (!ctx.mapBon || ctx.mapIdx == null) {
       return node('Arcane Map Bonus', 0, [
@@ -55,7 +56,7 @@ export var arcaneMap = {
     }
     var kills = (ctx.mapBon[ctx.mapIdx] && ctx.mapBon[ctx.mapIdx][0]) || 0;
     var raw = arcaneMapBonus(kills, saveData);
-    var cap = arcaneMapMultiBonMax(saveData);
+    var cap = arcaneMapMultiBonMax(ctx.charIdx, saveData);
     var val = Math.min(cap, raw);
     return node('Arcane Map Bonus', val, [
       node('Map Kills', kills, null, { fmt: 'raw' }),

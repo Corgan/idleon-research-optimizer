@@ -3,9 +3,9 @@
 // Map-dependent base + multiplicative chain.
 // Scope: character+map (depends on current map for world range).
 
-import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
-import { pristineBon } from '../systems/w5/pristine.js';
+import { companion } from '../systems/common/companions.js';
+import { vault } from '../systems/common/vault.js';
+import { pristine } from '../systems/w6/sneaking.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { label } from '../entity-names.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
@@ -51,7 +51,7 @@ export default createDescriptor({
     else if (mapIdx >= 250 && mapIdx < 300) { kpkDumm = rval(etcBonus, '90', ctx); worldEtcId = '90'; }
     else if (mapIdx >= 300 && mapIdx < 350) {
       // W7: BigFishBonuses(3) — from spelunking
-      kpkDumm = safe(computeBigFishBonus, 3);
+      kpkDumm = safe(computeBigFishBonus, 3, s);
       worldEtcId = 'BigFish(3)';
     }
 
@@ -73,32 +73,32 @@ export default createDescriptor({
     var overkillActive = true;
 
     // Multiplicative chain (when overkill active)
-    var mf4 = Math.max(1, safe(mainframeBonus, 4));
-    var comp14 = 1 + safe(companions, 14);
-    var comp29 = 1 + safe(companions, 29);
-    var comp154 = 1 + safe(companions, 154);
+    var mf4 = Math.max(1, safe(mainframeBonus, 4, s));
+    var comp14 = 1 + rval(companion, 14, ctx);
+    var comp29 = 1 + rval(companion, 29, ctx);
+    var comp154 = 1 + rval(companion, 154, ctx);
     var etc96 = 1 + rval(etcBonus, '96', ctx) / 100;
     var etc103 = 1 + rval(etcBonus, '103', ctx) / 100;
 
     // FamBonus28 + Voting5
-    var famBonus28 = safe(computeFamBonusQTY, 28);
-    var voting5 = safe(votingBonusz, 5, 1);
+    var famBonus28 = safe(computeFamBonusQTY, 28, s);
+    var voting5 = safe(votingBonusz, 5, 1, s);
     var kpkAdditive1 = 1 + (kpkDumm + famBonus28 + voting5) / 100;
 
     // Divinity Major bonus 7
-    var divMajor7 = safe(computeDivinityMajor, ci, 7);
+    var divMajor7 = safe(computeDivinityMajor, ci, 7, s);
     var divMajorMult = Math.max(1, 1 + divMajor7);
 
     // Second additive group
     var talent109 = rval(talent, 109, ctx);
-    var workbenchMultiKill = safe(computeWorkbenchStuff);
-    var kpkBubble = safe(bubbleValByKey, 'kpkACTIVE', ci);
+    var workbenchMultiKill = safe(computeWorkbenchStuff, s);
+    var kpkBubble = safe(bubbleValByKey, 'kpkACTIVE', ci, s);
     var prayer13 = computePrayerReal(13, 0, ci, ctx.saveData);
-    var pristine6 = safe(pristineBon, 6);
-    var exotic56 = safe(computeExoticBonus, 56);
-    var legend16 = safe(legendPTSbonus, 16);
-    var bubbaRoG5 = safe(bubbaRoGBonuses, 5);
-    var vault64 = safe(vaultUpgBonus, 64);
+    var pristine6 = rval(pristine, 6, ctx);
+    var exotic56 = safe(computeExoticBonus, 56, s);
+    var legend16 = safe(legendPTSbonus, 16, s);
+    var bubbaRoG5 = safe(bubbaRoGBonuses, 5, s);
+    var vault64 = rval(vault, 64, ctx);
 
     var kpkAdditive2;
     if (overkillActive) {

@@ -27,6 +27,8 @@ import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
 import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
+import { buildTree } from '../stats/tree-builder.js';
+import { getCatalog } from '../stats/registry.js';
 import { fmtExact, fmtVal } from '../renderers/format.js';
 import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { computeButtonBonus, computeKillroyBonus } from '../stats/defs/helpers.js';
@@ -327,7 +329,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
 // ===== AFK BREAKDOWN TREE =====
 export function buildAFKBreakdownTree() {
-  const afkRate = cachedAFKRate || afkGainsDesc.combine({}, { saveData });
+  const afkRate = cachedAFKRate || buildTree(afkGainsDesc, getCatalog(), { saveData: saveData });
   const afkPct = afkRate.val * 100;
   const addChildren = [];
 

@@ -11,13 +11,13 @@ import {
 } from '../systems/w3/construction.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
+import { arcadeBonus, arcade } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { guild } from '../systems/common/guild.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { votingBonusz } from '../systems/w2/voting.js';
-import { companions } from '../systems/common/companions.js';
-import { computeWinBonus, computeSummUpgBonus } from '../systems/w6/summoning.js';
+import { companion } from '../systems/common/companions.js';
+import { winBonus, computeSummUpgBonus } from '../systems/w6/summoning.js';
 import { computeVaultKillzTotal } from '../systems/common/vaultKillz.js';
 import { computePaletteBonus } from '../systems/w7/spelunking.js';
 import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
@@ -47,22 +47,22 @@ export default createDescriptor({
     var base = 3 * Math.pow(constLv / 2 + 0.7, 1.6);
 
     // Bubble mult
-    var constBubble = safe(bubbleValByKey, 'Construction', ci);
+    var constBubble = safe(bubbleValByKey, 'Construction', ci, saveData);
     var bubbleMult = 1 + constLv * constBubble / 100;
 
     // Additive pool breakdown
-    var stampBuildProd = safe(computeStampBonusOfTypeX, 'BuildProd');
+    var stampBuildProd = safe(computeStampBonusOfTypeX, 'BuildProd', saveData);
     var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
     var guildBonus5 = rval(guild, 5, ctx);
     var etcBonus30 = rval(etcBonus, '30', ctx);
-    var ach153 = Math.min(5, 5 * safe(achieveStatus, 153));
+    var ach153 = Math.min(5, 5 * safe(achieveStatus, 153, saveData));
     var constMastery2 = computeConstMasteryBonus(2, ctx.saveData);
-    var vialContspd = safe(computeVialByKey, 'Contspd');
-    var arcade44 = safe(arcadeBonus, 44);
-    var voting18 = safe(votingBonusz, 18, 1);
-    var summUpg48 = safe(computeSummUpgBonus, 48);
-    var vaultKills11 = safe(computeVaultKillzTotal, 11);
-    var bubbaRoG1 = safe(bubbaRoGBonuses, 1);
+    var vialContspd = safe(computeVialByKey, 'Contspd', saveData);
+    var arcade44 = rval(arcade, 44, ctx);
+    var voting18 = safe(votingBonusz, 18, 1, saveData);
+    var summUpg48 = safe(computeSummUpgBonus, 48, saveData);
+    var vaultKills11 = safe(computeVaultKillzTotal, 11, saveData);
+    var bubbaRoG1 = safe(bubbaRoGBonuses, 1, saveData);
 
     var addPool = stampBuildProd + 0.25 * postOffice17
       + guildBonus5 + etcBonus30
@@ -74,9 +74,9 @@ export default createDescriptor({
     var additiveMulti = 1 + addPool / 100;
 
     // True multipliers
-    var winBonus13 = safe(computeWinBonus, 13);
-    var palette25 = safe(computePaletteBonus, 25);
-    var vial6turtle = safe(computeVialByKey, '6turtle');
+    var winBonus13 = rval(winBonus, 13, ctx);
+    var palette25 = safe(computePaletteBonus, 25, saveData);
+    var vial6turtle = safe(computeVialByKey, '6turtle', saveData);
     var trueMulti = (1 + winBonus13 / 100) * (1 + palette25 / 100) * (1 + vial6turtle / 100);
 
     // Talent 131
@@ -132,7 +132,7 @@ export default createDescriptor({
         { name: 'Additive Pool', val: additiveMulti, fmt: 'x', children: addChildren, note: 'sum=' + addPool.toFixed(1) },
         { name: 'True Multipliers', val: trueMulti, fmt: 'x', children: trueChildren },
         { name: label('Talent', 131), val: talentPart, fmt: 'x', note: rawLv131 > 0 ? 'val=' + talent131Val.toFixed(1) + ' atom=' + atomBonus1 + ' logRef=' + logRef1.toFixed(2) : 'no talent' },
-        { name: 'Extra Build Multi', val: extraBuildMulti, fmt: 'x', note: 'SmallCog(1)=' + computeSmallCogBonusTOTAL(1, ctx.saveData) + ' comp157=' + safe(companions, 157) },
+        { name: 'Extra Build Multi', val: extraBuildMulti, fmt: 'x', note: 'SmallCog(1)=' + computeSmallCogBonusTOTAL(1, ctx.saveData) + ' comp157=' + rval(companion, 157, ctx) },
       ],
       _debug: {
         constLv: constLv,

@@ -4,8 +4,8 @@
 // Scope: character.
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
-import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
+import { companion } from '../systems/common/companions.js';
+import { vault } from '../systems/common/vault.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { cardLv } from '../systems/common/cards.js';
@@ -14,7 +14,7 @@ import { guild } from '../systems/common/guild.js';
 import { computeBoxReward } from '../systems/common/stats.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeDivinityMajor, computeDivinityMinor } from '../systems/w5/divinity.js';
-import { computeShrine } from '../systems/w3/construction.js';
+import { shrine } from '../systems/w3/construction.js';
 import { computeFamBonusQTY } from '../systems/common/stats.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
 import { computeChipBonus } from '../systems/w4/lab.js';
@@ -26,8 +26,8 @@ import { eventShopOwned } from '../../game-helpers.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent } from '../systems/common/talent.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { arcade } from '../systems/w2/arcade.js';
+import { winBonus } from '../systems/w6/summoning.js';
 import { computeCardBonusByType } from '../systems/common/stats.js';
 import { currentMapData } from '../../save/data.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
@@ -57,27 +57,27 @@ export default createDescriptor({
     if (tasks2_1_2 > charPosition) afkAll += 2;
 
     // Shared ALL-AFK sources
-    var arcade6 = safe(arcadeBonus, 6);
-    var compassBonus57 = safe(computeCompassBonus, 57);
+    var arcade6 = rval(arcade, 6, ctx);
+    var compassBonus57 = safe(computeCompassBonus, 57, s);
     var voidSet = safe(getSetBonus, 'VOID_SET');
-    var flurbo7 = safe(computeFlurboShop, 7);
-    var divMajor0 = 30 * safe(computeDivinityMajor, ci, 0);
-    var divMinor5 = safe(computeDivinityMinor, -1, 5);
-    var comp6 = safe(companions, 6);
-    var comp25 = safe(companions, 25);
-    var shrine8 = safe(computeShrine, 8);
+    var flurbo7 = safe(computeFlurboShop, 7, s);
+    var divMajor0 = 30 * safe(computeDivinityMajor, ci, 0, s);
+    var divMinor5 = safe(computeDivinityMinor, -1, 5, s);
+    var comp6 = rval(companion, 6, ctx);
+    var comp25 = rval(companion, 25, ctx);
+    var shrine8 = rval(shrine, 8, ctx);
     var talentCalc650 = rval(talent, 650, ctx);
-    var winBonus11 = safe(computeWinBonus, 11);
+    var winBonus11 = rval(winBonus, 11, ctx);
     var _gfAFK = 0;
     try {
       var gf = goldFoodBonuses('AllAFK', ci, ctx.saveData);
       _gfAFK = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
-    var cardW6d3 = 1.5 * safe(cardLv, 'w6d3');
-    var rooBonus5 = safe(computeRooBonus, 5);
-    var voting6 = safe(votingBonusz, 6, 1);
+    var cardW6d3 = 1.5 * safe(cardLv, 'w6d3', s);
+    var rooBonus5 = safe(computeRooBonus, 5, s);
+    var voting6 = safe(votingBonusz, 6, 1, s);
     var evShop5 = 20 * eventShopOwned(5, s.cachedEventShopStr);
-    var vault23 = safe(vaultUpgBonus, 23);
+    var vault23 = rval(vault, 23, ctx);
 
     afkAll += arcade6 + compassBonus57 + voidSet + flurbo7 + divMajor0
       + divMinor5 + comp6 + comp25 + shrine8 + talentCalc650 + winBonus11
@@ -92,26 +92,26 @@ export default createDescriptor({
     var afkAllMulti = (1 + arcaneMapMulti2 / 100) * (1 + etc92 / 100);
 
     // === Fighting-specific sources ===
-    var famBonus8 = safe(computeFamBonusQTY, 8);
+    var famBonus8 = safe(computeFamBonusQTY, 8, s);
     var _brFAFK = safe(computeBoxReward, ci, 'fightAFK');
     var boxFightAFK = (typeof _brFAFK === 'object' && _brFAFK) ? (_brFAFK.val || 0) : Number(_brFAFK) || 0;
     var talent88 = rval(talent, 88, ctx);
-    var bribe3 = safe(getBribeBonus, 3);
+    var bribe3 = safe(getBribeBonus, 3, s);
     var talent268 = rval(talent, 268, ctx);
     var cardSet10 = safe(computeCardSetBonus, ci, '10');
     var talent448 = rval(talent, 448, ctx);
     var talent621 = rval(talent, 621, ctx);
-    var _cb43 = safe(computeCardBonusByType, 43, ci);
+    var _cb43 = safe(computeCardBonusByType, 43, ci, s);
     var card43 = (typeof _cb43 === 'object' && _cb43) ? (_cb43.val || 0) : Number(_cb43) || 0;
     var talent79 = rval(talent, 79, ctx);
     var etc20 = rval(etcBonus, '20', ctx);
     var etc59 = rval(etcBonus, '59', ctx);
-    var starSignFightAFK = safe(computeStarSignBonus, 'FightAFK', ci);
+    var starSignFightAFK = safe(computeStarSignBonus, 'FightAFK', ci, s);
     var guild4 = rval(guild, 4, ctx);
     var prayer4 = computePrayerReal(4, 0, ci, ctx.saveData);
     var prayer12curse = computePrayerReal(12, 1, ci, ctx.saveData);
     var chipFafk = safe(computeChipBonus, 'fafk');
-    var cardW6d1 = safe(cardLv, 'w6d1');
+    var cardW6d1 = safe(cardLv, 'w6d1', s);
 
     var fightSum = famBonus8 + boxFightAFK + talent88 + bribe3
       + talent268 + cardSet10 + talent448 + talent621 + afkAll

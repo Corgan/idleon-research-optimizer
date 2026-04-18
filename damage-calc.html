@@ -4,32 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdleOn Damage Breakdown</title>
+<link rel="stylesheet" href="css/breakdown.css">
 <style>
-:root {
-  --bg: #101020; --bg2: #181830; --bg3: #222244;
-  --text: #ddd; --text1: #ddd; --text2: #888; --accent: #66ccff;
-  --green: #6f6; --gold: #ffd700; --orange: #ffa060; --purple: #b388ff;
-  --red: #f66; --cyan: #5ff; --blue: #66f; --border: #333;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); }
-h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5em; }
-.subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 14px; }
-.container { max-width: 960px; margin: 0 auto; padding: 0 12px 40px; }
-
-/* Top controls */
-.top-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-.top-bar select { padding: 6px 10px; background: var(--bg2); color: var(--accent); border: 1px solid var(--border); border-radius: 4px; font-size: .9em; }
-.top-bar .btn { padding: 6px 16px; background: var(--accent); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85em; }
-.top-bar .btn:hover { filter: brightness(1.2); }
-
-/* Import */
-.import-box { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
-.import-box summary { cursor: pointer; font-weight: 600; color: var(--accent); }
-.import-box textarea { width: 100%; height: 80px; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: .82em; font-family: monospace; padding: 6px; resize: vertical; }
-.import-msg { font-size: .82em; margin-top: 6px; }
-.import-msg.ok { color: var(--green); }
-.import-msg.err { color: var(--red); }
+/* Page-specific */
+:root { --blue: #66f; }
 
 /* Summary cards */
 .summary-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
@@ -41,24 +19,6 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 .mastery-card .mastery-bar-wrap { height: 24px; background: #1a1a2e; border-radius: 12px; overflow: hidden; border: 1px solid #333; position: relative; margin-top: 6px; }
 .mastery-card .mastery-bar { height: 100%; border-radius: 12px; transition: width .3s; }
 .mastery-card .mastery-pct { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9em; text-shadow: 0 1px 3px #000; }
-
-/* Breakdown Tree */
-.tree { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
-.tree h2 { color: var(--cyan); margin-bottom: 10px; font-size: 1.1em; }
-.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
-.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
-.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
-.bt-tree { font-size: .85em; }
-.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
-.bt-row:hover { background: rgba(255,255,255,.07); }
-.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
-.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #444; }
-.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
-.bt-arrow:hover { color: var(--cyan); }
-.bt-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
-.bt-tag { font-size: .7em; opacity: .7; margin-left: 4px; }
-.bt-tooltip { position: fixed; background: #1a1a2e; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
 
 /* Layer tabs */
 .layer-tabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -172,13 +132,14 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 <script type="module">
 'use strict';
 
-import { loadSaveData } from './js/save/loader.js';
 import { saveData } from './js/state.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { _bNode } from './js/stats/node-helpers.js';
-import { ClassNames } from './js/stats/data/game/customlists.js';
 import { fmtVal, fmtExact, fmtDmgRange } from './js/renderers/format.js';
 import damageDesc from './js/stats/defs/damage.js';
+import { buildTree } from './js/stats/tree-builder.js';
+import { getCatalog } from './js/stats/registry.js';
+import { doImport as _doImport, wireFileInput } from './js/ui/save-import.js';
 
 var SAVE_RAW = null;
 var CHARS = [];
@@ -335,7 +296,7 @@ function recalc() {
   var ctx = { charIdx: CUR_CHAR, saveData: saveData };
   var result;
   try {
-    result = damageDesc.combine({}, ctx);
+    result = buildTree(damageDesc, getCatalog(), ctx);
   } catch (err) {
     document.getElementById('max-dmg').textContent = 'Error';
     document.getElementById('min-dmg').textContent = err.message;
@@ -448,36 +409,17 @@ document.getElementById('layer-tabs').onclick = function(e) {
 };
 
 function doImport() {
-  var msgEl = document.getElementById('import-msg');
-  try {
-    var raw = JSON.parse(document.getElementById('json-in').value);
-    SAVE_RAW = raw;
-    loadSaveData(raw);
-
-    CHARS = raw.charNames || [];
-
-    var sel = document.getElementById('char-sel');
-    sel.innerHTML = '';
-    CHARS.forEach(function(name, i) {
-      var data = raw.data || raw;
-      var classId = data['CharacterClass_' + i];
-      var className = (ClassNames[classId] || '?').replace(/_/g, ' ');
-      var o = document.createElement('option');
-      o.value = i;
-      o.textContent = i + ': ' + name + ' (' + className + ')';
-      sel.appendChild(o);
-    });
-    sel.disabled = false;
-    CUR_CHAR = 0;
-
-    msgEl.className = 'import-msg ok';
-    msgEl.textContent = '\u2713 Loaded ' + CHARS.length + ' characters.';
-    recalc();
-  } catch (err) {
-    msgEl.className = 'import-msg err';
-    msgEl.textContent = '\u2717 ' + err.message;
-    console.error(err);
-  }
+  _doImport({
+    textareaId: 'json-in',
+    charSelId: 'char-sel',
+    msgId: 'import-msg',
+    onLoaded: function(raw, chars) {
+      SAVE_RAW = raw;
+      CHARS = chars;
+      CUR_CHAR = 0;
+      recalc();
+    },
+  });
 }
 
 function switchChar(idx) { CUR_CHAR = idx; recalc(); }
@@ -485,17 +427,7 @@ function switchChar(idx) { CUR_CHAR = idx; recalc(); }
 window.doImport = doImport;
 window.switchChar = switchChar;
 
-// File input handler
-document.getElementById('file-input').addEventListener('change', function(e) {
-  var file = e.target.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    document.getElementById('json-in').value = ev.target.result;
-    doImport();
-  };
-  reader.readAsText(file);
-});
+wireFileInput('file-input', 'json-in', doImport);
 </script>
 </body>
 </html>

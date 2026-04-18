@@ -352,6 +352,7 @@ export function maxTalentBonus(talentIdx, activeCharIdx, saveData) {
 
 export var talent = {
   resolve: function(id, ctx, args) {
+    var saveData = ctx.saveData;
     var tab = args && args.tab;
     var data = getTalentData(id, tab);
     if (!data) return node(label('Talent', id), 0, null, { note: 'talent ' + id + ' no data' });
@@ -402,7 +403,7 @@ export var talent = {
       ], { fmt: 'x', note: 'talent 328' });
     }
 
-    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, saveData);
+    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, undefined, saveData);
     if (r.val === 0) return node(name, 0, null, { note: 'talent ' + id });
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;

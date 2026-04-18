@@ -6,8 +6,8 @@
 // - AllSkillxpMULTI: multiplicative skill EXP shared pool
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
-import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
+import { companion } from '../systems/common/companions.js';
+import { vault } from '../systems/common/vault.js';
 import { cardLv } from '../systems/common/cards.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { votingBonusz } from '../systems/w2/voting.js';
@@ -16,12 +16,12 @@ import { mainframeBonus } from '../systems/w4/lab.js';
 import { tome } from '../systems/w4/tome.js';
 import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
+import { arcade } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
 import { computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { computeShinyBonusS } from '../systems/w4/breeding.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { winBonus } from '../systems/w6/summoning.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent } from '../systems/common/talent.js';
@@ -37,7 +37,7 @@ import { computeChipBonus } from '../systems/w4/lab.js';
 import { computePaletteBonus } from '../systems/w7/spelunking.js';
 import { computeRiftSkillETC } from '../systems/w4/rift.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
-import { computeShrine, computeSaltLick } from '../systems/w3/construction.js';
+import { shrine, computeSaltLick } from '../systems/w3/construction.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeDivinityMinor, computeDivinityBless } from '../systems/w5/divinity.js';
 import { computeOwlBonus } from '../systems/w1/owl.js';
@@ -74,38 +74,38 @@ export function computePrayerReal(prayerIdx, costIdx, ci) {
 // AllEfficiencies: shared multiplier for ALL skill efficiencies
 // 6 multiplicative groups
 export function computeAllEfficiencies(ci, ctx) {
-  var famBonus42 = safe(computeFamBonusQTY, 42);
+  var famBonus42 = safe(computeFamBonusQTY, 42, ctx.saveData);
   var etc48 = rval(etcBonus, '48', ctx);
-  var vial6SkillEff = safe(computeVialByKey, '6SkillEff');
-  var artifactBonus15 = safe(computeArtifactBonus, 15);
+  var vial6SkillEff = safe(computeVialByKey, '6SkillEff', ctx.saveData);
+  var artifactBonus15 = safe(computeArtifactBonus, 15, ci, ctx);
   var talent617 = rval(talent, 617, ctx);
   var questEff = Math.min(0.1 * (ctx.saveData ? ctx.saveData.totalQuestsComplete || 0 : 0), talent617);
 
   var g1 = 1 + (famBonus42 + etc48 + vial6SkillEff + artifactBonus15 + Math.min(questEff, talent617)) / 100;
 
-  var mealSeff = safe(computeMealBonus, 'Seff');
+  var mealSeff = safe(computeMealBonus, 'Seff', ctx.saveData);
   var talent646 = rval(talent, 646, ctx);
   var tomeBonus1 = rval(tome, 1, ctx);
-  var paletteBonus10 = safe(computePaletteBonus, 10);
+  var paletteBonus10 = safe(computePaletteBonus, 10, ctx.saveData);
   var chipToteff = safe(computeChipBonus, 'toteff');
-  var cardCrystal4 = 3 * safe(cardLv, 'Crystal4');
+  var cardCrystal4 = 3 * safe(cardLv, 'Crystal4', ctx.saveData);
   var friendStatz2 = rval(friend, 2, ctx);
-  var riftSkillETC2 = safe(computeRiftSkillETC, 2);
+  var riftSkillETC2 = safe(computeRiftSkillETC, 2, ctx.saveData);
   var holesB49_15 = rval(holes, 49, ctx);
   var ola422 = Number(optionsListData[422]) || 0;
   var shimmerOla180 = Number(optionsListData[180]) || 0;
-  var shimmerBonus = safe(computeAllShimmerBonuses);
+  var shimmerBonus = safe(computeAllShimmerBonuses, ctx.saveData);
 
   var g2 = 1 + (mealSeff + talent646 + tomeBonus1 + paletteBonus10 + chipToteff
     + cardCrystal4 + friendStatz2 + riftSkillETC2 + holesB49_15
     + ola422 + shimmerOla180 * shimmerBonus) / 100;
 
-  var _cb84 = safe(computeCardBonusByType, 84, ci);
+  var _cb84 = safe(computeCardBonusByType, 84, ci, ctx.saveData);
   var card84 = (typeof _cb84 === 'object' && _cb84) ? (_cb84.val || 0) : Number(_cb84) || 0;
-  var comp5 = safe(companions, 5);
+  var comp5 = rval(companion, 5, ctx);
   var g3 = 1 + (card84 + comp5) / 100;
 
-  var winBonus14 = safe(computeWinBonus, 14);
+  var winBonus14 = rval(winBonus, 14, ctx);
   var g4 = 1 + winBonus14 / 100;
 
   var guild6 = rval(guild, 6, ctx);
@@ -123,14 +123,14 @@ export function computeAllEfficiencies(ci, ctx) {
 
 // AllBaseSkillEff: flat base efficiency shared across skills
 export function computeAllBaseSkillEff(ci, ctx) {
-  var shiny22 = safe(computeShinyBonusS, 22);
-  var stampBaseAllEff = safe(computeStampBonusOfTypeX, 'BaseAllEff');
-  var divBless2 = safe(computeDivinityBless, 2);
+  var shiny22 = safe(computeShinyBonusS, 22, ctx.saveData);
+  var stampBaseAllEff = safe(computeStampBonusOfTypeX, 'BaseAllEff', ctx.saveData);
+  var divBless2 = safe(computeDivinityBless, 2, ctx.saveData);
   var _br20b = safe(computeBoxReward, ci, '20b');
   var boxReward20b = (typeof _br20b === 'object' && _br20b) ? (_br20b.val || 0) : Number(_br20b) || 0;
   var chipEff = safe(computeChipBonus, 'eff');
   var talent636 = rval(talent, 636, ctx);
-  var mf112 = safe(mainframeBonus, 112);
+  var mf112 = safe(mainframeBonus, 112, ctx.saveData);
 
   return shiny22 + stampBaseAllEff + divBless2 + boxReward20b + chipEff + talent636 + mf112;
 }
@@ -145,11 +145,11 @@ export function computeAllBaseSkillEff(ci, ctx) {
 //   + RiftSkillETC(1) + RiftSkillETC(4) + ShinyBonusS(2) + MSA_Bonus(5) + Companions(9)
 //   + WinBonus(12) + GuildBonuses(14) + OwlBonuses(3) + B_UPG(49,10) + CHIZOAR_SET + FriendBonusStatz(4)
 export function computeAllSkillxpz(ci, ctx) {
-  var starSignSkillEXP = safe(computeStarSignBonus, 'SkillEXP', ci);
-  var cardSpringEvent2 = 2 * safe(cardLv, 'springEvent2');
-  var _cb50 = safe(computeCardBonusByType, 50, ci);
+  var starSignSkillEXP = safe(computeStarSignBonus, 'SkillEXP', ci, ctx.saveData);
+  var cardSpringEvent2 = 2 * safe(cardLv, 'springEvent2', ctx.saveData);
+  var _cb50 = safe(computeCardBonusByType, 50, ci, ctx.saveData);
   var card50 = (typeof _cb50 === 'object' && _cb50) ? (_cb50.val || 0) : Number(_cb50) || 0;
-  var arcade18 = safe(arcadeBonus, 18);
+  var arcade18 = rval(arcade, 18, ctx);
   var gfoodSkillExp = 0;
   try {
     var gf = goldFoodBonuses('SkillExp', ci, ctx.saveData);
@@ -158,33 +158,33 @@ export function computeAllSkillxpz(ci, ctx) {
 
   var bubonicGreen = 0; // lab bonus — runtime context-dependent, not available from save
   var cardSet3 = safe(computeCardSetBonus, ci, '3');
-  var cardW5a4 = 5 * safe(cardLv, 'w5a4');
+  var cardW5a4 = 5 * safe(cardLv, 'w5a4', ctx.saveData);
   var talent35capped = Math.min(150, rval(talent, 35, ctx));
-  var shrine5 = safe(computeShrine, 5);
-  var statue17 = safe(computeStatueBonusGiven, 17);
+  var shrine5 = rval(shrine, 5, ctx);
+  var statue17 = safe(computeStatueBonusGiven, 17, ci, ctx.saveData);
   var prayer2 = computePrayerReal(2, 0, ci, ctx.saveData);
   var prayer17 = computePrayerReal(17, 0, ci, ctx.saveData);
   var prayer1curse = computePrayerReal(1, 1, ci, ctx.saveData);
   var prayer9curse = computePrayerReal(9, 1, ci, ctx.saveData);
   var etc27 = rval(etcBonus, '27', ctx);
   var buffBonus40_1 = 0; // GetBuffBonuses(40, 1) — session-only state
-  var saltLick3 = safe(computeSaltLick, 3);
-  var flurbo2 = safe(computeFlurboShop, 2);
+  var saltLick3 = safe(computeSaltLick, 3, ctx.saveData);
+  var flurbo2 = safe(computeFlurboShop, 2, ctx.saveData);
   var _br20c = safe(computeBoxReward, ci, '20c');
   var boxReward20c = (typeof _br20c === 'object' && _br20c) ? (_br20c.val || 0) : Number(_br20c) || 0;
-  var divMinor1 = safe(computeDivinityMinor, ci, 1);
-  var ach283 = 10 * safe(achieveStatus, 283);
-  var ach284 = 25 * safe(achieveStatus, 284);
-  var ach294 = 10 * safe(achieveStatus, 294);
-  var ach359 = 15 * safe(achieveStatus, 359);
-  var riftSkillETC1 = safe(computeRiftSkillETC, 1);
-  var riftSkillETC4 = safe(computeRiftSkillETC, 4);
-  var shiny2 = safe(computeShinyBonusS, 2);
-  var gamingMSA5 = safe(computeMSABonus, 5);
-  var comp9 = safe(companions, 9);
-  var winBonus12 = safe(computeWinBonus, 12);
+  var divMinor1 = safe(computeDivinityMinor, ci, 1, ctx.saveData);
+  var ach283 = 10 * safe(achieveStatus, 283, ctx.saveData);
+  var ach284 = 25 * safe(achieveStatus, 284, ctx.saveData);
+  var ach294 = 10 * safe(achieveStatus, 294, ctx.saveData);
+  var ach359 = 15 * safe(achieveStatus, 359, ctx.saveData);
+  var riftSkillETC1 = safe(computeRiftSkillETC, 1, ctx.saveData);
+  var riftSkillETC4 = safe(computeRiftSkillETC, 4, ctx.saveData);
+  var shiny2 = safe(computeShinyBonusS, 2, ctx.saveData);
+  var gamingMSA5 = safe(computeMSABonus, 5, ctx.saveData);
+  var comp9 = rval(companion, 9, ctx);
+  var winBonus12 = rval(winBonus, 12, ctx);
   var guild14 = rval(guild, 14, ctx);
-  var owlBonus3 = safe(computeOwlBonus, 3);
+  var owlBonus3 = safe(computeOwlBonus, 3, ctx.saveData);
   var holesB49_10 = rval(holes, 49, ctx);
   var chizoarSet = safe(getSetBonus, 'CHIZOAR_SET');
   var friendStatz4 = rval(friend, 4, ctx);
@@ -201,9 +201,10 @@ export function computeAllSkillxpz(ci, ctx) {
 
 // AllSkillxpMULTI: multiplicative skill EXP shared pool
 // Game: (1 + MeritocBonusz(10)/100) * (1 + LegendPTS_bonus(20)/100) * (1 + Companions(32))
-export function computeAllSkillxpMULTI() {
-  var meritoc10 = safe(computeMeritocBonusz, 10);
-  var legend20 = safe(legendPTSbonus, 20);
-  var comp32 = safe(companions, 32);
+export function computeAllSkillxpMULTI(ctx) {
+  var s = ctx ? ctx.saveData : saveData;
+  var meritoc10 = safe(computeMeritocBonusz, 10, s);
+  var legend20 = safe(legendPTSbonus, 20, s);
+  var comp32 = rval(companion, 32, ctx);
   return (1 + meritoc10 / 100) * (1 + legend20 / 100) * (1 + comp32);
 }

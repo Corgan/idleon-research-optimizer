@@ -69,6 +69,17 @@ export function computePaletteBonus(paletteIdx, saveData) {
   return raw * palLegendMulti * palLoreMulti;
 }
 
+// System resolver for palette bonuses (used by pool-based descriptors).
+export var palette = {
+  resolve: function(id, ctx) {
+    var val = computePaletteBonus(id, ctx.saveData);
+    var paletteLv = Number(ctx.saveData.spelunkData && ctx.saveData.spelunkData[9] && ctx.saveData.spelunkData[9][id]) || 0;
+    return node(label('Palette', id), val, [
+      node('Palette Level', paletteLv, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'palette ' + id });
+  },
+};
+
 // ==================== BIG FISH BONUSES ====================
 // BigFishBonuses(idx) = fishLv / (100 + fishLv) * baseVal
 // fishLv from Spelunk[11], baseVal from Spelunky[18] field [2]

@@ -238,8 +238,24 @@ export function computeCosmoBonus(tier, idx, saveData) {
   var lv = Number(holesArr[idx]) || 0;
   if (lv <= 0) return 0;
   var base = cosmoUpgBase(tier, idx);
-  return base * lv;
+  return Math.floor(base * lv);
 }
+
+// System resolver for cosmo upgrades (used by pool-based descriptors).
+// id format: 'T_I' string, e.g. '2_3' for tier 2 index 3.
+export var cosmo = {
+  resolve: function(id, ctx) {
+    var parts = String(id).split('_');
+    var tier = Number(parts[0]) || 0;
+    var idx = Number(parts[1]) || 0;
+    var val = computeCosmoBonus(tier, idx, ctx.saveData);
+    var lv = Number(ctx.saveData.holesData && ctx.saveData.holesData[4 + tier] && ctx.saveData.holesData[4 + tier][idx]) || 0;
+    return node(label('Cosmo', tier + '/' + idx), val, [
+      node('Level', lv, null, { fmt: 'raw' }),
+      node('Base', cosmoUpgBase(tier, idx), null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'cosmo ' + tier + '/' + idx });
+  },
+};
 
 // MonumentROGbonuses(t, i): monument bonus from HolesInfo[37] and Holes[15]
 // Formula: if bonusInfo < 30: level * bonusInfo * max(1, HoleozDN)

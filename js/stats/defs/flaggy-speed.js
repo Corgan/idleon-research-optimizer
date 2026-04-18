@@ -22,7 +22,7 @@ export default createDescriptor({
 
     var smallCogFlaggy = computeSmallCogBonusTOTAL(0, ctx.saveData);
     var grid89 = gridBonusFinal(saveData, 89);
-    var cardW7b3 = safe(computeCardLv, 'w7b3');
+    var cardW7b3 = safe(computeCardLv, 'w7b3', saveData);
 
     var total = computeExtraFlaggyRatemulti(ctx.saveData);
     var cogTotals = computeCogBoardTotals(ctx.saveData);

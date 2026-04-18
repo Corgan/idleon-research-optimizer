@@ -4,10 +4,10 @@
 // Scope: character (TotalStats and talents are per-character).
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
-import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
-import { sigilBonus as sigilBonusFn } from '../systems/w2/alchemy.js';
-import { pristineBon } from '../systems/w5/pristine.js';
+import { companion } from '../systems/common/companions.js';
+import { vault } from '../systems/common/vault.js';
+import { sigil } from '../systems/w2/alchemy.js';
+import { pristine } from '../systems/w6/sneaking.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { cardLv } from '../systems/common/cards.js';
@@ -15,7 +15,7 @@ import { eventShopOwned, superBitType, cloudBonus as _cloudBonus } from '../../g
 import { getLOG } from '../../formulas.js';
 import { label } from '../entity-names.js';
 import { grid, mainframeBonus, computePetArenaBonus } from '../systems/w4/lab.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
+import { arcade } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { legendPTSbonus, computeBigFishBonus } from '../systems/w7/spelunking.js';
 import { computeStatueBonusGiven, computeMealBonus, computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
@@ -28,7 +28,7 @@ import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
 import { talent } from '../systems/common/talent.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { winBonus } from '../systems/w6/summoning.js';
 import { grimoireUpgBonus22, grimoire } from '../systems/mc/grimoire.js';
 import { GrimoireUpg } from '../data/game/customlists.js';
 import { exoticBonusQTY40 } from '../systems/w6/farming.js';
@@ -117,7 +117,7 @@ export default createDescriptor({
         if (otherLv > charLv) { isHighest = false; break; }
       }
       if (isHighest) {
-        egl2 += 3 * tasks2_0_2 + safe(vaultUpgBonus, 12);
+        egl2 += 3 * tasks2_0_2 + rval(vault, 12, ctx);
         if (superBitType(19, s.gamingData) === 1) {
           // ExpGainLUK3 gets +50 later
         }
@@ -126,7 +126,7 @@ export default createDescriptor({
 
     // Level-based flat bonuses
     if (charLv < 50) egl2 += computeCardSetBonusRaw('0', ctx.saveData);
-    if (charLv < 120) egl2 += safe(computeMealBonus, 'Clexp');
+    if (charLv < 120) egl2 += safe(computeMealBonus, 'Clexp', s);
 
     // WeeklyBoss.c bonus
     var weeklyBossC = Number(s.weeklyBossData && s.weeklyBossData.c) || 0;
@@ -149,17 +149,17 @@ export default createDescriptor({
     if (s.bundlesData && s.bundlesData.bun_q === 1) egl3 += 20;
 
     // ======= STAGE 4: ExpGainLUK4 (compass/gambit/vault/grid/grimoire) =======
-    var compassBonus51 = safe(computeCompassBonus, 51);
+    var compassBonus51 = safe(computeCompassBonus, 51, s);
 
     var holesB47 = rval(holes, 47, ctx);
-    var expMulti999 = safe(computeWinBonus, 23); // ExpMulti(999) = WinBonus(23) per game source
+    var expMulti999 = rval(winBonus, 23, ctx); // ExpMulti(999) = WinBonus(23) per game source
     // GrimoireUpgBonus(24): level * perLevel * (1 + grimoire36/100)
     var grimLv24 = Number(s.grimoireData && s.grimoireData[24]) || 0;
     var grimPerLv24 = Number(GrimoireUpg[24] && GrimoireUpg[24][5]) || 0;
     var grimLv36 = Number(s.grimoireData && s.grimoireData[36]) || 0;
     var grimoireUpg24 = grimLv24 * grimPerLv24 * (1 + grimLv36 / 100);
-    var vault3 = safe(vaultUpgBonus, 3);
-    var vault35 = safe(vaultUpgBonus, 35);
+    var vault3 = rval(vault, 3, ctx);
+    var vault35 = rval(vault, 35, ctx);
     var ola345 = Number(optionsListData[345]) || 0;
     var holesB83 = Math.min(40, rval(holes, 83, ctx)); // B_UPG(83, 40) — capped at 40
 
@@ -173,13 +173,13 @@ export default createDescriptor({
     var egl5_talentMult = genInfo17 ? Math.max(1, talent429) : 1;
 
     // Companions multiplicative chain
-    var comp37 = safe(companions, 37);
-    var comp33 = safe(companions, 33);
-    var comp160 = safe(companions, 160);
-    var comp32 = safe(companions, 32);
-    var comp34 = safe(companions, 34);
-    var comp145 = safe(companions, 145);
-    var comp50 = safe(companions, 50);
+    var comp37 = rval(companion, 37, ctx);
+    var comp33 = rval(companion, 33, ctx);
+    var comp160 = rval(companion, 160, ctx);
+    var comp32 = rval(companion, 32, ctx);
+    var comp34 = rval(companion, 34, ctx);
+    var comp145 = rval(companion, 145, ctx);
+    var comp50 = rval(companion, 50, ctx);
     var compMult = (1 + 9 * comp37) * (1 + comp33) * (1 + 4 * comp160)
       * (1 + comp32) * (1 + comp34) * (1 + comp145);
 
@@ -191,7 +191,7 @@ export default createDescriptor({
     var gridMult = 1 + (grid130 + grid131 + grid132 + grid152) / 100;
 
     // StickerBonus(0)
-    var stickerBonus0 = safe(computeStickerBonus, 0);
+    var stickerBonus0 = safe(computeStickerBonus, 0, s);
     // Stickers are stored in farming data
 
     // SuperBit(63)
@@ -215,14 +215,14 @@ export default createDescriptor({
 
     // EtcBonuses(84), CardBonusREAL(100), Arcade(60), Vials.7classexp
     var etc84 = rval(etcBonus, '84', ctx);
-    var _cb100 = safe(computeCardBonusByType, 100, ci);
+    var _cb100 = safe(computeCardBonusByType, 100, ci, s);
     var card100 = (typeof _cb100 === 'object' && _cb100) ? (_cb100.val || 0) : Number(_cb100) || 0;
-    var arcade60 = safe(arcadeBonus, 60);
-    var vial7classexp = safe(computeVialByKey, '7classexp');
+    var arcade60 = rval(arcade, 60, ctx);
+    var vial7classexp = safe(computeVialByKey, '7classexp', s);
 
     // Talent 434 ^ TotalTitanKills
     var talent434 = rval(talent, 434, ctx, { mode: 'max' });
-    var titanKills = safe(computeTotalTitanKills);
+    var titanKills = safe(computeTotalTitanKills, s);
     // Total titan kills stored in OLA
     var titanKillsPow = Math.pow(Math.max(1, talent434), titanKills);
 
@@ -234,13 +234,13 @@ export default createDescriptor({
     // CoralKidUpgBonus(2) ^ max(0, Divinity[25]-10), CardSetBonuses(0,"12"),
     // BubbaRoG(6), RoG(15)
     var arcaneMapMulti1 = safe(computeArcaneMapMultiBon, 1, ctx);
-    var bigFish4 = safe(computeBigFishBonus, 4);
+    var bigFish4 = safe(computeBigFishBonus, 4, s);
     var dancingCoral3 = dancingCoralBase(3);
     var coralKid2 = Number(optionsListData[430] || 0) || 0; // CoralKidUpgBonus(2) = OLA[428+2] = OLA[430]
     var div25 = Number(s.divinityAllData && s.divinityAllData[25]) || 0;
     var coralKidPow = Math.pow(1 + coralKid2 / 100, Math.max(0, div25 - 10));
     var cardSet12 = computeCardSetBonusRaw('12', ctx.saveData);
-    var bubbaRoG6 = safe(bubbaRoGBonuses, 6); // BubbaRoG_Bonuses(6) — NOT sushi RoG
+    var bubbaRoG6 = safe(bubbaRoGBonuses, 6, s); // BubbaRoG_Bonuses(6) — NOT sushi RoG
     var rog15 = rogBonusQTY(15, s.cachedUniqueSushi || 0);
 
     // DancingCoralBonus(3): base * max(0, tower22 - 200)
@@ -255,34 +255,34 @@ export default createDescriptor({
     // Third chain: Spelunk6.length as pow(1.03, count), SuperBit(24), MeritocBonusz(27), OLA[464]
     var spelunk6len = (s.spelunkData && s.spelunkData[6]) ? s.spelunkData[6].length : 0;
     var superBit24 = superBitType(24, s.gamingData) === 1 ? 1 : 0;
-    var meritoc27 = safe(computeMeritocBonusz, 27);
+    var meritoc27 = safe(computeMeritocBonusz, 27, s);
     var ola464 = Number(optionsListData[464]) || 0;
     var ola464bonus = Math.max(0, 5 * (ola464 - 8));
     egl5 *= Math.max(1, Math.pow(1.03, spelunk6len) * superBit24
       * (1 + meritoc27 / 100) * (1 + ola464bonus / 100));
 
     // ======= STAGE 6: ExpGainLUK6 (additive pool) =======
-    var cardSpringEvent1 = 2 * safe(cardLv, 'springEvent1');
-    var comp3 = safe(companions, 3);
-    var comp50add = safe(companions, 50);
+    var cardSpringEvent1 = 2 * safe(cardLv, 'springEvent1', s);
+    var comp3 = rval(companion, 3, ctx);
+    var comp50add = rval(companion, 50, ctx);
     var shimmerOla179 = Number(optionsListData[179]) || 0;
-    var shimmerBonus = safe(computeAllShimmerBonuses);
+    var shimmerBonus = safe(computeAllShimmerBonuses, s);
     var gfoodClassEXP = 0;
     try {
       var _gf = goldFoodBonuses('ClassEXPz', ci, ctx.saveData);
       gfoodClassEXP = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
     } catch(e) {}
-    var owlBonus0 = safe(computeOwlBonus, 0);
-    var voting15 = safe(votingBonusz, 15, 1); // VotingBonusz(15)
+    var owlBonus0 = safe(computeOwlBonus, 0, s);
+    var voting15 = safe(votingBonusz, 15, 1, s); // VotingBonusz(15)
     var monumentROG16 = rval(holes, 'monument6', ctx);
     var ironSet = safe(getSetBonus, 'IRON_SET');
-    var exotic50 = safe(computeExoticBonus, 50);
+    var exotic50 = safe(computeExoticBonus, 50, s);
     var ola421 = Number(optionsListData[421]) || 0;
-    var stampClassXP = safe(computeStampBonusOfTypeX, 'classxp');
+    var stampClassXP = safe(computeStampBonusOfTypeX, 'classxp', s);
     var friendStatz1 = 0; // FriendBonusStatz(1)
     try { friendStatz1 = rval(friend, 1, ctx); } catch(e) {}
-    var comp47 = safe(companions, 47);
-    var comp111 = safe(companions, 111);
+    var comp47 = rval(companion, 47, ctx);
+    var comp111 = rval(companion, 111, ctx);
     var bb8 = computeButtonBonus(8, saveData);
 
     var egl6 = cardSpringEvent1 + comp3 + comp50add
@@ -293,7 +293,7 @@ export default createDescriptor({
     // ======= FINAL: MonsterEXP combine =======
     // WorkbenchStuff × (1+EGL3/100) × EGL5 × (1+EtcBonuses("78")/100)
     // × (EGL/1.8 × (1+talent35/100) + additivePool/100 + 1)
-    var wb = safe(computeWorkbenchStuff);
+    var wb = safe(_computeWorkbenchStuff, s);
     var etc78 = rval(etcBonus, '78', ctx);
     var talent35 = rval(talent, 35, ctx);
 
@@ -306,29 +306,29 @@ export default createDescriptor({
       var _gfCE = goldFoodBonuses('ClassEXP', ci, ctx.saveData);
       totalFoodClassEXP = (_gfCE && typeof _gfCE === 'object') ? (Number(_gfCE.total) || 0) : (Number(_gfCE) || 0);
     } catch(e) {}
-    var starSignMainXP = safe(computeStarSignBonus, 'MainXP', ci);
-    var vialMonsterEXP = safe(computeVialByKey, 'MonsterEXP');
-    var bubbleExpActive = safe(bubbleValByKey, 'expACTIVE', ci);
-    var _cb44 = safe(computeCardBonusByType, 44, ci);
+    var starSignMainXP = safe(computeStarSignBonus, 'MainXP', ci, s);
+    var vialMonsterEXP = safe(computeVialByKey, 'MonsterEXP', s);
+    var bubbleExpActive = safe(bubbleValByKey, 'expACTIVE', ci, s);
+    var _cb44 = safe(computeCardBonusByType, 44, ci, s);
     var card44 = (typeof _cb44 === 'object' && _cb44) ? (_cb44.val || 0) : Number(_cb44) || 0;
-    var statue10 = safe(computeStatueBonusGiven, 10);
+    var statue10 = safe(computeStatueBonusGiven, 10, ci, s);
     var talent632 = rval(talent, 632, ctx);
     var shrine5 = rval(shrine, 5, ctx);
-    var saltLick3val = safe(computeSaltLick, 3);
+    var saltLick3val = safe(computeSaltLick, 3, s);
     var prayer0 = computePrayerReal(0, 0, ci, ctx.saveData);
     var prayer2 = computePrayerReal(2, 0, ci, ctx.saveData);
     var prayer9curse = computePrayerReal(9, 1, ci, ctx.saveData);
-    var flurbo2 = safe(computeFlurboShop, 2);
-    var ach57 = safe(achieveStatus, 57);
-    var ach357 = 20 * safe(achieveStatus, 357);
-    var ach61 = 3 * safe(achieveStatus, 61);
-    var ach124 = 2 * safe(achieveStatus, 124);
-    var ach188 = 5 * safe(achieveStatus, 188);
-    var arcade12 = safe(arcadeBonus, 12);
-    var sigilBonus8 = safe(sigilBonusFn, 8);
-    var ach286 = 25 * safe(achieveStatus, 286);
-    var shinyBonus1 = safe(computeShinyBonusS, 1);
-    var gamingMSA4 = safe(computeMSABonus, 4);
+    var flurbo2 = safe(computeFlurboShop, 2, s);
+    var ach57 = safe(achieveStatus, 57, s);
+    var ach357 = 20 * safe(achieveStatus, 357, s);
+    var ach61 = 3 * safe(achieveStatus, 61, s);
+    var ach124 = 2 * safe(achieveStatus, 124, s);
+    var ach188 = 5 * safe(achieveStatus, 188, s);
+    var arcade12 = rval(arcade, 12, ctx);
+    var sigilBonus8 = rval(sigil, 8, ctx);
+    var ach286 = 25 * safe(achieveStatus, 286, s);
+    var shinyBonus1 = safe(computeShinyBonusS, 1, s);
+    var gamingMSA4 = safe(computeMSABonus, 4, s);
     var talent55 = rval(talent, 55, ctx, { mode: 'max' });
 
     var additivePool = etc4 + boxMonsterExp + totalFoodClassEXP + starSignMainXP

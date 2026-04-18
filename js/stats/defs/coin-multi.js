@@ -3,17 +3,17 @@
 // Scope: character (TotalStats is per-character).
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
-import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
+import { companion } from '../systems/common/companions.js';
+import { vault } from '../systems/common/vault.js';
 import { cardLv } from '../systems/common/cards.js';
-import { pristineBon } from '../systems/w5/pristine.js';
+import { pristine } from '../systems/w6/sneaking.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { eventShopOwned, emporiumBonus, ribbonBonusAt } from '../../game-helpers.js';
 import { getLOG, formulaEval } from '../../formulas.js';
 import { label } from '../entity-names.js';
 import { grid, mainframeBonus, computePetArenaBonus } from '../systems/w4/lab.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
+import { arcade } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
 import { computeStatueBonusGiven, computeMealBonus, computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
@@ -30,7 +30,7 @@ import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
 import { talent } from '../systems/common/talent.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { winBonus } from '../systems/w6/summoning.js';
 import { artifactBase } from '../data/w5/sailing.js';
 import { grimoireUpgBonus22 } from '../systems/mc/grimoire.js';
 import { exoticBonusQTY40 } from '../systems/w6/farming.js';
@@ -41,7 +41,6 @@ import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { computeCropSC } from '../systems/w6/farming.js';
 import { cookingMealMulti } from '../systems/common/cooking.js';
 import { computeVaultKillzTotal } from '../systems/common/vaultKillz.js';
-import votingMultiDesc from './voting-multi.js';
 import { saveData } from '../../state.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
@@ -84,9 +83,9 @@ export default createDescriptor({
     var ci = ctx.charIdx || 0;
 
     // ===== GROUP 1: Alchemy bubbles x floor(stat/250) =====
-    var cashSTR = safe(bubbleValByKey, 'CashSTR', ci);
-    var cashAGI = safe(bubbleValByKey, 'CashAGI', ci);
-    var cashWIS = safe(bubbleValByKey, 'CashWIS', ci);
+    var cashSTR = safe(bubbleValByKey, 'CashSTR', ci, s);
+    var cashAGI = safe(bubbleValByKey, 'CashAGI', ci, s);
+    var cashWIS = safe(bubbleValByKey, 'CashWIS', ci, s);
     var _strR = computeTotalStat('STR', ci, ctx); var totalSTR = _strR.computed;
     var _agiR = computeTotalStat('AGI', ci, ctx); var totalAGI = _agiR.computed;
     var _wisR = computeTotalStat('WIS', ci, ctx); var totalWIS = _wisR.computed;
@@ -97,15 +96,15 @@ export default createDescriptor({
     var g1 = 1 + g1sum / 100;
 
     // ===== GROUPS 2-4: Companions (capped at 4) =====
-    var comp24 = Math.min(4, safe(companions, 24));
-    var comp45 = Math.min(4, safe(companions, 45));
-    var comp159 = Math.min(4, safe(companions, 159));
+    var comp24 = Math.min(4, rval(companion, 24, ctx));
+    var comp45 = Math.min(4, rval(companion, 45, ctx));
+    var comp159 = Math.min(4, rval(companion, 159, ctx));
     var g2 = 1 + comp24;
     var g3 = 1 + comp45;
     var g4 = 1 + comp159;
 
     // ===== GROUP 4b: CoinDropMulti = 1 + Companions(38) (no cap) =====
-    var comp38 = safe(companions, 38);
+    var comp38 = rval(companion, 38, ctx);
     var g4b = 1 + comp38;
 
     // ===== GROUPS 5-6: EventShop =====
@@ -156,11 +155,11 @@ export default createDescriptor({
 
     // ===== GROUP 16: Meal + Artifact + Roo + Voting(34) =====
     var votingMulti = 1;
-    try { var vmResult = votingMultiDesc.combine({}, ctx); votingMulti = vmResult.val || 1; } catch(e) {}
-    var voting34 = safe(votingBonusz, 34, votingMulti);
-    var mealCash = safe(computeMealBonus, 'Cash', ctx.saveData);
+    try { var vmResult = ctx.resolve('voting-multi'); votingMulti = vmResult.val || 1; } catch(e) {}
+    var voting34 = safe(votingBonusz, 34, votingMulti, s);
+    var mealCash = safe(computeMealBonus, 'Cash', s);
     var artifactBonus1 = safe(computeArtifactBonus1);
-    var rooBonus6 = safe(computeRooBonus, 6, ctx.saveData);
+    var rooBonus6 = safe(computeRooBonus, 6, s);
     var g16sum = mealCash + artifactBonus1 + rooBonus6 + voting34;
     var g16 = 1 + g16sum / 100;
 
@@ -173,16 +172,16 @@ export default createDescriptor({
     var g17 = 1 + g17sum;
 
     // ===== GROUP 18: Mainframe(9) + Vault x Killz =====
-    var mf9 = safe(mainframeBonus, 9);
-    var vault34 = safe(vaultUpgBonus, 34);
-    var vault37 = safe(vaultUpgBonus, 37);
-    var killz8 = safe(computeVaultKillzTotal, 8);
-    var killz9 = safe(computeVaultKillzTotal, 9);
+    var mf9 = safe(mainframeBonus, 9, s);
+    var vault34 = rval(vault, 34, ctx);
+    var vault37 = rval(vault, 37, ctx);
+    var killz8 = safe(computeVaultKillzTotal, 8, s);
+    var killz9 = safe(computeVaultKillzTotal, 9, s);
     var g18sum = mf9 + vault34 * killz8 + vault37 * killz9;
     var g18 = 1 + g18sum / 100;
 
     // ===== GROUP 19: Pristine(16) =====
-    var pristine16 = safe(pristineBon, 16);
+    var pristine16 = rval(pristine, 16, ctx);
     var g19 = 1 + pristine16 / 100;
 
     // ===== GROUP 20: Prayer(8) =====
@@ -198,8 +197,8 @@ export default createDescriptor({
     var g20 = 1 + prayer8val / 100;
 
     // ===== GROUP 21: Divinity Minor + CropSC(4) =====
-    var divMinor = safe(computeDivinityMinor, -1, 3, ctx.saveData);
-    var cropSC4 = safe(computeCropSC, 4, ctx.saveData);
+    var divMinor = safe(computeDivinityMinor, -1, 3, s);
+    var cropSC4 = safe(computeCropSC, 4, s);
     var g21 = 1 + (divMinor + cropSC4) / 100;
 
     // ===== GROUP 22: Big additive group =====
@@ -210,13 +209,13 @@ export default createDescriptor({
     var talent657 = rval(talent, 657, ctx);
     var vialMC = safe(computeVialMonsterCash);
     var etc3 = rval(etcBonus, '3', ctx);
-    var _cb11 = safe(computeCardBonusByType, 11, ci);
+    var _cb11 = safe(computeCardBonusByType, 11, ci, s);
     var cardBonus11 = (typeof _cb11 === 'object' && _cb11) ? (_cb11.val || 0) : Number(_cb11) || 0;
-    var cardW5b1 = 7 * safe(cardLv, 'w5b1');
+    var cardW5b1 = 7 * safe(cardLv, 'w5b1', s);
     var talent22 = rval(talent, 22, ctx);
     var flurboShop4 = safe(computeFlurboShop4);
-    var arcade10 = safe(arcadeBonus, 10);
-    var arcade11 = safe(arcadeBonus, 11);
+    var arcade10 = rval(arcade, 10, ctx);
+    var arcade11 = rval(arcade, 11, ctx);
     var _br13c = safe(computeBoxReward, ci, '13c');
     var boxReward13c = (typeof _br13c === 'object' && _br13c) ? (_br13c.val || 0) : Number(_br13c) || 0;
     var guild8 = rval(guild, 8, ctx);
@@ -230,19 +229,19 @@ export default createDescriptor({
     var _gf = null;
     try { _gf = goldFoodBonuses('MonsterCash', ci, ctx.saveData); } catch(e) {}
     var gfoodMC = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
-    var vault17 = safe(vaultUpgBonus, 17);
+    var vault17 = rval(vault, 17, ctx);
     var ola340 = Number(optionsListData[340]) || 0;
     var vaultLog = vault17 * getLOG(ola340);
-    var ach235 = 5 * safe(achieveStatus, 235);
-    var ach350 = 10 * safe(achieveStatus, 350);
-    var ach376 = 20 * safe(achieveStatus, 376);
-    var vault2 = safe(vaultUpgBonus, 2);
-    var vault14 = safe(vaultUpgBonus, 14);
-    var killz4 = safe(computeVaultKillzTotal, 4);
-    var vault31 = safe(vaultUpgBonus, 31);
-    var killz7 = safe(computeVaultKillzTotal, 7);
+    var ach235 = 5 * safe(achieveStatus, 235, s);
+    var ach350 = 10 * safe(achieveStatus, 350, s);
+    var ach376 = 20 * safe(achieveStatus, 376, s);
+    var vault2 = rval(vault, 2, ctx);
+    var vault14 = rval(vault, 14, ctx);
+    var killz4 = safe(computeVaultKillzTotal, 4, s);
+    var vault31 = rval(vault, 31, ctx);
+    var killz7 = safe(computeVaultKillzTotal, 7, s);
     var ola420 = Number(optionsListData[420]) || 0;
-    var vault70 = safe(vaultUpgBonus, 70);
+    var vault70 = rval(vault, 70, ctx);
     var cardsCollected = safe(countCardsCollected);
 
     var g22sum = talent657 + vialMC + etc3 + cardBonus11 + cardW5b1

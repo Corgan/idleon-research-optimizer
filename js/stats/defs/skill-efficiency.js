@@ -44,7 +44,7 @@ var SKILL_CONFIG = {
     perSkillMultFn: function(ci, ctx) {
       var talent85 = rval(talent, 85, ctx);
       var etc10 = rval(etcBonus, '10', ctx);
-      var voting7 = safe(votingBonusz, 7, 1);
+      var voting7 = safe(votingBonusz, 7, 1, ctx.saveData);
       var copperSet = safe(getSetBonus, 'COPPER_SET');
       return (1 + (talent85 + etc10 + voting7 + copperSet) / 100);
     },
@@ -57,7 +57,7 @@ var SKILL_CONFIG = {
     perSkillMultFn: function(ci, ctx) {
       var talent265 = rval(talent, 265, ctx);
       var etc11 = rval(etcBonus, '11', ctx);
-      var voting8 = safe(votingBonusz, 8, 1);
+      var voting8 = safe(votingBonusz, 8, 1, ctx.saveData);
       return (1 + (talent265 + etc11 + voting8) / 100);
     },
   },
@@ -69,7 +69,7 @@ var SKILL_CONFIG = {
     perSkillMultFn: function(ci, ctx) {
       var talent355 = rval(talent, 355, ctx);
       var etc12 = rval(etcBonus, '12', ctx);
-      var voting9 = safe(votingBonusz, 9, 1);
+      var voting9 = safe(votingBonusz, 9, 1, ctx.saveData);
       return (1 + (talent355 + etc12 + voting9) / 100);
     },
   },
@@ -119,7 +119,7 @@ export default createDescriptor({
     }
 
     // 2. Tool bubble + talent scaling
-    var toolBubble = safe(bubbleValByKey, sk.toolBubble, ci);
+    var toolBubble = safe(bubbleValByKey, sk.toolBubble, ci, s);
     var skillLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][sk.skillLvIdx]) || 0;
     var toolTalent = rval(talent, sk.toolTalent, ctx);
     var skillStatsDN = wpRaw * (1 + toolTalent * (skillLv / 10) / 100) * (1 + toolBubble / 100) + 4;
@@ -131,7 +131,7 @@ export default createDescriptor({
     // 4. Main efficiency formula
     var _statR = computeTotalStat(sk.stat, ci, ctx); var totalStat = _statR.computed;
     var effTalent = rval(talent, sk.effTalent, ctx);
-    var stampBase = safe(computeStampBonusOfTypeX, sk.stampType);
+    var stampBase = safe(computeStampBonusOfTypeX, sk.stampType, s);
     var allBaseEff = computeAllBaseSkillEff(ci, ctx);
 
     var inner = Math.pow(skillStatsDN, 1.3)
@@ -141,7 +141,7 @@ export default createDescriptor({
     var skillLvMult = 1 + skillLv / 200;
     var _brBox = safe(computeBoxReward, ci, sk.boxPctKey);
     var boxPct = (typeof _brBox === 'object' && _brBox) ? (_brBox.val || 0) : Number(_brBox) || 0;
-    var calcTalent = safe(computeCalcTalent, sk.calcTalentRow[0], sk.calcTalentRow[1], ci);
+    var calcTalent = safe(computeCalcTalent, sk.calcTalentRow[0], sk.calcTalentRow[1], ci, s);
     var boxCalcMult = 1 + (boxPct + calcTalent) / 100;
 
     // STR^0.35 scaling for mining/fishing

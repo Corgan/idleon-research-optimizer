@@ -43,8 +43,7 @@ export var vault = {
     var name = label('Vault', id);
     var vd = ctx.saveData.vaultData;
     var lv = vd ? (Number(vd[id]) || 0) : 0;
-    // VaultUpgBonus: perLevel * level (perLevel is always 1 for currently used upgrades)
-    var perLevel = 1;
+    var perLevel = vaultUpgPerLevel(id);
     var baseVal = perLevel * lv;
     // Index 0: breakpoint bonuses added before mastery
     if (id === 0) {

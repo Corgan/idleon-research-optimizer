@@ -2,10 +2,12 @@
 // Computes OverkillStuffs("2") — the raw overkill tier (1-50).
 // Requires max damage per character and monster HP for current map.
 
-import { MapAFKtarget } from '../data/game/customlists.js';
-import { MONSTERS } from '../data/game/monsters.js';
-import { currentMapData } from '../../save/data.js';
-import damageDesc from '../defs/damage.js';
+import { MapAFKtarget } from '../../data/game/customlists.js';
+import { MONSTERS } from '../../data/game/monsters.js';
+import { currentMapData } from '../../../save/data.js';
+import damageDesc from '../../defs/damage.js';
+import { buildTree } from '../../tree-builder.js';
+import { getCatalog } from '../../registry.js';
 
 /**
  * Compute overkill tier for a character on their current map.
@@ -37,7 +39,7 @@ export function computeOverkillTier(charIdx, ctx, opts) {
   var maxDmg = opts.maxDmg;
   if (maxDmg == null) {
     try {
-      var dmgResult = damageDesc.combine({}, { charIdx: charIdx, saveData: ctx.saveData });
+      var dmgResult = buildTree(damageDesc, getCatalog(), { charIdx: charIdx, saveData: ctx.saveData });
       maxDmg = dmgResult.val || 0;
     } catch(e) {
       maxDmg = 0;

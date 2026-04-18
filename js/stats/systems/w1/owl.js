@@ -16,7 +16,7 @@ export var owl = {
     var rawCount = Math.max(0, Math.ceil((ola255 - id) / 6));
     if (rawCount <= 0) return node('Summoning Owl', 0, null, { note: 'owl ' + id });
 
-    var legend26 = legendPTSbonus(26, saveData);
+    var legend26 = legendPTSbonus(26, ctx.saveData);
     var legendMulti = 1 + legend26 / 100;
     // CompanionDB[51] = w6c2b "3x bonuses from Orion, Poppy, and Bubba"
     var comp51 = ctx.saveData.companionIds && ctx.saveData.companionIds.has(51) ? companionBonus(51) : 0;

@@ -27,6 +27,8 @@ import { SHIMMERON_BUBBLE, WARRIORS_RULE_BUBBLE } from '../stats/data/w2/alchemy
 import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../stats/data/common/talent.js';
 import { STAR_SIGN_69_BONUS } from '../stats/data/common/starSign.js';
 import votingMultiDesc from '../stats/defs/voting-multi.js';
+import { buildTree } from '../stats/tree-builder.js';
+import { getCatalog } from '../stats/registry.js';
 import { itemUqMatch } from '../stats/data/common/equipment.js';
 import { isFightingMap, mapKillReq } from '../game-data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../stats/systems/w2/alchemy.js';
@@ -215,7 +217,7 @@ export function computeDNSM(charIdx = 0) {
 
   // === votingBonuszMulti (delegated to voting-multi descriptor) ===
   {
-    const vr = votingMultiDesc.combine({}, { S: saveData });
+    const vr = buildTree(votingMultiDesc, getCatalog(), { saveData: saveData });
     dnsm.votingBonuszMulti = vr.val;
     T.votingBonuszMulti = node('Voting Multi', vr.val, vr.children, { fmt: 'x' });
   }

@@ -6,14 +6,14 @@
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
 import { companions } from '../systems/common/companions.js';
-import { vaultUpgBonus } from '../systems/common/vault.js';
+import { vault } from '../systems/common/vault.js';
 import { cardLv } from '../systems/common/cards.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent, computeAllTalentLVz } from '../systems/common/talent.js';
-import { arcadeBonus } from '../systems/w2/arcade.js';
+import { arcade } from '../systems/w2/arcade.js';
 import { computeCardBonusByType, computeBoxReward } from '../systems/common/stats.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
 import { optionsListData, prayersPerCharData } from '../../save/data.js';
@@ -48,20 +48,20 @@ var SKILL_EXP_CONFIG = {
       //   + Achieve(27) + etc55 + 25*RiftSkill(0) + Voting(7)
       var s = ctx.saveData;
       var talent104 = rval(talent, 104, ctx);
-      var stampMinExp = safe(computeStampBonusOfTypeX, 'MinExp');
-      var _cb25 = safe(computeCardBonusByType, 25, ci);
+      var stampMinExp = safe(computeStampBonusOfTypeX, 'MinExp', ctx.saveData);
+      var _cb25 = safe(computeCardBonusByType, 25, ci, ctx.saveData);
       var card25 = (typeof _cb25 === 'object' && _cb25) ? (_cb25.val || 0) : Number(_cb25) || 0;
       // SkillageDN: MinFishEXP bubble, doubled if mining level < fishing level
       var miningLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][1]) || 0;
       var fishingLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][4]) || 0;
-      var minFishEXP = safe(bubbleValByKey, 'MinFishEXP', ci);
+      var minFishEXP = safe(bubbleValByKey, 'MinFishEXP', ci, ctx.saveData);
       var skillageDN = miningLv < fishingLv ? 2 * minFishEXP : minFishEXP;
       var talent75 = rval(talent, 75, ctx);
-      var arcade3 = safe(arcadeBonus, 3);
-      var ach27 = safe(achieveStatus, 27);
+      var arcade3 = rval(arcade, 3, ctx);
+      var ach27 = safe(achieveStatus, 27, ctx.saveData);
       var etc55 = rval(etcBonus, '55', ctx);
-      var riftBonus0 = 25 * (safe(computeRiftSkillETC, 0) > 0 ? 1 : 0);
-      var voting7 = safe(votingBonusz, 7, 1);
+      var riftBonus0 = 25 * (safe(computeRiftSkillETC, 0, ctx.saveData) > 0 ? 1 : 0);
+      var voting7 = safe(votingBonusz, 7, 1, ctx.saveData);
       return talent104 + stampMinExp + card25 + skillageDN + talent75 + arcade3
         + ach27 + etc55 + riftBonus0 + voting7;
     },
@@ -73,14 +73,14 @@ var SKILL_EXP_CONFIG = {
       // Game: T464 + StampChopExp + AlchBubbles.ChopAlchEXP + CardBonus(28) + T75
       //   + Achieve(4) + 25*RiftSkill(2) + Voting(9)
       var talent464 = rval(talent, 464, ctx);
-      var stampChopExp = safe(computeStampBonusOfTypeX, 'ChopExp');
-      var chopAlchEXP = safe(bubbleValByKey, 'ChopAlchEXP', ci);
-      var _cb28 = safe(computeCardBonusByType, 28, ci);
+      var stampChopExp = safe(computeStampBonusOfTypeX, 'ChopExp', ctx.saveData);
+      var chopAlchEXP = safe(bubbleValByKey, 'ChopAlchEXP', ci, ctx.saveData);
+      var _cb28 = safe(computeCardBonusByType, 28, ci, ctx.saveData);
       var card28 = (typeof _cb28 === 'object' && _cb28) ? (_cb28.val || 0) : Number(_cb28) || 0;
       var talent75 = rval(talent, 75, ctx);
-      var ach4 = safe(achieveStatus, 4);
-      var riftBonus2 = 25 * (safe(computeRiftSkillETC, 2) > 0 ? 1 : 0);
-      var voting9 = safe(votingBonusz, 9, 1);
+      var ach4 = safe(achieveStatus, 4, ctx.saveData);
+      var riftBonus2 = 25 * (safe(computeRiftSkillETC, 2, ctx.saveData) > 0 ? 1 : 0);
+      var voting9 = safe(votingBonusz, 9, 1, ctx.saveData);
       return talent464 + stampChopExp + chopAlchEXP + card28 + talent75
         + ach4 + riftBonus2 + voting9;
     },
@@ -100,20 +100,20 @@ var SKILL_EXP_CONFIG = {
       // SkillageDN: MinFishEXP bubble, doubled if fishing level < mining level
       var miningLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][1]) || 0;
       var fishingLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][4]) || 0;
-      var minFishEXP = safe(bubbleValByKey, 'MinFishEXP', ci);
+      var minFishEXP = safe(bubbleValByKey, 'MinFishEXP', ci, ctx.saveData);
       var skillageDN = fishingLv < miningLv ? 2 * minFishEXP : minFishEXP;
-      var _cb31 = safe(computeCardBonusByType, 31, ci);
+      var _cb31 = safe(computeCardBonusByType, 31, ci, ctx.saveData);
       var card31 = (typeof _cb31 === 'object' && _cb31) ? (_cb31.val || 0) : Number(_cb31) || 0;
-      var stampFishExp = safe(computeStampBonusOfTypeX, 'FishExp');
+      var stampFishExp = safe(computeStampBonusOfTypeX, 'FishExp', ctx.saveData);
       var talent75 = rval(talent, 75, ctx);
-      var arcade4 = safe(arcadeBonus, 4);
-      var ach117 = safe(achieveStatus, 117);
+      var arcade4 = rval(arcade, 4, ctx);
+      var ach117 = safe(achieveStatus, 117, ctx.saveData);
       var etc49 = rval(etcBonus, '49', ctx);
-      var riftBonus3 = 25 * (safe(computeRiftSkillETC, 3) > 0 ? 1 : 0);
-      var bribe29 = 25 * safe(getBribeBonus, '29');
-      var roo2 = safe(computeRooBonus, 2);
-      var voting8 = safe(votingBonusz, 8, 1);
-      var vault30 = safe(vaultUpgBonus, 30);
+      var riftBonus3 = 25 * (safe(computeRiftSkillETC, 3, ctx.saveData) > 0 ? 1 : 0);
+      var bribe29 = 25 * safe(getBribeBonus, '29', ctx.saveData);
+      var roo2 = safe(computeRooBonus, 2, ctx.saveData);
+      var voting8 = safe(votingBonusz, 8, 1, ctx.saveData);
+      var vault30 = rval(vault, 30, ctx);
       return fishToolkitEXP + talent117 + talent104 + skillageDN + card31 + stampFishExp
         + talent75 + arcade4 + ach117 + etc49 + riftBonus3 + bribe29 + roo2 + voting8 + vault30;
     },
@@ -126,15 +126,15 @@ var SKILL_EXP_CONFIG = {
       //   + Achieve(107) + 25*RiftSkill(5) + Voting(10) + Vault(29)
       var talent265 = rval(talent, 265, ctx);
       var talent297 = rval(talent, 297, ctx);
-      var _cb40 = safe(computeCardBonusByType, 40, ci);
+      var _cb40 = safe(computeCardBonusByType, 40, ci, ctx.saveData);
       var card40 = (typeof _cb40 === 'object' && _cb40) ? (_cb40.val || 0) : Number(_cb40) || 0;
-      var stampCatchExp = safe(computeStampBonusOfTypeX, 'CatchExp');
+      var stampCatchExp = safe(computeStampBonusOfTypeX, 'CatchExp', ctx.saveData);
       var talent75 = rval(talent, 75, ctx);
-      var arcade9 = safe(arcadeBonus, 9);
-      var ach107 = safe(achieveStatus, 107);
-      var riftBonus5 = 25 * (safe(computeRiftSkillETC, 5) > 0 ? 1 : 0);
-      var voting10 = safe(votingBonusz, 10, 1);
-      var vault29 = safe(vaultUpgBonus, 29);
+      var arcade9 = rval(arcade, 9, ctx);
+      var ach107 = safe(achieveStatus, 107, ctx.saveData);
+      var riftBonus5 = 25 * (safe(computeRiftSkillETC, 5, ctx.saveData) > 0 ? 1 : 0);
+      var voting10 = safe(votingBonusz, 10, 1, ctx.saveData);
+      var vault29 = rval(vault, 29, ctx);
       return talent265 + talent297 + card40 + stampCatchExp + talent75
         + arcade9 + ach107 + riftBonus5 + voting10 + vault29;
     },
@@ -148,18 +148,18 @@ var SKILL_EXP_CONFIG = {
     customCombine: function(ci, ctx) {
       var s = ctx.saveData;
       var talent265 = rval(talent, 265, ctx);
-      var stampSmithExp = safe(computeStampBonusOfTypeX, 'SmithExp');
+      var stampSmithExp = safe(computeStampBonusOfTypeX, 'SmithExp', ctx.saveData);
       var talent75 = rval(talent, 75, ctx);
-      var riftBonus1 = 25 * (safe(computeRiftSkillETC, 1) > 0 ? 1 : 0);
+      var riftBonus1 = 25 * (safe(computeRiftSkillETC, 1, ctx.saveData) > 0 ? 1 : 0);
       var part1 = 1 + (talent265 + stampSmithExp + talent75 + riftBonus1) / 100;
-      var forgeA = safe(cardLv, 'ForgeA');
-      var forgeB = safe(cardLv, 'ForgeB');
+      var forgeA = safe(cardLv, 'ForgeA', ctx.saveData);
+      var forgeB = safe(cardLv, 'ForgeB', ctx.saveData);
       var part2 = 1 + (4 * forgeA + 7 * forgeB) / 100;
       var _brSE = safe(computeBoxReward, ci, 'SmithExp');
       var boxSmithExp = (typeof _brSE === 'object' && _brSE) ? (_brSE.val || 0) : Number(_brSE) || 0;
       var part3 = 1 + boxSmithExp / 100;
       var allSkillxpz = computeAllSkillxpz(ci, ctx);
-      var calcTalent = safe(computeCalcTalent, 42, 1, ci);
+      var calcTalent = safe(computeCalcTalent, 42, 1, ci, ctx.saveData);
       return Math.max(0.1, part1 * part2 * part3 + (allSkillxpz + calcTalent) / 100);
     },
     sources: null, // uses customCombine instead
@@ -171,16 +171,16 @@ var SKILL_EXP_CONFIG = {
       var talent312 = rval(talent, 312, ctx);
       var talent265 = rval(talent, 265, ctx);
       var talent75 = rval(talent, 75, ctx);
-      var stampTrapExp = safe(computeStampBonusOfTypeX, 'TrappingExp');
-      var _cb58 = safe(computeCardBonusByType, 58, ci);
+      var stampTrapExp = safe(computeStampBonusOfTypeX, 'TrappingExp', ctx.saveData);
+      var _cb58 = safe(computeCardBonusByType, 58, ci, ctx.saveData);
       var card58 = (typeof _cb58 === 'object' && _cb58) ? (_cb58.val || 0) : Number(_cb58) || 0;
       var _br16b = safe(computeBoxReward, ci, '16b');
       var boxTrap = (typeof _br16b === 'object' && _br16b) ? (_br16b.val || 0) : Number(_br16b) || 0;
-      var trapMG0 = safe(computeTrapMGBonus, 0);
-      var trapMG3 = safe(computeTrapMGBonus, 3);
-      var arcade14 = safe(arcadeBonus, 14);
-      var riftBonus6 = 25 * (safe(computeRiftSkillETC, 6) > 0 ? 1 : 0);
-      var voting30 = safe(votingBonusz, 30, 1);
+      var trapMG0 = safe(computeTrapMGBonus, 0, ctx.saveData);
+      var trapMG3 = safe(computeTrapMGBonus, 3, ctx.saveData);
+      var arcade14 = rval(arcade, 14, ctx);
+      var riftBonus6 = 25 * (safe(computeRiftSkillETC, 6, ctx.saveData) > 0 ? 1 : 0);
+      var voting30 = safe(votingBonusz, 30, 1, ctx.saveData);
       return talent312 + talent265 + talent75 + stampTrapExp + card58
         + boxTrap + trapMG0 + trapMG3 + arcade14 + riftBonus6 + voting30;
     },
@@ -195,9 +195,9 @@ var SKILL_EXP_CONFIG = {
       var talent477 = rval(talent, 477, ctx);
       var talent464 = rval(talent, 464, ctx);
       var talent75 = rval(talent, 75, ctx);
-      var starSignWorshExp = safe(computeStarSignBonus, 'WorshExp', ci);
-      var riftBonus8 = 25 * (safe(computeRiftSkillETC, 8) > 0 ? 1 : 0);
-      var voting30 = safe(votingBonusz, 30, 1);
+      var starSignWorshExp = safe(computeStarSignBonus, 'WorshExp', ci, ctx.saveData);
+      var riftBonus8 = 25 * (safe(computeRiftSkillETC, 8, ctx.saveData) > 0 ? 1 : 0);
+      var voting30 = safe(votingBonusz, 30, 1, ctx.saveData);
       return worshipLv / 3 + talent477 + talent464 + talent75
         + starSignWorshExp + riftBonus8 + voting30;
     },
@@ -214,10 +214,10 @@ var SKILL_EXP_CONFIG = {
     customCombine: function(ci, ctx) {
       var s = ctx.saveData;
       var allSkillxpz = computeAllSkillxpz(ci, ctx);
-      var allSkillxpMULTI = computeAllSkillxpMULTI();
+      var allSkillxpMULTI = computeAllSkillxpMULTI(ctx);
 
       // Vault(60) multiplier — unique to Cooking EXP
-      var vault60 = safe(vaultUpgBonus, 60);
+      var vault60 = rval(vault, 60, ctx);
       var vaultMult = 1 + vault60 / 100;
 
       // Efficiency term: min(pow(CookEff/(10*100), 0.25+Prowess), 1)
@@ -226,13 +226,13 @@ var SKILL_EXP_CONFIG = {
       var effTerm = 1;
 
       // CalcTalent[42][9] — Journeyman's skill EXP bonus for Cooking
-      var calcTalent = safe(computeCalcTalent, 42, 9, ci);
+      var calcTalent = safe(computeCalcTalent, 42, 9, ci, ctx.saveData);
 
       // Per-skill sources
-      var mealCookExp = safe(computeMealBonus, 'CookExp');
+      var mealCookExp = safe(computeMealBonus, 'CookExp', ctx.saveData);
       var _br19b = safe(computeBoxReward, ci, '19b');
       var box19b = (typeof _br19b === 'object' && _br19b) ? (_br19b.val || 0) : Number(_br19b) || 0;
-      var _cb85 = safe(computeCardBonusByType, 85, ci);
+      var _cb85 = safe(computeCardBonusByType, 85, ci, ctx.saveData);
       var card85 = (typeof _cb85 === 'object' && _cb85) ? (_cb85.val || 0) : Number(_cb85) || 0;
 
       // TalentCalc(146): primary × min(mobsWith1MKills, secondaryCap)
@@ -241,15 +241,15 @@ var SKILL_EXP_CONFIG = {
       // For endgame players, mob count >= cap, so TalentCalc(146) ≈ primary × cap
       var talent146primary = rval(talent, 146, ctx);
       var rawLv146 = Number(skillLvData[ci] && (skillLvData[ci][146] || skillLvData[ci]['146'])) || 0;
-      var allTalentBonus146 = rawLv146 > 0 ? safe(computeAllTalentLVz, 146, ci) : 0;
+      var allTalentBonus146 = rawLv146 > 0 ? safe(computeAllTalentLVz, 146, ci, null, ctx.saveData) : 0;
       var effectiveLv146 = rawLv146 + allTalentBonus146;
       var secondaryCap146 = formulaEval('add', 1, 0, effectiveLv146);
       var talentCalc146 = talent146primary * secondaryCap146;
 
       var talent104 = rval(talent, 104, ctx);
-      var statue20 = safe(computeStatueBonusGiven, 20);
-      var riftBonus9 = 25 * (safe(computeRiftSkillETC, 9) > 0 ? 1 : 0);
-      var voting13 = safe(votingBonusz, 13, 1);
+      var statue20 = safe(computeStatueBonusGiven, 20, ci, ctx.saveData);
+      var riftBonus9 = 25 * (safe(computeRiftSkillETC, 9, ctx.saveData) > 0 ? 1 : 0);
+      var voting13 = safe(votingBonusz, 13, 1, ctx.saveData);
 
       var perSkill = mealCookExp + box19b + card85 + talentCalc146 + talent104
         + statue20 + riftBonus9 + voting13;
@@ -279,16 +279,16 @@ var SKILL_EXP_CONFIG = {
     calcTalentRow: null, // Breeding has its own formula
     sources: function(ci, ctx) {
       var talent372 = rval(talent, 372, ctx, { mode: 'max' });
-      var mf105 = safe(mainframeBonus, 105);
-      var mealBrExp = safe(computeMealBonus, 'BrExp');
+      var mf105 = safe(mainframeBonus, 105, ctx.saveData);
+      var mealBrExp = safe(computeMealBonus, 'BrExp', ctx.saveData);
       var breedCount = Number(saveData.breedingData && saveData.breedingData[2] && saveData.breedingData[2][0]) || 0;
-      var cardW4a2 = Math.min(5 * safe(cardLv, 'w4a2'), 50);
-      var stampBreedExp = safe(computeStampBonusOfTypeX, 'BreedExp');
-      var vialBreedXP = safe(computeVialByKey, 'BreedXP');
-      var statue21 = safe(computeStatueBonusGiven, 21);
-      var riftBonus10 = 25 * (safe(computeRiftSkillETC, 10) > 0 ? 1 : 0);
-      var voting16 = safe(votingBonusz, 16, 1);
-      var vault59 = safe(vaultUpgBonus, 59);
+      var cardW4a2 = Math.min(5 * safe(cardLv, 'w4a2', ctx.saveData), 50);
+      var stampBreedExp = safe(computeStampBonusOfTypeX, 'BreedExp', ctx.saveData);
+      var vialBreedXP = safe(computeVialByKey, 'BreedXP', ctx.saveData);
+      var statue21 = safe(computeStatueBonusGiven, 21, ci, ctx.saveData);
+      var riftBonus10 = 25 * (safe(computeRiftSkillETC, 10, ctx.saveData) > 0 ? 1 : 0);
+      var voting16 = safe(votingBonusz, 16, 1, ctx.saveData);
+      var vault59 = rval(vault, 59, ctx);
       return talent372 + mf105 + mealBrExp + 2 * breedCount + cardW4a2
         + stampBreedExp + vialBreedXP + statue21 + riftBonus10 + voting16 + vault59;
     },
@@ -323,7 +323,7 @@ export default createDescriptor({
     }
 
     var allSkillxpz = computeAllSkillxpz(ci, ctx);
-    var allSkillxpMULTI = computeAllSkillxpMULTI();
+    var allSkillxpMULTI = computeAllSkillxpMULTI(ctx);
     var perSkillSources = sk.sources(ci, ctx);
 
     // CalcTalentMAP contribution

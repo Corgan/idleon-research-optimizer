@@ -2,16 +2,16 @@
 // Spelunk("POW") = POW_base * POW_multi * elixir_modifier
 // Scope: account (not per-character).
 
-import { companions } from '../systems/common/companions.js';
+import { companion } from '../systems/common/companions.js';
 import { label } from '../entity-names.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { winBonus } from '../systems/w6/summoning.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { optionsListData } from '../../save/data.js';
 import { computeCropSC, computeStickerBonus, computeExoticBonus } from '../systems/w6/farming.js';
 import { computeMealBonus } from '../systems/common/stats.js';
 import { computePaletteBonus, shopUpgBonus, chapterBonus } from '../systems/w7/spelunking.js';
 import { cardLv } from '../systems/common/cards.js';
-import { safe, createDescriptor, computeButtonBonus } from './helpers.js';
+import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeMSABonus, computeSlabboBonus } from '../systems/w4/gaming.js';
 import { dancingCoralBase } from '../data/w7/research.js';
 
@@ -30,7 +30,7 @@ export default createDescriptor({
     var powBase = 1 + shop0;
 
     // POW_multi: massive multiplicative chain
-    var winBonus27 = safe(computeWinBonus, 27);
+    var winBonus27 = rval(winBonus, 27, ctx);
     var rog20 = rogBonusQTY(20, s.cachedUniqueSushi || 0);
     var bb6 = computeButtonBonus(6, s);
     var gemPurchase43 = Number(s.gemItemsData && s.gemItemsData[43]) || 0;
@@ -40,7 +40,7 @@ export default createDescriptor({
     var chapter1_2 = Math.max(1, chapterBonus(1, 2, s));
     var chapter5_0 = Math.max(1, chapterBonus(5, 0, s));
     var chapter4_2 = Math.max(1, chapterBonus(4, 2, s));
-    var comp143 = Math.max(1, safe(companions, 143));
+    var comp143 = Math.max(1, rval(companion, 143, ctx));
 
     // GenINFO[107][10] / (1 + min(99, 99*GenINFO[107][9])) — server state
     var genRatio = 1; // Default when server state unavailable
@@ -51,17 +51,17 @@ export default createDescriptor({
     var dancingCoral1 = dancingCoralBase(1);
 
     // CropSCbonus(8) + SlabboBonus(6) + MSA_Bonus(9) + MealBonuses.SplkPOW
-    var cropSC8 = safe(computeCropSC, 8);
-    var slabbo6 = safe(computeSlabboBonus, 6);
-    var msaBonus9 = safe(computeMSABonus, 9);
-    var mealSplkPOW = safe(computeMealBonus, 'SplkPOW');
+    var cropSC8 = safe(computeCropSC, 8, s);
+    var slabbo6 = safe(computeSlabboBonus, 6, s);
+    var msaBonus9 = safe(computeMSABonus, 9, s);
+    var mealSplkPOW = safe(computeMealBonus, 'SplkPOW', s);
     var addGroup1 = cropSC8 + slabbo6 + msaBonus9 + mealSplkPOW;
 
     var shop2 = shopUpgBonus(2, s);
     var ola500 = Number(optionsListData[500]) || 0;
     var shop3 = shopUpgBonus(3, s);
-    var stickerBonus6 = safe(computeStickerBonus, 6);
-    var paletteBonus13 = safe(computePaletteBonus, 13);
+    var stickerBonus6 = safe(computeStickerBonus, 6, s);
+    var paletteBonus13 = safe(computePaletteBonus, 13, s);
 
     var powMulti = (1 + winBonus27 / 100) * (1 + rog20 / 100) * (1 + bb6 / 100) * gemMulti
       * chapterComps * (1 + shop1 / 100) * (1 + dancingCoral1 / 100)
@@ -69,7 +69,7 @@ export default createDescriptor({
       * (1 + ola500 / 100) * (1 + shop3 / 100)
       * (1 + stickerBonus6 / 100) * (1 + paletteBonus13 / 100)
       * (1 + shopUpgBonus(46, s) / 100)
-      * (1 + (safe(computeExoticBonus, 42) + Math.min(4 * safe(cardLv, 'w7a5'), 30)) / 100)
+      * (1 + (safe(computeExoticBonus, 42, s) + Math.min(4 * safe(cardLv, 'w7a5', s), 30)) / 100)
       * (1 + (shopUpgBonus(14, s) + shopUpgBonus(15, s) + shopUpgBonus(16, s) + shopUpgBonus(17, s)) / 100);
 
     // Elixir modifier (SpelunkyDNpow)

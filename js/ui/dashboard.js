@@ -26,6 +26,8 @@ import {
   researchExpReq,
 } from '../sim-math.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
+import { buildTree } from '../stats/tree-builder.js';
+import { getCatalog } from '../stats/registry.js';
 import {
   buildSaveContext,
   computeGridPointsAvailable,
@@ -232,7 +234,7 @@ export function renderDashboard(saveCtx) {
   // Summary
   const sumDiv = document.getElementById('dash-summary');
   const curRate = simTotalExp(_simOpts, _dSaveCtx);
-  const afkRate = cachedAFKRate || afkGainsDesc.combine({}, { saveData });
+  const afkRate = cachedAFKRate || buildTree(afkGainsDesc, getCatalog(), { saveData: saveData });
   const _afkRateVal = afkRate.val;
   const expReq = getResearchExpRequired();
   const expCur = getResearchCurrentExp(_dSaveCtx);

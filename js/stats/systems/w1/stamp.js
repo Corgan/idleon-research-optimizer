@@ -119,8 +119,8 @@ export var stamp = {
     if (lv <= 0) return node(label('Stamp', id), 0, null, { note: 'stamp ' + id });
     var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
 
-    var exalted = isExalted(data.cat, data.idx, saveData);
-    var doublerInfo = computeStampDoublerSources(saveData);
+    var exalted = isExalted(data.cat, data.idx, ctx.saveData);
+    var doublerInfo = computeStampDoublerSources(ctx.saveData);
     var exaltedMulti = exalted ? 1 + doublerInfo.total / 100 : 1;
     var val = baseVal * exaltedMulti;
 
@@ -129,9 +129,9 @@ export var stamp = {
     var pristineMulti = 1;
     if (data.cat < 2) {
       // Certified Stamp Book (lab node 7): doubles all non-MISC stamps when connected
-      if (mainframeBonus(7, saveData) === 2) labDouble = 2;
+      if (mainframeBonus(7, ctx.saveData) === 2) labDouble = 2;
       // Pristine Charm 17 (Liquorice Rolle): ×(1 + PristineBon(17)/100)
-      var prist17 = pristineBon(17, saveData);
+      var prist17 = pristineBon(17, ctx.saveData);
       if (prist17 > 0) pristineMulti = 1 + prist17 / 100;
       val = val * labDouble * pristineMulti;
     }
