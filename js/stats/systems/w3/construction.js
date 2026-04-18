@@ -24,7 +24,7 @@ export var shrine = {
     var shrineLv = Number(shrineArr[3]) || 0;
     if (shrineLv <= 0) return node(name, 0, null, { note: 'shrine ' + id });
 
-    var cd = computeCardLvDetail('Boss3B');
+    var cd = computeCardLvDetail('Boss3B', saveData);
     var boss3bLv = cd.lv;
     var cardMulti = 1 + BOSS3B_CARD_PCT * boss3bLv / 100;
     var baseBonus = (shrineLv - 1) * data.perLevel + data.base;
@@ -46,11 +46,10 @@ export var shrine = {
 // ==================== SHRINE BY INDEX ====================
 // Simplified shrine value lookup by index (no breakdown tree).
 
-import { saveData as _consSaveData } from '../../../state.js';
-import { cardLv as _consCardLv } from '../common/goldenFood.js';
+import { cardLv as _consCardLv } from '../common/cards.js';
 
-export function computeShrine(idx) {
-  var shrineLv = Number(_consSaveData.shrineData && _consSaveData.shrineData[idx] && _consSaveData.shrineData[idx][3]) || 0;
+export function computeShrine(idx, saveData) {
+  var shrineLv = Number(saveData.shrineData && saveData.shrineData[idx] && saveData.shrineData[idx][3]) || 0;
   if (shrineLv <= 0) return 0;
   var base = shrineBase(idx);
   var perLv = shrinePerLevel(idx);
@@ -62,9 +61,9 @@ export function computeShrine(idx) {
 
 // ==================== SALT LICK ====================
 
-export function computeSaltLick(idx) {
-  if (!_consSaveData.saltLickData) return 0;
-  var purchased = Number(_consSaveData.saltLickData[idx]) || 0;
+export function computeSaltLick(idx, saveData) {
+  if (!saveData.saltLickData) return 0;
+  var purchased = Number(saveData.saltLickData[idx]) || 0;
   if (purchased <= 0) return 0;
   if (!SaltLicks[idx]) return 0;
   var perLv = Number(SaltLicks[idx][3]) || 0;
@@ -78,9 +77,9 @@ export function computeSaltLick(idx) {
 
 var MASTERY_THRESHOLDS = [250, 500, 750, 1000, 1250, 1500, 2500];
 
-export function computeConstMasteryBonus(type) {
-  if (Number(_consSaveData.riftData && _consSaveData.riftData[0]) < 40) return 0;
-  var totalLv = computeTotalTowerLv();
+export function computeConstMasteryBonus(type, saveData) {
+  if (Number(saveData.riftData && saveData.riftData[0]) < 40) return 0;
+  var totalLv = computeTotalTowerLv(saveData);
   if (type === 0) return Math.max(0, Math.floor(totalLv / 10));
   if (type === 1) return Math.max(0, 2 * Math.floor((totalLv - MASTERY_THRESHOLDS[2]) / 10));
   if (type === 2) return Math.max(0, 5 * Math.floor((totalLv - MASTERY_THRESHOLDS[4]) / 10));
@@ -91,8 +90,8 @@ export function computeConstMasteryBonus(type) {
   return 0;
 }
 
-export function computeTotalTowerLv() {
-  var tow = _consSaveData.towerData;
+export function computeTotalTowerLv(saveData) {
+  var tow = saveData.towerData;
   if (!tow) return 0;
   var total = 0;
   for (var i = 0; i < 27; i++) total += Number(tow[i]) || 0;
@@ -113,8 +112,8 @@ function computeSmallCogBonus(type, level) {
   return Math.round(base);
 }
 
-export function computeSmallCogBonusTOTAL(type) {
-  var cogOrder = _consSaveData.cogOrderData;
+export function computeSmallCogBonusTOTAL(type, saveData) {
+  var cogOrder = saveData.cogOrderData;
   if (!cogOrder || !cogOrder.length) return 0;
   var total = 0;
   for (var s = 0; s < 24; s++) {
@@ -133,8 +132,8 @@ export function computeSmallCogBonusTOTAL(type) {
 // Keys: a=flat build, b=flat exp, c=flat flaggy,
 //   d=%constExp, e=%buildRate, f=%playerConstXP, g=%flaggyRate
 
-export function computeCogBoardTotals() {
-  var cogMap = _consSaveData.cogMapData;
+export function computeCogBoardTotals(saveData) {
+  var cogMap = saveData.cogMapData;
   var result = { flatBuild: 0, flatExp: 0, flatFlaggy: 0, pctConstExp: 0, pctBuildRate: 0, pctPlayerConstXP: 0, pctFlaggyRate: 0 };
   if (!cogMap) return result;
   for (var i = 0; i < 96; i++) {
@@ -155,9 +154,9 @@ export function computeCogBoardTotals() {
 // Scans chest storage + refinery storage for a specific item name.
 // Game's _ItemsOwnedMap includes items stored in the refinery.
 
-export function computeOwnedItemCount(itemName) {
-  var co = _consSaveData.chestOrderData;
-  var cq = _consSaveData.chestQuantityData;
+export function computeOwnedItemCount(itemName, saveData) {
+  var co = saveData.chestOrderData;
+  var cq = saveData.chestQuantityData;
   var total = 0;
   if (Array.isArray(co)) {
     for (var i = 0; i < co.length; i++) {
@@ -165,7 +164,7 @@ export function computeOwnedItemCount(itemName) {
     }
   }
   // Refinery storage: ref[1] = salt names, ref[2] = stored input quantities
-  var ref = _consSaveData.refineryData;
+  var ref = saveData.refineryData;
   if (Array.isArray(ref) && Array.isArray(ref[1]) && Array.isArray(ref[2])) {
     for (var ri = 0; ri < ref[1].length; ri++) {
       if (ref[1][ri] === itemName) total += Number(ref[2][ri]) || 0;
@@ -185,7 +184,9 @@ import { arcadeBonus } from '../w2/arcade.js';
 import { achieveStatus } from '../common/achievement.js';
 import { guild } from '../common/guild.js';
 import { etcBonus } from '../common/etcBonus.js';
-import { votingBonusz, companions, vaultUpgBonus } from '../common/goldenFood.js';
+import { votingBonusz } from '../w2/voting.js';
+import { companions } from '../common/companions.js';
+import { vaultUpgBonus } from '../common/vault.js';
 import { computeWinBonus } from '../../systems/w6/summoning.js';
 import { computeVaultKillzTotal } from '../common/vaultKillz.js';
 import { computePaletteBonus } from '../../systems/w7/spelunking.js';
@@ -207,8 +208,8 @@ function _rval(resolver, id, ctx, args) {
   try { return resolver.resolve(id, ctx, args).val || 0; } catch (e) { return 0; }
 }
 
-export function computePlayerBuildSpd(ci, opts) {
-  var s = _consSaveData;
+export function computePlayerBuildSpd(ci, opts, saveData) {
+  var s = saveData;
   var constLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][8]) || 0;
   if (constLv <= 0) return 0;
 
@@ -226,7 +227,7 @@ export function computePlayerBuildSpd(ci, opts) {
   var guildBonus5 = _rval(guild, 5, ctx);
   var etcBonus30 = _rval(etcBonus, '30', ctx);
   var ach153 = Math.min(5, 5 * _safe(achieveStatus, 153));
-  var constMastery2 = computeConstMasteryBonus(2);
+  var constMastery2 = computeConstMasteryBonus(2, saveData);
   var vialContspd = _safe(computeVialByKey, 'Contspd');
   var arcade44 = _safe(arcadeBonus, 44);
   var voting18 = _safe(votingBonusz, 18, 1);
@@ -260,7 +261,7 @@ export function computePlayerBuildSpd(ci, opts) {
       var talent131Val = formulaEval(tp131.formula, tp131.x1, tp131.x2, rawLv131);
 
       var atomBonus1 = (Number(s.atomsData && s.atomsData[1]) || 0) * (Number(AtomInfo[1] && AtomInfo[1][4]) || 0);
-      var refinery1Count = computeOwnedItemCount('Refinery1');
+      var refinery1Count = computeOwnedItemCount('Refinery1', saveData);
       var logRef1 = getLOG(refinery1Count);
 
       talentPart = 1 + talent131Val * (atomBonus1 + logRef1) / 100;
@@ -278,12 +279,12 @@ export function computePlayerBuildSpd(ci, opts) {
 import { computeStatueBonusGiven } from '../common/stats.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 
-export function computePlayerConExp(ci, isActive) {
-  var s = _consSaveData;
+export function computePlayerConExp(ci, isActive, saveData) {
+  var s = saveData;
   var constLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][8]) || 0;
-  var buildSpd = computePlayerBuildSpd(ci);
+  var buildSpd = computePlayerBuildSpd(ci, saveData);
   var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
-  var smallCogExp = computeSmallCogBonusTOTAL(2);
+  var smallCogExp = computeSmallCogBonusTOTAL(2, saveData);
 
   if (isActive) {
     // Active char: full additive pool
@@ -292,8 +293,8 @@ export function computePlayerConExp(ci, isActive) {
     var sl = skillLvData[ci] || {};
 
     // GetTalentNumber(1, 132) and GetTalentNumber(1, 104) for active char
-    var tal132Val = _computeTalentVal(132, ci);
-    var tal104Val = _computeTalentVal(104, ci);
+    var tal132Val = _computeTalentVal(132, ci, saveData);
+    var tal104Val = _computeTalentVal(104, ci, saveData);
 
     var vialConsExp = _safe(computeVialByKey, 'ConsExp');
     var statue18 = _safe(computeStatueBonusGiven, 18);
@@ -338,7 +339,7 @@ export function computePlayerConExp(ci, isActive) {
   }
 
   // talent 132
-  dn2 += _computeTalentVal(132, ci);
+  dn2 += _computeTalentVal(132, ci, saveData);
 
   // Statue 18 raw (game uses statueLv * StatueInfo[18][3], not computeStatueBonusGiven)
   var statueLv18 = Number(s.statueData && s.statueData[18]) || 0;
@@ -368,13 +369,13 @@ export function computePlayerConExp(ci, isActive) {
   return basePart * dn2;
 }
 
-function _computeTalentVal(talentIdx, ci) {
+function _computeTalentVal(talentIdx, ci, saveData) {
   var sl = skillLvData[ci] || {};
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return 0;
   var tp = talentParams(talentIdx);
   if (!tp || !tp.formula) return 0;
-  var bonus = computeAllTalentLVz(talentIdx, ci);
+  var bonus = computeAllTalentLVz(talentIdx, ci, saveData);
   return formulaEval(tp.formula, tp.x1, tp.x2, rawLv + bonus);
 }
 
@@ -382,8 +383,8 @@ function _computeTalentVal(talentIdx, ci) {
 // Game: WorkbenchStuff("ExtraBuildSPDmulti", 0, 0)
 // (1 + SmallCogBonusTOTAL(1)/100) × (1 + Companions(157)/100)
 
-export function computeExtraBuildSPDmulti() {
-  var smallCogBuild = computeSmallCogBonusTOTAL(1);
+export function computeExtraBuildSPDmulti(saveData) {
+  var smallCogBuild = computeSmallCogBonusTOTAL(1, saveData);
   var comp157 = _safe(companions, 157);
   return (1 + smallCogBuild / 100) * (1 + comp157 / 100);
 }
@@ -394,9 +395,9 @@ export function computeExtraBuildSPDmulti() {
 
 import { gridBonusFinal } from '../../defs/helpers.js';
 
-export function computeExtraFlaggyRatemulti() {
-  var smallCogFlaggy = computeSmallCogBonusTOTAL(0);
-  var grid89 = gridBonusFinal(_consSaveData, 89);
+export function computeExtraFlaggyRatemulti(saveData) {
+  var smallCogFlaggy = computeSmallCogBonusTOTAL(0, saveData);
+  var grid89 = gridBonusFinal(saveData, 89);
   var cardW7b3 = _safe(computeCardLv, 'w7b3');
   return (1 + smallCogFlaggy / 100) * (1 + grid89 / 100) * (1 + 10 * cardW7b3 / 100);
 }

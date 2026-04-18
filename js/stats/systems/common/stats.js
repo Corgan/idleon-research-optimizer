@@ -12,7 +12,6 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { getLOG } from '../../../formulas.js';
-import { saveData } from '../../../state.js';
 import {
   equipOrderData,
   cauldronInfoData,
@@ -52,7 +51,10 @@ import { legendPTSbonus } from '../w7/spelunking.js';
 import { achieveStatus } from './achievement.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { mainframeBonus, charHasChip } from '../w4/lab.js';
-import { goldFoodBonuses, votingBonusz, vaultUpgBonus, pristineBon } from './goldenFood.js';
+import { goldFoodBonuses } from './goldenFood.js';
+import { votingBonusz } from '../w2/voting.js';
+import { vaultUpgBonus } from './vault.js';
+import { pristineBon } from '../w5/pristine.js';
 import { isExalted, computeStampDoublerSources } from '../w1/stamp.js';
 import { artifactBase } from '../../data/w5/sailing.js';
 import { cosmoUpgBase } from '../../data/w5/hole.js';
@@ -63,6 +65,7 @@ import { guildBonusParams } from '../../data/common/guild.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
 import { talentParams } from '../../data/common/talent.js';
 import { farm as farmResolver } from '../w6/farming.js';
+import { cookingMealMulti } from './cooking.js';
 import { galleryBonusMulti, hatrackBonusMulti, trophyTier } from '../w7/gallery.js';
 import { COMPANION_BONUS } from '../../data/game-constants.js';
 
@@ -190,7 +193,7 @@ var STAT_CONFIG = {
 // ==================== STAR SIGN STAT BONUSES ====================
 // Parse StarSigns game data for a specific stat's flat + pct bonuses.
 // All star signs count (rift enables all). Applies Seraph_Cosmos multiplier.
-function computeStarSignStatBonuses(statName, charIdx) {
+function computeStarSignStatBonuses(statName, charIdx, saveData) {
   var flatTotal = 0, pctTotal = 0;
   var flatChildren = [], pctChildren = [];
   for (var i = 0; i < StarSigns.length; i++) {
@@ -214,7 +217,7 @@ function computeStarSignStatBonuses(statName, charIdx) {
       }
     }
   }
-  var seraphMulti = computeSeraphMulti(charIdx);
+  var seraphMulti = computeSeraphMulti(charIdx, saveData);
   return {
     flat: { val: flatTotal * seraphMulti, baseVal: flatTotal, seraphMulti: seraphMulti, children: flatChildren },
     pct:  { val: pctTotal * seraphMulti,  baseVal: pctTotal,  seraphMulti: seraphMulti, children: pctChildren },
@@ -225,10 +228,10 @@ function computeStarSignStatBonuses(statName, charIdx) {
 // CardBonusREAL(typeId): sum of EQUIPPED cards matching the type for given character.
 // typeId maps via IDforCardBonus (e.g. 2 -> "+{_Base_LUK").
 // Game reads from DNSM.CardBonusS which is pre-computed from equipped cards only.
-export function computeCardBonusByType(typeId, charIdx) {
+export function computeCardBonusByType(typeId, charIdx, saveData) {
   var targetDesc = IDforCardBonus[String(typeId)];
   if (!targetDesc) return { val: 0, children: [] };
-  var legend21 = legendPTSbonus(21);
+  var legend21 = legendPTSbonus(21, saveData);
   var legendMulti = 1 + legend21 / 100;
   var equipped = cardEquipData[charIdx] || [];
   var total = 0;
@@ -238,7 +241,7 @@ export function computeCardBonusByType(typeId, charIdx) {
     if (!cardKey || cardKey === 'B') continue;
     var cb = CARD_BONUS[cardKey];
     if (!cb || cb.desc !== targetDesc) continue;
-    var lv = computeCardLv(cardKey);
+    var lv = computeCardLv(cardKey, saveData);
     if (lv <= 0) continue;
     var chipDouble = (i === 0 && charHasChip(charIdx, 'card1'))
                    || (i === 7 && charHasChip(charIdx, 'card2')) ? 2 : 1;
@@ -282,7 +285,7 @@ export function computeBoxReward(charIdx, key) {
 // ==================== DREAM SHIMMER ====================
 // AllShimmerBonuses from sailing artifact 31 (The_Shim_Lantern).
 // Game: max(1, min(4, 1 + Sailing("ArtifactBonus", 31, 0)))
-function computeDreamShimmer() {
+function computeDreamShimmer(saveData) {
   var sailing = saveData.sailingData;
   if (!sailing || !sailing[3]) return 1;
   var artTier = Number(sailing[3][31]) || 0;
@@ -291,7 +294,7 @@ function computeDreamShimmer() {
 }
 
 // ==================== EQUIP BASE STAT ====================
-function computeEquipBaseStat(charIdx, statName) {
+function computeEquipBaseStat(charIdx, statName, saveData) {
   var total = 0;
   var children = [];
   var eqData = equipOrderData[charIdx];
@@ -331,12 +334,13 @@ function computeEquipBaseStat(charIdx, statName) {
 
 // ==================== GALLERY BASE STAT ====================
 export function computeGalleryBaseStat(charIdx, ctx, statName) {
+  var saveData = ctx.saveData;
   var total = 0;
   var children = [];
   var sp = saveData.spelunkData || [];
-  var gbmObj = galleryBonusMulti();
+  var gbmObj = galleryBonusMulti(saveData);
   var gbm = gbmObj.val;
-  var hbmObj = hatrackBonusMulti();
+  var hbmObj = hatrackBonusMulti(saveData);
   var hbm = hbmObj.val;
 
   // Trophy base stat
@@ -349,7 +353,7 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
     var tItem = ITEMS['Trophy' + trophyId];
     var tStat = tItem ? (Number(tItem[statName]) || 0) : 0;
     if (tStat === 0) continue;
-    var tier = trophyTier(i);
+    var tier = trophyTier(i, saveData);
     var val = tier * gbm * tStat;
     trophyTotal += val;
     trophyCh.push(node('Trophy' + trophyId + ' slot' + i, val, null,
@@ -447,14 +451,14 @@ export function computeObolBaseStat(charIdx, statName) {
 // ==================== STAMP BONUS BY TYPE ====================
 var CAT_LETTER = ['A', 'B', 'C'];
 
-function computeStampBonusOfTypeX(type) {
+function computeStampBonusOfTypeX(type, saveData) {
   var total = 0;
   var children = [];
   // Precompute shared multipliers
-  var labDouble = (mainframeBonus(7) === 2) ? 2 : 1;
-  var prist17 = pristineBon(17);
+  var labDouble = (mainframeBonus(7, saveData) === 2) ? 2 : 1;
+  var prist17 = pristineBon(17, saveData);
   var pristineMulti = prist17 > 0 ? 1 + prist17 / 100 : 1;
-  var doublerInfo = computeStampDoublerSources();
+  var doublerInfo = computeStampDoublerSources(saveData);
   for (var cat = 0; cat < 3; cat++) {
     var lvMap = stampLvData[cat] || stampLvData[String(cat)];
     if (!lvMap) continue;
@@ -471,7 +475,7 @@ function computeStampBonusOfTypeX(type) {
       var x2 = Number(parts[3]) || 0;
       var baseVal = formulaEval(formula, x1, x2, lv);
       // Apply exalted multiplier (per-stamp)
-      var exalted = isExalted(cat, idx);
+      var exalted = isExalted(cat, idx, saveData);
       var exaltedMult = exalted ? 1 + doublerInfo.total / 100 : 1;
       var val = baseVal * exaltedMult;
       // Apply lab doubler + pristine to non-MISC stamps (cat < 2)
@@ -511,7 +515,7 @@ var BUBBLE_KEYS = {
 // Gpassz = c1 i1 (archers: class 18-29)
 // Ppassz = c2 i1 (mages:   class 30-41)
 // Cauldron 3: no passz (multiply by 1).
-function getPasszMult(cauldron, charIdx) {
+function getPasszMult(cauldron, charIdx, saveData) {
   if (cauldron === 3) return { val: 1, children: [] };
   var charClass = Number(charClassData[charIdx] || 0);
   if (charClass <= 6) return { val: 1, children: [] };
@@ -528,7 +532,7 @@ function getPasszMult(cauldron, charIdx) {
     && cauldronInfoData[cauldron][1]) || 0);
   if (passzLv <= 0) return { val: 1, children: [] };
   var passzBase = formulaEval(passzParams.formula, passzParams.x1, passzParams.x2, passzLv);
-  var passzPrisma = isBubblePrismad(cauldron, 1) ? Math.max(1, getPrismaBonusMult()) : 1;
+  var passzPrisma = isBubblePrismad(cauldron, 1) ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   var passzVal = Math.max(1, passzBase * passzPrisma);
   return { val: passzVal, children: [
     node(passzParams.name, passzVal, [
@@ -551,7 +555,7 @@ var MULTI_AFFECTED = {
 };
 var MULTI_BUBBLE_INDEX = 16;
 
-function getMultiBubbleMult(cauldron, bubbleIndex) {
+function getMultiBubbleMult(cauldron, bubbleIndex, saveData) {
   var affected = MULTI_AFFECTED[cauldron];
   if (!affected || affected.indexOf(bubbleIndex) === -1) return { val: 1, children: [] };
   var multiParams = bubbleParams(cauldron, MULTI_BUBBLE_INDEX);
@@ -561,7 +565,7 @@ function getMultiBubbleMult(cauldron, bubbleIndex) {
   if (multiLv <= 0) return { val: 1, children: [] };
   var multiBase = formulaEval(multiParams.formula, multiParams.x1, multiParams.x2, multiLv);
   var multiPrisma = isBubblePrismad(cauldron, MULTI_BUBBLE_INDEX)
-    ? Math.max(1, getPrismaBonusMult()) : 1;
+    ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   var multiVal = Math.max(1, multiBase * multiPrisma);
   return {
     val: multiVal,
@@ -574,7 +578,7 @@ function getMultiBubbleMult(cauldron, bubbleIndex) {
   };
 }
 
-function computeAlchBubble(bonusType, charIdx) {
+function computeAlchBubble(bonusType, charIdx, saveData) {
   var bk = BUBBLE_KEYS[bonusType];
   if (!bk) return { val: 0, children: [] };
   var params = bubbleParams(bk.cauldron, bk.index);
@@ -586,7 +590,7 @@ function computeAlchBubble(bonusType, charIdx) {
   if (lv <= 0) return { val: 0, children: [] };
   var baseVal = formulaEval(params.formula, params.x1, params.x2, lv);
   var isPrisma = isBubblePrismad(params.cauldron, params.index);
-  var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+  var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   // Slab multiplier: some bubbles (W4,A4,M4) multiply by floor(slabCount/100)
   var slabMult = 1;
   if (params.slab) {
@@ -610,11 +614,11 @@ function computeAlchBubble(bonusType, charIdx) {
   // Passz multiplier: class-matched cauldron boost (Opassz/Gpassz/Ppassz)
   // Game order dependency: index 0 bubbles (TotalSTR/TotalAGI/TotalWIS/TotalLUK)
   // are processed BEFORE Passz at index 1, so Passz is unavailable → max(1,0)=1.
-  var passz = (charIdx != null && bk.index > 0) ? getPasszMult(bk.cauldron, charIdx) : { val: 1, children: [] };
+  var passz = (charIdx != null && bk.index > 0) ? getPasszMult(bk.cauldron, charIdx, saveData) : { val: 1, children: [] };
   var passzMult = passz.val;
   var val = baseVal * prismaMult * passzMult * slabMult * tomeMult * tomeExtraMult;
   // Multi bubble second-pass multiplication
-  var multi = getMultiBubbleMult(bk.cauldron, bk.index);
+  var multi = getMultiBubbleMult(bk.cauldron, bk.index, saveData);
   val *= multi.val;
   var children = [
     node('Level', lv, null, { fmt: 'raw' }),
@@ -654,12 +658,12 @@ function returnClasses(classId) {
   return chain;
 }
 
-export function computeFamBonusQTYs(activeCharIdx) {
+export function computeFamBonusQTYs(activeCharIdx, saveData) {
   // Game: for each player, for each class in ReturnClasses(playerClass),
   // compute FamilyBonsuesREAL and keep max per key.
   // Talent 144 multiplier: if the active character sets the max for a key,
   // that entry is multiplied by (1 + GetTalentNumber(1, 144) / 100).
-  // Keys "24" and "44" use getbonus2(1, 144, -1) for ALL characters.
+  // Keys "24" and "44" use getbonus2(1, 144, -1, saveData) for ALL characters.
   //
   // Game computes GetTalentNumber(1, 144) lazily inside the iteration,
   // reading DNSM.FamBonusQTYs.h[68] from the partially-built map.
@@ -696,7 +700,7 @@ export function computeFamBonusQTYs(activeCharIdx) {
           if (rawLv144 > 0 && ci === activeCharIdx) {
             // Compute tal144val lazily, reading FamBonusQTYs[68] from the
             // partially-built map to match the game's AllTalentLVz behavior.
-            var bonus144 = computeAllTalentLVz(144, activeCharIdx, { partialFamBonusMap: result });
+            var bonus144 = computeAllTalentLVz(144, activeCharIdx, { partialFamBonusMap: result }, saveData);
             var t144 = talentParams(144);
             var tal144val = formulaEval(t144.formula, t144.x1, t144.x2, rawLv144 + bonus144);
             result[key] = bonus * (1 + tal144val / 100);
@@ -711,6 +715,7 @@ export function computeFamBonusQTYs(activeCharIdx) {
 // ==================== ALL STAT PCT ====================
 // Game: 0.1 * floor(10 * (sum of ~16 sub-sources))
 function computeAllStatPCT(charIdx, ctx) {
+  var saveData = ctx.saveData;
   var sum = 0;
   var children = [];
   var subMissing = [];
@@ -738,7 +743,7 @@ function computeAllStatPCT(charIdx, ctx) {
     if (vialLv <= 0) continue;
     var vialBase = formulaEval(vDesc[3], Number(vDesc[1]) || 0, Number(vDesc[2]) || 0, vialLv);
     var riftActive = Number(saveData.riftData[0]) > 34;
-    var vub42 = vaultUpgBonus(42);
+    var vub42 = vaultUpgBonus(42, saveData);
     // Rift bonus: 2 * (count of max-level vials) when Rift[0] > 34
     var maxLvVials = 0;
     if (riftActive) {
@@ -748,8 +753,8 @@ function computeAllStatPCT(charIdx, ctx) {
     }
     var riftVialBonus = riftActive ? 2 * maxLvVials : 0;
     var dNzz = riftVialBonus + vub42;
-    var mf10lab = mainframeBonus(10) === 2 ? 2 : 1;
-    var meritoc20 = computeMeritocBonusz(20);
+    var mf10lab = mainframeBonus(10, saveData) === 2 ? 2 : 1;
+    var meritoc20 = computeMeritocBonusz(20, saveData);
     vialAllStatPCT += mf10lab * (1 + dNzz / 100) * (1 + meritoc20 / 100) * vialBase;
     vialCh.push(node(vDesc[0] + ' Lv' + vialLv, vialAllStatPCT, [
       node('Base', vialBase, null, { fmt: 'raw', note: vDesc[3] + '(' + vDesc[1] + ',' + vDesc[2] + ',' + vialLv + ')' }),
@@ -773,23 +778,23 @@ function computeAllStatPCT(charIdx, ctx) {
   ]);
 
   // 3. MainframeBonus(104)
-  var mf104 = mainframeBonus(104);
+  var mf104 = mainframeBonus(104, saveData);
   addSub('MainframeBonus(104)', mf104);
 
   // 4. StampBonusOfTypeX("AllStatPct")
-  var stampAllStatPct = computeStampBonusOfTypeX('AllStatPct');
+  var stampAllStatPct = computeStampBonusOfTypeX('AllStatPct', saveData);
   addSub('Stamp AllStatPct', stampAllStatPct.val, stampAllStatPct.children);
 
   // 5. CardBonusREAL(82)
-  var card82 = computeCardBonusByType(82, charIdx);
+  var card82 = computeCardBonusByType(82, charIdx, saveData);
   addSub('CardBonusREAL(82)', card82.val, card82.children);
 
   // 6. Summoning WinBonus(18)
-  var wb18 = computeWinBonus(18);
+  var wb18 = computeWinBonus(18, saveData);
   addSub('WinBonus(18)', wb18);
 
   // 7. FamBonusQTYs[72]
-  var famMap = computeFamBonusQTYs(charIdx);
+  var famMap = computeFamBonusQTYs(charIdx, saveData);
   var fam72 = famMap[72] || 0;
   addSub('FamBonusQTYs[72]', fam72);
 
@@ -803,11 +808,11 @@ function computeAllStatPCT(charIdx, ctx) {
   ] : null);
 
   // 9. GoldFoodBonuses("AllStatz")
-  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx);
+  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, saveData);
   addSub('GoldFood AllStatz', gfoodAllStatz.total);
 
   // 10. AchieveStatus(309)
-  addSub('AchieveStatus(309)', achieveStatus(309));
+  addSub('AchieveStatus(309)', achieveStatus(309, saveData));
 
   // 11. min(15, getLOG(OLA[172]) * GetTalentNumber(1, 653))
   var ola172 = Number((optionsListData && optionsListData[172]) || 0);
@@ -822,7 +827,7 @@ function computeAllStatPCT(charIdx, ctx) {
   ]);
 
   // 12. AchieveStatus(362)
-  addSub('AchieveStatus(362)', achieveStatus(362));
+  addSub('AchieveStatus(362)', achieveStatus(362, saveData));
 
   // 13. 10 * floor((98 + OLA[232]) / 100)
   var ola232 = Number((optionsListData && optionsListData[232]) || 0);
@@ -836,7 +841,7 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('FarmRankUpg(19)', farmRank19.val, farmRank19.children);
 
   // 15. Summoning VotingBonusz(2)
-  var vote2 = votingBonusz(2);
+  var vote2 = votingBonusz(2, saveData);
   addSub('VotingBonusz(2)', vote2);
 
   // 16. SetBonus("MARBIGLASS_SET")
@@ -850,6 +855,7 @@ function computeAllStatPCT(charIdx, ctx) {
 
 // ==================== MAIN: computeTotalStat ====================
 export function computeTotalStat(statName, charIdx, ctx) {
+  var saveData = ctx.saveData;
   var cfg = STAT_CONFIG[statName];
   if (!cfg) return { computed: 0, missingCount: 1,
     missingNames: ['Unknown stat: ' + statName], tree: node('Total ' + statName, 0) };
@@ -859,7 +865,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   function addMissing(name) { tracked.missing++; tracked.missingNames.push(name); return 0; }
 
   // ==================== EQUIP DN ====================
-  var equipBase = computeEquipBaseStat(charIdx, statName);
+  var equipBase = computeEquipBaseStat(charIdx, statName, saveData);
   var equipBaseStat = addComputed(equipBase.val);
 
   var galleryBase = computeGalleryBaseStat(charIdx, ctx, statName);
@@ -868,7 +874,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // DN pct multiplier: (1 + (dnTalent + stampPct) / 100)
   var dnTalentVal = talentResolver.resolve(cfg.dnPctTalent, ctx).val;
   addComputed(dnTalentVal);
-  var stampPctStat = computeStampBonusOfTypeX(cfg.dnPctStampType);
+  var stampPctStat = computeStampBonusOfTypeX(cfg.dnPctStampType, saveData);
   addComputed(stampPctStat.val);
   var equipPctMult = 1 + (dnTalentVal + stampPctStat.val) / 100;
   var totalStatsDN_main = (equipBaseStat + galleryBaseStat) * equipPctMult;
@@ -915,7 +921,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   addComputed(pristineVal);
 
   // Star sign %stat
-  var signBonuses = computeStarSignStatBonuses(statName, charIdx);
+  var signBonuses = computeStarSignStatBonuses(statName, charIdx, saveData);
   var starSignPct = signBonuses.pct.val;
   addComputed(starSignPct);
 
@@ -929,7 +935,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // Stat-specific pct bubble (STR=W8, AGI=A9, WIS=M9; LUK=none)
   var pctBubbleVal = 0;
   if (cfg.pctBubble) {
-    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx);
+    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx, saveData);
     pctBubbleVal = pctBbl.val;
     addComputed(pctBubbleVal);
   }
@@ -957,12 +963,12 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var flatTalentVal = talentResolver.resolve(cfg.flatTalent, ctx).val;
   addComputed(flatTalentVal);
 
-  // Guild bonus: getbonus2(1, guildTalent, -1) = max talent across all chars
+  // Guild bonus: getbonus2(1, guildTalent, -1, saveData) = max talent across all chars
   var guildMax = talentResolver.resolve(cfg.guildTalent, ctx, { mode: 'max' });
   var guildVal = guildMax.val;
   addComputed(guildVal);
 
-  var stampBase = computeStampBonusOfTypeX(cfg.stampBaseType);
+  var stampBase = computeStampBonusOfTypeX(cfg.stampBaseType, saveData);
   addComputed(stampBase.val);
 
   // BoxRewards base (e.g. "15c" for LUK = Science_Spare_Parts slot 2)
@@ -974,7 +980,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
 
   // OLA[shimmer] * DreamShimmer — LUK includes this in flatBase; others put it in flatAdd
   var olaVal = Number(optionsListData && optionsListData[cfg.olaShimmer]) || 0;
-  var dreamShimmer = computeDreamShimmer();
+  var dreamShimmer = computeDreamShimmer(saveData);
   var shimmerVal = olaVal * dreamShimmer;
   addComputed(shimmerVal);
 
@@ -1037,7 +1043,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   addComputed(boxStat.val);
 
   // FamBonusQTYs — family bonus for this stat
-  var famMap = computeFamBonusQTYs(charIdx);
+  var famMap = computeFamBonusQTYs(charIdx, saveData);
   var famBonus = famMap[cfg.famBonusIdx] || 0;
   addComputed(famBonus);
 
@@ -1072,7 +1078,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   }
 
   // CardBonusREAL(typeId)
-  var cardResult = computeCardBonusByType(cfg.cardType, charIdx);
+  var cardResult = computeCardBonusByType(cfg.cardType, charIdx, saveData);
   addComputed(cardResult.val);
 
   // Flat talent 2 (e.g. Lucky Horseshoe for LUK)
@@ -1080,7 +1086,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   if (cfg.flatTalent2) addComputed(flatTal2Val);
 
   // Stamp BaseAllStat
-  var stampBaseAllStat = computeStampBonusOfTypeX('BaseAllStat');
+  var stampBaseAllStat = computeStampBonusOfTypeX('BaseAllStat', saveData);
   addComputed(stampBaseAllStat.val);
 
   // AllStat = floor(BoxRewards["20a"] + MealBonus("Stat") + GuildBonuses(1))
@@ -1103,7 +1109,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var a4Val = 0;
   var a4bubble;
   if (cfg.a4Bubble) {
-    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx);
+    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx, saveData);
     a4Val = a4bubble.val;
     addComputed(a4Val);
   }
@@ -1163,7 +1169,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   );
 
   // ==================== TOP LEVEL ====================
-  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx);
+  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx, saveData);
   addComputed(totalBubble.val);
   var tal652 = talentResolver.resolve(652, ctx).val;
   addComputed(tal652);
@@ -1245,7 +1251,18 @@ function _safe(fn) {
   } catch(e) { return 0; }
 }
 
-export function computeStatueBonusGiven(idx, charIdx) {
+// Map class ID to primary damage stat name
+export function primaryStatForClass(charIdx) {
+  var cls = Number(charClassData && charClassData[charIdx]) || 0;
+  if (cls <= 0) return 'STR'; // Beginner default
+  if (cls < 6) return 'LUK'; // Journeyman family
+  var root = 6 + 12 * Math.floor((cls - 6) / 12);
+  if (root === 18) return 'AGI';
+  if (root === 30) return 'WIS';
+  return 'STR'; // root === 6 or fallback
+}
+
+export function computeStatueBonusGiven(idx, charIdx, saveData) {
   var s = saveData;
   var statueLv = Number(s.statueData && s.statueData[idx]) || 0;
   if (statueLv <= 0) return 0;
@@ -1283,7 +1300,7 @@ export function computeStatueBonusGiven(idx, charIdx) {
     val *= Math.max(1, 1 + _safe(vaultUpgBonus, 25) / 100);
   }
   if (idx !== 29) {
-    val *= Math.max(1, 1 + computeStatueBonusGiven(29, charIdx) / 100);
+    val *= Math.max(1, 1 + computeStatueBonusGiven(29, charIdx, saveData) / 100);
   }
   var _evShop = eventShopOwned(19, s.cachedEventShopStr);
   var _t56 = _rval(talentResolver, 56, { saveData: s, charIdx: charIdx != null ? charIdx : 0 }, { mode: 'max' });
@@ -1298,14 +1315,11 @@ export function computeStatueBonusGiven(idx, charIdx) {
 
 // ==================== MEAL BONUS ====================
 
-export function computeMealBonus(effectKey) {
+export function computeMealBonus(effectKey, saveData) {
   var s = saveData;
   var meals0 = s.mealsData && s.mealsData[0];
   if (!meals0) return 0;
-  var mf116 = _safe(mainframeBonus, 116);
-  var shinyS20 = _safe(computeShinyBonusS, 20);
-  var winBon26 = _safe(computeWinBonus, 26);
-  var cookMulti = (1 + (mf116 + shinyS20) / 100) * (1 + winBon26 / 100);
+  var cookMulti = cookingMealMulti(s).val;
   var total = 0;
   for (var mi = 0; mi < MealINFO.length; mi++) {
     if (!MealINFO[mi] || MealINFO[mi][5] !== effectKey) continue;
@@ -1321,7 +1335,7 @@ export function computeMealBonus(effectKey) {
 
 // ==================== FAMILIAR BONUSES ====================
 
-export function computeFamBonusQTY(famIdx) {
+export function computeFamBonusQTY(famIdx, saveData) {
   var s = saveData;
   if (!ClassFamilyBonuses || !ClassFamilyBonuses[famIdx]) return 0;
   var info = ClassFamilyBonuses[famIdx];
@@ -1339,7 +1353,7 @@ export function computeFamBonusQTY(famIdx) {
 
 // ==================== WORKBENCH (WORLD BOSS) ====================
 
-export function computeWorkbenchStuff() {
+export function computeWorkbenchStuff(saveData) {
   var s = saveData;
   var wboss = s.worldBossData;
   if (!wboss) return 1;

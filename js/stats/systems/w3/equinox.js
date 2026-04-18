@@ -6,8 +6,6 @@ import { label } from '../../entity-names.js';
 import { dreamData } from '../../../save/data.js';
 import { DR_DREAM_COEFF } from '../../data/game-constants.js';
 import { cloudBonus as _cb } from '../../../game-helpers.js';
-import { saveData as _cbSaveData } from '../../../state.js';
-
 export var dream = {
   resolve: function(id, ctx) {
     var name = label('Dream', id);
@@ -27,7 +25,7 @@ export var dream = {
 export var cloudBonusSys = {
   resolve: function(id, ctx, args) {
     var coeff = (args && args[0]) || 5;
-    var completed = _cb(id, (ctx.saveData || _cbSaveData).weeklyBossData);
+    var completed = _cb(id, ctx.saveData.weeklyBossData);
     var val = coeff * completed;
     return node('Dream Challenge ' + id, val, [
       node('Completed', completed, null, { fmt: 'raw' }),
@@ -38,10 +36,8 @@ export var cloudBonusSys = {
 
 // ==================== SHIMMER BONUSES ====================
 
-import { saveData as _eqSaveData } from '../../../state.js';
-
-export function computeAllShimmerBonuses() {
-  var artTier31 = Number(_eqSaveData.sailingData && _eqSaveData.sailingData[3] && _eqSaveData.sailingData[3][31]) || 0;
+export function computeAllShimmerBonuses(saveData) {
+  var artTier31 = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][31]) || 0;
   var shimmerMulti = artTier31 > 0 ? Math.max(1, Math.min(4, 1 + artTier31)) : 1;
   return shimmerMulti;
 }

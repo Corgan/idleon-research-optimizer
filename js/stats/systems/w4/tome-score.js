@@ -9,9 +9,12 @@ import {
   skillLvData, skillLvMaxData, labData, divinityData, starSignData,
   klaData, numCharacters, mapBonData, charClassData,
 } from '../../../save/data.js';
-import { saveData, assignState } from '../../../state.js';
+import { assignState } from '../../../state.js';
 import { computeCardLv } from '../common/cards.js';
-import { vaultUpgBonus, getBribeBonus, companions, sigilBonus } from '../common/goldenFood.js';
+import { vaultUpgBonus } from '../common/vault.js';
+import { getBribeBonus } from '../w3/bribe.js';
+import { companions } from '../common/companions.js';
+import { sigilBonus } from '../w2/alchemy.js';
 import { talent } from '../common/talent.js';
 import { achieveStatus } from '../common/achievement.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
@@ -88,7 +91,7 @@ function tomeQTY(slot, S) {
       if (!S.cards0Data) return 0;
       var c0 = S.cards0Data;
       s = 0;
-      for (var ck in c0) s += computeCardLv(ck);
+      for (var ck in c0) s += computeCardLv(ck, saveData);
       return s;
 
     case 3: // Total_Talent_Max_LV — for each of ~120 skills/talents, max level across all chars
@@ -159,7 +162,7 @@ function tomeQTY(slot, S) {
     case 14: return ola(172);  // DPS Record Shimmer
 
     case 15: // Star_Talent_Points — TotalTalentPoints()[5], max across all characters
-      return _starTalentPoints(S);
+      return _starTalentPoints(S, saveData);
 
     case 16: { // Crystal_Spawn_Avg_Kills — 1/OLA[202]
       var cs = ola(202);
@@ -463,7 +466,7 @@ function tomeQTY(slot, S) {
     case 80: return arrSum(S.arcadeUpgData); // Arcade Gold Ball Shop
 
     case 81: // Vault_Upgrade_bonus_LV — VaultUpgBonus(57)
-      return Math.round(vaultUpgBonus(57));
+      return Math.round(vaultUpgBonus(57, saveData));
 
     case 82: // Total_Gambit_Time — Holes[11][65..70]
       if (!S.holesData || !S.holesData[11]) return 0;
@@ -638,7 +641,7 @@ function _perCharSum(S, fn, label) {
   return ch;
 }
 
-export function tomeQTYBreakdown(slot, S) {
+export function tomeQTYBreakdown(slot, S, saveData) {
   var val = tomeQTY(slot, S);
   var ch, i, s, v;
 
@@ -662,7 +665,7 @@ export function tomeQTYBreakdown(slot, S) {
       ch = [];
       if (S.cards0Data) {
         for (var ck in S.cards0Data) {
-          v = computeCardLv(ck);
+          v = computeCardLv(ck, saveData);
           if (v > 0) ch.push(_n(ck, v));
         }
       }
@@ -739,7 +742,7 @@ export function tomeQTYBreakdown(slot, S) {
     case 14: return { val: val, children: [_olaNode(172)] };
 
     case 15: // Star Talent Points — complex, delegate to detail
-      return _starTalentPointsBreakdown(S);
+      return _starTalentPointsBreakdown(S, saveData);
 
     case 16: return { val: val, children: [_olaNode(202), _n('1/OLA[202]', val)] };
 
@@ -1192,19 +1195,19 @@ export function tomeQTYBreakdown(slot, S) {
 }
 
 // ===== Star Talent Points breakdown — slot 15 =====
-function _starTalentPointsBreakdown(S, activeCharIdx) {
+function _starTalentPointsBreakdown(S, activeCharIdx, saveData) {
   var famBonus64 = _famBonus64(S, activeCharIdx);
-  var stamp = computeStampBonusOfTypeX('TalentS');
-  var card1 = Math.min(5 * computeCardLv('w4b2'), 50);
-  var card2 = Math.min(15 * computeCardLv('Boss2C'), 100);
-  var card3 = Math.min(4 * computeCardLv('fallEvent1'), 100);
-  var ach = 10 * achieveStatus(212) + 20 * achieveStatus(289) + 20 * achieveStatus(305);
-  var shiny = computeShinyBonusS(14);
-  var bribe = getBribeBonus(32);
-  var vub = vaultUpgBonus(53);
-  var comp = companions(20);
-  var flurbo = computeFlurboShop(1);
-  var sigil2 = sigilBonus(9);
+  var stamp = computeStampBonusOfTypeX('TalentS', saveData);
+  var card1 = Math.min(5 * computeCardLv('w4b2', saveData), 50);
+  var card2 = Math.min(15 * computeCardLv('Boss2C', saveData), 100);
+  var card3 = Math.min(4 * computeCardLv('fallEvent1', saveData), 100);
+  var ach = 10 * achieveStatus(212, saveData) + 20 * achieveStatus(289, saveData) + 20 * achieveStatus(305, saveData);
+  var shiny = computeShinyBonusS(14, saveData);
+  var bribe = getBribeBonus(32, saveData);
+  var vub = vaultUpgBonus(53, saveData);
+  var comp = companions(20, saveData);
+  var flurbo = computeFlurboShop(1, saveData);
+  var sigil2 = sigilBonus(9, saveData);
   var cy5 = num(saveData.cyTalentPointsData && saveData.cyTalentPointsData[5]);
   var gd = saveData.guildData;
   var guildLv = gd ? num(gd[0] && gd[0][11]) : 0;
@@ -1299,20 +1302,20 @@ function _famBonus64(S, activeCharIdx) {
 // Per-character; we take max across all chars.
 // activeCharIdx: the "active" character whose context is used for AllTalentLVz
 // bonuses (Spelunk, talents 149/374/539).  Game uses the logged-in character.
-function _starTalentPoints(S, activeCharIdx) {
+function _starTalentPoints(S, activeCharIdx, saveData) {
   // Account-wide bonuses (computed once)
   var famBonus64 = _famBonus64(S, activeCharIdx);
-  var stamp = computeStampBonusOfTypeX('TalentS');
-  var card1 = Math.min(5 * computeCardLv('w4b2'), 50);
-  var card2 = Math.min(15 * computeCardLv('Boss2C'), 100);
-  var card3 = Math.min(4 * computeCardLv('fallEvent1'), 100);
-  var ach = 10 * achieveStatus(212) + 20 * achieveStatus(289) + 20 * achieveStatus(305);
-  var shiny = computeShinyBonusS(14);
-  var bribe = getBribeBonus(32);
-  var vub = vaultUpgBonus(53);
-  var comp = companions(20);
-  var flurbo = computeFlurboShop(1);
-  var sigil = sigilBonus(9);
+  var stamp = computeStampBonusOfTypeX('TalentS', saveData);
+  var card1 = Math.min(5 * computeCardLv('w4b2', saveData), 50);
+  var card2 = Math.min(15 * computeCardLv('Boss2C', saveData), 100);
+  var card3 = Math.min(4 * computeCardLv('fallEvent1', saveData), 100);
+  var ach = 10 * achieveStatus(212, saveData) + 20 * achieveStatus(289, saveData) + 20 * achieveStatus(305, saveData);
+  var shiny = computeShinyBonusS(14, saveData);
+  var bribe = getBribeBonus(32, saveData);
+  var vub = vaultUpgBonus(53, saveData);
+  var comp = companions(20, saveData);
+  var flurbo = computeFlurboShop(1, saveData);
+  var sigil = sigilBonus(9, saveData);
   var cy5 = num(saveData.cyTalentPointsData && saveData.cyTalentPointsData[5]);
   // Guild bonus 11: Talent_Points_Star
   var gd = saveData.guildData;
@@ -1411,11 +1414,11 @@ function _computeHighestDR(S, charIdx) {
 // slot [18] with live DR from all characters on the best map and adjusts the total.
 // charIdx: optional — when provided, character-sensitive slots (star talent pts,
 //          DR) use this character's context, matching the game's active-player logic.
-export function computeTomeScore(S, charIdx) {
+export function computeTomeScore(S, charIdx, saveData) {
   // Phase 1: compute with stale OLA[200]
   var total = 0;
   for (var i = 0; i < T.length; i++) {
-    var qty = (i === 15) ? _starTalentPoints(S, charIdx) : tomeQTY(i, S);
+    var qty = (i === 15) ? _starTalentPoints(S, charIdx, saveData) : tomeQTY(i, S);
     var td = T[i];
     total += Math.ceil(tomePCT(qty, td[1], td[0]) * td[2]);
   }
@@ -1436,10 +1439,10 @@ export function computeTomeScore(S, charIdx) {
 // ===== Per-slot detail for debugging =====
 // Same two-phase approach: compute all slots, then fix slot [18] with live DR.
 // Returns { slots, drInfo } where drInfo contains map/char info for notifications.
-export function computeTomeScoreDetail(S, charIdx) {
+export function computeTomeScoreDetail(S, charIdx, saveData) {
   var slots = [];
   for (var i = 0; i < T.length; i++) {
-    var qty = (i === 15) ? _starTalentPoints(S, charIdx) : tomeQTY(i, S);
+    var qty = (i === 15) ? _starTalentPoints(S, charIdx, saveData) : tomeQTY(i, S);
     var td = T[i];
     var pts = Math.ceil(tomePCT(qty, td[1], td[0]) * td[2]);
     slots.push({ slot: i, qty: qty, pts: pts, half: td[0], mode: td[1], maxPts: td[2] });

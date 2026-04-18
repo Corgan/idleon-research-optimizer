@@ -35,10 +35,8 @@ export var prayer = {
 
 // ==================== PRAYER REAL (save-based aggregation) ====================
 
-import { saveData as _praySaveData } from '../../../state.js';
-
-export function computePrayerReal(prayerIdx, costIdx, ci) {
-  var prayerLv = Number(_praySaveData.prayOwnedData && _praySaveData.prayOwnedData[prayerIdx]) || 0;
+export function computePrayerReal(prayerIdx, costIdx, ci, saveData) {
+  var prayerLv = Number(saveData.prayOwnedData && saveData.prayOwnedData[prayerIdx]) || 0;
   if (prayerLv <= 0) return 0;
   var equipped = false;
   try { equipped = (prayersPerCharData[ci] || []).includes(prayerIdx); } catch(e) {}

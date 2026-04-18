@@ -7,18 +7,16 @@ import { MINEHEAD_BONUS_QTY } from '../data/w7/minehead.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { computeCardLv } from '../systems/common/cards.js';
 import { mineheadBonusQTY } from '../systems/w7/research.js';
-import { gridBonusFinal } from './helpers.js';
+import { createDescriptor, gridBonusFinal } from './helpers.js';
 import { gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';
 import { label } from '../entity-names.js';
 
-export default {
+export default createDescriptor({
   id: 'research-afk-gains',
   name: 'Research AFK Gains Rate',
   scope: 'account',
   category: 'research',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
@@ -53,7 +51,7 @@ export default {
     items.push({ name: 'Ender Pearl (Artifact)', val: Math.min(6, sail36) });
 
     // Card w7b11 (Pirate Deckhand)
-    var clvW7b11 = computeCardLv('w7b11');
+    var clvW7b11 = computeCardLv('w7b11', ctx.saveData);
     items.push({ name: 'Pirate Deckhand Card', val: Math.min(clvW7b11, 10) });
 
     // Gem Shop slot: 2 * GemItemsPurchased[45]
@@ -79,4 +77,4 @@ export default {
 
     return { val: rate, children: children };
   },
-};
+});

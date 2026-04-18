@@ -15,7 +15,8 @@ import { arcadeBonus } from '../systems/w2/arcade.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { guild } from '../systems/common/guild.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
-import { votingBonusz, companions } from '../systems/common/goldenFood.js';
+import { votingBonusz } from '../systems/w2/voting.js';
+import { companions } from '../systems/common/companions.js';
 import { computeWinBonus, computeSummUpgBonus } from '../systems/w6/summoning.js';
 import { computeVaultKillzTotal } from '../systems/common/vaultKillz.js';
 import { computePaletteBonus } from '../systems/w7/spelunking.js';
@@ -25,21 +26,10 @@ import { computeAllTalentLVz } from '../systems/common/talent.js';
 import { formulaEval, getLOG } from '../../formulas.js';
 import { skillLvData, postOfficeData } from '../../save/data.js';
 import { AtomInfo } from '../data/game/customlists.js';
+import { label } from '../entity-names.js';
+import { safe, rval, createDescriptor } from './helpers.js';
 
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch (e) { return 0; }
-}
-
-function rval(resolver, id, ctx, args) {
-  try { return resolver.resolve(id, ctx, args).val || 0; } catch (e) { return 0; }
-}
-
-export default {
+export default createDescriptor({
   id: 'build-rate',
   name: 'Player Build Speed',
   scope: 'character',
@@ -66,7 +56,7 @@ export default {
     var guildBonus5 = rval(guild, 5, ctx);
     var etcBonus30 = rval(etcBonus, '30', ctx);
     var ach153 = Math.min(5, 5 * safe(achieveStatus, 153));
-    var constMastery2 = computeConstMasteryBonus(2);
+    var constMastery2 = computeConstMasteryBonus(2, ctx.saveData);
     var vialContspd = safe(computeVialByKey, 'Contspd');
     var arcade44 = safe(arcadeBonus, 44);
     var voting18 = safe(votingBonusz, 18, 1);
@@ -99,39 +89,39 @@ export default {
     if (rawLv131 > 0) {
       var tp131 = talentParams(131);
       if (tp131 && tp131.formula) {
-        var bonus131 = computeAllTalentLVz(131, ci);
+        var bonus131 = computeAllTalentLVz(131, ci, ctx.saveData);
         var effLv131 = rawLv131 + bonus131;
         talent131Val = formulaEval(tp131.formula, tp131.x1, tp131.x2, effLv131);
         atomBonus1 = (Number(saveData.atomsData && saveData.atomsData[1]) || 0) * (Number(AtomInfo[1] && AtomInfo[1][4]) || 0);
-        var refinery1Count = computeOwnedItemCount('Refinery1');
+        var refinery1Count = computeOwnedItemCount('Refinery1', ctx.saveData);
         logRef1 = getLOG(refinery1Count);
         talentPart = 1 + talent131Val * (atomBonus1 + logRef1) / 100;
       }
     }
 
-    var total = computePlayerBuildSpd(ci);
+    var total = computePlayerBuildSpd(ci, ctx.saveData);
 
     // Extra build speed multi (cog + companion)
-    var extraBuildMulti = computeExtraBuildSPDmulti();
+    var extraBuildMulti = computeExtraBuildSPDmulti(ctx.saveData);
 
     var addChildren = [
-      { name: 'Stamp BuildProd', val: stampBuildProd },
-      { name: 'Post Office 17', val: 0.25 * postOffice17, note: '0.25 × ' + postOffice17 },
-      { name: 'Guild Bonus 5', val: guildBonus5 },
-      { name: 'Etc Bonus 30', val: etcBonus30 },
-      { name: 'Achievement 153', val: ach153 },
-      { name: 'Const Mastery 2', val: constMastery2 },
-      { name: 'Vial Contspd', val: vialContspd },
-      { name: 'Arcade 44', val: arcade44 },
-      { name: 'Voting 18', val: voting18 },
+      { name: 'Stamp: Build Speed', val: stampBuildProd },
+      { name: label('Post Office', 17), val: 0.25 * postOffice17, note: '0.25 × ' + postOffice17 },
+      { name: label('Guild', 5), val: guildBonus5 },
+      { name: label('EtcBonus', 30), val: etcBonus30 },
+      { name: label('Achievement', 153), val: ach153 },
+      { name: 'Construction Mastery 2', val: constMastery2 },
+      { name: 'Vial: Build Speed', val: vialContspd },
+      { name: label('Arcade', 44), val: arcade44 },
+      { name: label('Voting', 18), val: voting18 },
       { name: 'Vault Summ 48×11', val: summUpg48 * vaultKills11, note: summUpg48.toFixed(1) + ' × ' + vaultKills11 },
-      { name: 'Bubba RoG 1', val: bubbaRoG1 },
+      { name: 'Bubba RoG: Build Speed', val: bubbaRoG1 },
     ];
 
     var trueChildren = [
-      { name: 'Win Bonus 13', val: 1 + winBonus13 / 100, fmt: 'x' },
-      { name: 'Palette 25', val: 1 + palette25 / 100, fmt: 'x' },
-      { name: 'Vial 6turtle', val: 1 + vial6turtle / 100, fmt: 'x' },
+      { name: label('WinBonus', 13), val: 1 + winBonus13 / 100, fmt: 'x' },
+      { name: label('Palette', 25), val: 1 + palette25 / 100, fmt: 'x' },
+      { name: 'Vial: Build Speed Multi', val: 1 + vial6turtle / 100, fmt: 'x' },
     ];
 
     return {
@@ -141,8 +131,8 @@ export default {
         { name: 'Bubble Multi', val: bubbleMult, fmt: 'x', note: 'Bubble=' + constBubble.toFixed(2) },
         { name: 'Additive Pool', val: additiveMulti, fmt: 'x', children: addChildren, note: 'sum=' + addPool.toFixed(1) },
         { name: 'True Multipliers', val: trueMulti, fmt: 'x', children: trueChildren },
-        { name: 'Talent 131', val: talentPart, fmt: 'x', note: rawLv131 > 0 ? 'val=' + talent131Val.toFixed(1) + ' atom=' + atomBonus1 + ' logRef=' + logRef1.toFixed(2) : 'no talent' },
-        { name: 'Extra Build Multi', val: extraBuildMulti, fmt: 'x', note: 'SmallCog(1)=' + computeSmallCogBonusTOTAL(1) + ' comp157=' + safe(companions, 157) },
+        { name: label('Talent', 131), val: talentPart, fmt: 'x', note: rawLv131 > 0 ? 'val=' + talent131Val.toFixed(1) + ' atom=' + atomBonus1 + ' logRef=' + logRef1.toFixed(2) : 'no talent' },
+        { name: 'Extra Build Multi', val: extraBuildMulti, fmt: 'x', note: 'SmallCog(1)=' + computeSmallCogBonusTOTAL(1, ctx.saveData) + ' comp157=' + safe(companions, 157) },
       ],
       _debug: {
         constLv: constLv,
@@ -157,4 +147,4 @@ export default {
       },
     };
   },
-};
+});

@@ -3,14 +3,14 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { cardEquipData, csetEqData } from '../../../save/data.js';
 import { CARD_BASE_REQ, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
 import { IDforCardSETbonus } from '../../data/game/custommaps.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { charHasChip } from '../w4/lab.js';
+import { RANDOlist } from '../../data/game/customlists.js';
 
-export function computeCardLv(cardKey) {
+export function computeCardLv(cardKey, saveData) {
   var qty = saveData.cards0Data[cardKey] || 0;
   if (qty <= 0) return 0;
   var rift5star = (saveData.riftData[0] || 0) >= 45 ? 1 : 0;
@@ -33,7 +33,11 @@ export function computeCardLv(cardKey) {
   return lv;
 }
 
-export function computeCardLvDetail(cardKey) {
+export function cardLv(cardId, saveData) {
+  return computeCardLv(cardId, saveData);
+}
+
+export function computeCardLvDetail(cardKey, saveData) {
   var qty = saveData.cards0Data[cardKey] || 0;
   if (qty <= 0) return { lv: 0, qty: 0, maxStars: 0, rift5: false, spelunk6: false };
   var rift5star = (saveData.riftData[0] || 0) >= 45 ? 1 : 0;
@@ -77,7 +81,7 @@ export var card = {
     var equipped = cardEquipData[ctx.charIdx] || [];
     if (!equipped.length) return node(name, 0);
 
-    var legend21 = legendPTSbonus(21);
+    var legend21 = legendPTSbonus(21, saveData);
     var legendMulti = 1 + legend21 / 100;
     var total = 0;
     var children = [];
@@ -87,7 +91,7 @@ export var card = {
       if (!cardKey || cardKey === 'B') continue;
       var bonusVal = table[cardKey];
       if (bonusVal == null) continue;
-      var lv = computeCardLv(cardKey);
+      var lv = computeCardLv(cardKey, saveData);
       var qty = saveData.cards0Data[cardKey] || 0;
       var rift5star = (saveData.riftData[0] || 0) >= 45 ? 1 : 0;
       var spelunk6star = (saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][2] || 0) >= 1 ? 1 : 0;
@@ -112,7 +116,7 @@ export var card = {
       total += contrib;
     }
     if (legendMulti !== 1) {
-      var legend21raw = legendPTSbonus(21);
+      var legend21raw = legendPTSbonus(21, saveData);
       children.push(node(label('Legend', 21, ' ×'), legendMulti, [
         node('Legend PTS', legend21raw, null, { fmt: 'raw' }),
       ], { fmt: 'x' }));
@@ -139,7 +143,7 @@ export var cardSingle = {
     // id = card key, args = [perStar, cap]
     var perStar = args ? args[0] : 1;
     var cap = args ? args[1] : 999;
-    var lv = computeCardLv(id);
+    var lv = computeCardLv(id, saveData);
     var qty = saveData.cards0Data[id] || 0;
     var val = Math.min(perStar * lv, cap);
     return node(label('Card', id), val, [
@@ -160,4 +164,26 @@ export function computeCardSetBonus(charIdx, setKey) {
   var key = IDforCardSETbonus[setKey];
   if (!key) return 0;
   return Number(csetMap[key]) || 0;
+}
+
+// Raw card-set bonus lookup (account-level, not per-character)
+export function computeCardSetBonusRaw(setId, saveData) {
+  var cset = saveData.cardSetData;
+  if (!cset) return 0;
+  return Number(cset[setId]) || 0;
+}
+
+// Count discovered cards across RANDOlist sets 82-86
+export function countDiscoveredCards(saveData) {
+  var cards1 = saveData.cardsData && saveData.cardsData[1];
+  if (!cards1) return 0;
+  var count = 0;
+  for (var setIdx = 82; setIdx <= 86; setIdx++) {
+    var set = RANDOlist[setIdx];
+    if (!set) continue;
+    for (var j = 0; j < set.length; j++) {
+      if (cards1[set[j]] !== undefined) count++;
+    }
+  }
+  return count;
 }

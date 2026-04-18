@@ -6,6 +6,34 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
+import { vaultUpgPerLevel } from '../../data/common/vault.js';
+
+export function vaultUpgBonus(idx, saveData) {
+  var level = Number(saveData.vaultData[idx]) || 0;
+  if (level <= 0) return 0;
+  var perLv = vaultUpgPerLevel(idx);
+  if (perLv == null) return 0;
+  var base = level * perLv;
+  if (idx === 0) {
+    base += Math.max(0, level - 25) + Math.max(0, level - 50) + Math.max(0, level - 100);
+  }
+  if (idx === 60) {
+    base += Math.max(0, level - 25) + Math.max(0, level - 50)
+      + 2 * Math.max(0, level - 100) + 3 * Math.max(0, level - 200)
+      + 5 * Math.max(0, level - 300) + 7 * Math.max(0, level - 400)
+      + 10 * Math.max(0, level - 450);
+    base *= 1 + Math.floor(level / 25) / 5;
+  }
+  if (!VAULT_NO_MASTERY.has(idx)) {
+    var masteryLv = 0;
+    var vd = saveData.vaultData;
+    if (idx < 32)       masteryLv = Number(vd[32]) || 0;
+    else if (idx <= 60) masteryLv = Number(vd[61]) || 0;
+    else if (idx <= 88) masteryLv = Number(vd[89]) || 0;
+    base *= 1 + masteryLv / 100;
+  }
+  return base;
+}
 
 // Indices that return lv * perLv WITHOUT mastery multiplier
 var NO_MASTERY = VAULT_NO_MASTERY;

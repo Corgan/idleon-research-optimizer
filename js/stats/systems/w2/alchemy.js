@@ -5,8 +5,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { cauldronInfoData, optionsListData, charClassData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
-import { sigilBonus as _sigilBonus, vaultUpgBonus } from '../common/goldenFood.js';
-import { saveData } from '../../../state.js';
+import { vaultUpgBonus } from '../common/vault.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { arcadeBonus } from './arcade.js';
@@ -15,6 +14,23 @@ import { paletteParams } from '../../data/w4/gaming.js';
 import { exoticParams } from '../../data/w5/farming.js';
 import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
+
+export function sigilBonus(sigilIdx, saveData) {
+  var level = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * sigilIdx]) || 0;
+  if (level < -0.1) return 0;
+  var tiers = sigilTiers(sigilIdx);
+  if (!tiers) return 0;
+  var base;
+  if (level < 0.5) base = tiers[0];
+  else if (level < 1.5) base = tiers[1];
+  else if (level < 2.5) base = tiers[2];
+  else if (level < 3.5) base = tiers[3];
+  else base = tiers[4] || tiers[3];
+  var tier16 = Number((saveData.sailingData[3] || [])[16]) || 0;
+  var artifactMulti = 1 + (tier16 === 0 ? 0 : Math.max(1, tier16));
+  var meritocMulti = 1 + computeMeritocBonusz(21, saveData) / 100;
+  return base * artifactMulti * meritocMulti;
+}
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { AlchemyDescription } from '../../data/game/customlists.js';
@@ -36,9 +52,9 @@ function isBubblePrismad(cauldron, bubbleIdx) {
 
 // PrismaBonusMult: Math.min(4, 2 + (ArcaneUpg(45) + Arcade(54) + HaveW6Trophy + Palette(28)
 //   + 0.2*TotalPurpleSigils + ExoticBonusQTY(48) + LegendPTS(36) + 50*Companions(88)) / 100)
-function getPrismaBonusMult() {
-  var arcane45 = arcaneUpgBonus(45);     // flat index → raw level value
-  var arcade54 = arcadeBonus(54);
+function getPrismaBonusMult(saveData) {
+  var arcane45 = arcaneUpgBonus(45, saveData);     // flat index → raw level value
+  var arcade54 = arcadeBonus(54, saveData);
   // HaveW6Trophy: Cards[1] contains "Trophy23" → 10, else 0
   var cards1 = saveData.cards1Data || [];
   var hasW6Trophy = (Array.isArray(cards1) ? cards1.indexOf('Trophy23') >= 0
@@ -47,7 +63,7 @@ function getPrismaBonusMult() {
   var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
   var pal28 = paletteParams(28);
   var palRaw = palLv > 0 ? palLv / (palLv + pal28.denom) * pal28.coeff : 0;
-  var palLegendMulti = 1 + legendPTSbonus(10) / 100;
+  var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
   var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;
   var palette28 = palRaw * palLegendMulti * palLoreMulti;
@@ -63,7 +79,7 @@ function getPrismaBonusMult() {
   var ex48 = exoticParams(48);
   var exLv = Number((saveData.farmUpgData && saveData.farmUpgData[ex48.farmSlot]) || 0);
   var exotic48 = exLv > 0 ? ex48.base * exLv / (ex48.denom + exLv) : 0;
-  var legend36 = legendPTSbonus(36);
+  var legend36 = legendPTSbonus(36, saveData);
   // Companions(88) = rift4 companion: +Prisma Bubble bonus multi
   var comp88 = saveData.companionIds && saveData.companionIds.has(88) ? 1 : 0;
   // SushiStuff("RoG_BonusQTY", 23, 0)
@@ -78,14 +94,14 @@ export { isBubblePrismad, getPrismaBonusMult };
 // Compute the Y13 bubble bonus (CODFREY_RULZ_OK, Kazam index 32) for GalleryBonusMulti.
 // Game: AlchBubbles.Y13 = CauldronStats("BubbleBonus", 3, 32, 0)
 // "Y13" is the effect key (AlchemyDescription[3][32][15]), NOT array index 13.
-export function bubbleBonusY13() {
+export function bubbleBonusY13(saveData) {
   var data = bubbleParams(3, 32);
   if (!data) return 0;
   var lv = Number((cauldronInfoData && cauldronInfoData[data.cauldron] && cauldronInfoData[data.cauldron][data.index]) || 0);
   if (lv <= 0) return 0;
   var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
   var isPrisma = isBubblePrismad(data.cauldron, data.index);
-  var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+  var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   return baseVal * prismaMult;
 }
 
@@ -101,7 +117,7 @@ export var alchemy = {
     if (lv <= 0) return node(label('Bubble', bubbleId), 0, null, { note: 'bubble ' + id });
     var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
     var isPrisma = isBubblePrismad(data.cauldron, data.index);
-    var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+    var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
     var val = baseVal * prismaMult;
     var children = [
       node('Bubble Level', lv, null, { fmt: 'raw' }),
@@ -109,15 +125,15 @@ export var alchemy = {
     ];
     if (isPrisma) {
       // Build prisma sub-breakdown
-      var arcane45 = arcaneUpgBonus(45);
-      var arcade54val = arcadeBonus(54);
+      var arcane45 = arcaneUpgBonus(45, saveData);
+      var arcade54val = arcadeBonus(54, saveData);
       var cards1 = saveData.cards1Data || [];
       var hasW6Trophy = (Array.isArray(cards1) ? cards1.indexOf('Trophy23') >= 0
         : JSON.stringify(cards1).indexOf('Trophy23') >= 0) ? 10 : 0;
       var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
       var _pal28 = paletteParams(28);
       var palRaw = palLv > 0 ? palLv / (palLv + _pal28.denom) * _pal28.coeff : 0;
-      var palLegendMulti = 1 + legendPTSbonus(10) / 100;
+      var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
       var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
       var palLoreMulti = 1 + 0.5 * loreFlag8;
       var palette28 = palRaw * palLegendMulti * palLoreMulti;
@@ -127,7 +143,7 @@ export var alchemy = {
       var _ex48 = exoticParams(48);
       var exLv = Number((saveData.farmUpgData && saveData.farmUpgData[_ex48.farmSlot]) || 0);
       var exotic48 = exLv > 0 ? _ex48.base * exLv / (_ex48.denom + exLv) : 0;
-      var legend36 = legendPTSbonus(36);
+      var legend36 = legendPTSbonus(36, saveData);
       var comp88 = saveData.companionIds && saveData.companionIds.has(88) ? 1 : 0;
 
       children.push(node('Prisma Bonus', prismaMult, [
@@ -164,7 +180,7 @@ export var sigil = {
     else if (level < 3.5) base = tiers[3];
     else base = tiers[4] || tiers[3];
     var artifactMulti = 1 + (Number((saveData.sailingData[3] || [])[16]) || 0 ? Math.max(1, Number((saveData.sailingData[3] || [])[16])) : 0);
-    var meritocMulti = 1 + (computeMeritocBonusz(21) || 0) / 100;
+    var meritocMulti = 1 + (computeMeritocBonusz(21, saveData) || 0) / 100;
     var val = base * artifactMulti * meritocMulti;
     return node(name, val, [
       node('Sigil Level', level, null, { fmt: 'raw' }),
@@ -178,7 +194,7 @@ export var sigil = {
 // ==================== BUBBLE BY KEY ====================
 // Look up a bubble by its effect key (e.g. 'expACTIVE', 'kpkACTIVE') and return its value.
 
-export function bubbleValByKey(key, charIdx) {
+export function bubbleValByKey(key, charIdx, saveData) {
   for (var c2 = 0; c2 < 4; c2++) {
     var arr = AlchemyDescription[c2];
     if (!arr) continue;
@@ -188,17 +204,17 @@ export function bubbleValByKey(key, charIdx) {
         if (lv <= 0) return 0;
         var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
         var isPrisma = isBubblePrismad(c2, i);
-        var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+        var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
         var val = baseVal * prismaMult;
         var cls = Number(charClassData && charClassData[charIdx]) || 0;
-        if (cls > 6 && i !== 16 && i < 30 &&
+        if (cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            val *= Math.max(1, bubbleValByKey('Opassz'));
+            val *= Math.max(1, bubbleValByKey('Opassz', saveData));
           } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            val *= Math.max(1, bubbleValByKey('Gpassz'));
+            val *= Math.max(1, bubbleValByKey('Gpassz', saveData));
           } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            val *= Math.max(1, bubbleValByKey('Ppassz'));
+            val *= Math.max(1, bubbleValByKey('Ppassz', saveData));
           }
         }
         return val;
@@ -211,7 +227,7 @@ export function bubbleValByKey(key, charIdx) {
 // ==================== VIAL BY KEY ====================
 // Sum of all vials matching effect key, with lab/rift/vault/meritoc multipliers.
 
-export function computeVialByKey(effectKey) {
+export function computeVialByKey(effectKey, saveData) {
   var vials = AlchemyDescription[4];
   if (!vials) return 0;
   var total = 0;
@@ -220,7 +236,7 @@ export function computeVialByKey(effectKey) {
     var vialLv = Number((cauldronInfoData && cauldronInfoData[4] && cauldronInfoData[4][vi]) || 0);
     if (vialLv <= 0) continue;
     var rawVal = formulaEval(vials[vi][3], Number(vials[vi][1]) || 0, Number(vials[vi][2]) || 0, vialLv);
-    var labMult = mainframeBonus(10) === 2 ? 2 : 1;
+    var labMult = mainframeBonus(10, saveData) === 2 ? 2 : 1;
     var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
     var maxLvVials = 0;
     if (riftActive) {
@@ -229,8 +245,8 @@ export function computeVialByKey(effectKey) {
         if ((Number(ci4[rvi]) || 0) >= 13) maxLvVials++;
       }
     }
-    var dNzz = (riftActive ? 2 * maxLvVials : 0) + (vaultUpgBonus(42) || 0);
-    var meritoc20 = computeMeritocBonusz(20) || 0;
+    var dNzz = (riftActive ? 2 * maxLvVials : 0) + (vaultUpgBonus(42, saveData) || 0);
+    var meritoc20 = computeMeritocBonusz(20, saveData) || 0;
     total += labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
   }
   return total;

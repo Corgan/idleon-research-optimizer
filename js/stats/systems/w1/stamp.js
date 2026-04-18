@@ -6,11 +6,12 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { stampLvData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
 import { eventShopOwned } from '../../../game-helpers.js';
-import { pristineBon, getSetBonus, vaultUpgBonus } from '../common/goldenFood.js';
+import { pristineBon } from '../w5/pristine.js';
+import { getSetBonus } from '../w3/setBonus.js';
+import { vaultUpgBonus } from '../common/vault.js';
 import { mainframeBonus } from '../w4/lab.js';
 import { legendPTSbonus } from '../../systems/w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
@@ -28,20 +29,20 @@ function stampKey(cat, idx) {
   return (N2L[cat] || '_') + idx;
 }
 
-function isExalted(cat, idx) {
+function isExalted(cat, idx, saveData) {
   var key = stampKey(cat, idx);
   var exaltedArr = saveData.compassData && saveData.compassData[4];
   if (!exaltedArr || !Array.isArray(exaltedArr)) return false;
   return exaltedArr.indexOf(key) !== -1;
 }
 
-function computeStampDoublerSources() {
+function computeStampDoublerSources(saveData) {
 
   // Source 1: AtomBonuses(12) = Atoms[12] × perLv(1)
   var atom12 = Number(saveData.atomsData[12]) || 0;
 
   // Source 2: PristineBon(20) — Pristine Charm 20
-  var prist20 = pristineBon(20);
+  var prist20 = pristineBon(20, saveData);
 
   // Source 3: CompassBonus(76) — Compass upgrade level × perLevel
   var compassLv = (saveData.compassData && saveData.compassData[0] && Number(saveData.compassData[0][76])) || 0;
@@ -60,7 +61,7 @@ function computeStampDoublerSources() {
   var palRaw23 = paletteLv > 0
     ? paletteLv / (paletteLv + pal23.denom) * pal23.coeff
     : 0;
-  var palLegendMulti = 1 + legendPTSbonus(10) / 100;
+  var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
   var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;
   var palette23 = palRaw23 * palLegendMulti * palLoreMulti;
@@ -76,7 +77,7 @@ function computeStampDoublerSources() {
   var spelunk43 = Math.round(Number((saveData.spelunkData && saveData.spelunkData[4] && saveData.spelunkData[4][3]) || 0));
 
   // Source 9 (additive to 100): LegendPTS_bonus(36)
-  var legend36 = legendPTSbonus(36);
+  var legend36 = legendPTSbonus(36, saveData);
 
   // Source 10: SushiStuff("RoG_BonusQTY", 17, 0)
   var sushiRoG17 = rogBonusQTY(17, saveData.cachedUniqueSushi || 0);
@@ -118,8 +119,8 @@ export var stamp = {
     if (lv <= 0) return node(label('Stamp', id), 0, null, { note: 'stamp ' + id });
     var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
 
-    var exalted = isExalted(data.cat, data.idx);
-    var doublerInfo = computeStampDoublerSources();
+    var exalted = isExalted(data.cat, data.idx, saveData);
+    var doublerInfo = computeStampDoublerSources(saveData);
     var exaltedMulti = exalted ? 1 + doublerInfo.total / 100 : 1;
     var val = baseVal * exaltedMulti;
 
@@ -128,9 +129,9 @@ export var stamp = {
     var pristineMulti = 1;
     if (data.cat < 2) {
       // Certified Stamp Book (lab node 7): doubles all non-MISC stamps when connected
-      if (mainframeBonus(7) === 2) labDouble = 2;
+      if (mainframeBonus(7, saveData) === 2) labDouble = 2;
       // Pristine Charm 17 (Liquorice Rolle): ×(1 + PristineBon(17)/100)
-      var prist17 = pristineBon(17);
+      var prist17 = pristineBon(17, saveData);
       if (prist17 > 0) pristineMulti = 1 + prist17 / 100;
       val = val * labDouble * pristineMulti;
     }
@@ -192,14 +193,14 @@ function buildStampTypeMap() {
   return _stampTypeCache;
 }
 
-export function computeStampBonusOfTypeX(typeKey) {
+export function computeStampBonusOfTypeX(typeKey, saveData) {
   var map = buildStampTypeMap();
   var stamps = map[typeKey];
   if (!stamps) return 0;
   var total = 0;
   var doublerTotal = null; // lazy-computed
-  var labDouble = mainframeBonus(7) === 2 ? 2 : 1;
-  var prist17 = pristineBon(17) || 0;
+  var labDouble = mainframeBonus(7, saveData) === 2 ? 2 : 1;
+  var prist17 = pristineBon(17, saveData) || 0;
   var pristMulti = prist17 > 0 ? 1 + prist17 / 100 : 1;
 
   for (var si = 0; si < stamps.length; si++) {
@@ -207,9 +208,9 @@ export function computeStampBonusOfTypeX(typeKey) {
     var lv = Number((stampLvData && stampLvData[st.cat] && stampLvData[st.cat][st.idx]) || 0);
     if (lv <= 0) continue;
     var val = formulaEval(st.formula, st.x1, st.x2, lv);
-    if (isExalted(st.cat, st.idx)) {
+    if (isExalted(st.cat, st.idx, saveData)) {
       if (doublerTotal === null) {
-        var _d = computeStampDoublerSources();
+        var _d = computeStampDoublerSources(saveData);
         doublerTotal = (typeof _d === 'object' && _d) ? (_d.total || 0) : (Number(_d) || 0);
       }
       val *= 1 + doublerTotal / 100;
@@ -221,7 +222,7 @@ export function computeStampBonusOfTypeX(typeKey) {
   }
   // Post-loop: VaultUpgBonus(16) multiplier for base stat stamps (game applies this for BaseDmg/BaseHP/BaseAcc/BaseDef)
   if (typeKey === 'BaseDmg' || typeKey === 'BaseHP' || typeKey === 'BaseAcc' || typeKey === 'BaseDef') {
-    var vault16 = vaultUpgBonus(16);
+    var vault16 = vaultUpgBonus(16, saveData);
     if (vault16 > 0) total *= 1 + vault16 / 100;
   }
   return total;

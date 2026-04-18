@@ -4,8 +4,14 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData, equipOrderData } from '../../../save/data.js';
-import { equipSetBonus } from '../../data/common/equipment.js';
+import { equipSetBonus, SET_BONUS_VALUES } from '../../data/common/equipment.js';
 import { EquipmentSets } from '../../data/game/custommaps.js';
+
+export function getSetBonus(setName) {
+  var perma = String(optionsListData[379] || '');
+  if (!perma.includes(setName)) return 0;
+  return SET_BONUS_VALUES[setName] || 0;
+}
 
 var SET_DATA = {
   efaunt: { key: 'EFAUNT_SET', bonus: equipSetBonus('EFAUNT_SET') },

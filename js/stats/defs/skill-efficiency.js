@@ -3,19 +3,22 @@
 // Each skill has a specific formula, but they all share AllEfficiencies and AllBaseSkillEff.
 // Scope: character + skill type.
 
-import { companions, vaultUpgBonus, goldFoodBonuses, cardLv,
-  getSetBonus, votingBonusz } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { cardLv } from '../systems/common/cards.js';
+import { getSetBonus } from '../systems/w3/setBonus.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent } from '../systems/common/talent.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
-import { charClassData, optionsListData } from '../../save/data.js';
+import { optionsListData } from '../../save/data.js';
 import { AlchemyDescription } from '../data/game/customlists.js';
 import { cauldronInfoData } from '../../save/data.js';
-import { isBubblePrismad, getPrismaBonusMult } from '../systems/w2/alchemy.js';
-import { formulaEval } from '../../formulas.js';
+import { bubbleValByKey, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { saveData } from '../../state.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
@@ -25,36 +28,7 @@ import {
   computeAllEfficiencies, computeAllBaseSkillEff
 } from './skill-helpers.js';
 import { computeCalcTalent } from '../systems/common/calcTalent.js';
-
-function bubbleValByKey(key, charIdx) {
-  for (var c2 = 0; c2 < 4; c2++) {
-    var arr = AlchemyDescription[c2];
-    if (!arr) continue;
-    for (var i = 0; i < arr.length; i++) {
-      if (arr[i] && arr[i][15] === key) {
-        var lv = Number((cauldronInfoData && cauldronInfoData[c2] && cauldronInfoData[c2][i]) || 0);
-        if (lv <= 0) return 0;
-        var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
-        var isPrisma = isBubblePrismad(c2, i);
-        var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
-        var val = baseVal * prismaMult;
-        var cls = Number(charClassData && charClassData[charIdx]) || 0;
-        if (cls > 6 && i !== 16 && i < 30 &&
-            key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
-          if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            val *= Math.max(1, bubbleValByKey('Opassz'));
-          } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            val *= Math.max(1, bubbleValByKey('Gpassz'));
-          } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            val *= Math.max(1, bubbleValByKey('Ppassz'));
-          }
-        }
-        return val;
-      }
-    }
-  }
-  return 0;
-}
+import { createDescriptor } from './helpers.js';
 
 // Each primary skill follows the pattern:
 // SkillStatsDN = equipTool WP * (1+talent*skillLv/100) * (1+bubbleTool/100) + 4 + TotalStats(Skill_Power)
@@ -112,13 +86,11 @@ var SKILL_CONFIG = {
   },
 };
 
-export default {
+export default createDescriptor({
   id: 'skill-efficiency',
   name: 'Skill Efficiency',
   scope: 'character',
   category: 'stat',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
@@ -180,7 +152,7 @@ export default {
 
     var gfMult = 1;
     try {
-      var gf = goldFoodBonuses(skillType + 'Eff', ci);
+      var gf = goldFoodBonuses(skillType + 'Eff', ci, ctx.saveData);
       gfMult = (gf && typeof gf === 'object') ? (Number(gf.total) || 1) : (Number(gf) || 1);
     } catch(e) {}
 
@@ -194,15 +166,15 @@ export default {
     if (val !== val || val == null) val = 0;
 
     var children = [];
-    children.push({ name: 'Tool Power (SkillStatsDN)', val: skillStatsDN, fmt: 'raw',
+    children.push({ name: 'Tool Power', val: skillStatsDN, fmt: 'raw',
       note: 'WP=' + wpRaw + ' bubble=' + toolBubble.toFixed(1) });
-    children.push({ name: 'Inner (DN^1.3 + stat^0.6 + base)', val: sk.flat + inner, fmt: 'raw' });
+    children.push({ name: 'Inner (Power + Stat + Base)', val: sk.flat + inner, fmt: 'raw' });
     children.push({ name: 'Skill Level /' + 200, val: skillLvMult, fmt: 'x',
       note: skillType + ' lv=' + skillLv });
-    children.push({ name: 'AllEfficiencies', val: allEff, fmt: 'x' });
-    children.push({ name: 'Per-skill multipliers', val: perSkillMult, fmt: 'x' });
-    if (gfMult > 1) children.push({ name: 'GoldFood ' + skillType + 'Eff', val: gfMult, fmt: 'x' });
+    children.push({ name: 'All Efficiencies', val: allEff, fmt: 'x' });
+    children.push({ name: skillType + ' Multipliers', val: perSkillMult, fmt: 'x' });
+    if (gfMult > 1) children.push({ name: 'Golden Food: ' + skillType + ' Efficiency', val: gfMult, fmt: 'x' });
 
     return { val: val, children: children };
   }
-};
+});

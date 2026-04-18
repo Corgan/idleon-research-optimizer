@@ -3,14 +3,13 @@
 // Uses ctx.resolve('voting-multi') for the voting multiplier.
 
 import { gfoodBonusMULTI, gfoodBonusMULTIBreakdown } from '../systems/common/goldenFood.js';
+import { createDescriptor } from './helpers.js';
 
-export default {
+export default createDescriptor({
   id: 'gfood-multi',
   name: 'Golden Food Multi',
   scope: 'character',
   category: 'multiplier',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     // Get voting multi from descriptor
@@ -18,8 +17,8 @@ export default {
     var overrides = { votingBonuszMulti: votingResult.val, votingTree: votingResult };
     if (ctx.dnsmCache) overrides.dnsmCache = ctx.dnsmCache;
 
-    var val = gfoodBonusMULTI(ctx.charIdx, overrides);
-    var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, overrides);
+    var val = gfoodBonusMULTI(ctx.charIdx, overrides, ctx.saveData);
+    var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, overrides, ctx.saveData);
 
     // Build children from breakdown items
     var children = [];
@@ -35,4 +34,4 @@ export default {
 
     return { val: val, children: children };
   },
-};
+});

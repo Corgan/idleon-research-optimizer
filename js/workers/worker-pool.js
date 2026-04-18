@@ -7,6 +7,8 @@ import {
 } from '../game-data.js';
 import {
   computeGridPointsEarned,
+  simTotalExpWith,
+  calcAllBonusMultiWith,
 } from '../sim-math.js';
 import {
   buildSaveContext,
@@ -309,10 +311,32 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     // Only distribute currently-available points; future-earned handled by mid-sim branching
     const usefulPoints = Math.min(availPts, availPts - freePoints);
-    const combos = enumGridCombos(spendable, _saveCtx.gridLevels, usefulPoints);
+    let combos = enumGridCombos(spendable, _saveCtx.gridLevels, usefulPoints);
+
+    // Pre-filter: if too many combos, score them cheaply by immediate EXP/hr
+    // and only run full sims on the top candidates.
+    const MAX_FULL_SIMS = 50;
+    const totalEnumerated = combos.length;
+    if (combos.length > MAX_FULL_SIMS) {
+      currentStage = 'Pre-scoring ' + combos.length + ' combinations';
+      _reportProgress();
+      const _ctx = makeSimCtx(_saveCtx.gridLevels, _saveCtx);
+      const _md = _saveCtx.magData;
+      const _so = _saveCtx.shapeOverlay;
+      const _il = _saveCtx.insightLvs;
+      const _occ = _saveCtx.occFound;
+      const _rLv = _saveCtx.researchLevel;
+      for (var ci = 0; ci < combos.length; ci++) {
+        var trialABM = calcAllBonusMultiWith(combos[ci].gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, _ctx.rog53);
+        combos[ci]._qr = simTotalExpWith(combos[ci].gl, _so, _md, _il, _occ, _rLv, Object.assign({}, _ctx, { abm: trialABM }));
+      }
+      combos.sort(function(a, b) { return b._qr - a._qr; });
+      combos = combos.slice(0, MAX_FULL_SIMS);
+    }
 
     totalEstSims = combos.length;
-    currentStage = 'Testing ' + combos.length + ' combination' + (combos.length > 1 ? 's' : '');
+    currentStage = 'Testing ' + combos.length + ' combination' + (combos.length > 1 ? 's' : '')
+      + (totalEnumerated > combos.length ? ' (from ' + totalEnumerated + ' pre-scored)' : '');
     _reportProgress();
 
     // Dispatch ALL combos to worker pool in parallel
@@ -340,7 +364,8 @@ export async function runParallelOptimizer(target, progressCb, opts) {
     const best = allPaths[0];
     const worst = allPaths[allPaths.length - 1];
 
-    let doneMsg = 'Optimization complete! (' + combos.length + ' combos tested)';
+    let doneMsg = 'Optimization complete! (' + combos.length + ' combos tested'
+      + (totalEnumerated > combos.length ? ', ' + totalEnumerated + ' pre-scored' : '') + ')';
     if (freeNotice) doneMsg += ' \u2014 ' + freeNotice;
     if (progressCb) progressCb(1000, 1000, doneMsg);
     pool.terminate(); _optWorkerPool = null; _optReject = null;

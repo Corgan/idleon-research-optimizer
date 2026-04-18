@@ -7,26 +7,17 @@
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { companionBonus } from '../data/common/companions.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { mineheadBonusQTY } from '../systems/w7/minehead.js';
-import { MINEHEAD_UPG } from '../data/w7/minehead.js';
-import { gridBonusFinal, computeButtonBonus } from './helpers.js';
+import { mineheadBonusQTY, mhUpgradeQTY } from '../systems/w7/minehead.js';
+import { createDescriptor, gridBonusFinal, computeButtonBonus } from './helpers.js';
 import { label } from '../entity-names.js';
 import { getLOG } from '../../formulas.js';
 import { computeMealBonus } from '../systems/common/stats.js';
 
-function mhUpgradeQTY(idx, saveData) {
-  var bonus = MINEHEAD_UPG[idx] ? MINEHEAD_UPG[idx].bonus : 0;
-  var lv = (saveData.research && saveData.research[8] && Number(saveData.research[8][idx])) || 0;
-  return bonus * lv;
-}
-
-export default {
+export default createDescriptor({
   id: 'minehead-currency',
   name: 'Minehead Currency/hr',
   scope: 'account',
   category: 'currency',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
@@ -45,7 +36,7 @@ export default {
 
     // 3. × (1+RoG(12)/100)
     var rog12 = rogBonusQTY(12, saveData.cachedUniqueSushi);
-    children.push({ name: 'Sushi RoG(12)', val: 1 + rog12 / 100, fmt: 'x' });
+    children.push({ name: label('Sushi', 12), val: 1 + rog12 / 100, fmt: 'x' });
 
     // 4. × max(1, min(2, Comp143))
     var comp143raw = saveData.companionIds && saveData.companionIds.has(143) ? companionBonus(143) : 0;
@@ -62,7 +53,7 @@ export default {
     var upg22 = mhUpgradeQTY(22, saveData);
     var research76 = (saveData.research && saveData.research[7] && Number(saveData.research[7][6])) || 0;
     var upg28 = mhUpgradeQTY(28, saveData) * getLOG(research76);
-    var arcade62 = arcadeBonus(62);
+    var arcade62 = arcadeBonus(62, ctx.saveData);
     var additive6 = upg5 + upg22 + upg28 + arcade62;
     children.push({ name: 'Upgrades+Arcade', val: 1 + additive6 / 100, fmt: 'x',
       children: [
@@ -84,7 +75,7 @@ export default {
     var grid147 = gridBonusFinal(saveData, 147);
     var grid166 = gridBonusFinal(saveData, 166);
     var mealMineCurr = 0;
-    try { mealMineCurr = computeMealBonus('MineCurr') || 0; } catch(e) {}
+    try { mealMineCurr = computeMealBonus('MineCurr', ctx.saveData) || 0; } catch(e) {}
     children.push({ name: 'Grid+Meal', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
       children: [
         { name: label('Grid', 147), val: grid147, fmt: 'raw' },
@@ -100,4 +91,4 @@ export default {
 
     return { val: val, children: children };
   },
-};
+});

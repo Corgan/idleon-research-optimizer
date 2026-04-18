@@ -5,6 +5,11 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { companionBonus } from '../../data/common/companions.js';
 
+export function companions(idx, saveData) {
+  if (!saveData.companionIds.has(idx)) return 0;
+  return companionBonus(idx);
+}
+
 export var companion = {
   resolve: function(id, ctx) {
     var name = label('Companion', id);

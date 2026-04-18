@@ -1,9 +1,8 @@
 // ===== GOLDEN FOOD SYSTEM =====
-// All golden food helper functions and the GfoodBonusMULTI formula.
+// Golden food helper functions and the GfoodBonusMULTI formula.
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import {
   equipOrderData, equipQtyData, optionsListData,
   skillLvData, numCharacters, klaData, charClassData,
@@ -14,14 +13,10 @@ import { gbWith } from '../../../sim-math.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { ribbonBonusAt } from '../../../game-helpers.js';
 import { computeAllTalentLVz } from './talent.js';
-import { mainframeBonus } from '../w4/lab.js';
-import { computeWinBonus } from '../w6/summoning.js';
-import { computeShinyBonusS } from '../w4/breeding.js';
+import { cookingMealMulti } from './cooking.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../../data/common/talent.js';
 import { talentParams } from '../../data/common/talent.js';
-import { companionBonus } from '../../data/common/companions.js';
-import { SET_BONUS_VALUES } from '../../data/common/equipment.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
 import votingMultiDesc from '../../defs/voting-multi.js';
 import { itemUqMatch } from '../../data/common/equipment.js';
@@ -30,15 +25,18 @@ import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
 import { isExalted, computeStampDoublerSources } from '../w1/stamp.js';
 import { computeSeraphMulti } from './starSign.js';
 import { GOLD_FOOD_INFO, EMPORIUM_FOOD_SLOTS } from '../../data/common/goldenFood.js';
-import { bribeValue } from '../../data/common/bribes.js';
 import { ACHIEVE_STATUS } from '../../data/game/hardcoded.js';
-import { vaultUpgPerLevel } from '../../data/common/vault.js';
-import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
-import { sigilTiers, pristineCharmBonus } from '../../data/common/sigils.js';
 import { votingBonusValue } from '../../data/common/voting.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
-import { computeCardLv } from './cards.js';
-import { GRIMOIRE_NO_MULTI } from '../../data/game-constants.js';
+// Moved-out system functions (were previously defined here)
+import { companions } from './companions.js';
+import { cardLv } from './cards.js';
+import { vaultUpgBonus } from './vault.js';
+import { sigilBonus } from '../w2/alchemy.js';
+import { votingBonusz } from '../w2/voting.js';
+import { getBribeBonus } from '../w3/bribe.js';
+import { pristineBon } from '../w5/pristine.js';
+import { getSetBonus } from '../w3/setBonus.js';
 
 // AchieveStatus: game returns hardcoded tier value (5/10/20) for specific IDs, 1 for all others
 var _achStatusLookup;
@@ -52,104 +50,13 @@ function _getAchStatusLookup() {
   return _achStatusLookup;
 }
 
-function achieveStatusTiered(idx) {
+function achieveStatusTiered(idx, saveData) {
   if (saveData.achieveRegData[idx] !== -1) return 0;
   return _getAchStatusLookup()[idx] || 1;
 }
 
-export function getBribeBonus(idx) {
-  var i = typeof idx === 'string' ? parseInt(idx) : Math.round(idx);
-  if ((saveData.bribeStatusData[i] || 0) !== 1) return 0;
-  return bribeValue(i);
-}
-
-export function pristineBon(idx) {
-  if ((saveData.ninjaData[107] || [])[idx] !== 1) return 0;
-  return pristineCharmBonus(idx);
-}
-
-export function sigilBonus(sigilIdx) {
-  var level = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * sigilIdx]) || 0;
-  if (level < -0.1) return 0;
-  var tiers = sigilTiers(sigilIdx);
-  if (!tiers) return 0;
-  var base;
-  if (level < 0.5) base = tiers[0];
-  else if (level < 1.5) base = tiers[1];
-  else if (level < 2.5) base = tiers[2];
-  else if (level < 3.5) base = tiers[3];
-  else base = tiers[4] || tiers[3];
-  var tier16 = Number((saveData.sailingData[3] || [])[16]) || 0;
-  var artifactMulti = 1 + (tier16 === 0 ? 0 : Math.max(1, tier16));
-  var meritocMulti = 1 + computeMeritocBonusz(21) / 100;
-  return base * artifactMulti * meritocMulti;
-}
-
-export function vaultUpgBonus(idx) {
-  var level = Number(saveData.vaultData[idx]) || 0;
-  if (level <= 0) return 0;
-  var perLv = vaultUpgPerLevel(idx);
-  if (perLv == null) return 0;
-  var base = level * perLv;
-  // Index 0: breakpoint bonuses added before mastery
-  if (idx === 0) {
-    base += Math.max(0, level - 25) + Math.max(0, level - 50) + Math.max(0, level - 100);
-  }
-  // Index 60: extended breakpoints + extra scaling
-  if (idx === 60) {
-    base += Math.max(0, level - 25) + Math.max(0, level - 50)
-      + 2 * Math.max(0, level - 100) + 3 * Math.max(0, level - 200)
-      + 5 * Math.max(0, level - 300) + 7 * Math.max(0, level - 400)
-      + 10 * Math.max(0, level - 450);
-    base *= 1 + Math.floor(level / 25) / 5;
-  }
-  // Mastery multiplier for non-whitelist indices
-  if (!VAULT_NO_MASTERY.has(idx)) {
-    var masteryLv = 0;
-    var vd = saveData.vaultData;
-    if (idx < 32)       masteryLv = Number(vd[32]) || 0;
-    else if (idx <= 60) masteryLv = Number(vd[61]) || 0;
-    else if (idx <= 88) masteryLv = Number(vd[89]) || 0;
-    base *= 1 + masteryLv / 100;
-  }
-  return base;
-}
-
-export function grimoireUpgBonus(idx, grimoireGameData) {
-  var level = Number(saveData.grimoireData[idx]) || 0;
-  if (level <= 0) return 0;
-  var perLv = (grimoireGameData && grimoireGameData[idx] && grimoireGameData[idx][5]) || 0;
-  if (GRIMOIRE_NO_MULTI.has(idx)) return level * perLv;
-  var multi36 = grimoireUpgBonus(36, grimoireGameData);
-  return level * perLv * (1 + multi36 / 100);
-}
-
-export function votingBonusz(voteIdx, votingMulti) {
-  var base = votingBonusValue(voteIdx);
-  if (base === 0) return 0;
-  // Voting bonuses only apply when the vote is the current server-wide winner
-  if (saveData.activeVoteIdx !== voteIdx) return 0;
-  var multi = votingMulti != null ? votingMulti : 1;
-  return base * multi;
-}
-
-export function companions(idx) {
-  if (!saveData.companionIds.has(idx)) return 0;
-  return companionBonus(idx);
-}
-
-export function cardLv(cardId) {
-  return computeCardLv(cardId);
-}
-
-export function getSetBonus(setName) {
-  var perma = String(optionsListData[379] || '');
-  if (!perma.includes(setName)) return 0;
-  return SET_BONUS_VALUES[setName] || 0;
-}
-
-export function gfoodBonusMULTI(charIdx, opts) {
-  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache);
+export function gfoodBonusMULTI(charIdx, opts, saveData) {
+  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache, saveData);
   var setMul = 1 + getSetBonus('SECRET_SET') / 100;
   var famBonus = Math.max(inputs.famBonusQTYs66, 1);
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
@@ -157,27 +64,27 @@ export function gfoodBonusMULTI(charIdx, opts) {
     inputs.etcBonuses8 +
     inputs.getTalentNumber1_99 +
     inputs.stampBonusGFood +
-    achieveStatusTiered(37) +
+    achieveStatusTiered(37, saveData) +
     inputs.alchBubblesGFoodz +
-    sigilBonus(14) +
+    sigilBonus(14, saveData) +
     inputs.mealBonusZGoldFood +
     inputs.starSigns69 +
-    getBribeBonus(36) +
-    pristineBon(14) +
-    2 * achieveStatusTiered(380) +
-    3 * achieveStatusTiered(383) +
-    votingBonusz(26, votingMulti) +
+    getBribeBonus(36, saveData) +
+    pristineBon(14, saveData) +
+    2 * achieveStatusTiered(380, saveData) +
+    3 * achieveStatusTiered(383, saveData) +
+    votingBonusz(26, votingMulti, saveData) +
     inputs.getbonus2_1_209 * inputs.calcTalentMAP209 +
-    companions(48) +
-    legendPTSbonus(25) +
-    Math.min(4 * cardLv('cropfallEvent1'), 50) +
-    companions(155) +
-    vaultUpgBonus(86);
+    companions(48, saveData) +
+    legendPTSbonus(25, saveData) +
+    Math.min(4 * cardLv('cropfallEvent1', saveData), 50) +
+    companions(155, saveData) +
+    vaultUpgBonus(86, saveData);
   return setMul * (famBonus + rest / 100);
 }
 
-export function goldFoodBonuses(effectType, charIdx, preMulti) {
-  var multi = preMulti != null ? preMulti : gfoodBonusMULTI(charIdx);
+export function goldFoodBonuses(effectType, charIdx, preMulti, saveData) {
+  var multi = preMulti != null ? preMulti : gfoodBonusMULTI(charIdx, saveData);
   var total = 0;
   var equippedInfo = null;
   var emporiumInfo = null;
@@ -215,32 +122,32 @@ export function goldFoodBonuses(effectType, charIdx, preMulti) {
   return { total: total, equipped: equippedInfo, emporium: emporiumInfo, multi: multi };
 }
 
-export function gfoodBonusMULTIBreakdown(charIdx, opts) {
-  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache);
+export function gfoodBonusMULTIBreakdown(charIdx, opts, saveData) {
+  var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache, saveData);
   var T = inputs._trees;
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
   var votingTree = (opts && opts.votingTree) || null;
-  var sigilVal = sigilBonus(14);
+  var sigilVal = sigilBonus(14, saveData);
   var sigilLv = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * 14]) || 0;
-  var votingVal = votingBonusz(26, votingMulti);
-  var legendVal = legendPTSbonus(25);
-  var cardVal = Math.min(4 * cardLv('cropfallEvent1'), 50);
-  var vaultVal = vaultUpgBonus(86);
+  var votingVal = votingBonusz(26, votingMulti, saveData);
+  var legendVal = legendPTSbonus(25, saveData);
+  var cardVal = Math.min(4 * cardLv('cropfallEvent1', saveData), 50);
+  var vaultVal = vaultUpgBonus(86, saveData);
   var vaultLv = Number(saveData.vaultData[86]) || 0;
-  var brb36 = getBribeBonus(36);
-  var prist14 = pristineBon(14);
-  var ach37 = achieveStatusTiered(37);
-  var ach380 = achieveStatusTiered(380);
-  var ach383 = achieveStatusTiered(383);
-  var comp48 = companions(48);
-  var comp155 = companions(155);
+  var brb36 = getBribeBonus(36, saveData);
+  var prist14 = pristineBon(14, saveData);
+  var ach37 = achieveStatusTiered(37, saveData);
+  var ach380 = achieveStatusTiered(380, saveData);
+  var ach383 = achieveStatusTiered(383, saveData);
+  var comp48 = companions(48, saveData);
+  var comp155 = companions(155, saveData);
   var tal209xMap = inputs.getbonus2_1_209 * inputs.calcTalentMAP209;
 
   var items = [
     { name: label('Family', 66),     val: Math.max(inputs.famBonusQTYs66, 1), tree: T.famBonusQTYs66 },
-    { name: 'GFood Equip UQ',       val: inputs.etcBonuses8, tree: T.etcBonuses8 },
+    { name: 'Equipment: Golden Food', val: inputs.etcBonuses8, tree: T.etcBonuses8 },
     { name: label('Talent', 99), val: inputs.getTalentNumber1_99, tree: T.getTalentNumber1_99 },
-    { name: 'GFood Stamp',          val: inputs.stampBonusGFood, tree: T.stampBonusGFood },
+    { name: 'Stamp: Golden Food',  val: inputs.stampBonusGFood, tree: T.stampBonusGFood },
     { name: label('Achievement', 37), val: ach37 },
     { name: label('Bubble', 'O18'),     val: inputs.alchBubblesGFoodz, tree: T.alchBubblesGFoodz },
     { name: label('Sigil', 14),     val: sigilVal, tree: sigilLv > 0 ? node(label('Sigil', 14), sigilVal, [
@@ -265,7 +172,7 @@ export function gfoodBonusMULTIBreakdown(charIdx, opts) {
     { name: label('Companion', 48), val: comp48, tree: comp48 > 0 ? node(label('Companion', 48), comp48) : null },
     { name: label('Legend', 25),      val: legendVal },
     { name: 'Card cropfall ×4',     val: cardVal, tree: cardVal > 0 ? node('Card cropfall', cardVal, [
-      node('Card Lv', cardLv('cropfallEvent1'), null, { fmt: 'raw' }),
+      node('Card Lv', cardLv('cropfallEvent1', saveData), null, { fmt: 'raw' }),
       node('× 4 (capped 50)', cardVal, null, { fmt: 'raw' }),
     ], { fmt: 'raw' }) : null },
     { name: label('Companion', 155), val: comp155, tree: comp155 > 0 ? node(label('Companion', 155), comp155) : null },
@@ -302,20 +209,20 @@ export function createGFoodInputs(overrides) {
   }, overrides || {});
 }
 
-export function computeGFoodInputs(charIdx, dnsmCache) {
+export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
   charIdx = charIdx || 0;
   var inputs = createGFoodInputs();
   var T = inputs._trees;
   var dc = dnsmCache || null;
 
   // === meritocBonusz21 ===
-  inputs.meritocBonusz21 = computeMeritocBonusz(21);
+  inputs.meritocBonusz21 = computeMeritocBonusz(21, saveData);
 
   // === getTalentNumber1_99 ===
   {
     var sl = skillLvData[charIdx] || {};
     var rawLv = Number(sl[99]) || 0;
-    var allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx) : 0;
+    var allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx, saveData) : 0;
     var effectiveLv = rawLv + allTalentLv;
     var _t99 = talentParams(99);
     inputs.getTalentNumber1_99 = effectiveLv > 0 ? formulaEval(_t99.formula, _t99.x1, _t99.x2, effectiveLv) : 0;
@@ -327,7 +234,7 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
   }
 
   // === getbonus2_1_209 ===
-  // Game's getbonus2(-1) passes SkillLevels[t] (raw talent level) to AllTalentLVz
+  // Game's getbonus2(-1, saveData) passes SkillLevels[t] (raw talent level) to AllTalentLVz
   // instead of the talent index. We replicate this by passing rawLv as talentIdx.
   {
     var maxVal = 0, bestCi = -1, bestBase = 0, bestBonus = 0, bestEff = 0;
@@ -337,7 +244,7 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
       if (rawLv > 0) {
         var allTalentLv = computeAllTalentLVz(rawLv, ci, {
           contextSlot: charIdx
-        });
+        }, saveData);
         var effectiveLv = rawLv + allTalentLv;
         var _t209 = talentParams(209);
         var val = formulaEval(_t209.formula, _t209.x1, _t209.x2, effectiveLv);
@@ -401,11 +308,11 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
   // === stampBonusGFood ===
   {
     var stampLv = Number((stampLvData[2] || [])[6]) || 0;
-    var exalted = isExalted(2, 6);
-    var doublerInfo = exalted ? computeStampDoublerSources() : null;
+    var exalted = isExalted(2, 6, saveData);
+    var doublerInfo = exalted ? computeStampDoublerSources(saveData) : null;
     var exaltedMulti = exalted ? 1 + doublerInfo.total / 100 : 1;
     inputs.stampBonusGFood = stampLv * exaltedMulti;
-    T.stampBonusGFood = node('GFood Stamp C7', inputs.stampBonusGFood, stampLv > 0 ? [
+    T.stampBonusGFood = node('Stamp: Golden Food', inputs.stampBonusGFood, stampLv > 0 ? [
       node('Stamp Lv', stampLv, null, { fmt: 'raw' }),
     ].concat(exalted ? [
       node('Exalted ×', exaltedMulti, [
@@ -433,11 +340,11 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
       if (isWarrior && wrLv > 0) {
         var wrRaw = formulaEval(_wr.formula, _wr.x1, _wr.x2, wrLv);
         var isWrPrisma = isBubblePrismad(_wr.cauldron, _wr.index);
-        var wrPrisma = isWrPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+        var wrPrisma = isWrPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
         opassz = wrRaw * wrPrisma;
       }
       var isPrisma = isBubblePrismad(_shim.cauldron, _shim.index);
-      var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+      var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
       inputs.alchBubblesGFoodz = baseVal * Math.max(1, opassz) * prismaMult;
     }
     var _bLv = Number((cauldronInfoData[0] || [])[_shim.index]) || 0;
@@ -450,13 +357,13 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
       var _wrLv = Number((cauldronInfoData[0] || [])[_wr.index]) || 0;
       var _wrRaw = formulaEval(_wr.formula, _wr.x1, _wr.x2, _wrLv);
       var _wrPrisma = isBubblePrismad(_wr.cauldron, _wr.index);
-      var _wrPrismaMult = _wrPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
+      var _wrPrismaMult = _wrPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
       var _opassz = _wrRaw * _wrPrismaMult;
       var _opCh = [node('WR Raw', _wrRaw, null, { fmt: 'raw', note: 'decayMulti(2,50,' + _wrLv + ')' })];
       if (_wrPrisma) _opCh.push(node('WR Prisma ×', _wrPrismaMult, null, { fmt: 'x' }));
       return [node('Opassz ×', Math.max(1, _opassz), _opCh, { fmt: 'x', note: 'Warrior class ' + _classId })];
     })() : []).concat(isBubblePrismad(_shim.cauldron, _shim.index) ? [
-      node('Prisma ×', Math.max(1, getPrismaBonusMult()), null, { fmt: 'x', note: 'Super bubble' }),
+      node('Prisma ×', Math.max(1, getPrismaBonusMult(saveData)), null, { fmt: 'x', note: 'Super bubble' }),
     ] : []) : null, { fmt: 'raw' });
   }
 
@@ -466,7 +373,7 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
     T.starSigns69 = node(label('Star Sign', 69), dc.starSigns69, null, { fmt: 'raw', note: 'DNSM cached' });
   } else {
     var _ss69 = starSignDropVal(69);
-    var seraphMul = computeSeraphMulti(charIdx);
+    var seraphMul = computeSeraphMulti(charIdx, saveData);
     var val = _ss69 * seraphMul;
     inputs.starSigns69 = val;
     T.starSigns69 = node(label('Star Sign', 69), val, seraphMul > 1 ? [
@@ -482,23 +389,21 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
   } else {
     var mealLv = Number((saveData.mealsData && saveData.mealsData[0] || [])[64]) || 0;
     if (mealLv > 0) {
-      var mfb116 = mainframeBonus(116);
-      var shinyS20 = computeShinyBonusS(20);
-      var winBon26 = computeWinBonus(26);
-      var cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+      var cm = cookingMealMulti(saveData);
       var ribbonIdx = 28 + 64;
       var ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData);
-      inputs.mealBonusZGoldFood = cookMulti * ribbon * mealLv * 2;
+      inputs.mealBonusZGoldFood = cm.val * ribbon * mealLv * 2;
 
       var cookCh = [];
-      if (mfb116 > 0) cookCh.push(node(label('Mainframe', 116), mfb116, null, { fmt: 'raw' }));
-      if (shinyS20 > 0) cookCh.push(node('Shiny S20', shinyS20, null, { fmt: 'raw' }));
-      if (winBon26 > 0) cookCh.push(node(label('WinBonus', 26, ' \u00d7'), 1 + winBon26 / 100, null, { fmt: 'x' }));
+      if (cm.mfb116 > 0) cookCh.push(node(label('Mainframe', 116), cm.mfb116, null, { fmt: 'raw' }));
+      if (cm.shinyS20 > 0) cookCh.push(node('Shiny S20', cm.shinyS20, null, { fmt: 'raw' }));
+      if (cm.winBon26 > 0) cookCh.push(node(label('WinBonus', 26, ' ×'), 1 + cm.winBon26 / 100, null, { fmt: 'x' }));
+      if (cm.comp162 > 0) cookCh.push(node(label('Companion', 162, ' ×'), 1 + cm.comp162 / 100, null, { fmt: 'x' }));
       T.mealBonusZGoldFood = node(label('Meal', 64), inputs.mealBonusZGoldFood, [
         node('Meal Lv', mealLv, null, { fmt: 'raw' }),
         node('Per Lv', 2, null, { fmt: 'raw' }),
         node('Ribbon ×', ribbon, null, { fmt: 'x' }),
-        node('Cook Multi ×', cookMulti, cookCh.length ? cookCh : null, { fmt: 'x' }),
+        node('Cook Multi ×', cm.val, cookCh.length ? cookCh : null, { fmt: 'x' }),
       ], { fmt: 'raw' });
     } else {
       T.mealBonusZGoldFood = node(label('Meal', 64), 0, null, { fmt: 'raw' });
@@ -526,7 +431,7 @@ export function computeGFoodInputs(charIdx, dnsmCache) {
           var _tree = CLASS_TREES[_cls];
           if (_tree && _tree.includes(34)) { _fb68AlreadySet = true; break; }
         }
-        var bonus144Lv = computeAllTalentLVz(144, charIdx, { skipFamBonus68: !_fb68AlreadySet });
+        var bonus144Lv = computeAllTalentLVz(144, charIdx, { skipFamBonus68: !_fb68AlreadySet }, saveData);
         var eff144 = rawLv144 + bonus144Lv;
         talent144Val = formulaEval(TALENT_144.formula, TALENT_144.x1, TALENT_144.x2, eff144);
       }
@@ -647,7 +552,7 @@ export var goldenFood = {
     // Prefer gfood-multi descriptor for cached multi + breakdown
     var gfm = ctx.resolve ? ctx.resolve('gfood-multi') : null;
     var multi = gfm ? gfm.val : undefined;
-    var result = goldFoodBonuses(id, ctx.charIdx, multi);
+    var result = goldFoodBonuses(id, ctx.charIdx, multi, saveData);
     var total = result ? result.total : 0;
     if (total <= 0) return node('Golden Food: ' + id, 0);
 
@@ -657,7 +562,7 @@ export var goldenFood = {
     if (gfm) {
       children.push(node('GFood Multi', gfm.val, gfm.children, { fmt: 'x' }));
     } else {
-      var bd = gfoodBonusMULTIBreakdown(ctx.charIdx);
+      var bd = gfoodBonusMULTIBreakdown(ctx.charIdx, saveData);
       var multiChildren = [];
       for (var i = 0; i < bd.items.length; i++) {
         var it = bd.items[i];

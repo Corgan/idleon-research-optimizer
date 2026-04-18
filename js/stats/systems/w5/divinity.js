@@ -1,7 +1,6 @@
 // ===== DIVINITY SYSTEM (W5) =====
 // God assignment / major bonus checks.
 
-import { saveData } from '../../../state.js';
 import { divinityData, optionsListData, numCharacters, cauldronInfoData, cauldronBubblesData } from '../../../save/data.js';
 import { godsType } from '../../data/w4/gods.js';
 import { GodsInfo } from '../../data/game/customlists.js';
@@ -9,7 +8,7 @@ import { bubbleParams } from '../../data/w2/alchemy.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
 import { formulaEval } from '../../../formulas.js';
 
-export function hasBonusMajor(playerIdx, godType) {
+export function hasBonusMajor(playerIdx, godType, saveData) {
   // Companions(0): Ballthezar = all gods, requires divinity lv >= 2
   if (saveData.companionIds.has(0) && (saveData.lv0AllData[0] && saveData.lv0AllData[0][14] || 0) >= 2) return true;
   // Holes PocketDivOwned: cosmic pocket slots
@@ -37,7 +36,7 @@ export function hasBonusMajor(playerIdx, godType) {
 // ==================== DIVINITY MINOR ====================
 // Divinity("Bonus_Minor", charIdx, style): divine bonus for given god style.
 
-export function computeDivinityMinor(ci, style) {
+export function computeDivinityMinor(ci, style, saveData) {
   var s = saveData;
   var targetGod = -1;
   for (var g = 0; g < GodsInfo.length; g++) {
@@ -52,7 +51,7 @@ export function computeDivinityMinor(ci, style) {
   var _y2bp = bubbleParams(3, 21);
   var y2Lv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
   var y2Raw = (y2Lv > 0 && _y2bp) ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2Lv) : 0;
-  var y2Prisma = isBubblePrismad(3, 21) ? Math.max(1, getPrismaBonusMult()) : 1;
+  var y2Prisma = isBubblePrismad(3, 21) ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   var y2Value = y2Raw * y2Prisma;
   var allBub = s.companionIds && s.companionIds.has(4);
   var coralKid3 = Math.round(Number(optionsListData && optionsListData[430]) || 0);
@@ -86,7 +85,7 @@ export function computeDivinityMinor(ci, style) {
 
 // ==================== DIVINITY MAJOR ====================
 
-export function computeDivinityMajor(ci, style) {
+export function computeDivinityMajor(ci, style, saveData) {
   var s = saveData;
   var targetGod = -1;
   for (var g = 0; g < GodsInfo.length; g++) {
@@ -105,7 +104,7 @@ export function computeDivinityMajor(ci, style) {
 // Game's Number2Letter alphabet for EmporiumBonus checks
 var N2L = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
 
-export function computeDivinityBless(blessIdx) {
+export function computeDivinityBless(blessIdx, saveData) {
   var blessLv = Number(divinityData && divinityData[28 + blessIdx]) || 0;
   if (blessLv <= 0) return 0;
   var basePerLv = Number(GodsInfo[blessIdx] && GodsInfo[blessIdx][14]) || 0;

@@ -3,10 +3,19 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
+import { GRIMOIRE_NO_MULTI } from '../../data/game-constants.js';
 
-export function grimoireUpgBonus22() {
+export function grimoireUpgBonus(idx, grimoireGameData, saveData) {
+  var level = Number(saveData.grimoireData[idx]) || 0;
+  if (level <= 0) return 0;
+  var perLv = (grimoireGameData && grimoireGameData[idx] && grimoireGameData[idx][5]) || 0;
+  if (GRIMOIRE_NO_MULTI.has(idx)) return level * perLv;
+  var multi36 = grimoireUpgBonus(36, grimoireGameData, saveData);
+  return level * perLv * (1 + multi36 / 100);
+}
+
+export function grimoireUpgBonus22(saveData) {
   var g22 = (saveData.grimoireData && saveData.grimoireData[22]) || 0;
   var g36 = (saveData.grimoireData && saveData.grimoireData[36]) || 0;
   return g22 * (1 + g36 / 100);

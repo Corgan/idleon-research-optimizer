@@ -1,7 +1,6 @@
 // ===== SAILING SYSTEM (W5) =====
 // Artifact bonuses from sailing.
 
-import { saveData } from '../../../state.js';
 import { charClassData } from '../../../save/data.js';
 import { artifactBase } from '../../data/w5/sailing.js';
 import { ArtifactInfo } from '../../data/game/customlists.js';
@@ -9,7 +8,7 @@ import { getLOG } from '../../../formulas.js';
 import { divinityData } from '../../../save/data.js';
 import { mainframeBonus } from '../w4/lab.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
-import { vaultUpgBonus } from '../common/goldenFood.js';
+import { vaultUpgBonus } from '../common/vault.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { computeTotalStat } from '../common/stats.js';
 import { computePlayerBuildSpd } from '../w3/construction.js';
@@ -26,6 +25,7 @@ import { computePlayerBuildSpd } from '../w3/construction.js';
 // All others: just base
 
 export function computeArtifactBonus(artIdx, ci, ctx) {
+  var saveData = ctx.saveData;
   var s = saveData;
   var sailing = s.sailingData;
   if (!sailing || !sailing[3]) return 0;
@@ -39,12 +39,12 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
     var cards1Len = (s.cards1Data && s.cards1Data.length) || 0;
     var slabItems = Math.floor(Math.max(0, cards1Len - 500) / 10);
     var mf15 = 0;
-    try { mf15 = mainframeBonus(15); } catch(e) {}
+    try { mf15 = mainframeBonus(15, saveData); } catch(e) {}
     // SlabboBonus_AllMulti = (1+Meritoc23/100) * (1+LegendPTS(28)/100) * (1+VaultUpg(74)/100)
     var mer23 = 0, leg28 = 0, v74 = 0;
-    try { mer23 = computeMeritocBonusz(23); } catch(e) {}
-    try { leg28 = legendPTSbonus(28); } catch(e) {}
-    try { v74 = vaultUpgBonus(74); } catch(e) {}
+    try { mer23 = computeMeritocBonusz(23, saveData); } catch(e) {}
+    try { leg28 = legendPTSbonus(28, saveData); } catch(e) {}
+    try { v74 = vaultUpgBonus(74, saveData); } catch(e) {}
     var slabboMulti = (1 + mer23/100) * (1 + leg28/100) * (1 + v74/100);
     val *= (1 + mf15/100) * slabboMulti * slabItems;
   } else if (artIdx === 1) {
@@ -60,7 +60,7 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
     if (s.lv0AllData) {
       for (var pi = 0; pi < s.lv0AllData.length; pi++) {
         try {
-          totalBuildRate += computePlayerBuildSpd(pi, { noArt32: true }) || 0;
+          totalBuildRate += computePlayerBuildSpd(pi, { noArt32: true }, saveData) || 0;
         } catch(e) {
           // fallback for chars without construction data
           var constLv = Number(s.lv0AllData[pi] && s.lv0AllData[pi][12]) || 0;
@@ -90,7 +90,7 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
       var pStatR = computeTotalStat(pStatName, ci, ctx);
       pStatVal = (typeof pStatR === 'object' && pStatR) ? (pStatR.computed || 0) : Number(pStatR) || 0;
     } catch(e) {
-      pStatVal = _getPrimaryStat(ci);
+      pStatVal = _getPrimaryStat(ci, saveData);
     }
     val *= Math.floor(pStatVal / 100);
   } else if (artIdx === 27) {
@@ -122,7 +122,7 @@ function _getPrimaryStatName(ci) {
 }
 
 // Helper: estimate primary stat from raw save data (without full TotalStat resolver)
-function _getPrimaryStat(ci) {
+function _getPrimaryStat(ci, saveData) {
   var s = saveData;
   if (ci == null || ci < 0 || !s.lv0AllData || !s.lv0AllData[ci]) return 0;
   var name = _getPrimaryStatName(ci);

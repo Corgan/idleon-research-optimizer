@@ -124,7 +124,7 @@ export function cosmoBonus(S, t, i) {
   return Math.floor(base * (Number(S.holesData && S.holesData[4 + t] && S.holesData[4 + t][i]) || 0));
 }
 
-function _computeOverkillQTY(riftLv) {
+function _computeOverkillQTY(riftLv, saveData) {
   var riftBonus3 = (riftLv || 0) >= 20 ? 1 : 0;
   var total = 0;
   for (var w = 0; w < 7; w++) {
@@ -139,20 +139,20 @@ function _computeOverkillQTY(riftLv) {
         var left = Number(kla && kla[klaIdx] && kla[klaIdx][0]) || 0;
         kills += killReq - left;
       }
-      total += deathNoteRank(Math.max(0, kills), 0, riftBonus3 ? riftLv : 0);
+      total += deathNoteRank(Math.max(0, kills), 0, riftBonus3 ? riftLv : 0, saveData);
     }
   }
   return total;
 }
 
-function _measurementMulti(S, typeIdx) {
+function _measurementMulti(S, typeIdx, saveData) {
   var riftLv = Number(S.riftData && S.riftData[0]) || 0;
   var qty = 0;
   switch (typeIdx) {
     case 0: { var raw = Number(S.holesData && S.holesData[11] && S.holesData[11][28]) || 0; qty = raw > 0 ? getLOG(raw) : 0; break; }
     case 1: qty = S.farmCropCount / 14; break;
     case 3: qty = S.totalTomePoints / 2500; break;
-    case 6: qty = _computeOverkillQTY(riftLv) / 125; break;
+    case 6: qty = _computeOverkillQTY(riftLv, saveData) / 125; break;
     case 8: qty = (S.cards1Data.length || 0) / 150; break;
     case 9: {
       var sum = 0;
@@ -166,7 +166,7 @@ function _measurementMulti(S, typeIdx) {
   return 1 + (18 * qty + 8 * (qty - 5)) / 100;
 }
 
-export function gambitPTSmulti(S) {
+export function gambitPTSmulti(S, saveData) {
   var cosmo13 = cosmoBonus(S, 1, 3);
   var measBaseStr = holesMeasBase(13) || '0';
   var isTOT = measBaseStr.includes('TOT');
@@ -179,7 +179,7 @@ export function gambitPTSmulti(S) {
     measBase = (1 + cosmo13 / 100) * measBaseNum * measLv;
   }
   var measType = holesMeasType(13);
-  var measMulti = _measurementMulti(S, measType);
+  var measMulti = _measurementMulti(S, measType, saveData);
   var measTotal = measBase * measMulti;
 
   var bolaiaLv = Number(S.holesData && S.holesData[26] && S.holesData[26][13]) || 0;
@@ -204,17 +204,17 @@ export function gambitPTSmulti(S) {
     monROG27 = mon27Lv * mon27Bonus * Math.max(1, holeozDN);
   }
 
-  var legend29 = legendPTSbonus(29);
+  var legend29 = legendPTSbonus(29, saveData);
   var jar23 = (Number(S.holesData && S.holesData[24] && S.holesData[24][23]) || 0) * (HOLES_JAR_BONUS_PER_LV[23] || 0) * (1 + legend29 / 100);
   var jar30 = (Number(S.holesData && S.holesData[24] && S.holesData[24][30]) || 0) * (HOLES_JAR_BONUS_PER_LV[30] || 0) * (1 + legend29 / 100);
 
-  var arcane47 = arcaneUpgBonus(47);
+  var arcane47 = arcaneUpgBonus(47, saveData);
 
   var sum = measTotal + studyBolaia + bUpg78 + monROG27 + jar23 + jar30 + arcane47;
   return 1 + sum / 100;
 }
 
-export function gambitBonus15(S) {
+export function gambitBonus15(S, saveData) {
   if (!Array.isArray(S.holesData[11])) return 0;
   var rawPts = 0;
   for (var i = 0; i < 6; i++) {
@@ -222,7 +222,7 @@ export function gambitBonus15(S) {
     var base = score + 3 * Math.floor(score / 10) + 10 * Math.floor(score / 60);
     rawPts += (i === 0 ? 100 : 200) * base;
   }
-  var multi = gambitPTSmulti(S);
+  var multi = gambitPTSmulti(S, saveData);
   var totalPts = rawPts * multi;
   var req = 2000 + 1000 * 16 * (1 + 15 / 5) * Math.pow(1.26, 15);
   return totalPts >= req ? 3 : 0;
@@ -230,11 +230,10 @@ export function gambitBonus15(S) {
 
 // ==================== COSMO BONUS (save-based) ====================
 
-import { saveData as _holesSaveData } from '../../../state.js';
 import { HolesInfo } from '../../data/game/customlists.js';
 
-export function computeCosmoBonus(tier, idx) {
-  var holesArr = _holesSaveData.holesData && _holesSaveData.holesData[4 + tier];
+export function computeCosmoBonus(tier, idx, saveData) {
+  var holesArr = saveData.holesData && saveData.holesData[4 + tier];
   if (!holesArr) return 0;
   var lv = Number(holesArr[idx]) || 0;
   if (lv <= 0) return 0;
@@ -246,8 +245,8 @@ export function computeCosmoBonus(tier, idx) {
 // Formula: if bonusInfo < 30: level * bonusInfo * max(1, HoleozDN)
 //   else: 0.1 * ceil(level / (250+level) * 10 * bonusInfo * max(1, HoleozDN))
 // HoleozDN (for i != 9) = 1 + MonumentROGbonuses(t, 9)/100 + CosmoBonusQTY(0, 0)/100
-export function computeMonumentROGbonus(t, i) {
-  var holesArr = _holesSaveData.holesData && _holesSaveData.holesData[15];
+export function computeMonumentROGbonus(t, i, saveData) {
+  var holesArr = saveData.holesData && saveData.holesData[15];
   if (!holesArr) return 0;
   var slot = 10 * t + i;
   var level = Number(holesArr[slot]) || 0;
@@ -257,7 +256,7 @@ export function computeMonumentROGbonus(t, i) {
 
   var holeozDN = 1;
   if (i !== 9) {
-    holeozDN = 1 + computeMonumentROGbonus(t, 9) / 100 + computeCosmoBonus(0, 0) / 100;
+    holeozDN = 1 + computeMonumentROGbonus(t, 9, saveData) / 100 + computeCosmoBonus(0, 0, saveData) / 100;
   }
 
   if (bonusInfo < 30) {
@@ -265,4 +264,22 @@ export function computeMonumentROGbonus(t, i) {
   } else {
     return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN));
   }
+}
+
+// GambitBonuses(7): coins bonus = bval * LOG(totalPts) if pts >= threshold
+export function computeGambitBonus7(S, saveData) {
+  if (!S.holesData || !Array.isArray(S.holesData[11])) return 0;
+  var rawPts = 0;
+  for (var i = 0; i < 6; i++) {
+    var score = Number(S.holesData[11][65 + i]) || 0;
+    var base = score + 3 * Math.floor(score / 10) + 10 * Math.floor(score / 60);
+    rawPts += (i === 0 ? 100 : 200) * base;
+  }
+  var multi = gambitPTSmulti(S, saveData);
+  var totalPts = rawPts * multi;
+  var req = 2000 + 1000 * 8 * (1 + 7 / 5) * Math.pow(1.26, 7);
+  if (totalPts < req) return 0;
+  var parts = String(HolesInfo[71][7]).split('|');
+  var bval = Number(parts[0]) || 10;
+  return bval * getLOG(totalPts);
 }

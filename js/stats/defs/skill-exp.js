@@ -4,7 +4,12 @@
 // plus per-skill stamps, talents, cards, etc.
 // Scope: character + skill type.
 
-import { companions, vaultUpgBonus, goldFoodBonuses, cardLv, votingBonusz, getBribeBonus } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { cardLv } from '../systems/common/cards.js';
+import { votingBonusz } from '../systems/w2/voting.js';
+import { getBribeBonus } from '../systems/w3/bribe.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent, computeAllTalentLVz } from '../systems/common/talent.js';
@@ -29,6 +34,7 @@ import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
 import { computeStarSignBonus } from '../systems/common/starSign.js';
+import { createDescriptor } from './helpers.js';
 
 // Per-skill EXP config. Each skill's EXP multiplier formula is:
 // AllSkillxpMULTI * (1 + (perSkillSources) / 100 + (AllSkillxpz + CalcTalent) / 100)
@@ -257,12 +263,12 @@ var SKILL_EXP_CONFIG = {
       return {
         val: val,
         children: [
-          { name: 'AllSkillxpMULTI', val: allSkillxpMULTI, fmt: 'x' },
-          { name: 'Vault(60) mult', val: vaultMult, fmt: 'x' },
-          { name: 'EfficiencyTerm (capped 1)', val: effTerm, fmt: 'raw' },
+          { name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' },
+          { name: label('Vault', 60, ' ×'), val: vaultMult, fmt: 'x' },
+          { name: 'Efficiency Term (capped 1)', val: effTerm, fmt: 'raw' },
           { name: 'Cooking sources', val: perSkill, fmt: 'raw' },
-          { name: 'AllSkillxpz (shared)', val: allSkillxpz, fmt: 'raw' },
-          { name: 'CalcTalent', val: calcTalent, fmt: 'raw' },
+          { name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' },
+          { name: 'Talent Calc', val: calcTalent, fmt: 'raw' },
         ]
       };
     },
@@ -289,13 +295,11 @@ var SKILL_EXP_CONFIG = {
   },
 };
 
-export default {
+export default createDescriptor({
   id: 'skill-exp',
   name: 'Skill EXP Multiplier',
   scope: 'character',
   category: 'multiplier',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
@@ -333,11 +337,11 @@ export default {
     if (val !== val || val == null) val = 1;
 
     var children = [];
-    children.push({ name: 'AllSkillxpMULTI', val: allSkillxpMULTI, fmt: 'x' });
-    children.push({ name: 'AllSkillxpz (shared)', val: allSkillxpz, fmt: 'raw' });
+    children.push({ name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' });
+    children.push({ name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' });
     children.push({ name: skillType + ' specific sources', val: perSkillSources, fmt: 'raw' });
-    if (calcTalent > 0) children.push({ name: 'CalcTalent', val: calcTalent, fmt: 'raw' });
+    if (calcTalent > 0) children.push({ name: 'Talent Calc', val: calcTalent, fmt: 'raw' });
 
     return { val: val, children: children };
   }
-};
+});

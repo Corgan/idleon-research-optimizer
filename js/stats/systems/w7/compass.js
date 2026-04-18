@@ -1,7 +1,6 @@
 // ===== COMPASS / SNEAKING SYSTEM (W7) =====
 // CompassBonus(idx) and TotalTitanKills from the Windwalker system.
 
-import { saveData } from '../../../state.js';
 import { CompassUpg } from '../../data/game/customlists.js';
 
 // CompassBonus(idx):
@@ -12,7 +11,7 @@ import { CompassUpg } from '../../data/game/customlists.js';
 //     Compass[0][t] * CompassUpg[t][5] * 2^floor(Compass[0][t]/50)
 //   else:
 //     Compass[0][t] * CompassUpg[t][5]
-export function computeCompassBonus(idx) {
+export function computeCompassBonus(idx, saveData) {
   var s = saveData;
   var compass0 = s.compassData && s.compassData[0];
   if (!compass0) return 0;
@@ -23,7 +22,7 @@ export function computeCompassBonus(idx) {
   var perLv = Number(upg[5]) || 0;
   var type = Number(upg[9]) || 0;
   if (type === 1) {
-    var multi = 1 + (computeCompassBonus(39) + computeCompassBonus(80)) / 100;
+    var multi = 1 + (computeCompassBonus(39, saveData) + computeCompassBonus(80, saveData)) / 100;
     return multi * level * perLv;
   }
   if (idx === 45) {
@@ -33,7 +32,7 @@ export function computeCompassBonus(idx) {
 }
 
 // TotalTitanKills: count entries in Compass[1] that equal 1
-export function computeTotalTitanKills() {
+export function computeTotalTitanKills(saveData) {
   var s = saveData;
   var compass1 = s.compassData && s.compassData[1];
   if (!compass1) return 0;

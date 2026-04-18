@@ -7,7 +7,6 @@ import { label, entityName } from '../../entity-names.js';
 import { emmData, equipOrderData } from '../../../save/data.js';
 import { gbWith } from '../../../sim-math.js';
 import { SHAPE_BONUS_PCT } from '../../../game-data.js';
-import { saveData } from '../../../state.js';
 import { ETC_STAT_NAMES, itemUqMatch } from '../../data/common/equipment.js';
 import { charHasChip } from '../w4/lab.js';
 

@@ -20,8 +20,8 @@ import { achieveStatus } from '../stats/systems/common/achievement.js';
 import { computeCardLv } from '../stats/systems/common/cards.js';
 import { computeEmperorBon } from '../stats/systems/w6/emperor.js';
 import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
-import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
-import { computeSummWinBonus, computeWinBonus } from '../stats/systems/w6/summoning.js';
+import { cookingMealMulti } from '../stats/systems/common/cooking.js';
+import { computeSummWinBonus } from '../stats/systems/w6/summoning.js';
 import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
 import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
@@ -161,10 +161,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const mealLv = saveData.mealsData?.[0]?.[72] || 0;
   const ribT = saveData.ribbonData[100] || 0;
   const ribBon = dSaveCtx.ribbon100;
-  const mfb116 = mainframeBonus(116);
-  const shinyS20 = computeShinyBonusS(20);
-  const winBon26 = computeWinBonus(26);
-  const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+  const cm = cookingMealMulti(saveData);
 
   // WinBonus(26) decomposition
   const swb = computeSummWinBonus();
@@ -180,7 +177,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const ach379 = achieveStatus(379);
   const ach373 = achieveStatus(373);
 
-  const winBonNode = _bNode('Summoning Win Bonus', 1 + winBon26 / 100, [
+  const winBonNode = _bNode('Summoning Win Bonus', 1 + cm.winBon26 / 100, [
     _bNode('Summon Wins', swbRaw, null, { fmt: '%' }),
     _bNode('Sneaking: Crystal Comb', 1 + pristine8 / 100, null, { fmt: 'x' }),
     _bNode('Gem Shop: King of All Winners', 1 + 10 * gemItems11 / 100, null, { fmt: 'x' }),
@@ -200,7 +197,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
 
   const ribBase = ribT > 0 ? Math.floor(5 * ribT + Math.floor(ribT / 2) * (4 + 6.5 * Math.floor(ribT / 5))) : 0;
 
-  addChildren.push(_bNode('Meal: Giga Chip', ribBon * mealLv * 0.01 * cookMulti, [
+  addChildren.push(_bNode('Meal: Giga Chip', ribBon * mealLv * 0.01 * cm.val, [
     _bNode('Meal Value', 0.01 * mealLv, [
       _bNode('Base', 0.01, null, { fmt: '%' }),
       _bNode('Levels', mealLv, null, { fmt: 'x' })
@@ -209,12 +206,13 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
       _bNode('Ribbon Base (T' + ribT + ')', ribBase, null, { fmt: '%', note: 'floor(5T + floor(T/2) x (4 + 6.5 x floor(T/5)))' }),
       _bNode('Emperor Set', empTermVal, null, { fmt: '%' })
     ], { fmt: 'x' }),
-    _bNode('Meal Multi', cookMulti, [
-      _bNode('Cooking Multi', 1 + (mfb116 + shinyS20) / 100, [
-        _bNode('Black Diamond Rhinestone', mfb116, null, { fmt: '%' }),
-        _bNode('Shiny: Meal Bonus', shinyS20, null, { fmt: '%' })
+    _bNode('Meal Multi', cm.val, [
+      _bNode('Cooking Multi', 1 + (cm.mfb116 + cm.shinyS20) / 100, [
+        _bNode(label('Mainframe', 116), cm.mfb116, null, { fmt: '%' }),
+        _bNode(label('Breeding', 20), cm.shinyS20, null, { fmt: '%' })
       ], { fmt: 'x' }),
-      winBonNode
+      winBonNode,
+      _bNode(label('Companion', 162, ' (1.25x meals)'), 1 + cm.comp162 / 100, null, { fmt: 'x', note: saveData.companionIds.has(162) ? 'Owned' : 'Not owned' })
     ], { fmt: 'x' })
   ], { fmt: '%' }));
 

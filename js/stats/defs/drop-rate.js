@@ -1,7 +1,9 @@
 // ===== DROP RATE DESCRIPTOR =====
 // Defines all sources, pools, and the combine() formula for Drop Rate.
 
-export default {
+import { createDescriptor } from './helpers.js';
+
+export default createDescriptor({
   id: 'drop-rate',
   name: 'Drop Rate',
   scope: 'character+map',
@@ -64,6 +66,7 @@ export default {
       { system: 'friend', id: 3 },
       { system: 'legendPTS', id: 1 },
       { system: 'spelunkShop', id: 50 },
+      { system: 'companion', id: 132 },
     ],
     chipDR: [
       { system: 'chip', id: 'dr' },
@@ -85,6 +88,7 @@ export default {
       { system: 'cloudBonus', id: 69, args: [5] },
       { system: 'pristine', id: 3 },
       { system: 'etcBonus', id: 91 },
+      { system: 'compMulti', id: 132, args: [1.5] },
       { system: 'compMulti', id: 26, args: [1.3] },
       { system: 'compMulti', id: 160, args: [1.5, 2] },
       { system: 'compMulti', id: 50, args: [1.01, 2500] },
@@ -153,4 +157,4 @@ export default {
 
     return { val: dr, children: children };
   },
-};
+});

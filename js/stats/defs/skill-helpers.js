@@ -5,8 +5,12 @@
 // - AllSkillxpz: additive skill EXP shared pool
 // - AllSkillxpMULTI: multiplicative skill EXP shared pool
 
-import { companions, vaultUpgBonus, goldFoodBonuses, cardLv,
-  getSetBonus, votingBonusz } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { cardLv } from '../systems/common/cards.js';
+import { getSetBonus } from '../systems/w3/setBonus.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { label } from '../entity-names.js';
 import { mainframeBonus } from '../systems/w4/lab.js';
 import { tome } from '../systems/w4/tome.js';
@@ -106,12 +110,12 @@ export function computeAllEfficiencies(ci, ctx) {
 
   var guild6 = rval(guild, 6, ctx);
   var cardSet2 = safe(computeCardSetBonus, ci, '2');
-  var prayer1 = computePrayerReal(1, 0, ci);
+  var prayer1 = computePrayerReal(1, 0, ci, ctx.saveData);
   var g5 = 1 + (guild6 + cardSet2 + prayer1) / 100;
 
   // Negative group: max(1 - (BuffBonus(40,2) + prayer17curse)/100, 0.01)
   var buffBonus40_2 = 0; // GetBuffBonuses(40, 2) [NOT COMPUTED]
-  var prayer17curse = computePrayerReal(17, 1, ci);
+  var prayer17curse = computePrayerReal(17, 1, ci, ctx.saveData);
   var g6 = Math.max(1 - (buffBonus40_2 + prayer17curse) / 100, 0.01);
 
   return g1 * g2 * g3 * g4 * g5 * g6;
@@ -148,7 +152,7 @@ export function computeAllSkillxpz(ci, ctx) {
   var arcade18 = safe(arcadeBonus, 18);
   var gfoodSkillExp = 0;
   try {
-    var gf = goldFoodBonuses('SkillExp', ci);
+    var gf = goldFoodBonuses('SkillExp', ci, ctx.saveData);
     gfoodSkillExp = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
   } catch(e) {}
 
@@ -158,10 +162,10 @@ export function computeAllSkillxpz(ci, ctx) {
   var talent35capped = Math.min(150, rval(talent, 35, ctx));
   var shrine5 = safe(computeShrine, 5);
   var statue17 = safe(computeStatueBonusGiven, 17);
-  var prayer2 = computePrayerReal(2, 0, ci);
-  var prayer17 = computePrayerReal(17, 0, ci);
-  var prayer1curse = computePrayerReal(1, 1, ci);
-  var prayer9curse = computePrayerReal(9, 1, ci);
+  var prayer2 = computePrayerReal(2, 0, ci, ctx.saveData);
+  var prayer17 = computePrayerReal(17, 0, ci, ctx.saveData);
+  var prayer1curse = computePrayerReal(1, 1, ci, ctx.saveData);
+  var prayer9curse = computePrayerReal(9, 1, ci, ctx.saveData);
   var etc27 = rval(etcBonus, '27', ctx);
   var buffBonus40_1 = 0; // GetBuffBonuses(40, 1) — session-only state
   var saltLick3 = safe(computeSaltLick, 3);

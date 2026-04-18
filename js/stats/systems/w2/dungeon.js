@@ -1,13 +1,12 @@
 // ===== DUNGEON SYSTEM (W2) =====
 // Flurbo shop (dungeon passive) bonuses.
 
-import { saveData } from '../../../state.js';
 import { formulaEval } from '../../../formulas.js';
 import { DungPassiveStats2 } from '../../data/game/customlists.js';
 
 // ==================== FLURBO SHOP ====================
 
-export function computeFlurboShop(idx) {
+export function computeFlurboShop(idx, saveData) {
   var s = saveData;
   var dungUpg5 = s.dungUpgData && s.dungUpgData[5];
   if (!dungUpg5) return 0;

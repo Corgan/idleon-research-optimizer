@@ -1,11 +1,9 @@
 // ===== TRAPPING SYSTEM (W3) =====
 // Trap minigame bonuses.
 
-import { saveData } from '../../../state.js';
-
 // ==================== TRAP MG BONUS ====================
 
-export function computeTrapMGBonus(idx) {
+export function computeTrapMGBonus(idx, saveData) {
   var s = saveData;
   var traps = s.trappingData;
   if (!traps) return 0;

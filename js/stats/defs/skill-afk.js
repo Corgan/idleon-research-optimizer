@@ -3,8 +3,14 @@
 // Returns skill AFK rate as a decimal.
 // Scope: character (skill determined by current activity).
 
-import { companions, vaultUpgBonus, goldFoodBonuses, sigilBonus, getBribeBonus,
-  getSetBonus, cardLv, votingBonusz } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { sigilBonus } from '../systems/w2/alchemy.js';
+import { getBribeBonus } from '../systems/w3/bribe.js';
+import { getSetBonus } from '../systems/w3/setBonus.js';
+import { cardLv } from '../systems/common/cards.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { guild } from '../systems/common/guild.js';
 import { computeFamBonusQTY } from '../systems/common/stats.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
@@ -25,51 +31,9 @@ import { computeDivinityMinor, computeDivinityMajor } from '../systems/w5/divini
 import { computeShrine } from '../systems/w3/construction.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
 import { computeArcaneMapMultiBon } from '../systems/mc/tesseract.js';
-import { prayersPerCharData } from '../../save/data.js';
-import { prayerBaseBonus } from '../data/w3/prayer.js';
 import { saveData } from '../../state.js';
-import { RANDOlist } from '../data/game/customlists.js';
-
-// CalcTalentMAP[650]: count discovered cards across RANDOlist sets 82-86
-function countDiscoveredCards(s) {
-  var cards1 = s.cardsData && s.cardsData[1];
-  if (!cards1) return 0;
-  var count = 0;
-  for (var setIdx = 82; setIdx <= 86; setIdx++) {
-    var set = RANDOlist[setIdx];
-    if (!set) continue;
-    for (var j = 0; j < set.length; j++) {
-      if (cards1[set[j]] !== undefined) count++;
-    }
-  }
-  return count;
-}
-
-function rval(resolver, id, ctx, args) {
-  try { return resolver.resolve(id, ctx, args).val || 0; }
-  catch(e) { return 0; }
-}
-
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch(e) { return 0; }
-}
-
-function computePrayerReal(prayerIdx, costIdx, ci) {
-  var s = saveData;
-  var prayerLv = Number(s.prayOwnedData && s.prayOwnedData[prayerIdx]) || 0;
-  if (prayerLv <= 0) return 0;
-  var equipped = false;
-  try { equipped = (prayersPerCharData[ci] || []).includes(prayerIdx); } catch(e) {}
-  if (!equipped) return 0;
-  var base = safe(prayerBaseBonus, prayerIdx, costIdx);
-  var scale = Math.max(1, 1 + (prayerLv - 1) / 10);
-  return Math.round(base * scale);
-}
+import { safe, rval, createDescriptor } from './helpers.js';
+import { computePrayerReal } from '../systems/w3/prayer.js';
 
 // Per-skill source table: { baseRate, boxKey, talentIds, cardType, starSignKey, bribeKey, bubbleKey }
 var SKILL_SOURCES = {
@@ -79,13 +43,11 @@ var SKILL_SOURCES = {
   Catching: { base: 0.5, boxKey: 'CatchAFK', talents: [449, 621], cardType: 42, starSign: 'SkillAFK', bribe: '24', bubble: 'MinFshAFK', trapMG: 8 },
 };
 
-export default {
+export default createDescriptor({
   id: 'skill-afk',
   name: 'Skill AFK Rate',
   scope: 'character',
   category: 'rate',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
@@ -113,8 +75,8 @@ export default {
     var chipSafk = safe(computeChipBonus, 'safk');
     var etc24 = rval(etcBonus, '24', ctx);
     var etc59 = rval(etcBonus, '59', ctx);
-    var prayer4 = computePrayerReal(4, 0, ci);
-    var prayer12curse = computePrayerReal(12, 1, ci);
+    var prayer4 = computePrayerReal(4, 0, ci, ctx.saveData);
+    var prayer12curse = computePrayerReal(12, 1, ci, ctx.saveData);
 
     afkAll += famBonus50 + card46 + guild7 + cardSet7 + talentEnh79
       + sigilBonus16 + chipSafk + etc24 + etc59 + prayer4 - prayer12curse;
@@ -126,7 +88,7 @@ export default {
     var winBonus11 = safe(computeWinBonus, 11);
     var _gfAFK = 0;
     try {
-      var gf = goldFoodBonuses('AllAFK', ci);
+      var gf = goldFoodBonuses('AllAFK', ci, ctx.saveData);
       _gfAFK = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
     var evShop5 = 20 * eventShopOwned(5, s.cachedEventShopStr);
@@ -139,7 +101,7 @@ export default {
     var divMajor0 = 30 * safe(computeDivinityMajor, ci, 0);
     var divMinor5 = safe(computeDivinityMinor, -1, 5);
     var shrine8 = safe(computeShrine, 8);
-    var talentCalc650 = rval(talent, 650, ctx) * countDiscoveredCards(s);
+    var talentCalc650 = rval(talent, 650, ctx) * countDiscoveredCards(ctx.saveData);
     var cardW6d3 = 1.5 * safe(cardLv, 'w6d3');
     var rooBonuses5 = safe(computeRooBonus, 5);
     var voting6 = safe(votingBonusz, 6);
@@ -181,4 +143,4 @@ export default {
 
     return { val: val, children: children };
   }
-};
+});

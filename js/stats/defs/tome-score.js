@@ -5,6 +5,7 @@
 
 import { computeTomeScoreDetail, tomeQTYBreakdown, tomePCT } from '../systems/w4/tome-score.js';
 import { Tome as TomeData } from '../data/game/customlists.js';
+import { createDescriptor } from './helpers.js';
 
 var T = TomeData.map(function(e) { return [Number(e[1]), Number(e[2]), Number(e[3])]; });
 if (T.length <= 117) T.push([300, 0, 500]);
@@ -13,18 +14,16 @@ if (T.length <= 117) T.push([300, 0, 500]);
 var SLOT_NAMES = TomeData.map(function(e) { return String(e[0]).replace(/_/g, ' '); });
 if (SLOT_NAMES.length <= 117) SLOT_NAMES.push('Button Presses');
 
-export default {
+export default createDescriptor({
   id: 'tome-score',
   name: 'Tome Score',
   scope: 'account',
   category: 'progression',
 
-  pools: {},
-
   combine: function(pools, ctx) {
     var S = ctx.saveData || ctx._saveData;
     var charIdx = ctx.charIdx;
-    var detail = computeTomeScoreDetail(S, charIdx);
+    var detail = computeTomeScoreDetail(S, charIdx, ctx.saveData);
     var slots = detail.slots;
 
     var total = 0;
@@ -36,20 +35,20 @@ export default {
       var pct = tomePCT(sl.qty, sl.mode, sl.half);
 
       // Get the breakdown of how qty is computed
-      var bd = tomeQTYBreakdown(i, S);
+      var bd = tomeQTYBreakdown(i, S, ctx.saveData);
 
       children.push({
         name: '#' + i + ' ' + slotName,
         val: sl.pts,
         fmt: 'pts',
         children: [
-          { name: 'qty', val: sl.qty, fmt: 'raw', children: bd.children },
-          { name: 'pct', val: pct, fmt: '%' },
-          { name: 'maxPts', val: sl.maxPts, fmt: 'raw' },
+          { name: 'Quantity', val: sl.qty, fmt: 'raw', children: bd.children },
+          { name: 'Percent', val: pct, fmt: '%' },
+          { name: 'Max Points', val: sl.maxPts, fmt: 'raw' },
         ],
       });
     }
 
     return { val: total, children: children };
   },
-};
+});

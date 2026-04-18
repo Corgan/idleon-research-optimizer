@@ -3,7 +3,14 @@
 // Skip: dungeon, grimoire wraith, compass tempest, arcane tesseract.
 // Scope: character.
 
-import { companions, vaultUpgBonus, goldFoodBonuses, getBribeBonus, grimoireUpgBonus, getSetBonus, pristineBon, votingBonusz } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { getBribeBonus } from '../systems/w3/bribe.js';
+import { grimoireUpgBonus } from '../systems/mc/grimoire.js';
+import { getSetBonus } from '../systems/w3/setBonus.js';
+import { pristineBon } from '../systems/w5/pristine.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { getLOG } from '../../formulas.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
@@ -12,17 +19,16 @@ import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeCardBonusByType, computeBoxReward, computeTotalStat, computeWorkbenchStuff, computeMealBonus, computeFamBonusQTYs, computeObolBaseStat, computeGalleryBaseStat } from '../systems/common/stats.js';
 import { mainframeBonus, computePetArenaBonus, computeChipBonus } from '../systems/w4/lab.js';
 import { charClassData, optionsListData, dreamData, divinityData } from '../../save/data.js';
-import { AlchemyDescription, GrimoireUpg, ArtifactInfo } from '../data/game/customlists.js';
+import { GrimoireUpg, ArtifactInfo } from '../data/game/customlists.js';
 import { cauldronInfoData, klaData, stampLvData } from '../../save/data.js';
 import { MapDetails, MapAFKtarget } from '../data/game/customlists.js';
-import { isBubblePrismad, getPrismaBonusMult, computeVialByKey } from '../systems/w2/alchemy.js';
+import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
-import { formulaEval } from '../../formulas.js';
 import { saveData } from '../../state.js';
-import { computeStatueBonusGiven } from '../systems/common/stats.js';
+import { computeStatueBonusGiven, primaryStatForClass } from '../systems/common/stats.js';
 import { computeCosmoBonus, computeMonumentROGbonus } from '../systems/w5/hole.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
-import { sigilBonus } from '../systems/common/goldenFood.js';
+import { sigilBonus } from '../systems/w2/alchemy.js';
 import { computeOwlBonus, owl as owlResolver } from '../systems/w1/owl.js';
 import { computeRooBonus, rogBonusQTY } from '../systems/w7/sushi.js';
 import { computeWinBonus, computeSummUpgBonus } from '../systems/w6/summoning.js';
@@ -54,73 +60,15 @@ import { equipOrderData, equipQtyData, emmData, obolNamesData, obolMapsData, obo
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeCalcTalent } from '../systems/common/calcTalent.js';
 import { guild } from '../systems/common/guild.js';
-
-function rval(resolver, id, ctx, args) {
-  try { return resolver.resolve(id, ctx, args).val || 0; }
-  catch(e) { return 0; }
-}
-
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch(e) { return 0; }
-}
-
-function bubbleValByKey(key, charIdx) {
-  for (var c2 = 0; c2 < 4; c2++) {
-    var arr = AlchemyDescription[c2];
-    if (!arr) continue;
-    for (var i = 0; i < arr.length; i++) {
-      if (arr[i] && arr[i][15] === key) {
-        var lv = Number((cauldronInfoData && cauldronInfoData[c2] && cauldronInfoData[c2][i]) || 0);
-        if (lv <= 0) return 0;
-        var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
-        var isPrisma = isBubblePrismad(c2, i);
-        var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult()) : 1;
-        var val = baseVal * prismaMult;
-        var cls = Number(charClassData && charClassData[charIdx]) || 0;
-        if (cls > 6 && i !== 16 && i < 30 &&
-            key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
-          if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            val *= Math.max(1, bubbleValByKey('Opassz'));
-          } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            val *= Math.max(1, bubbleValByKey('Gpassz'));
-          } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            val *= Math.max(1, bubbleValByKey('Ppassz'));
-          }
-        }
-        return val;
-      }
-    }
-  }
-  return 0;
-}
-
-// ClassStatTypes: maps class ID to primary stat
-// Game uses ReturnClasses(cls)[0] → ClassStatTypes lookup
-// Families: cls 1-5 = LUK (Journeyman), 6-17 = STR (Warrior), 18-29 = AGI (Archer), 30-41 = WIS (Mage)
-function primaryStatForClass(charIdx) {
-  var cls = Number(charClassData && charClassData[charIdx]) || 0;
-  if (cls <= 0) return 'STR'; // Beginner default
-  if (cls < 6) return 'LUK'; // Journeyman family
-  var root = 6 + 12 * Math.floor((cls - 6) / 12);
-  if (root === 18) return 'AGI';
-  if (root === 30) return 'WIS';
-  return 'STR'; // root === 6 or fallback
-}
+import { safe, rval, createDescriptor } from './helpers.js';
 
 // computeStatueBonusGiven is now in systems/common/stats.js
 
-export default {
+export default createDescriptor({
   id: 'damage',
   name: 'Damage (Normal)',
   scope: 'character',
   category: 'stat',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
@@ -338,7 +286,7 @@ export default {
 
     var gfBaseDmg = 0;
     try {
-      var gf = goldFoodBonuses('BaseDamage', ci);
+      var gf = goldFoodBonuses('BaseDamage', ci, ctx.saveData);
       gfBaseDmg = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
 
@@ -403,7 +351,7 @@ export default {
       var _hpCard8 = (function(){ var v=safe(computeCardBonusByType,8,ci); return (typeof v==='object'&&v)?v.val||0:Number(v)||0; })();
       var _hpStarHP = safe(computeStarSignBonus, 'TotalHP', ci);
       var _hpGfPct = 1;
-      try { var _gfHP = goldFoodBonuses('MaxHPpct', ci);
+      try { var _gfHP = goldFoodBonuses('MaxHPpct', ci, ctx.saveData);
         _hpGfPct = (typeof _gfHP === 'object') ? (1 + (Number(_gfHP.total) || 0) / 100) : 1; } catch(e2){}
       var hpList1 = (1 + (_hpT92 + _hpT272 + _hpEtc15) / 100)
         * (1 + _hpShrine1 / 100) * _hpGfPct * (1 + _hpBoxPctVal / 100)
@@ -666,7 +614,7 @@ export default {
 
     var gfDamage = 1;
     try {
-      var gfd = goldFoodBonuses('Damage', ci);
+      var gfd = goldFoodBonuses('Damage', ci, ctx.saveData);
       // goldFoodBonuses returns raw % sum; game uses 1 + sum/100 as multiplier
       var gfdTotal = (gfd && typeof gfd === 'object') ? (Number(gfd.total) || 0) : (Number(gfd) || 0);
       gfDamage = 1 + gfdTotal / 100;
@@ -683,7 +631,7 @@ export default {
 
     // === DDL[2]: Big multiplier group ===
     // Initial value = WorkbenchStuff("AdditionExtraDMG")
-    // Game: (1 + getbonus2(1,508)*LOG(OLA[152])/100) * (1 + getbonus2(1,208)*LOG(OLA[329])/100)
+    // Game: (1 + getbonus2(1,508, ctx.saveData)*LOG(OLA[152])/100) * (1 + getbonus2(1,208, ctx.saveData)*LOG(OLA[329])/100)
     var t508 = rval(talent, 508, ctx, { mode: 'max', tab: 1 });
     var t208 = rval(talent, 208, ctx, { mode: 'max', tab: 1 });
     var ola152 = Number(optionsListData[152]) || 0;
@@ -719,11 +667,11 @@ export default {
     var starSignPctDmg = safe(computeStarSignBonus, 'PctDmg', ci);
     var friendDmg = 0;
     try { friendDmg = friend.resolve(0, ctx).val || 0; } catch(e) {}
-    // Divinity[25] bonus: max(0, Div[25] - 10) * getbonus2(1, 507, -1)
+    // Divinity[25] bonus: max(0, Div[25] - 10) * getbonus2(1, 507, -1, ctx.saveData)
     var div25 = Number(divinityData && divinityData[25]) || 0;
     var talent507 = rval(talent, 507, ctx, { mode: 'max', tab: 1 });
     var divLvBonus = Math.max(0, div25 - 10) * talent507;
-    // floor(max(0, charLevel - 200) / 50) * getbonus2(1, 50, -1)
+    // floor(max(0, charLevel - 200) / 50) * getbonus2(1, 50, -1, ctx.saveData)
     var charLvl = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][0]) || 0;
     var talent50 = rval(talent, 50, ctx, { mode: 'max', tab: 1 });
     var lvlBonus = Math.floor(Math.max(0, charLvl - 200) / 50) * talent50;
@@ -988,9 +936,9 @@ export default {
 
     var masteryChildren = [];
     masteryChildren.push({ name: 'Mastery Bubble', val: masteryBubble / 100, fmt: 'raw' });
-    masteryChildren.push({ name: 'Card (21)', val: card21 / 100, fmt: 'raw' });
-    masteryChildren.push({ name: 'Talent 123', val: talent123 / 100, fmt: 'raw' });
-    masteryChildren.push({ name: 'EtcBonuses (21)', val: etc21 / 100, fmt: 'raw' });
+    masteryChildren.push({ name: 'Card Bonus: Mastery', val: card21 / 100, fmt: 'raw' });
+    masteryChildren.push({ name: label('Talent', 123), val: talent123 / 100, fmt: 'raw' });
+    masteryChildren.push({ name: label('EtcBonus', 21), val: etc21 / 100, fmt: 'raw' });
 
     var children = [];
     children.push({ name: 'Max Damage', val: maxDmg, fmt: 'raw' });
@@ -1044,4 +992,4 @@ export default {
 
     return { val: val, children: children };
   }
-};
+});

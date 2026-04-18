@@ -3,14 +3,13 @@
 // Pure computation functions - no side effects, no global state.
 
 import { node } from '../../node.js';
-import { saveData } from '../../../state.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
   KNOWLEDGE_CAT_VALUE, MAX_TIER, MAX_SLOTS,
   CURRENCY_PER_TIER, ROG_BONUS_QTY,
 } from '../../data/w7/sushi.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
-import { companions } from '../common/goldenFood.js';
+import { companions } from '../common/companions.js';
 import { optionsListData } from '../../../save/data.js';
 import { getLOG } from '../../../formulas.js';
 
@@ -23,7 +22,8 @@ export function rogBonusQTY(idx, uniqueSushi) {
 
 // System resolver for RoG bonuses (used by drop-rate descriptor)
 export var sushiRoG = {
-  resolve: function(id) {
+  resolve: function(id, ctx) {
+    var saveData = ctx.saveData;
     var us = saveData.cachedUniqueSushi || 0;
     var val = rogBonusQTY(id, us);
     return node('RoG Bonus ' + id, val, [
@@ -383,13 +383,13 @@ export function buildSushiSummary(sushiData, upgLevels, uniqueSushi, knowledgeTo
 
 // ==================== ROO BONUS ====================
 
-export function computeRooBonus(idx) {
+export function computeRooBonus(idx, saveData) {
   var ola271 = Number(optionsListData[271]) || 0;
   var tiers = Math.max(0, Math.ceil((ola271 - idx) / 7));
   if (tiers <= 0) return 0;
-  var legend26 = legendPTSbonus(26) || 0;
+  var legend26 = legendPTSbonus(26, saveData) || 0;
   var comp51 = 0;
-  try { comp51 = companions(51) || 0; } catch(e) {}
+  try { comp51 = companions(51, saveData) || 0; } catch(e) {}
   // RooMegafeather uses ola[279] as single progress counter
   var ola279 = Number(optionsListData[279]) || 0;
   var megaIdxs = [1, 3, 6, 8, 11];

@@ -5,14 +5,13 @@
 // Index 9: sum of min(100, bubbleLevel)
 
 import { getLOG } from '../../../formulas.js';
-import { saveData } from '../../../state.js';
 import { numCharacters, klaData, cauldronInfoData } from '../../../save/data.js';
 
 var _cache = null;
 
 export function resetVaultKillzCache() { _cache = null; }
 
-export function computeVaultKillzTotal(idx) {
+export function computeVaultKillzTotal(idx, saveData) {
   if (_cache) return _cache[idx] || 0;
   var s = saveData;
   var result = [];

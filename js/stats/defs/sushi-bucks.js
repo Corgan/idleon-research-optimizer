@@ -9,7 +9,7 @@ import { superBitType } from '../../game-helpers.js';
 import { MINEHEAD_BONUS_QTY } from '../data/w7/minehead.js';
 import { MAX_SLOTS, MAX_TIER } from '../data/w7/sushi.js';
 import { label } from '../entity-names.js';
-import { computeButtonBonus } from './helpers.js';
+import { createDescriptor, computeButtonBonus } from './helpers.js';
 import {
   totalBucksPerHr, computeCurrencyMulti, currencyPerTier,
   knowledgeBonusTotals, computeOrangeFireSum, fireplaceEffectBase,
@@ -24,7 +24,7 @@ function _gatherExternal(S) {
   return {
     gridBonus189: gbWith(S.gridLevels, S.shapeOverlay, 189, gbCtx),
     gridBonus188: gbWith(S.gridLevels, S.shapeOverlay, 188, gbCtx),
-    arcade67: arcadeBonus(67),
+    arcade67: arcadeBonus(67, ctx.saveData),
     mineheadBonus11: mf > 11 ? (MINEHEAD_BONUS_QTY[11] || 0) : 0,
     atom14: Number(S.atomsData && S.atomsData[14]) || 0,
     sailing39: Number(S.sailingData && S.sailingData[3] && S.sailingData[3][39]) || 0,
@@ -34,13 +34,11 @@ function _gatherExternal(S) {
   };
 }
 
-export default {
+export default createDescriptor({
   id: 'sushi-bucks',
   name: 'Sushi Bucks/hr',
   scope: 'account',
   category: 'currency',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
@@ -64,10 +62,10 @@ export default {
     var multiCh = [
       { name: label('Arcade', 67), val: ext.arcade67, fmt: 'raw' },
       { name: '1.1^' + us + ' unique sushi', val: Math.pow(1.1, us), fmt: 'x' },
-      { name: 'Bundle V', val: ext.hasBundleV ? 2 : 1, fmt: 'x' },
-      { name: 'Surcharge sum', val: surchargeSum, fmt: 'raw' },
-      { name: 'Knowledge[0]', val: kt[0] || 0, fmt: 'raw' },
-      { name: 'Button Bonus', val: ext.buttonBonus2, fmt: 'raw' },
+      { name: 'Bundle: Sushi V', val: ext.hasBundleV ? 2 : 1, fmt: 'x' },
+      { name: 'Surcharge Total', val: surchargeSum, fmt: 'raw' },
+      { name: 'Knowledge: Sushi Bucks', val: kt[0] || 0, fmt: 'raw' },
+      { name: 'Button Bonus: Sushi', val: ext.buttonBonus2, fmt: 'raw' },
       { name: label('Grid', 189), val: ext.gridBonus189, fmt: 'raw' },
       { name: label('Sushi', 40), val: upgradeQTY(40, ul), fmt: 'raw' },
       { name: label('Minehead Floor', 11), val: ext.mineheadBonus11, fmt: 'raw', note: 'min(1.25x)' },
@@ -107,4 +105,4 @@ export default {
 
     return { val: bucks, children: children };
   },
-};
+});

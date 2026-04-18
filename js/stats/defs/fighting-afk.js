@@ -3,7 +3,13 @@
 // Returns fighting AFK rate as a decimal (e.g. 0.5 = 50%).
 // Scope: character.
 
-import { companions, vaultUpgBonus, goldFoodBonuses, getSetBonus, votingBonusz, cardLv, getBribeBonus } from '../systems/common/goldenFood.js';
+import { goldFoodBonuses } from '../systems/common/goldenFood.js';
+import { companions } from '../systems/common/companions.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { getSetBonus } from '../systems/w3/setBonus.js';
+import { votingBonusz } from '../systems/w2/voting.js';
+import { cardLv } from '../systems/common/cards.js';
+import { getBribeBonus } from '../systems/w3/bribe.js';
 import { guild } from '../systems/common/guild.js';
 import { computeBoxReward } from '../systems/common/stats.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
@@ -23,44 +29,17 @@ import { talent } from '../systems/common/talent.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeWinBonus } from '../systems/w6/summoning.js';
 import { computeCardBonusByType } from '../systems/common/stats.js';
-import { prayersPerCharData, currentMapData } from '../../save/data.js';
-import { prayerBaseBonus } from '../data/w3/prayer.js';
+import { currentMapData } from '../../save/data.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { saveData } from '../../state.js';
+import { safe, rval, createDescriptor } from './helpers.js';
+import { computePrayerReal } from '../systems/w3/prayer.js';
 
-function rval(resolver, id, ctx, args) {
-  try { return resolver.resolve(id, ctx, args).val || 0; }
-  catch(e) { return 0; }
-}
-
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch(e) { return 0; }
-}
-
-function computePrayerReal(prayerIdx, costIdx, ci) {
-  var s = saveData;
-  var prayerLv = Number(s.prayOwnedData && s.prayOwnedData[prayerIdx]) || 0;
-  if (prayerLv <= 0) return 0;
-  var equipped = false;
-  try { equipped = (prayersPerCharData[ci] || []).includes(prayerIdx); } catch(e) {}
-  if (!equipped) return 0;
-  var base = safe(prayerBaseBonus, prayerIdx, costIdx);
-  var scale = Math.max(1, 1 + (prayerLv - 1) / 10);
-  return Math.round(base * scale);
-}
-
-export default {
+export default createDescriptor({
   id: 'fighting-afk',
   name: 'Fighting AFK Rate',
   scope: 'character',
   category: 'rate',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
@@ -91,7 +70,7 @@ export default {
     var winBonus11 = safe(computeWinBonus, 11);
     var _gfAFK = 0;
     try {
-      var gf = goldFoodBonuses('AllAFK', ci);
+      var gf = goldFoodBonuses('AllAFK', ci, ctx.saveData);
       _gfAFK = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
     var cardW6d3 = 1.5 * safe(cardLv, 'w6d3');
@@ -129,8 +108,8 @@ export default {
     var etc59 = rval(etcBonus, '59', ctx);
     var starSignFightAFK = safe(computeStarSignBonus, 'FightAFK', ci);
     var guild4 = rval(guild, 4, ctx);
-    var prayer4 = computePrayerReal(4, 0, ci);
-    var prayer12curse = computePrayerReal(12, 1, ci);
+    var prayer4 = computePrayerReal(4, 0, ci, ctx.saveData);
+    var prayer12curse = computePrayerReal(12, 1, ci, ctx.saveData);
     var chipFafk = safe(computeChipBonus, 'fafk');
     var cardW6d1 = safe(cardLv, 'w6d1');
 
@@ -156,4 +135,4 @@ export default {
 
     return { val: val, children: children };
   }
-};
+});

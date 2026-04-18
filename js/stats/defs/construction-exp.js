@@ -11,22 +11,15 @@ import {
 } from '../systems/w3/construction.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
-import { votingBonusz } from '../systems/common/goldenFood.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { computeStatueBonusGiven } from '../systems/common/stats.js';
 import { computeStarSignBonus } from '../systems/common/starSign.js';
 import { talentParams } from '../data/common/talent.js';
 import { computeAllTalentLVz } from '../systems/common/talent.js';
 import { formulaEval } from '../../formulas.js';
+import { label } from '../entity-names.js';
 import { skillLvData, postOfficeData } from '../../save/data.js';
-
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch (e) { return 0; }
-}
+import { safe, createDescriptor } from './helpers.js';
 
 function _talVal(talentIdx, ci) {
   var sl = skillLvData[ci] || {};
@@ -34,11 +27,11 @@ function _talVal(talentIdx, ci) {
   if (rawLv <= 0) return 0;
   var tp = talentParams(talentIdx);
   if (!tp || !tp.formula) return 0;
-  var bonus = computeAllTalentLVz(talentIdx, ci);
+  var bonus = computeAllTalentLVz(talentIdx, ci, ctx.saveData);
   return formulaEval(tp.formula, tp.x1, tp.x2, rawLv + bonus);
 }
 
-export default {
+export default createDescriptor({
   id: 'construction-exp',
   name: 'Player Construction XP',
   scope: 'character',
@@ -51,14 +44,14 @@ export default {
     if (!saveData) return { val: 0, children: null };
 
     var constLv = Number(saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][8]) || 0;
-    var buildSpd = computePlayerBuildSpd(ci);
+    var buildSpd = computePlayerBuildSpd(ci, ctx.saveData);
     var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
-    var smallCogExp = computeSmallCogBonusTOTAL(2);
+    var smallCogExp = computeSmallCogBonusTOTAL(2, ctx.saveData);
 
-    var total = computePlayerConExp(ci, isActive);
+    var total = computePlayerConExp(ci, isActive, ctx.saveData);
 
     // Cog board bonuses
-    var cogTotals = computeCogBoardTotals();
+    var cogTotals = computeCogBoardTotals(ctx.saveData);
 
     // Breakdown for active char
     var conEXPbubble = safe(bubbleValByKey, 'conEXPACTIVE', ci);
@@ -84,15 +77,15 @@ export default {
     if (isActive) {
       children.push(
         { name: 'Additive Multi', val: 1 + addPool / 100, fmt: 'x', children: [
-          { name: 'Const EXP Bubble', val: conEXPbubble },
-          { name: 'Talent 132', val: tal132 },
-          { name: 'Talent 104', val: tal104 },
-          { name: 'Vial ConsExp', val: vialConsExp },
-          { name: 'Statue 18', val: statue18 },
-          { name: 'Stamp ConstExp', val: stampConstExp },
-          { name: 'Voting 18', val: voting18 },
-          { name: 'Star ConstExp', val: starConstExp },
-          { name: 'Post Office 17', val: poBonus, note: '0.5×(' + postOffice17 + '-100)' },
+          { name: 'Bubble: Construction EXP', val: conEXPbubble },
+          { name: label('Talent', 132), val: tal132 },
+          { name: label('Talent', 104), val: tal104 },
+          { name: 'Vial: Construction EXP', val: vialConsExp },
+          { name: label('Statue', 18), val: statue18 },
+          { name: 'Stamp: Construction EXP', val: stampConstExp },
+          { name: label('Voting', 18), val: voting18 },
+          { name: 'Star Sign: Construction EXP', val: starConstExp },
+          { name: label('Post Office', 17), val: poBonus, note: '0.5×(' + postOffice17 + '-100)' },
         ], note: 'sum=' + addPool.toFixed(1) },
         { name: 'Small Cog EXP', val: 1 + smallCogExp / 100, fmt: 'x', note: 'total=' + smallCogExp }
       );
@@ -120,4 +113,4 @@ export default {
       },
     };
   },
-};
+});

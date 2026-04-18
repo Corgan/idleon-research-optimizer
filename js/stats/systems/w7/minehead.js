@@ -4,13 +4,10 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { MINEHEAD_BONUS_QTY, MINEHEAD_UPG, GRID_DIMS, TILE_MULTIPLIERS } from '../../data/w7/minehead.js';
 import { ribbonBonusAt } from '../../../game-helpers.js';
-import { mainframeBonus } from '../w4/lab.js';
 import { arcadeBonus } from '../w2/arcade.js';
-import { computeShinyBonusS } from '../w4/breeding.js';
-import { computeWinBonus } from '../w6/summoning.js';
+import { cookingMealMulti } from '../common/cooking.js';
 import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
 
@@ -22,10 +19,10 @@ export function mineheadBonusQTY(t, mineFloor) {
 
 // ===== MINEHEAD CURRENCY SOURCES =====
 
-export function computeMineheadCurrSources() {
+export function computeMineheadCurrSources(saveData) {
   var comp143 = saveData.companionIds.has(143) ? companionBonus(143) : 0;
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
-  var arcade62val = arcadeBonus(62);
+  var arcade62val = arcadeBonus(62, saveData);
   var arcade62lv = saveData.arcadeUpgData[62] || 0;
   var mealLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][73]) || 0;
   var olaStr379 = String(saveData.olaData[379] || '');
@@ -35,21 +32,24 @@ export function computeMineheadCurrSources() {
   var mealMfb116 = 0;
   var mealShinyS20 = 0;
   var mealWinBon26 = 0;
+  var mealComp162 = 0;
   var mealRibT = 0;
   if (mealLv > 0) {
     mealRibT = saveData.ribbonData[101] || 0;
     mealRibBon = ribbonBonusAt(101, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
-    mealMfb116 = mainframeBonus(116);
-    mealShinyS20 = computeShinyBonusS(20);
-    mealWinBon26 = computeWinBonus(26);
-    mealCookMulti = (1 + (mealMfb116 + mealShinyS20) / 100) * (1 + mealWinBon26 / 100);
+    var cm = cookingMealMulti(saveData);
+    mealCookMulti = cm.val;
+    mealMfb116 = cm.mfb116;
+    mealShinyS20 = cm.shinyS20;
+    mealWinBon26 = cm.winBon26;
+    mealComp162 = cm.comp162;
     mealMineCurr = mealCookMulti * mealRibBon * mealLv * 0.02;
   }
   return {
     comp143: comp143, atom13: atom13,
     arcade62: arcade62val, arcade62lv: arcade62lv,
     mealMineCurr: mealMineCurr, mealLv: mealLv, mealRibBon: mealRibBon, mealRibT: mealRibT,
-    mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26,
+    mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26, mealComp162: mealComp162,
   };
 }
 
@@ -291,4 +291,11 @@ export function glimboCost(t, tradeLv, costExp, eventShop38) {
           * Math.max(0.1, 1 - 25 * eventShop38 / 100);
   if (raw < 1e9) return Math.floor(Math.max(1, raw));
   return raw;
+}
+
+// Minehead upgrade quality: MINEHEAD_UPG[idx].bonus * upgrade level
+export function mhUpgradeQTY(idx, saveData) {
+  var bonus = MINEHEAD_UPG[idx] ? MINEHEAD_UPG[idx].bonus : 0;
+  var lv = (saveData.research && saveData.research[8] && Number(saveData.research[8][idx])) || 0;
+  return bonus * lv;
 }

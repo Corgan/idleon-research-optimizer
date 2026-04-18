@@ -3,7 +3,6 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import {
   charClassData,
   dreamData,
@@ -28,6 +27,7 @@ import { hasBonusMajor } from '../w5/divinity.js';
 import { computeAllTalentLVz } from '../common/talent.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { chipBonusValue } from '../../data/w4/chips.js';
+import { cookingMealMulti } from '../common/cooking.js';
 import { gridBonusPerLv } from '../../data/w7/research.js';
 import { talentParams } from '../../data/common/talent.js';
 import { formulaEval } from '../../../formulas.js';
@@ -48,7 +48,7 @@ function _totalMushGKills() {
 }
 
 // Count unique green stacks (>=10M items) in bank (for mainframeBonus 11)
-function _greenStackCount() {
+function _greenStackCount(saveData) {
   var order = saveData.chestOrderData;
   var qty = saveData.chestQuantityData;
   if (!order || !qty) return 0;
@@ -156,10 +156,10 @@ export function computePetArenaBonus(idx) {
   return tier > idx ? 1 : 0;
 }
 
-function computeBonusLineWidth(playerIdx) {
+function computeBonusLineWidth(playerIdx, saveData) {
   var gemSlots = 2 * (saveData.gemItemsData[123] || 0);
   if (playerIdx >= gemSlots) return 0;
-  return hasBonusMajor(playerIdx, 2) ? 30 : 0;
+  return hasBonusMajor(playerIdx, 2, saveData) ? 30 : 0;
 }
 
 function computeChip6Count(playerIdx) {
@@ -172,27 +172,24 @@ function computeChip6Count(playerIdx) {
   return count;
 }
 
-function computeCookingMealMulti() {
-  var mfb116 = mainframeBonus(116);
-  var shinyS20 = computeShinyBonusS(20);
-  var winBon26 = computeWinBonus(26);
-  return (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+function computeCookingMealMulti(saveData) {
+  return cookingMealMulti(saveData).val;
 }
 
-function computeMealBonusPxLine() {
+function computeMealBonusPxLine(saveData) {
   return ((saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][11]) || 0) * 2 +
          ((saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][25]) || 0) * 2;
 }
 
-function computeMealBonusLinePct() {
+function computeMealBonusLinePct(saveData) {
   var eelLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][40]) || 0;
   if (eelLv <= 0) return 0;
-  var cookMulti = computeCookingMealMulti();
+  var cookMulti = computeCookingMealMulti(saveData);
   var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData[379], saveData.weeklyBossData);
   return cookMulti * ribbon * eelLv * 1;
 }
 
-function computeBubonicPurple(playerIdx) {
+function computeBubonicPurple(playerIdx, saveData) {
   var bcIdx = -1;
   var bestLv = 0;
   for (var ci = 0; ci < numCharacters; ci++) {
@@ -206,13 +203,13 @@ function computeBubonicPurple(playerIdx) {
   var playerX = (labData && labData[0] && labData[0][2 * playerIdx]) || 0;
   var bcX = (labData && labData[0] && labData[0][2 * bcIdx]) || 0;
   if (playerX < bcX) return 0;
-  var allTalent = bestLv > 0 ? computeAllTalentLVz(535, bcIdx) : 0;
+  var allTalent = bestLv > 0 ? computeAllTalentLVz(535, bcIdx, saveData) : 0;
   var effectiveLv = bestLv + allTalent;
   var _t535 = talentParams(535);
   return formulaEval(_t535.formula, _t535.x1, _t535.x2, effectiveLv);
 }
 
-function computePlayerDist(playerIdx) {
+function computePlayerDist(playerIdx, saveData) {
   var labLev = (saveData.lv0AllData[playerIdx] && saveData.lv0AllData[playerIdx][12]) || 0;
   var baseDist = 50 + 2 * labLev;
   var px = (labData && labData[0] && labData[0][2 * playerIdx]) || 0;
@@ -220,20 +217,20 @@ function computePlayerDist(playerIdx) {
   if (labJewelUnlocked(5) && euclidDist(px, py, JEWEL_DESC[5][0], JEWEL_DESC[5][1]) < 150) {
     baseDist *= 1.25;
   }
-  var mealPx = computeMealBonusPxLine();
-  var crystal3Lv = computeCardLv('Crystal3');
+  var mealPx = computeMealBonusPxLine(saveData);
+  var crystal3Lv = computeCardLv('Crystal3', saveData);
   var flat = baseDist + mealPx + Math.min(2 * crystal3Lv, 50);
-  var bubonicPurple = computeBubonicPurple(playerIdx);
-  var linePct = computeMealBonusLinePct();
+  var bubonicPurple = computeBubonicPurple(playerIdx, saveData);
+  var linePct = computeMealBonusLinePct(saveData);
   var chip6Pct = computeChip6Count(playerIdx) * 12;
   var arenaPct = 20 * computePetArenaBonus(13);
-  var bonusLW = computeBonusLineWidth(playerIdx);
-  var shinyS19 = computeShinyBonusS(19);
+  var bonusLW = computeBonusLineWidth(playerIdx, saveData);
+  var shinyS19 = computeShinyBonusS(19, saveData);
   var pctTotal = bubonicPurple + linePct + chip6Pct + arenaPct + bonusLW + shinyS19;
   return Math.floor(flat * (1 + pctTotal / 100));
 }
 
-function buildLabMainBonus() {
+function buildLabMainBonus(saveData) {
   var lmb = LAB_BONUS_BASE.map(function(e) { return e.slice(); });
   for (var i = 0; i < LAB_BONUS_DYNAMIC.length; i++) {
     var dyn = LAB_BONUS_DYNAMIC[i];
@@ -244,8 +241,8 @@ function buildLabMainBonus() {
   return lmb;
 }
 
-export function computeLabConnectivity() {
-  var lmb = buildLabMainBonus();
+export function computeLabConnectivity(saveData) {
+  var lmb = buildLabMainBonus(saveData);
   var lmbLen = lmb.length;
   var jdLen = JEWEL_DESC.length;
   var totalNodes = 12 + lmbLen + jdLen;
@@ -282,12 +279,12 @@ export function computeLabConnectivity() {
   var playerDist = new Array(12).fill(0);
   var taskShopLabRange = Number((saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][3] && saveData.tasksGlobalData[2][3][4]) || 0);
   var dreamLabRange = Number((dreamData && dreamData[8]) || 0);
-  var winBonus4 = computeWinBonus(4);
+  var winBonus4 = computeWinBonus(4, saveData);
   var bonusGemFlat = taskShopLabRange + dreamLabRange + winBonus4;
   var bonusGemDist = 80 + bonusGemFlat;
   for (var pass = 0; pass < 10; pass++) {
     for (var i = 0; i < 12; i++) {
-      if (inLab[i]) playerDist[i] = computePlayerDist(i);
+      if (inLab[i]) playerDist[i] = computePlayerDist(i, saveData);
     }
     bonusConn = new Array(lmbLen).fill(0);
     jewelConn = new Array(jdLen).fill(0);
@@ -351,14 +348,14 @@ export function computeLabConnectivity() {
   return { labMainBonusFull: lmb, labBonusConnected: bonusConn, labJewelConnected: jewelConn };
 }
 
-export function mainframeBonus(e) {
+export function mainframeBonus(e, saveData) {
   var lmbLen = saveData.labMainBonusFull.length;
   if (e < 100) {
     if (e >= lmbLen) return 0;
     if (!saveData.labBonusConnected[e]) return saveData.labMainBonusFull[e][3];
     var active = saveData.labMainBonusFull[e][4];
     if (e === 9) {
-      var base9 = active + mainframeBonus(113);
+      var base9 = active + mainframeBonus(113, saveData);
       var mushKills = _totalMushGKills();
       var millions = mushKills / 1e6;
       return base9 * (millions < 1e8 ? Math.floor(millions) : millions);
@@ -368,17 +365,17 @@ export function mainframeBonus(e) {
       var petsArr = saveData.breedingData && saveData.breedingData[1] || [];
       var totPets = 0;
       for (var pi = 0; pi < territories && pi < petsArr.length; pi++) totPets += Number(petsArr[pi]) || 0;
-      return (active + mainframeBonus(101)) * totPets;
+      return (active + mainframeBonus(101, saveData)) * totPets;
     }
-    if (e === 3) return active + mainframeBonus(107);
+    if (e === 3) return active + mainframeBonus(107, saveData);
     if (e === 11) {
-      var base11 = active + mainframeBonus(117);
-      return base11 * _greenStackCount();
+      var base11 = active + mainframeBonus(117, saveData);
+      return base11 * _greenStackCount(saveData);
     }
     if (e === 13) return active;
-    if (e === 15) return active + mainframeBonus(118);
-    if (e === 17) return active + mainframeBonus(120);
-    if (e === 8) return active + mainframeBonus(119) / 100;
+    if (e === 15) return active + mainframeBonus(118, saveData);
+    if (e === 17) return active + mainframeBonus(120, saveData);
+    if (e === 8) return active + mainframeBonus(119, saveData) / 100;
     return active;
   }
   var ji = e - 100;
@@ -388,11 +385,11 @@ export function mainframeBonus(e) {
   if (e === 119) return base;
   // Jewel doubling: certain jewels get ×2 if all adjacent jewels are active
   var doubler = 1;
-  if (e === 100 && mainframeBonus(101) > 0 && mainframeBonus(102) > 0) doubler = 2;
-  else if (e === 103 && mainframeBonus(104) > 0 && mainframeBonus(105) > 0 && mainframeBonus(106) > 0) doubler = 2;
-  else if (e === 110 && mainframeBonus(107) > 0 && mainframeBonus(108) > 0 && mainframeBonus(109) > 0) doubler = 2;
-  else if (e === 112 && mainframeBonus(111) > 0 && mainframeBonus(113) > 0 && mainframeBonus(114) > 0 && mainframeBonus(115) > 0) doubler = 2;
-  return doubler * base * mainframeBonus(8);
+  if (e === 100 && mainframeBonus(101, saveData) > 0 && mainframeBonus(102, saveData) > 0) doubler = 2;
+  else if (e === 103 && mainframeBonus(104, saveData) > 0 && mainframeBonus(105, saveData) > 0 && mainframeBonus(106, saveData) > 0) doubler = 2;
+  else if (e === 110 && mainframeBonus(107, saveData) > 0 && mainframeBonus(108, saveData) > 0 && mainframeBonus(109, saveData) > 0) doubler = 2;
+  else if (e === 112 && mainframeBonus(111, saveData) > 0 && mainframeBonus(113, saveData) > 0 && mainframeBonus(114, saveData) > 0 && mainframeBonus(115, saveData) > 0) doubler = 2;
+  return doubler * base * mainframeBonus(8, saveData);
 }
 
 // ==================== CHIP BONUS BY KEY ====================

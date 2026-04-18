@@ -8,18 +8,9 @@ import {
   computeCogBoardTotals,
 } from '../systems/w3/construction.js';
 import { computeCardLv } from '../systems/common/cards.js';
-import { gridBonusFinal } from './helpers.js';
+import { safe, createDescriptor, gridBonusFinal } from './helpers.js';
 
-function safe(fn) {
-  try {
-    var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-    var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
-  } catch (e) { return 0; }
-}
-
-export default {
+export default createDescriptor({
   id: 'flaggy-speed',
   name: 'Flaggy Rate Multiplier',
   scope: 'account',
@@ -29,12 +20,12 @@ export default {
     var saveData = ctx.saveData;
     if (!saveData) return { val: 0, children: null };
 
-    var smallCogFlaggy = computeSmallCogBonusTOTAL(0);
+    var smallCogFlaggy = computeSmallCogBonusTOTAL(0, ctx.saveData);
     var grid89 = gridBonusFinal(saveData, 89);
     var cardW7b3 = safe(computeCardLv, 'w7b3');
 
-    var total = computeExtraFlaggyRatemulti();
-    var cogTotals = computeCogBoardTotals();
+    var total = computeExtraFlaggyRatemulti(ctx.saveData);
+    var cogTotals = computeCogBoardTotals(ctx.saveData);
 
     return {
       val: total,
@@ -55,4 +46,4 @@ export default {
       },
     };
   },
-};
+});

@@ -1,13 +1,12 @@
 // ===== RIFT SYSTEM (W4) =====
 // Rift skill bonuses, eclipseSkulls, KillroyDMG.
 
-import { saveData } from '../../../state.js';
 import { numCharacters, klaData } from '../../../save/data.js';
 import { DeathNoteMobs, MapAFKtarget, MapDetails } from '../../data/game/customlists.js';
 
 // ==================== DEATH NOTE RANK ====================
 // Game: WorkbenchStuff("DeathNoteRank", totalKills, 0)
-function deathNoteRank(kills) {
+function deathNoteRank(kills, saveData) {
   if (kills < 25000) return 0;
   if (kills < 100000) return 1;
   if (kills < 250000) return 2;
@@ -24,7 +23,7 @@ function deathNoteRank(kills) {
 // ==================== ECLIPSE SKULLS ====================
 // Game: RiftStuff("eclipseSkulls") — counts DN mobs with rank >= 15 across 6 worlds.
 // Returns 5 * count.
-export function computeEclipseSkulls() {
+export function computeEclipseSkulls(saveData) {
   var s = saveData;
   var nChars = numCharacters || (s.lv0AllData ? s.lv0AllData.length : 0);
   if (!klaData || klaData.length === 0 || nChars === 0) return 0;
@@ -46,7 +45,7 @@ export function computeEclipseSkulls() {
         var remaining = Number(Array.isArray(klaEntry) ? klaEntry[0] : klaEntry) || 0;
         totalKills += killReq - remaining;
       }
-      if (deathNoteRank(totalKills) >= 15) count++;
+      if (deathNoteRank(totalKills, saveData) >= 15) count++;
     }
   }
   return 5 * count;
@@ -54,7 +53,7 @@ export function computeEclipseSkulls() {
 
 // ==================== KILLROY DMG ====================
 // Game: RiftStuff("KillroyDMG") — sums best killroy kills, returns floor(pow(total, 0.4))
-export function computeKillroyDMG() {
+export function computeKillroyDMG(saveData) {
   var s = saveData;
   var krBest = s.krBestData;
   if (!krBest) return 0;
@@ -76,7 +75,7 @@ export function computeKillroyDMG() {
 // RiftSkillBonus(s, threshold) = (riftLv >= 15 && skillLvRanks[s] > threshold) ? 1 : 0
 // skillLvRanks: sum all players' skill levels for each skill, then rank the total
 
-function computeSkillLvRanks() {
+function computeSkillLvRanks(saveData) {
   var s = saveData;
   var nChars = numCharacters || (s.lv0AllData ? s.lv0AllData.length : 0);
   var ranks = [];
@@ -101,7 +100,7 @@ function computeSkillLvRanks() {
   return ranks;
 }
 
-export function computeRiftSkillETC(idx) {
+export function computeRiftSkillETC(idx, saveData) {
   var s = saveData;
   var riftLv = Number(s.riftData && s.riftData[0]) || 0;
 
@@ -109,7 +108,7 @@ export function computeRiftSkillETC(idx) {
     // Type 0: start=7, excluded indices: 0,2,3,5,6,8
     // Add 5 * RiftSkillBonus(s, 0+2=2) for each qualifying skill
     if (riftLv < 15) return 7; // RiftSkillBonus requires rift >= 15
-    var ranks = computeSkillLvRanks();
+    var ranks = computeSkillLvRanks(saveData);
     var result = 7;
     var EXCLUDED = new Set([0, 2, 3, 5, 6, 8]);
     for (var s2 = 0; s2 < 18; s2++) {
@@ -121,7 +120,7 @@ export function computeRiftSkillETC(idx) {
   } else if (idx === 1) {
     // Type 1: start=7, add 10 * RiftSkillBonus(s, 3) for each skill
     if (riftLv < 15) return 7;
-    var ranks = computeSkillLvRanks();
+    var ranks = computeSkillLvRanks(saveData);
     var result = 7;
     for (var s2 = 0; s2 < 18; s2++) {
       if (ranks[s2] > 3) result += 10;
@@ -130,7 +129,7 @@ export function computeRiftSkillETC(idx) {
   } else if (idx === 3) {
     // Type 3: start=7, add 1 * RiftSkillBonus(s, 5) for each skill
     if (riftLv < 15) return 7;
-    var ranks = computeSkillLvRanks();
+    var ranks = computeSkillLvRanks(saveData);
     var result = 7;
     for (var s2 = 0; s2 < 18; s2++) {
       if (ranks[s2] > 5) result += 1;
@@ -139,7 +138,7 @@ export function computeRiftSkillETC(idx) {
   } else if (idx === 4) {
     // Type 4: start=7, add 25 * RiftSkillBonus(s, 6) for each skill
     if (riftLv < 15) return 7;
-    var ranks = computeSkillLvRanks();
+    var ranks = computeSkillLvRanks(saveData);
     var result = 7;
     for (var s2 = 0; s2 < 18; s2++) {
       if (ranks[s2] > 6) result += 25;

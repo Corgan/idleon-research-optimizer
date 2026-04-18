@@ -3,8 +3,15 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { votingBonusValue } from '../../data/common/voting.js';
+
+export function votingBonusz(voteIdx, votingMulti, saveData) {
+  var base = votingBonusValue(voteIdx);
+  if (base === 0) return 0;
+  if (saveData.activeVoteIdx !== voteIdx) return 0;
+  var multi = votingMulti != null ? votingMulti : 1;
+  return base * multi;
+}
 
 var VOTING_DATA = {
   27: { base: votingBonusValue(27), name: 'Voting Bonus (DR)' },

@@ -4,7 +4,6 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
-import { saveData as _owlSaveData } from '../../../state.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { OWL_BASE } from '../../data/game-constants.js';
@@ -17,7 +16,7 @@ export var owl = {
     var rawCount = Math.max(0, Math.ceil((ola255 - id) / 6));
     if (rawCount <= 0) return node('Summoning Owl', 0, null, { note: 'owl ' + id });
 
-    var legend26 = legendPTSbonus(26);
+    var legend26 = legendPTSbonus(26, saveData);
     var legendMulti = 1 + legend26 / 100;
     // CompanionDB[51] = w6c2b "3x bonuses from Orion, Poppy, and Bubba"
     var comp51 = ctx.saveData.companionIds && ctx.saveData.companionIds.has(51) ? companionBonus(51) : 0;
@@ -48,8 +47,8 @@ export var owl = {
 
 // ==================== OWL BONUS (aggregated) ====================
 
-export function computeOwlBonus(idx) {
-  var owlLv = Number(_owlSaveData.owlData && _owlSaveData.owlData[idx]) || 0;
+export function computeOwlBonus(idx, saveData) {
+  var owlLv = Number(saveData.owlData && saveData.owlData[idx]) || 0;
   if (owlLv <= 0) return 0;
   var base = Number(OWL_BASE[idx]) || 1;
   return base * owlLv;

@@ -3,16 +3,15 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { optionsListData } from '../../../save/data.js';
 import { mainframeBonus } from '../w4/lab.js';
-import { vaultUpgBonus } from '../common/goldenFood.js';
+import { vaultUpgBonus } from '../common/vault.js';
 import { emporiumBonus } from '../../../game-helpers.js';
 import { grimoireUpgBonus22 } from '../mc/grimoire.js';
 import { exoticParams } from '../../data/w5/farming.js';
 import { ninjaInfo } from '../../data/w5/farming.js';
 
-export function exoticBonusQTY40() {
+export function exoticBonusQTY40(saveData) {
   var lv = (saveData.farmUpgData && saveData.farmUpgData[60]) || 0;
   if (lv <= 0) return 0;
   return 20 * lv / (1000 + lv);
@@ -24,7 +23,7 @@ import { formulaEval } from '../../../formulas.js';
 import { computeAllTalentLVz } from '../common/talent.js';
 import { talentParams } from '../../data/common/talent.js';
 
-function getbonus2Detail(talentIdx, data, activeCharIdx) {
+function getbonus2Detail(talentIdx, data, activeCharIdx, saveData) {
   var best = 0, bestCi = -1, bestBase = 0, bestBonus = 0, bestEff = 0;
   for (var ci = 0; ci < numCharacters; ci++) {
     var sl = skillLvData[ci] || {};
@@ -34,7 +33,7 @@ function getbonus2Detail(talentIdx, data, activeCharIdx) {
     // Game passes rawLv (not talentIdx) to AllTalentLVz — this affects the
     // Spelunk super talent lookup, which checks indexOf(rawLv) in Spelunk array.
     var bonusChar = activeCharIdx != null ? activeCharIdx : ci;
-    var bonus = computeAllTalentLVz(rawLv, bonusChar);
+    var bonus = computeAllTalentLVz(rawLv, bonusChar, saveData);
     var effLv = rawLv + bonus;
     var val = formulaEval(data.formula, data.x1, data.x2, effLv);
     if (val > best) { best = val; bestCi = ci; bestBase = rawLv; bestBonus = bonus; bestEff = effLv; }
@@ -52,7 +51,7 @@ export var farm = {
       var rankIdx = id === 'rank9' ? 9 : 19;
       var ninjaVal = ninjaInfo(36)[rankIdx] || 0;
       var rankLv = Number((saveData.farmRankData && saveData.farmRankData['2'] && saveData.farmRankData['2'][rankIdx]) || 0);
-      var d207 = getbonus2Detail(207, TAL207, ctx.charIdx);
+      var d207 = getbonus2Detail(207, TAL207, ctx.charIdx, saveData);
       var tal207 = d207.val;
       var exotic14Lv = Number((saveData.farmUpgData && saveData.farmUpgData[34]) || 0);
       var exotic14 = exotic14Lv > 0 ? 60 * exotic14Lv / (1000 + exotic14Lv) : 0;
@@ -77,11 +76,11 @@ export var farm = {
       if (!empUnlocked) return node(label('Farming', 'cropSC7'), 0, [node('Emporium not unlocked', 0, null, { fmt: 'raw' })], { note: 'farm cropSC7' });
       var cropCount = saveData.farmCropCount || 0;
       var excess = Math.max(0, cropCount - 100);
-      var mf17 = mainframeBonus(17);
-      var grim22 = grimoireUpgBonus22();
+      var mf17 = mainframeBonus(17, saveData);
+      var grim22 = grimoireUpgBonus22(saveData);
       var exotic40Lv = Number((saveData.farmUpgData && saveData.farmUpgData[60]) || 0);
       var exotic40 = exotic40Lv > 0 ? 20 * exotic40Lv / (1000 + exotic40Lv) : 0;
-      var vault79 = vaultUpgBonus(79);
+      var vault79 = vaultUpgBonus(79, saveData);
       var multi = (1 + mf17 / 100) * (1 + (grim22 + exotic40 + vault79) / 100);
       if (excess <= 0) return node(label('Farming', 'cropSC7'), 0, null, { note: 'farm cropSC7' });
       var val = excess * multi;
@@ -113,7 +112,7 @@ export var farm = {
 
 // ==================== CROP SC ====================
 
-export function computeCropSC(idx) {
+export function computeCropSC(idx, saveData) {
   var s = saveData;
   var ninjaData102_9 = s.ninjaData && s.ninjaData[102] && s.ninjaData[102][9];
   var emp23 = emporiumBonus(23, ninjaData102_9);
@@ -140,7 +139,7 @@ function _safe(fn) {
 
 // ==================== STICKER BONUS ====================
 
-export function computeStickerBonus(stickerIdx) {
+export function computeStickerBonus(stickerIdx, saveData) {
   var s = saveData;
   var stickers = s.stickerData;
   if (!stickers) return 0;
@@ -153,7 +152,7 @@ export function computeStickerBonus(stickerIdx) {
 
 // ==================== EXOTIC BONUS (GENERIC) ====================
 
-export function computeExoticBonus(idx) {
+export function computeExoticBonus(idx, saveData) {
   var s = saveData;
   var ex = exoticParams(idx);
   if (!ex) return 0;

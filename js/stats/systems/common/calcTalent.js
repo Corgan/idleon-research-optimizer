@@ -6,14 +6,13 @@
 // CalcTalentMAP[42] = array of 9 values (skill EXP bonus per skill slot)
 // CalcTalentMAP[43] = array of 9 values (skill efficiency bonus per skill slot)
 
-import { saveData } from '../../../state.js';
 import { TalentDescriptions } from '../../data/game/customlists.js';
 import { formulaEval } from '../../../formulas.js';
 
 var _cache = null;
 var _cacheKey = null;
 
-function buildCalcTalentMAP() {
+function buildCalcTalentMAP(saveData) {
   // Check if we can use cache (same save data reference)
   if (_cache && _cacheKey === saveData) return _cache;
 
@@ -64,11 +63,11 @@ function buildCalcTalentMAP() {
   return result;
 }
 
-// computeCalcTalent(talentIdx, skillSlotIdx, charIdx)
+// computeCalcTalent(talentIdx, skillSlotIdx, charIdx, saveData)
 // talentIdx: 42 (EXP) or 43 (efficiency)
 // skillSlotIdx: 0-8 (Mining=0, Smithing=1, Choppin=2, Fishing=3, Alchemy=4, Catching=5, ...)
 // charIdx: which character to check
-export function computeCalcTalent(talentIdx, skillSlotIdx, charIdx) {
+export function computeCalcTalent(talentIdx, skillSlotIdx, charIdx, saveData) {
   var lv0All = saveData.lv0AllData;
   var classAll = saveData.charClassAllData;
   if (!lv0All || !classAll) return 0;

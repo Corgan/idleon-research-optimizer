@@ -13,26 +13,24 @@ import { mainframeBonus } from '../systems/w4/lab.js';
 import { arcadeBonus } from '../systems/w2/arcade.js';
 import { computeCardLv } from '../systems/common/cards.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
-import { computeShinyBonusS } from '../systems/w4/breeding.js';
-import { computeWinBonus } from '../systems/w6/summoning.js';
+import { cookingMealMulti } from '../systems/common/cooking.js';
+
 import { exoticBonusQTY40 } from '../systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../systems/mc/grimoire.js';
 import { legendPTSbonus } from '../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { gridBonusFinal, computeButtonBonus, computeKillroyBonus } from './helpers.js';
+import { createDescriptor, gridBonusFinal, computeButtonBonus, computeKillroyBonus } from './helpers.js';
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
 
-export default {
+export default createDescriptor({
   id: 'research-exp',
   name: 'Research EXP Bonus',
   scope: 'account',
   category: 'research',
-
-  pools: {},
 
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
@@ -74,9 +72,9 @@ export default {
     items.push({ name: 'Zenith Market', val: Math.floor(1 * zmLevel) });
 
     // 4-6. Cards
-    var clvW7b1 = computeCardLv('w7b1');
-    var clvW7b4 = computeCardLv('w7b4');
-    var clvW7a11 = computeCardLv('w7a11');
+    var clvW7b1 = computeCardLv('w7b1', ctx.saveData);
+    var clvW7b4 = computeCardLv('w7b4', ctx.saveData);
+    var clvW7a11 = computeCardLv('w7a11', ctx.saveData);
     items.push({ name: 'Trench Fish Card', val: Math.min(clvW7b1, 10) });
     items.push({ name: 'Eggroll Card', val: Math.min(2 * clvW7b4, 10) });
     items.push({ name: 'Coralcave Crab Card', val: Math.min(clvW7a11, 10) });
@@ -89,9 +87,9 @@ export default {
     var hasSB34 = superBitType(34, gd12);
     var c1len = saveData.cards1Data.length || 0;
     var slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
-    var slabboMF15 = mainframeBonus(15);
-    var slabboMeritoc23 = computeMeritocBonusz(23);
-    var slabboLegend28 = legendPTSbonus(28);
+    var slabboMF15 = mainframeBonus(15, ctx.saveData);
+    var slabboMeritoc23 = computeMeritocBonusz(23, ctx.saveData);
+    var slabboLegend28 = legendPTSbonus(28, ctx.saveData);
     var vub74 = saveData.vaultData[74] || 0;
     var slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);
     var slabbo = hasSB34 ? 0.1 * slabboMult * slabboBase : 0;
@@ -108,36 +106,32 @@ export default {
       ] : null });
 
     // 8. Arcade
-    items.push({ name: label('Arcade', 63), val: arcadeBonus(63) });
+    items.push({ name: label('Arcade', 63), val: arcadeBonus(63, ctx.saveData) });
 
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;
     var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
     var mealBase = ribBon * mealLv * 0.01;
-    var mfb116 = mainframeBonus(116);
-    var shinyS20 = computeShinyBonusS(20);
-    var winBon26 = computeWinBonus(26);
-    var comp162 = saveData.companionIds.has(162) ? 25 : 0;
-    var cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100) * (1 + comp162 / 100);
-    var meal = mealBase * cookMulti;
+    var cm = cookingMealMulti(saveData);
+    var meal = mealBase * cm.val;
     items.push({ name: 'Meal (Giga Chip)', val: meal,
       children: mealLv > 0 ? [
         { name: 'Meal Lv', val: mealLv, fmt: 'raw' },
         { name: 'Ribbon', val: ribBon, fmt: 'x' },
-        { name: 'Cook Multi', val: cookMulti, fmt: 'x', children: [
-          { name: label('Mainframe', 116), val: mfb116 },
-          { name: 'Shiny S20', val: shinyS20 },
-          { name: label('Win Bonus', 26), val: winBon26 },
-          { name: label('Companion', 162, ' (1.25x meals)'), val: comp162, note: saveData.companionIds.has(162) ? 'Owned' : 'Not owned' },
+        { name: 'Cook Multi', val: cm.val, fmt: 'x', children: [
+          { name: label('Mainframe', 116), val: cm.mfb116 },
+          { name: label('Breeding', 20), val: cm.shinyS20 },
+          { name: label('WinBonus', 26), val: cm.winBon26 },
+          { name: label('Companion', 162, ' (1.25x meals)'), val: cm.comp162, note: saveData.companionIds.has(162) ? 'Owned' : 'Not owned' },
         ] },
       ] : null });
 
     // 10. Crop Scientist
     var hasEmp44 = emporiumBonus(44, nd102_9);
     var cropRaw = hasEmp44 ? Math.floor(Math.max(0, (saveData.farmCropCount - 200) / 10)) : 0;
-    var mf17 = mainframeBonus(17);
-    var gub22 = grimoireUpgBonus22();
-    var exo40 = exoticBonusQTY40();
+    var mf17 = mainframeBonus(17, ctx.saveData);
+    var gub22 = grimoireUpgBonus22(ctx.saveData);
+    var exo40 = exoticBonusQTY40(ctx.saveData);
     var vub79 = saveData.vaultData[79] || 0;
     var cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
     var cropSC = cropRaw * cropSCmulti;
@@ -181,12 +175,12 @@ export default {
     var _abmChildren = [
       { name: label('Companion', 55, ' (+15%)'), val: _comp55, note: saveData.companionIds.has(55) ? 'Owned' : 'Not owned' },
       { name: label('Companion', 0, ' (+5%)'), val: _comp0, note: saveData.companionIds.has(0) ? 'Owned' : 'Not owned' },
-      { name: 'Cloud Bonus 71+72+76', val: _cbGA },
-      { name: 'RoG 53 (+1%)', val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
+      { name: 'Cloud Bonus: Grid', val: _cbGA },
+      { name: label('Sushi', 53, ' (+1%)'), val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
     ];
     function _gbItem(idx) {
       return { name: label('Grid', idx), val: gridBonusFinal(saveData, idx),
-        children: [{ name: 'AllBonusMulti', val: abmVal, fmt: 'x', children: _abmChildren }] };
+        children: [{ name: 'All Bonus Multi', val: abmVal, fmt: 'x', children: _abmChildren }] };
     }
 
     // 13-19. Grid bonuses (additive, game source confirmed)
@@ -242,4 +236,4 @@ export default {
 
     return { val: totalAdd, children: children };
   },
-};
+});

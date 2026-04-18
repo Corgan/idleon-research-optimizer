@@ -18,11 +18,10 @@ import { formulaEval } from './engine.js';
 import { gbWith } from '../sim-math.js';
 import { node } from '../stats/node.js';
 import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
+import { label } from '../stats/entity-names.js';
 import { ribbonBonusAt } from './helpers.js';
 import { computeAllTalentLVz } from '../stats/systems/common/talent.js';
-import { mainframeBonus } from '../stats/systems/w4/lab.js';
-import { computeWinBonus } from '../stats/systems/w6/summoning.js';
-import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
+import { cookingMealMulti } from '../stats/systems/common/cooking.js';
 
 import { SHIMMERON_BUBBLE, WARRIORS_RULE_BUBBLE } from '../stats/data/w2/alchemy.js';
 import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../stats/data/common/talent.js';
@@ -119,7 +118,7 @@ export function computeDNSM(charIdx = 0) {
     const allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx) : 0;
     const effectiveLv = rawLv + allTalentLv;
     dnsm.getTalentNumber1_99 = effectiveLv > 0 ? formulaEval('decay', 55, 80, effectiveLv) : 0;
-    T.getTalentNumber1_99 = node('Talent 99', dnsm.getTalentNumber1_99, effectiveLv > 0 ? [
+    T.getTalentNumber1_99 = node(label('Talent', 99), dnsm.getTalentNumber1_99, effectiveLv > 0 ? [
       node('Base Lv', rawLv, null, { fmt: 'raw' }),
       node('Bonus Lv', allTalentLv, null, { fmt: '+' }),
       node('Effective Lv', effectiveLv, null, { fmt: 'raw' }),
@@ -140,7 +139,7 @@ export function computeDNSM(charIdx = 0) {
       }
     }
     dnsm.getbonus2_1_209 = maxVal;
-    T.getbonus2_1_209 = node('Talent 209', maxVal, maxVal > 0 ? [
+    T.getbonus2_1_209 = node(label('Talent', 209), maxVal, maxVal > 0 ? [
       node('Best Char', bestCi, null, { fmt: 'raw' }),
       node('Base Lv', bestBase, null, { fmt: 'raw' }),
       node('Bonus Lv', bestBonus, null, { fmt: '+' }),
@@ -157,7 +156,7 @@ export function computeDNSM(charIdx = 0) {
       const base = 1;
       dnsm.artifactBonus16 = base * Math.max(1, tier);
     }
-    T.artifactBonus16 = node('Artifact 16', dnsm.artifactBonus16, tier > 0 ? [
+    T.artifactBonus16 = node(label('Artifact', 16), dnsm.artifactBonus16, tier > 0 ? [
       node('Base', 1, null, { fmt: 'raw' }),
       node('Tier', tier, null, { fmt: 'x' }),
     ] : null, { fmt: 'raw' });
@@ -228,7 +227,7 @@ export function computeDNSM(charIdx = 0) {
     const doublerInfo = exalted ? computeStampDoublerSources({ dnsm }) : null;
     const exaltedMulti = exalted ? 1 + doublerInfo.total / 100 : 1;
     dnsm.stampBonusGFood = stampLv * exaltedMulti;
-    T.stampBonusGFood = node('GFood Stamp C7', dnsm.stampBonusGFood, stampLv > 0 ? [
+    T.stampBonusGFood = node('Stamp: Golden Food', dnsm.stampBonusGFood, stampLv > 0 ? [
       node('Stamp Lv', stampLv, null, { fmt: 'raw' }),
     ].concat(exalted ? [
       node('Exalted ×', exaltedMulti, [
@@ -291,7 +290,7 @@ export function computeDNSM(charIdx = 0) {
     const seraphMul = computeSeraphMulti(charIdx);
     const val = STAR_SIGN_69_BONUS * seraphMul;
     dnsm.starSigns69 = val;
-    T.starSigns69 = node('Star Sign 69', val, seraphMul > 1 ? [
+    T.starSigns69 = node(label('Star Sign', 69), val, seraphMul > 1 ? [
       node('Base', STAR_SIGN_69_BONUS, null, { fmt: 'raw' }),
       node('Seraph Multi', seraphMul, null, { fmt: 'x' }),
     ] : null, { fmt: 'raw' });
@@ -301,26 +300,24 @@ export function computeDNSM(charIdx = 0) {
   {
     const mealLv = Number((saveData.mealsData?.[0] || [])[64]) || 0;
     if (mealLv > 0) {
-      const mfb116 = mainframeBonus(116);
-      const shinyS20 = computeShinyBonusS(20);
-      const winBon26 = computeWinBonus(26);
-      const cookMulti = (1 + (mfb116 + shinyS20) / 100) * (1 + winBon26 / 100);
+      const cm = cookingMealMulti(saveData);
       const ribbonIdx = 28 + 64;
       const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData);
-      dnsm.mealBonusZGoldFood = cookMulti * ribbon * mealLv * 2;
+      dnsm.mealBonusZGoldFood = cm.val * ribbon * mealLv * 2;
 
       var cookCh = [];
-      if (mfb116 > 0) cookCh.push(node('Mainframe 116', mfb116, null, { fmt: 'raw' }));
-      if (shinyS20 > 0) cookCh.push(node('Shiny S20', shinyS20, null, { fmt: 'raw' }));
-      if (winBon26 > 0) cookCh.push(node('WinBonus 26 ×', 1 + winBon26 / 100, null, { fmt: 'x' }));
-      T.mealBonusZGoldFood = node('Meal 64 (Peachring)', dnsm.mealBonusZGoldFood, [
+      if (cm.mfb116 > 0) cookCh.push(node(label('Mainframe', 116), cm.mfb116, null, { fmt: 'raw' }));
+      if (cm.shinyS20 > 0) cookCh.push(node(label('Breeding', 20), cm.shinyS20, null, { fmt: 'raw' }));
+      if (cm.winBon26 > 0) cookCh.push(node(label('WinBonus', 26, ' ×'), 1 + cm.winBon26 / 100, null, { fmt: 'x' }));
+      if (cm.comp162 > 0) cookCh.push(node(label('Companion', 162, ' ×'), 1 + cm.comp162 / 100, null, { fmt: 'x' }));
+      T.mealBonusZGoldFood = node(label('Meal', 64), dnsm.mealBonusZGoldFood, [
         node('Meal Lv', mealLv, null, { fmt: 'raw' }),
         node('Per Lv', 2, null, { fmt: 'raw' }),
         node('Ribbon ×', ribbon, null, { fmt: 'x' }),
-        node('Cook Multi ×', cookMulti, cookCh.length ? cookCh : null, { fmt: 'x' }),
+        node('Cook Multi ×', cm.val, cookCh.length ? cookCh : null, { fmt: 'x' }),
       ], { fmt: 'raw' });
     } else {
-      T.mealBonusZGoldFood = node('Meal 64 (Peachring)', 0, null, { fmt: 'raw' });
+      T.mealBonusZGoldFood = node(label('Meal', 64), 0, null, { fmt: 'raw' });
     }
   }
 
@@ -365,11 +362,11 @@ export function computeDNSM(charIdx = 0) {
       node('Effective Lv', bestEff, null, { fmt: 'raw', note: 'lv - ' + FAMILY_BONUS_33.lvOffset }),
     ] : null;
     if (talent144Val > 0 && famChildren) {
-      famChildren.push(node('Talent 144 ×', 1 + talent144Val / 100, [
+      famChildren.push(node(label('Talent', 144, ' ×'), 1 + talent144Val / 100, [
         node('Talent Value', talent144Val, null, { fmt: 'raw' }),
       ], { fmt: 'x' }));
     }
-    T.famBonusQTYs66 = node('Family 66', maxBonus, famChildren, { fmt: 'raw' });
+    T.famBonusQTYs66 = node(label('Family', 66), maxBonus, famChildren, { fmt: 'raw' });
   }
 
   // === etcBonuses8 ===

@@ -18,13 +18,73 @@ export var MAINFRAME_NAMES = {
 
 // Summoning win bonuses
 export var WIN_BONUS_NAMES = {
-  22: 'Cellsplit',
-  26: 'Cook Multi',
+  0: 'Global Multi',
+  1: 'Gaming Bits',
+  2: 'Double Snail Mail',
+  3: 'Kattlekruk Bubbles',
+  4: 'Shiny Critters',
+  5: 'Total Damage',
+  6: 'Jade Multi',
+  7: 'Monument Reward',
+  8: 'Palette Luck',
+  9: 'Ballot Bonus',
+  10: 'Skill EXP',
+  11: 'Daily Ribbons',
+  12: 'Feather & Fish Rate',
+  13: 'Build Speed',
+  14: 'Stamp Max LV Cost',
+  15: 'Crystal Mobs',
+  16: 'Worship PTS',
+  17: 'Spelunking Stamina',
+  18: 'Killroy Skulls',
+  19: 'Masterclass AFK',
+  20: 'Vial Bonus',
+  21: 'Sigil Bonus',
+  22: 'Starsign Bonus',
+  23: 'Slab Bonus',
+  24: 'Brain Coral Bubbles',
+  25: 'MC Bonus Material',
+  26: 'Statue Bonus',
+  27: 'Class EXP',
 };
 
 // Voting bonuses (ballot rewards)
 export var VOTING_NAMES = {
+  0: 'Damage Multi',
+  1: 'Damage Multi',
+  2: 'All Stats',
+  3: 'Defence & Accuracy',
+  4: 'Guild GP',
+  5: 'Kill Per Kill',
+  6: 'AFK Gains',
+  7: 'Mining Efficiency & EXP',
+  8: 'Fishing Efficiency & EXP',
+  9: 'Choppin Efficiency & EXP',
+  10: 'Catching EXP & Efficiency',
+  11: '3D Printer Output',
+  12: 'Liquid Generation',
+  13: 'Cooking Speed & EXP',
+  14: 'Dungeon Credit & Flurbo',
+  15: 'Class EXP',
+  16: 'Egg Incubation & Breeding EXP',
+  17: 'Sigil EXP',
+  18: 'Build Rate & Construction EXP',
+  19: 'Shrine EXP',
+  20: 'Artifact Find Chance',
+  21: 'Gaming DNA Species',
+  22: 'Gold Nugget Digging',
+  23: 'Divinity PTS & EXP',
+  24: 'Sailing Speed & Captain EXP',
+  25: 'Sneaking Stealth & EXP',
   26: 'Gold Food Multi',
+  27: 'Drop Rate',
+  28: 'Summoning EXP & Essence',
+  29: 'Crop Value & Farming EXP',
+  30: 'Trapping & Worship EXP',
+  31: 'Lab EXP',
+  32: 'Equinox Bar Fill',
+  33: 'Refinery Cycle Speed',
+  34: 'Monster Cash',
 };
 
 // Family bonuses (ClassFamilyBonuses uses different indices)
@@ -56,6 +116,7 @@ export var CARD_SET_NAMES = {
 // OLA flag names (optionsListData indices)
 export var OLA_NAMES = {
   232: 'Sneaking Mastery',
+  420: 'Monster Cash Bonus',
 };
 
 // Tome bonuses (no game data export for names)

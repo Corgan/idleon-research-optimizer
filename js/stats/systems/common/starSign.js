@@ -5,7 +5,6 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import { labData } from '../../../save/data.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
@@ -27,7 +26,7 @@ var STAR_CHIP_ID = 15;
  * @param {number} charIdx - character index (for chip lookup)
  * @returns {number} total multiplier (>= 1)
  */
-export function computeSeraphMulti(charIdx) {
+export function computeSeraphMulti(charIdx, saveData) {
   if (!saveData.starSignsUnlocked || !('Seraph_Cosmos' in saveData.starSignsUnlocked)) return 1;
 
   var arcane40 = Number(saveData.arcaneData && saveData.arcaneData[40]) || 0;
@@ -53,7 +52,7 @@ export function computeSeraphMulti(charIdx) {
   var chipMulti = (hasStarChip && enabledSS >= 1) ? Math.max(1, Math.min(2, 2)) : 1;
 
   // MeritocBonusz(22): star sign multi from voting
-  var meritoc22 = computeMeritocBonusz(22);
+  var meritoc22 = computeMeritocBonusz(22, saveData);
   var meritocMulti = 1 + meritoc22 / 100;
 
   return chipMulti * meritocMulti * seraphMulti;
@@ -79,7 +78,7 @@ export var starSign = {
     if (baseTotal <= 0) return node('Star Signs', 0, signChildren, { fmt: '+', note: 'starSign:' + id });
 
     // === Seraph_Cosmos multiplier ===
-    var totalMulti = computeSeraphMulti(ctx.charIdx);
+    var totalMulti = computeSeraphMulti(ctx.charIdx, saveData);
 
     // Extract components for display
     var arcane40 = Number(saveData.arcaneData && saveData.arcaneData[40]) || 0;
@@ -99,7 +98,7 @@ export var starSign = {
     if (chipSlots) { for (var c = 0; c < 7; c++) { if (Number(chipSlots[c]) === STAR_CHIP_ID) { hasStarChip = true; break; } } }
     var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
     var chipMulti = (hasStarChip && riftLv >= 10) ? 2 : 1;
-    var meritoc22 = computeMeritocBonusz(22);
+    var meritoc22 = computeMeritocBonusz(22, saveData);
     var meritocMulti = 1 + meritoc22 / 100;
 
     var multiCh = [
@@ -141,15 +140,15 @@ var SIGN_BONUSES = {
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)
 // AND equipped signs, then multiplies by the seraph multi for the current char.
 // Infinite Star Signs (Rift): if signIndex < enabledStarSigns, negative bonuses are removed.
-function getEnabledStarSigns() {
+function getEnabledStarSigns(saveData) {
   var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
-  return riftLv >= 10 ? 5 + computeShinyBonusS(3) : 0;
+  return riftLv >= 10 ? 5 + computeShinyBonusS(3, saveData) : 0;
 }
 
-export function computeStarSignBonus(key, ci) {
+export function computeStarSignBonus(key, ci, saveData) {
   var bonusMap = SIGN_BONUSES[key];
   if (!bonusMap) return 0;
-  var enabled = getEnabledStarSigns();
+  var enabled = getEnabledStarSigns(saveData);
   var total = 0;
   var signIndices = Object.keys(bonusMap);
   for (var i = 0; i < signIndices.length; i++) {
@@ -160,7 +159,7 @@ export function computeStarSignBonus(key, ci) {
     total += val;
   }
   if (total > 0) {
-    total *= computeSeraphMulti(ci);
+    total *= computeSeraphMulti(ci, saveData);
   }
   return total;
 }

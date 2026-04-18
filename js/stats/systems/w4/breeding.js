@@ -3,7 +3,6 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
 import {
   PET_SHINY_TYPE, PET_NAMES, SHINY_BONUS_PER_LV, SHINY_TYPE_TO_CAT,
   SHINY_CAT_NAMES,
@@ -19,7 +18,8 @@ function shinyLvFromExp(exp) {
   return lv;
 }
 
-export function computeShinyBonusS(catKey) {
+function _shinyBonusParts(catKey, saveData) {
+  var parts = [];
   var total = 0;
   for (var world = 0; world < 4; world++) {
     var shinyExps = saveData.breedingData[22 + world];
@@ -33,39 +33,32 @@ export function computeShinyBonusS(catKey) {
       if (cat !== catKey) continue;
       var shinyLv = shinyLvFromExp(exp);
       var bonusPerLv = SHINY_BONUS_PER_LV[shinyTypeIdx] || 0;
-      total += Math.round(shinyLv * bonusPerLv);
+      var val = Math.round(shinyLv * bonusPerLv);
+      total += val;
+      parts.push({ world: world, pet: pet, val: val, shinyLv: shinyLv, bonusPerLv: bonusPerLv, exp: exp });
     }
   }
-  return total;
+  return { total: total, parts: parts };
+}
+
+export function computeShinyBonusS(catKey, saveData) {
+  return _shinyBonusParts(catKey, saveData).total;
 }
 
 export var shiny = {
   resolve: function(id, ctx) {
     var catName = SHINY_CAT_NAMES[id] || '#' + id;
+    var r = _shinyBonusParts(id, ctx.saveData);
     var children = [];
-    var total = 0;
-    for (var world = 0; world < 4; world++) {
-      var shinyExps = ctx.saveData.breedingData[22 + world];
-      var petTypes = PET_SHINY_TYPE[world];
-      if (!shinyExps || !petTypes) continue;
-      for (var pet = 0; pet < petTypes.length; pet++) {
-        var exp = shinyExps[pet] || 0;
-        if (exp <= 0) continue;
-        var shinyTypeIdx = petTypes[pet];
-        var cat = SHINY_TYPE_TO_CAT[shinyTypeIdx];
-        if (cat !== id) continue;
-        var shinyLv = shinyLvFromExp(exp);
-        var bonusPerLv = SHINY_BONUS_PER_LV[shinyTypeIdx] || 0;
-        var val = Math.round(shinyLv * bonusPerLv);
-        total += val;
-        var petName = (PET_NAMES[world] && PET_NAMES[world][pet]) || 'W' + world + ' P' + pet;
-        children.push(node(petName, val, [
-          node('Shiny Lv', shinyLv, null, { fmt: 'raw' }),
-          node('Bonus/Lv', bonusPerLv, null, { fmt: 'raw' }),
-          node('Shiny EXP', exp, null, { fmt: 'raw' }),
-        ], { fmt: '+' }));
-      }
+    for (var i = 0; i < r.parts.length; i++) {
+      var p = r.parts[i];
+      var petName = (PET_NAMES[p.world] && PET_NAMES[p.world][p.pet]) || 'W' + p.world + ' P' + p.pet;
+      children.push(node(petName, p.val, [
+        node('Shiny Lv', p.shinyLv, null, { fmt: 'raw' }),
+        node('Bonus/Lv', p.bonusPerLv, null, { fmt: 'raw' }),
+        node('Shiny EXP', p.exp, null, { fmt: 'raw' }),
+      ], { fmt: '+' }));
     }
-    return node(label('Breeding', id), total, children.length ? children : null, { fmt: '+', note: 'breeding shiny ' + id });
+    return node(label('Breeding', id), r.total, children.length ? children : null, { fmt: '+', note: 'breeding shiny ' + id });
   },
 };

@@ -1,7 +1,6 @@
 // ===== GAMING SYSTEM (W4) =====
 // MSA_Bonus (gaming superbits), SlabboBonus (card slabbo).
 
-import { saveData } from '../../../state.js';
 import { superBitType, emporiumBonus } from '../../../game-helpers.js';
 import { mainframeBonus } from './lab.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
@@ -9,7 +8,7 @@ import { legendPTSbonus } from '../w7/spelunking.js';
 
 // ==================== GAMING STARS ====================
 
-function gamingStars() {
+function gamingStars(saveData) {
   var s = saveData;
   var ti = s.totemInfoData;
   if (!ti || !ti[0]) return 0;
@@ -38,7 +37,7 @@ var MSA_CONFIG = [
   { gate: 0, gateIdx: 44, mult: 0.3,  offset: 300 }, // 10: ResearchXP
 ];
 
-export function computeMSABonus(idx) {
+export function computeMSABonus(idx, saveData) {
   var cfg = MSA_CONFIG[idx];
   if (!cfg) return 0;
   var g12 = saveData.gamingData && saveData.gamingData[12];
@@ -48,7 +47,7 @@ export function computeMSABonus(idx) {
     ? superBitType(cfg.gateIdx, g12)
     : emporiumBonus(cfg.gateIdx, ninjaStr);
   if (!unlocked) return 0;
-  var stars = gamingStars();
+  var stars = gamingStars(saveData);
   var base = Math.max(0, Math.floor((stars - cfg.offset) / 10));
   return cfg.mult * base;
 }
@@ -59,18 +58,18 @@ export function computeMSABonus(idx) {
 // idx 6: SuperBitType(25) → 3 * (1+MF15/100) * AllMulti * floor(max(0,Cards1.length-1300)/5)
 // idx 7: SuperBitType(34) → 0.1 * (1+MF15/100) * AllMulti * floor(max(0,Cards1.length-1300)/5)
 
-function slabboAllMulti() {
+function slabboAllMulti(saveData) {
   var meritoc23 = 0;
-  try { meritoc23 = computeMeritocBonusz(23); } catch(e) {}
+  try { meritoc23 = computeMeritocBonusz(23, saveData); } catch(e) {}
   var legend28 = 0;
-  try { legend28 = legendPTSbonus(28); } catch(e) {}
+  try { legend28 = legendPTSbonus(28, saveData); } catch(e) {}
   // VaultUpg(74) — from summoning vault upgrades
   // For now we skip VaultUpg since it requires summoning system wiring
   var vault74 = 0;
   return (1 + meritoc23 / 100) * (1 + legend28 / 100) * (1 + vault74 / 100);
 }
 
-export function computeSlabboBonus(idx) {
+export function computeSlabboBonus(idx, saveData) {
   var g12 = saveData.gamingData && saveData.gamingData[12];
   var ninja = saveData.ninjaData;
   var ninjaStr = ninja && ninja[10] && ninja[10][2] && ninja[10][2][9];
@@ -78,23 +77,23 @@ export function computeSlabboBonus(idx) {
 
   if (idx === 4) {
     if (!emporiumBonus(17, ninjaStr)) return 0;
-    var mf15 = 0; try { mf15 = mainframeBonus(15); } catch(e) {}
-    return 5 * (1 + mf15 / 100) * slabboAllMulti() * Math.floor(Math.max(0, cards1Len - 1000) / 10);
+    var mf15 = 0; try { mf15 = mainframeBonus(15, saveData); } catch(e) {}
+    return 5 * (1 + mf15 / 100) * slabboAllMulti(saveData) * Math.floor(Math.max(0, cards1Len - 1000) / 10);
   }
   if (idx === 5) {
     if (!emporiumBonus(18, ninjaStr)) return 0;
-    var mf15b = 0; try { mf15b = mainframeBonus(15); } catch(e) {}
-    return 3 * (1 + mf15b / 100) * slabboAllMulti() * Math.floor(Math.max(0, cards1Len - 1000) / 10);
+    var mf15b = 0; try { mf15b = mainframeBonus(15, saveData); } catch(e) {}
+    return 3 * (1 + mf15b / 100) * slabboAllMulti(saveData) * Math.floor(Math.max(0, cards1Len - 1000) / 10);
   }
   if (idx === 6) {
     if (!superBitType(25, g12)) return 0;
-    var mf15c = 0; try { mf15c = mainframeBonus(15); } catch(e) {}
-    return 3 * (1 + mf15c / 100) * slabboAllMulti() * Math.floor(Math.max(0, cards1Len - 1300) / 5);
+    var mf15c = 0; try { mf15c = mainframeBonus(15, saveData); } catch(e) {}
+    return 3 * (1 + mf15c / 100) * slabboAllMulti(saveData) * Math.floor(Math.max(0, cards1Len - 1300) / 5);
   }
   if (idx === 7) {
     if (!superBitType(34, g12)) return 0;
-    var mf15d = 0; try { mf15d = mainframeBonus(15); } catch(e) {}
-    return 0.1 * (1 + mf15d / 100) * slabboAllMulti() * Math.floor(Math.max(0, cards1Len - 1300) / 5);
+    var mf15d = 0; try { mf15d = mainframeBonus(15, saveData); } catch(e) {}
+    return 0.1 * (1 + mf15d / 100) * slabboAllMulti(saveData) * Math.floor(Math.max(0, cards1Len - 1300) / 5);
   }
   return 0;
 }

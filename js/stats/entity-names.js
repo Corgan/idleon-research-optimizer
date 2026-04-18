@@ -9,12 +9,14 @@ import { TalentIconNames, SigilDesc, UpgradeVault, GrimoireUpg, LegendTalents,
   CompanionDB, BribeDescriptions, HolesInfo,
   CosmoUpgrades, PrayerInfo, ShrineInfo, GuildBonuses,
   PostOffUpgradeInfo, SpelunkUpg, EmperorBon,
-  RANDOlist } from './data/game/customlists.js';
-import { NjEQ } from './data/game/custommaps.js';
+  RANDOlist, StatueInfo, SaltLicks, DungPassiveStats, DungPassiveStats2,
+  AlchemyVialItems, LabMainBonus } from './data/game/customlists.js';
+import { NjEQ, IDforETCbonus } from './data/game/custommaps.js';
 import { ITEMS } from './data/game/items.js';
 import { MONSTERS } from './data/game/monsters.js';
 import { RES_GRID_RAW, gridCoord } from './data/w7/research.js';
-import { MERITOC_NAMES, MAINFRAME_NAMES, WIN_BONUS_NAMES, VOTING_NAMES,
+import { JEWEL_DESC } from './data/w4/lab.js';
+import { MERITOC_NAMES, WIN_BONUS_NAMES, VOTING_NAMES,
   FAMILY_NAMES, SUPER_BIT_NAMES, CARD_TYPE_NAMES, CARD_SET_NAMES,
   OLA_NAMES, TOME_NAMES, CAVERN_NAMES, SET_NAMES,
   FARMING_NAMES } from './data/common/hand-names.js';
@@ -74,7 +76,10 @@ var LOOKUPS = {
   Arcane:      function(id) { return clean(ArcaneUpg[id] && ArcaneUpg[id][0]); },
   Meal:        function(id) { return clean(MealINFO[id] && MealINFO[id][0]); },
   Meritoc:     function(id) { return MERITOC_NAMES[id] || ''; },
-  Mainframe:   function(id) { return MAINFRAME_NAMES[id] || ''; },
+  Mainframe:   function(id) {
+    if (id < 100) { var d = LabMainBonus[id]; return d ? clean(d[6]) : ''; }
+    var ji = id - 100; var j = JEWEL_DESC[ji]; return j ? clean(j[3]) : '';
+  },
   WinBonus:    function(id) { return WIN_BONUS_NAMES[id] || ''; },
   Voting:      function(id) { return VOTING_NAMES[id] || ''; },
   Family:      function(id) { return FAMILY_NAMES[id] || ''; },
@@ -92,6 +97,12 @@ var LOOKUPS = {
   Farming:     function(id) { return FARMING_NAMES[id] || ''; },
   Summoning:   function(id) { return WIN_BONUS_NAMES[id] || ''; },
   Breeding:    function(id) { var s = RANDOlist[91] && RANDOlist[91][id]; if (!s) return ''; return s.replace(/^\+?\{?%?\s*/, '').replace(/_/g, ' ').trim(); },
+  Statue:      function(id) { var d = StatueInfo[id]; return d ? clean(d[0]) : ''; },
+  SaltLick:    function(id) { var d = SaltLicks[id]; return d ? clean(d[0]) : ''; },
+  EtcBonus:    function(id) { var s = IDforETCbonus[id]; if (!s) return ''; return s.replace(/^[%_]+/, '').replace(/_/g, ' ').trim(); },
+  'Dungeon Perk': function(id) { var d = DungPassiveStats[id]; return d ? d[0].replace(/@/g, ' ') : ''; },
+  'Flurbo Shop': function(id) { var d = DungPassiveStats2[id]; return d ? d[0].replace(/@/g, ' ') : ''; },
+  Vial:        function(id) { return clean(AlchemyVialItems[id]); },
   Grid: function(id) {
     var d = RES_GRID_RAW[id];
     if (!d) return '';

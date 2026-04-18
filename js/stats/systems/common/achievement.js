@@ -3,10 +3,8 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { saveData } from '../../../state.js';
-
 // Simple achieveStatus: returns 1 if completed, 0 otherwise
-export function achieveStatus(idx) {
+export function achieveStatus(idx, saveData) {
   return saveData.achieveRegData[idx] === -1 ? 1 : 0;
 }
 

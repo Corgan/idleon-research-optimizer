@@ -5,7 +5,6 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData, numCharacters, labData } from '../../../save/data.js';
 import { computeCardLv } from '../common/cards.js';
-import { saveData } from '../../../state.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
 import { NAMETAG_DR, NAMETAG_NAMES, TROPHY_DR, TROPHY_NAMES,
   PREMHAT_DR, PREMHAT_NAMES, GALLERY_STAT_FOR_ID } from '../../data/w7/gallery.js';
@@ -21,7 +20,7 @@ import { bubbleBonusY13 } from '../w2/alchemy.js';
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
 // GalleryBonusMulti: 1 + (3*GalleryLv + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
-export function galleryBonusMulti() {
+export function galleryBonusMulti(saveData) {
   var sp = saveData.spelunkData || [];
   var galleryLv = Number((sp[13] && sp[13][4]) || 0);
   var trophChip = 0;
@@ -37,8 +36,8 @@ export function galleryBonusMulti() {
   }
   // AlchBubbles.Y13: Kazam cauldron bubble 13, gallery bonus.
   // TalentCalc(-2) computes AlchBubbles at login, before gallery bonuses run.
-  var y13capped = Math.min(20, bubbleBonusY13());
-  var cardLv = Math.min(computeCardLv('w7a11'), 10);
+  var y13capped = Math.min(20, bubbleBonusY13(saveData));
+  var cardLv = Math.min(computeCardLv('w7a11', saveData), 10);
   var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
   var ola467 = Number(optionsListData[467]) || 0;
@@ -57,7 +56,7 @@ export function galleryBonusMulti() {
 }
 
 // HatrackBonusMulti: 1 + (Spelunk[46].length + 10*EventShopOwned(30) + MineheadBonusQTY(21) + RoG_BonusQTY(36)) / 100
-export function hatrackBonusMulti() {
+export function hatrackBonusMulti(saveData) {
   var sp = saveData.spelunkData || [];
   var hatCount = (sp[46] && sp[46].length) || 0;
   var mineFloor = (saveData.stateR7 && saveData.stateR7[4]) || 0;
@@ -77,7 +76,7 @@ export function hatrackBonusMulti() {
 
 // Podium tier computation for trophy slots 48+.
 // Game: PodiumsOwned_Lv4/Lv3/Lv2 from _customBlock_Gallery.
-function podiumsOwnedLv4() {
+function podiumsOwnedLv4(saveData) {
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
   var comp28 = saveData.companionIds && saveData.companionIds.has(28) ? 1 : 0;
   var evStr = saveData.cachedEventShopStr || '';
@@ -85,13 +84,13 @@ function podiumsOwnedLv4() {
   return Math.round(Math.min(1, comp28) + evShop29 + Math.min(1, Math.floor(sail33 / 6)));
 }
 
-function podiumsOwnedLv3() {
+function podiumsOwnedLv3(saveData) {
   var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
-  return Math.round(Math.floor(gem40 / 3) + Math.min(1, Math.floor(sail33 / 5)) + podiumsOwnedLv4());
+  return Math.round(Math.floor(gem40 / 3) + Math.min(1, Math.floor(sail33 / 5)) + podiumsOwnedLv4(saveData));
 }
 
-function podiumsOwnedLv2() {
+function podiumsOwnedLv2(saveData) {
   var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
   var comp42 = saveData.companionIds && saveData.companionIds.has(42) ? 1 : 0;
@@ -101,12 +100,12 @@ function podiumsOwnedLv2() {
   var ola467 = Number(optionsListData[467]) || 0;
   var killroy3 = ola467 / (200 + ola467) * 10;
   // LegendPTS_bonus(9)
-  var legendPts9 = legendPTSbonus(9);
+  var legendPts9 = legendPTSbonus(9, saveData);
   var sailPart = Math.max(0, Math.min(2, Math.round(sail33) - 2) - Math.min(1, Math.floor(sail33 / 5)));
-  return Math.round(2 * clamWork0 + Math.min(2, killroy3) + comp42 + Math.floor(gem40 / 2) + podiumsOwnedLv3() + legendPts9 + sailPart);
+  return Math.round(2 * clamWork0 + Math.min(2, killroy3) + comp42 + Math.floor(gem40 / 2) + podiumsOwnedLv3(saveData) + legendPts9 + sailPart);
 }
 
-function podiumsOwned() {
+function podiumsOwned(saveData) {
   var sp = saveData.spelunkData || [];
   var galleryLv = Number((sp[13] && sp[13][4]) || 0);
   var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
@@ -121,12 +120,12 @@ function podiumsOwned() {
     + Math.min(2, Math.round(sail33)) + evShop26);
 }
 
-export function trophyTier(slotIndex) {
+export function trophyTier(slotIndex, saveData) {
   if (slotIndex < 48) return 0.3;
   var offset = slotIndex - 48;
-  if (podiumsOwnedLv4() > offset) return 2.5;
-  if (podiumsOwnedLv3() > offset) return 2.0;
-  if (podiumsOwnedLv2() > offset) return 1.5;
+  if (podiumsOwnedLv4(saveData) > offset) return 2.5;
+  if (podiumsOwnedLv3(saveData) > offset) return 2.0;
+  if (podiumsOwnedLv2(saveData) > offset) return 1.5;
   return 1.0;
 }
 
@@ -141,7 +140,7 @@ export var nametag = {
     var saveData = ctx.saveData;
     var sp = saveData.spelunkData || [];
     var levels = sp[17] || [];
-    var gbmObj = galleryBonusMulti();
+    var gbmObj = galleryBonusMulti(saveData);
     var gbm = gbmObj.val;
     var total = 0;
     var children = [];
@@ -180,7 +179,7 @@ export var trophy = {
     var saveData = ctx.saveData;
     var sp = saveData.spelunkData || [];
     var trophySlots = sp[16] || [];
-    var gbmObj = galleryBonusMulti();
+    var gbmObj = galleryBonusMulti(saveData);
     var gbm = gbmObj.val;
     var total = 0;
     var children = [];
@@ -189,7 +188,7 @@ export var trophy = {
       if (trophyId < 1) continue;
       var drEntries = TROPHY_DR[trophyId];
       if (!drEntries) continue;
-      var tier = trophyTier(i);
+      var tier = trophyTier(i, saveData);
       for (var j = 0; j < drEntries.length; j++) {
         if (!statNameMap[drEntries[j].stat]) continue;
         var val = tier * gbm * drEntries[j].val;
@@ -217,7 +216,7 @@ export var premhat = {
     var saveData = ctx.saveData;
     var sp = saveData.spelunkData || [];
     var hats = sp[46] || [];
-    var hbmObj = hatrackBonusMulti();
+    var hbmObj = hatrackBonusMulti(saveData);
     var hbm = hbmObj.val;
     var total = 0;
     var children = [];

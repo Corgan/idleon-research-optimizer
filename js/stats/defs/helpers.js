@@ -3,6 +3,31 @@
 import { gbWith } from '../../sim-math.js';
 import { companionBonus } from '../data/common/companions.js';
 
+// ===== DESCRIPTOR FACTORY =====
+// Creates a validated stat descriptor object.
+// Two patterns supported:
+//   Pool-based:    createDescriptor({ id, name, pools: {...}, combine(pools, ctx) })
+//   Direct compute: createDescriptor({ id, name, combine(ctx) })
+//
+// When pools is omitted or empty, combine receives ({}, ctx).
+// When pools is declared, buildTree resolves sources before calling combine(pools, ctx).
+var VALID_SCOPES = { character: 1, account: 1, 'character+map': 1 };
+
+export function createDescriptor(spec) {
+  if (!spec || !spec.id) throw new Error('Descriptor: id is required');
+  if (!spec.name) throw new Error('Descriptor ' + spec.id + ': name is required');
+  if (typeof spec.combine !== 'function') throw new Error('Descriptor ' + spec.id + ': combine must be a function');
+  if (spec.scope && !VALID_SCOPES[spec.scope]) throw new Error('Descriptor ' + spec.id + ': invalid scope "' + spec.scope + '"');
+  return {
+    id: spec.id,
+    name: spec.name,
+    scope: spec.scope || 'character',
+    category: spec.category || null,
+    pools: spec.pools || {},
+    combine: spec.combine,
+  };
+}
+
 export function gridBonusFinal(S, idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
 }
