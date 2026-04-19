@@ -1373,7 +1373,7 @@ function _computeHighestDR(S, charIdx) {
     var topMapIdx = -1, topMapBonus = 0;
     if (mb && mb.length) {
       for (var mi = 0; mi < mb.length; mi++) {
-        var bonus = computeArcaneMapMultiBon(0, { mapBon: mb, mapIdx: mi });
+        var bonus = computeArcaneMapMultiBon(0, { mapBon: mb, mapIdx: mi, saveData: S, charIdx: 0 });
         if (bonus > topMapBonus) { topMapBonus = bonus; topMapIdx = mi; }
       }
     }
