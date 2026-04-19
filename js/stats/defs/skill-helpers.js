@@ -27,7 +27,6 @@ import { etcBonus } from '../systems/common/etcBonus.js';
 import { talent } from '../systems/common/talent.js';
 import { prayersPerCharData, optionsListData } from '../../save/data.js';
 import { prayerBaseBonus } from '../data/w3/prayer.js';
-import { saveData } from '../../state.js';
 import { holes } from '../systems/w5/hole.js';
 import { computeFamBonusQTY, computeStatueBonusGiven, computeMealBonus } from '../systems/common/stats.js';
 import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
@@ -59,7 +58,7 @@ export function safe(fn) {
   } catch(e) { return 0; }
 }
 
-export function computePrayerReal(prayerIdx, costIdx, ci) {
+export function computePrayerReal(prayerIdx, costIdx, ci, saveData) {
   var s = saveData;
   var prayerLv = Number(s.prayOwnedData && s.prayOwnedData[prayerIdx]) || 0;
   if (prayerLv <= 0) return 0;
@@ -202,7 +201,7 @@ export function computeAllSkillxpz(ci, ctx) {
 // AllSkillxpMULTI: multiplicative skill EXP shared pool
 // Game: (1 + MeritocBonusz(10)/100) * (1 + LegendPTS_bonus(20)/100) * (1 + Companions(32))
 export function computeAllSkillxpMULTI(ctx) {
-  var s = ctx ? ctx.saveData : saveData;
+  var s = ctx.saveData;
   var meritoc10 = safe(computeMeritocBonusz, 10, s);
   var legend20 = safe(legendPTSbonus, 20, s);
   var comp32 = rval(companion, 32, ctx);

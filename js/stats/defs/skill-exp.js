@@ -18,7 +18,6 @@ import { computeCardBonusByType, computeBoxReward } from '../systems/common/stat
 import { mainframeBonus } from '../systems/w4/lab.js';
 import { optionsListData, prayersPerCharData } from '../../save/data.js';
 import { prayerBaseBonus } from '../data/w3/prayer.js';
-import { saveData } from '../../state.js';
 import { formulaEval } from '../../formulas.js';
 import { skillLvData } from '../../save/data.js';
 import {

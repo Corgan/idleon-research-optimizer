@@ -31,7 +31,6 @@ import { winBonus } from '../systems/w6/summoning.js';
 import { computeCardBonusByType } from '../systems/common/stats.js';
 import { currentMapData } from '../../save/data.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { saveData } from '../../state.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 

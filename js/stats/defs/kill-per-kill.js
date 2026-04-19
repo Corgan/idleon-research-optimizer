@@ -21,7 +21,6 @@ import { AlchemyDescription } from '../data/game/customlists.js';
 import { numCharacters } from '../../save/data.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { saveData } from '../../state.js';
 import { computeFamBonusQTY, computeWorkbenchStuff } from '../systems/common/stats.js';
 import { computeDivinityMajor } from '../systems/w5/divinity.js';
 import { computeExoticBonus } from '../systems/w6/farming.js';

@@ -38,7 +38,6 @@ import { holes } from '../systems/w5/hole.js';
 import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { dancingCoralBase } from '../data/w7/research.js';
-import { saveData } from '../../state.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { cookingMealMulti } from '../systems/common/cooking.js';
 import { computeOwlBonus } from '../systems/w1/owl.js';
@@ -283,7 +282,7 @@ export default createDescriptor({
     try { friendStatz1 = rval(friend, 1, ctx); } catch(e) {}
     var comp47 = rval(companion, 47, ctx);
     var comp111 = rval(companion, 111, ctx);
-    var bb8 = computeButtonBonus(8, saveData);
+    var bb8 = computeButtonBonus(8, s);
 
     var egl6 = cardSpringEvent1 + comp3 + comp50add
       + shimmerOla179 * shimmerBonus + gfoodClassEXP + owlBonus0 + voting15

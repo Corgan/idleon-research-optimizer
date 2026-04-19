@@ -20,7 +20,6 @@ import { AlchemyDescription } from '../data/game/customlists.js';
 import { cauldronInfoData } from '../../save/data.js';
 import { bubbleValByKey, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
-import { saveData } from '../../state.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { ITEMS } from '../data/game/items.js';
 import {

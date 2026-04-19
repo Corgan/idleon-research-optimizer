@@ -31,7 +31,6 @@ import { computeDivinityMinor, computeDivinityMajor } from '../systems/w5/divini
 import { shrine } from '../systems/w3/construction.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
 import { computeArcaneMapMultiBon } from '../systems/mc/tesseract.js';
-import { saveData } from '../../state.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 

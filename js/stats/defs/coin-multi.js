@@ -41,12 +41,11 @@ import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { computeCropSC } from '../systems/w6/farming.js';
 import { cookingMealMulti } from '../systems/common/cooking.js';
 import { computeVaultKillzTotal } from '../systems/common/vaultKillz.js';
-import { saveData } from '../../state.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 
 // Compute ArtifactBonus(1): Maneki Kat - coins per highest class level
-function computeArtifactBonus1() {
+function computeArtifactBonus1(saveData) {
   var s = saveData;
   var sailing = s.sailingData;
   if (!sailing || !sailing[3]) return 0;
@@ -158,7 +157,7 @@ export default createDescriptor({
     try { var vmResult = ctx.resolve('voting-multi'); votingMulti = vmResult.val || 1; } catch(e) {}
     var voting34 = safe(votingBonusz, 34, votingMulti, s);
     var mealCash = safe(computeMealBonus, 'Cash', s);
-    var artifactBonus1 = safe(computeArtifactBonus1);
+    var artifactBonus1 = safe(computeArtifactBonus1, s);
     var rooBonus6 = safe(computeRooBonus, 6, s);
     var g16sum = mealCash + artifactBonus1 + rooBonus6 + voting34;
     var g16 = 1 + g16sum / 100;

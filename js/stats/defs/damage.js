@@ -24,7 +24,6 @@ import { cauldronInfoData, klaData, stampLvData } from '../../save/data.js';
 import { MapDetails, MapAFKtarget } from '../data/game/customlists.js';
 import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
-import { saveData } from '../../state.js';
 import { computeStatueBonusGiven, primaryStatForClass } from '../systems/common/stats.js';
 import { computeCosmoBonus, computeMonumentROGbonus } from '../systems/w5/hole.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';

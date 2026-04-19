@@ -91,7 +91,7 @@ function tomeQTY(slot, S) {
       if (!S.cards0Data) return 0;
       var c0 = S.cards0Data;
       s = 0;
-      for (var ck in c0) s += computeCardLv(ck, saveData);
+      for (var ck in c0) s += computeCardLv(ck, S);
       return s;
 
     case 3: // Total_Talent_Max_LV — for each of ~120 skills/talents, max level across all chars
@@ -162,7 +162,7 @@ function tomeQTY(slot, S) {
     case 14: return ola(172);  // DPS Record Shimmer
 
     case 15: // Star_Talent_Points — TotalTalentPoints()[5], max across all characters
-      return _starTalentPoints(S, saveData);
+      return _starTalentPoints(S, undefined, S);
 
     case 16: { // Crystal_Spawn_Avg_Kills — 1/OLA[202]
       var cs = ola(202);
@@ -466,7 +466,7 @@ function tomeQTY(slot, S) {
     case 80: return arrSum(S.arcadeUpgData); // Arcade Gold Ball Shop
 
     case 81: // Vault_Upgrade_bonus_LV — VaultUpgBonus(57)
-      return Math.round(vaultUpgBonus(57, saveData));
+      return Math.round(vaultUpgBonus(57, S));
 
     case 82: // Total_Gambit_Time — Holes[11][65..70]
       if (!S.holesData || !S.holesData[11]) return 0;
@@ -642,6 +642,7 @@ function _perCharSum(S, fn, label) {
 }
 
 export function tomeQTYBreakdown(slot, S, saveData) {
+  if (!saveData) saveData = S;
   var val = tomeQTY(slot, S);
   var ch, i, s, v;
 
@@ -742,7 +743,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 14: return { val: val, children: [_olaNode(172)] };
 
     case 15: // Star Talent Points — complex, delegate to detail
-      return _starTalentPointsBreakdown(S, saveData);
+      return _starTalentPointsBreakdown(S, undefined, saveData);
 
     case 16: return { val: val, children: [_olaNode(202), _n('1/OLA[202]', val)] };
 
@@ -1225,7 +1226,7 @@ function _starTalentPointsBreakdown(S, activeCharIdx, saveData) {
     var dn4 = -3;
     for (var n = 1; n <= 9; n++) dn4 += Math.max(0, num(lv[n]));
     var aCtx = activeCharIdx != null ? activeCharIdx : ci;
-    var ctx = { charIdx: ci, activeCharIdx: aCtx };
+    var ctx = { charIdx: ci, activeCharIdx: aCtx, saveData: saveData };
     var r275val = 0;
     try { var r275 = talent.resolve(275, ctx); r275val = Math.round(r275 ? r275.val || 0 : 0); } catch (e) { }
     dn4 += r275val;
@@ -1287,7 +1288,7 @@ function _famBonus64(S, activeCharIdx) {
     // Active char gets talent 144 boost (game: GetTalentNumber(1,144))
     if (activeCharIdx != null && ci === activeCharIdx) {
       try {
-        var t144 = talent.resolve(144, { charIdx: ci });
+        var t144 = talent.resolve(144, { charIdx: ci, saveData: S });
         if (t144 && t144.val > 0) val *= 1 + t144.val / 100;
       } catch (e) { }
     }
@@ -1337,7 +1338,7 @@ function _starTalentPoints(S, activeCharIdx, saveData) {
     for (var n = 1; n <= 9; n++) dn4 += Math.max(0, num(lv[n]));
     // Use activeCharIdx for AllTalentLVz context if provided, otherwise use ci
     var aCtx = activeCharIdx != null ? activeCharIdx : ci;
-    var ctx = { charIdx: ci, activeCharIdx: aCtx };
+    var ctx = { charIdx: ci, activeCharIdx: aCtx, saveData: saveData };
     try { var r275 = talent.resolve(275, ctx); dn4 += Math.round(r275 ? r275.val || 0 : 0); } catch (e) { }
     // Per-char talent bonuses
     var t8 = 0, t622 = 0, t17 = 0;
@@ -1415,6 +1416,7 @@ function _computeHighestDR(S, charIdx) {
 // charIdx: optional — when provided, character-sensitive slots (star talent pts,
 //          DR) use this character's context, matching the game's active-player logic.
 export function computeTomeScore(S, charIdx, saveData) {
+  if (!saveData) saveData = S;
   // Phase 1: compute with stale OLA[200]
   var total = 0;
   for (var i = 0; i < T.length; i++) {
@@ -1440,6 +1442,7 @@ export function computeTomeScore(S, charIdx, saveData) {
 // Same two-phase approach: compute all slots, then fix slot [18] with live DR.
 // Returns { slots, drInfo } where drInfo contains map/char info for notifications.
 export function computeTomeScoreDetail(S, charIdx, saveData) {
+  if (!saveData) saveData = S;
   var slots = [];
   for (var i = 0; i < T.length; i++) {
     var qty = (i === 15) ? _starTalentPoints(S, charIdx, saveData) : tomeQTY(i, S);
