@@ -69,7 +69,7 @@ export default createDescriptor({
     var winBonus11 = rval(winBonus, 11, ctx);
     var _gfAFK = 0;
     try {
-      var gf = goldFoodBonuses('AllAFK', ci, ctx.saveData);
+      var gf = goldFoodBonuses('AllAFK', ci, undefined, ctx.saveData);
       _gfAFK = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
     var cardW6d3 = 1.5 * safe(cardLv, 'w6d3', s);

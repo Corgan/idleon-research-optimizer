@@ -790,7 +790,7 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('CardBonusREAL(82)', card82.val, card82.children);
 
   // 6. Summoning WinBonus(18)
-  var wb18 = computeWinBonus(18, saveData);
+  var wb18 = computeWinBonus(18, null, saveData);
   addSub('WinBonus(18)', wb18);
 
   // 7. FamBonusQTYs[72]
@@ -808,7 +808,7 @@ function computeAllStatPCT(charIdx, ctx) {
   ] : null);
 
   // 9. GoldFoodBonuses("AllStatz")
-  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, saveData);
+  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, undefined, saveData);
   addSub('GoldFood AllStatz', gfoodAllStatz.total);
 
   // 10. AchieveStatus(309)
@@ -841,7 +841,7 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('FarmRankUpg(19)', farmRank19.val, farmRank19.children);
 
   // 15. Summoning VotingBonusz(2)
-  var vote2 = votingBonusz(2, saveData);
+  var vote2 = votingBonusz(2, null, saveData);
   addSub('VotingBonusz(2)', vote2);
 
   // 16. SetBonus("MARBIGLASS_SET")

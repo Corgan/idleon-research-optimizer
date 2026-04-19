@@ -309,7 +309,7 @@ function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx, saveDa
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return { val: 0, rawLv: 0, effectiveLv: 0, bonusDetail: null };
   var ctxChar = activeCharIdx != null ? activeCharIdx : charIdx;
-  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar, saveData);
+  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar, undefined, saveData);
   var effectiveLv = rawLv + bd.total;
   var result = formulaEval(data.formula, data.x1, data.x2, effectiveLv);
   return { val: result, rawLv: rawLv, bonus: bd.total, effectiveLv: effectiveLv, bonusDetail: bd };

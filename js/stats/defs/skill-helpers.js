@@ -151,7 +151,7 @@ export function computeAllSkillxpz(ci, ctx) {
   var arcade18 = rval(arcade, 18, ctx);
   var gfoodSkillExp = 0;
   try {
-    var gf = goldFoodBonuses('SkillExp', ci, ctx.saveData);
+    var gf = goldFoodBonuses('SkillExp', ci, undefined, ctx.saveData);
     gfoodSkillExp = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
   } catch(e) {}
 

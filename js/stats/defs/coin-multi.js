@@ -206,13 +206,13 @@ export default createDescriptor({
     // TC(643) = OverkillStuffs("2") = raw overkill tier (1-50). Requires MaxDamage + MonsterHP.
     // TC(644) = Lv0[10] / 10 = charLevel / 10 (NOT GTN * Lv0 / 10)
     var talent657 = rval(talent, 657, ctx);
-    var vialMC = safe(computeVialMonsterCash);
+    var vialMC = safe(computeVialByKey, 'MonsterCash', s);
     var etc3 = rval(etcBonus, '3', ctx);
     var _cb11 = safe(computeCardBonusByType, 11, ci, s);
     var cardBonus11 = (typeof _cb11 === 'object' && _cb11) ? (_cb11.val || 0) : Number(_cb11) || 0;
     var cardW5b1 = 7 * safe(cardLv, 'w5b1', s);
     var talent22 = rval(talent, 22, ctx);
-    var flurboShop4 = safe(computeFlurboShop4);
+    var flurboShop4 = safe(computeFlurboShop, 4, s);
     var arcade10 = rval(arcade, 10, ctx);
     var arcade11 = rval(arcade, 11, ctx);
     var _br13c = safe(computeBoxReward, ci, '13c');
@@ -226,7 +226,7 @@ export default createDescriptor({
     var lv0_10 = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][10]) || 0;
     var talentCalc644 = rval(talent, 644, ctx) * lv0_10 / 10;
     var _gf = null;
-    try { _gf = goldFoodBonuses('MonsterCash', ci, ctx.saveData); } catch(e) {}
+    try { _gf = goldFoodBonuses('MonsterCash', ci, undefined, ctx.saveData); } catch(e) {}
     var gfoodMC = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
     var vault17 = rval(vault, 17, ctx);
     var ola340 = Number(optionsListData[340]) || 0;
@@ -241,7 +241,7 @@ export default createDescriptor({
     var killz7 = safe(computeVaultKillzTotal, 7, s);
     var ola420 = Number(optionsListData[420]) || 0;
     var vault70 = rval(vault, 70, ctx);
-    var cardsCollected = safe(countCardsCollected);
+    var cardsCollected = (s.cards1Data && s.cards1Data.length) || 0;
 
     var g22sum = talent657 + vialMC + etc3 + cardBonus11 + cardW5b1
       + talent22 + flurboShop4 + arcade10 + arcade11

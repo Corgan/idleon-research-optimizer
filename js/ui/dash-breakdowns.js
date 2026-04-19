@@ -126,9 +126,9 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   addChildren.push(_bNode('Zenith Market', Math.floor(zmLevel), null, { fmt: '%' }));
 
   // Cards
-  const clvW7b1 = computeCardLv('w7b1');
-  const clvW7b4 = computeCardLv('w7b4');
-  const clvW7a11 = computeCardLv('w7a11');
+  const clvW7b1 = computeCardLv('w7b1', saveData);
+  const clvW7b4 = computeCardLv('w7b4', saveData);
+  const clvW7a11 = computeCardLv('w7a11', saveData);
   addChildren.push(_bNode('Card: Trench Fish', Math.min(clvW7b1, 10), null, { fmt: '%' }));
   addChildren.push(_bNode('Card: Eggroll', Math.min(2 * clvW7b4, 10), null, { fmt: '%' }));
   addChildren.push(_bNode('Card: Coralcave Crab', Math.min(clvW7a11, 10), null, { fmt: '%' }));
@@ -141,9 +141,9 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const hasSB34 = dSaveCtx.sb34;
   const c1len = saveData.cards1Data.length || 0;
   const slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
-  const slabboMF15 = mainframeBonus(15);
-  const slabboMeritoc23 = computeMeritocBonusz(23);
-  const slabboLegend28 = legendPTSbonus(28);
+  const slabboMF15 = mainframeBonus(15, saveData);
+  const slabboMeritoc23 = computeMeritocBonusz(23, saveData);
+  const slabboLegend28 = legendPTSbonus(28, saveData);
   const vub74 = saveData.vaultData[74] || 0;
   const slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);
   addChildren.push(_bNode('Slab Bonus', hasSB34 ? 0.1 * slabboMult * slabboBase : 0, hasSB34 ? [
@@ -157,7 +157,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   ] : null, { fmt: '%', note: hasSB34 ? '' : 'Slabby Research locked' }));
 
   // Arcade
-  addChildren.push(_bNode('Arcade: Research XP', arcadeBonus(63), null, { fmt: '%' }));
+  addChildren.push(_bNode('Arcade: Research XP', arcadeBonus(63, saveData), null, { fmt: '%' }));
 
   // Meal (Giga Chip) - deep decomposition
   const mealLv = saveData.mealsData?.[0]?.[72] || 0;
@@ -166,7 +166,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const cm = cookingMealMulti(saveData);
 
   // WinBonus(26) decomposition
-  const swb = computeSummWinBonus();
+  const swb = computeSummWinBonus(saveData);
   const swbRaw = swb[26] || 0;
   const pristine8 = (saveData.ninjaData?.[107]?.[8] === 1) ? 30 : 0;
   const gemItems11 = Number(saveData.gemItemsData[11]) || 0;
@@ -174,10 +174,10 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const artBonus32 = artRarity > 0 ? artifactBase(32) * artRarity : 0;
   const taskVal = Math.min(10, Number(saveData.tasksGlobalData?.[2]?.[5]?.[4]) || 0);
   const wb31 = swb[31] || 0;
-  const empBon8 = computeEmperorBon(8);
+  const empBon8 = computeEmperorBon(8, saveData);
   const godshardSet = String(saveData.olaData[379] || '').includes('GODSHARD_SET') ? equipSetBonus('GODSHARD_SET') : 0;
-  const ach379 = achieveStatus(379);
-  const ach373 = achieveStatus(373);
+  const ach379 = achieveStatus(379, saveData);
+  const ach373 = achieveStatus(373, saveData);
 
   const winBonNode = _bNode('Summoning Win Bonus', 1 + cm.winBon26 / 100, [
     _bNode('Summon Wins', swbRaw, null, { fmt: '%' }),
@@ -221,9 +221,9 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   // Crop Scientist
   const hasEmp44 = dSaveCtx.emp44;
   const cropRaw = hasEmp44 ? Math.floor(Math.max(0, (saveData.farmCropCount - 200) / 10)) : 0;
-  const mf17 = mainframeBonus(17);
-  const gub22 = grimoireUpgBonus22();
-  const exo40 = exoticBonusQTY40();
+  const mf17 = mainframeBonus(17, saveData);
+  const gub22 = grimoireUpgBonus22(saveData);
+  const exo40 = exoticBonusQTY40(saveData);
   const vub79 = saveData.vaultData[79] || 0;
   const cropSCmulti = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
   addChildren.push(_bNode('Crop Scientist', cropRaw * cropSCmulti, hasEmp44 ? [

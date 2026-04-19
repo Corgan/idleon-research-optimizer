@@ -210,11 +210,11 @@ export function bubbleValByKey(key, charIdx, saveData) {
         if (cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            val *= Math.max(1, bubbleValByKey('Opassz', saveData));
+            val *= Math.max(1, bubbleValByKey('Opassz', charIdx, saveData));
           } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            val *= Math.max(1, bubbleValByKey('Gpassz', saveData));
+            val *= Math.max(1, bubbleValByKey('Gpassz', charIdx, saveData));
           } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            val *= Math.max(1, bubbleValByKey('Ppassz', saveData));
+            val *= Math.max(1, bubbleValByKey('Ppassz', charIdx, saveData));
           }
         }
         return val;

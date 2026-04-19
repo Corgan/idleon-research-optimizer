@@ -98,7 +98,7 @@ function _getExternalSources() {
   return {
     gridBonus189: _gb(189),
     gridBonus188: _gb(188),
-    arcade67: arcadeBonus(67),
+    arcade67: arcadeBonus(67, saveData),
     mineheadBonus11: mineFloor > 11 ? (MINEHEAD_BONUS_QTY[11] || 0) : 0,
     atom14: Number(saveData.atomsData?.[14]) || 0,
     sailing39: Number(saveData.sailingData?.[3]?.[39]) || 0,

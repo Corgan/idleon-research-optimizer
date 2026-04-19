@@ -32,7 +32,7 @@ export default createDescriptor({
     items.push({ name: label('Companion', 153), val: comp153 });
 
     // Gambit Milestone 15 = flat 3
-    var gambit = gambitBonus15(saveData);
+    var gambit = gambitBonus15(saveData, saveData);
     items.push({ name: 'Gambit Milestone', val: gambit });
 
     // Minehead floor bonuses

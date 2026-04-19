@@ -203,7 +203,7 @@ function computeBubonicPurple(playerIdx, saveData) {
   var playerX = (labData && labData[0] && labData[0][2 * playerIdx]) || 0;
   var bcX = (labData && labData[0] && labData[0][2 * bcIdx]) || 0;
   if (playerX < bcX) return 0;
-  var allTalent = bestLv > 0 ? computeAllTalentLVz(535, bcIdx, saveData) : 0;
+  var allTalent = bestLv > 0 ? computeAllTalentLVz(535, bcIdx, undefined, saveData) : 0;
   var effectiveLv = bestLv + allTalent;
   var _t535 = talentParams(535);
   return formulaEval(_t535.formula, _t535.x1, _t535.x2, effectiveLv);
@@ -279,7 +279,7 @@ export function computeLabConnectivity(saveData) {
   var playerDist = new Array(12).fill(0);
   var taskShopLabRange = Number((saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][3] && saveData.tasksGlobalData[2][3][4]) || 0);
   var dreamLabRange = Number((dreamData && dreamData[8]) || 0);
-  var winBonus4 = computeWinBonus(4, saveData);
+  var winBonus4 = computeWinBonus(4, null, saveData);
   var bonusGemFlat = taskShopLabRange + dreamLabRange + winBonus4;
   var bonusGemDist = 80 + bonusGemFlat;
   for (var pass = 0; pass < 10; pass++) {

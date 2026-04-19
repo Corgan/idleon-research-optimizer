@@ -27,7 +27,7 @@ function _talVal(talentIdx, ci, saveData) {
   if (rawLv <= 0) return 0;
   var tp = talentParams(talentIdx);
   if (!tp || !tp.formula) return 0;
-  var bonus = computeAllTalentLVz(talentIdx, ci, saveData);
+  var bonus = computeAllTalentLVz(talentIdx, ci, undefined, saveData);
   return formulaEval(tp.formula, tp.x1, tp.x2, rawLv + bonus);
 }
 
@@ -44,7 +44,7 @@ export default createDescriptor({
     if (!saveData) return { val: 0, children: null };
 
     var constLv = Number(saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][8]) || 0;
-    var buildSpd = computePlayerBuildSpd(ci, ctx.saveData);
+    var buildSpd = computePlayerBuildSpd(ci, null, ctx.saveData);
     var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
     var smallCogExp = computeSmallCogBonusTOTAL(2, ctx.saveData);
 

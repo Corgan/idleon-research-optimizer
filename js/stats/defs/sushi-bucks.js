@@ -24,7 +24,7 @@ function _gatherExternal(S) {
   return {
     gridBonus189: gbWith(S.gridLevels, S.shapeOverlay, 189, gbCtx),
     gridBonus188: gbWith(S.gridLevels, S.shapeOverlay, 188, gbCtx),
-    arcade67: arcadeBonus(67, ctx.saveData),
+    arcade67: arcadeBonus(67, S),
     mineheadBonus11: mf > 11 ? (MINEHEAD_BONUS_QTY[11] || 0) : 0,
     atom14: Number(S.atomsData && S.atomsData[14]) || 0,
     sailing39: Number(S.sailingData && S.sailingData[3] && S.sailingData[3][39]) || 0,

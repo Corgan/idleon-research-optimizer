@@ -151,7 +151,7 @@ export default createDescriptor({
 
     var gfMult = 1;
     try {
-      var gf = goldFoodBonuses(skillType + 'Eff', ci, ctx.saveData);
+      var gf = goldFoodBonuses(skillType + 'Eff', ci, undefined, ctx.saveData);
       gfMult = (gf && typeof gf === 'object') ? (Number(gf.total) || 1) : (Number(gf) || 1);
     } catch(e) {}
 

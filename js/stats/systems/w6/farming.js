@@ -33,7 +33,7 @@ function getbonus2Detail(talentIdx, data, activeCharIdx, saveData) {
     // Game passes rawLv (not talentIdx) to AllTalentLVz — this affects the
     // Spelunk super talent lookup, which checks indexOf(rawLv) in Spelunk array.
     var bonusChar = activeCharIdx != null ? activeCharIdx : ci;
-    var bonus = computeAllTalentLVz(rawLv, bonusChar, saveData);
+    var bonus = computeAllTalentLVz(rawLv, bonusChar, undefined, saveData);
     var effLv = rawLv + bonus;
     var val = formulaEval(data.formula, data.x1, data.x2, effLv);
     if (val > best) { best = val; bestCi = ci; bestBase = rawLv; bestBonus = bonus; bestEff = effLv; }

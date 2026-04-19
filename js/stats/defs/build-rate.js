@@ -89,7 +89,7 @@ export default createDescriptor({
     if (rawLv131 > 0) {
       var tp131 = talentParams(131);
       if (tp131 && tp131.formula) {
-        var bonus131 = computeAllTalentLVz(131, ci, ctx.saveData);
+        var bonus131 = computeAllTalentLVz(131, ci, undefined, ctx.saveData);
         var effLv131 = rawLv131 + bonus131;
         talent131Val = formulaEval(tp131.formula, tp131.x1, tp131.x2, effLv131);
         atomBonus1 = (Number(saveData.atomsData && saveData.atomsData[1]) || 0) * (Number(AtomInfo[1] && AtomInfo[1][4]) || 0);
@@ -99,7 +99,7 @@ export default createDescriptor({
       }
     }
 
-    var total = computePlayerBuildSpd(ci, ctx.saveData);
+    var total = computePlayerBuildSpd(ci, null, ctx.saveData);
 
     // Extra build speed multi (cog + companion)
     var extraBuildMulti = computeExtraBuildSPDmulti(ctx.saveData);

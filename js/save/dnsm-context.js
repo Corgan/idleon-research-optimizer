@@ -117,7 +117,7 @@ export function computeDNSM(charIdx = 0) {
   {
     const sl = skillLvData[charIdx] || {};
     const rawLv = Number(sl[99]) || 0;
-    const allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx) : 0;
+    const allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx, undefined, saveData) : 0;
     const effectiveLv = rawLv + allTalentLv;
     dnsm.getTalentNumber1_99 = effectiveLv > 0 ? formulaEval('decay', 55, 80, effectiveLv) : 0;
     T.getTalentNumber1_99 = node(label('Talent', 99), dnsm.getTalentNumber1_99, effectiveLv > 0 ? [
@@ -134,7 +134,7 @@ export function computeDNSM(charIdx = 0) {
       const sl = skillLvData[ci] || {};
       const rawLv = Number(sl[209]) || 0;
       if (rawLv > 0) {
-        const allTalentLv = computeAllTalentLVz(209, ci);
+        const allTalentLv = computeAllTalentLVz(209, ci, undefined, saveData);
         const effectiveLv = rawLv + allTalentLv;
         const val = formulaEval('decay', 2, 200, effectiveLv);
         if (val > maxVal) { maxVal = val; bestCi = ci; bestBase = rawLv; bestBonus = allTalentLv; bestEff = effectiveLv; }
@@ -334,7 +334,7 @@ export function computeDNSM(charIdx = 0) {
       const sl144 = skillLvData[charIdx] || {};
       const rawLv144 = Number(sl144[144] || sl144['144']) || 0;
       if (rawLv144 > 0) {
-        const bonus144Lv = computeAllTalentLVz(144, charIdx);
+        const bonus144Lv = computeAllTalentLVz(144, charIdx, undefined, saveData);
         const eff144 = rawLv144 + bonus144Lv;
         talent144Val = formulaEval(TALENT_144.formula, TALENT_144.x1, TALENT_144.x2, eff144);
       }

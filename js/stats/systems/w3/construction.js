@@ -282,7 +282,7 @@ import { computeStarSignBonus } from '../common/starSign.js';
 export function computePlayerConExp(ci, isActive, saveData) {
   var s = saveData;
   var constLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][8]) || 0;
-  var buildSpd = computePlayerBuildSpd(ci, saveData);
+  var buildSpd = computePlayerBuildSpd(ci, null, saveData);
   var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
   var smallCogExp = computeSmallCogBonusTOTAL(2, saveData);
 
@@ -375,7 +375,7 @@ function _computeTalentVal(talentIdx, ci, saveData) {
   if (rawLv <= 0) return 0;
   var tp = talentParams(talentIdx);
   if (!tp || !tp.formula) return 0;
-  var bonus = computeAllTalentLVz(talentIdx, ci, saveData);
+  var bonus = computeAllTalentLVz(talentIdx, ci, undefined, saveData);
   return formulaEval(tp.formula, tp.x1, tp.x2, rawLv + bonus);
 }
 

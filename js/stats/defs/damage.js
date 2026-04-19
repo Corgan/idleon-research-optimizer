@@ -285,7 +285,7 @@ export default createDescriptor({
 
     var gfBaseDmg = 0;
     try {
-      var gf = goldFoodBonuses('BaseDamage', ci, ctx.saveData);
+      var gf = goldFoodBonuses('BaseDamage', ci, undefined, ctx.saveData);
       gfBaseDmg = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
 
@@ -350,7 +350,7 @@ export default createDescriptor({
       var _hpCard8 = (function(){ var v=safe(computeCardBonusByType,8,ci,s); return (typeof v==='object'&&v)?v.val||0:Number(v)||0; })();
       var _hpStarHP = safe(computeStarSignBonus, 'TotalHP', ci, s);
       var _hpGfPct = 1;
-      try { var _gfHP = goldFoodBonuses('MaxHPpct', ci, ctx.saveData);
+      try { var _gfHP = goldFoodBonuses('MaxHPpct', ci, undefined, ctx.saveData);
         _hpGfPct = (typeof _gfHP === 'object') ? (1 + (Number(_gfHP.total) || 0) / 100) : 1; } catch(e2){}
       var hpList1 = (1 + (_hpT92 + _hpT272 + _hpEtc15) / 100)
         * (1 + _hpShrine1 / 100) * _hpGfPct * (1 + _hpBoxPctVal / 100)
@@ -613,7 +613,7 @@ export default createDescriptor({
 
     var gfDamage = 1;
     try {
-      var gfd = goldFoodBonuses('Damage', ci, ctx.saveData);
+      var gfd = goldFoodBonuses('Damage', ci, undefined, ctx.saveData);
       // goldFoodBonuses returns raw % sum; game uses 1 + sum/100 as multiplier
       var gfdTotal = (gfd && typeof gfd === 'object') ? (Number(gfd.total) || 0) : (Number(gfd) || 0);
       gfDamage = 1 + gfdTotal / 100;

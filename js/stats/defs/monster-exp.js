@@ -268,7 +268,7 @@ export default createDescriptor({
     var shimmerBonus = safe(computeAllShimmerBonuses, s);
     var gfoodClassEXP = 0;
     try {
-      var _gf = goldFoodBonuses('ClassEXPz', ci, ctx.saveData);
+      var _gf = goldFoodBonuses('ClassEXPz', ci, undefined, ctx.saveData);
       gfoodClassEXP = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
     } catch(e) {}
     var owlBonus0 = safe(computeOwlBonus, 0, s);
@@ -302,7 +302,7 @@ export default createDescriptor({
     var boxMonsterExp = (typeof _br === 'object' && _br) ? (_br.val || 0) : Number(_br) || 0;
     var totalFoodClassEXP = 0;
     try {
-      var _gfCE = goldFoodBonuses('ClassEXP', ci, ctx.saveData);
+      var _gfCE = goldFoodBonuses('ClassEXP', ci, undefined, ctx.saveData);
       totalFoodClassEXP = (_gfCE && typeof _gfCE === 'object') ? (Number(_gfCE.total) || 0) : (Number(_gfCE) || 0);
     } catch(e) {}
     var starSignMainXP = safe(computeStarSignBonus, 'MainXP', ci, s);

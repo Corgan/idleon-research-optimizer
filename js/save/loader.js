@@ -308,7 +308,7 @@ export function loadSaveData(raw) {
   assignState({ totalQuestsComplete: totalQC });
 
   // Compute lab connectivity BFS (needed for MainframeBonus)
-  assignState(computeLabConnectivity());
+  assignState(computeLabConnectivity(saveData));
 
   recomputeDerivedBonuses();
 

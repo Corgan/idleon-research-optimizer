@@ -45,7 +45,7 @@ export function renderDashboard() {
   const gb147 = _gb(147);
   const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
-  const mhSrc = computeMineheadCurrSources();
+  const mhSrc = computeMineheadCurrSources(saveData);
   const rogB12 = rogBonusQTY(12, uniqueSushi);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
@@ -190,7 +190,7 @@ export function renderCurrencyTab() {
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
   const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const rogB12 = rogBonusQTY(12, uniqueSushi);
-  const mhSrc = computeMineheadCurrSources();
+  const mhSrc = computeMineheadCurrSources(saveData);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,

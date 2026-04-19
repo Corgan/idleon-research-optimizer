@@ -86,7 +86,7 @@ export function gfoodBonusMULTI(charIdx, opts, saveData) {
 }
 
 export function goldFoodBonuses(effectType, charIdx, preMulti, saveData) {
-  var multi = preMulti != null ? preMulti : gfoodBonusMULTI(charIdx, saveData);
+  var multi = preMulti != null ? preMulti : gfoodBonusMULTI(charIdx, null, saveData);
   var total = 0;
   var equippedInfo = null;
   var emporiumInfo = null;
@@ -224,7 +224,7 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
   {
     var sl = skillLvData[charIdx] || {};
     var rawLv = Number(sl[99]) || 0;
-    var allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx, saveData) : 0;
+    var allTalentLv = rawLv > 0 ? computeAllTalentLVz(99, charIdx, undefined, saveData) : 0;
     var effectiveLv = rawLv + allTalentLv;
     var _t99 = talentParams(99);
     inputs.getTalentNumber1_99 = effectiveLv > 0 ? formulaEval(_t99.formula, _t99.x1, _t99.x2, effectiveLv) : 0;

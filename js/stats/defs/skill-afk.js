@@ -9,7 +9,7 @@ import { vault } from '../systems/common/vault.js';
 import { sigil } from '../systems/w2/alchemy.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
-import { cardLv } from '../systems/common/cards.js';
+import { cardLv, countDiscoveredCards } from '../systems/common/cards.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { guild } from '../systems/common/guild.js';
 import { computeFamBonusQTY } from '../systems/common/stats.js';
@@ -87,7 +87,7 @@ export default createDescriptor({
     var winBonus11 = rval(winBonus, 11, ctx);
     var _gfAFK = 0;
     try {
-      var gf = goldFoodBonuses('AllAFK', ci, ctx.saveData);
+      var gf = goldFoodBonuses('AllAFK', ci, undefined, ctx.saveData);
       _gfAFK = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
     } catch(e) {}
     var evShop5 = 20 * eventShopOwned(5, s.cachedEventShopStr);
