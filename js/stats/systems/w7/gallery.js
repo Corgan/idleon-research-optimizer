@@ -8,7 +8,7 @@ import { computeCardLv } from '../common/cards.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
 import { NAMETAG_DR, NAMETAG_NAMES, TROPHY_DR, TROPHY_NAMES,
   PREMHAT_DR, PREMHAT_NAMES, GALLERY_STAT_FOR_ID } from '../../data/w7/gallery.js';
-import { mineheadBonusQTY } from './research.js';
+import { mineheadBonusQTY } from './minehead.js';
 import { rogBonusQTY } from './sushi.js';
 import { legendPTSbonus } from './spelunking.js';
 import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';

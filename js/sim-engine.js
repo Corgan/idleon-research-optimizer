@@ -265,7 +265,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
 }
 
 export async function unifiedSim(config, saveCtx) {
-  // config: { target: {type:'level'|'hours', value}, reoptimize }
+  // config: { target: {type:'level'|'hours', value}, reoptimize, includeTournament }
   // saveCtx: optional SaveContext - if omitted, captures current globals
   const _sc = saveCtx || buildSaveContext();
   // Build mutable sim state - gl/il/ip/occ are local aliases into s (in-place mutations sync)
@@ -284,6 +284,36 @@ export async function unifiedSim(config, saveCtx) {
     mMax: magMaxForLevel(_rLv0),
   };
   const _extendInsightLA = !!config.extendInsightLA;
+
+  // Tournament registration: EventShopOwned(46) "Research Registrant" injects
+  // 43200 seconds (12 hours) of research time per daily tournament registration.
+  // This bypasses AFK rate — it's a raw time injection.
+  const _tournamentBonusHrs = 12;
+  const _tournamentIntervalHrs = 24;
+  const _hasTourneyResearch = (_sc.evShop && _sc.evShop[46] === 1);
+  const _includeTournament = config.includeTournament !== undefined
+    ? !!config.includeTournament
+    : _hasTourneyResearch;
+  // Compute hours until the next server-side tournament reset.
+  // Game formula: reset when (GlobalTime + 14400) % 86400 == 0, i.e. daily at 20:00 UTC.
+  // The sim registers ~30 min before reset so the bonus applies at peak rates.
+  const _tournamentBufferHrs = 0.5;
+  let _firstTournamentHrs = _tournamentIntervalHrs; // fallback: 24h
+  if (_sc.saveGlobalTime > 0) {
+    const shifted = _sc.saveGlobalTime + 14400;
+    const secUntilReset = 86400 - (shifted % 86400);
+    _firstTournamentHrs = Math.max(0, secUntilReset / 3600 - _tournamentBufferHrs);
+    // If reset is imminent (< 1 min away), treat as next cycle
+    if (_firstTournamentHrs < 1 / 60) _firstTournamentHrs += _tournamentIntervalHrs;
+    // Check if user already registered in the current tournament day.
+    // Game: OLA[511] stores tournamentDay+1 on registration.
+    // tournamentDay comes from tournament.global.T in the save (NOT derived from GlobalTime).
+    // If OLA[511] >= T + 1, they already registered today → skip to next reset.
+    if (_sc.tournamentDay > 0 && _sc.tourneyLastDay >= _sc.tournamentDay + 1) {
+      _firstTournamentHrs += _tournamentIntervalHrs;
+    }
+  }
+  let _nextTournamentHrs = _includeTournament ? _firstTournamentHrs : Infinity;
 
   // Sync ctx to match the (possibly overridden) gl state
   // Pass _sc so the ctx can be built from saveCtx in worker environments
@@ -414,9 +444,13 @@ export async function unifiedSim(config, saveCtx) {
     const monoObs = getMonoObsSet(s.md);
     const hrsToNextInsight = hrsToNextInsightLv(monoObs, s.md, il, ip, gl, s.so, ctx);
 
-    // --- Determine the jump: smallest of (nextLevelUp, nextInsight, remainingTime) ---
+    // --- Determine the jump: smallest of (nextLevelUp, nextInsight, tournament, remainingTime) ---
     let jumpHrs = hrsToNextLv;
     if (hrsToNextInsight < jumpHrs) jumpHrs = hrsToNextInsight;
+    // Tournament fires at end of each 24h window
+    const hrsToTournament = _nextTournamentHrs - currentTime;
+    let _tournamentFired = false;
+    if (hrsToTournament > 0 && hrsToTournament < jumpHrs) jumpHrs = hrsToTournament;
     // Clamp to target
     const remainingTime = maxTime - currentTime;
     if (config.target.type === 'hours' && remainingTime < jumpHrs) jumpHrs = remainingTime;
@@ -428,6 +462,11 @@ export async function unifiedSim(config, saveCtx) {
     const jumpSec = jumpHrs * 3600;
     s.rExp += curExpHr / 3600 * jumpSec;
     currentTime += jumpHrs;
+
+    // Check if this jump landed on a tournament boundary
+    if (_includeTournament && currentTime >= _nextTournamentHrs - 1e-9) {
+      _tournamentFired = true;
+    }
 
     // --- Advance insight EXP for all monocle obs ---
     let _grindTargetLeveledUp = false;
@@ -540,6 +579,50 @@ export async function unifiedSim(config, saveCtx) {
         lastPhase.activeConfig = _snap(sp);
       }
     }
+
+    // --- Tournament registration: fires at end of each 24h daily reset window ---
+    // The bonus is applied at the current (highest) rate since all level-ups and
+    // reconfigs for this jump are already done. The 12 hours of research time is
+    // injected raw (bypasses AFK rate) and consumed immediately (player is online
+    // to register). May cascade into additional level-ups.
+    if (_tournamentFired) {
+      const _tBonusExp = curExpHr * _tournamentBonusHrs;
+      s.rExp += _tBonusExp;
+      // Advance insight by 12 bonus hours at current config (no reopt mid-skip)
+      const _tInsightObs = [];
+      advanceInsightLevels(monoObs, s.md, il, ip, gl, s.so, ctx, _tournamentBonusHrs, (obsIdx) => {
+        _tInsightObs.push(obsIdx);
+      });
+      // Process any cascading level-ups from the bonus EXP
+      const _tAdv = advanceResearchLevel(s.rExp, s.rLv, ctx.serverVarResXP);
+      const _tLeveledUp = _tAdv.changed;
+      s.rExp = _tAdv.rExp; s.rLv = _tAdv.rLv;
+      if (_tLeveledUp) {
+        const newMax = magMaxForLevel(s.rLv);
+        if (newMax > s.mMax) s.mMax = newMax;
+        if (config.reoptimize !== false) {
+          beamSpendAtLevel(s, ctx, config.target, config.assumeObsUnlocked, _sc);
+          s.mOwned = computeMagnifiersOwnedWith(gl, s.rLv, ctx);
+          growMagPoolTyped(s.md, gl, s.rLv, s.mOwned, ctx);
+          const tShapes = optimizeShapesFor(s, undefined, undefined, _sc);
+          s.so = tShapes.overlay; sp = tShapes.positions;
+          s.md = await optimizeMagsFor(s, ctx);
+          s.md = chooseMonoTargets(s, ctx, Math.min(_estimateRemainingHrs(config, currentTime, s.rLv, s.rExp, curExpHr, ctx), 72));
+        }
+      }
+      curExpHr = simTotalExpWith(gl, s.so, s.md, il, occ, s.rLv, ctx);
+      phases.push({
+        time: currentTime, event: 'tournament', expHr: curExpHr,
+        config: _snap(sp),
+        rLv: s.rLv, rExp: s.rExp,
+        tournamentBonusExp: _tBonusExp,
+        tournamentBonusHrs: _tournamentBonusHrs,
+        tournamentLeveledUp: _tLeveledUp,
+        insightObs: _tInsightObs.length > 0 ? _tInsightObs.slice() : null,
+      });
+      // Schedule next tournament window
+      _nextTournamentHrs += _tournamentIntervalHrs;
+    }
   }
 
   // Final phase (skip for level targets where the last phase already reached the target)
@@ -552,6 +635,6 @@ export async function unifiedSim(config, saveCtx) {
     });
   }
 
-  return { phases, totalTime: currentTime, finalLevel: s.rLv, finalExp: s.rExp, finalIL: il.slice(), insightLAExtension: 0 };
+  return { phases, totalTime: currentTime, finalLevel: s.rLv, finalExp: s.rExp, finalIL: il.slice(), insightLAExtension: 0, includedTournament: _includeTournament };
 }
 

@@ -11,3 +11,15 @@ export function node(name, val, children, opts) {
   }
   return r;
 }
+
+// Numeric tree result — acts as a number via valueOf() for backward compat,
+// but carries .children for tree propagation.
+export function treeResult(val, children) {
+  val = val || 0;
+  return {
+    val: val,
+    children: (children && children.length) ? children : null,
+    valueOf: function() { return val; },
+    toString: function() { return String(val); }
+  };
+}

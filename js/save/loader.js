@@ -6,11 +6,11 @@
 import {  saveData, assignState  } from '../state.js';
 import { assignSaveData, dreamData } from './data.js';
 import { parseSaveKey } from './helpers.js';
-import { eventShopOwned, superBitType, cloudBonus } from '../game-helpers.js';
-import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
+import { eventShopOwned, buildEventShopArray, superBitType, cloudBonus } from '../game-helpers.js';
+import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
 import { SceneNPCquestOrder } from '../stats/data/game/customlists.js';
-import { rogBonusQTY, computeUniqueSushi } from '../stats/systems/w7/sushi.js';
+import { rogBonusQTY, buildRogArray, computeUniqueSushi } from '../stats/systems/w7/sushi.js';
 import { stickerBase } from '../stats/data/w7/research.js';
 import { computeMagnifiersOwnedWith, magMaxForLevel, gbWith } from '../sim-math.js';
 import { computeTomeScore } from '../stats/systems/w4/tome-score.js';
@@ -242,6 +242,9 @@ export function loadSaveData(raw) {
     if (ta?.GlobalTime) assignSaveData({ saveGlobalTime: Number(ta.GlobalTime) || 0 });
   }
 
+  // Tournament day number (game's internal counter, NOT derived from GlobalTime)
+  if (raw.tournament?.global?.T != null) assignSaveData({ tournamentDay: Number(raw.tournament.global.T) || 0 });
+
   // Derived state
   const rLv = Math.max(...lv0All.map(lv0 => lv0[20] || 0), 0);
   assignState({ researchLevel: rLv });
@@ -274,13 +277,10 @@ export function loadSaveData(raw) {
   const _eventShopStr = saveData.cachedEventShopStr;
   const _mineFloor = saveData.stateR7[4] || 0;
   assignState({ magnifiersOwned: computeMagnifiersOwnedWith(saveData.gridLevels, rLv, {
-    evShop33: eventShopOwned(33, _eventShopStr),
-    evShop34: eventShopOwned(34, _eventShopStr),
-    mhq2: mineheadBonusQTY(2, _mineFloor),
-    mhq12: mineheadBonusQTY(12, _mineFloor),
-    mhq20: mineheadBonusQTY(20, _mineFloor),
+    evShop: buildEventShopArray(_eventShopStr),
+    mhq: buildMhqArray(_mineFloor),
     companionHas153: saveData.companionIds.has(153),
-    rog8: rogBonusQTY(8, uniqueSushi),
+    rog: buildRogArray(uniqueSushi),
   }) });
 
   // Parse magnifiers - game iterates ALL of Research[5] without truncation

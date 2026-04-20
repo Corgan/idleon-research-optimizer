@@ -2,7 +2,7 @@
 // Shrine bonuses, salt lick, construction mastery, small cog bonuses,
 // PlayerBuildSpd, PlayerConExp, ExtraBuildSPDmulti, ExtraFlaggyRatemulti.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { computeCardLv, computeCardLvDetail } from '../common/cards.js';
 import { shrineBase, shrinePerLevel } from '../../data/w3/shrine.js';
@@ -62,12 +62,16 @@ export function computeShrine(idx, saveData) {
 // ==================== SALT LICK ====================
 
 export function computeSaltLick(idx, saveData) {
-  if (!saveData.saltLickData) return 0;
+  if (!saveData.saltLickData) return treeResult(0);
   var purchased = Number(saveData.saltLickData[idx]) || 0;
-  if (purchased <= 0) return 0;
-  if (!SaltLicks[idx]) return 0;
+  if (purchased <= 0) return treeResult(0);
+  if (!SaltLicks[idx]) return treeResult(0);
   var perLv = Number(SaltLicks[idx][3]) || 0;
-  return purchased * perLv;
+  var val = purchased * perLv;
+  return treeResult(val, [
+    { name: 'Purchased', val: purchased, fmt: 'raw' },
+    { name: 'Per Level', val: perLv, fmt: 'raw' },
+  ]);
 }
 
 // ==================== CONSTRUCTION MASTERY ====================
@@ -317,7 +321,8 @@ export function computePlayerConExp(ci, isActive, saveData) {
 
   // Check if char benefits from Construction bubble
   // Game: CauldronBubbles[t] contains "_11" || Companions(4)==1
-  var allBubblesActive = s.companionIds.has(4);
+  var allBubblesActive = saveData.companionIds && saveData.companionIds.has(4);
+  // Note: s.companionIds may also be used below, alias for saveData
   var hasBub = allBubblesActive;
   if (!hasBub) {
     // Check cauldron bubbles for this char

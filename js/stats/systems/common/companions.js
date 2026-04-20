@@ -6,7 +6,7 @@ import { label } from '../../entity-names.js';
 import { companionBonus } from '../../data/common/companions.js';
 
 export function companions(idx, saveData) {
-  if (!saveData.companionIds.has(idx)) return 0;
+  if (!saveData.companionIds || !saveData.companionIds.has(idx)) return 0;
   return companionBonus(idx);
 }
 

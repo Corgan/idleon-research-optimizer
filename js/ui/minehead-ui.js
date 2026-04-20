@@ -10,6 +10,7 @@ import { expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS } from
 import { mhState, mineReduction, getInferredParams, loadInferred, _fmt } from './minehead-helpers.js';
 import { renderDashboard, renderCurrencyTab } from './minehead-dashboard.js';
 import { renderPlayfield } from './minehead-play.js';
+import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 
 let _activeSubtab = 'mh-dashboard';
 
@@ -907,6 +908,8 @@ function _onRankComplete(results, affordable, floor, nTrials, lvs) {
   const mineCurrency = saveData.stateR7?.[5] || 0;
   const svarHP = saveData.serverVarMineHP || 1;
   const svarCost = saveData.serverVarMineCost || 1;
+  const _uSushi = saveData.cachedUniqueSushi || 0;
+  const _rogCostPct = Math.max(rogBonusQTY(1, _uSushi), rogBonusQTY(16, _uSushi));
   const baseline = results['base'];
   const upgrades = affordable.map(idx => {
     const r = results[`upg${idx}`];
@@ -914,10 +917,10 @@ function _onRankComplete(results, affordable, floor, nTrials, lvs) {
     if (!r || !b) return { idx, name: MINEHEAD_UPG[idx].name.replace(/_/g, ' '), dmgPct: 0, winDelta: 0, result: r };
     const dmgPct = b.avgDmg > 0 ? (r.avgDmg - b.avgDmg) / b.avgDmg * 100 : 0;
     const winDelta = (r.winRate - b.winRate) * 100;
-    const cost = upgCost(idx, lvs[idx] || 0, qty26, svarCost);
+    const cost = upgCost(idx, lvs[idx] || 0, qty26, svarCost, _rogCostPct);
     const dmgInc = r.avgDmg - b.avgDmg;
     const dmgPerCost = cost > 0 ? dmgInc / cost : 0;
-    const canAfford = canBuyUpg(idx, lvs[idx] || 0, mineCurrency, qty26, svarCost);
+    const canAfford = canBuyUpg(idx, lvs[idx] || 0, mineCurrency, qty26, svarCost, _rogCostPct);
     return { idx, name: MINEHEAD_UPG[idx].name.replace(/_/g, ' '), dmgPct, winDelta, cost, dmgPerCost, canAfford, result: r, baseline: b };
   });
 
@@ -1088,11 +1091,13 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
   const candidates = [];
   const qty26 = upgradeQTY(26, currentLvs[26] || 0);
   const svarCost = saveData.serverVarMineCost || 1;
+  const _uSushiPath = saveData.cachedUniqueSushi || 0;
+  const _rogCostPath = Math.max(rogBonusQTY(1, _uSushiPath), rogBonusQTY(16, _uSushiPath));
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
     const lv = currentLvs[i] || 0;
     const max = MINEHEAD_UPG[i].maxLv;
     if ((lv < max || max > 998) && researchLv >= upgLvReq(i)) {
-      if (!canBuyUpg(i, lv, mineCurrency, qty26, svarCost)) continue;
+      if (!canBuyUpg(i, lv, mineCurrency, qty26, svarCost, _rogCostPath)) continue;
       candidates.push(i);
     }
   }
@@ -1115,13 +1120,15 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
       // Pick best candidate by cost efficiency (dmg increase per currency)
       let bestIdx = -1, bestScore = -Infinity, bestResult = null, bestCost = 0;
       const svarCostLocal = saveData.serverVarMineCost || 1;
+      const _uSushiLocal = saveData.cachedUniqueSushi || 0;
+      const _rogCostLocal = Math.max(rogBonusQTY(1, _uSushiLocal), rogBonusQTY(16, _uSushiLocal));
       const prevDmg = path.length > 0 ? path[path.length - 1].result.avgDmg : (baseline?.avgDmg || 0);
       for (const idx of candidates) {
         const r = candResults[`path_s${step}_u${idx}`];
         if (!r) continue;
         const lv = currentLvs[idx] || 0;
         const q = upgradeQTY(26, currentLvs[26] || 0);
-        const c = upgCost(idx, lv, q, svarCostLocal);
+        const c = upgCost(idx, lv, q, svarCostLocal, _rogCostLocal);
         const dmgInc = r.avgDmg - prevDmg;
         const winInc = r.winRate - (path.length > 0 ? path[path.length - 1].result.winRate : (baseline?.winRate || 0));
         // Score: damage efficiency + small win rate bonus

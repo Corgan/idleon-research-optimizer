@@ -6,6 +6,7 @@ import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { gbWith } from '../sim-math.js';
 import { renderBreakdownTree } from './dash-breakdowns.js';
 import { _bNode } from '../stats/node-helpers.js';
+import { label } from '../stats/entity-names.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import { fmtNum as _fmt } from '../renderers/format.js';
 import { superBitType } from '../game-helpers.js';
@@ -429,42 +430,42 @@ function _renderCurrency() {
   const sailing39 = 100 * (ext.sailing39 || 0);
 
   const surchargeNode = _bNode('Customer Surcharges I-V', surchargeSum, [
-    _bNode('Surcharge I (upg 30)', surcharge30, null, { fmt: '%', note: `Lv ${Number(ul[30]) || 0}` }),
-    _bNode('Surcharge II (upg 31)', surcharge31, null, { fmt: '%', note: `Lv ${Number(ul[31]) || 0}` }),
-    _bNode('Surcharge III (upg 32)', surcharge32, null, { fmt: '%', note: `Lv ${Number(ul[32]) || 0}` }),
-    _bNode('Surcharge IV (upg 33)', surcharge33, null, { fmt: '%', note: `Lv ${Number(ul[33]) || 0}` }),
-    _bNode('Surcharge V (upg 34)', surcharge34, null, { fmt: '%', note: `Lv ${Number(ul[34]) || 0}` }),
+    _bNode(label('Sushi', 30), surcharge30, null, { fmt: '%', note: `Lv ${Number(ul[30]) || 0}` }),
+    _bNode(label('Sushi', 31), surcharge31, null, { fmt: '%', note: `Lv ${Number(ul[31]) || 0}` }),
+    _bNode(label('Sushi', 32), surcharge32, null, { fmt: '%', note: `Lv ${Number(ul[32]) || 0}` }),
+    _bNode(label('Sushi', 33), surcharge33, null, { fmt: '%', note: `Lv ${Number(ul[33]) || 0}` }),
+    _bNode(label('Sushi', 34), surcharge34, null, { fmt: '%', note: `Lv ${Number(ul[34]) || 0}` }),
   ], { fmt: '%' });
 
   const addChildren = [
     surchargeNode,
-    _bNode('Knowledge: Bucks', knBucks, null, { fmt: '%' }),
-    _bNode('Grid #189 (Sushi Linguistics)', ext.gridBonus189, null, { fmt: '%' }),
-    _bNode('No Tax on Tips (upg 40)', noTax40, null, { fmt: '%', note: `Lv ${Number(ul[40]) || 0}` }),
-    _bNode('Hourly Wage (upg 41)', hourlyWage41, null, { fmt: '%', note: `Lv ${Number(ul[41]) || 0}` }),
-    _bNode('Tier Vision (upg 43)', tierVision43, null, { fmt: '%', note: `Lv ${Number(ul[43]) || 0}` }),
+    _bNode(label('Knowledge', 0), knBucks, null, { fmt: '%' }),
+    _bNode(label('Grid', 189), ext.gridBonus189, null, { fmt: '%' }),
+    _bNode(label('Sushi', 40), noTax40, null, { fmt: '%', note: `Lv ${Number(ul[40]) || 0}` }),
+    _bNode(label('Sushi', 41), hourlyWage41, null, { fmt: '%', note: `Lv ${Number(ul[41]) || 0}` }),
+    _bNode(label('Sushi', 43), tierVision43, null, { fmt: '%', note: `Lv ${Number(ul[43]) || 0}` }),
     _bNode('Overtuned Multi', overtunedMulti, null, { fmt: '%' }),
-    _bNode('Sailing Art #39', sailing39, null, { fmt: '%' }),
+    _bNode(label('Artifact', 39), sailing39, null, { fmt: '%' }),
   ];
   const addSum = surchargeSum + knBucks + ext.gridBonus189 + noTax40 + hourlyWage41 + tierVision43 + overtunedMulti + sailing39;
 
   const multiTree = _bNode('Currency Multiplier', currMulti, [
-    _bNode('Arcade #67 (Sushi Bucks)', 1 + ext.arcade67 / 100, null, { fmt: 'x' }),
+    _bNode(label('Arcade', 67), 1 + ext.arcade67 / 100, null, { fmt: 'x' }),
     _bNode('1.1^UniqueSushi (' + us + ')', uniqueMulti, null, { fmt: 'x' }),
-    _bNode('Bundle V', ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
+    _bNode(label('Bundle', 'V'), ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
     _bNode('Customer Surcharges', 1 + surchargeSum / 100, [
       surchargeNode,
-      _bNode('SuperBit 67', ext.gamingSuperBit67 * 100, null, { fmt: '%' }),
+      _bNode(label('Super Bit', 67), ext.gamingSuperBit67 * 100, null, { fmt: '%' }),
     ], { fmt: 'x' }),
-    _bNode('Knowledge: Bucks', 1 + knBucks / 100, null, { fmt: 'x' }),
-    _bNode('Grid #189 (Sushi Linguistics)', 1 + ext.gridBonus189 / 100, null, { fmt: 'x' }),
-    _bNode('No Tax on Tips (upg 40)', 1 + noTax40 / 100, null, { fmt: 'x', note: `Lv ${Number(ul[40]) || 0}` }),
-    _bNode('Minehead #11', Math.max(1, Math.min(1.25, 1 + ext.mineheadBonus11 / 100)), null, { fmt: 'x' }),
+    _bNode(label('Knowledge', 0), 1 + knBucks / 100, null, { fmt: 'x' }),
+    _bNode(label('Grid', 189), 1 + ext.gridBonus189 / 100, null, { fmt: 'x' }),
+    _bNode(label('Sushi', 40), 1 + noTax40 / 100, null, { fmt: 'x', note: `Lv ${Number(ul[40]) || 0}` }),
+    _bNode(label('Minehead Floor', 11), Math.max(1, Math.min(1.25, 1 + ext.mineheadBonus11 / 100)), null, { fmt: 'x' }),
     _bNode('Hourly Wage + Tier Vision', 1 + (hourlyWage41 + tierVision43) / 100, null, { fmt: 'x' }),
     _bNode('Overtuned Multi', 1 + overtunedMulti / 100, null, { fmt: 'x' }),
-    _bNode('Button Bonus', 1 + (ext.buttonBonus2 || 0) / 100, null, { fmt: 'x' }),
-    _bNode('Atom 14 (Phosphorus)', 1 + ext.atom14 / 100, null, { fmt: 'x' }),
-    _bNode('Sailing Art #39', 1 + sailing39 / 100, null, { fmt: 'x' }),
+    _bNode(label('Button', 2), 1 + (ext.buttonBonus2 || 0) / 100, null, { fmt: 'x' }),
+    _bNode(label('Atom', 14), 1 + ext.atom14 / 100, null, { fmt: 'x' }),
+    _bNode(label('Artifact', 39), 1 + sailing39 / 100, null, { fmt: 'x' }),
   ], { fmt: 'x' });
 
   const slotBucks = [];
@@ -528,14 +529,14 @@ function _renderCurrency() {
   const genTree = _bNode('Fuel Gen/hr', fuelGen, [
     _bNode('Base', 50, null),
     _bNode('Fastburn Fuel I-V', 1 + upgFuel / 100, [
-      _bNode('Fastburn I (upg 8)', fb8, null, { fmt: '%', note: `Lv ${Number(ul[8]) || 0}` }),
-      _bNode('Fastburn II (upg 9)', fb9, null, { fmt: '%', note: `Lv ${Number(ul[9]) || 0}` }),
-      _bNode('Fastburn III (upg 10)', fb10, null, { fmt: '%', note: `Lv ${Number(ul[10]) || 0}` }),
-      _bNode('Fastburn IV (upg 11)', fb11, null, { fmt: '%', note: `Lv ${Number(ul[11]) || 0}` }),
-      _bNode('Fastburn V (upg 12)', fb12, null, { fmt: '%', note: `Lv ${Number(ul[12]) || 0}` }),
+      _bNode(label('Sushi', 8), fb8, null, { fmt: '%', note: `Lv ${Number(ul[8]) || 0}` }),
+      _bNode(label('Sushi', 9), fb9, null, { fmt: '%', note: `Lv ${Number(ul[9]) || 0}` }),
+      _bNode(label('Sushi', 10), fb10, null, { fmt: '%', note: `Lv ${Number(ul[10]) || 0}` }),
+      _bNode(label('Sushi', 11), fb11, null, { fmt: '%', note: `Lv ${Number(ul[11]) || 0}` }),
+      _bNode(label('Sushi', 12), fb12, null, { fmt: '%', note: `Lv ${Number(ul[12]) || 0}` }),
     ], { fmt: 'x' }),
     _bNode('Orange Fire Sum', 1 + orangeFire / 100, null, { fmt: 'x', note: `+${orangeFire.toFixed(1)}% from red fireplaces` }),
-    _bNode('Knowledge: Fuel Gen', 1 + knFuel / 100, null, { fmt: 'x' }),
+    _bNode(label('Knowledge', 4), 1 + knFuel / 100, null, { fmt: 'x' }),
     _bNode('Knowledge Tier 27 (specific)', 1 + knSpec27 / 100, null, { fmt: 'x' }),
     _bNode('Knowledge Tier 36 (specific)', 1 + knSpec36 / 100, null, { fmt: 'x' }),
     _bNode('Knowledge Tier 45 (specific)', 1 + knSpec45 / 100, null, { fmt: 'x' }),
@@ -545,18 +546,18 @@ function _renderCurrency() {
       _bNode('FB IV unique', fbMulti11, null, { fmt: 'x', note: `Lv ${Number(ul[11]) || 0}` }),
       _bNode('FB V unique', fbMulti12, null, { fmt: 'x', note: `Lv ${Number(ul[12]) || 0}` }),
     ], { fmt: 'x' }),
-    _bNode('Bundle V', ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
+    _bNode(label('Bundle', 'V'), ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
   ], { fmt: '/hr' });
 
   const capTree = _bNode('Fuel Capacity', fuelCap, [
     _bNode('Base', 200, null),
-    _bNode('Knowledge: Fuel Cap', knCap, null, { fmt: '+' }),
+    _bNode(label('Knowledge', 3), knCap, null, { fmt: '+' }),
     _bNode('Fuel Cap I-V', 1 + upgCapSum / 100, [
-      _bNode('Fuel Cap I (upg 1)', fc1, null, { fmt: '%', note: `Lv ${Number(ul[1]) || 0}` }),
-      _bNode('Fuel Cap II (upg 2)', fc2, null, { fmt: '%', note: `Lv ${Number(ul[2]) || 0}` }),
-      _bNode('Fuel Cap III (upg 3)', fc3, null, { fmt: '%', note: `Lv ${Number(ul[3]) || 0}` }),
-      _bNode('Fuel Cap IV (upg 4)', fc4, null, { fmt: '%', note: `Lv ${Number(ul[4]) || 0}` }),
-      _bNode('Fuel Cap V (upg 5)', fc5, null, { fmt: '%', note: `Lv ${Number(ul[5]) || 0}` }),
+      _bNode(label('Sushi', 1), fc1, null, { fmt: '%', note: `Lv ${Number(ul[1]) || 0}` }),
+      _bNode(label('Sushi', 2), fc2, null, { fmt: '%', note: `Lv ${Number(ul[2]) || 0}` }),
+      _bNode(label('Sushi', 3), fc3, null, { fmt: '%', note: `Lv ${Number(ul[3]) || 0}` }),
+      _bNode(label('Sushi', 4), fc4, null, { fmt: '%', note: `Lv ${Number(ul[4]) || 0}` }),
+      _bNode(label('Sushi', 5), fc5, null, { fmt: '%', note: `Lv ${Number(ul[5]) || 0}` }),
     ], { fmt: 'x' }),
     _bNode('Fuel Cap II-V Unique Multi', fcUniqueMulti, [
       _bNode('FC II unique', fcMulti2, null, { fmt: 'x', note: `Lv ${Number(ul[2]) || 0}` }),
@@ -564,7 +565,7 @@ function _renderCurrency() {
       _bNode('FC IV unique', fcMulti4, null, { fmt: 'x', note: `Lv ${Number(ul[4]) || 0}` }),
       _bNode('FC V unique', fcMulti5, null, { fmt: 'x', note: `Lv ${Number(ul[5]) || 0}` }),
     ], { fmt: 'x' }),
-    _bNode('Bundle V', ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
+    _bNode(label('Bundle', 'V'), ext.hasBundleV ? 2 : 1, null, { fmt: 'x', note: ext.hasBundleV ? 'Owned' : 'Not owned' }),
   ]);
 
   const fillHrs = fuelGen > 0 ? fuelCap / fuelGen : Infinity;

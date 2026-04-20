@@ -212,10 +212,18 @@ export function buildPhaseDetails(p, prev, diff) {
 export function renderExpSummary(phases, sim, saveCtx, fmtRealTimeFn) {
   if (phases.length < 2) return '';
   let simExpTotal = 0;
+  let tournamentExpTotal = 0;
   for (let i = 0; i < phases.length - 1; i++) {
     const dur = phases[i+1].time - phases[i].time;
     const rate = phases[i].grindInfo ? phases[i].grindInfo.grindExpHr : phases[i].expHr;
     simExpTotal += rate * dur;
+  }
+  // Add tournament bonus EXP (not captured in segment rates)
+  for (let i = 0; i < phases.length; i++) {
+    if (phases[i].tournamentBonusExp) {
+      tournamentExpTotal += phases[i].tournamentBonusExp;
+      simExpTotal += phases[i].tournamentBonusExp;
+    }
   }
   const startLv = phases[0].rLv;
   const endLv = sim.finalLevel;
@@ -227,6 +235,9 @@ export function renderExpSummary(phases, sim, saveCtx, fmtRealTimeFn) {
   let html = `<div style="margin-top:8px;padding:8px 10px;background:#0d0d1a;border-radius:6px;font-size:.8em;color:var(--text2);border:1px solid #222;">`;
   html += `<span style="color:var(--text2);">\ud83d\udcca</span> `;
   html += `EXP earned: <b style="color:var(--green);">${fmtExp(simExpTotal)}</b>`;
+  if (tournamentExpTotal > 0) {
+    html += ` <span style="color:#ff9800;font-size:.9em;">(incl. ${fmtExp(tournamentExpTotal)} from tournament)</span>`;
+  }
   html += ` &middot; Avg rate: <b style="color:var(--green);">${fmtVal(avgRate)}/hr</b>`;
   html += ` &middot; Start: ${fmtVal(startRate)}/hr \u2192 End: ${fmtVal(phases[phases.length - 2].expHr)}/hr`;
   const endReal = fmtRealTimeFn(sim.totalTime).text;
@@ -286,8 +297,9 @@ export function renderExpChart(sim) {
     const x = pad.left + (p.time / totalTime) * plotW;
     const pExpHr = p.grindInfo ? p.grindInfo.grindExpHr : p.expHr;
     const y = pad.top + plotH * (1 - (pExpHr - yMin) / yRange);
-    svg += `<line x1="${x}" y1="${pad.top}" x2="${x}" y2="${pad.top+plotH}" stroke="var(--gold)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
-    svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--gold)"/>`;
+    const color = p.event === 'tournament' ? '#ff9800' : 'var(--gold)';
+    svg += `<line x1="${x}" y1="${pad.top}" x2="${x}" y2="${pad.top+plotH}" stroke="${color}" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
+    svg += `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`;
   }
 
   const steps = [0, 0.25, 0.5, 0.75, 1];

@@ -1,7 +1,7 @@
 // ===== CARDS SYSTEM =====
 // Card bonus by type (equipped cards), card set bonuses, and single-card capped bonuses.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { cardEquipData, csetEqData } from '../../../save/data.js';
 import { CARD_BASE_REQ, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
@@ -11,6 +11,7 @@ import { charHasChip } from '../w4/lab.js';
 import { RANDOlist } from '../../data/game/customlists.js';
 
 export function computeCardLv(cardKey, saveData) {
+  if (!saveData || !saveData.cards0Data) return 0;
   var qty = saveData.cards0Data[cardKey] || 0;
   if (qty <= 0) return 0;
   var rift5star = (saveData.riftData[0] || 0) >= 45 ? 1 : 0;
@@ -160,10 +161,13 @@ export var cardSingle = {
 
 export function computeCardSetBonus(charIdx, setKey) {
   var csetMap = csetEqData && csetEqData[charIdx];
-  if (!csetMap || typeof csetMap !== 'object') return 0;
+  if (!csetMap || typeof csetMap !== 'object') return treeResult(0);
   var key = IDforCardSETbonus[setKey];
-  if (!key) return 0;
-  return Number(csetMap[key]) || 0;
+  if (!key) return treeResult(0);
+  var val = Number(csetMap[key]) || 0;
+  return treeResult(val, [
+    { name: 'Set ' + setKey, val: val, fmt: 'raw', note: 'key=' + key },
+  ]);
 }
 
 // Raw card-set bonus lookup (account-level, not per-character)

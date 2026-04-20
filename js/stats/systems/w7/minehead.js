@@ -5,7 +5,7 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { MINEHEAD_BONUS_QTY, MINEHEAD_UPG, GRID_DIMS, TILE_MULTIPLIERS } from '../../data/w7/minehead.js';
-import { ribbonBonusAt } from '../../../game-helpers.js';
+import { ribbonBonusAt, eventShopOwned } from '../../../game-helpers.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { getLOG } from '../../../formulas.js';
@@ -17,12 +17,21 @@ export function mineheadBonusQTY(t, mineFloor) {
   return mineFloor > t ? (MINEHEAD_BONUS_QTY[t] || 0) : 0;
 }
 
+/** Precompute all minehead floor reward bonuses into an array. */
+export function buildMhqArray(mineFloor) {
+  var arr = new Array(MINEHEAD_BONUS_QTY.length);
+  for (var i = 0; i < arr.length; i++) arr[i] = mineFloor > i ? (MINEHEAD_BONUS_QTY[i] || 0) : 0;
+  return arr;
+}
+
 // ===== MINEHEAD CURRENCY SOURCES =====
 
 export function computeMineheadCurrSources(saveData) {
   var comp143 = saveData.companionIds.has(143) ? companionBonus(143) : 0;
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
-  var arcade62val = arcadeBonus(62, saveData);
+  var eventShop44 = eventShopOwned(44, saveData.cachedEventShopStr);
+  var arcade62tree = arcadeBonus(62, saveData);
+  var arcade62val = (arcade62tree && arcade62tree.val) || 0;
   var arcade62lv = saveData.arcadeUpgData[62] || 0;
   var mealLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][73]) || 0;
   var olaStr379 = String(saveData.olaData[379] || '');
@@ -46,7 +55,7 @@ export function computeMineheadCurrSources(saveData) {
     mealMineCurr = mealCookMulti * mealRibBon * mealLv * 0.02;
   }
   return {
-    comp143: comp143, atom13: atom13,
+    comp143: comp143, atom13: atom13, eventShop44: eventShop44,
     arcade62: arcade62val, arcade62lv: arcade62lv,
     mealMineCurr: mealMineCurr, mealLv: mealLv, mealRibBon: mealRibBon, mealRibT: mealRibT,
     mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26, mealComp162: mealComp162,
@@ -89,23 +98,24 @@ export function upgradeQTY(t, level) {
 /**
  * Cost of upgrade `t` at current level.
  */
-export function upgCost(t, lv, qty26, svar) {
+export function upgCost(t, lv, qty26, svar, rogCostPct) {
   if (svar === undefined) svar = 1;
   var basePart = 5 + t + Math.pow(Math.max(0, t - 2), 1.3);
   var pow2Part = Math.pow(2, Math.max(0, t - 4));
   var svarPart = Math.pow(Math.max(1, svar), Math.max(0, t - 9));
   var cheapo   = 1 / (1 + qty26 / 100);
+  var rogDisc  = Math.max(0.1, 1 - (rogCostPct || 0) / 100);
   var expPart  = Math.pow(MINEHEAD_UPG[t].costExp, lv);
-  return basePart * pow2Part * svarPart * cheapo * expPart;
+  return basePart * pow2Part * svarPart * cheapo * rogDisc * expPart;
 }
 
 /**
  * Whether upgrade `t` can be bought.
  */
-export function canBuyUpg(t, lv, mineCurrency, qty26, svar) {
+export function canBuyUpg(t, lv, mineCurrency, qty26, svar, rogCostPct) {
   if (svar === undefined) svar = 1;
   var max = MINEHEAD_UPG[t].maxLv;
-  return mineCurrency >= upgCost(t, lv, qty26, svar) && (lv < max || max > 998);
+  return mineCurrency >= upgCost(t, lv, qty26, svar, rogCostPct) && (lv < max || max > 998);
 }
 
 // ===== GRID =====
@@ -254,10 +264,12 @@ export function currencyPerHour(opts) {
   var mealMineCurr = opts.mealMineCurr || 0;
   var arcade62 = opts.arcade62 || 0;
   var rogBonus12 = opts.rogBonus12 || 0;
+  var eventShop44 = opts.eventShop44 || 0;
   var upgLevels = opts.upgLevels;
   var highestDmg = opts.highestDmg || 1;
 
   var base = gridBonus129;
+  var eventShopMulti = 1 + 100 * eventShop44 / 100;
   var multi148 = 1 + gridBonus148 / 100;
   var rogMulti = 1 + rogBonus12 / 100;
   var compMulti = Math.max(1, Math.min(2, comp143));
@@ -272,7 +284,7 @@ export function currencyPerHour(opts) {
   var buttonMulti = 1 + (opts.buttonBonus1 || 0) / 100;
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
-  return base * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti;
+  return base * eventShopMulti * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti;
 }
 
 // ===== WIGGLE =====

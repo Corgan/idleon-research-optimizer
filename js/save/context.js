@@ -15,10 +15,12 @@ import {
   computeShapesOwnedAt,
   simTotalExpWith,
 } from '../sim-math.js';
-import { eventShopOwned, superBitType, emporiumBonus, ribbonBonusAt, cloudBonus } from '../game-helpers.js';
-import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
-import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
+import { SHAPE_BONUS_PCT } from '../stats/data/w7/research.js';
+import { buildEventShopArray, buildSuperBitArray, buildEmporiumArray, ribbonBonusAt, cloudBonus } from '../game-helpers.js';
+import { buildMhqArray } from '../stats/systems/w7/minehead.js';
+import { buildRogArray } from '../stats/systems/w7/sushi.js';
 import { saveData } from '../state.js';
+import { saveGlobalTime, tournamentDay, optionsListData } from './data.js';
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -53,20 +55,13 @@ export function buildSaveContext() {
     cachedResearchExp: saveData.cachedResearchExp,
 
     // Pre-computed shop/minehead constants (avoid global-reading functions)
-    evShop33: eventShopOwned(33, eventShopStr),
-    evShop34: eventShopOwned(34, eventShopStr),
-    evShop35: eventShopOwned(35, eventShopStr),
-    evShop36: eventShopOwned(36, eventShopStr),
-    sb34: superBitType(34, gamingData12),
-    sb44: superBitType(44, gamingData12),
-    sb62: superBitType(62, gamingData12),
-    emp44: emporiumBonus(44, ninjaData102_9),
-    emp46: emporiumBonus(46, ninjaData102_9),
+    // Pre-computed lookup arrays (avoid per-call string searches)
+    evShop: buildEventShopArray(eventShopStr),
+    sb: buildSuperBitArray(gamingData12),
+    emp: buildEmporiumArray(ninjaData102_9),
     cbGridAll: cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData),
     ribbon100: ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData),
-    mhq2:  mineheadBonusQTY(2, mineFloor),
-    mhq12: mineheadBonusQTY(12, mineFloor),
-    mhq20: mineheadBonusQTY(20, mineFloor),
+    mhq: buildMhqArray(mineFloor),
 
     // Button & Killroy research multipliers
     button0: saveData.cachedButtonBonus0,
@@ -74,12 +69,8 @@ export function buildSaveContext() {
     killroy5: saveData.cachedKillroy5,
     dream14: saveData.cachedDream14,
 
-    // Sushi RoG bonuses affecting research
-    rog0:  rogBonusQTY(0, saveData.cachedUniqueSushi),
-    rog3:  rogBonusQTY(3, saveData.cachedUniqueSushi),
-    rog8:  rogBonusQTY(8, saveData.cachedUniqueSushi),
-    rog13: rogBonusQTY(13, saveData.cachedUniqueSushi),
-    rog53: rogBonusQTY(53, saveData.cachedUniqueSushi),
+    // Sushi RoG bonuses (full precomputed array)
+    rog: buildRogArray(saveData.cachedUniqueSushi),
     sailingArt37: saveData.cachedSailingArt37,
     cachedUniqueSushi: saveData.cachedUniqueSushi,
 
@@ -102,8 +93,24 @@ export function buildSaveContext() {
     covLUTCache:  saveData._covLUTCache,
     covLUTCacheN: saveData._covLUTCacheN,
 
+    // Best shape bonus % the player owns (for F6 button snapshot)
+    bestShapePct: (() => {
+      const nShapes = computeShapesOwnedAt(saveData.researchLevel, { evShop: buildEventShopArray(eventShopStr), hasComp54: saveData.companionIds.has(54), spelunkyUpg7: saveData.cachedSpelunkyUpg7 });
+      let best = 0;
+      for (let i = 0; i < nShapes && i < SHAPE_BONUS_PCT.length; i++) if (SHAPE_BONUS_PCT[i] > best) best = SHAPE_BONUS_PCT[i];
+      return best;
+    })(),
+
     // Display-only (not used by sim math, but handy for callers)
     externalResearchPct: saveData.externalResearchPct,
+
+    // Server time (Unix epoch seconds) — used to compute tournament reset offset
+    saveGlobalTime: saveGlobalTime,
+
+    // Tournament: OLA[511] = last registered tournament day + 1
+    tourneyLastDay: Number(optionsListData?.[511]) || 0,
+    // Game's internal tournament day counter (from tournament.global.T)
+    tournamentDay: tournamentDay,
   };
 }
 
@@ -116,7 +123,7 @@ export function makeSimCtx(gl, sc) {
     const hasComp55 = sc.companionHas55;
     const hasComp0DivOk = sc.companionHas0 && sc.cachedComp0DivOk;
     return {
-      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll, sc.rog53),
+      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll, (sc.rog && sc.rog[53]) || 0),
       c52:            sc.comp52TrueMulti,
       stickerFixed:   sc.cachedStickerFixed,
       boonyCount:     sc.cachedBoonyCount,
@@ -126,23 +133,19 @@ export function makeSimCtx(gl, sc) {
       hasComp0DivOk,
       hasComp54:      sc.companionHas54,
       companionHas153: sc.companionHas153,
-      evShop33:       sc.evShop33,
-      evShop34:       sc.evShop34,
-      evShop36:       sc.evShop36,
-      emp46:          sc.emp46,
+      evShop:         sc.evShop || [],
+      sb:             sc.sb || [],
+      emp:            sc.emp || [],
       cbGridAll:      sc.cbGridAll,
-      rog53:          sc.rog53 || 0,
-      mhq2:          sc.mhq2,
-      mhq12:         sc.mhq12,
-      mhq20:         sc.mhq20,
+      rog:            sc.rog || [],
+      mhq:           sc.mhq || [],
       spelunkyUpg7:   sc.cachedSpelunkyUpg7,
       serverVarResXP: sc.serverVarResXP,
-      rog0:           sc.rog0 || 0,
-      rog8:           sc.rog8 || 0,
       button0:        sc.button0 || 0,
       btnBaseNoGrid:  sc.btnBaseNoGrid || 0,
       killroy5:       sc.killroy5 || 0,
       dream14:        sc.dream14 || 0,
+      bestShapePct:   sc.bestShapePct || 0,
     };
   }
 
@@ -154,9 +157,9 @@ export function makeSimCtx(gl, sc) {
   const hasComp55 = saveData.companionIds.has(55);
   const hasComp0DivOk = saveData.companionIds.has(0) && saveData.cachedComp0DivOk;
   const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
-  const _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
+  const _rog = buildRogArray(saveData.cachedUniqueSushi);
   return {
-    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll, _rog53),
+    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll, _rog[53] || 0),
     c52:            saveData.comp52TrueMulti,
     stickerFixed:   saveData.cachedStickerFixed,
     boonyCount:     saveData.cachedBoonyCount,
@@ -166,23 +169,19 @@ export function makeSimCtx(gl, sc) {
     hasComp0DivOk,
     hasComp54:      saveData.companionIds.has(54),
     companionHas153: saveData.companionIds.has(153),
-    evShop33:       eventShopOwned(33, eventShopStr),
-    evShop34:       eventShopOwned(34, eventShopStr),
-    evShop36:       eventShopOwned(36, eventShopStr),
-    emp46:          emporiumBonus(46, ninjaData102_9),
+    evShop:         buildEventShopArray(eventShopStr),
+    sb:             buildSuperBitArray(gamingData12),
+    emp:            buildEmporiumArray(ninjaData102_9),
     cbGridAll:      _cbGridAll,
-    rog53:          _rog53,
-    mhq2:          mineheadBonusQTY(2, mineFloor),
-    mhq12:         mineheadBonusQTY(12, mineFloor),
-    mhq20:         mineheadBonusQTY(20, mineFloor),
+    rog:            _rog,
+    mhq:           buildMhqArray(mineFloor),
     spelunkyUpg7:   saveData.cachedSpelunkyUpg7,
     serverVarResXP: saveData.serverVarResXP,
     dream14:        saveData.cachedDream14 || 0,
-    rog0:           rogBonusQTY(0, saveData.cachedUniqueSushi) || 0,
-    rog8:           rogBonusQTY(8, saveData.cachedUniqueSushi) || 0,
     button0:        saveData.cachedButtonBonus0 || 0,
     btnBaseNoGrid:  saveData.cachedBtnBaseNoGrid || 0,
     killroy5:       saveData.cachedKillroy5 || 0,
+    bestShapePct:   0,  // not available in this code path; always 0
   };
 }
 

@@ -2,6 +2,8 @@
 
 import { gbWith } from '../../sim-math.js';
 import { companionBonus } from '../data/common/companions.js';
+import { buffsActiveData } from '../../save/data.js';
+import { talent } from '../systems/common/talent.js';
 
 // ===== DESCRIPTOR FACTORY =====
 // Creates a validated stat descriptor object.
@@ -44,6 +46,37 @@ export function safe(fn) {
 export function rval(resolver, id, ctx, args) {
   try { return resolver.resolve(id, ctx, args).val || 0; }
   catch(e) { return 0; }
+}
+
+// safeTree(fn, ...args): like safe(), but always returns {val, children}.
+// Normalizes any return shape: number, {val,children}, {total,...}, {computed,...}.
+export function safeTree(fn) {
+  try {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    var v = fn.apply(null, args);
+    if (v == null || v !== v) return { val: 0, children: null };
+    if (typeof v === 'object') {
+      var numVal = v.val != null ? Number(v.val) :
+                   v.total != null ? Number(v.total) :
+                   v.computed != null ? Number(v.computed) :
+                   Number(v);
+      return { val: numVal || 0, children: v.children || null };
+    }
+    return { val: Number(v) || 0, children: null };
+  } catch(e) { return { val: 0, children: null }; }
+}
+
+// GetBuffBonuses(buffId, tab): checks if buff is active for character, returns talent value.
+// buffsActiveData[ci] = [ {0: buffId, 1: ..., 2: ...}, ... ]
+export function getBuffBonus(buffId, tab, ci, ctx) {
+  var charBuffs = buffsActiveData[ci] || [];
+  for (var bi = 0; bi < charBuffs.length; bi++) {
+    if (Number(charBuffs[bi][0] || charBuffs[bi]['0']) === buffId) {
+      return rval(talent, buffId, ctx, tab != null ? { tab: tab } : undefined);
+    }
+  }
+  return 0;
 }
 
 // Button_Bonuses(slotIdx): presses rotate through 9 slots in groups of 5.

@@ -30,6 +30,39 @@ import { monoAssignBestQuick } from './monos.js';
 import { reoptRegularMags } from '../sim-engine.js';
 import { gridPointsAvail } from '../sim-math.js';
 
+// Max spendable nodes to consider for combo enumeration.
+// With 8 nodes and 4 points: C(11,4) = 330 combos (fast).
+// With 22 nodes and 4 points: C(25,4) = 12,650 combos (slow).
+const MAX_SPENDABLE_NODES = 8;
+
+/**
+ * Pre-score each spendable node by +1 EXP/hr delta and keep only the top K.
+ * This prevents combinatorial explosion in enumGridCombos when many nodes
+ * are technically EXP-relevant but only a few matter meaningfully.
+ */
+export function pruneSpendable(spendable, gl, so, md, il, occ, rLv, ctx) {
+  if (spendable.length <= MAX_SPENDABLE_NODES) return spendable;
+
+  const baseExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
+  const scored = [];
+  for (let i = 0; i < spendable.length; i++) {
+    const idx = spendable[i];
+    const origLv = gl[idx] || 0;
+    gl[idx] = origLv + 1;
+    const trialABM = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
+    const rate = simTotalExpWith(gl, so, md, il, occ, rLv, { ...ctx, abm: trialABM });
+    gl[idx] = origLv;
+    scored.push({ idx, delta: rate - baseExpHr });
+  }
+  scored.sort((a, b) => b.delta - a.delta);
+  // Keep top K nodes, plus any gateway nodes (delta === 0 but needed for reachability)
+  const kept = [];
+  for (let i = 0; i < scored.length && kept.length < MAX_SPENDABLE_NODES; i++) {
+    kept.push(scored[i].idx);
+  }
+  return kept.sort((a, b) => a - b);
+}
+
 function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
   const relevant = new Set();
   const baseExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
@@ -55,7 +88,7 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
     for (let rank = 1; rank <= maxLv; rank++) {
       if (rank <= origLv) continue; // already at or past this rank
       gl[idx] = rank;
-      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll) };
+      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0) };
 
       // Check 1: does research EXP rate change?
       const testExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, testCtx);
@@ -285,13 +318,16 @@ function _exhaustiveSpendAtLevel(s, ctx) {
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);
-  const spendable = expandResult.spendable;
+  let spendable = expandResult.spendable;
   const freePoints = expandResult.freePoints;
 
   if (spendable.length === 0) return { changed: false, so: so, freePoints: avail };
 
   const usefulPoints = Math.min(avail, avail - freePoints);
   if (usefulPoints <= 0) return { changed: false, so: so, freePoints: avail };
+
+  // Prune to top nodes before combo enumeration
+  spendable = pruneSpendable(spendable, gl, so, md, il, occ, rLv, ctx);
 
   const combos = enumGridCombos(spendable, gl, usefulPoints);
   if (combos.length === 0) return { changed: false, so: so, freePoints: avail };
@@ -308,7 +344,7 @@ function _exhaustiveSpendAtLevel(s, ctx) {
   // Score each combo by simTotalExpWith (immediate EXP/hr rate)
   let bestCombo = null, bestRate = -Infinity;
   for (let ci = 0; ci < combos.length; ci++) {
-    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll);
+    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
     const rate = simTotalExpWith(combos[ci].gl, so, md, il, occ, rLv, { ...ctx, abm: trialABM });
     if (rate > bestRate) { bestRate = rate; bestCombo = combos[ci]; }
   }
@@ -412,12 +448,16 @@ export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
   if (avail <= 0) return { changed: false, so: so, freePoints: 0 };
 
   const expandResult = expandSpendable(gl, avail, so, md, il, occ, rLv, ctx);
-  const spendable = expandResult.spendable;
+  let spendable = expandResult.spendable;
   const freePoints = expandResult.freePoints;
 
   if (spendable.length === 0) return { changed: false, so: so, freePoints: avail };
 
   const usefulPoints = Math.min(avail, avail - freePoints);
+  if (usefulPoints <= 0) return { changed: false, so: so, freePoints: avail };
+
+  // Prune to top nodes before combo enumeration
+  spendable = pruneSpendable(spendable, gl, so, md, il, occ, rLv, ctx);
   if (usefulPoints <= 0) return { changed: false, so: so, freePoints: avail };
 
   const combos = enumGridCombos(spendable, gl, usefulPoints);
@@ -437,7 +477,7 @@ export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
   let scoredCombos = combos;
   if (combos.length > MAX_BEAM_COMBOS) {
     for (let pi = 0; pi < combos.length; pi++) {
-      const trialABM = calcAllBonusMultiWith(combos[pi].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, ctx.rog53);
+      const trialABM = calcAllBonusMultiWith(combos[pi].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
       combos[pi]._qr = simTotalExpWith(combos[pi].gl, so, md, il, occ, rLv, Object.assign({}, ctx, { abm: trialABM }));
     }
     combos.sort(function(a, b) { return b._qr - a._qr; });

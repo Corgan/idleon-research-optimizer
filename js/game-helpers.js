@@ -6,8 +6,15 @@ import { N2L } from './game-data.js';
 import { EMPEROR_SET_BONUS_VAL } from './stats/data/common/emperor.js';
 
 export function eventShopOwned(t, eventShopStr) {
-  if (t < 0 || t >= N2L.length) return 0;
+  if (t < 0 || t >= N2L.length || !eventShopStr) return 0;
   return eventShopStr.includes(N2L[t]) ? 1 : 0;
+}
+
+/** Precompute all event shop owned flags into an array. */
+export function buildEventShopArray(eventShopStr) {
+  var arr = new Array(N2L.length);
+  for (var i = 0; i < arr.length; i++) arr[i] = eventShopStr && eventShopStr.includes(N2L[i]) ? 1 : 0;
+  return arr;
 }
 
 export function superBitType(t, gamingData12) {
@@ -15,9 +22,25 @@ export function superBitType(t, gamingData12) {
   return String(gamingData12 || '').includes(N2L[t]) ? 1 : 0;
 }
 
+/** Precompute all superbit flags into an array. */
+export function buildSuperBitArray(gamingData12) {
+  var s = String(gamingData12 || '');
+  var arr = new Array(N2L.length);
+  for (var i = 0; i < arr.length; i++) arr[i] = s.includes(N2L[i]) ? 1 : 0;
+  return arr;
+}
+
 export function emporiumBonus(t, ninjaData102_9) {
   if (t < 0 || t >= N2L.length) return 0;
   return String(ninjaData102_9 || '').includes(N2L[t]) ? 1 : 0;
+}
+
+/** Precompute all emporium bonus flags into an array. */
+export function buildEmporiumArray(ninjaData102_9) {
+  var s = String(ninjaData102_9 || '');
+  var arr = new Array(N2L.length);
+  for (var i = 0; i < arr.length; i++) arr[i] = s.includes(N2L[i]) ? 1 : 0;
+  return arr;
 }
 
 export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData) {

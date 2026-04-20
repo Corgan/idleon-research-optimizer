@@ -22,7 +22,7 @@ function _shinyBonusParts(catKey, saveData) {
   var parts = [];
   var total = 0;
   for (var world = 0; world < 4; world++) {
-    var shinyExps = saveData.breedingData[22 + world];
+    var shinyExps = saveData.breedingData && saveData.breedingData[22 + world];
     var petTypes = PET_SHINY_TYPE[world];
     if (!shinyExps || !petTypes) continue;
     for (var pet = 0; pet < petTypes.length; pet++) {

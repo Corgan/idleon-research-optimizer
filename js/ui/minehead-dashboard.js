@@ -4,6 +4,7 @@ import { gbWith } from '../sim-math.js';
 import { computeMineheadCurrSources } from '../stats/systems/w7/minehead.js';
 import { renderBreakdownTree } from './dash-breakdowns.js';
 import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
+import { label } from '../stats/entity-names.js';
 import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 import { computeButtonBonus } from '../stats/defs/helpers.js';
@@ -52,9 +53,11 @@ export function renderDashboard() {
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
+    eventShop44: mhSrc.eventShop44,
     upgLevels: lvs, highestDmg,
   });
   const rLv = saveData.researchLevel || 0;
+  const rogCostPct = Math.max(rogBonusQTY(1, uniqueSushi), rogBonusQTY(16, uniqueSushi));
   let nextUpgReq = Infinity;
   for (let i = 0; i < MINEHEAD_UPG.length; i++) {
     const req = upgLvReq(i);
@@ -100,7 +103,7 @@ export function renderDashboard() {
           ${MINEHEAD_UPG.map((u, i) => {
             const lv = lvs[i] || 0;
             const qty = upgradeQTY(i, lv);
-            const cost = lv < u.maxLv || u.maxLv > 998 ? upgCost(i, lv, upgradeQTY(26, lvs[26] || 0), svarCost) : '--';
+            const cost = lv < u.maxLv || u.maxLv > 998 ? upgCost(i, lv, upgradeQTY(26, lvs[26] || 0), svarCost, rogCostPct) : '--';
             const reqLv = upgLvReq(i);
             const maxed = u.maxLv <= 998 && lv >= u.maxLv;
             const infinite = u.maxLv > 998;
@@ -196,6 +199,7 @@ export function renderCurrencyTab() {
     comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
+    eventShop44: mhSrc.eventShop44,
     upgLevels: lvs, highestDmg,
   });
 
@@ -213,6 +217,7 @@ export function renderCurrencyTab() {
 }
 
 function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12 = 0) {
+  const eventShop44 = mhSrc.eventShop44 || 0;
   const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
   const upg5 = upgradeQTY(5, lvs[5]);
   const upg22 = upgradeQTY(22, lvs[22]);
@@ -230,7 +235,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const si129 = saveData.shapeOverlay[129];
   const hasShape129 = si129 >= 0 && si129 < SHAPE_BONUS_PCT.length;
   const shapeMult129 = 1 + (hasShape129 ? SHAPE_BONUS_PCT[si129] : 0) / 100;
-  const gb129node = _bNode('Grid ' + gridCoord(129) + ': ' + info129[0].replace(/_/g, ' '), gb129, [
+  const gb129node = _bNode(label('Grid', 129), gb129, [
     _bNode('Base', base129, [
       _bNode('Base per Lv', bpLv129, null, { note: info129[0].replace(/_/g, ' ') }),
       _bNode('Level', lv129, null, { fmt: 'x' }),
@@ -245,18 +250,18 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   if (gb148node.children?.[0]) gb148node.children[0].label = 'Base';
 
   const upgChildren = [];
-  upgChildren.push(_bNode('Miney Farmey I', upg5, null, { fmt: '%', note: `Upg 5, Lv ${lvs[5] || 0}` }));
-  upgChildren.push(_bNode('Miney Farmey II', upg22, null, { fmt: '%', note: `Upg 22, Lv ${lvs[22] || 0}` }));
-  upgChildren.push(_bNode('Miney Damagey Synergy', upg28, [
+  upgChildren.push(_bNode(label('Minehead', 5), upg5, null, { fmt: '%', note: `Upg 5, Lv ${lvs[5] || 0}` }));
+  upgChildren.push(_bNode(label('Minehead', 22), upg22, null, { fmt: '%', note: `Upg 22, Lv ${lvs[22] || 0}` }));
+  upgChildren.push(_bNode(label('Minehead', 28), upg28, [
     _bNode('Base per Lv', upg28raw, null, { fmt: '%', note: `Upg 28, Lv ${lvs[28] || 0}` }),
     _bNode('log\u2081\u2080(Highest Dmg)', logDmg, null, { fmt: 'x', note: `Highest Dmg = ${_fmt(highestDmg)}` }),
   ], { fmt: '%' }));
-  upgChildren.push(_bNode('Arcade: Minehead Currency', mhSrc.arcade62, null, {
+  upgChildren.push(_bNode(label('Arcade', 62), mhSrc.arcade62, null, {
     fmt: '%', note: `Arcade 62, Lv ${mhSrc.arcade62lv}, decay(25, 100)`,
   }));
   const upgNode = _bNode('Upgrade & Arcade Bonus', 1 + upgAddSum / 100, upgChildren, { fmt: 'x' });
 
-  const atomNode = _bNode('Atom: Silicon', atomMult, null, {
+  const atomNode = _bNode(label('Atom', 13), atomMult, null, {
     fmt: 'x', note: `Atom 13, Lv ${mhSrc.atom13}`,
   });
 
@@ -272,13 +277,13 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     _bNode('Ribbon (T' + mhSrc.mealRibT + ')', mhSrc.mealRibBon, null, { fmt: 'x' }),
     _bNode('Meal Multi', mhSrc.mealCookMulti, [
       _bNode('Cooking Multi', (1 + (mhSrc.mealMfb116 + mhSrc.mealShinyS20) / 100), [
-        _bNode('Black Diamond Rhinestone', mhSrc.mealMfb116, null, { fmt: '%' }),
-        _bNode('Shiny: Meal Bonus', mhSrc.mealShinyS20, null, { fmt: '%' }),
+        _bNode(label('Mainframe', 116), mhSrc.mealMfb116, null, { fmt: '%' }),
+        _bNode(label('Breeding', 20), mhSrc.mealShinyS20, null, { fmt: '%' }),
       ], { fmt: 'x' }),
-      _bNode('Summoning Win Bonus', 1 + mhSrc.mealWinBon26 / 100, null, { fmt: 'x' }),
+      _bNode(label('WinBonus', 26), 1 + mhSrc.mealWinBon26 / 100, null, { fmt: 'x' }),
     ], { fmt: 'x' }),
   ] : null;
-  const mealNode = _bNode('Meal: 2nd Wedding Cake', mhSrc.mealMineCurr, mealChildren, {
+  const mealNode = _bNode(label('Meal', 73), mhSrc.mealMineCurr, mealChildren, {
     fmt: '%', note: mhSrc.mealLv > 0 ? '' : 'Meal 73 not leveled',
   });
 
@@ -291,7 +296,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     gb147node, gb166node, mealNode,
   ], { fmt: 'x' });
 
-  const comp143node = _bNode('Boomy Mine (Companion)', comp143mult, null, {
+  const comp143node = _bNode(label('Companion', 143), comp143mult, null, {
     fmt: 'x', note: mhSrc.comp143 > 0 ? 'w7b2 owned \u2192 2\u00d7 Minehead Currency' : 'Not owned',
   });
 
@@ -300,15 +305,20 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   });
 
   const rogMult = 1 + rogB12 / 100;
-  const rogNode = _bNode('RoG #12: Minehead Currency', rogMult, null, {
+  const rogNode = _bNode(label('RoG', 12), rogMult, null, {
     fmt: 'x', note: rogB12 > 0 ? `+${rogB12}% (50% when unlocked)` : 'Not unlocked',
   });
 
   var bb1 = computeButtonBonus(1, saveData);
-  var buttonNode = _bNode('Button Bonus', 1 + bb1 / 100, null, { fmt: 'x' });
+  var buttonNode = _bNode(label('Button', 1), 1 + bb1 / 100, null, { fmt: 'x' });
+
+  const eventShopMult = 1 + 100 * eventShop44 / 100;
+  const eventShopNode = _bNode('Event Shop 44', eventShopMult, null, {
+    fmt: 'x', note: eventShop44 ? '2nd Wedding Cake owned' : 'Not owned',
+  });
 
   return _bNode('Mine Currency/hr', cph, [
-    gb129node, gb148node, rogNode, comp143node, bossNode,
+    gb129node, eventShopNode, gb148node, rogNode, comp143node, bossNode,
     upgNode, buttonNode, atomNode, passiveNode,
   ], { fmt: '/hr' });
 }

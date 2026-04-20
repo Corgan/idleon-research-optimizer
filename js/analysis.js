@@ -183,9 +183,9 @@ export async function computeObsUnlockPriority(onProgress, state, saveCtx) {
   const { gl, so, il, occ, md, mOwned, mMax, rLv, failedRolls, ctx } = _resolveState(state, saveCtx);
   const currentTotal = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   const smartEyeLv = gl[31]||0, sharpEyeLv = gl[51]||0, obsLv = gl[90]||0;
-  const maxRoll = Math.floor(100 + sharpEyeLv);
+  const maxRoll = Math.floor(100 + sharpEyeLv + ((saveCtx.rog && saveCtx.rog[30]) || 0));
   const smartEyePerFail = smartEyeLv, smartEyeCap = 25*smartEyeLv;
-  const rollsPerDay = Math.round(3 + obsLv + 3*saveCtx.evShop35);
+  const rollsPerDay = Math.round(3 + obsLv + 3*(saveCtx.evShop[35]||0) + ((saveCtx.rog && saveCtx.rog[2]) || 0));
   const results = [], undiscovered = [];
   for (let t=0;t<OCC_DATA.length;t++) if ((occ[t]||0)<1) undiscovered.push(t);
   const totalUndiscovered = undiscovered.length;

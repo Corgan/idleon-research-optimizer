@@ -7,10 +7,11 @@ import { GodsInfo } from '../../data/game/customlists.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
 import { formulaEval } from '../../../formulas.js';
+import { treeResult } from '../../node.js';
 
 export function hasBonusMajor(playerIdx, godType, saveData) {
   // Companions(0): Ballthezar = all gods, requires divinity lv >= 2
-  if (saveData.companionIds.has(0) && (saveData.lv0AllData[0] && saveData.lv0AllData[0][14] || 0) >= 2) return true;
+  if (saveData.companionIds && saveData.companionIds.has(0) && (saveData.lv0AllData && saveData.lv0AllData[0] && saveData.lv0AllData[0][14] || 0) >= 2) return true;
   // Holes PocketDivOwned: cosmic pocket slots
   var hole29 = saveData.holesData && saveData.holesData[11] && saveData.holesData[11][29];
   var hole30 = saveData.holesData && saveData.holesData[11] && saveData.holesData[11][30];
@@ -25,7 +26,7 @@ export function hasBonusMajor(playerIdx, godType, saveData) {
     if (chosenGodIdx >= 0 && godsType(chosenGodIdx) === godType) return true;
   }
   // Research grid 173  type 2 only
-  if (godType === 2 && (saveData.gridLevels[173] || 0) >= 1) return true;
+  if (godType === 2 && (saveData.gridLevels && saveData.gridLevels[173] || 0) >= 1) return true;
   // Normal: player's assigned god from Divinity[playerIdx + 12]
   var assignedGod = divinityData[playerIdx + 12];
   if (assignedGod == null) assignedGod = -1;
@@ -42,7 +43,7 @@ export function computeDivinityMinor(ci, style, saveData) {
   for (var g = 0; g < GodsInfo.length; g++) {
     if (GodsInfo[g] && Number(GodsInfo[g][13]) === style) { targetGod = g; break; }
   }
-  if (targetGod < 0) return 0;
+  if (targetGod < 0) return treeResult(0);
   // Game uses double-indexed base: GodsInfo[GodsInfo[godIdx][13]][3]
   function godBaseForIdx(godIdx) {
     var st = Number(GodsInfo[godIdx] && GodsInfo[godIdx][13]);
@@ -58,29 +59,43 @@ export function computeDivinityMinor(ci, style, saveData) {
 
   function divMinorBonus(charIdx, godIdx) {
     var divLv = Number(s.lv0AllData && s.lv0AllData[charIdx] && s.lv0AllData[charIdx][14]) || 0;
-    if (divLv <= 0) return 0;
+    if (divLv <= 0) return { val: 0, children: null };
     var y2Active = (allBub || (cauldronBubblesData && (cauldronBubblesData[charIdx] || []).includes('d21'))) ? y2Value : 0;
-    return Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBaseForIdx(godIdx);
+    var godBase = godBaseForIdx(godIdx);
+    var val = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBase;
+    return { val: val, children: [
+      { name: 'Div Lv', val: divLv, fmt: 'raw' },
+      { name: 'Lv Scale', val: divLv / (60 + divLv), fmt: 'raw', note: 'lv/(60+lv)' },
+      { name: 'God Base', val: godBase, fmt: 'raw' },
+      { name: 'Y2 Bubble', val: Math.max(1, y2Active), fmt: 'x' },
+      { name: 'Coral Kid 3', val: 1 + coralKid3 / 100, fmt: 'x' },
+    ] };
   }
 
   if (style === 3 || style === 5) {
     var total = 0;
+    var perCharChildren = [];
     for (var c = 0; c < numCharacters; c++) {
-      total += divMinorBonus(c, targetGod);
+      var r = divMinorBonus(c, targetGod);
+      total += r.val;
+      if (r.val > 0) perCharChildren.push({ name: 'Char ' + c, val: r.val, fmt: 'raw', children: r.children });
     }
-    return total;
+    return treeResult(total, perCharChildren);
   }
-  if (ci < 0) return 0;
+  if (ci < 0) return treeResult(0);
   // Universal condition: Companion(0) active → all gods' minor bonuses available
   var hasUniversal = s.companionIds && s.companionIds.has(0);
   if (hasUniversal) {
-    return divMinorBonus(ci, targetGod);
+    var r = divMinorBonus(ci, targetGod);
+    return treeResult(r.val, r.children);
   }
-  var linkedGod = Number(divinityData && divinityData[ci]) || -1;
-  if (linkedGod < 0) return 0;
+  var _lgRaw = divinityData && divinityData[ci + 12];
+  var linkedGod = _lgRaw != null ? Number(_lgRaw) : -1;
+  if (linkedGod < 0) return treeResult(0);
   var linkedStyle = Number(GodsInfo[linkedGod] && GodsInfo[linkedGod][13]);
-  if (linkedStyle !== style) return 0;
-  return divMinorBonus(ci, linkedGod);
+  if (linkedStyle !== style) return treeResult(0);
+  var r = divMinorBonus(ci, linkedGod);
+  return treeResult(r.val, r.children);
 }
 
 // ==================== DIVINITY MAJOR ====================
@@ -92,7 +107,8 @@ export function computeDivinityMajor(ci, style, saveData) {
     if (GodsInfo[g] && Number(GodsInfo[g][13]) === style) { targetGod = g; break; }
   }
   if (targetGod < 0) return 0;
-  var linkedGod = Number(divinityData && divinityData[ci]) || -1;
+  var _lgRaw = divinityData && divinityData[ci + 12];
+  var linkedGod = _lgRaw != null ? Number(_lgRaw) : -1;
   var hasMajor = (linkedGod === targetGod);
   if (s.companionIds && s.companionIds.has(0)) hasMajor = true;
   if (!hasMajor) return 0;

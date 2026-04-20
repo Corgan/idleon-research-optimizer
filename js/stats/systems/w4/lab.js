@@ -64,7 +64,7 @@ function _greenStackCount(saveData) {
 function gridAllMulti(saveData) {
   var comp55 = saveData.companionIds && saveData.companionIds.has(55) ? companionBonus(55) : 0;
   var comp0 = saveData.companionIds && saveData.companionIds.has(0) ? companionBonus(0) : 0;
-  var grid173Lv = saveData.gridLevels[173] || 0;
+  var grid173Lv = (saveData.gridLevels && saveData.gridLevels[173]) || 0;
   var cb71 = cloudBonus(71, saveData.weeklyBossData);
   var cb72 = cloudBonus(72, saveData.weeklyBossData);
   var cb76 = cloudBonus(76, saveData.weeklyBossData);
@@ -75,10 +75,10 @@ function gridAllMulti(saveData) {
 export var grid = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
-    var gridLv = saveData.gridLevels[id] || 0;
+    var gridLv = (saveData.gridLevels && saveData.gridLevels[id]) || 0;
     if (gridLv < 1) return node(label('Grid', id), 0, null, { note: 'grid ' + id });
 
-    var si = saveData.shapeOverlay[id];
+    var si = saveData.shapeOverlay && saveData.shapeOverlay[id];
     var shapePct = (si >= 0 && si < SHAPE_BONUS_PCT.length) ? SHAPE_BONUS_PCT[si] : 0;
     var shapeMult = 1 + shapePct / 100;
     var am = gridAllMulti(saveData);
@@ -157,7 +157,7 @@ export function computePetArenaBonus(idx) {
 }
 
 function computeBonusLineWidth(playerIdx, saveData) {
-  var gemSlots = 2 * (saveData.gemItemsData[123] || 0);
+  var gemSlots = 2 * ((saveData.gemItemsData && saveData.gemItemsData[123]) || 0);
   if (playerIdx >= gemSlots) return 0;
   return hasBonusMajor(playerIdx, 2, saveData) ? 30 : 0;
 }
@@ -185,7 +185,7 @@ function computeMealBonusLinePct(saveData) {
   var eelLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][40]) || 0;
   if (eelLv <= 0) return 0;
   var cookMulti = computeCookingMealMulti(saveData);
-  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData[379], saveData.weeklyBossData);
+  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData && saveData.olaData[379], saveData.weeklyBossData);
   return cookMulti * ribbon * eelLv * 1;
 }
 
@@ -210,7 +210,7 @@ function computeBubonicPurple(playerIdx, saveData) {
 }
 
 function computePlayerDist(playerIdx, saveData) {
-  var labLev = (saveData.lv0AllData[playerIdx] && saveData.lv0AllData[playerIdx][12]) || 0;
+  var labLev = (saveData.lv0AllData && saveData.lv0AllData[playerIdx] && saveData.lv0AllData[playerIdx][12]) || 0;
   var baseDist = 50 + 2 * labLev;
   var px = (labData && labData[0] && labData[0][2 * playerIdx]) || 0;
   var py = (labData && labData[0] && labData[0][2 * playerIdx + 1]) || 0;
@@ -349,6 +349,7 @@ export function computeLabConnectivity(saveData) {
 }
 
 export function mainframeBonus(e, saveData) {
+  if (!saveData || !saveData.labMainBonusFull) return 0;
   var lmbLen = saveData.labMainBonusFull.length;
   if (e < 100) {
     if (e >= lmbLen) return 0;

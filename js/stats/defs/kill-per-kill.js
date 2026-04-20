@@ -27,6 +27,7 @@ import { computeExoticBonus } from '../systems/w6/farming.js';
 import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
+import { computeOverkillTier } from '../systems/common/overkill.js';
 
 export default createDescriptor({
   id: 'kill-per-kill',
@@ -67,9 +68,9 @@ export default createDescriptor({
         + talent531 * (totalWIS / 1000);
     }
 
-    // OverkillStuffs("3") check — simplified: assume overkill is active if char has damage
-    // Game checks if damage > 10 * monsterHP, but we approximate as active
-    var overkillActive = true;
+    // OverkillStuffs("3"): overkill is active if tier >= 2 (dmg ≥ HP * exp * exp^1)
+    var okInfo = computeOverkillTier(ci, ctx, { mapIdx: mapIdx });
+    var overkillActive = okInfo.tier >= 2;
 
     // Multiplicative chain (when overkill active)
     var mf4 = Math.max(1, safe(mainframeBonus, 4, s));

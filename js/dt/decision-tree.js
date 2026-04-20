@@ -958,4 +958,14 @@ export function renderAll() {
   if (sbTarget) {
     sbTarget.value = _rLv + 1;
   }
+  // Auto-check tournament checkbox if EventShopOwned(46) "Research Registrant" is owned
+  const tournamentCb = document.getElementById('opt-tournament');
+  const tournamentNote = document.getElementById('opt-tournament-note');
+  if (tournamentCb) {
+    const hasTourney = !!(sc.evShop && sc.evShop[46] === 1);
+    tournamentCb.checked = hasTourney;
+    if (tournamentNote) {
+      tournamentNote.textContent = hasTourney ? '' : '(EventShop \u201CResearch Registrant\u201D not owned)';
+    }
+  }
 }

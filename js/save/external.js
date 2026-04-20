@@ -29,11 +29,11 @@ import { computeCardLv } from '../stats/systems/common/cards.js';
 import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
 import { computeMeritocBonusz } from '../stats/systems/w7/meritoc.js';
-import { mineheadBonusQTY } from '../stats/systems/w7/research.js';
+import { mineheadBonusQTY } from '../stats/systems/w7/minehead.js';
 import { computeShinyBonusS } from '../stats/systems/w4/breeding.js';
 import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
 import { computeWinBonus } from '../stats/systems/w6/summoning.js';
-import { rogBonusQTY } from '../stats/data/w7/sushi.js';
+import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 import { getLOG } from '../formulas.js';
 // Grid bonus helper - uses _gbWith directly to avoid circular dep with calculations.js
 function _gridBonusFinal(idx) {

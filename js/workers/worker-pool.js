@@ -23,6 +23,7 @@ import {
 import {
   enumGridCombos,
   expandSpendable,
+  pruneSpendable,
 } from '../optimizers/grid-spend.js';
 
 // ===== WEB WORKER HELPERS =====
@@ -181,7 +182,10 @@ function _createSimWorkerPool(snapshot, poolSize, onSimProgress) {
 export async function runParallelOptimizer(target, progressCb, opts) {
   const assumeObs = !!(opts && opts.assumeObs);
   const extendInsightLA = !!(opts && opts.extendInsightLA);
+  const includeTournament = opts && opts.includeTournament !== undefined ? opts.includeTournament : undefined;
+  const snapshotF6 = opts && opts.snapshotF6 !== undefined ? opts.snapshotF6 : true;
   const _saveCtx = _buildWorkerCtx();
+  if (!snapshotF6) _saveCtx.bestShapePct = 0;
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
 
   // Formatting helpers (main-thread copies)
@@ -270,7 +274,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const comp153bonus = (_saveCtx.companionHas153 ? 10 : 0) + (_saveCtx.rog3 || 0) + (_saveCtx.rog13 || 0) + (_saveCtx.sailingArt37 || 0);
+    const comp153bonus = (_saveCtx.companionHas153 ? 10 : 0) + ((_saveCtx.rog && _saveCtx.rog[3]) || 0) + ((_saveCtx.rog && _saveCtx.rog[13]) || 0) + (_saveCtx.sailingArt37 || 0);
     const sq50 = _saveCtx.gridLevels[50] || 0;
     const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, comp153bonus);
     const futureEarned = target.type === 'level'
@@ -283,7 +287,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
       _reportProgress();
       const sim = await pool.runSim(0, {
         target: target, reoptimize: true, preOptExpHr: preOptRate,
-        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA, includeTournament: includeTournament
       });
       if (progressCb) progressCb(1000, 1000, 'Simulation complete');
       pool.terminate(); _optWorkerPool = null;
@@ -291,8 +295,9 @@ export async function runParallelOptimizer(target, progressCb, opts) {
     }
 
     // Expand spendable set - only EXP-relevant nodes + gateways (only currently-available points)
-    const expandResult = expandSpendable(_saveCtx.gridLevels, availPts, _saveCtx.shapeOverlay, _saveCtx.magData, _saveCtx.insightLvs, _saveCtx.occFound, _saveCtx.researchLevel, makeSimCtx(_saveCtx.gridLevels));
-    const spendable = expandResult.spendable;
+    const _initCtx = makeSimCtx(_saveCtx.gridLevels, _saveCtx);
+    const expandResult = expandSpendable(_saveCtx.gridLevels, availPts, _saveCtx.shapeOverlay, _saveCtx.magData, _saveCtx.insightLvs, _saveCtx.occFound, _saveCtx.researchLevel, _initCtx);
+    let spendable = expandResult.spendable;
     const freePoints = expandResult.freePoints;
     const freeNotice = expandResult.notice;
 
@@ -301,13 +306,16 @@ export async function runParallelOptimizer(target, progressCb, opts) {
       _reportProgress();
       const sim = await pool.runSim(0, {
         target: target, reoptimize: true, preOptExpHr: preOptRate,
-        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA, includeTournament: includeTournament
       });
       const msg = freeNotice || 'No upgradeable grid points found.';
       if (progressCb) progressCb(1000, 1000, msg);
       pool.terminate(); _optWorkerPool = null;
       return { best: sim, paths: [{ steps: [], sim: sim }], bestSteps: [], preOptRate: preOptRate, notice: msg, freePoints: availPts };
     }
+
+    // Prune to top nodes before combo enumeration
+    spendable = pruneSpendable(spendable, _saveCtx.gridLevels, _saveCtx.shapeOverlay, _saveCtx.magData, _saveCtx.insightLvs, _saveCtx.occFound, _saveCtx.researchLevel, _initCtx);
 
     // Only distribute currently-available points; future-earned handled by mid-sim branching
     const usefulPoints = Math.min(availPts, availPts - freePoints);
@@ -327,7 +335,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
       const _occ = _saveCtx.occFound;
       const _rLv = _saveCtx.researchLevel;
       for (var ci = 0; ci < combos.length; ci++) {
-        var trialABM = calcAllBonusMultiWith(combos[ci].gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, _ctx.rog53);
+        var trialABM = calcAllBonusMultiWith(combos[ci].gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, (_ctx.rog && _ctx.rog[53]) || 0);
         combos[ci]._qr = simTotalExpWith(combos[ci].gl, _so, _md, _il, _occ, _rLv, Object.assign({}, _ctx, { abm: trialABM }));
       }
       combos.sort(function(a, b) { return b._qr - a._qr; });
@@ -344,7 +352,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
       const simId = ci;
       return pool.runSim(simId, {
         target: target, reoptimize: true, gridLevels: combo.gl, preOptExpHr: preOptRate,
-        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA
+        assumeObsUnlocked: assumeObs, extendInsightLA: extendInsightLA, includeTournament: includeTournament
       }).then(function(sim) {
         completedSims++;
         _reportProgress();

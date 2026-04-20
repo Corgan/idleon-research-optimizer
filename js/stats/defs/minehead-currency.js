@@ -60,7 +60,7 @@ export default createDescriptor({
         { name: 'Upg 5', val: upg5, fmt: 'raw' },
         { name: 'Upg 22', val: upg22, fmt: 'raw' },
         { name: 'Upg 28×LOG', val: upg28, fmt: 'raw' },
-        { name: label('Arcade', 62), val: arcade62, fmt: 'raw' },
+        { name: label('Arcade', 62), val: arcade62, fmt: 'raw', children: arcade62.children },
       ] });
 
     // 7. × (1+Button_Bonuses(1)/100)

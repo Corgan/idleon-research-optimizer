@@ -1,7 +1,7 @@
 // ===== ALCHEMY SYSTEM (W2) =====
 // Alchemy bubble bonuses and sigil bonuses.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { cauldronInfoData, optionsListData, charClassData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
@@ -16,7 +16,7 @@ import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 
 export function sigilBonus(sigilIdx, saveData) {
-  var level = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * sigilIdx]) || 0;
+  var level = Number((saveData.cauldronP2WData && saveData.cauldronP2WData[4] || [])[1 + 2 * sigilIdx]) || 0;
   if (level < -0.1) return 0;
   var tiers = sigilTiers(sigilIdx);
   if (!tiers) return 0;
@@ -26,7 +26,7 @@ export function sigilBonus(sigilIdx, saveData) {
   else if (level < 2.5) base = tiers[2];
   else if (level < 3.5) base = tiers[3];
   else base = tiers[4] || tiers[3];
-  var tier16 = Number((saveData.sailingData[3] || [])[16]) || 0;
+  var tier16 = Number((saveData.sailingData && saveData.sailingData[3] || [])[16]) || 0;
   var artifactMulti = 1 + (tier16 === 0 ? 0 : Math.max(1, tier16));
   var meritocMulti = 1 + computeMeritocBonusz(21, saveData) / 100;
   return base * artifactMulti * meritocMulti;
@@ -169,7 +169,7 @@ export var sigil = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
     var name = label('Sigil', id);
-    var level = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * id]) || 0;
+    var level = Number((saveData.cauldronP2WData && saveData.cauldronP2WData[4] || [])[1 + 2 * id]) || 0;
     if (level < -0.1) return node(name, 0, null, { note: 'sigil ' + id });
     var tiers = sigilTiers(id);
     if (!tiers) return node(name, 0, null, { note: 'sigil ' + id });
@@ -179,7 +179,7 @@ export var sigil = {
     else if (level < 2.5) base = tiers[2];
     else if (level < 3.5) base = tiers[3];
     else base = tiers[4] || tiers[3];
-    var artifactMulti = 1 + (Number((saveData.sailingData[3] || [])[16]) || 0 ? Math.max(1, Number((saveData.sailingData[3] || [])[16])) : 0);
+    var artifactMulti = 1 + (Number((saveData.sailingData && saveData.sailingData[3] || [])[16]) || 0 ? Math.max(1, Number((saveData.sailingData && saveData.sailingData[3] || [])[16])) : 0);
     var meritocMulti = 1 + (computeMeritocBonusz(21, saveData) || 0) / 100;
     var val = base * artifactMulti * meritocMulti;
     return node(name, val, [
@@ -201,27 +201,35 @@ export function bubbleValByKey(key, charIdx, saveData) {
     for (var i = 0; i < arr.length; i++) {
       if (arr[i] && arr[i][15] === key) {
         var lv = Number((cauldronInfoData && cauldronInfoData[c2] && cauldronInfoData[c2][i]) || 0);
-        if (lv <= 0) return 0;
+        if (lv <= 0) return treeResult(0, null);
         var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
+        var children = [node('Level', lv, null, { fmt: 'raw' }), node('Base', baseVal, null, { fmt: 'raw' })];
         var isPrisma = isBubblePrismad(c2, i);
         var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
         var val = baseVal * prismaMult;
+        if (isPrisma) children.push(node('Prisma', prismaMult, null, { fmt: 'x' }));
         var cls = Number(charClassData && charClassData[charIdx]) || 0;
         if (cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            val *= Math.max(1, bubbleValByKey('Opassz', charIdx, saveData));
+            var _pm = Math.max(1, bubbleValByKey('Opassz', charIdx, saveData));
+            val *= _pm;
+            if (_pm > 1) children.push(node('Opassz', _pm, null, { fmt: 'x' }));
           } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            val *= Math.max(1, bubbleValByKey('Gpassz', charIdx, saveData));
+            var _pm = Math.max(1, bubbleValByKey('Gpassz', charIdx, saveData));
+            val *= _pm;
+            if (_pm > 1) children.push(node('Gpassz', _pm, null, { fmt: 'x' }));
           } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            val *= Math.max(1, bubbleValByKey('Ppassz', charIdx, saveData));
+            var _pm = Math.max(1, bubbleValByKey('Ppassz', charIdx, saveData));
+            val *= _pm;
+            if (_pm > 1) children.push(node('Ppassz', _pm, null, { fmt: 'x' }));
           }
         }
-        return val;
+        return treeResult(val, children);
       }
     }
   }
-  return 0;
+  return treeResult(0, null);
 }
 
 // ==================== VIAL BY KEY ====================
@@ -229,8 +237,9 @@ export function bubbleValByKey(key, charIdx, saveData) {
 
 export function computeVialByKey(effectKey, saveData) {
   var vials = AlchemyDescription[4];
-  if (!vials) return 0;
+  if (!vials) return treeResult(0);
   var total = 0;
+  var children = [];
   for (var vi = 0; vi < vials.length; vi++) {
     if (!vials[vi] || vials[vi][11] !== effectKey) continue;
     var vialLv = Number((cauldronInfoData && cauldronInfoData[4] && cauldronInfoData[4][vi]) || 0);
@@ -247,7 +256,17 @@ export function computeVialByKey(effectKey, saveData) {
     }
     var dNzz = (riftActive ? 2 * maxLvVials : 0) + (vaultUpgBonus(42, saveData) || 0);
     var meritoc20 = computeMeritocBonusz(20, saveData) || 0;
-    total += labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
+    var contrib = labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
+    total += contrib;
+    children.push({
+      name: (vials[vi][0] || 'Vial ' + vi), val: contrib, fmt: 'raw',
+      children: [
+        { name: 'Raw (lv=' + vialLv + ')', val: rawVal, fmt: 'raw' },
+        { name: 'Lab Multi', val: labMult, fmt: 'x' },
+        { name: 'Rift+Vault Multi', val: 1 + dNzz / 100, fmt: 'x' },
+        { name: 'Meritoc Multi', val: 1 + meritoc20 / 100, fmt: 'x' },
+      ],
+    });
   }
-  return total;
+  return treeResult(total, children);
 }

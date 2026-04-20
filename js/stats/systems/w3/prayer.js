@@ -1,7 +1,7 @@
 // ===== PRAYER SYSTEM (W3) =====
 // Prayer bonuses for equipped prayers.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { prayersPerCharData } from '../../../save/data.js';
 import { prayerBaseBonus } from '../../data/w3/prayer.js';
@@ -37,12 +37,17 @@ export var prayer = {
 
 export function computePrayerReal(prayerIdx, costIdx, ci, saveData) {
   var prayerLv = Number(saveData.prayOwnedData && saveData.prayOwnedData[prayerIdx]) || 0;
-  if (prayerLv <= 0) return 0;
+  if (prayerLv <= 0) return treeResult(0);
   var equipped = false;
   try { equipped = (prayersPerCharData[ci] || []).includes(prayerIdx); } catch(e) {}
-  if (!equipped) return 0;
+  if (!equipped) return treeResult(0);
   var base = 0;
   try { base = prayerBaseBonus(prayerIdx, costIdx) || 0; } catch(e) {}
   var scale = Math.max(1, 1 + (prayerLv - 1) / 10);
-  return Math.round(base * scale);
+  var val = Math.round(base * scale);
+  return treeResult(val, [
+    { name: 'Base Bonus', val: base, fmt: 'raw' },
+    { name: 'Prayer Lv', val: prayerLv, fmt: 'raw' },
+    { name: 'Level Scale', val: scale, fmt: 'x' },
+  ]);
 }

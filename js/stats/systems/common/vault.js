@@ -9,6 +9,7 @@ import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
 import { vaultUpgPerLevel } from '../../data/common/vault.js';
 
 export function vaultUpgBonus(idx, saveData) {
+  if (!saveData || !saveData.vaultData) return 0;
   var level = Number(saveData.vaultData[idx]) || 0;
   if (level <= 0) return 0;
   var perLv = vaultUpgPerLevel(idx);

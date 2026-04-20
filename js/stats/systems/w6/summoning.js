@@ -1,7 +1,7 @@
 // ===== SUMMONING SYSTEM (W6) =====
 // Summoning win bonuses.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { artifactBase } from '../../data/w5/sailing.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
@@ -13,9 +13,11 @@ import {
 } from '../../data/w7/summon.js';
 import { achieveStatus } from '../common/achievement.js';
 import { computeEmperorBon } from './emperor.js';
+import { maxTalentBonus } from '../common/talent.js';
 
 export function computeSummWinBonus(saveData) {
   var bonus = new Array(32).fill(0);
+  if (!saveData || !saveData.summonData) return bonus;
   var normalWins = saveData.summonData[1] || [];
   for (var i = 0; i < normalWins.length; i++) {
     var name = normalWins[i];
@@ -25,7 +27,7 @@ export function computeSummWinBonus(saveData) {
     var bonusIdx = Math.round(entry[0] - 1);
     if (bonusIdx >= 0 && bonusIdx < 32) bonus[bonusIdx] += entry[1];
   }
-  var endlessWins = Number(saveData.olaData[319]) || 0;
+  var endlessWins = Number(saveData.olaData && saveData.olaData[319]) || 0;
   for (var i = 0; i < endlessWins; i++) {
     var idx = i % 40;
     var type = SUMMON_ENDLESS_TYPE[idx] - 1;
@@ -39,13 +41,13 @@ function _winBonusParts(idx, swb, saveData) {
   if (raw <= 0) return { val: 0, raw: 0 };
   if (idx === 20 || idx === 22 || idx === 24 || idx === 31) return { val: raw, raw: raw, simple: true };
   var pristine8 = (saveData.ninjaData && saveData.ninjaData[107] && saveData.ninjaData[107][8] === 1) ? 30 : 0;
-  var gemItems11 = Number(saveData.gemItemsData[11]) || 0;
+  var gemItems11 = Number(saveData.gemItemsData && saveData.gemItemsData[11]) || 0;
   var artRarity = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][32]) || 0;
   var artBonus32 = artRarity > 0 ? artifactBase(32) * artRarity : 0;
   var taskVal = Math.min(10, Number(saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][5] && saveData.tasksGlobalData[2][5][4]) || 0);
   var wb31 = swb[31] || 0;
   var empBon8 = computeEmperorBon(8, saveData);
-  var godshardSet = String(saveData.olaData[379] || '').includes('GODSHARD_SET') ? equipSetBonus('GODSHARD_SET') : 0;
+  var godshardSet = String(saveData.olaData && saveData.olaData[379] || '').includes('GODSHARD_SET') ? equipSetBonus('GODSHARD_SET') : 0;
   var ach379 = achieveStatus(379, saveData);
   var ach373 = achieveStatus(373, saveData);
   var baseMult = (idx >= 20 && idx <= 33) ? 1 : 3.5;
@@ -77,34 +79,45 @@ export function computeSummUpgBonus(t, saveData) {
   // Game: SummUpgBonus(t) = SumUpgMoltoz * Summon[0][t] * SummonUPG[t][6]
   var s = saveData;
   var level = Number(s.summonData && s.summonData[0] && s.summonData[0][t]) || 0;
-  if (level <= 0) return 0;
+  if (level <= 0) return treeResult(0);
   var perLv = Number(SummonUPG[t] && SummonUPG[t][6]) || 0;
-  if (perLv <= 0) return 0;
+  if (perLv <= 0) return treeResult(0);
   // SumUpgMoltoz: default 1, boosted if gilded (Holes[28])
   var moltoz = 1;
+  var moltozChildren = [];
   var gilded = s.holesData && s.holesData[28];
   if (gilded && gilded.indexOf(t) !== -1) {
-    moltoz = 2; // simplified: 2 + ( max(0, getbonus2(1,597,-1, saveData)/100 - 1) + SummUpgBonus(78)/100 )
-    // Full formula: 2 + max(0, talent597_max/100 - 1) + SummUpgBonus(78)/100
-    // For accuracy, add recursive SummUpgBonus(78):
+    moltoz = 2;
+    var tal597 = maxTalentBonus(597, -1, s);
+    var tal597Add = Math.max(0, tal597 / 100 - 1);
     var bonus78 = 0;
     if (t !== 78) {
       var lv78 = Number(s.summonData[0][78]) || 0;
       var pLv78 = Number(SummonUPG[78] && SummonUPG[78][6]) || 0;
-      bonus78 = lv78 * pLv78; // base without moltoz
+      bonus78 = lv78 * pLv78;
     }
-    moltoz += bonus78 / 100;
-    // talent 597 contribution — skip for now (requires talent resolver context)
+    moltoz += tal597Add + bonus78 / 100;
+    moltozChildren.push({ name: 'Gilded Base', val: 2, fmt: 'raw' });
+    if (tal597Add > 0) moltozChildren.push({ name: 'Talent 597', val: tal597Add, fmt: 'raw' });
+    if (bonus78 > 0) moltozChildren.push({ name: 'Bonus78 (' + bonus78 + '/100)', val: bonus78 / 100, fmt: 'raw' });
   }
-  // SumStoneTrialz multiplier: if SummonUPG[t][10] == 1 and KRbest has SummzTrz+stoneType
+  // SumStoneTrialz multiplier
   var stoneEligible = Number(SummonUPG[t] && SummonUPG[t][10]) || 0;
   if (stoneEligible === 1) {
     var stoneType = Number(SummonUPG[t][2]) || 0;
     var kr = s.krBestData;
     var trialVal = kr && kr['SummzTrz' + stoneType] ? Number(kr['SummzTrz' + stoneType]) : 0;
-    if (trialVal > 0) moltoz *= (1 + trialVal);
+    if (trialVal > 0) {
+      moltoz *= (1 + trialVal);
+      moltozChildren.push({ name: 'Stone Trial (' + stoneType + ')', val: 1 + trialVal, fmt: 'x' });
+    }
   }
-  return moltoz * level * perLv;
+  var val = moltoz * level * perLv;
+  return treeResult(val, [
+    { name: 'Level', val: level, fmt: 'raw' },
+    { name: 'Per Level', val: perLv, fmt: 'raw' },
+    { name: 'Moltoz Multi', val: moltoz, fmt: 'x', children: moltozChildren.length ? moltozChildren : undefined },
+  ]);
 }
 
 export var winBonus = {

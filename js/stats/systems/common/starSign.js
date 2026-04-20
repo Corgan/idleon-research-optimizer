@@ -3,7 +3,7 @@
 // All star signs are active (enabledStarSigns covers all indices).
 // Applies Seraph_Cosmos multiplier: chipMulti × meritocMulti × seraphMulti.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { labData } from '../../../save/data.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
@@ -147,9 +147,10 @@ function getEnabledStarSigns(saveData) {
 
 export function computeStarSignBonus(key, ci, saveData) {
   var bonusMap = SIGN_BONUSES[key];
-  if (!bonusMap) return 0;
+  if (!bonusMap) return treeResult(0, null);
   var enabled = getEnabledStarSigns(saveData);
   var total = 0;
+  var children = [];
   var signIndices = Object.keys(bonusMap);
   for (var i = 0; i < signIndices.length; i++) {
     var sigIdx = Number(signIndices[i]);
@@ -157,9 +158,13 @@ export function computeStarSignBonus(key, ci, saveData) {
     // Game: if (signIndex > enabledStarSigns - 1) → apply negatives; else skip them
     if (val < 0 && sigIdx < enabled) continue;
     total += val;
+    children.push(node('Sign ' + sigIdx, val, null, { fmt: 'raw' }));
   }
+  var seraphMulti = 1;
   if (total > 0) {
-    total *= computeSeraphMulti(ci, saveData);
+    seraphMulti = computeSeraphMulti(ci, saveData);
+    total *= seraphMulti;
   }
-  return total;
+  if (seraphMulti !== 1 && children.length) children.push(node('Seraph Multi', seraphMulti, null, { fmt: 'x' }));
+  return treeResult(total, children);
 }

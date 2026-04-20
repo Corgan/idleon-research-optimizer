@@ -11,18 +11,19 @@ import { companionBonus } from '../../data/common/companions.js';
 import { rogBonusQTY } from './sushi.js';
 
 function _meritocParts(optionIdx, saveData) {
+  if (!saveData || !saveData.olaData) return { val: 0, inactive: true };
   var activeVote = Number(saveData.olaData[453]) || 0;
   if (optionIdx !== activeVote) return { val: 0, inactive: true };
   var baseVal = MERITOC_BASE[optionIdx] || 0;
   if (baseVal <= 0) return { val: 0, noBase: true };
   var canVote = Number(saveData.olaData[472]) === 1;
   var clamWork3 = (Number(saveData.olaData[464]) || 0) > 3 ? 1 : 0;
-  var comp39 = saveData.companionIds.has(39) ? companionBonus(39) : 0;
+  var comp39 = (saveData.companionIds && saveData.companionIds.has(39)) ? companionBonus(39) : 0;
   var legend24 = legendPTSbonus(24, saveData);
   var arcade59 = arcadeBonus(59, saveData);
   var eventShop23 = eventShopOwned(23, saveData.cachedEventShopStr);
   var rog51 = rogBonusQTY(51, saveData.cachedUniqueSushi);
-  var comp161 = saveData.companionIds.has(161) ? companionBonus(161) : 0;
+  var comp161 = (saveData.companionIds && saveData.companionIds.has(161)) ? companionBonus(161) : 0;
   var addSum = 5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23 + rog51;
   var multi = (canVote ? 1 : 0.25) + addSum / 100;
   var val = baseVal * (1 + comp161 / 100) * multi;

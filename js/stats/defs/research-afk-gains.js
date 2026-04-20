@@ -6,7 +6,7 @@
 import { MINEHEAD_BONUS_QTY } from '../data/w7/minehead.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { computeCardLv } from '../systems/common/cards.js';
-import { mineheadBonusQTY } from '../systems/w7/research.js';
+import { mineheadBonusQTY } from '../systems/w7/minehead.js';
 import { createDescriptor, gridBonusFinal } from './helpers.js';
 import { gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonus } from '../data/common/companions.js';

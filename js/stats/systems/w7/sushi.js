@@ -2,7 +2,7 @@
 // All sushi station formulas and calculations.
 // Pure computation functions - no side effects, no global state.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
   KNOWLEDGE_CAT_VALUE, MAX_TIER, MAX_SLOTS,
@@ -18,6 +18,13 @@ import { getLOG } from '../../../formulas.js';
 export function rogBonusQTY(idx, uniqueSushi) {
   if (uniqueSushi > idx) return ROG_BONUS_QTY[idx] || 0;
   return 0;
+}
+
+/** Precompute all RoG bonus values for the given uniqueSushi count. */
+export function buildRogArray(uniqueSushi) {
+  var arr = new Array(ROG_BONUS_QTY.length);
+  for (var i = 0; i < arr.length; i++) arr[i] = uniqueSushi > i ? (ROG_BONUS_QTY[i] || 0) : 0;
+  return arr;
 }
 
 // System resolver for RoG bonuses (used by drop-rate descriptor)
@@ -386,7 +393,7 @@ export function buildSushiSummary(sushiData, upgLevels, uniqueSushi, knowledgeTo
 export function computeRooBonus(idx, saveData) {
   var ola271 = Number(optionsListData[271]) || 0;
   var tiers = Math.max(0, Math.ceil((ola271 - idx) / 7));
-  if (tiers <= 0) return 0;
+  if (tiers <= 0) return treeResult(0);
   var legend26 = legendPTSbonus(26, saveData) || 0;
   var comp51 = 0;
   try { comp51 = companions(51, saveData) || 0; } catch(e) {}
@@ -402,5 +409,12 @@ export function computeRooBonus(idx, saveData) {
   // Per-index multipliers: [3, 3, 5, 2, 2, 0.5, 3]
   var perIdx = [3, 3, 5, 2, 2, 0.5, 3];
   var multi = perIdx[idx] != null ? perIdx[idx] : 3;
-  return multi * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
+  var val = multi * (1 + legend26 / 100) * (1 + comp51) * (1 + rooAll / 100) * tiers;
+  return treeResult(val, [
+    { name: 'Tiers', val: tiers, fmt: 'raw' },
+    { name: 'Per-Index Multi', val: multi, fmt: 'x' },
+    { name: 'Legend 26 Multi', val: 1 + legend26 / 100, fmt: 'x' },
+    { name: 'Companion 51 Multi', val: 1 + comp51, fmt: 'x' },
+    { name: 'Mega Feather Multi', val: 1 + rooAll / 100, fmt: 'x' },
+  ]);
 }

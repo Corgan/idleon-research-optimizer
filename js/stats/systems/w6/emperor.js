@@ -8,7 +8,7 @@ import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { label } from '../../entity-names.js';
 
 export function computeEmperorBon(bonusIdx, saveData) {
-  var emperorCount = Number(saveData.olaData[369]) || 0;
+  var emperorCount = Number(saveData.olaData && saveData.olaData[369]) || 0;
   var sum = 0;
   for (var r = 0; r < emperorCount; r++) {
     var slot = r % 48;
@@ -21,7 +21,7 @@ export function computeEmperorBon(bonusIdx, saveData) {
 export var emperor = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
-    var emperorCount = Number(saveData.olaData[369]) || 0;
+    var emperorCount = Number(saveData.olaData && saveData.olaData[369]) || 0;
     var sum = 0;
     var slotMatches = 0;
     for (var r = 0; r < emperorCount; r++) {

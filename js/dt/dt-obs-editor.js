@@ -25,7 +25,7 @@ export function dtRenderObsEditor() {
   // Pool counts
   let usedByType = [0, 0, 0];
   for (const m of s.md) { if (m.slot >= 0) usedByType[m.type]++; }
-  const expectedK = Math.round((s.gl[72] || 0) + s.saveCtx.evShop33);
+  const expectedK = Math.round((s.gl[72] || 0) + (s.saveCtx.evShop[33]||0));
   const expectedM = Math.round(s.gl[91] || 0);
   const expectedR = mOwned - expectedK - expectedM;
   const freeR = expectedR - usedByType[0];
@@ -133,7 +133,7 @@ function _dtObsWireTooltips(bySlot, kalMap) {
       const perMagFinal = basePerMag * gd101Multi * kalMulti;
       const totalExp = perMagFinal * mags;
       const insightBonus = gbWith(s.gl, s.so, 92, _ctx2) + gbWith(s.gl, s.so, 91, _ctx2);
-      const emp46 = _ctx2.emp46 || 0;
+      const emp46 = (_ctx2.emp && _ctx2.emp[46]) || 0;
       const monoRate = 3 * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100) * kalMulti;
       const resMulti = simTotalExp({ gridLevels: s.gl, shapeOverlay: s.so, magData: s.md, insightLvs: s.il, occFound: s.occ, researchLevel: s.rLv }, s.saveCtx).multi;
       const totalFinal = totalExp * resMulti;
@@ -266,7 +266,7 @@ function _dtCycleMagType(magIdx) {
   const s = DT.editState;
   const m = s.md[magIdx];
   if (!m || m.slot < 0) return;
-  const expectedK = Math.round((s.gl[72] || 0) + s.saveCtx.evShop33);
+  const expectedK = Math.round((s.gl[72] || 0) + (s.saveCtx.evShop[33]||0));
   const expectedM = Math.round(s.gl[91] || 0);
   const mOwned = computeMagnifiersOwnedWith(s.gl, s.rLv, s.ctx || makeSimCtx(s.gl));
   const expectedR = mOwned - expectedK - expectedM;

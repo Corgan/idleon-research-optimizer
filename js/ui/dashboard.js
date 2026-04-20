@@ -94,7 +94,7 @@ function getInsightExpPerObs(obsIdx) {
   const count = countMagsOfType(_dSaveCtx.magData, 1, obsIdx);
   if (count === 0) return 0;
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
-  const emp46 = _dCtx.emp46 || 0;
+  const emp46 = (_dCtx.emp && _dCtx.emp[46]) || 0;
   let rate = 3 * count * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100);
   rate *= _getKaleiMultiTot(obsIdx);
   return rate;
@@ -181,7 +181,7 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
   const totalExp = perMagFinal * mags;
 
   const insightBonus = getGridBonusFinal(92) + getGridBonusFinal(91);
-  const _emp46 = _dCtx.emp46 || 0;
+  const _emp46 = (_dCtx.emp && _dCtx.emp[46]) || 0;
   const monoRate = 3 * (1 + insightBonus / 100) * (1 + 35 * _emp46 / 100) * kalMulti;
 
   let html = '<div class="tt-name">' + name + ' (#' + obsIdx + ')</div>';
@@ -229,7 +229,10 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
 export function renderDashboard(saveCtx) {
   resetTreeCounter();
   _dSaveCtx = saveCtx || buildSaveContext();
-  _dCtx = makeSimCtx(_dSaveCtx.gridLevels);
+  // F6 snapshot toggle: if unchecked, zero out bestShapePct so button0 uses actual shape overlay
+  const snapshotF6 = document.getElementById('dash-snapshot-f6');
+  if (snapshotF6 && !snapshotF6.checked) _dSaveCtx.bestShapePct = 0;
+  _dCtx = makeSimCtx(_dSaveCtx.gridLevels, _dSaveCtx);
   _simOpts = { gridLevels: _dSaveCtx.gridLevels, shapeOverlay: _dSaveCtx.shapeOverlay, magData: _dSaveCtx.magData, insightLvs: _dSaveCtx.insightLvs, occFound: _dSaveCtx.occFound, researchLevel: _dSaveCtx.researchLevel };
   // Summary
   const sumDiv = document.getElementById('dash-summary');
@@ -247,7 +250,7 @@ export function renderDashboard(saveCtx) {
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(_afkRateVal * 100).toFixed(1)}%</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magnifiersOwned}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magMaxPerSlot}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(saveData.researchLevel, saveData.gridLevels, (_dSaveCtx.companionHas153 ? 10 : 0) + (_dSaveCtx.rog3 || 0) + (_dSaveCtx.rog13 || 0) + (_dSaveCtx.sailingArt37 || 0))} free</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(saveData.researchLevel, saveData.gridLevels, (_dSaveCtx.companionHas153 ? 10 : 0) + ((_dSaveCtx.rog && _dSaveCtx.rog[3]) || 0) + ((_dSaveCtx.rog && _dSaveCtx.rog[13]) || 0) + (_dSaveCtx.sailingArt37 || 0))} free</div></div>
     </div>
     <div style="max-width:420px;margin:8px auto 4px;padding:0 12px;">
       <div style="height:22px;background:#1a1a2e;border-radius:11px;overflow:hidden;border:1px solid #333;">

@@ -128,7 +128,7 @@ function renderTimeline(sim) {
   const phases = sim.phases;
   const totalTime = Math.max(sim.totalTime, 0.01);
 
-  const colors = { 'start':'var(--accent)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--green)' };
+  const colors = { 'start':'var(--accent)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'tournament':'#ff9800', 'end':'var(--green)' };
 
   // Build timeline bar + arrow marker container
   let html = '';
@@ -177,7 +177,7 @@ function renderActions(sim, bestSteps) {
     sp: saveData.shapePositions.map(s => ({...s}))
   };
 
-  const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'end':'var(--text2)' };
+  const colors = { 'start':'var(--cyan)', 'level-up':'var(--gold)', 'insight-up':'var(--purple)', 'level+insight':'var(--cyan)', 'tournament':'#ff9800', 'end':'var(--text2)' };
 
   for (let i = 0; i < phases.length; i++) {
     const p = phases[i];
@@ -204,6 +204,11 @@ function renderActions(sim, bestSteps) {
       icon = '\u2b06';
     } else if (p.event === 'level+insight') {
       prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Level \u2192 LV ' + p.rLv + ' + Insight'; icon = '\u26a1';
+    } else if (p.event === 'tournament') {
+      prev = prevIdx >= 0 ? phases[prevIdx] : phases[0];
+      eventLabel = 'Tournament Registration';
+      if (p.tournamentLeveledUp) eventLabel += ' \u2192 LV ' + p.rLv;
+      icon = '\uD83C\uDFC6';
     } else {
       prev = prevIdx >= 0 ? phases[prevIdx] : phases[0]; eventLabel = 'Event'; icon = '\u25cf';
     }
@@ -256,6 +261,12 @@ function renderActions(sim, bestSteps) {
       }
     }
 
+    // Tournament bonus info
+    let tourneyInfo = '';
+    if (p.event === 'tournament' && p.tournamentBonusExp) {
+      tourneyInfo = `<span style="color:#ff9800;font-size:.75em;margin-left:2px;" title="+${p.tournamentBonusHrs}hr research time injected at ${fmtVal(p.tournamentBonusExp / p.tournamentBonusHrs)}/hr">(+${fmtExp(p.tournamentBonusExp)} bonus)</span>`;
+    }
+
     // Header row: always visible
     const { text: realTimeStr, epoch: realEpoch } = fmtRealTime(p.time);
     html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;">`;
@@ -266,6 +277,7 @@ function renderActions(sim, bestSteps) {
     html += `<span style="color:var(--green);font-weight:700;font-size:.95em;">${fmtVal(displayExpHr)}/hr</span>`;
     html += deltaStr;
     html += lvReqInfo;
+    html += tourneyInfo;
     html += segInfo;
     if (hasDetails) html += `<span class="action-chevron" id="chevron-${i}" style="color:var(--text2);font-size:.7em;margin-left:4px;transition:transform .2s;">\u25b6</span>`;
     html += `</div>`;

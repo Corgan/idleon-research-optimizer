@@ -34,6 +34,7 @@ export let obolFamilyMaps = {};
 export let buffsActiveData = [];
 export let loadedSaveFormat = '';
 export let saveGlobalTime = 0;
+export let tournamentDay = 0;
 export let cachedAFKRate = null;
 
 export function assignSaveData(u) {
@@ -68,5 +69,6 @@ export function assignSaveData(u) {
   if ('buffsActiveData' in u) buffsActiveData = u.buffsActiveData;
   if ('loadedSaveFormat' in u) loadedSaveFormat = u.loadedSaveFormat;
   if ('saveGlobalTime' in u) saveGlobalTime = u.saveGlobalTime;
+  if ('tournamentDay' in u) tournamentDay = u.tournamentDay;
   if ('cachedAFKRate' in u) cachedAFKRate = u.cachedAFKRate;
 }

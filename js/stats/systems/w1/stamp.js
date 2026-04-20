@@ -4,7 +4,7 @@
 // StampDoubler = 100 + 10 sources (Atom12, Pristine20, CompassBonus76,
 //   EmperorSet, 20×EventShop18, Palette23, Exotic49, Spelunk[4][3], Legend36, SushiRoG17).
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { stampLvData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
@@ -39,7 +39,7 @@ function isExalted(cat, idx, saveData) {
 function computeStampDoublerSources(saveData) {
 
   // Source 1: AtomBonuses(12) = Atoms[12] × perLv(1)
-  var atom12 = Number(saveData.atomsData[12]) || 0;
+  var atom12 = Number(saveData.atomsData && saveData.atomsData[12]) || 0;
 
   // Source 2: PristineBon(20) — Pristine Charm 20
   var prist20 = pristineBon(20, saveData);
@@ -196,8 +196,9 @@ function buildStampTypeMap() {
 export function computeStampBonusOfTypeX(typeKey, saveData) {
   var map = buildStampTypeMap();
   var stamps = map[typeKey];
-  if (!stamps) return 0;
+  if (!stamps) return treeResult(0, null);
   var total = 0;
+  var children = [];
   var doublerTotal = null; // lazy-computed
   var labDouble = mainframeBonus(7, saveData) === 2 ? 2 : 1;
   var prist17 = pristineBon(17, saveData) || 0;
@@ -208,22 +209,25 @@ export function computeStampBonusOfTypeX(typeKey, saveData) {
     var lv = Number((stampLvData && stampLvData[st.cat] && stampLvData[st.cat][st.idx]) || 0);
     if (lv <= 0) continue;
     var val = formulaEval(st.formula, st.x1, st.x2, lv);
+    var noteStr = 'lv=' + lv;
     if (isExalted(st.cat, st.idx, saveData)) {
       if (doublerTotal === null) {
         var _d = computeStampDoublerSources(saveData);
         doublerTotal = (typeof _d === 'object' && _d) ? (_d.total || 0) : (Number(_d) || 0);
       }
       val *= 1 + doublerTotal / 100;
+      noteStr += ' exalted';
     }
     if (st.cat < 2) {
       val *= labDouble * pristMulti;
     }
     total += val;
+    children.push(node(stampKey(st.cat, st.idx), val, null, { fmt: 'raw', note: noteStr }));
   }
   // Post-loop: VaultUpgBonus(16) multiplier for base stat stamps (game applies this for BaseDmg/BaseHP/BaseAcc/BaseDef)
   if (typeKey === 'BaseDmg' || typeKey === 'BaseHP' || typeKey === 'BaseAcc' || typeKey === 'BaseDef') {
     var vault16 = vaultUpgBonus(16, saveData);
     if (vault16 > 0) total *= 1 + vault16 / 100;
   }
-  return total;
+  return treeResult(total, children);
 }

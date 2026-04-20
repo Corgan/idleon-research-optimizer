@@ -53,7 +53,7 @@ function _getAchStatusLookup() {
 }
 
 function achieveStatusTiered(idx, saveData) {
-  if (saveData.achieveRegData[idx] !== -1) return 0;
+  if (!saveData || !saveData.achieveRegData || saveData.achieveRegData[idx] !== -1) return 0;
   return _getAchStatusLookup()[idx] || 1;
 }
 
@@ -103,14 +103,14 @@ export function goldFoodBonuses(effectType, charIdx, preMulti, saveData) {
     total = val;
     equippedInfo = { item: itemName, amount: info.amount, qty: qty, lg: lg, val: val };
   }
-  var ninja104 = saveData.ninjaData[104];
+  var ninja104 = saveData.ninjaData && saveData.ninjaData[104];
   var empUnlocked = Array.isArray(ninja104) ? ninja104.some(function(v) { return Number(v) > 0; }) : true;
   if (empUnlocked) {
     for (var i = 0; i < EMPORIUM_FOOD_SLOTS.length; i++) {
       var itemName = EMPORIUM_FOOD_SLOTS[i];
       var info = GOLD_FOOD_INFO[itemName];
       if (!info || info.effect !== effectType) continue;
-      var empLevel = Number((saveData.ninjaData[104] || [])[i]) || 0;
+      var empLevel = Number((saveData.ninjaData && saveData.ninjaData[104] || [])[i]) || 0;
       if (empLevel > 0) {
         var effQty = 1000 * Math.pow(10, empLevel);
         var lg = getLOG(1 + effQty);
@@ -130,12 +130,12 @@ export function gfoodBonusMULTIBreakdown(charIdx, opts, saveData) {
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
   var votingTree = (opts && opts.votingTree) || null;
   var sigilVal = sigilBonus(14, saveData);
-  var sigilLv = Number((saveData.cauldronP2WData[4] || [])[1 + 2 * 14]) || 0;
+  var sigilLv = Number((saveData.cauldronP2WData && saveData.cauldronP2WData[4] || [])[1 + 2 * 14]) || 0;
   var votingVal = votingBonusz(26, votingMulti, saveData);
   var legendVal = legendPTSbonus(25, saveData);
   var cardVal = Math.min(4 * cardLv('cropfallEvent1', saveData), 50);
   var vaultVal = vaultUpgBonus(86, saveData);
-  var vaultLv = Number(saveData.vaultData[86]) || 0;
+  var vaultLv = Number(saveData.vaultData && saveData.vaultData[86]) || 0;
   var brb36 = getBribeBonus(36, saveData);
   var prist14 = pristineBon(14, saveData);
   var ach37 = achieveStatusTiered(37, saveData);
@@ -264,7 +264,7 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
 
   // === artifactBonus16 ===
   {
-    var tier = Number((saveData.sailingData[3] || [])[16]) || 0;
+    var tier = Number((saveData.sailingData && saveData.sailingData[3] || [])[16]) || 0;
     inputs.artifactBonus16 = tier === 0 ? 0 : Math.max(1, tier);
     T.artifactBonus16 = node(label('Artifact', 16), inputs.artifactBonus16, tier > 0 ? [
       node('Base', 1, null, { fmt: 'raw' }),
@@ -442,7 +442,7 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
       var classId = charClassData[ci] || 0;
       var tree = CLASS_TREES[classId];
       if (!tree || !tree.includes(33)) continue;
-      var charLevel = Number((saveData.lv0AllData[ci] || [])[0]) || 0;
+      var charLevel = Number((saveData.lv0AllData && saveData.lv0AllData[ci] || [])[0]) || 0;
       var effectiveLv = Math.max(0, charLevel - FAMILY_BONUS_33.lvOffset);
       var bonus = formulaEval(
         FAMILY_BONUS_33.formula, FAMILY_BONUS_33.x1, FAMILY_BONUS_33.x2, effectiveLv

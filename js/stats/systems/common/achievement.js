@@ -5,6 +5,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 // Simple achieveStatus: returns 1 if completed, 0 otherwise
 export function achieveStatus(idx, saveData) {
+  if (!saveData || !saveData.achieveRegData) return 0;
   return saveData.achieveRegData[idx] === -1 ? 1 : 0;
 }
 

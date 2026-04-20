@@ -106,7 +106,8 @@ export default createDescriptor({
       ] : null });
 
     // 8. Arcade
-    items.push({ name: label('Arcade', 63), val: arcadeBonus(63, ctx.saveData) });
+    var _arcade63 = arcadeBonus(63, ctx.saveData);
+    items.push({ name: label('Arcade', 63), val: _arcade63, children: _arcade63.children });
 
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;

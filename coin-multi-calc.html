@@ -42,6 +42,7 @@
   <div class="dr-total" id="dr-total">1.00x</div>
   <div class="dr-sub" id="dr-sub"></div>
   <div class="dr-sub" id="dr-damage" style="margin-top:4px;font-size:.85em;color:var(--text2)"></div>
+  <div class="dr-sub" id="dr-multikill" style="margin-top:2px;font-size:.85em;color:var(--text2)"></div>
 </div>
 
 <!-- Breakdown tree -->
@@ -63,6 +64,7 @@ import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { fmtVal, fmtMonsterCash } from './js/renderers/format.js';
 import { computeOverkillTier } from './js/stats/systems/common/overkill.js';
 import damageDesc from './js/stats/defs/damage.js';
+import killPerKillDesc from './js/stats/defs/kill-per-kill.js';
 import { doImport as _doImport } from './js/ui/save-import.js';
 
 var SAVE_RAW = null;
@@ -121,6 +123,21 @@ function recalc() {
         + ' (mastery: ' + (mastery * 100).toFixed(1) + '%)';
     } else {
       dmgEl.textContent = '';
+    }
+  }
+
+  // Multikill display
+  var mkEl = document.getElementById('dr-multikill');
+  if (mkEl) {
+    try {
+      var mkCtx = { charIdx: CUR_CHAR, saveData: saveData, mapIdx: okInfo ? okInfo.mapIdx : undefined };
+      var mkResult = buildTree(killPerKillDesc, getCatalog(), mkCtx);
+      var mkVal = mkResult.val || 1;
+      var monHP = okInfo ? okInfo.monsterHP : 0;
+      mkEl.textContent = 'Multikill: ' + fmtVal(mkVal) + ' kills/kill'
+        + (monHP > 0 ? ' | Monster HP: ' + fmtVal(monHP) : '');
+    } catch(e) {
+      mkEl.textContent = '';
     }
   }
 

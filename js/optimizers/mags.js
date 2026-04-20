@@ -99,12 +99,12 @@ export function enumKalMags(availSlots, numKalei, numRegular, kalBase, gd101, il
 /**
  * Grow md array to targetCount, adding mags with correct types (kalei/mono/regular)
  * based on grid levels and research level state.
- * ctx must provide: evShop33.
+ * ctx must provide: evShop[33].
  * Mutates md in-place (pushes new entries).
  */
 export function growMagPoolTyped(md, gl, rLv, targetCount, ctx) {
   if (md.length >= targetCount) return;
-  const expectedK = Math.round((gl[72] || 0) + ctx.evShop33);
+  const expectedK = Math.round((gl[72] || 0) + (ctx.evShop[33]||0));
   const expectedM = Math.round(gl[91] || 0);
   let curK = 0, curM = 0;
   for (const m of md) { if (m.type === 2) curK++; if (m.type === 1) curM++; }

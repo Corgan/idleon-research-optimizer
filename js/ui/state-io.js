@@ -4,6 +4,7 @@
 import { saveData, assignState } from '../state.js';
 import {
   loadedSaveFormat,
+  cachedAFKRate,
 } from '../save/data.js';
 import { GRID_SIZE } from '../game-data.js';
 import { loadSaveData as _loadSaveIntoState, recomputeDerivedBonuses } from '../save/loader.js';

@@ -1,7 +1,7 @@
 // ===== SET BONUS SYSTEM (W3) =====
 // Permanent set unlock checks + active equip fallback.
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData, equipOrderData } from '../../../save/data.js';
 import { equipSetBonus, SET_BONUS_VALUES } from '../../data/common/equipment.js';
@@ -9,8 +9,12 @@ import { EquipmentSets } from '../../data/game/custommaps.js';
 
 export function getSetBonus(setName) {
   var perma = String(optionsListData[379] || '');
-  if (!perma.includes(setName)) return 0;
-  return SET_BONUS_VALUES[setName] || 0;
+  if (!perma.includes(setName)) return treeResult(0);
+  var val = SET_BONUS_VALUES[setName] || 0;
+  return treeResult(val, [
+    { name: setName + ' Unlocked', val: 1, fmt: 'raw' },
+    { name: 'Bonus Value', val: val, fmt: 'raw' },
+  ]);
 }
 
 var SET_DATA = {

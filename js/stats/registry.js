@@ -39,7 +39,7 @@ import { pristine } from './systems/w6/sneaking.js';
 import { legendPTS } from './systems/w7/legend.js';
 import { spelunkShop, palette } from './systems/w7/spelunking.js';
 import { nametag, premhat, trophy } from './systems/w7/gallery.js';
-import { minehead } from './systems/w7/research.js';
+import { minehead } from './systems/w7/minehead.js';
 import { meritoc } from './systems/w7/meritoc.js';
 import { grimoire } from './systems/mc/grimoire.js';
 import { arcaneMap } from './systems/mc/tesseract.js';
@@ -67,20 +67,44 @@ import tomeScore from './defs/tome-score.js';
 import buildRate from './defs/build-rate.js';
 import constructionExp from './defs/construction-exp.js';
 import flaggySpeed from './defs/flaggy-speed.js';
+import { totalSTR, totalAGI, totalWIS, totalLUK } from './defs/base-stats.js';
+import critChance from './defs/crit-chance.js';
+import critDamage from './defs/crit-damage.js';
+import maxHP from './defs/max-hp.js';
+import maxMP from './defs/max-mp.js';
+import accuracy from './defs/accuracy.js';
+import defence from './defs/defence.js';
+import movementSpeed from './defs/movement-speed.js';
+import giantMob from './defs/giant-mob.js';
+import crystalSpawn from './defs/crystal-spawn.js';
 
 // ----- Internal storage -----
+// Some systems use lazy getters to avoid circular-dep undefined at module
+// evaluation time (loader.js → registry.js → system.js cycle).
 var _systems = {
-  talent, guild, equipment, starSign, achievement, bundle, goldenFood,
-  card, cardSet, cardSingle, companion, compMulti, vault, friend,
-  lukScaling, ola, etcBonus, obol,
+  talent, guild, equipment, starSign, achievement, bundle,
+  get goldenFood() { return goldenFood; },
+  get card() { return card; },
+  get cardSet() { return cardSet; },
+  get cardSingle() { return cardSingle; },
+  companion, compMulti, vault, friend,
+  get lukScaling() { return lukScaling; },
+  ola, etcBonus, obol,
   stamp, owl,
   alchemy, sigil, postOffice, arcade, voting,
   prayer, setBonus, dream,
   cloudBonus: cloudBonusSys,
-  grid, chip, tome, shiny,
+  get grid() { return grid; },
+  get chip() { return chip; },
+  tome, shiny,
   shrine, holes, cosmo,
   winBonus, farm, emperor, pristine,
-  legendPTS, spelunkShop, palette, nametag, premhat, trophy, minehead, meritoc,
+  legendPTS,
+  get spelunkShop() { return spelunkShop; },
+  get palette() { return palette; },
+  nametag, premhat, trophy,
+  get minehead() { return minehead; },
+  meritoc,
   grimoire, arcaneMap, sushiRoG,
   glimbo, workshop, eventShop,
 };
@@ -139,3 +163,16 @@ registerDescriptor(tomeScore);
 registerDescriptor(buildRate);
 registerDescriptor(constructionExp);
 registerDescriptor(flaggySpeed);
+registerDescriptor(totalSTR);
+registerDescriptor(totalAGI);
+registerDescriptor(totalWIS);
+registerDescriptor(totalLUK);
+registerDescriptor(critChance);
+registerDescriptor(critDamage);
+registerDescriptor(maxHP);
+registerDescriptor(maxMP);
+registerDescriptor(accuracy);
+registerDescriptor(defence);
+registerDescriptor(movementSpeed);
+registerDescriptor(giantMob);
+registerDescriptor(crystalSpawn);

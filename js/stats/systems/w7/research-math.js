@@ -17,7 +17,7 @@ import {
 export function gbWith(gl, so, idx, ctx) {
   const info = RES_GRID_RAW[idx];
   if (!info) return 0;
-  const lv = gl[idx] || 0;
+  const lv = (gl && gl[idx]) || 0;
   if (lv === 0) return 0;
   let val = info[2] * lv;
   const si = so[idx];
@@ -125,7 +125,7 @@ export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
   const count = countMagsOfType(md, 1, obsIdx);
   if (count === 0) return 0;
   const insightBonus = gbWith(gl, so, 92, ctx) + gbWith(gl, so, 91, ctx);
-  const emp46 = ctx.emp46 || 0;
+  const emp46 = (ctx.emp && ctx.emp[46]) || 0;
   const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
   const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
@@ -139,7 +139,7 @@ export function insightAffectsExp(gl, so, ctx) {
 
 /** Kaleidoscope base multiplier from grid bonuses + EmporiumBonus(46). */
 export function getKaleiMultiBase(gl, so, ctx) {
-  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx) + 6 * (ctx.emp46 || 0)) / 100;
+  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx) + 6 * ((ctx.emp && ctx.emp[46]) || 0)) / 100;
 }
 
 // ----- Magnifier slot cap -----
@@ -271,11 +271,25 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   for (let i = 0; i < occTBF; i++) if ((il[i] || 0) >= 1) totalObsLV += il[i];
   additive += gbWith(gl, so, 94, ctx) * totalObsLV;
   const takinNotes = gbWith(gl, so, 70, ctx);
-  // Compute button0 dynamically from grid 125 so optimizer sees changes to gl[125]
+  // Compute button0 dynamically from grid 125 so optimizer sees changes to gl[125].
+  // F6 snapshot: players snapshot button bonus with best shape on cell 125, then move
+  // the shape elsewhere.  When bestShapePct > 0, use that; otherwise use actual so[125].
+  const _gb125raw = (() => {
+    const info = RES_GRID_RAW[125];
+    if (!info) return 0;
+    const lv = (gl && gl[125]) || 0;
+    if (lv === 0) return 0;
+    const bestPct = ctx.bestShapePct || 0;
+    if (bestPct > 0) {
+      return info[2] * lv * (1 + bestPct / 100) * ctx.abm;
+    }
+    // No snapshot — use actual shape overlay on cell 125
+    return gbWith(gl, so, 125, ctx);
+  })();
   const button0 = ctx.btnBaseNoGrid > 0
-    ? ctx.btnBaseNoGrid * (1 + gbWith(gl, so, 125, ctx) / 100)
+    ? ctx.btnBaseNoGrid * (1 + _gb125raw / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + (ctx.rog0 || 0) / 100);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -439,8 +453,8 @@ export function computeGridPointsSpent(gl) {
 export function gridPointsAvail(gl, rLv, saveCtx) {
   var sq50 = gl[50] || 0;
   var bonusPts = (saveCtx && saveCtx.companionHas153 ? 10 : 0) +
-    ((saveCtx && saveCtx.rog3) || 0) +
-    ((saveCtx && saveCtx.rog13) || 0) +
+    ((saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0) +
+    ((saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0) +
     ((saveCtx && saveCtx.sailingArt37) || 0);
   var earned = computeGridPointsEarned(rLv, sq50, bonusPts);
   return Math.max(0, earned - computeGridPointsSpent(gl));
@@ -460,28 +474,28 @@ export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll, r
 
 /** Recompute ctx.abm from gl. Mutates ctx in place. */
 export function refreshAbm(ctx, gl) {
-  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, ctx.rog53);
+  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
 }
 
 // ----- Magnifiers owned -----
 
 /**
  * Compute how many magnifiers are owned at a given research level + grid state.
- * ctx must provide: evShop33, evShop34, mhq2, mhq12, mhq20.
+ * ctx must provide: evShop[], mhq[].
  */
 export function computeMagnifiersOwnedWith(gl, rLv, ctx) {
-  const kaleiOwned = Math.round((gl[72] || 0) + ctx.evShop33);
+  const kaleiOwned = Math.round((gl[72] || 0) + (ctx.evShop[33]||0));
   const monoOwned = Math.round(gl[91] || 0);
   const lvBonus = Math.min(1, Math.floor(rLv / 10))
     + Math.min(1, Math.floor(rLv / 100))
     + Math.min(1, Math.floor(rLv / 130))
     + Math.min(1, Math.floor(rLv / 140));
   const comp153 = ctx.companionHas153 ? 1 : 0;
-  const rog8 = ctx.rog8 || 0;
+  const rog8 = (ctx.rog && ctx.rog[8]) || 0;
   return Math.min(80, Math.round(
     1 + kaleiOwned + monoOwned
-    + ctx.mhq2 + ctx.mhq12 + ctx.mhq20
-    + ctx.evShop34
+    + (ctx.mhq[2]||0) + (ctx.mhq[12]||0) + (ctx.mhq[20]||0)
+    + (ctx.evShop[34]||0)
     + lvBonus + comp153 + rog8
   ));
 }
@@ -490,11 +504,11 @@ export function computeMagnifiersOwnedWith(gl, rLv, ctx) {
 
 /**
  * Compute how many shapes are owned at a given research level.
- * ctx must provide: evShop36, hasComp54, spelunkyUpg7.
+ * ctx must provide: evShop[], hasComp54, spelunkyUpg7.
  */
 export function computeShapesOwnedAt(lv, ctx) {
   return Math.min(10, Math.round(
-    ctx.evShop36
+    (ctx.evShop[36]||0)
     + Math.min(1, Math.max(0, Math.floor(lv / 20) * (ctx.hasComp54 ? 1 : 0)))
     + Math.min(1, Math.floor(lv / 20) * (ctx.spelunkyUpg7 >= 1 ? 1 : 0))
     + Math.min(1, Math.floor(lv / 20))

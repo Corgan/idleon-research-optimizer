@@ -9,7 +9,7 @@
 //     + (1 + pctPool/100) * (equipDN + flatBase + flatAdd)
 //   )
 
-import { node } from '../../node.js';
+import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { getLOG } from '../../../formulas.js';
 import {
@@ -294,7 +294,7 @@ function computeDreamShimmer(saveData) {
 }
 
 // ==================== EQUIP BASE STAT ====================
-function computeEquipBaseStat(charIdx, statName, saveData) {
+export function computeEquipBaseStat(charIdx, statName, saveData) {
   var total = 0;
   var children = [];
   var eqData = equipOrderData[charIdx];
@@ -677,7 +677,7 @@ export function computeFamBonusQTYs(activeCharIdx, saveData) {
   for (var ci = 0; ci < numCharacters; ci++) {
     var classId = charClassData[ci] || 0;
     if (classId <= 0) continue;
-    var playerLv = Number((saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0]) || 0);
+    var playerLv = Number((saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0]) || 0);
     if (playerLv <= 0) continue;
     var chain = returnClasses(classId);
     for (var c = 0; c < chain.length; c++) {
@@ -742,7 +742,7 @@ function computeAllStatPCT(charIdx, ctx) {
     var vialLv = Number(vials[vi]) || 0;
     if (vialLv <= 0) continue;
     var vialBase = formulaEval(vDesc[3], Number(vDesc[1]) || 0, Number(vDesc[2]) || 0, vialLv);
-    var riftActive = Number(saveData.riftData[0]) > 34;
+    var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
     var vub42 = vaultUpgBonus(42, saveData);
     // Rift bonus: 2 * (count of max-level vials) when Rift[0] > 34
     var maxLvVials = 0;
@@ -1265,52 +1265,66 @@ export function primaryStatForClass(charIdx) {
 export function computeStatueBonusGiven(idx, charIdx, saveData) {
   var s = saveData;
   var statueLv = Number(s.statueData && s.statueData[idx]) || 0;
-  if (statueLv <= 0) return 0;
+  if (statueLv <= 0) return treeResult(0, null);
   var baseBonus = Number(StatueInfo[idx] && StatueInfo[idx][3]) || 1;
   var val = statueLv * baseBonus;
+  var children = [node('Level', statueLv, null, { fmt: 'raw' }), node('Base/Lv', baseBonus, null, { fmt: 'raw' })];
   var _dbg = false;
   if (_dbg) console.log('[statue'+idx+'] base:', val.toFixed(2));
   // Game uses GetTalentNumber(1, X) = current character's talent, NOT max scan
   var _ci = charIdx != null ? charIdx : 0;
   var _ctx = { saveData: s, charIdx: _ci };
   if (idx === 0 || idx === 2 || idx === 8 || idx === 7) {
-    if (idx !== 7) val *= Math.max(1, 1 + _rval(talentResolver, 112, _ctx) / 100);
-    if (idx !== 8) val *= Math.max(1, 1 + _rval(talentResolver, 127, _ctx) / 100);
+    if (idx !== 7) { var _t = _rval(talentResolver, 112, _ctx); if (_t > 0) children.push(node('Talent 112', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
+    if (idx !== 8) { var _t = _rval(talentResolver, 127, _ctx); if (_t > 0) children.push(node('Talent 127', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
   } else if (idx === 1 || idx === 11 || idx === 9 || idx === 14) {
-    if (idx !== 14) val *= Math.max(1, 1 + _rval(talentResolver, 292, _ctx) / 100);
-    if (idx !== 9) val *= Math.max(1, 1 + _rval(talentResolver, 307, _ctx) / 100);
+    if (idx !== 14) { var _t = _rval(talentResolver, 292, _ctx); if (_t > 0) children.push(node('Talent 292', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
+    if (idx !== 9) { var _t = _rval(talentResolver, 307, _ctx); if (_t > 0) children.push(node('Talent 307', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
   } else if (idx === 10 || idx === 6 || idx === 12 || idx === 13) {
-    if (idx !== 13) val *= Math.max(1, 1 + _rval(talentResolver, 487, _ctx) / 100);
-    if (idx !== 12) val *= Math.max(1, 1 + _rval(talentResolver, 472, _ctx) / 100);
+    if (idx !== 13) { var _t = _rval(talentResolver, 487, _ctx); if (_t > 0) children.push(node('Talent 487', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
+    if (idx !== 12) { var _t = _rval(talentResolver, 472, _ctx); if (_t > 0) children.push(node('Talent 472', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) })); val *= Math.max(1, 1 + _t / 100); }
   } else if (idx === 3 || idx === 5 || idx === 17) {
-    val *= Math.max(1, 1 + _rval(talentResolver, 37, _ctx) / 100);
+    var _t = _rval(talentResolver, 37, _ctx); if (_t > 0) children.push(node('Talent 37', _t, null, { fmt: 'raw', note: '×' + (1+_t/100).toFixed(2) }));
+    val *= Math.max(1, 1 + _t / 100);
   }
   var statueG = Number(s.statueGData && s.statueGData[idx]) || 0;
   if (statueG >= 2) {
     var art30tier = Number(s.sailingData && s.sailingData[3] && s.sailingData[3][30]) || 0;
     var art30val = art30tier > 0 ? artifactBase(30) * Math.max(1, art30tier) : 0;
-    val *= Math.max(1, 1 + (100 + art30val) / 100);
+    var gMult = 1 + (100 + art30val) / 100;
+    children.push(node('Gold G2', gMult, null, { fmt: 'x', note: 'art30=' + art30val.toFixed(0) }));
+    val *= Math.max(1, gMult);
   }
   if (statueG >= 3) {
     var zmLv = Number(s.spelunkData && s.spelunkData[45] && s.spelunkData[45][0]) || 0;
     var zmMulti = Number(ZenithMarket && ZenithMarket[0] && ZenithMarket[0][4]) || 1;
-    val *= Math.max(1, 1 + (50 + Math.floor(zmMulti * zmLv)) / 100);
+    var g3Mult = 1 + (50 + Math.floor(zmMulti * zmLv)) / 100;
+    children.push(node('Gold G3', g3Mult, null, { fmt: 'x', note: 'zmLv=' + zmLv }));
+    val *= Math.max(1, g3Mult);
   }
   if (idx === 0 || idx === 1 || idx === 2 || idx === 6) {
-    val *= Math.max(1, 1 + _safe(vaultUpgBonus, 25) / 100);
+    var _v25 = _safe(vaultUpgBonus, 25);
+    if (_v25 > 0) { children.push(node('Vault 25', _v25, null, { fmt: 'raw' })); }
+    val *= Math.max(1, 1 + _v25 / 100);
   }
   if (idx !== 29) {
-    val *= Math.max(1, 1 + computeStatueBonusGiven(29, charIdx, saveData) / 100);
+    var _s29 = computeStatueBonusGiven(29, charIdx, saveData);
+    var _s29v = (typeof _s29 === 'object') ? (Number(_s29) || 0) : _s29;
+    if (_s29v > 0) children.push(node('Statue 29 multi', _s29v, null, { fmt: 'raw', note: '×' + (1+_s29v/100).toFixed(2) }));
+    val *= Math.max(1, 1 + _s29v / 100);
   }
   var _evShop = eventShopOwned(19, s.cachedEventShopStr);
   var _t56 = _rval(talentResolver, 56, { saveData: s, charIdx: charIdx != null ? charIdx : 0 }, { mode: 'max' });
   var _m26 = _safe(computeMeritocBonusz, 26);
   if (_dbg) console.log('[statue'+idx+'] before finals:', val.toFixed(2), 'evShop:', _evShop, 't56:', _t56, 'm26:', _m26);
+  if (_evShop) children.push(node('EventShop 19', _evShop, null, { fmt: 'raw', note: '×' + (1+0.3*_evShop).toFixed(2) }));
   val *= (1 + 0.3 * _evShop);
+  if (_t56 > 0) children.push(node('Talent 56', _t56, null, { fmt: 'raw', note: '×' + (1+_t56/100).toFixed(2) }));
   val *= Math.max(1, 1 + _t56 / 100);
+  if (_m26 > 0) children.push(node('Meritoc 26', _m26, null, { fmt: 'raw', note: '×' + (1+_m26/100).toFixed(2) }));
   val *= (1 + _m26 / 100);
   if (_dbg) console.log('[statue'+idx+'] final:', val.toFixed(2));
-  return val;
+  return treeResult(val, children);
 }
 
 // ==================== MEAL BONUS ====================
@@ -1318,9 +1332,10 @@ export function computeStatueBonusGiven(idx, charIdx, saveData) {
 export function computeMealBonus(effectKey, saveData) {
   var s = saveData;
   var meals0 = s.mealsData && s.mealsData[0];
-  if (!meals0) return 0;
+  if (!meals0) return treeResult(0, null);
   var cookMulti = cookingMealMulti(s).val;
   var total = 0;
+  var children = [];
   for (var mi = 0; mi < MealINFO.length; mi++) {
     if (!MealINFO[mi] || MealINFO[mi][5] !== effectKey) continue;
     var mealLv = Number(meals0[mi]) || 0;
@@ -1328,9 +1343,12 @@ export function computeMealBonus(effectKey, saveData) {
     var bonusPerLv = Number(MealINFO[mi][2]) || 0;
     var ribIdx = 28 + mi;
     var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData);
-    total += cookMulti * ribMeal * mealLv * bonusPerLv;
+    var contrib = cookMulti * ribMeal * mealLv * bonusPerLv;
+    total += contrib;
+    children.push(node('Meal ' + mi + ' (' + (MealINFO[mi][0] || '').replace(/_/g, ' ') + ')', contrib, null,
+      { fmt: 'raw', note: 'lv=' + mealLv + ' rib=' + ribMeal.toFixed(2) }));
   }
-  return total;
+  return treeResult(total, children);
 }
 
 // ==================== FAMILIAR BONUSES ====================
