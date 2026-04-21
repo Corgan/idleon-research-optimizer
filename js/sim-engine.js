@@ -306,10 +306,12 @@ export async function unifiedSim(config, saveCtx) {
     // If reset is imminent (< 1 min away), treat as next cycle
     if (_firstTournamentHrs < 1 / 60) _firstTournamentHrs += _tournamentIntervalHrs;
     // Check if user already registered in the current tournament day.
-    // Game: OLA[511] stores tournamentDay+1 on registration.
-    // tournamentDay comes from tournament.global.T in the save (NOT derived from GlobalTime).
-    // If OLA[511] >= T + 1, they already registered today → skip to next reset.
-    if (_sc.tournamentDay > 0 && _sc.tourneyLastDay >= _sc.tournamentDay + 1) {
+    // Game: OLA[511] stores getTournamentDay()+1 on registration.
+    // OLA[496] caches the live getTournamentDay() value (updated each time the
+    // tournament menu is opened). tournament.global.T in the Firebase save can
+    // lag behind by a day, so use OLA[496] which is always current at save time.
+    const _cachedTourneyDay = _sc.tourneyCachedDay || 0;
+    if (_cachedTourneyDay > 0 && _sc.tourneyLastDay >= _cachedTourneyDay + 1) {
       _firstTournamentHrs += _tournamentIntervalHrs;
     }
   }

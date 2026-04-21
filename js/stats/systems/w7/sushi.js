@@ -72,7 +72,7 @@ export function fuelCostPerTier(tier) {
  * Game formula: UpgLvREQ(t)
  */
 export function upgLvReq(t) {
-  return Math.floor(1 + Math.min(3, t) + Math.min(6, t)
+  return Math.floor(1 + Math.min(2, t) + Math.min(4, t)
     + (3 * t - Math.max(0, t - 4) - Math.max(0, t - 8)
     + Math.floor(t / 6) + Math.floor(t / 17)));
 }

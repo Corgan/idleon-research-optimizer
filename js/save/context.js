@@ -109,7 +109,9 @@ export function buildSaveContext() {
 
     // Tournament: OLA[511] = last registered tournament day + 1
     tourneyLastDay: Number(optionsListData?.[511]) || 0,
-    // Game's internal tournament day counter (from tournament.global.T)
+    // OLA[496] = client-cached getTournamentDay() (updated when tournament menu opens)
+    tourneyCachedDay: Number(optionsListData?.[496]) || 0,
+    // Game's internal tournament day counter (from tournament.global.T) — can be stale
     tournamentDay: tournamentDay,
   };
 }
