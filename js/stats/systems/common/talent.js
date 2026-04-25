@@ -326,7 +326,11 @@ function getbonus2(talentIdx, data, activeCharIdx, saveData) {
     var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
     var r;
     if (talentIdx >= 100) {
-      r = getTalentNumber(ci, talentIdx, data, activeCharIdx, rawLv, saveData);
+      // Game uses the logged-in character's context for AllTalentLVz.
+      // When activeCharIdx=-1 (offline/unknown), use ci's own context as
+      // best approximation — each character provides its own bonus levels.
+      var ctxForATL = activeCharIdx >= 0 ? activeCharIdx : ci;
+      r = getTalentNumber(ci, talentIdx, data, ctxForATL, rawLv, saveData);
     } else {
       // No ATL for talents < 100 in getbonus2
       if (rawLv <= 0) {

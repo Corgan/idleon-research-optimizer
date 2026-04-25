@@ -122,6 +122,7 @@ export function loadSaveData(raw) {
 
   const nChars = raw.charNames ? raw.charNames.length : 10;
   assignSaveData({ numCharacters: nChars });
+  assignState({ charNames: raw.charNames || [] });
 
   // Per-character data
   const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], statueLvAll = [];

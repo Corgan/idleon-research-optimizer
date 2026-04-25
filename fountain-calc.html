@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Fountain Calculator</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --yellow: #ffe066; --w-green: #a5d6a7; --w-black: #90a4ae;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+
+/* Save import */
+#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+#save-area label { font-weight: 600; }
+#save-area input[type="file"] { color: var(--text2); }
+.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
+.btn:hover { filter: brightness(1.2); }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+#import-msg { font-size: .82em; margin-left: 8px; }
+#import-msg.ok { color: var(--green); }
+#import-msg.err { color: var(--red); }
+#json-paste-wrap { display: none; padding: 0 16px 12px; background: var(--bg2); gap: 8px; align-items: flex-start; }
+#json-paste { flex: 1; min-width: 0; background: #111; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; color: var(--text); font-size: .8em; font-family: monospace; resize: vertical; }
+
+/* Custom tooltip */
+#js-tip { display:none; position:fixed; z-index:9999; max-width:360px; padding:8px 12px; background:#1a1a2e; border:1px solid var(--gold); border-radius:6px; color:var(--text); font-size:.72em; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+
+/* Main layout */
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
+
+/* Cards */
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card-grid.cols-5 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .locked { opacity: .4; }
+
+/* Water type tabs */
+.water-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.water-tab { padding: 6px 18px; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 700; font-size: .85em; border: 1px solid #444; border-bottom: none; background: var(--bg3); color: var(--text2); transition: background .15s, color .15s; }
+.water-tab:hover { background: var(--bg); }
+.water-tab.active { color: #000; }
+.water-tab[data-w="0"].active { background: var(--blue); }
+.water-tab[data-w="1"].active { background: var(--yellow); }
+.water-tab[data-w="2"].active { background: var(--w-green); }
+
+/* Water panel */
+.water-panel { display: none; }
+.water-panel.active { display: block; }
+
+/* Bars */
+.bar-outer { height: 10px; border-radius: 5px; background: #333; overflow: hidden; min-width: 80px; }
+.bar-fill { height: 100%; border-radius: 5px; }
+.bar-fill.yellow { background: var(--yellow); }
+.bar-fill.green { background: var(--w-green); }
+.bar-fill.black { background: var(--w-black); }
+
+/* Badges */
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-blue { background: rgba(33,150,243,.15); color: var(--blue); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+
+/* Planner */
+.planner-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.planner-controls label { font-size: .85em; color: var(--text2); }
+.planner-controls select { background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; padding: 4px 8px; font-size: .85em; }
+.planner-controls input[type="checkbox"] { accent-color: var(--accent); }
+.eff-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); vertical-align: middle; }
+.rank-num { font-weight: 700; color: var(--gold); font-size: 1.1em; min-width: 24px; display: inline-block; text-align: center; }
+.data-table .best td { background: rgba(76,175,80,.08); }
+
+/* Currency row */
+.curr-row { display: grid; grid-template-columns: 140px 1fr 100px 100px; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); align-items: center; font-size: .85em; }
+.curr-name { font-weight: 700; }
+.curr-base, .curr-total { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Marble column */
+.marble-col { text-align: center; font-size: .72em; color: var(--purple); }
+
+/* Inline number */
+.n { color: var(--gold); font-weight: 600; }
+.n-blue { color: var(--blue); font-weight: 600; }
+
+/* Scroll wrapper for table overflow */
+.table-scroll { overflow-x: auto; }
+
+/* Main tabs */
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all .2s; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Coin stacks horizontal */
+.coin-stack { display: inline-flex; flex-direction: column; align-items: center; padding: 8px 10px; background: var(--bg3); border-radius: 6px; border: 1px solid #444; min-width: 70px; font-size: .78em; }
+.coin-stack .cs-slot { color: var(--text2); margin-bottom: 2px; }
+.coin-stack .cs-count { font-weight: 700; font-size: 1.2em; color: var(--text); }
+.coin-stack .cs-types { color: var(--cyan); margin-top: 2px; }
+.coin-stack .cs-royal { color: var(--gold); font-weight: 700; }
+.coin-stack .cs-val { color: var(--gold); font-size: .9em; margin-top: 2px; }
+.coin-stacks-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div id="js-tip"></div>
+
+<h1>&#x26F2; <span>Idleon</span> Fountain Calculator</h1>
+
+<div id="save-area">
+  <label>Load save:</label>
+  <input type="file" id="file-input" accept=".json">
+  <span style="color:var(--text2);margin:0 4px;">or</span>
+  <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
+  <span id="import-msg"></span>
+</div>
+<div id="json-paste-wrap">
+  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
+  <button class="btn" id="paste-load-btn">Load</button>
+</div>
+
+<div class="main" id="main-content">
+  <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+</div>
+
+<script type="module">
+'use strict';
+
+import { saveData } from './js/state.js';
+import { loadSaveData } from './js/save/loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import * as F from './js/stats/systems/w5/fountain.js';
+
+// ========== FORMATTING ==========
+function fmtNum(n) {
+  if (n === 0) return '0';
+  if (n === Math.floor(n) && Math.abs(n) < 1e3) return String(n);
+  return fmtVal(n);
+}
+
+var CURR_SHORT = ['Bronze', 'Silver', 'Gold', 'Dollar', 'Credit', 'T-Bill', 'Moolah', 'Shilling', 'Greane'];
+function fmtCost(amount, typeIdx) {
+  return fmtNum(amount) + ' <span style="color:var(--text2);font-size:.8em">' + (CURR_SHORT[typeIdx] || '?') + '</span>';
+}
+
+function fmtPct(n) { return (n * 100).toFixed(1) + '%'; }
+function fmtTimeFull(sec) {
+  if (!isFinite(sec) || sec <= 0) return '0s';
+  var h = Math.floor(sec / 3600);
+  var m = Math.floor((sec % 3600) / 60);
+  var s = Math.floor(sec % 60);
+  var ms = Math.round((sec % 1) * 1000);
+  var parts = [];
+  if (h > 0) parts.push(h + 'h');
+  if (m > 0) parts.push(m + 'm');
+  if (s > 0 || (parts.length === 0 && ms === 0)) parts.push(s + 's');
+  if (ms > 0) parts.push(ms + 'ms');
+  return parts.join(' ');
+}
+function fmtTime(sec) {
+  if (sec < 60) return sec.toFixed(0) + 's';
+  if (sec < 3600) return (sec / 60).toFixed(1) + 'm';
+  return (sec / 3600).toFixed(2) + 'h';
+}
+
+// ========== SAVE LOADING ==========
+function _loadRaw(raw) {
+  var msg = document.getElementById('import-msg');
+  try {
+    loadSaveData(raw);
+    msg.className = 'ok';
+    msg.textContent = '\u2713 Save loaded.';
+    _renderAll();
+  } catch (err) {
+    msg.className = 'err';
+    msg.textContent = '\u2717 ' + err.message;
+    console.error(err);
+  }
+}
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function() {
+    try { _loadRaw(JSON.parse(reader.result)); }
+    catch (err) {
+      var m = document.getElementById('import-msg');
+      m.className = 'err'; m.textContent = '\u2717 ' + err.message;
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('paste-btn').addEventListener('click', function() {
+  var wrap = document.getElementById('json-paste-wrap');
+  wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex';
+});
+
+document.getElementById('paste-load-btn').addEventListener('click', function() {
+  try {
+    _loadRaw(JSON.parse(document.getElementById('json-paste').value));
+    document.getElementById('json-paste-wrap').style.display = 'none';
+  } catch (err) {
+    var m = document.getElementById('import-msg');
+    m.className = 'err'; m.textContent = '\u2717 ' + err.message;
+  }
+});
+
+// ========== TOOLTIP ==========
+(function() {
+  var tip = document.getElementById('js-tip');
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (!el) { tip.style.display = 'none'; return; }
+    tip.textContent = el.getAttribute('data-tip');
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (tip.style.display === 'none') return;
+    var x = e.clientX + 14, y = e.clientY + 14;
+    if (x + 360 > window.innerWidth) x = e.clientX - 370;
+    if (y + 120 > window.innerHeight) y = e.clientY - 120;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  });
+  document.addEventListener('mouseout', function(e) {
+    if (e.target.closest('[data-tip]')) tip.style.display = 'none';
+  });
+})();
+
+// ========== RENDERING ==========
+var _activeWater = 0;
+var _plannerGoal = 'currency';
+var _plannerAffordable = false;
+var _plannerNormalize = false;
+var _optimizerGoal = 'currency';
+var _optimizerMaxSteps = 50;
+var _optimizerAffordable = true;
+var _optimizerNormalize = false;
+var _mPlannerGoal = 'currency';
+var _mPlannerAffordable = false;
+var _mOptimizerGoal = 'currency';
+var _mOptimizerMaxSteps = 50;
+var _mOptimizerAffordable = true;
+
+// Render the planner table
+function _renderPlanner(uLvs, mLvs, desired) {
+  var el = document.getElementById('planner-table');
+  if (!el) return;
+  var goal = _plannerGoal;
+  var baseline = F.measureGoal(saveData, goal, uLvs, mLvs, desired);
+  var baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
+  var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
+
+  var candidates = [];
+  for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+    for (var u = 0; u < 20; u++) {
+      if (!F.upgUnlocked(uLvs, w, u)) continue;
+      var lv = uLvs[w][u] || 0;
+      var cost = F.upgCost(w, u, lv);
+      var d = F.UPG_DATA[w][u];
+      var opalType = d[3];
+
+      var avail = F.fountCurrencyAvail(saveData, opalType);
+      var canAfford = avail >= cost;
+      if (_plannerAffordable && !canAfford) continue;
+
+      var simLvs = F.cloneUpgLvs(uLvs);
+      simLvs[w][u] = lv + 1;
+      var newVal = F.measureGoal(saveData, goal, simLvs, mLvs, desired);
+      var delta = newVal - baseline;
+      if (delta <= 0) continue;
+
+      var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
+      var normCost = cost;
+      if (_plannerNormalize) {
+        var cv = F.currencyTotalValue(saveData, uLvs, mLvs, opalType, desired);
+        normCost = cost * cv;
+      }
+      var efficiency = normCost > 0 ? pctGain / normCost : 0;
+
+      var fillDiff = null, marbleFillDiff = null;
+      if (goal === 'fill') {
+        var newFill = F.barFillTime(saveData, simLvs, mLvs) / F.activeSpeedMulti(simLvs, mLvs);
+        fillDiff = baseFillTime - newFill;
+        var newMFill = F.marbleBarFillTime() / F.activeSpeedMulti(simLvs, mLvs);
+        marbleFillDiff = baseMarbleFill - newMFill;
+      }
+
+      candidates.push({
+        w: w, u: u, name: d[0], lv: lv,
+        cost: cost, opalType: opalType,
+        canAfford: canAfford,
+        delta: delta, pctGain: pctGain,
+        efficiency: efficiency,
+        newVal: newVal,
+        fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
+      });
+    }
+  }
+
+  candidates.sort(function(a, b) { return b.efficiency - a.efficiency; });
+
+  if (candidates.length === 0) {
+    el.innerHTML = '<div style="color:var(--text2);padding:16px;">No upgrades affect this goal, or none are affordable.</div>';
+    return;
+  }
+
+  var maxEff = candidates[0].efficiency;
+
+  var isFill = (goal === 'fill');
+  var html = '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Water</th><th>Upgrade</th><th class="num">Lv</th>';
+  html += '<th class="num">Cost</th><th class="num">Gain</th>';
+  html += '<th class="num">% Gain</th>';
+  if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
+  html += '<th>Efficiency</th><th>Affordable</th>';
+  html += '</tr></thead><tbody>';
+
+  var limit = Math.min(candidates.length, 30);
+  for (var i = 0; i < limit; i++) {
+    var c = candidates[i];
+    var barW = maxEff > 0 ? Math.max(2, (c.efficiency / maxEff) * 120) : 2;
+    var rowCls = i === 0 ? ' class="best"' : '';
+    html += '<tr' + rowCls + '>';
+    html += '<td><span class="rank-num">' + (i + 1) + '</span></td>';
+    html += '<td><span style="color:' + F.WATER_COLORS[c.w] + '">' + F.WATER_NAMES[c.w] + '</span></td>';
+    html += '<td>' + c.name + '</td>';
+    html += '<td class="num">' + c.lv + ' \u2192 ' + (c.lv + 1) + '</td>';
+    html += '<td class="num">' + fmtCost(c.cost, c.opalType) + '</td>';
+    html += '<td class="num">+' + fmtNum(c.delta) + '</td>';
+    html += '<td class="num">+' + c.pctGain.toFixed(3) + '%</td>';
+    if (isFill) {
+      html += '<td class="num" style="color:var(--green)">-' + fmtTimeFull(c.fillDiff) + '</td>';
+      html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
+    }
+    html += '<td><span class="eff-bar" style="width:' + barW + 'px"></span></td>';
+    html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
+    html += '</tr>';
+  }
+  if (candidates.length > limit) {
+    html += '<tr><td colspan="' + (isFill ? 11 : 9) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function _renderAll() {
+  var el = document.getElementById('main-content');
+  var uLvs = F.upgLvs(saveData);
+  var mLvs = F.marbleLvs(saveData);
+  var fLv = F.fountainLv(saveData);
+  var desired = F.desiredCurrency(saveData);
+
+  var goals = [
+    ['currency', 'Total Currency Value'],
+    ['fill', 'Fill Speed'],
+    ['bronze', 'Bronze Coins'],
+    ['silver', 'Silver Coins'],
+    ['golden', 'Golden Coins'],
+    ['dollar', 'Dollar Bills'],
+    ['credit', 'Credit Bills'],
+    ['treasury', 'Treasury Bills'],
+    ['royal', 'Royal Chance'],
+  ];
+  var stepOpts = [10, 25, 50, 100, 250];
+
+  var html = '';
+
+  // ===== TAB BAR =====
+  html += '<div class="tabs">';
+  html += '<div class="tab active" data-tab="overview">Overview</div>';
+  html += '<div class="tab" data-tab="currency">Currency</div>';
+  html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '<div class="tab" data-tab="planner">Planner</div>';
+  html += '<div class="tab" data-tab="marble">Marble</div>';
+  html += '</div>';
+
+  // ===== OVERVIEW TAB =====
+  html += '<div id="tab-overview" class="tab-content active">';
+  html += '<div class="section"><h2>Fountain Overview</h2>';
+  html += '<div class="card-grid cols-4">';
+  var fLvType = F.fountLvCurrencyType(fLv);
+  html += _card('Fountain Level', fLv, 'Next: ' + fmtCost(F.opalCost(fLv), fLvType));
+  html += _card('Waters Unlocked', F.watersOwned(uLvs, mLvs) + ' / ' + F.WATERS_IMPLEMENTED, '');
+  var spaces = F.spacesOwned(uLvs, mLvs);
+  var stacks = F.maxStackSize(saveData, uLvs, mLvs);
+  html += _card('Max Coins', fmtNum(spaces * stacks), spaces + ' spaces \u00d7 ' + Math.floor(stacks) + ' stack');
+  html += _card('Marble', fmtNum(F.marbleCurrency(saveData)), 'Per fill: ' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)));
+  html += '</div>';
+
+  // Fill time and speed
+  var fillSec = F.barFillTime(saveData, uLvs, mLvs);
+  var marbleFillSec = F.marbleBarFillTime();
+  var activeMul = F.activeSpeedMulti(uLvs, mLvs);
+  html += '<div class="card-grid cols-5" style="margin-top:10px">';
+  html += _card('Coin Fill', fmtTimeFull(fillSec / activeMul), 'AFK: ' + fmtTimeFull(fillSec) + ' \u2022 ' + activeMul.toFixed(1) + 'x active');
+  html += _card('Marble Fill', fmtTimeFull(marbleFillSec / activeMul), 'AFK: ' + fmtTimeFull(marbleFillSec) + ' \u2022 ' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill');
+  html += _card('Total Multi', fmtNum(F.currencyAllMulti(saveData, uLvs, mLvs)) + 'x', 'Currency value multiplier');
+  var rc = F.royalChance(uLvs, mLvs);
+  html += _card('Royal Chance', '1 in ' + Math.round(1 / rc), fmtPct(rc) + ' per fill');
+  // Redeem value breakdown by currency type
+  var _redeemStacks = F.coinStacks(saveData);
+  var _redeemByType = {};
+  var _redeemTotal = 0;
+  var _desired = F.desiredCurrency(saveData);
+  var _rm = F.royalMulti(uLvs, mLvs);
+  for (var ri = 0; ri < _redeemStacks.length; ri++) {
+    var rst = _redeemStacks[ri];
+    var rv = F.stackRedeemValue(saveData, uLvs, mLvs, rst);
+    var _tc = {};
+    for (var rci = 0; rci < rst.coins.length; rci++) _tc[rst.coins[rci]] = (_tc[rst.coins[rci]] || 0) + 1;
+    var _tKeys = Object.keys(_tc);
+    if (_tKeys.length === 1) {
+      var _k = _tKeys[0];
+      _redeemByType[_k] = (_redeemByType[_k] || 0) + rv;
+    } else {
+      var _weights = {};
+      var _wTotal = 0;
+      for (var ti = 0; ti < _tKeys.length; ti++) {
+        var _t = _tKeys[ti];
+        var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, Number(_t), _desired);
+        _weights[_t] = _cv * _tc[_t];
+        _wTotal += _weights[_t];
+      }
+      for (var ti2 = 0; ti2 < _tKeys.length; ti2++) {
+        var _t2 = _tKeys[ti2];
+        var share = _wTotal > 0 ? rv * _weights[_t2] / _wTotal : 0;
+        _redeemByType[_t2] = (_redeemByType[_t2] || 0) + share;
+      }
+    }
+    _redeemTotal += rv;
+  }
+  var _redeemSub = Object.keys(_redeemByType).map(function(k) {
+    return CURR_SHORT[k] + ': ' + fmtNum(_redeemByType[k]);
+  }).join(' \u2022 ');
+  html += _card('Redeem Value', fmtNum(_redeemTotal), _redeemSub || 'No coins on ground');
+  html += '</div>';
+  html += '</div>';
+
+  // Coin Stacks (horizontal)
+  var coinStacks = F.coinStacks(saveData);
+  if (coinStacks.length > 0) {
+    html += '<div class="section"><h2>Coin Stacks</h2>';
+    html += '<div class="coin-stacks-row">';
+    for (var si = 0; si < coinStacks.length; si++) {
+      var st = coinStacks[si];
+      var rv = F.stackRedeemValue(saveData, uLvs, mLvs, st);
+      var typeCounts = {};
+      for (var ci = 0; ci < st.coins.length; ci++) {
+        var ct = st.coins[ci];
+        typeCounts[ct] = (typeCounts[ct] || 0) + 1;
+      }
+      var typeStr = Object.keys(typeCounts).map(function(k) {
+        return typeCounts[k] + '\u00d7' + CURR_SHORT[k];
+      }).join(', ');
+      html += '<div class="coin-stack">';
+      html += '<div class="cs-slot">#' + (st.slot + 1) + '</div>';
+      html += '<div class="cs-count">' + st.count + '</div>';
+      html += '<div class="cs-types">' + typeStr + '</div>';
+      if (st.royal) html += '<div class="cs-royal">\u2654</div>';
+      html += '<div class="cs-val">' + fmtNum(rv) + '</div>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+
+  // Stack fill times
+  var stackFillSec = (fillSec / activeMul) * stacks;
+  var allStacksFillSec = stackFillSec * spaces;
+  html += '<div class="card-grid cols-4" style="margin-top:10px">';
+  html += _card('Stack Fill', fmtTimeFull(stackFillSec), stacks + ' coins \u00d7 ' + fmtTimeFull(fillSec / activeMul) + '/fill');
+  html += _card('All Stacks Fill', fmtTimeFull(allStacksFillSec), spaces + ' spaces \u00d7 ' + fmtTimeFull(stackFillSec) + '/stack');
+  html += _card('AFK Stack Fill', fmtTimeFull(fillSec * stacks), stacks + ' coins \u00d7 ' + fmtTimeFull(fillSec) + '/fill');
+  html += _card('AFK All Fill', fmtTimeFull(fillSec * stacks * spaces), spaces + ' spaces \u00d7 ' + fmtTimeFull(fillSec * stacks) + '/stack');
+  html += '</div>';
+
+  // Cross-System Bonuses
+  html += '<div class="section" style="margin-top:16px"><h2>Cross-System Bonuses</h2>';
+  html += '<div class="card-grid cols-3">';
+  var xb = [
+    ['Bravery Monument', F.bonTOT(uLvs, mLvs, 0, 13), 'x', 'From Monumental Boost'],
+    ['Justice Monument', F.bonTOT(uLvs, mLvs, 1, 13), 'x', 'From Judicial Boost'],
+    ['Cosmo EXP', F.bonTOT(uLvs, mLvs, 0, 14), 'x', 'From Cosmological Boost'],
+    ['Golden Bucket', F.bonTOT(uLvs, mLvs, 0, 15), 'x', 'From Golden Bucket Boost'],
+    ['Class EXP', F.bonTOT(uLvs, mLvs, 0, 16), 'x', 'From Class EXP Boost'],
+    ['Sailing Treasure', F.bonTOT(uLvs, mLvs, 0, 17), 'x', 'From Treasure Boost'],
+    ['Orion Feathers', F.bonTOT(uLvs, mLvs, 0, 18), 'x', 'From Orion Boost'],
+    ['All Damage', F.bonTOT(uLvs, mLvs, 1, 16), 'x', "From Swingy O' Sword"],
+    ['Bolaia Study', F.bonTOT(uLvs, mLvs, 1, 14), 'x', 'From Skim Reading'],
+    ['Harp EXP', F.bonTOT(uLvs, mLvs, 1, 15), 'x', 'From Fine Tuning'],
+    ['Summoning Essence', F.bonTOT(uLvs, mLvs, 1, 17), 'x', 'From Summoneer'],
+    ['Poppy Fish', F.bonTOT(uLvs, mLvs, 1, 18), 'x', 'From Better Poppy'],
+  ];
+  for (var i = 0; i < xb.length; i++) {
+    var b = xb[i];
+    var val = b[1] > 0 ? fmtNum(b[1]) + b[2] : '-';
+    html += _card(b[0], val, b[3]);
+  }
+  html += '</div></div>';
+
+  html += '</div>'; // end overview tab
+
+  // ===== CURRENCY TAB =====
+  html += '<div id="tab-currency" class="tab-content">';
+  html += '<div class="section"><h2>Currency Values</h2>';
+  var allM = F.currencyAllMulti(saveData, uLvs, mLvs);
+  var rm = F.royalMulti(uLvs, mLvs);
+  var dm = F.desireMulti(uLvs, mLvs);
+  html += '<div style="font-size:.82em;color:var(--text2);margin-bottom:8px;">All Multi: <span class="n">' + fmtNum(allM) + 'x</span>';
+  html += ' \u2022 Royal Multi: <span class="n">' + rm.toFixed(2) + 'x</span>';
+  html += ' \u2022 Desire Multi: <span class="n">' + dm.toFixed(2) + 'x</span>';
+  if (desired < F.CURRENCY_NAMES.length) html += ' (on ' + F.CURRENCY_NAMES[desired] + ')';
+  html += '</div>';
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Currency</th><th class="num">Base</th><th class="num">Total</th>';
+  html += '<th class="num">Full Stack</th><th class="num">Royal Total</th><th>Status</th>';
+  html += '</tr></thead><tbody>';
+  var stackSz = F.maxStackSize(saveData, uLvs, mLvs);
+  for (var c = 0; c < 9; c++) {
+    var unlocked = F.currencyUnlocked(uLvs, mLvs, c);
+    var cls = unlocked ? '' : ' class="locked"';
+    var bv = F.currencyBaseValue(saveData, uLvs, mLvs, c);
+    var des = (c === desired) ? dm : 1;
+    var tv = bv * allM * des;
+    var rtv = tv * rm;
+    var fullStack = tv * stackSz;
+    html += '<tr' + cls + '>';
+    html += '<td>' + F.CURRENCY_NAMES[c] + (c === desired ? ' <span class="badge badge-gold">Desired</span>' : '') + '</td>';
+    html += '<td class="num">' + fmtNum(bv) + '</td>';
+    html += '<td class="num"><b>' + fmtNum(tv) + '</b></td>';
+    html += '<td class="num" style="color:var(--gold)">' + fmtNum(fullStack) + '</td>';
+    html += '<td class="num" style="color:var(--purple)">' + fmtNum(rtv) + '</td>';
+    html += '<td>' + (unlocked ? '<span class="badge badge-green">Unlocked</span>' : '<span class="badge badge-red">Locked</span>') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '</div></div>'; // end currency tab
+
+  // ===== UPGRADES TAB =====
+  html += '<div id="tab-upgrades" class="tab-content">';
+
+  // Upgrade Panels (tabbed by water)
+  html += '<div class="section"><h2>Upgrades</h2>';
+  html += '<div class="water-tabs">';
+  for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+    html += '<div class="water-tab' + (w === _activeWater ? ' active' : '') + '" data-w="' + w + '">'
+      + F.WATER_NAMES[w] + ' Water</div>';
+  }
+  html += '</div>';
+  for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+    html += '<div class="water-panel' + (w === _activeWater ? ' active' : '') + '" id="water-panel-' + w + '">';
+    html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
+    html += '<th>#</th><th>Upgrade</th><th class="num">Level</th><th class="num">Marble</th>';
+    html += '<th class="num">Next Cost</th><th class="num">Marble Cost</th>';
+    html += '<th>Description</th><th>Status</th>';
+    html += '</tr></thead><tbody>';
+    for (var u = 0; u < 20; u++) {
+      var d = F.UPG_DATA[w][u];
+      var lv = uLvs[w][u] || 0;
+      var ml = mLvs[w][u] || 0;
+      var bon = F.bonTOT(uLvs, mLvs, w, u);
+      var unlocked = F.upgUnlocked(uLvs, w, u);
+      if (!unlocked) continue;
+      var desc = d[7].replace(/\}x/g, fmtNum(bon) + 'x')
+                      .replace(/\+\{%/g, '+' + fmtNum(bon) + '%')
+                      .replace(/\+\{/g, '+' + fmtNum(bon))
+                      .replace(/\$/g, fmtNum(bon));
+      if (w === 0 && u === 9) {
+        desc += ' \u2022 Fill: ' + fmtTimeFull(F.barFillTime(saveData, uLvs, mLvs))
+          + ' (active: ' + fmtTimeFull(F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs)) + ')';
+      }
+      if (w === 0 && u === 12) {
+        desc += ' \u2022 Active fill: ' + fmtTimeFull(F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs));
+      }
+      if (w === 1 && u === 10) {
+        desc += ' \u2022 Marble fill: ' + fmtTimeFull(F.marbleBarFillTime())
+          + ' (' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill)';
+      }
+      html += '<tr>';
+      html += '<td>' + u + '</td>';
+      html += '<td>' + d[0] + '</td>';
+      html += '<td class="num">' + lv + '</td>';
+      html += '<td class="num marble-col">' + ml + ' <span style="font-size:.7em">(' + F.marbleBon(ml).toFixed(1) + 'x)</span></td>';
+      html += '<td class="num">' + fmtCost(F.upgCost(w, u, lv), d[3]) + '</td>';
+      html += '<td class="num">' + (ml >= 0 ? fmtNum(F.marbleCost(u, ml)) : '-') + '</td>';
+      html += '<td data-tip="' + _escAttr(desc) + '" style="cursor:help;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _truncate(desc, 50) + '</td>';
+      html += '<td>' + (lv > 0 ? '<span class="badge badge-green">Lv ' + lv + '</span>' : '<span class="badge badge-blue">Available</span>') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '</div>'; // end upgrades tab
+
+  // ===== PLANNER TAB =====
+  html += '<div id="tab-planner" class="tab-content">';
+
+  // Upgrade Planner
+  html += '<div class="section"><h2>Upgrade Planner</h2>';
+  html += '<div class="planner-controls">';
+  html += '<label>Goal: <select id="planner-goal">';
+  for (var gi = 0; gi < goals.length; gi++) {
+    html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _plannerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label><input type="checkbox" id="planner-affordable"' + (_plannerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '<label><input type="checkbox" id="planner-normalize"' + (_plannerNormalize ? ' checked' : '') + '> Normalize cost by currency value</label>';
+  html += '</div>';
+  html += '<div id="planner-table"></div>';
+  html += '</div>';
+
+  // Upgrade Optimizer
+  html += '<div class="section"><h2>Upgrade Optimizer</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Greedily buys the best upgrade for the selected goal, spending all available currencies. Shows the full upgrade path and resulting values.</p>';
+  html += '<div class="planner-controls">';
+  html += '<label>Goal: <select id="optimizer-goal">';
+  for (var gi = 0; gi < goals.length; gi++) {
+    html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _optimizerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label>Max steps: <select id="optimizer-steps">';
+  for (var si = 0; si < stepOpts.length; si++) {
+    html += '<option value="' + stepOpts[si] + '"' + (stepOpts[si] === _optimizerMaxSteps ? ' selected' : '') + '>' + stepOpts[si] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label><input type="checkbox" id="optimizer-affordable"' + (_optimizerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '<label><input type="checkbox" id="optimizer-normalize"' + (_optimizerNormalize ? ' checked' : '') + '> Normalize cost by currency value</label>';
+  html += '</div>';
+  html += '<div id="optimizer-table"></div>';
+  html += '</div>';
+  html += '</div>'; // end planner tab
+
+  // ===== MARBLE TAB =====
+  html += '<div id="tab-marble" class="tab-content">';
+
+  // Marble Planner
+  html += '<div class="section"><h2>Marble Planner</h2>';
+  html += '<div class="planner-controls">';
+  html += '<label>Goal: <select id="mplanner-goal">';
+  for (var gi = 0; gi < goals.length; gi++) {
+    html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _mPlannerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label><input type="checkbox" id="mplanner-affordable"' + (_mPlannerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '</div>';
+  html += '<div id="mplanner-table"></div>';
+  html += '</div>';
+
+  // Marble Optimizer
+  html += '<div class="section"><h2>Marble Optimizer</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Greedily buys the best marble upgrade for the selected goal. Uses available marble currency.</p>';
+  html += '<div class="planner-controls">';
+  html += '<label>Goal: <select id="moptimizer-goal">';
+  for (var gi = 0; gi < goals.length; gi++) {
+    html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _mOptimizerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label>Max steps: <select id="moptimizer-steps">';
+  for (var si = 0; si < stepOpts.length; si++) {
+    html += '<option value="' + stepOpts[si] + '"' + (stepOpts[si] === _mOptimizerMaxSteps ? ' selected' : '') + '>' + stepOpts[si] + '</option>';
+  }
+  html += '</select></label>';
+  html += '<label><input type="checkbox" id="moptimizer-affordable"' + (_mOptimizerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '</div>';
+  html += '<div id="moptimizer-table"></div>';
+  html += '</div>';
+  html += '</div>'; // end marble tab
+
+  el.innerHTML = html;
+
+  // Wire main tabs
+  el.querySelectorAll('.tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      el.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      el.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      // Lazy render on first visit
+      if (tab.dataset.tab === 'planner') {
+        _renderPlanner(uLvs, mLvs, desired);
+        _renderOptimizer(uLvs, mLvs, desired);
+      }
+      if (tab.dataset.tab === 'marble') {
+        _renderMarblePlanner(uLvs, mLvs, desired);
+        _renderMarbleOptimizer(uLvs, mLvs, desired);
+      }
+    });
+  });
+
+  // Wire water tab clicks
+  var tabs = el.querySelectorAll('.water-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener('click', function() {
+      _activeWater = Number(this.getAttribute('data-w'));
+      var allTabs = document.querySelectorAll('.water-tab');
+      var allPanels = document.querySelectorAll('.water-panel');
+      for (var j = 0; j < allTabs.length; j++) {
+        allTabs[j].classList.toggle('active', j === _activeWater);
+        allPanels[j].classList.toggle('active', j === _activeWater);
+      }
+    });
+  }
+
+  // Wire planner
+  document.getElementById('planner-goal').addEventListener('change', function() {
+    _plannerGoal = this.value;
+    _renderPlanner(uLvs, mLvs, desired);
+  });
+  document.getElementById('planner-affordable').addEventListener('change', function() {
+    _plannerAffordable = this.checked;
+    _renderPlanner(uLvs, mLvs, desired);
+  });
+  document.getElementById('planner-normalize').addEventListener('change', function() {
+    _plannerNormalize = this.checked;
+    _renderPlanner(uLvs, mLvs, desired);
+  });
+
+  // Wire optimizer
+  document.getElementById('optimizer-goal').addEventListener('change', function() {
+    _optimizerGoal = this.value;
+    _renderOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('optimizer-steps').addEventListener('change', function() {
+    _optimizerMaxSteps = Number(this.value);
+    _renderOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('optimizer-affordable').addEventListener('change', function() {
+    _optimizerAffordable = this.checked;
+    _renderOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('optimizer-normalize').addEventListener('change', function() {
+    _optimizerNormalize = this.checked;
+    _renderOptimizer(uLvs, mLvs, desired);
+  });
+
+  // Wire marble planner
+  document.getElementById('mplanner-goal').addEventListener('change', function() {
+    _mPlannerGoal = this.value;
+    _renderMarblePlanner(uLvs, mLvs, desired);
+  });
+  document.getElementById('mplanner-affordable').addEventListener('change', function() {
+    _mPlannerAffordable = this.checked;
+    _renderMarblePlanner(uLvs, mLvs, desired);
+  });
+
+  // Wire marble optimizer
+  document.getElementById('moptimizer-goal').addEventListener('change', function() {
+    _mOptimizerGoal = this.value;
+    _renderMarbleOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('moptimizer-steps').addEventListener('change', function() {
+    _mOptimizerMaxSteps = Number(this.value);
+    _renderMarbleOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('moptimizer-affordable').addEventListener('change', function() {
+    _mOptimizerAffordable = this.checked;
+    _renderMarbleOptimizer(uLvs, mLvs, desired);
+  });
+}
+
+// ========== MULTI-UPGRADE OPTIMIZER ==========
+function _renderOptimizer(uLvs, mLvs, desired) {
+  var el = document.getElementById('optimizer-table');
+  if (!el) return;
+  var goal = _optimizerGoal;
+  var maxSteps = _optimizerMaxSteps;
+
+  var simLvs = F.cloneUpgLvs(uLvs);
+  var budgets = {};
+  for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+    for (var u = 0; u < 20; u++) {
+      var oType = F.UPG_DATA[w][u][3];
+      if (!(oType in budgets)) budgets[oType] = F.fountCurrencyAvail(saveData, oType);
+    }
+  }
+
+  var baseline = F.measureGoal(saveData, goal, simLvs, mLvs, desired);
+  var steps = [];
+  var bought = {};
+
+  for (var step = 0; step < maxSteps; step++) {
+    var bestEff = -1, bestW = -1, bestU = -1, bestCost = 0, bestDelta = 0, bestPct = 0;
+
+    for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+      for (var u = 0; u < 20; u++) {
+        if (!F.upgUnlocked(simLvs, w, u)) continue;
+        var lv = simLvs[w][u] || 0;
+        var cost = F.upgCost(w, u, lv);
+        var oType = F.UPG_DATA[w][u][3];
+        if (_optimizerAffordable && (budgets[oType] || 0) < cost) continue;
+
+        var tryLvs = F.cloneUpgLvs(simLvs);
+        tryLvs[w][u] = lv + 1;
+        var newVal = F.measureGoal(saveData, goal, tryLvs, mLvs, desired);
+        var delta = newVal - baseline;
+        if (delta <= 0) continue;
+        var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
+        var normCost = cost;
+        if (_optimizerNormalize) {
+          var cv = F.currencyTotalValue(saveData, simLvs, mLvs, oType, F.desiredCurrency(saveData));
+          normCost = cost * cv;
+        }
+        var eff = normCost > 0 ? pctGain / normCost : 0;
+        if (eff > bestEff) {
+          bestEff = eff; bestW = w; bestU = u;
+          bestCost = cost; bestDelta = delta; bestPct = pctGain;
+        }
+      }
+    }
+
+    if (bestW < 0) break;
+
+    var oType = F.UPG_DATA[bestW][bestU][3];
+    if (_optimizerAffordable) budgets[oType] -= bestCost;
+    simLvs[bestW][bestU] = (simLvs[bestW][bestU] || 0) + 1;
+    baseline = baseline + bestDelta;
+
+    var key = bestW + ',' + bestU;
+    bought[key] = (bought[key] || 0) + 1;
+
+    steps.push({
+      w: bestW, u: bestU, name: F.UPG_DATA[bestW][bestU][0],
+      newLv: simLvs[bestW][bestU],
+      cost: bestCost, opalType: oType,
+      delta: bestDelta, pctGain: bestPct,
+      cumVal: baseline,
+      coinFill: goal === 'fill' ? F.barFillTime(saveData, simLvs, mLvs) / F.activeSpeedMulti(simLvs, mLvs) : null,
+      marbleFill: goal === 'fill' ? F.marbleBarFillTime() / F.activeSpeedMulti(simLvs, mLvs) : null,
+    });
+  }
+
+  if (steps.length === 0) {
+    el.innerHTML = '<div style="color:var(--text2);padding:16px;">No affordable upgrades affect this goal.</div>';
+    return;
+  }
+
+  var groups = {};
+  var groupOrder = [];
+  for (var i = 0; i < steps.length; i++) {
+    var s = steps[i];
+    var key = s.w + ',' + s.u;
+    if (!groups[key]) {
+      groups[key] = { w: s.w, u: s.u, name: s.name, count: 0, totalCost: 0, opalType: s.opalType, startLv: s.newLv - 1, endLv: s.newLv, coinFill: s.coinFill, marbleFill: s.marbleFill };
+      groupOrder.push(key);
+    }
+    groups[key].count++;
+    groups[key].totalCost += s.cost;
+    groups[key].endLv = s.newLv;
+    groups[key].coinFill = s.coinFill;
+    groups[key].marbleFill = s.marbleFill;
+  }
+
+  var startVal = F.measureGoal(saveData, goal, uLvs, mLvs, desired);
+  var endVal = baseline;
+  var totalGainPct = startVal > 0 ? (endVal - startVal) / startVal * 100 : 0;
+
+  var html = '<div style="margin-bottom:10px;font-size:.85em;">';
+  html += '<span class="n">' + steps.length + '</span> upgrades purchased \u2022 ';
+  html += 'Value: <span class="n">' + fmtNum(startVal) + '</span> \u2192 <span class="n">' + fmtNum(endVal) + '</span>';
+  html += ' (<span class="n">+' + totalGainPct.toFixed(1) + '%</span>)';
+  if (goal === 'fill') {
+    var startFill = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
+    var endFill = F.barFillTime(saveData, simLvs, mLvs) / F.activeSpeedMulti(simLvs, mLvs);
+    html += ' \u2022 Fill: <span class="n">' + fmtTimeFull(startFill) + '</span> \u2192 <span class="n">' + fmtTimeFull(endFill) + '</span>';
+  }
+  html += '</div>';
+
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Water</th><th>Upgrade</th><th class="num">Levels</th>';
+  html += '<th class="num">From</th><th class="num">To</th><th class="num">Total Cost</th>';
+  if (goal === 'fill') html += '<th class="num">Coin Fill</th><th class="num">Marble Fill</th>';
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < groupOrder.length; i++) {
+    var g = groups[groupOrder[i]];
+    html += '<tr>';
+    html += '<td><span style="color:' + F.WATER_COLORS[g.w] + '">' + F.WATER_NAMES[g.w] + '</span></td>';
+    html += '<td>' + g.name + '</td>';
+    html += '<td class="num">' + g.count + '</td>';
+    html += '<td class="num">' + (g.startLv) + '</td>';
+    html += '<td class="num"><b>' + g.endLv + '</b></td>';
+    html += '<td class="num">' + fmtCost(g.totalCost, g.opalType) + '</td>';
+    if (goal === 'fill') {
+      html += '<td class="num">' + fmtTimeFull(g.coinFill) + '</td>';
+      html += '<td class="num">' + fmtTimeFull(g.marbleFill) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  if (_optimizerAffordable) {
+    html += '<div style="margin-top:8px;font-size:.78em;color:var(--text2);">Remaining: ';
+    var bKeys = Object.keys(budgets).sort();
+    var parts = [];
+    for (var i = 0; i < bKeys.length; i++) {
+      parts.push((CURR_SHORT[bKeys[i]] || ('Type ' + bKeys[i])) + ': ' + fmtNum(budgets[bKeys[i]]));
+    }
+    html += parts.join(' \u2022 ') + '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ========== MARBLE PLANNER ==========
+function _renderMarblePlanner(uLvs, mLvs, desired) {
+  var el = document.getElementById('mplanner-table');
+  if (!el) return;
+  var goal = _mPlannerGoal;
+  var baseline = F.measureGoal(saveData, goal, uLvs, mLvs, desired);
+  var marbleAvail = F.marbleCurrency(saveData);
+  var baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
+  var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
+
+  var candidates = [];
+  for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+    for (var u = 0; u < 20; u++) {
+      var upgLv = uLvs[w][u] || 0;
+      if (upgLv <= 0) continue;  // can only marble upgrades you own
+      var mLv = mLvs[w][u] || 0;
+      var cost = F.marbleCost(u, mLv);
+      var canAfford = marbleAvail >= cost;
+      if (_mPlannerAffordable && !canAfford) continue;
+
+      var simMLvs = F.cloneMarbleLvs(mLvs);
+      simMLvs[w][u] = mLv + 1;
+      var newVal = F.measureGoal(saveData, goal, uLvs, simMLvs, desired);
+      var delta = newVal - baseline;
+      if (delta <= 0) continue;
+
+      var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
+      var efficiency = cost > 0 ? pctGain / cost : 0;
+      var fillDiff = null, marbleFillDiff = null;
+      if (goal === 'fill') {
+        var newFill = F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs);
+        fillDiff = baseFillTime - newFill;
+        var newMFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, simMLvs);
+        marbleFillDiff = baseMarbleFill - newMFill;
+      }
+
+      candidates.push({
+        w: w, u: u, name: F.UPG_DATA[w][u][0], mLv: mLv,
+        cost: cost, canAfford: canAfford,
+        delta: delta, pctGain: pctGain,
+        efficiency: efficiency, fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
+      });
+    }
+  }
+
+  candidates.sort(function(a, b) { return b.efficiency - a.efficiency; });
+
+  if (candidates.length === 0) {
+    el.innerHTML = '<div style="color:var(--text2);padding:16px;">No marble upgrades affect this goal, or none are affordable.</div>';
+    return;
+  }
+
+  var isFill = (goal === 'fill');
+  var maxEff = candidates[0].efficiency;
+  var html = '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Water</th><th>Upgrade</th><th class="num">Marble Lv</th>';
+  html += '<th class="num">Cost</th><th class="num">Gain</th>';
+  html += '<th class="num">% Gain</th>';
+  if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
+  html += '<th>Efficiency</th><th>Affordable</th>';
+  html += '</tr></thead><tbody>';
+
+  var limit = Math.min(candidates.length, 30);
+  for (var i = 0; i < limit; i++) {
+    var c = candidates[i];
+    var barW = maxEff > 0 ? Math.max(2, (c.efficiency / maxEff) * 120) : 2;
+    var rowCls = i === 0 ? ' class="best"' : '';
+    html += '<tr' + rowCls + '>';
+    html += '<td><span class="rank-num">' + (i + 1) + '</span></td>';
+    html += '<td><span style="color:' + F.WATER_COLORS[c.w] + '">' + F.WATER_NAMES[c.w] + '</span></td>';
+    html += '<td>' + c.name + '</td>';
+    html += '<td class="num">' + c.mLv + ' \u2192 ' + (c.mLv + 1) + '</td>';
+    html += '<td class="num">' + fmtNum(c.cost) + ' marble</td>';
+    html += '<td class="num">+' + fmtNum(c.delta) + '</td>';
+    html += '<td class="num">+' + c.pctGain.toFixed(3) + '%</td>';
+    if (isFill) {
+      html += '<td class="num" style="color:var(--green)">-' + fmtTimeFull(c.fillDiff) + '</td>';
+      html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
+    }
+    html += '<td><span class="eff-bar" style="width:' + barW + 'px"></span></td>';
+    html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
+    html += '</tr>';
+  }
+  if (candidates.length > limit) {
+    html += '<tr><td colspan="' + (isFill ? 11 : 9) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ========== MARBLE OPTIMIZER ==========
+function _renderMarbleOptimizer(uLvs, mLvs, desired) {
+  var el = document.getElementById('moptimizer-table');
+  if (!el) return;
+  var goal = _mOptimizerGoal;
+  var maxSteps = _mOptimizerMaxSteps;
+
+  var simMLvs = F.cloneMarbleLvs(mLvs);
+  var budget = F.marbleCurrency(saveData);
+
+  var baseline = F.measureGoal(saveData, goal, uLvs, simMLvs, desired);
+  var steps = [];
+
+  for (var step = 0; step < maxSteps; step++) {
+    var bestEff = -1, bestW = -1, bestU = -1, bestCost = 0, bestDelta = 0, bestPct = 0;
+
+    for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
+      for (var u = 0; u < 20; u++) {
+        var upgLv = uLvs[w][u] || 0;
+        if (upgLv <= 0) continue;
+        var mLv = simMLvs[w][u] || 0;
+        var cost = F.marbleCost(u, mLv);
+        if (_mOptimizerAffordable && budget < cost) continue;
+
+        var tryMLvs = F.cloneMarbleLvs(simMLvs);
+        tryMLvs[w][u] = mLv + 1;
+        var newVal = F.measureGoal(saveData, goal, uLvs, tryMLvs, desired);
+        var delta = newVal - baseline;
+        if (delta <= 0) continue;
+        var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
+        var eff = cost > 0 ? pctGain / cost : 0;
+        if (eff > bestEff) {
+          bestEff = eff; bestW = w; bestU = u;
+          bestCost = cost; bestDelta = delta; bestPct = pctGain;
+        }
+      }
+    }
+
+    if (bestW < 0) break;
+
+    if (_mOptimizerAffordable) budget -= bestCost;
+    simMLvs[bestW][bestU] = (simMLvs[bestW][bestU] || 0) + 1;
+    baseline = baseline + bestDelta;
+
+    steps.push({
+      w: bestW, u: bestU, name: F.UPG_DATA[bestW][bestU][0],
+      newMLv: simMLvs[bestW][bestU],
+      cost: bestCost,
+      delta: bestDelta, pctGain: bestPct,
+      cumVal: baseline,
+      coinFill: goal === 'fill' ? F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs) : null,
+      marbleFill: goal === 'fill' ? F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, simMLvs) : null,
+    });
+  }
+
+  if (steps.length === 0) {
+    el.innerHTML = '<div style="color:var(--text2);padding:16px;">No affordable marble upgrades affect this goal.</div>';
+    return;
+  }
+
+  var groups = {};
+  var groupOrder = [];
+  for (var i = 0; i < steps.length; i++) {
+    var s = steps[i];
+    var key = s.w + ',' + s.u;
+    if (!groups[key]) {
+      groups[key] = { w: s.w, u: s.u, name: s.name, count: 0, totalCost: 0, startLv: s.newMLv - 1, endLv: s.newMLv, coinFill: s.coinFill, marbleFill: s.marbleFill };
+      groupOrder.push(key);
+    }
+    groups[key].count++;
+    groups[key].totalCost += s.cost;
+    groups[key].endLv = s.newMLv;
+    groups[key].coinFill = s.coinFill;
+    groups[key].marbleFill = s.marbleFill;
+  }
+
+  var startVal = F.measureGoal(saveData, goal, uLvs, mLvs, desired);
+  var endVal = baseline;
+  var totalGainPct = startVal > 0 ? (endVal - startVal) / startVal * 100 : 0;
+
+  var html = '<div style="margin-bottom:10px;font-size:.85em;">';
+  html += '<span class="n">' + steps.length + '</span> marble upgrades \u2022 ';
+  html += 'Value: <span class="n">' + fmtNum(startVal) + '</span> \u2192 <span class="n">' + fmtNum(endVal) + '</span>';
+  html += ' (<span class="n">+' + totalGainPct.toFixed(1) + '%</span>)';
+  if (goal === 'fill') {
+    var startFill = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
+    var endFill = F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs);
+    html += ' \u2022 Fill: <span class="n">' + fmtTimeFull(startFill) + '</span> \u2192 <span class="n">' + fmtTimeFull(endFill) + '</span>';
+  }
+  html += '</div>';
+
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Water</th><th>Upgrade</th><th class="num">Levels</th>';
+  html += '<th class="num">From</th><th class="num">To</th><th class="num">Total Cost</th>';
+  if (goal === 'fill') html += '<th class="num">Coin Fill</th><th class="num">Marble Fill</th>';
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < groupOrder.length; i++) {
+    var g = groups[groupOrder[i]];
+    html += '<tr>';
+    html += '<td><span style="color:' + F.WATER_COLORS[g.w] + '">' + F.WATER_NAMES[g.w] + '</span></td>';
+    html += '<td>' + g.name + '</td>';
+    html += '<td class="num">' + g.count + '</td>';
+    html += '<td class="num">' + g.startLv + '</td>';
+    html += '<td class="num"><b>' + g.endLv + '</b></td>';
+    html += '<td class="num">' + fmtNum(g.totalCost) + ' marble</td>';
+    if (goal === 'fill') {
+      html += '<td class="num">' + fmtTimeFull(g.coinFill) + '</td>';
+      html += '<td class="num">' + fmtTimeFull(g.marbleFill) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  if (_mOptimizerAffordable) {
+    html += '<div style="margin-top:8px;font-size:.78em;color:var(--text2);">Remaining: ' + fmtNum(budget) + ' marble</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function _card(title, val, sub) {
+  return '<div class="card"><div class="card-title">' + title + '</div>'
+    + '<div class="card-val">' + val + '</div>'
+    + (sub ? '<div class="card-sub">' + sub + '</div>' : '')
+    + '</div>';
+}
+
+function _escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _truncate(s, n) {
+  return s.length > n ? s.slice(0, n) + '\u2026' : s;
+}
+</script>
+</body>
+</html>

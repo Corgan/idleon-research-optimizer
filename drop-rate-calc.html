@@ -23,11 +23,11 @@
   <summary>&#x1F4CB; Import Save JSON</summary>
   <textarea id="json-in" placeholder="Paste your it.json or save.json contents here..."></textarea>
   <div class="top-bar">
-    <button class="btn" onclick="doImport()">Load Save</button>
-    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
+    <button class="btn" id="btn-import">Load Save</button>
+    <select id="char-sel" disabled>
       <option value="-1">-- load save first --</option>
     </select>
-    <select id="map-sel" onchange="switchMap(+this.value)" disabled>
+    <select id="map-sel" disabled>
       <option value="0">Map: Town (no AC)</option>
     </select>
   </div>
@@ -197,6 +197,10 @@ function switchMap(idx) { CUR_MAP = idx; recalc(); }
 window.doImport = doImport;
 window.switchChar = switchChar;
 window.switchMap = switchMap;
+
+document.getElementById('btn-import').addEventListener('click', doImport);
+document.getElementById('char-sel').addEventListener('change', function() { switchChar(+this.value); });
+document.getElementById('map-sel').addEventListener('change', function() { switchMap(+this.value); });
 
 // Init
 recalc();

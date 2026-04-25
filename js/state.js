@@ -40,6 +40,7 @@ export const saveData = {
   gamingData: [],
   gamingSproutData: [],
   ninjaData: [],
+  charNames: [],
   ribbonData: [],
   mealsData: [],
   farmCropCount: 0,
