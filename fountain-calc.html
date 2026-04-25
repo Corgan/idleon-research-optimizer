@@ -540,7 +540,7 @@ function _renderAll() {
   html += '</div>';
   html += '<table class="data-table"><thead><tr>';
   html += '<th>Currency</th><th class="num">Base</th><th class="num">Total</th>';
-  html += '<th class="num">Full Stack</th><th class="num">Royal Total</th><th>Status</th>';
+  html += '<th class="num">Full Stack</th><th class="num">Royal Stack</th><th>Status</th>';
   html += '</tr></thead><tbody>';
   var stackSz = F.maxStackSize(saveData, uLvs, mLvs);
   for (var c = 0; c < 9; c++) {
@@ -549,8 +549,8 @@ function _renderAll() {
     var bv = F.currencyBaseValue(saveData, uLvs, mLvs, c);
     var des = (c === desired) ? dm : 1;
     var tv = bv * allM * des;
-    var rtv = tv * rm;
     var fullStack = tv * stackSz;
+    var rtv = fullStack * rm;
     html += '<tr' + cls + '>';
     html += '<td>' + F.CURRENCY_NAMES[c] + (c === desired ? ' <span class="badge badge-gold">Desired</span>' : '') + '</td>';
     html += '<td class="num">' + fmtNum(bv) + '</td>';
