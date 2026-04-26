@@ -125,6 +125,26 @@ h1 span { color: var(--accent); }
 .coin-stack .cs-royal { color: var(--gold); font-weight: 700; }
 .coin-stack .cs-val { color: var(--gold); font-size: .9em; margin-top: 2px; }
 .coin-stacks-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Breakdown tree */
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #444; }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.sub-val { font-size: .8em; color: var(--text2); }
+.stat-table { width: 100%; border-collapse: collapse; font-size: .85em; }
+.stat-table th, .stat-table td { padding: 5px 8px; text-align: right; border-bottom: 1px solid rgba(255,255,255,.08); }
+.stat-table th:first-child, .stat-table td:first-child { text-align: left; }
+.stat-table th { color: var(--text2); font-weight: 600; border-bottom: 2px solid #444; }
+.stat-table tfoot td { border-top: 2px solid #444; }
 </style>
 </head>
 <body>
@@ -270,8 +290,7 @@ var _mOptimizerMaxSteps = 50;
 var _mOptimizerAffordable = true;
 var _plannerPerHr = false;
 var _optimizerPerHr = false;
-var _mPlannerPerHr = false;
-var _mOptimizerPerHr = false;
+
 
 // Render the planner table
 function _renderPlanner(uLvs, mLvs, desired) {
@@ -386,6 +405,364 @@ function _renderPlanner(uLvs, mLvs, desired) {
   el.innerHTML = html;
 }
 
+// ========== BREAKDOWN TREE RENDERER ==========
+var _btId = 0;
+function _btFmtVal(v, fmt) {
+  if (fmt === 'x') return '\u00d7' + (Math.abs(v) >= 1e4 ? fmtNum(v) : parseFloat(v.toFixed(4)));
+  if (fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
+  if (fmt === '+%') return '+' + parseFloat(v.toFixed(2)) + '%';
+  if (fmt === '+') return '+' + (Math.abs(v) >= 1e4 ? fmtNum(v) : parseFloat(v.toFixed(2)));
+  return Math.abs(v) >= 1e4 ? fmtNum(v) : parseFloat(v.toFixed(4));
+}
+function _btValColor(fmt) {
+  if (fmt === 'pct' || fmt === '+') return 'var(--green)';
+  if (fmt === '+%') return 'var(--purple)';
+  if (fmt === 'x') return 'var(--cyan)';
+  return 'var(--text)';
+}
+function _btBuildHtml(node, depth) {
+  var id = 'bt' + (_btId++) + '-';
+  var has = node.children && node.children.length > 0;
+  var pad = depth * 18;
+  var open = depth <= 1;
+  var arrow = has ? '<span class="bt-arrow" data-id="' + id + '">' + (open ? '\u25be' : '\u25b8') + '</span>'
+    : '<span style="display:inline-block;width:14px;"></span>';
+  var cls = 'bt-row' + (depth === 0 ? ' bt-root' : '');
+  var h = '<div class="' + cls + '" style="padding-left:' + pad + 'px;">';
+  h += arrow;
+  h += '<span class="bt-label">' + node.label + '</span>';
+  h += '<span class="bt-val" style="color:' + _btValColor(node.fmt) + '">' + _btFmtVal(node.val, node.fmt) + '</span>';
+  h += '</div>';
+  if (has) {
+    h += '<div class="bt-children" id="' + id + '" style="' + (open ? '' : 'display:none;') + '">';
+    for (var ci = 0; ci < node.children.length; ci++) h += _btBuildHtml(node.children[ci], depth + 1);
+    h += '</div>';
+  }
+  return h;
+}
+function _renderBreakdown(root, container) {
+  var h = '<div class="bt-controls"><button class="btn btn-sm bt-expand-all">Expand All</button>'
+    + '<button class="btn btn-sm bt-collapse-all">Collapse All</button></div>';
+  h += '<div class="bt-tree">' + _btBuildHtml(root, 0) + '</div>';
+  container.innerHTML = h;
+  container.onclick = function(e) {
+    if (e.target.closest('.bt-controls')) return;
+    var row = e.target.closest('.bt-row');
+    if (!row) return;
+    var arrow = row.querySelector('.bt-arrow');
+    if (!arrow) return;
+    var ch = document.getElementById(arrow.dataset.id);
+    if (!ch) return;
+    var open = ch.style.display !== 'none';
+    ch.style.display = open ? 'none' : '';
+    arrow.textContent = open ? '\u25b8' : '\u25be';
+  };
+  var ea = container.querySelector('.bt-expand-all');
+  var ca = container.querySelector('.bt-collapse-all');
+  if (ea) ea.onclick = function(e) {
+    e.stopPropagation();
+    container.querySelectorAll('.bt-children').forEach(function(el) { el.style.display = ''; });
+    container.querySelectorAll('.bt-arrow').forEach(function(el) { el.textContent = '\u25be'; });
+  };
+  if (ca) ca.onclick = function(e) {
+    e.stopPropagation();
+    container.querySelectorAll('.bt-children').forEach(function(el) { el.style.display = 'none'; });
+    container.querySelectorAll('.bt-arrow').forEach(function(el) { el.textContent = '\u25b8'; });
+  };
+}
+
+function _renderMultiBreakdown(bd) {
+  var f = bd.fountain, ex = bd.external;
+  // Build tree
+  var fountainChildren = [
+    { label: F.UPG_DATA[0][0][0] + ' (W0U0)', val: f.w0, fmt: 'x' },
+    { label: 'Boosters', val: f.boosters, fmt: 'x', children: [
+      { label: F.UPG_DATA[0][1][0] + ' (W0U1)', val: f.b01, fmt: '+%' },
+      { label: F.UPG_DATA[1][1][0] + ' (W1U1)', val: f.b11, fmt: '+%' },
+      { label: F.UPG_DATA[2][1][0] + ' (W2U1)', val: f.b21, fmt: '+%' },
+      { label: F.UPG_DATA[1][12][0] + ' (W1U12)', val: f.b112, fmt: '+%' },
+    ]},
+    { label: F.UPG_DATA[1][0][0] + ' (W1U0)', val: f.w1, fmt: 'x' },
+    { label: F.UPG_DATA[2][0][0] + ' (W2U0)', val: f.w2, fmt: 'x' },
+  ];
+  var externalChildren = [
+    { label: 'Building #94 \u00d7 Motherlode Lv3 (' + ex.ml3 + ')', val: ex.motherlode, fmt: 'x' },
+    { label: 'Cosmo Bonus (0,4) \u2014 ' + ex.cosmo04, val: ex.cosmo, fmt: 'x' },
+    { label: 'Lamp Bonus 99 \u2014 ' + fmtNum(ex.lamp99), val: ex.lamp, fmt: 'x' },
+    { label: 'Measurement #16 \u2014 ' + fmtNum(ex.meas16) + '%', val: ex.meas, fmt: 'x' },
+    { label: 'Bell #6 \u2014 ' + fmtNum(ex.bell6) + '%', val: ex.bell, fmt: 'x' },
+  ];
+
+  var root = {
+    label: 'All Multi (Fountain \u00d7 External)', val: bd.allMulti, fmt: 'x',
+    children: [
+      { label: 'Fountain Multi', val: f.total, fmt: 'x', children: fountainChildren },
+      { label: 'External Multi', val: ex.total, fmt: 'x', children: externalChildren },
+    ]
+  };
+
+  // Add separate top-level rows for Royal, Desire, Royal Chance, Keep %
+  var royalRoot = {
+    label: 'Royal Multi', val: bd.royal.total, fmt: 'x',
+    children: [
+      { label: F.UPG_DATA[1][9][0] + ' (W1U9)', val: bd.royal.raw, fmt: '+%' },
+      { label: 'Base', val: 5, fmt: 'x' },
+    ]
+  };
+  var desireRoot = {
+    label: 'Desire Multi', val: bd.desire.total, fmt: 'x',
+    children: [
+      { label: F.UPG_DATA[1][11][0] + ' (W1U11)', val: bd.desire.raw, fmt: '+%' },
+    ]
+  };
+  var rcRoot = {
+    label: 'Royal Chance (1 in ' + Math.round(1 / bd.royalChance.total) + ')', val: bd.royalChance.total * 100, fmt: 'pct',
+    children: [
+      { label: 'Base Chance', val: 0.3333, fmt: 'pct' },
+      { label: F.UPG_DATA[1][8][0] + ' (W1U8)', val: bd.royalChance.raw, fmt: '+%' },
+    ]
+  };
+  var keepRoot = {
+    label: 'Money Back Keep', val: bd.keep.total * 100, fmt: 'pct',
+    children: [
+      { label: 'Base', val: 10, fmt: 'pct' },
+      { label: F.UPG_DATA[0][8][0] + ' (W0U8)', val: bd.keep.raw, fmt: '+' },
+    ]
+  };
+
+  // Combine into single tree with "Multipliers" as root
+  var tree = {
+    label: 'Currency Multipliers', val: bd.allMulti, fmt: 'x',
+    children: [root, royalRoot, desireRoot, rcRoot, keepRoot]
+  };
+
+  var container = document.getElementById('multi-breakdown');
+  if (container) _renderBreakdown(tree, container);
+}
+
+// ========== COST CURVE LINE GRAPH ==========
+var _ccUpgradesData = [];  // set by _renderAll
+var _ccGoal = 'currency';  // for efficiency mode
+var _ccNormalize = false;
+var _ccEfficiency = false;
+var _ccLineColors = [
+  '#64b5f6','#ffe066','#a5d6a7','#ef9a9a','#ce93d8','#80cbc4',
+  '#ffcc80','#90caf9','#f48fb1','#b9f6ca','#fff59d','#80deea',
+  '#bcaaa4','#b0bec5','#c5e1a5','#e6ee9c','#81d4fa','#ea80fc',
+  '#ff8a65','#4dd0e1','#aed581','#dce775','#4fc3f7','#ba68c8',
+  '#ff7043','#26c6da','#9ccc65','#d4e157','#29b6f6','#ab47bc',
+  '#ff5722','#00bcd4','#8bc34a','#cddc39','#03a9f4','#9c27b0',
+  '#e64a19','#0097a7','#689f38','#afb42b','#0288d1','#7b1fa2',
+];
+
+// Upgrade categories for checkbox grouping
+var _CC_CATEGORIES = [
+  { key: 'value', label: 'Currency Value', upgs: [[0,0],[0,1],[1,0],[1,1],[2,0],[2,1],[1,9],[1,11],[1,12],[0,19],[1,19]] },
+  { key: 'base', label: 'Coin Base Value', upgs: [[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[2,2],[2,3],[2,4]] },
+  { key: 'fill', label: 'Fill Speed', upgs: [[0,9],[0,12]] },
+  { key: 'capacity', label: 'Capacity & MBG', upgs: [[0,8],[0,10],[0,11],[1,8],[1,10]] },
+  { key: 'external', label: 'External Bonuses', upgs: [[0,13],[0,14],[0,15],[0,16],[0,17],[0,18],[1,13],[1,14],[1,15],[1,16],[1,17],[1,18]] },
+];
+
+var _ccLastSeries = [];  // cached for tooltip
+var _ccPad = { l: 70, r: 20, t: 20, b: 40 };
+var _ccSteps = 50;
+
+function _drawCostCurve() {
+  var canvas = document.getElementById('cost-curve-canvas');
+  if (!canvas) return;
+  var checks = document.querySelectorAll('.cc-check');
+  var selected = [];
+  checks.forEach(function(ch) {
+    if (ch.checked) selected.push(Number(ch.dataset.ccidx));
+  });
+  if (selected.length === 0 || _ccUpgradesData.length === 0) {
+    var ctx0 = canvas.getContext('2d');
+    var dpr0 = window.devicePixelRatio || 1;
+    var rect0 = canvas.getBoundingClientRect();
+    canvas.width = rect0.width * dpr0;
+    canvas.height = rect0.height * dpr0;
+    ctx0.scale(dpr0, dpr0);
+    ctx0.clearRect(0, 0, rect0.width, rect0.height);
+    ctx0.fillStyle = '#888';
+    ctx0.font = '14px sans-serif';
+    ctx0.textAlign = 'center';
+    ctx0.fillText('Select upgrades to display', rect0.width / 2, rect0.height / 2);
+    _ccLastSeries = [];
+    return;
+  }
+
+  var dpr = window.devicePixelRatio || 1;
+  var rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  var W = rect.width, H = rect.height;
+  var pad = _ccPad;
+  var plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  var steps = _ccSteps;
+
+  // Compute series data
+  var series = [];
+  for (var si = 0; si < selected.length; si++) {
+    var upg = _ccUpgradesData[selected[si]];
+    var pts = [], rawVals = [];
+    for (var s = 0; s <= steps; s++) {
+      var cost = F.upgCost(upg.w, upg.u, upg.lv + s);
+      var val;
+      if (_ccEfficiency) {
+        // Efficiency: pctGain / cost for goal at this level
+        var simBase = F.cloneUpgLvs(upg._uLvs);
+        simBase[upg.w][upg.u] = upg.lv + s;
+        var baseVal = F.measureGoal(saveData, _ccGoal, simBase, upg._mLvs, upg._desired);
+        var simNext = F.cloneUpgLvs(simBase);
+        simNext[upg.w][upg.u] = upg.lv + s + 1;
+        var nextVal = F.measureGoal(saveData, _ccGoal, simNext, upg._mLvs, upg._desired);
+        var delta = nextVal - baseVal;
+        var pctGain = baseVal > 0 ? (delta / baseVal) * 100 : 0;
+        if (_ccNormalize) {
+          var cv = F.currencyTotalValue(saveData, upg._uLvs, upg._mLvs, upg.costType, upg._desired);
+          cost = cost * cv;
+        }
+        val = cost > 0 ? pctGain / cost : 0;
+        rawVals.push(val);
+        pts.push(val > 0 ? Math.log10(val) : -30);
+      } else {
+        if (_ccNormalize) {
+          var cv = F.currencyTotalValue(saveData, upg._uLvs, upg._mLvs, upg.costType, upg._desired);
+          cost = cost * cv;
+        }
+        rawVals.push(cost);
+        pts.push(Math.log10(Math.max(1, cost)));
+      }
+    }
+    series.push({
+      pts: pts, rawVals: rawVals,
+      name: upg.name, color: _ccLineColors[selected[si] % _ccLineColors.length],
+      upg: upg, idx: selected[si]
+    });
+  }
+  _ccLastSeries = series;
+
+  // Find Y range
+  var yMin = Infinity, yMax = -Infinity;
+  for (var i = 0; i < series.length; i++) {
+    for (var j = 0; j <= steps; j++) {
+      var v = series[i].pts[j];
+      if (v > -29 && v < yMin) yMin = v;
+      if (v > yMax) yMax = v;
+    }
+  }
+  if (!isFinite(yMin)) yMin = 0;
+  if (!isFinite(yMax)) yMax = 1;
+  if (yMax - yMin < 1) { yMin -= 0.5; yMax += 0.5; }
+  var yPad = (yMax - yMin) * 0.05;
+  yMin -= yPad; yMax += yPad;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  var yTicks = 6;
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'right';
+  for (var yi = 0; yi <= yTicks; yi++) {
+    var yv = yMin + (yMax - yMin) * yi / yTicks;
+    var py = pad.t + plotH - (yv - yMin) / (yMax - yMin) * plotH;
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + plotW, py); ctx.stroke();
+    var pow = Math.round(yv * 10) / 10;
+    ctx.fillText('1e' + pow.toFixed(1), pad.l - 6, py + 4);
+  }
+  ctx.textAlign = 'center';
+  var xTicks = 5;
+  for (var xi = 0; xi <= xTicks; xi++) {
+    var xLv = Math.round(steps * xi / xTicks);
+    var px = pad.l + (xLv / steps) * plotW;
+    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, pad.t + plotH); ctx.stroke();
+    ctx.fillText('+' + xLv, px, pad.t + plotH + 16);
+  }
+  var xLabel = _ccEfficiency ? 'Levels from current (' + _ccGoal + ' efficiency)' : 'Levels from current';
+  ctx.fillText(xLabel, pad.l + plotW / 2, pad.t + plotH + 34);
+
+  // Draw lines
+  ctx.lineWidth = 2;
+  for (var li = 0; li < series.length; li++) {
+    ctx.strokeStyle = series[li].color;
+    ctx.beginPath();
+    var started = false;
+    for (var lj = 0; lj <= steps; lj++) {
+      if (series[li].pts[lj] <= -29) { started = false; continue; }
+      var lx = pad.l + (lj / steps) * plotW;
+      var ly = pad.t + plotH - (series[li].pts[lj] - yMin) / (yMax - yMin) * plotH;
+      if (!started) { ctx.moveTo(lx, ly); started = true; } else ctx.lineTo(lx, ly);
+    }
+    ctx.stroke();
+  }
+
+  // Legend
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'left';
+  var legX = pad.l + 10, legY = pad.t + 14;
+  for (var lg = 0; lg < series.length; lg++) {
+    ctx.fillStyle = series[lg].color;
+    ctx.fillRect(legX, legY + lg * 16 - 8, 12, 3);
+    ctx.fillText(series[lg].name, legX + 16, legY + lg * 16);
+  }
+}
+
+function _ccShowTooltip(e) {
+  var canvas = document.getElementById('cost-curve-canvas');
+  var tip = document.getElementById('cc-tooltip');
+  if (!canvas || !tip || _ccLastSeries.length === 0) { if (tip) tip.style.display = 'none'; return; }
+  var rect = canvas.getBoundingClientRect();
+  var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  var W = rect.width, H = rect.height;
+  var pad = _ccPad;
+  var plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  var steps = _ccSteps;
+  // Map mouse X to step
+  var frac = (mx - pad.l) / plotW;
+  if (frac < 0 || frac > 1) { tip.style.display = 'none'; return; }
+  var step = Math.round(frac * steps);
+  if (step < 0) step = 0; if (step > steps) step = steps;
+
+  // Build tooltip content
+  var lines = ['<b>+' + step + ' levels</b>'];
+  for (var i = 0; i < _ccLastSeries.length; i++) {
+    var s = _ccLastSeries[i];
+    var upg = s.upg;
+    var lv = upg.lv + step;
+    var rawCost = F.upgCost(upg.w, upg.u, lv);
+    var label = _ccEfficiency ? 'Eff' : 'Cost';
+    var valStr;
+    if (_ccEfficiency) {
+      var rv = s.rawVals[step];
+      valStr = rv === 0 ? '0' : rv.toExponential(2);
+    } else {
+      valStr = fmtCost(rawCost, upg.costType);
+    }
+    lines.push('<span style="color:' + s.color + '">\u25CF</span> ' + s.name
+      + ' <span style="color:var(--text2)">(Lv ' + lv + ')</span> — '
+      + label + ': ' + valStr);
+  }
+  tip.innerHTML = lines.join('<br>');
+  tip.style.display = 'block';
+  // Position tooltip
+  var tipX = mx + 16, tipY = my - 10;
+  if (tipX + 260 > rect.width) tipX = mx - 260;
+  if (tipY < 0) tipY = 4;
+  tip.style.left = tipX + 'px';
+  tip.style.top = tipY + 'px';
+}
+
+function _ccHideTooltip() {
+  var tip = document.getElementById('cc-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
 function _renderAll() {
   var el = document.getElementById('main-content');
   var uLvs = F.upgLvs(saveData);
@@ -402,7 +779,6 @@ function _renderAll() {
     ['dollar', 'Dollar Bills'],
     ['credit', 'Credit Bills'],
     ['treasury', 'Treasury Bills'],
-    ['royal', 'Royal Chance'],
   ];
   var stepOpts = [10, 25, 50, 100, 250];
 
@@ -479,6 +855,94 @@ function _renderAll() {
   html += '</div>';
   html += '</div>';
 
+  // ===== INCOME / RATE CARDS =====
+  html += '<div class="section"><h2>Income Rates</h2>';
+  html += '<div class="card-grid cols-3">';
+
+  // Marble /hr (active and AFK)
+  var _mPerFill = F.marblePerFill(saveData, uLvs, mLvs);
+  var _mActivePerHr = _mPerFill * 3600 / (marbleFillSec / activeMul);
+  var _mAfkPerHr = _mPerFill * 3600 / marbleFillSec;
+  html += _card('Marble /hr (Active)', fmtNum(_mActivePerHr), 'AFK: ' + fmtNum(_mAfkPerHr) + '/hr');
+
+  // Fills per hour
+  var _activeFillPerHr = 3600 / (fillSec / activeMul);
+  var _afkFillPerHr = 3600 / fillSec;
+  html += _card('Fills /hr (Active)', _activeFillPerHr.toFixed(1), 'AFK: ' + _afkFillPerHr.toFixed(1) + '/hr');
+
+  // MBG / overflow
+  var _keepPct = F.currencyKeep(uLvs, mLvs);
+  html += _card('Overflow Keep (MBG)', fmtPct(_keepPct), 'When all spaces full, coins auto-collect at this %');
+
+  html += '</div>';
+
+  // Per-currency /hr breakdown table
+  var _activeTypesIncome = F.activeCurrencyTypes(saveData, uLvs, mLvs);
+  var _numActiveOv = _activeTypesIncome.length;
+  var _sizeBon = F.maxStackSize(saveData, uLvs, mLvs) > 0 ? F._sizeMatterBonus(saveData) : 0;
+  var _maxStack = F.maxStackSize(saveData, uLvs, mLvs);
+  var _singleMul = 1 + 1 * _sizeBon / 100;
+  var _fullStackMul = 1 + _maxStack * _sizeBon / 100;
+
+  html += '<table class="stat-table" style="margin-top:10px">';
+  html += '<thead><tr>';
+  html += '<th>Currency</th>';
+  html += '<th>Coin Value</th>';
+  html += '<th title="Value/hr assuming coins redeemed as single-coin stacks. Each active type has equal chance per fill.">Single /hr (Active)</th>';
+  html += '<th title="Value/hr assuming coins redeemed in full stacks of ' + Math.floor(_maxStack) + '. Includes Size Does Matter bonus.">Full Stack /hr (Active)</th>';
+  html += '<th title="Overflow value/hr when all spaces full (MBG). No royal, no stack bonus.">Overflow /hr (Active)</th>';
+  html += '</tr></thead><tbody>';
+
+  var _totalSingleActive = 0, _totalFullActive = 0, _totalOverflowActive = 0;
+  var _totalSingleAfk = 0, _totalFullAfk = 0, _totalOverflowAfk = 0;
+  for (var _cj = 0; _cj < _numActiveOv; _cj++) {
+    var _ct = _activeTypesIncome[_cj];
+    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _ct, desired);
+    // Each type gets 1/numActive share of fills
+    var _typeActiveFillsPerHr = _activeFillPerHr / _numActiveOv;
+    var _typeAfkFillsPerHr = _afkFillPerHr / _numActiveOv;
+    // Royal-weighted coin value
+    var _rwCv = _cv * (1 - rc) + _cv * _rm * rc;
+    // Single coin: royal-weighted × single stack bonus
+    var _singlePerHrActive = _typeActiveFillsPerHr * _rwCv * _singleMul;
+    var _singlePerHrAfk = _typeAfkFillsPerHr * _rwCv * _singleMul;
+    // Full stack: royal-weighted × full stack bonus
+    var _fullPerHrActive = _typeActiveFillsPerHr * _rwCv * _fullStackMul;
+    var _fullPerHrAfk = _typeAfkFillsPerHr * _rwCv * _fullStackMul;
+    // Overflow (MBG): no royal, no stack bonus
+    var _ofPerHrActive = _typeActiveFillsPerHr * _cv * _keepPct;
+    var _ofPerHrAfk = _typeAfkFillsPerHr * _cv * _keepPct;
+
+    _totalSingleActive += _singlePerHrActive;
+    _totalFullActive += _fullPerHrActive;
+    _totalOverflowActive += _ofPerHrActive;
+    _totalSingleAfk += _singlePerHrAfk;
+    _totalFullAfk += _fullPerHrAfk;
+    _totalOverflowAfk += _ofPerHrAfk;
+
+    var _isDesired = _ct === desired;
+    html += '<tr>';
+    html += '<td>' + CURR_SHORT[_ct] + (_isDesired ? ' \u2605' : '') + '</td>';
+    html += '<td>' + fmtNum(_cv) + '</td>';
+    html += '<td>' + fmtNum(_singlePerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_singlePerHrAfk) + ')</span></td>';
+    html += '<td>' + fmtNum(_fullPerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_fullPerHrAfk) + ')</span></td>';
+    html += '<td>' + fmtNum(_ofPerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_ofPerHrAfk) + ')</span></td>';
+    html += '</tr>';
+  }
+
+  html += '</tbody><tfoot><tr style="font-weight:bold">';
+  html += '<td>Total</td>';
+  html += '<td></td>';
+  html += '<td>' + fmtNum(_totalSingleActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalSingleAfk) + ')</span></td>';
+  html += '<td>' + fmtNum(_totalFullActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalFullAfk) + ')</span></td>';
+  html += '<td>' + fmtNum(_totalOverflowActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalOverflowAfk) + ')</span></td>';
+  html += '</tr></tfoot></table>';
+  if (_sizeBon > 0) {
+    html += '<div style="font-size:.75em;color:var(--text2);margin-top:4px">Size Does Matter: +' + _sizeBon + '% per coin in stack \u2022 Full stack = ' + Math.floor(_maxStack) + ' coins (\u00d7' + _fullStackMul.toFixed(2) + ')</div>';
+  }
+
+  html += '</div>';
+
   // Coin Stacks (horizontal)
   var coinStacks = F.coinStacks(saveData);
   if (coinStacks.length > 0) {
@@ -540,6 +1004,30 @@ function _renderAll() {
   }
   html += '</div></div>';
 
+  // Fountain Level Planner
+  html += '<div class="section" style="margin-top:16px"><h2>Fountain Level Planner</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Cost to reach the next fountain levels. Currency type changes every 5 levels.</p>';
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th class="num">Level</th><th class="num">Cost (Opals)</th><th>Currency Type</th>';
+  html += '<th class="num">Cumulative Cost</th>';
+  html += '</tr></thead><tbody>';
+  var _flCum = {};
+  var _flLimit = Math.min(fLv + 15, fLv + 50);
+  for (var _fl = fLv; _fl < _flLimit; _fl++) {
+    var _flCost = F.opalCost(_fl);
+    var _flType = F.fountLvCurrencyType(_fl);
+    _flCum[_flType] = (_flCum[_flType] || 0) + _flCost;
+    var _flAvail = F.fountCurrencyAvail(saveData, _flType);
+    var _afford = _flAvail >= _flCum[_flType];
+    html += '<tr' + (!_afford ? ' style="opacity:.6"' : '') + '>';
+    html += '<td class="num">' + _fl + ' \u2192 ' + (_fl + 1) + '</td>';
+    html += '<td class="num">' + fmtCost(_flCost, _flType) + '</td>';
+    html += '<td>' + (CURR_SHORT[_flType] || '?') + '</td>';
+    html += '<td class="num">' + fmtCost(_flCum[_flType], _flType) + (_afford ? ' <span class="badge badge-green" style="margin-left:4px">\u2713</span>' : '') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
   html += '</div>'; // end overview tab
 
   // ===== CURRENCY TAB =====
@@ -553,9 +1041,20 @@ function _renderAll() {
   html += ' \u2022 Desire Multi: <span class="n">' + dm.toFixed(2) + 'x</span>';
   if (desired < F.CURRENCY_NAMES.length) html += ' (on ' + F.CURRENCY_NAMES[desired] + ')';
   html += '</div>';
+
+  // Multiplier Breakdown (tree)
+  var _bd = F.multiBreakdown(saveData, uLvs, mLvs);
+  html += '<div class="section" style="margin-bottom:12px;padding:10px 14px;">';
+  html += '<h3 style="margin-top:0;">Multiplier Breakdown</h3>';
+  html += '<div id="multi-breakdown"></div>';
+  html += '</div>';
+
+  var _activeTypes = F.activeCurrencyTypes(saveData, uLvs, mLvs);
+  var _ignoreOn = F.ignoreUnlocked(uLvs, mLvs);
   html += '<table class="data-table"><thead><tr>';
   html += '<th>Currency</th><th class="num">Base</th><th class="num">Total</th>';
-  html += '<th class="num">Full Stack</th><th class="num">Royal Stack</th><th>Status</th>';
+  html += '<th class="num">Full Stack</th><th class="num">Royal Stack</th>';
+  html += '<th>Status</th><th class="num">Create %</th>';
   html += '</tr></thead><tbody>';
   var stackSz = F.maxStackSize(saveData, uLvs, mLvs);
   for (var c = 0; c < 9; c++) {
@@ -566,20 +1065,134 @@ function _renderAll() {
     var tv = bv * allM * des;
     var fullStack = tv * stackSz;
     var rtv = fullStack * rm;
+    var _isActive = _activeTypes.indexOf(c) >= 0;
+    var _isIgnored = F.currencyIgnored(saveData, c);
+    var _createPct = _isActive ? (1 / _activeTypes.length) : 0;
     html += '<tr' + cls + '>';
     html += '<td>' + F.CURRENCY_NAMES[c] + (c === desired ? ' <span class="badge badge-gold">Desired</span>' : '') + '</td>';
     html += '<td class="num">' + fmtNum(bv) + '</td>';
     html += '<td class="num"><b>' + fmtNum(tv) + '</b></td>';
     html += '<td class="num" style="color:var(--gold)">' + fmtNum(fullStack) + '</td>';
     html += '<td class="num" style="color:var(--purple)">' + fmtNum(rtv) + '</td>';
-    html += '<td>' + (unlocked ? '<span class="badge badge-green">Unlocked</span>' : '<span class="badge badge-red">Locked</span>') + '</td>';
+    html += '<td>';
+    if (!unlocked) html += '<span class="badge badge-red">Locked</span>';
+    else if (!_ignoreOn) html += '<span class="badge badge-green">Active</span>';
+    else if (_isActive) html += '<span class="badge badge-green">Active</span>';
+    else html += '<span class="badge" style="background:var(--text2);color:#000;opacity:.7">Ignored</span>';
+    html += '</td>';
+    html += '<td class="num">' + (unlocked ? fmtPct(_createPct) : '\u2014') + '</td>';
     html += '</tr>';
   }
   html += '</tbody></table>';
-  html += '</div></div>'; // end currency tab
+  html += '</div>'; // end Currency Values section
+
+  // Optimal Desired Currency Simulator
+  html += '<div class="section" style="margin-top:16px"><h2>Optimal Desired Currency</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Simulates which currency, if set as Desired, would maximize total redeem value of a full ground of coins (active types only, accounting for ignored currencies).</p>';
+  var _bestDesire = -1, _bestDesireVal = 0;
+  var _desireRows = [];
+  for (var _dt = 0; _dt < 9; _dt++) {
+    if (!F.currencyUnlocked(uLvs, mLvs, _dt)) continue;
+    // Simulate active types if _dt were set as desired: non-ignored + _dt
+    var _simActive = F.activeCurrencyTypes(saveData, uLvs, mLvs);
+    // Override: recalculate active types assuming _dt is the desired
+    var _simActiveSet = [];
+    for (var _ct = 0; _ct < 9; _ct++) {
+      if (!F.currencyUnlocked(uLvs, mLvs, _ct)) continue;
+      if (!F.currencyIgnored(saveData, _ct) || _ct === _dt) _simActiveSet.push(_ct);
+    }
+    var _simTotal = 0;
+    var _simCount = _simActiveSet.length;
+    for (var _si = 0; _si < _simCount; _si++) {
+      _simTotal += F.currencyTotalValue(saveData, uLvs, mLvs, _simActiveSet[_si], _dt);
+    }
+    var _simAvg = _simCount > 0 ? _simTotal / _simCount : 0;
+    // Weight by royal chance
+    var _simWeighted = _simAvg * (1 - rc) + _simAvg * _rm * rc;
+    var _simGroundVal = _simWeighted * spaces * stackSz;
+    _desireRows.push({ t: _dt, avg: _simAvg, weighted: _simWeighted, groundVal: _simGroundVal, isCurrent: _dt === desired });
+    if (_simGroundVal > _bestDesireVal) { _bestDesireVal = _simGroundVal; _bestDesire = _dt; }
+  }
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Currency</th><th class="num">Avg Coin Value</th><th class="num">Royal-Weighted</th>';
+  html += '<th class="num">Full Ground Value</th><th>Status</th>';
+  html += '</tr></thead><tbody>';
+  for (var _di = 0; _di < _desireRows.length; _di++) {
+    var _dr = _desireRows[_di];
+    var _best = _dr.t === _bestDesire;
+    html += '<tr' + (_best ? ' class="best"' : '') + '>';
+    html += '<td>' + F.CURRENCY_NAMES[_dr.t] + '</td>';
+    html += '<td class="num">' + fmtNum(_dr.avg) + '</td>';
+    html += '<td class="num">' + fmtNum(_dr.weighted) + '</td>';
+    html += '<td class="num"><b>' + fmtNum(_dr.groundVal) + '</b></td>';
+    html += '<td>';
+    if (_dr.isCurrent && _best) html += '<span class="badge badge-green">Current \u2022 Best</span>';
+    else if (_dr.isCurrent) html += '<span class="badge badge-gold">Current</span>';
+    else if (_best) html += '<span class="badge badge-green">Best</span>';
+    html += '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Next Unlock Tracker
+  html += '<div class="section" style="margin-top:16px"><h2>Next Unlock Tracker</h2>';
+  var _unlockData = [
+    { t: 1, name: 'Silver Coins', upg: 'Nickel and Diming', w: 0, u: 3 },
+    { t: 2, name: 'Golden Coins', upg: 'Dubloon Desires', w: 0, u: 4 },
+    { t: 3, name: 'Dollar Bills', upg: 'Dolla Dolla Bills', w: 1, u: 2 },
+    { t: 4, name: 'Credit Bills', upg: 'Credit Swisse', w: 1, u: 3 },
+    { t: 5, name: 'Treasury Bills', upg: 'In Gov We Trust', w: 1, u: 4 },
+    { t: 6, name: 'Moolah Stacks', upg: 'Moolah Discovery', w: 2, u: 2 },
+    { t: 7, name: 'Shilling Stacks', upg: 'Shilling Discovery', w: 2, u: 3 },
+    { t: 8, name: 'Greane Stacks', upg: 'Greane Discovery', w: 2, u: 4 },
+  ];
+  // Filter to only locked currencies
+  var _lockedData = [];
+  for (var _ui = 0; _ui < _unlockData.length; _ui++) {
+    if (!F.currencyUnlocked(uLvs, mLvs, _unlockData[_ui].t)) _lockedData.push(_unlockData[_ui]);
+  }
+  if (_lockedData.length === 0) {
+    html += '<div style="color:var(--green);font-size:.85em;">All currencies unlocked!</div>';
+  } else {
+    html += '<table class="data-table"><thead><tr>';
+    html += '<th>Currency</th><th>Unlock Upgrade</th><th>Water</th><th class="num">Current Lv</th><th>Status</th>';
+    html += '</tr></thead><tbody>';
+    for (var _li = 0; _li < _lockedData.length; _li++) {
+      var _ud = _lockedData[_li];
+      var _uLv = uLvs[_ud.w][_ud.u] || 0;
+      var _pUnlocked = F.upgUnlocked(uLvs, _ud.w, _ud.u);
+      html += '<tr>';
+      html += '<td>' + _ud.name + '</td>';
+      html += '<td>' + _ud.upg + '</td>';
+      html += '<td><span style="color:' + (F.WATER_COLORS[_ud.w] || 'var(--text2)') + '">' + (F.WATER_NAMES[_ud.w] || '?') + '</span></td>';
+      html += '<td class="num">' + _uLv + '</td>';
+      if (!_pUnlocked) {
+        html += '<td><span class="badge badge-red">Prerequisite Locked</span></td>';
+      } else {
+        html += '<td><span class="badge badge-gold">Available \u2014 Lv 0</span></td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  html += '</div>'; // end currency tab
 
   // ===== UPGRADES TAB =====
   html += '<div id="tab-upgrades" class="tab-content">';
+
+  // Pre-compute earn rates per currency type for TTA
+  var _upgActiveTypes = F.activeCurrencyTypes(saveData, uLvs, mLvs);
+  var _upgNumActive = _upgActiveTypes.length;
+  var _upgFillPerHr = 3600 / (F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs));
+  var _upgEarnPerHr = {};  // typeIdx -> currency earned per hour
+  for (var _ei = 0; _ei < _upgNumActive; _ei++) {
+    var _et = _upgActiveTypes[_ei];
+    var _ecv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
+    _upgEarnPerHr[_et] = _upgFillPerHr * _ecv / _upgNumActive;
+  }
+  var _upgMarblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / (F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs));
 
   // Upgrade Panels (tabbed by water)
   html += '<div class="section"><h2>Upgrades</h2>';
@@ -593,7 +1206,8 @@ function _renderAll() {
     html += '<div class="water-panel' + (w === _activeWater ? ' active' : '') + '" id="water-panel-' + w + '">';
     html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
     html += '<th>#</th><th>Upgrade</th><th class="num">Level</th><th class="num">Marble</th>';
-    html += '<th class="num">Next Cost</th><th class="num">Marble Cost</th>';
+    html += '<th class="num">Next Cost</th><th class="num">Currency TTA</th>';
+    html += '<th class="num">Marble Cost</th><th class="num">Marble TTA</th>';
     html += '<th>Description</th><th>Status</th>';
     html += '</tr></thead><tbody>';
     for (var u = 0; u < 20; u++) {
@@ -623,8 +1237,22 @@ function _renderAll() {
       html += '<td>' + d[0] + '</td>';
       html += '<td class="num">' + lv + '</td>';
       html += '<td class="num marble-col">' + ml + ' <span style="font-size:.7em">(' + F.marbleBon(ml).toFixed(1) + 'x)</span></td>';
-      html += '<td class="num">' + fmtCost(F.upgCost(w, u, lv), d[3]) + '</td>';
-      html += '<td class="num">' + (ml >= 0 ? fmtNum(F.marbleCost(u, ml)) : '-') + '</td>';
+      var _upgNextCost = F.upgCost(w, u, lv);
+      var _upgCurrType = d[3];
+      html += '<td class="num">' + fmtCost(_upgNextCost, _upgCurrType) + '</td>';
+      // Currency TTA
+      var _upgCurrAvail = F.fountCurrencyAvail(saveData, _upgCurrType);
+      var _upgCurrRemaining = Math.max(0, _upgNextCost - _upgCurrAvail);
+      var _upgCurrRate = _upgEarnPerHr[_upgCurrType] || 0;
+      var _upgCurrTtaSec = _upgCurrRemaining <= 0 ? 0 : (_upgCurrRate > 0 ? (_upgCurrRemaining / _upgCurrRate) * 3600 : Infinity);
+      html += '<td class="num">' + (_upgCurrTtaSec <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(_upgCurrTtaSec) ? fmtTimeFull(_upgCurrTtaSec) : '\u221e')) + '</td>';
+      var _upgMCost = F.marbleCost(u, ml);
+      html += '<td class="num">' + (ml >= 0 ? fmtNum(_upgMCost) : '-') + '</td>';
+      // Marble TTA
+      var _upgMarbleAvail = F.marbleCurrency(saveData);
+      var _upgMarbleRemaining = Math.max(0, _upgMCost - _upgMarbleAvail);
+      var _upgMarbleTtaSec = _upgMarbleRemaining <= 0 ? 0 : (_upgMarblePerHr > 0 ? (_upgMarbleRemaining / _upgMarblePerHr) * 3600 : Infinity);
+      html += '<td class="num">' + (_upgMarbleTtaSec <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(_upgMarbleTtaSec) ? fmtTimeFull(_upgMarbleTtaSec) : '\u221e')) + '</td>';
       html += '<td data-tip="' + _escAttr(desc) + '" style="cursor:help;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _truncate(desc, 50) + '</td>';
       html += '<td>' + (lv > 0 ? '<span class="badge badge-green">Lv ' + lv + '</span>' : '<span class="badge badge-blue">Available</span>') + '</td>';
       html += '</tr>';
@@ -633,6 +1261,65 @@ function _renderAll() {
     html += '</div>';
   }
   html += '</div>';
+
+  // Upgrade Cost Curve (interactive line graph)
+  html += '<div class="section"><h2>Upgrade Cost Curve</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Select upgrades to compare their cost scaling over the next 50 levels. Hover the graph for details.</p>';
+
+  // Controls row
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px;align-items:center;">';
+  html += '<label style="font-size:.82em;cursor:pointer;"><input type="checkbox" id="cc-normalize"> Normalize costs</label>';
+  html += '<label style="font-size:.82em;cursor:pointer;"><input type="checkbox" id="cc-efficiency"> Show efficiency</label>';
+  html += '<label style="font-size:.82em;"><span id="cc-goal-wrap" style="display:none">Goal: <select id="cc-goal">';
+  for (var _gi = 0; _gi < goals.length; _gi++) {
+    html += '<option value="' + goals[_gi][0] + '">' + goals[_gi][1] + '</option>';
+  }
+  html += '</select></span></label>';
+  html += '</div>';
+
+  // Build categorized checkboxes
+  var _ccIdx = 0;
+  var _ccUpgrades = [];
+  var _ccIdxMap = {};  // 'w,u' -> ccIdx
+  for (var _cw = 0; _cw < F.WATERS_IMPLEMENTED; _cw++) {
+    for (var _cu = 0; _cu < 20; _cu++) {
+      if (!F.upgUnlocked(uLvs, _cw, _cu)) continue;
+      var _cd = F.UPG_DATA[_cw][_cu];
+      var _clv = uLvs[_cw][_cu] || 0;
+      _ccUpgrades.push({ w: _cw, u: _cu, name: _cd[0], lv: _clv, costType: _cd[3], desc: _cd[7], _uLvs: uLvs, _mLvs: mLvs, _desired: desired });
+      _ccIdxMap[_cw + ',' + _cu] = _ccIdx;
+      _ccIdx++;
+    }
+  }
+
+  html += '<div id="cost-curve-checks" style="margin-bottom:8px;">';
+  for (var _ci = 0; _ci < _CC_CATEGORIES.length; _ci++) {
+    var _cat = _CC_CATEGORIES[_ci];
+    var _catUpgs = [];
+    for (var _cui = 0; _cui < _cat.upgs.length; _cui++) {
+      var _key = _cat.upgs[_cui][0] + ',' + _cat.upgs[_cui][1];
+      if (_ccIdxMap[_key] !== undefined) _catUpgs.push(_ccIdxMap[_key]);
+    }
+    if (_catUpgs.length === 0) continue;
+    html += '<div style="margin-bottom:4px;">';
+    html += '<span style="font-size:.75em;color:var(--text2);font-weight:600;margin-right:6px;">' + _cat.label + ':</span>';
+    html += '<span style="display:inline-flex;flex-wrap:wrap;gap:2px 10px;">';
+    for (var _cci = 0; _cci < _catUpgs.length; _cci++) {
+      var _ccU = _ccUpgrades[_catUpgs[_cci]];
+      html += '<label style="font-size:.78em;cursor:pointer;white-space:nowrap;">';
+      html += '<input type="checkbox" data-ccidx="' + _catUpgs[_cci] + '" class="cc-check"> ';
+      html += '<span style="color:' + F.WATER_COLORS[_ccU.w] + '">' + _ccU.name + '</span></label>';
+    }
+    html += '</span></div>';
+  }
+  html += '</div>';
+
+  html += '<div style="position:relative;background:var(--bg2);border-radius:8px;padding:12px;">';
+  html += '<canvas id="cost-curve-canvas" width="700" height="350" style="width:100%;height:350px;cursor:crosshair;"></canvas>';
+  html += '<div id="cc-tooltip" style="display:none;position:absolute;background:rgba(30,30,40,.95);border:1px solid #555;border-radius:6px;padding:8px 12px;font-size:.78em;line-height:1.6;pointer-events:none;max-width:320px;z-index:10;"></div>';
+  html += '</div>';
+  html += '</div>';
+
   html += '</div>'; // end upgrades tab
 
   // ===== PLANNER TAB =====
@@ -687,7 +1374,6 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="mplanner-affordable"' + (_mPlannerAffordable ? ' checked' : '') + '> Affordable only</label>';
-  html += '<label><input type="checkbox" id="mplanner-perhr"' + (_mPlannerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="mplanner-table"></div>';
   html += '</div>';
@@ -707,13 +1393,16 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="moptimizer-affordable"' + (_mOptimizerAffordable ? ' checked' : '') + '> Affordable only</label>';
-  html += '<label><input type="checkbox" id="moptimizer-perhr"' + (_mOptimizerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="moptimizer-table"></div>';
   html += '</div>';
+
   html += '</div>'; // end marble tab
 
   el.innerHTML = html;
+
+  // Render multiplier breakdown tree
+  _renderMultiBreakdown(_bd);
 
   // Wire main tabs
   el.querySelectorAll('.tab').forEach(function(tab) {
@@ -731,6 +1420,9 @@ function _renderAll() {
         _renderMarblePlanner(uLvs, mLvs, desired);
         _renderMarbleOptimizer(uLvs, mLvs, desired);
       }
+      if (tab.dataset.tab === 'upgrades') {
+        requestAnimationFrame(_drawCostCurve);
+      }
     });
   });
 
@@ -746,6 +1438,31 @@ function _renderAll() {
         allPanels[j].classList.toggle('active', j === _activeWater);
       }
     });
+  }
+
+  // Wire cost curve checkboxes and controls
+  _ccUpgradesData = _ccUpgrades;
+  document.querySelectorAll('.cc-check').forEach(function(ch) {
+    ch.addEventListener('change', _drawCostCurve);
+  });
+  document.getElementById('cc-normalize').addEventListener('change', function() {
+    _ccNormalize = this.checked;
+    _drawCostCurve();
+  });
+  document.getElementById('cc-efficiency').addEventListener('change', function() {
+    _ccEfficiency = this.checked;
+    document.getElementById('cc-goal-wrap').style.display = _ccEfficiency ? '' : 'none';
+    _drawCostCurve();
+  });
+  document.getElementById('cc-goal').addEventListener('change', function() {
+    _ccGoal = this.value;
+    _drawCostCurve();
+  });
+  // Tooltip events
+  var _ccCanvas = document.getElementById('cost-curve-canvas');
+  if (_ccCanvas) {
+    _ccCanvas.addEventListener('mousemove', _ccShowTooltip);
+    _ccCanvas.addEventListener('mouseleave', _ccHideTooltip);
   }
 
   // Wire planner
@@ -799,10 +1516,6 @@ function _renderAll() {
     _mPlannerAffordable = this.checked;
     _renderMarblePlanner(uLvs, mLvs, desired);
   });
-  document.getElementById('mplanner-perhr').addEventListener('change', function() {
-    _mPlannerPerHr = this.checked;
-    _renderMarblePlanner(uLvs, mLvs, desired);
-  });
 
   // Wire marble optimizer
   document.getElementById('moptimizer-goal').addEventListener('change', function() {
@@ -815,10 +1528,6 @@ function _renderAll() {
   });
   document.getElementById('moptimizer-affordable').addEventListener('change', function() {
     _mOptimizerAffordable = this.checked;
-    _renderMarbleOptimizer(uLvs, mLvs, desired);
-  });
-  document.getElementById('moptimizer-perhr').addEventListener('change', function() {
-    _mOptimizerPerHr = this.checked;
     _renderMarbleOptimizer(uLvs, mLvs, desired);
   });
 }
@@ -1005,13 +1714,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
       if (delta <= 0) continue;
 
       var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
-      var efficiency;
-      if (_mPlannerPerHr) {
-        var hrsToEarn = _marblePerHour > 0 ? cost / _marblePerHour : Infinity;
-        efficiency = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
-      } else {
-        efficiency = cost > 0 ? pctGain / cost : 0;
-      }
+      var efficiency = cost > 0 ? pctGain / cost : 0;
       var fillDiff = null, marbleFillDiff = null;
       if (goal === 'fill') {
         var newFill = F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs);
@@ -1110,13 +1813,7 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
         var delta = newVal - baseline;
         if (delta <= 0) continue;
         var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
-        var eff;
-        if (_mOptimizerPerHr) {
-          var hrsToEarn = _marblePerHour > 0 ? cost / _marblePerHour : Infinity;
-          eff = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
-        } else {
-          eff = cost > 0 ? pctGain / cost : 0;
-        }
+        var eff = cost > 0 ? pctGain / cost : 0;
         if (eff > bestEff) {
           bestEff = eff; bestW = w; bestU = u;
           bestCost = cost; bestDelta = delta; bestPct = pctGain;

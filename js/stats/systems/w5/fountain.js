@@ -129,6 +129,38 @@ export function desiredCurrency(saveData) {
   return Number(_h(saveData, 11)[82]) || 0;
 }
 
+// ========== CURRENCY IGNORE STATE ==========
+// Holes[11][83] stores a string of letter codes for ignored types.
+// Game uses indexOf(Number2Letter[typeIdx]): 0='_', 1='a', 2='b', ...
+// If the letter is found in the string, that type is ignored.
+var _NUM2LETTER = '_abcdefgh';
+
+export function currencyIgnoreStr(saveData) {
+  return String(_h(saveData, 11)[83] || '');
+}
+
+export function currencyIgnored(saveData, typeIdx) {
+  var s = currencyIgnoreStr(saveData);
+  var letter = _NUM2LETTER.charAt(typeIdx);
+  if (!letter) return false;
+  return s.indexOf(letter) !== -1;
+}
+
+export function ignoreUnlocked(uLvs, mLvs) {
+  // Turn and Push = W1U12
+  return (uLvs[1][12] || 0) >= 1;
+}
+
+// Active types = unlocked AND not-ignored
+export function activeCurrencyTypes(saveData, uLvs, mLvs) {
+  var out = [];
+  for (var t = 0; t < 9; t++) {
+    if (!currencyUnlocked(uLvs, mLvs, t)) continue;
+    if (!currencyIgnored(saveData, t)) out.push(t);
+  }
+  return out;
+}
+
 export function fountCurrencyAvail(saveData, typeIdx) {
   return Number(_h(saveData, 9)[30 + typeIdx]) || 0;
 }
@@ -156,9 +188,9 @@ export function coinStacks(saveData) {
   return stacks;
 }
 
-// B_UPG(95) "Size DOES Matter" — per-coin-in-stack bonus
-function _sizeMatterBonus(saveData) {
-  return _bUpg(saveData, 95, 1);  // returns 1 if built, 0 if not
+// B_UPG(95) "Size DOES Matter" — per-coin-in-stack bonus (+10% per coin)
+export function _sizeMatterBonus(saveData) {
+  return _bUpg(saveData, 95, 10);  // returns 10 if built, 0 if not
 }
 
 // Redeem value of a single coin stack
@@ -356,6 +388,50 @@ export function currencyAllMulti(saveData, uLvs, mLvs) {
   return currencyFountainMulti(uLvs, mLvs) * currencyExternalMulti(saveData);
 }
 
+// Returns breakdown tree data for all multipliers
+export function multiBreakdown(saveData, uLvs, mLvs) {
+  var w0 = bonTOT(uLvs, mLvs, 0, 0);
+  var w1 = bonTOT(uLvs, mLvs, 1, 0);
+  var w2 = bonTOT(uLvs, mLvs, 2, 0);
+  var b01 = bonTOT(uLvs, mLvs, 0, 1);
+  var b11 = bonTOT(uLvs, mLvs, 1, 1);
+  var b21 = bonTOT(uLvs, mLvs, 2, 1);
+  var b112 = bonTOT(uLvs, mLvs, 1, 12);
+  var boosters = b01 + b11 + b21 + b112;
+
+  var bUpg94 = _bUpg(saveData, 94, 1);
+  var ml3 = _motherlodeLv3(saveData);
+  var cosmo04 = _cosmoBonus(saveData, 0, 4);
+  var lamp99 = _lampBonus99(saveData);
+  var meas16 = _measBonus(saveData, 16);
+  var bell6 = _bellBonus(saveData, 6);
+
+  return {
+    fountain: {
+      total: currencyFountainMulti(uLvs, mLvs),
+      w0: 1 + w0 / 100, w0raw: w0,
+      w1: 1 + w1 / 100, w1raw: w1,
+      w2: 1 + w2 / 100, w2raw: w2,
+      boosters: 1 + boosters / 100,
+      b01: b01, b11: b11, b21: b21, b112: b112,
+    },
+    external: {
+      total: currencyExternalMulti(saveData),
+      bUpg94: bUpg94, ml3: ml3,
+      motherlode: Math.max(1, bUpg94 * Math.pow(1.1, ml3)),
+      cosmo: 1 + 25 * cosmo04 / 100, cosmo04: cosmo04,
+      lamp: 1 + lamp99 / 400, lamp99: lamp99,
+      meas: 1 + meas16 / 100, meas16: meas16,
+      bell: 1 + bell6 / 100, bell6: bell6,
+    },
+    allMulti: currencyAllMulti(saveData, uLvs, mLvs),
+    royal: { total: royalMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 9) },
+    desire: { total: desireMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 11) },
+    royalChance: { total: royalChance(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 8) },
+    keep: { total: currencyKeep(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 0, 8) },
+  };
+}
+
 export function currencyBaseValue(saveData, uLvs, mLvs, t) {
   var mythrilLog = 1 + getLOG(Number(_h(saveData, 9)[3]) || 0) * bonTOT(uLvs, mLvs, 0, 19) / 100;
   var sharpLog  = 1 + getLOG(Number(_h(saveData, 9)[16]) || 0) * bonTOT(uLvs, mLvs, 1, 19) / 100;
@@ -413,13 +489,20 @@ export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
   switch (goal) {
     case 'currency': return currencyAllMulti(saveData, uLvs, mLvs) * royalMulti(uLvs, mLvs) * desireMulti(uLvs, mLvs);
     case 'fill': return activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
-    case 'bronze': return currencyTotalValue(saveData, uLvs, mLvs, 0, desired);
-    case 'silver': return currencyTotalValue(saveData, uLvs, mLvs, 1, desired);
-    case 'golden': return currencyTotalValue(saveData, uLvs, mLvs, 2, desired);
-    case 'dollar': return currencyTotalValue(saveData, uLvs, mLvs, 3, desired);
-    case 'credit': return currencyTotalValue(saveData, uLvs, mLvs, 4, desired);
-    case 'treasury': return currencyTotalValue(saveData, uLvs, mLvs, 5, desired);
+    case 'bronze': return currencyTotalValue(saveData, uLvs, mLvs, 0, 0) * royalMulti(uLvs, mLvs);
+    case 'silver': return currencyTotalValue(saveData, uLvs, mLvs, 1, 1) * royalMulti(uLvs, mLvs);
+    case 'golden': return currencyTotalValue(saveData, uLvs, mLvs, 2, 2) * royalMulti(uLvs, mLvs);
+    case 'dollar': return currencyTotalValue(saveData, uLvs, mLvs, 3, 3) * royalMulti(uLvs, mLvs);
+    case 'credit': return currencyTotalValue(saveData, uLvs, mLvs, 4, 4) * royalMulti(uLvs, mLvs);
+    case 'treasury': return currencyTotalValue(saveData, uLvs, mLvs, 5, 5) * royalMulti(uLvs, mLvs);
     case 'royal': return royalChance(uLvs, mLvs);
+    case 'monument-bravery': return bonTOT(uLvs, mLvs, 0, 13);
+    case 'monument-justice': return bonTOT(uLvs, mLvs, 1, 13);
+    case 'cosmo-exp': return bonTOT(uLvs, mLvs, 0, 14);
+    case 'class-exp': return bonTOT(uLvs, mLvs, 0, 16);
+    case 'damage': return bonTOT(uLvs, mLvs, 1, 16);
+    case 'marble-per-fill': return marblePerFill(saveData, uLvs, mLvs);
+    case 'mbg': return currencyKeep(uLvs, mLvs);
     default: return 0;
   }
 }
