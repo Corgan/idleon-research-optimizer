@@ -249,6 +249,10 @@ export function marbleCost(u, mLv) {
   return 500 * Math.pow(5 + mLv, mLv);
 }
 
+// Upgrades that cannot be marbled (from HolesInfo[76])
+var _NO_MARBLE = { '0_8': 1, '0_10': 1, '0_11': 1, '1_8': 1, '1_10': 1 };
+export function canMarble(w, u) { return !_NO_MARBLE[w + '_' + u]; }
+
 export function upgUnlocked(uLvs, w, u) {
   var prereqIdx = UPG_DATA[w][u][1];
   if (prereqIdx === -1 || prereqIdx === '?') return true;
@@ -333,7 +337,16 @@ export function marbleBarFillTime() {
   return BAR_FILL_TIMES[1];
 }
 
+// Active speed multiplier: how much faster fills are when standing at fountain.
+// The game runs BOTH the AFK accumulator (1x barSpeed) AND the active fill
+// (activeSpdMulti x barSpeed) simultaneously, so total = 1 + activeSpdMulti.
 export function activeSpeedMulti(uLvs, mLvs) {
+  var b = bonTOT(uLvs, mLvs, 0, 12);
+  return 1 + (1 + Math.min(4, 4 * b) + b / 100);
+}
+
+// The game's displayed "active speed" value (without the +1 AFK base).
+export function activeSpeedMultiDisplay(uLvs, mLvs) {
   var b = bonTOT(uLvs, mLvs, 0, 12);
   return 1 + Math.min(4, 4 * b) + b / 100;
 }
@@ -485,6 +498,28 @@ export function watersOwned(uLvs, mLvs) {
 }
 
 // ========== PLANNER/OPTIMIZER HELPERS ==========
+
+// Decompose optimal /hr into fill speed (stacks/hr) and value (per stack).
+// stacksPerHr × stackValue = optimal /hr
+export function optimalStacksPerHr(saveData, uLvs, mLvs) {
+  var _rc = royalChance(uLvs, mLvs);
+  var _ms = maxStackSize(saveData, uLvs, mLvs);
+  var _fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
+  var _rdf = 1 - Math.pow(1 - _rc, _ms);
+  var _wf = _rdf < 1 ? (1 - _rdf) / _rc : 0;
+  var _fps = _ms + _wf;
+  return _fph / _fps;
+}
+
+export function optimalStackValue(saveData, uLvs, mLvs, desired) {
+  var _rm = royalMulti(uLvs, mLvs);
+  var _sb = _sizeMatterBonus(saveData);
+  var _ms = maxStackSize(saveData, uLvs, mLvs);
+  var _fsm = 1 + _ms * _sb / 100;
+  var _cv = currencyTotalValue(saveData, uLvs, mLvs, desired, desired);
+  return _ms * _cv * _rm * _fsm;
+}
+
 export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
   switch (goal) {
     case 'currency': return currencyAllMulti(saveData, uLvs, mLvs) * royalMulti(uLvs, mLvs) * desireMulti(uLvs, mLvs);
@@ -502,7 +537,23 @@ export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
     case 'class-exp': return bonTOT(uLvs, mLvs, 0, 16);
     case 'damage': return bonTOT(uLvs, mLvs, 1, 16);
     case 'marble-per-fill': return marblePerFill(saveData, uLvs, mLvs);
+    case 'marble-rate': {
+      var _mhr = marblePerFill(saveData, uLvs, mLvs) * activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
+      // Asymptotic Bolaia study contribution: upgrading Skim Reading (W1U14) increases
+      // study rate, which gives a permanent Bolaia level advantage of
+      // ln(R'/R) / ln(1.25) levels. Each level = +5% marble per fill.
+      // Only the fountain factor (1 + bonTOT(1,14)/100) matters; external factors cancel in deltas.
+      var _skimBon = bonTOT(uLvs, mLvs, 1, 14);
+      if (_skimBon > 0) {
+        var _bolaiaFactor = 1 + _bolaiaBonus(saveData, 15) / 100;
+        var _mpfNoBolaia = _bolaiaFactor > 0 ? marblePerFill(saveData, uLvs, mLvs) / _bolaiaFactor : marblePerFill(saveData, uLvs, mLvs);
+        var _mFillsPerHr = activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
+        _mhr += _mpfNoBolaia * _mFillsPerHr * 0.05 * Math.log(1 + _skimBon / 100) / Math.log(1.25);
+      }
+      return _mhr;
+    }
     case 'mbg': return currencyKeep(uLvs, mLvs);
+    case 'optimal': return optimalStacksPerHr(saveData, uLvs, mLvs) * optimalStackValue(saveData, uLvs, mLvs, desired);
     default: return 0;
   }
 }
@@ -513,4 +564,62 @@ export function cloneUpgLvs(uLvs) {
 
 export function cloneMarbleLvs(mLvs) {
   return [mLvs[0].slice(), mLvs[1].slice(), mLvs[2].slice()];
+}
+
+// Marble bar fill progress in seconds (0 to marbleBarFillTime)
+export function marbleBarProgress(saveData) {
+  return Number((saveData.holesData[33] || [])[1]) || 0;
+}
+
+// Compute earn rate per hour for each currency type (as if that type is desired)
+// Returns array[9] of values per hour under active play.
+export function earnRatesPerHr(saveData, uLvs, mLvs) {
+  var rc = royalChance(uLvs, mLvs);
+  var rm = royalMulti(uLvs, mLvs);
+  var sizeBon = _sizeMatterBonus(saveData);
+  var ms = maxStackSize(saveData, uLvs, mLvs);
+  var fsm = 1 + ms * sizeBon / 100;
+  var rdf = 1 - Math.pow(1 - rc, ms);
+  var wf = rdf < 1 ? (1 - rdf) / rc : 0;
+  var fps = ms + wf;
+  var fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
+  var rates = [];
+  for (var t = 0; t < 9; t++) {
+    var cv = currencyTotalValue(saveData, uLvs, mLvs, t, t);
+    rates[t] = (fph / fps) * ms * cv * rm * fsm;
+  }
+  return rates;
+}
+
+// Base currency rate: shared multiplier rate without currency-specific base value.
+// Multiply by currencyBaseValue(t) to get per-currency rate.
+export function baseCurrencyPerHr(saveData, uLvs, mLvs) {
+  var rc = royalChance(uLvs, mLvs);
+  var rm = royalMulti(uLvs, mLvs);
+  var sizeBon = _sizeMatterBonus(saveData);
+  var ms = maxStackSize(saveData, uLvs, mLvs);
+  var fsm = 1 + ms * sizeBon / 100;
+  var rdf = 1 - Math.pow(1 - rc, ms);
+  var wf = rdf < 1 ? (1 - rdf) / rc : 0;
+  var fps = ms + wf;
+  var fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
+  var cam = currencyAllMulti(saveData, uLvs, mLvs);
+  var dm = desireMulti(uLvs, mLvs);
+  return (fph / fps) * ms * cam * dm * rm * fsm;
+}
+
+// Marble earn rate: marbles per hour under active play
+export function marblePerHr(saveData, uLvs, mLvs) {
+  return marblePerFill(saveData, uLvs, mLvs) * 3600 * activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
+}
+
+// Time in seconds to collect all current stacks as royal stacks.
+// This is the "flush" cost when switching currency.
+// With N spaces and stack size S, you need to wait for each space to become royal.
+// Uses the stacks-per-hour rate.
+export function flushTime(saveData, uLvs, mLvs) {
+  var sph = optimalStacksPerHr(saveData, uLvs, mLvs);
+  if (sph <= 0) return Infinity;
+  var spaces = spacesOwned(uLvs, mLvs);
+  return spaces / sph * 3600; // seconds to collect all spaces once
 }

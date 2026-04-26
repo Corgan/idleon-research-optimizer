@@ -54,6 +54,8 @@ h1 span { color: var(--accent); }
 .data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
 .data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
 .data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.sim-block-start td { border-top: 2px solid #444; }
+.sim-block-cont td { border-bottom: none; }
 .data-table tr:hover td { background: rgba(255,255,255,.03); }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table .locked { opacity: .4; }
@@ -290,6 +292,7 @@ var _mOptimizerMaxSteps = 50;
 var _mOptimizerAffordable = true;
 var _plannerPerHr = false;
 var _optimizerPerHr = false;
+var _simTimeLimit = 24; // hours
 
 
 // Render the planner table
@@ -303,13 +306,25 @@ function _renderPlanner(uLvs, mLvs, desired) {
   var _numUnlocked = 0;
   for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
   var _fillsPerHr = 3600 / baseFillTime;
-  var _marblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / baseMarbleFill;
-  // Per-currency earn rates
+  // Per-currency optimal earn rates: collect only full royal stacks.
+  // Crowns accumulate on all spaces (including full). No MBG.
+  var _pRc = F.royalChance(uLvs, mLvs);
+  var _pRm = F.royalMulti(uLvs, mLvs);
+  var _pSizeBon = F._sizeMatterBonus(saveData);
+  var _pMaxStack = F.maxStackSize(saveData, uLvs, mLvs);
+  var _pFullStackMul = 1 + _pMaxStack * _pSizeBon / 100;
+  var _pRoyalDuringFill = 1 - Math.pow(1 - _pRc, _pMaxStack);
+  var _pWaitFills = _pRoyalDuringFill < 1 ? (1 - _pRoyalDuringFill) / _pRc : 0;
+  var _pFillsPerStack = _pMaxStack + _pWaitFills;
   var _earnPerHr = [];
   for (var _et = 0; _et < 9; _et++) {
-    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
-    _earnPerHr[_et] = _numUnlocked > 0 ? _fillsPerHr * _cv / _numUnlocked : 0;
+    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, _et);
+    _earnPerHr[_et] = (_fillsPerHr / _pFillsPerStack) * _pMaxStack * _cv * _pRm * _pFullStackMul;
   }
+
+  var _isOptimal = (goal === 'optimal');
+  var _baseStacks = _isOptimal ? F.optimalStacksPerHr(saveData, uLvs, mLvs) : 0;
+  var _baseStackVal = _isOptimal ? F.optimalStackValue(saveData, uLvs, mLvs, desired) : 0;
 
   var candidates = [];
   for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
@@ -333,9 +348,7 @@ function _renderPlanner(uLvs, mLvs, desired) {
       var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
       var efficiency;
       if (_plannerPerHr) {
-        var cv = F.currencyTotalValue(saveData, uLvs, mLvs, opalType, desired);
-        var earnRate = _numUnlocked > 0 ? _fillsPerHr * cv / _numUnlocked : 0;
-        var hrsToEarn = earnRate > 0 ? cost / earnRate : Infinity;
+        var hrsToEarn = _earnPerHr[opalType] > 0 ? cost / _earnPerHr[opalType] : Infinity;
         efficiency = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
       } else {
         var normCost = cost;
@@ -354,14 +367,18 @@ function _renderPlanner(uLvs, mLvs, desired) {
         marbleFillDiff = baseMarbleFill - newMFill;
       }
 
-      // TTA calculations
+      var speedPct = 0, valPct = 0;
+      if (_isOptimal) {
+        var _newStacks = F.optimalStacksPerHr(saveData, simLvs, mLvs);
+        var _newStackVal = F.optimalStackValue(saveData, simLvs, mLvs, desired);
+        speedPct = _baseStacks > 0 ? (_newStacks / _baseStacks - 1) * 100 : 0;
+        valPct = _baseStackVal > 0 ? (_newStackVal / _baseStackVal - 1) * 100 : 0;
+      }
+
+      // TTA calculation
       var _avail = F.fountCurrencyAvail(saveData, opalType);
       var _currRemaining = Math.max(0, cost - _avail);
       var _currTtaSec = _currRemaining <= 0 ? 0 : (_earnPerHr[opalType] > 0 ? (_currRemaining / _earnPerHr[opalType]) * 3600 : Infinity);
-      var _mCost = F.marbleCost(u, mLvs[w][u] || 0);
-      var _mAvail = F.marbleCurrency(saveData);
-      var _mRemaining = Math.max(0, _mCost - _mAvail);
-      var _mTtaSec = _mRemaining <= 0 ? 0 : (_marblePerHr > 0 ? (_mRemaining / _marblePerHr) * 3600 : Infinity);
 
       candidates.push({
         w: w, u: u, name: d[0], lv: lv,
@@ -371,7 +388,8 @@ function _renderPlanner(uLvs, mLvs, desired) {
         efficiency: efficiency,
         newVal: newVal,
         fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
-        currTta: _currTtaSec, mTta: _mTtaSec,
+        currTta: _currTtaSec,
+        speedPct: speedPct, valPct: valPct,
       });
     }
   }
@@ -388,9 +406,10 @@ function _renderPlanner(uLvs, mLvs, desired) {
   var isFill = (goal === 'fill');
   var html = '<table class="data-table"><thead><tr>';
   html += '<th>#</th><th>Water</th><th>Upgrade</th><th class="num">Lv</th>';
-  html += '<th class="num">Cost</th><th class="num">Currency TTA</th><th class="num">Marble TTA</th><th class="num">Gain</th>';
+  html += '<th class="num">Cost</th><th class="num">Currency TTA</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
+  if (_isOptimal) html += '<th class="num" title="Fill speed change (stacks/hr)">Speed \u0394</th><th class="num" title="Stack value change (currency × royal × stack bonus)">Value \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
   html += '</tr></thead><tbody>';
 
@@ -406,19 +425,23 @@ function _renderPlanner(uLvs, mLvs, desired) {
     html += '<td class="num">' + c.lv + ' \u2192 ' + (c.lv + 1) + '</td>';
     html += '<td class="num">' + fmtCost(c.cost, c.opalType) + '</td>';
     html += '<td class="num">' + (c.currTta <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(c.currTta) ? fmtTimeFull(c.currTta) : '\u221e')) + '</td>';
-    html += '<td class="num">' + (c.mTta <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(c.mTta) ? fmtTimeFull(c.mTta) : '\u221e')) + '</td>';
     html += '<td class="num">+' + fmtNum(c.delta) + '</td>';
     html += '<td class="num">+' + c.pctGain.toFixed(3) + '%</td>';
     if (isFill) {
       html += '<td class="num" style="color:var(--green)">-' + fmtTimeFull(c.fillDiff) + '</td>';
       html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
     }
+    if (_isOptimal) {
+      html += '<td class="num" style="color:' + (c.speedPct > 0 ? 'var(--green)' : c.speedPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.speedPct >= 0 ? '+' : '') + c.speedPct.toFixed(3) + '%</td>';
+      html += '<td class="num" style="color:' + (c.valPct > 0 ? 'var(--green)' : c.valPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.valPct >= 0 ? '+' : '') + c.valPct.toFixed(3) + '%</td>';
+    }
     html += '<td><span class="eff-bar" style="width:' + barW + 'px"></span></td>';
     html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
     html += '</tr>';
   }
+  var _pColCount = 10 + (isFill ? 2 : 0) + (_isOptimal ? 2 : 0);
   if (candidates.length > limit) {
-    html += '<tr><td colspan="' + (isFill ? 13 : 11) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+    html += '<tr><td colspan="' + _pColCount + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -798,6 +821,8 @@ function _renderAll() {
     ['dollar', 'Dollar Bills'],
     ['credit', 'Credit Bills'],
     ['treasury', 'Treasury Bills'],
+    ['marble-rate', 'Marble /hr'],
+    ['optimal', 'Optimal /hr (Desired)'],
   ];
   var stepOpts = [10, 25, 50, 100, 250];
 
@@ -810,6 +835,7 @@ function _renderAll() {
   html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
   html += '<div class="tab" data-tab="planner">Planner</div>';
   html += '<div class="tab" data-tab="marble">Marble</div>';
+  html += '<div class="tab" data-tab="sim">Sim</div>';
   html += '</div>';
 
   // ===== OVERVIEW TAB =====
@@ -829,9 +855,12 @@ function _renderAll() {
   var fillSec = F.barFillTime(saveData, uLvs, mLvs);
   var marbleFillSec = F.marbleBarFillTime();
   var activeMul = F.activeSpeedMulti(uLvs, mLvs);
+  var activeDisplay = F.activeSpeedMultiDisplay(uLvs, mLvs);
   html += '<div class="card-grid cols-5" style="margin-top:10px">';
-  html += _card('Coin Fill', fmtTimeFull(fillSec / activeMul), 'AFK: ' + fmtTimeFull(fillSec) + ' \u2022 ' + activeMul.toFixed(1) + 'x active');
-  html += _card('Marble Fill', fmtTimeFull(marbleFillSec / activeMul), 'AFK: ' + fmtTimeFull(marbleFillSec) + ' \u2022 ' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill');
+  var _coinFillTip = 'Active fill = AFK base (1x) + Water Bender (' + activeDisplay.toFixed(2) + 'x) = ' + activeMul.toFixed(2) + 'x total.\nThe game runs both AFK accumulation and active fill simultaneously,\nso the real speed is 1 + ActiveSpdMulti, not just ActiveSpdMulti.\nAFK base adds ' + fmtTimeFull(fillSec / activeDisplay - fillSec / activeMul) + ' per fill vs tooltip-only speed.';
+  html += _card('Coin Fill', fmtTimeFull(fillSec / activeMul), 'AFK: ' + fmtTimeFull(fillSec) + ' \u2022 ' + activeMul.toFixed(2) + 'x active (' + activeDisplay.toFixed(2) + 'x + AFK)', _coinFillTip);
+  var _marbleFillTip = 'Marble bar also benefits from the same active speed.\nAFK: ' + fmtTimeFull(marbleFillSec) + ' per fill, Active: ' + fmtTimeFull(marbleFillSec / activeMul) + ' per fill.\n' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + ' marble per fill \u00d7 ' + (3600 / (marbleFillSec / activeMul)).toFixed(1) + ' fills/hr = ' + fmtNum(F.marblePerHr(saveData, uLvs, mLvs)) + ' marble/hr.';
+  html += _card('Marble Fill', fmtTimeFull(marbleFillSec / activeMul), 'AFK: ' + fmtTimeFull(marbleFillSec) + ' \u2022 ' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill', _marbleFillTip);
   html += _card('Total Multi', fmtNum(F.currencyAllMulti(saveData, uLvs, mLvs)) + 'x', 'Currency value multiplier');
   var rc = F.royalChance(uLvs, mLvs);
   html += _card('Royal Chance', '1 in ' + Math.round(1 / rc), fmtPct(rc) + ' per fill');
@@ -902,42 +931,67 @@ function _renderAll() {
   var _maxStack = F.maxStackSize(saveData, uLvs, mLvs);
   var _singleMul = 1 + 1 * _sizeBon / 100;
   var _fullStackMul = 1 + _maxStack * _sizeBon / 100;
+  // Optimal /hr: only collect full royal desired stacks. Crowns persist and
+  // accumulate across all spaces (including full ones). In steady state,
+  // you collect royal-full stacks immediately, freeing the space. With fast
+  // enough crown rate, all stacks become royal before or after filling.
+  // Throughput = fillsPerHr / maxStack stacks/hr, each worth maxStack × cv × rm × fullStackMul.
+  // But if crown rate is low, some stacks fill without being royal — those sit blocking
+  // a space until crowned. We model 2 phases per space:
+  //   Phase 1: fill the stack (maxStack fills, coins go to random non-full space).
+  //     During this time, crowns roll at rc/fill across ALL spaces.
+  //   Phase 2: if not yet royal, stack waits for a crown (1/rc expected fills).
+  // Expected fills per collected stack = maxStack + (1 - P(royal during fill)) × waitFills.
+  // P(royal during fill) ≈ 1 - (1 - rc)^(maxStack) per space.
+  // But crowns from other spaces' fills also help. In multi-space steady state,
+  // crown arrivals per fill = rc (global), distributed to first non-royal space.
+  // Simplification: expected fills until a given non-royal space gets crowned = 1/rc.
+  // fillsToCollect = maxStack + max(0, 1/rc - maxStack) × (1 - pRoyalDuringFill).
+  var _spaces = F.spacesOwned(uLvs, mLvs);
+  var _pRoyalDuringFill = 1 - Math.pow(1 - rc, _maxStack);
+  var _waitFills = _pRoyalDuringFill < 1 ? (1 - _pRoyalDuringFill) / rc : 0;
+  var _fillsPerStack = _maxStack + _waitFills;
+  // stacksPerHr × stackValue = optimal /hr
+  // stackValue = maxStack × cv × rm × fullStackMul (all coins royal, full stack bonus)
 
   html += '<table class="stat-table" style="margin-top:10px">';
   html += '<thead><tr>';
   html += '<th>Currency</th>';
   html += '<th>Coin Value</th>';
   html += '<th title="Value/hr assuming coins redeemed as single-coin stacks. Each active type has equal chance per fill.">Single /hr (Active)</th>';
-  html += '<th title="Value/hr assuming coins redeemed in full stacks of ' + Math.floor(_maxStack) + '. Includes Size Does Matter bonus.">Full Stack /hr (Active)</th>';
-  html += '<th title="Overflow value/hr when all spaces full (MBG). No royal, no stack bonus.">Overflow /hr (Active)</th>';
+  html += '<th title="Value/hr assuming coins redeemed in full stacks of ' + Math.floor(_maxStack) + '. Includes Size Does Matter bonus. Royal weighted per coin.">Full Stack /hr (Active)</th>';
+  html += '<th title="Optimal play: only collect full royal desired stacks (\u00d7' + _rm.toFixed(1) + ' royal multi, \u00d7' + _fullStackMul.toFixed(2) + ' stack bonus). Crowns persist on full stacks; no MBG. ' + (_pRoyalDuringFill * 100).toFixed(0) + '% chance crowned while filling, rest wait ~' + Math.ceil(1/rc) + ' extra fills.">Optimal /hr (Active)</th>';
   html += '</tr></thead><tbody>';
 
   var _totalSingleActive = 0, _totalFullActive = 0, _totalOverflowActive = 0;
   var _totalSingleAfk = 0, _totalFullAfk = 0, _totalOverflowAfk = 0;
+  var _totalOptActive = 0, _totalOptAfk = 0;
   for (var _cj = 0; _cj < _numActiveOv; _cj++) {
     var _ct = _activeTypesIncome[_cj];
     var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _ct, desired);
     // Each type gets 1/numActive share of fills
     var _typeActiveFillsPerHr = _activeFillPerHr / _numActiveOv;
     var _typeAfkFillsPerHr = _afkFillPerHr / _numActiveOv;
-    // Royal-weighted coin value
+    // Royal-weighted coin value (per-coin probability)
     var _rwCv = _cv * (1 - rc) + _cv * _rm * rc;
     // Single coin: royal-weighted × single stack bonus
     var _singlePerHrActive = _typeActiveFillsPerHr * _rwCv * _singleMul;
     var _singlePerHrAfk = _typeAfkFillsPerHr * _rwCv * _singleMul;
-    // Full stack: royal-weighted × full stack bonus
+    // Full stack: royal-weighted × full stack bonus (per-coin royal)
     var _fullPerHrActive = _typeActiveFillsPerHr * _rwCv * _fullStackMul;
     var _fullPerHrAfk = _typeAfkFillsPerHr * _rwCv * _fullStackMul;
-    // Overflow (MBG): no royal, no stack bonus
-    var _ofPerHrActive = _typeActiveFillsPerHr * _cv * _keepPct;
-    var _ofPerHrAfk = _typeAfkFillsPerHr * _cv * _keepPct;
+    // Optimal: collect only full royal stacks. Crowns land on full stacks too.
+    // stacksPerHr = fillsPerHr / fillsPerStack; stackValue = maxStack × cv × rm × fullStackMul
+    var _stackVal = _maxStack * _cv * _rm * _fullStackMul;
+    var _optActive = (_typeActiveFillsPerHr / _fillsPerStack) * _stackVal;
+    var _optAfk = (_typeAfkFillsPerHr / _fillsPerStack) * _stackVal;
 
     _totalSingleActive += _singlePerHrActive;
     _totalFullActive += _fullPerHrActive;
-    _totalOverflowActive += _ofPerHrActive;
     _totalSingleAfk += _singlePerHrAfk;
     _totalFullAfk += _fullPerHrAfk;
-    _totalOverflowAfk += _ofPerHrAfk;
+    _totalOptActive += _optActive;
+    _totalOptAfk += _optAfk;
 
     var _isDesired = _ct === desired;
     html += '<tr>';
@@ -945,7 +999,7 @@ function _renderAll() {
     html += '<td>' + fmtNum(_cv) + '</td>';
     html += '<td>' + fmtNum(_singlePerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_singlePerHrAfk) + ')</span></td>';
     html += '<td>' + fmtNum(_fullPerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_fullPerHrAfk) + ')</span></td>';
-    html += '<td>' + fmtNum(_ofPerHrActive) + '<span class="sub-val"> (AFK ' + fmtNum(_ofPerHrAfk) + ')</span></td>';
+    html += '<td>' + fmtNum(_optActive) + '<span class="sub-val"> (AFK ' + fmtNum(_optAfk) + ')</span></td>';
     html += '</tr>';
   }
 
@@ -954,11 +1008,12 @@ function _renderAll() {
   html += '<td></td>';
   html += '<td>' + fmtNum(_totalSingleActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalSingleAfk) + ')</span></td>';
   html += '<td>' + fmtNum(_totalFullActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalFullAfk) + ')</span></td>';
-  html += '<td>' + fmtNum(_totalOverflowActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalOverflowAfk) + ')</span></td>';
+  html += '<td>' + fmtNum(_totalOptActive) + '<span class="sub-val"> (AFK ' + fmtNum(_totalOptAfk) + ')</span></td>';
   html += '</tr></tfoot></table>';
   if (_sizeBon > 0) {
     html += '<div style="font-size:.75em;color:var(--text2);margin-top:4px">Size Does Matter: +' + _sizeBon + '% per coin in stack \u2022 Full stack = ' + Math.floor(_maxStack) + ' coins (\u00d7' + _fullStackMul.toFixed(2) + ')</div>';
   }
+  html += '<div style="font-size:.75em;color:var(--text2);margin-top:2px">Optimal /hr: only collect full royal stacks (\u00d7' + _rm.toFixed(1) + '). Crowns land on any non-royal space including full stacks. ' + (_pRoyalDuringFill * 100).toFixed(0) + '% of stacks get crowned during filling (' + Math.floor(_maxStack) + ' fills \u00d7 ' + (rc*100).toFixed(2) + '% royal/fill). Uncollected full stacks wait for a crown (~' + Math.ceil(1/rc) + ' extra fills). No MBG loss.</div>';
 
   html += '</div>';
 
@@ -1202,16 +1257,19 @@ function _renderAll() {
   html += '<div id="tab-upgrades" class="tab-content">';
 
   // Pre-compute earn rates per currency type for TTA
-  var _upgActiveTypes = F.activeCurrencyTypes(saveData, uLvs, mLvs);
-  var _upgNumActive = _upgActiveTypes.length;
+  // Assumes: all fills go to needed currency, full stacks, royal-weighted, desired
   var _upgFillPerHr = 3600 / (F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs));
-  var _upgEarnPerHr = {};  // typeIdx -> currency earned per hour
-  for (var _ei = 0; _ei < _upgNumActive; _ei++) {
-    var _et = _upgActiveTypes[_ei];
-    var _ecv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
-    _upgEarnPerHr[_et] = _upgFillPerHr * _ecv / _upgNumActive;
+  var _upgRc = F.royalChance(uLvs, mLvs);
+  var _upgRm = F.royalMulti(uLvs, mLvs);
+  var _upgRoyalWeight = (1 - _upgRc) + _upgRm * _upgRc;
+  var _upgSizeBon = F._sizeMatterBonus(saveData);
+  var _upgMaxStack = F.maxStackSize(saveData, uLvs, mLvs);
+  var _upgFullStackMul = 1 + _upgMaxStack * _upgSizeBon / 100;
+  var _upgEarnPerHr = {};  // typeIdx -> currency earned per hour (full/royal/desired)
+  for (var _et = 0; _et < 9; _et++) {
+    var _ecv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, _et);  // desired=self
+    _upgEarnPerHr[_et] = _upgFillPerHr * _ecv * _upgRoyalWeight * _upgFullStackMul;
   }
-  var _upgMarblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / (F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs));
 
   // Upgrade Panels (tabbed by water)
   html += '<div class="section"><h2>Upgrades</h2>';
@@ -1226,7 +1284,7 @@ function _renderAll() {
     html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
     html += '<th>#</th><th>Upgrade</th><th class="num">Level</th><th class="num">Marble</th>';
     html += '<th class="num">Next Cost</th><th class="num">Currency TTA</th>';
-    html += '<th class="num">Marble Cost</th><th class="num">Marble TTA</th>';
+    html += '<th class="num">Marble Cost</th>';
     html += '<th>Description</th><th>Status</th>';
     html += '</tr></thead><tbody>';
     for (var u = 0; u < 20; u++) {
@@ -1255,7 +1313,7 @@ function _renderAll() {
       html += '<td>' + u + '</td>';
       html += '<td>' + d[0] + '</td>';
       html += '<td class="num">' + lv + '</td>';
-      html += '<td class="num marble-col">' + ml + ' <span style="font-size:.7em">(' + F.marbleBon(ml).toFixed(1) + 'x)</span></td>';
+      html += '<td class="num marble-col">' + (F.canMarble(w, u) ? ml + ' <span style="font-size:.7em">(' + F.marbleBon(ml).toFixed(1) + 'x)</span>' : '-') + '</td>';
       var _upgNextCost = F.upgCost(w, u, lv);
       var _upgCurrType = d[3];
       html += '<td class="num">' + fmtCost(_upgNextCost, _upgCurrType) + '</td>';
@@ -1266,12 +1324,7 @@ function _renderAll() {
       var _upgCurrTtaSec = _upgCurrRemaining <= 0 ? 0 : (_upgCurrRate > 0 ? (_upgCurrRemaining / _upgCurrRate) * 3600 : Infinity);
       html += '<td class="num">' + (_upgCurrTtaSec <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(_upgCurrTtaSec) ? fmtTimeFull(_upgCurrTtaSec) : '\u221e')) + '</td>';
       var _upgMCost = F.marbleCost(u, ml);
-      html += '<td class="num">' + (ml >= 0 ? fmtNum(_upgMCost) : '-') + '</td>';
-      // Marble TTA
-      var _upgMarbleAvail = F.marbleCurrency(saveData);
-      var _upgMarbleRemaining = Math.max(0, _upgMCost - _upgMarbleAvail);
-      var _upgMarbleTtaSec = _upgMarbleRemaining <= 0 ? 0 : (_upgMarblePerHr > 0 ? (_upgMarbleRemaining / _upgMarblePerHr) * 3600 : Infinity);
-      html += '<td class="num">' + (_upgMarbleTtaSec <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(_upgMarbleTtaSec) ? fmtTimeFull(_upgMarbleTtaSec) : '\u221e')) + '</td>';
+      html += '<td class="num">' + (lv > 0 && F.canMarble(w, u) ? fmtNum(_upgMCost) : '-') + '</td>';
       html += '<td data-tip="' + _escAttr(desc) + '" style="cursor:help;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _truncate(desc, 50) + '</td>';
       html += '<td>' + (lv > 0 ? '<span class="badge badge-green">Lv ' + lv + '</span>' : '<span class="badge badge-blue">Available</span>') + '</td>';
       html += '</tr>';
@@ -1356,6 +1409,7 @@ function _renderAll() {
   html += '<label><input type="checkbox" id="planner-normalize"' + (_plannerNormalize ? ' checked' : '') + (_plannerPerHr ? ' disabled' : '') + '> Normalize cost by currency value</label>';
   html += '<label><input type="checkbox" id="planner-perhr"' + (_plannerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
+  html += '<p style="font-size:.78em;color:var(--text2);margin:4px 0 0;">TTA &amp; /hr use optimal earn rate: active play, full royal stacks only, desired bonus, full focus per currency.</p>';
   html += '<div id="planner-table"></div>';
   html += '</div>';
 
@@ -1417,6 +1471,18 @@ function _renderAll() {
   html += '</div>';
 
   html += '</div>'; // end marble tab
+
+  // ===== SIM TAB =====
+  html += '<div id="tab-sim" class="tab-content">';
+  html += '<div class="section"><h2>Fountain Simulator</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px;">Simulates active fountain play forward in time. Picks the best upgrade to buy (regular or marble), earns currency, switches desired type as needed, and tracks marble fills &mdash; all to maximize marble/hr growth.</p>';
+  html += '<div class="planner-controls">';
+  html += '<label>Time limit (hours): <input type="number" id="sim-timelimit" value="' + _simTimeLimit + '" min="1" step="1" style="width:60px;"></label>';
+  html += '<button id="sim-run" style="cursor:pointer;padding:4px 12px;">Run Sim</button>';
+  html += '</div>';
+  html += '<div id="sim-output"></div>';
+  html += '</div>';
+  html += '</div>'; // end sim tab
 
   el.innerHTML = html;
 
@@ -1549,6 +1615,14 @@ function _renderAll() {
     _mOptimizerAffordable = this.checked;
     _renderMarbleOptimizer(uLvs, mLvs, desired);
   });
+
+  // Wire sim
+  document.getElementById('sim-timelimit').addEventListener('change', function() {
+    _simTimeLimit = Math.max(1, Number(this.value) || 24);
+  });
+  document.getElementById('sim-run').addEventListener('click', function() {
+    _renderSim(uLvs, mLvs, desired);
+  });
 }
 
 // ========== MULTI-UPGRADE OPTIMIZER ==========
@@ -1571,15 +1645,20 @@ function _renderOptimizer(uLvs, mLvs, desired) {
   var steps = [];
   var bought = {};
 
-  var _numUnlocked = 0;
-  for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
   var _baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
   var _fillsPerHr = 3600 / _baseFillTime;
-  var _marblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / (F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs));
+  var _oRc = F.royalChance(uLvs, mLvs);
+  var _oRm = F.royalMulti(uLvs, mLvs);
+  var _oSizeBon = F._sizeMatterBonus(saveData);
+  var _oMaxStack = F.maxStackSize(saveData, uLvs, mLvs);
+  var _oFullStackMul = 1 + _oMaxStack * _oSizeBon / 100;
+  var _oRoyalDuringFill = 1 - Math.pow(1 - _oRc, _oMaxStack);
+  var _oWaitFills = _oRoyalDuringFill < 1 ? (1 - _oRoyalDuringFill) / _oRc : 0;
+  var _oFillsPerStack = _oMaxStack + _oWaitFills;
   var _earnPerHr = [];
   for (var _et = 0; _et < 9; _et++) {
-    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
-    _earnPerHr[_et] = _numUnlocked > 0 ? _fillsPerHr * _cv / _numUnlocked : 0;
+    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, _et);
+    _earnPerHr[_et] = (_fillsPerHr / _oFillsPerStack) * _oMaxStack * _cv * _oRm * _oFullStackMul;
   }
 
   for (var step = 0; step < maxSteps; step++) {
@@ -1601,9 +1680,7 @@ function _renderOptimizer(uLvs, mLvs, desired) {
         var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
         var eff;
         if (_optimizerPerHr) {
-          var cv = F.currencyTotalValue(saveData, simLvs, mLvs, oType, F.desiredCurrency(saveData));
-          var earnRate = _numUnlocked > 0 ? _fillsPerHr * cv / _numUnlocked : 0;
-          var hrsToEarn = earnRate > 0 ? cost / earnRate : Infinity;
+          var hrsToEarn = _earnPerHr[oType] > 0 ? cost / _earnPerHr[oType] : Infinity;
           eff = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
         } else {
           var normCost = cost;
@@ -1666,6 +1743,8 @@ function _renderOptimizer(uLvs, mLvs, desired) {
   var endVal = baseline;
   var totalGainPct = startVal > 0 ? (endVal - startVal) / startVal * 100 : 0;
 
+  var _oIsOptimal = (goal === 'optimal');
+
   var html = '<div style="margin-bottom:10px;font-size:.85em;">';
   html += '<span class="n">' + steps.length + '</span> upgrades purchased \u2022 ';
   html += 'Value: <span class="n">' + fmtNum(startVal) + '</span> \u2192 <span class="n">' + fmtNum(endVal) + '</span>';
@@ -1674,6 +1753,16 @@ function _renderOptimizer(uLvs, mLvs, desired) {
     var startFill = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
     var endFill = F.barFillTime(saveData, simLvs, mLvs) / F.activeSpeedMulti(simLvs, mLvs);
     html += ' \u2022 Fill: <span class="n">' + fmtTimeFull(startFill) + '</span> \u2192 <span class="n">' + fmtTimeFull(endFill) + '</span>';
+  }
+  if (_oIsOptimal) {
+    var _oStartStacks = F.optimalStacksPerHr(saveData, uLvs, mLvs);
+    var _oEndStacks = F.optimalStacksPerHr(saveData, simLvs, mLvs);
+    var _oStartSV = F.optimalStackValue(saveData, uLvs, mLvs, desired);
+    var _oEndSV = F.optimalStackValue(saveData, simLvs, mLvs, desired);
+    var _oSpeedPct = _oStartStacks > 0 ? (_oEndStacks / _oStartStacks - 1) * 100 : 0;
+    var _oValPct = _oStartSV > 0 ? (_oEndSV / _oStartSV - 1) * 100 : 0;
+    html += ' \u2022 Speed: <span class="n">+' + _oSpeedPct.toFixed(1) + '%</span>';
+    html += ' \u2022 Value: <span class="n">+' + _oValPct.toFixed(1) + '%</span>';
   }
   html += '</div>';
 
@@ -1727,12 +1816,16 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   var baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
   var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
   var _marblePerHour = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / baseMarbleFill;
+  var _mIsOptimal = (goal === 'optimal');
+  var _mBaseStacks = _mIsOptimal ? F.optimalStacksPerHr(saveData, uLvs, mLvs) : 0;
+  var _mBaseStackVal = _mIsOptimal ? F.optimalStackValue(saveData, uLvs, mLvs, desired) : 0;
 
   var candidates = [];
   for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
     for (var u = 0; u < 20; u++) {
       var upgLv = uLvs[w][u] || 0;
       if (upgLv <= 0) continue;  // can only marble upgrades you own
+      if (!F.canMarble(w, u)) continue;  // upgrade cannot be marbled
       var mLv = mLvs[w][u] || 0;
       var cost = F.marbleCost(u, mLv);
       var canAfford = marbleAvail >= cost;
@@ -1754,6 +1847,14 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
         marbleFillDiff = baseMarbleFill - newMFill;
       }
 
+      var mSpeedPct = 0, mValPct = 0;
+      if (_mIsOptimal) {
+        var _mnStacks = F.optimalStacksPerHr(saveData, uLvs, simMLvs);
+        var _mnStackVal = F.optimalStackValue(saveData, uLvs, simMLvs, desired);
+        mSpeedPct = _mBaseStacks > 0 ? (_mnStacks / _mBaseStacks - 1) * 100 : 0;
+        mValPct = _mBaseStackVal > 0 ? (_mnStackVal / _mBaseStackVal - 1) * 100 : 0;
+      }
+
       var ttaSec = _marblePerHour > 0 ? (cost / _marblePerHour) * 3600 : Infinity;
 
       candidates.push({
@@ -1761,7 +1862,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
         cost: cost, canAfford: canAfford,
         delta: delta, pctGain: pctGain,
         efficiency: efficiency, fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
-        tta: ttaSec,
+        tta: ttaSec, speedPct: mSpeedPct, valPct: mValPct,
       });
     }
   }
@@ -1780,6 +1881,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   html += '<th class="num">Cost</th><th class="num">Time to Afford</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
+  if (_mIsOptimal) html += '<th class="num" title="Fill speed change (stacks/hr)">Speed \u0394</th><th class="num" title="Stack value change (currency \u00d7 royal \u00d7 stack bonus)">Value \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
   html += '</tr></thead><tbody>';
 
@@ -1801,12 +1903,17 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
       html += '<td class="num" style="color:var(--green)">-' + fmtTimeFull(c.fillDiff) + '</td>';
       html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
     }
+    if (_mIsOptimal) {
+      html += '<td class="num" style="color:' + (c.speedPct > 0 ? 'var(--green)' : c.speedPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.speedPct >= 0 ? '+' : '') + c.speedPct.toFixed(3) + '%</td>';
+      html += '<td class="num" style="color:' + (c.valPct > 0 ? 'var(--green)' : c.valPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.valPct >= 0 ? '+' : '') + c.valPct.toFixed(3) + '%</td>';
+    }
     html += '<td><span class="eff-bar" style="width:' + barW + 'px"></span></td>';
     html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
     html += '</tr>';
   }
+  var _mpColCount = 10 + (isFill ? 2 : 0) + (_mIsOptimal ? 2 : 0);
   if (candidates.length > limit) {
-    html += '<tr><td colspan="' + (isFill ? 12 : 10) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+    html += '<tr><td colspan="' + _mpColCount + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1834,6 +1941,7 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
       for (var u = 0; u < 20; u++) {
         var upgLv = uLvs[w][u] || 0;
         if (upgLv <= 0) continue;
+        if (!F.canMarble(w, u)) continue;
         var mLv = simMLvs[w][u] || 0;
         var cost = F.marbleCost(u, mLv);
         if (_mOptimizerAffordable && budget < cost) continue;
@@ -1894,6 +2002,8 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
   var endVal = baseline;
   var totalGainPct = startVal > 0 ? (endVal - startVal) / startVal * 100 : 0;
 
+  var _moIsOptimal = (goal === 'optimal');
+
   var html = '<div style="margin-bottom:10px;font-size:.85em;">';
   html += '<span class="n">' + steps.length + '</span> marble upgrades \u2022 ';
   html += 'Value: <span class="n">' + fmtNum(startVal) + '</span> \u2192 <span class="n">' + fmtNum(endVal) + '</span>';
@@ -1902,6 +2012,16 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
     var startFill = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
     var endFill = F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs);
     html += ' \u2022 Fill: <span class="n">' + fmtTimeFull(startFill) + '</span> \u2192 <span class="n">' + fmtTimeFull(endFill) + '</span>';
+  }
+  if (_moIsOptimal) {
+    var _moStartStacks = F.optimalStacksPerHr(saveData, uLvs, mLvs);
+    var _moEndStacks = F.optimalStacksPerHr(saveData, uLvs, simMLvs);
+    var _moStartSV = F.optimalStackValue(saveData, uLvs, mLvs, desired);
+    var _moEndSV = F.optimalStackValue(saveData, uLvs, simMLvs, desired);
+    var _moSpeedPct = _moStartStacks > 0 ? (_moEndStacks / _moStartStacks - 1) * 100 : 0;
+    var _moValPct = _moStartSV > 0 ? (_moEndSV / _moStartSV - 1) * 100 : 0;
+    html += ' \u2022 Speed: <span class="n">+' + _moSpeedPct.toFixed(1) + '%</span>';
+    html += ' \u2022 Value: <span class="n">+' + _moValPct.toFixed(1) + '%</span>';
   }
   html += '</div>';
 
@@ -1937,8 +2057,240 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
   el.innerHTML = html;
 }
 
-function _card(title, val, sub) {
-  return '<div class="card"><div class="card-title">' + title + '</div>'
+// ========== FOUNTAIN SIM ==========
+var _simWorker = null;
+
+function _renderSim(uLvs, mLvs, desired) {
+  var el = document.getElementById('sim-output');
+  if (!el) return;
+
+  el.innerHTML = '<div style="padding:16px;color:var(--text2);">Running sim\u2026 <span id="sim-pct">0</span>%<br><div style="width:300px;height:8px;background:var(--bg2);border-radius:4px;margin-top:6px;"><div id="sim-bar" style="width:0%;height:100%;background:var(--green);border-radius:4px;transition:width .1s;"></div></div></div>';
+
+  // Kill previous worker
+  if (_simWorker) { _simWorker.terminate(); _simWorker = null; }
+
+  // Gather currencies
+  var currencies = [];
+  for (var t = 0; t < 9; t++) currencies[t] = F.fountCurrencyAvail(saveData, t);
+
+  _simWorker = new Worker('./js/fountain-sim-worker.js', { type: 'module' });
+  _simWorker.postMessage({
+    saveData: saveData,
+    uLvs: uLvs,
+    mLvs: mLvs,
+    desired: desired,
+    timeLimit: _simTimeLimit,
+    marbleBarSec: F.marbleBarProgress(saveData),
+    currencies: currencies,
+    marbles: F.marbleCurrency(saveData),
+  });
+
+  _simWorker.onmessage = function(e) {
+    var msg = e.data;
+    if (msg.type === 'progress') {
+      var pctEl = document.getElementById('sim-pct');
+      var barEl = document.getElementById('sim-bar');
+      if (pctEl) pctEl.textContent = msg.pct;
+      if (barEl) barEl.style.width = msg.pct + '%';
+    } else if (msg.type === 'done') {
+      _renderSimResult(el, msg.result);
+      _simWorker.terminate();
+      _simWorker = null;
+    } else if (msg.type === 'error') {
+      el.innerHTML = '<div style="color:#e57373;padding:16px;">\u2717 Sim error: ' + _escAttr(msg.message) + '</div>';
+      _simWorker.terminate();
+      _simWorker = null;
+    }
+  };
+
+  _simWorker.onerror = function(err) {
+    el.innerHTML = '<div style="color:#e57373;padding:16px;">\u2717 Worker error: ' + _escAttr(err.message || err) + '</div>';
+    _simWorker.terminate();
+    _simWorker = null;
+  };
+}
+
+function _renderSimResult(el, r) {
+  var events = r.events;
+  var mRateStart = r.startMarbleRate;
+  var mRateEnd = r.endMarbleRate;
+  var bcrStart = r.startBaseCurr;
+  var bcrEnd = r.endBaseCurr;
+  var mRatePct = mRateStart > 0 ? ((mRateEnd / mRateStart) - 1) * 100 : 0;
+  var bcrPct = bcrStart > 0 ? ((bcrEnd / bcrStart) - 1) * 100 : 0;
+
+  // Build tooltip showing per-currency rates
+  function _currTip(currRates) {
+    if (!currRates) return '';
+    var lines = [];
+    for (var t = 0; t < 9; t++) {
+      if (currRates[t] > 0) lines.push(CURR_SHORT[t] + ': ' + fmtNum(currRates[t]) + '/hr');
+    }
+    return _escAttr(lines.join('\n'));
+  }
+
+  var html = '';
+
+  // Summary
+  html += '<div style="margin-bottom:12px;">';
+  html += '<div class="card-grid cols-4" style="margin-bottom:8px;">';
+  html += _card('Sim Duration', fmtTimeFull(r.clockSec), fmtTimeFull(_simTimeLimit * 3600) + ' limit');
+  html += _card('Steps', r.stepCount, events.length + ' events');
+  html += _card('Marble /hr', fmtNum(mRateEnd), fmtNum(mRateStart) + ' \u2192 ' + fmtNum(mRateEnd) + ' (' + (mRatePct >= 0 ? '+' : '') + mRatePct.toFixed(1) + '%)');
+  html += '<div class="card" title="' + _currTip(r.endCurrRates) + '"><div class="card-title">Base Currency /hr</div>'
+    + '<div class="card-val">' + fmtNum(bcrEnd) + '</div>'
+    + '<div class="card-sub">' + fmtNum(bcrStart) + ' \u2192 ' + fmtNum(bcrEnd) + ' (' + (bcrPct >= 0 ? '+' : '') + bcrPct.toFixed(1) + '%)</div></div>';
+  html += '</div>';
+
+  // Final balances
+  html += '<div style="font-size:.78em;color:var(--text2);">Final: ';
+  var parts = [];
+  for (var t = 0; t < 9; t++) {
+    if (r.currencies[t] > 0) parts.push(CURR_SHORT[t] + ': ' + fmtNum(r.currencies[t]));
+  }
+  parts.push('Marble: ' + fmtNum(r.marbles));
+  html += parts.join(' \u2022 ');
+  html += '</div></div>';
+
+  // Timeline table
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th class="num">Time</th>';
+  html += '<th>Event</th>';
+  html += '<th>Details</th>';
+  html += '<th class="num">Marble /hr</th>';
+  html += '<th class="num">Base Currency /hr</th>';
+  html += '</tr></thead><tbody>';
+
+  // Collapse same-time same-upgrade buys (even if interleaved); merge claims;
+  // hide marble-fill events (marble accrues passively in background)
+  var grouped = [];
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    if (ev.type === 'marble-fill') continue; // hide fills
+
+    // Look for an existing group at the same time with the same upgrade
+    var found = null;
+    if (ev.type === 'buy-upgrade' || ev.type === 'buy-marble') {
+      for (var j = grouped.length - 1; j >= 0; j--) {
+        if (grouped[j].time !== ev.time) break; // past this time block
+        if (grouped[j].type === ev.type && grouped[j].w === ev.w && grouped[j].u === ev.u) {
+          found = grouped[j];
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      // Merge into existing group
+      found.endLv = ev.type === 'buy-marble' ? ev.newMLv || ev.newLv : ev.newLv;
+      found.totalCost += ev.cost;
+      found.count++;
+      found.marbleRate = ev.marbleRate;
+      found.baseCurrRate = ev.baseCurrRate;
+      found.currRates = ev.currRates;
+    } else {
+      var g = {};
+      for (var k in ev) g[k] = ev[k];
+      g.startLv = ev.type === 'buy-marble' ? ((ev.newMLv || ev.newLv) - 1) : (ev.newLv - 1);
+      g.endLv = ev.type === 'buy-marble' ? (ev.newMLv || ev.newLv) : ev.newLv;
+      g.totalCost = ev.cost || 0;
+      g.count = 1;
+      grouped.push(g);
+    }
+  }
+
+  // Merge claim events into following buy at the same time
+  var merged = [];
+  for (var i = 0; i < grouped.length; i++) {
+    var ev = grouped[i];
+    if (ev.type === 'claim') {
+      // Find next event at same time that's a buy
+      var next = i + 1 < grouped.length ? grouped[i + 1] : null;
+      if (next && next.time === ev.time && (next.type === 'buy-upgrade' || next.type === 'buy-marble')) {
+        next.claimAmount = (next.claimAmount || 0) + ev.amount;
+        next.claimType = ev.currType;
+        next.claimDuration = (next.claimDuration || 0) + ev.duration;
+        continue; // skip the claim row — info is on the buy row
+      }
+      // Standalone claim (end of sim, no buy follows) — keep it but show as earn
+      merged.push(ev);
+    } else {
+      merged.push(ev);
+    }
+  }
+
+  var lastTime = -1;
+  // Time formatter without milliseconds for cleaner sim view
+  function fmtTimeNoMs(sec) {
+    if (!isFinite(sec) || sec <= 0) return '0s';
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = Math.floor(sec % 60);
+    var parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0) parts.push(m + 'm');
+    if (s > 0 || parts.length === 0) parts.push(s + 's');
+    return parts.join(' ');
+  }
+  for (var i = 0; i < merged.length; i++) {
+    var ev = merged[i];
+    var isNewTimeBlock = (ev.time !== lastTime);
+    lastTime = ev.time;
+
+    html += '<tr' + (isNewTimeBlock && i > 0 ? ' class="sim-block-start"' : ' class="sim-block-cont"') + '>';
+    // Only show time on first row of a time block
+    html += '<td class="num" style="white-space:nowrap;' + (!isNewTimeBlock ? 'color:transparent;font-size:0;' : '') + '">' + fmtTimeNoMs(ev.time) + '</td>';
+
+    // Claim info suffix for merged buys
+    var claimSuffix = '';
+    if (ev.claimAmount > 0) {
+      claimSuffix = ' <span style="color:#4fc3f7;font-size:.8em;">\u2b06 ' + fmtNum(ev.claimAmount) + ' ' + CURR_SHORT[ev.claimType] + ' (' + fmtTimeNoMs(ev.claimDuration) + ')</span>';
+    }
+
+    switch (ev.type) {
+      case 'buy-upgrade':
+        html += '<td><span style="color:var(--green);">\u2191 Upgrade</span></td>';
+        if (ev.count > 1) {
+          html += '<td><span style="color:' + F.WATER_COLORS[ev.w] + '">' + F.WATER_NAMES[ev.w] + '</span> ' + ev.name + ' Lv ' + ev.startLv + ' \u2192 ' + ev.endLv + ' <span style="color:var(--text2);font-size:.8em;">(\u00d7' + ev.count + ', ' + fmtCost(ev.totalCost, ev.costType) + ')</span>' + claimSuffix + '</td>';
+        } else {
+          html += '<td><span style="color:' + F.WATER_COLORS[ev.w] + '">' + F.WATER_NAMES[ev.w] + '</span> ' + ev.name + ' \u2192 Lv ' + ev.endLv + ' <span style="color:var(--text2);font-size:.8em;">(' + fmtCost(ev.totalCost, ev.costType) + ')</span>' + claimSuffix + '</td>';
+        }
+        break;
+      case 'buy-marble':
+        html += '<td><span style="color:#ab47bc;">\u26ab Marble</span></td>';
+        if (ev.count > 1) {
+          html += '<td><span style="color:' + F.WATER_COLORS[ev.w] + '">' + F.WATER_NAMES[ev.w] + '</span> ' + ev.name + ' M' + ev.startLv + ' \u2192 M' + ev.endLv + ' <span style="color:var(--text2);font-size:.8em;">(\u00d7' + ev.count + ', ' + fmtNum(ev.totalCost) + ' marble)</span></td>';
+        } else {
+          html += '<td><span style="color:' + F.WATER_COLORS[ev.w] + '">' + F.WATER_NAMES[ev.w] + '</span> ' + ev.name + ' \u2192 M' + ev.endLv + ' <span style="color:var(--text2);font-size:.8em;">(' + fmtNum(ev.totalCost) + ' marble)</span></td>';
+        }
+        break;
+      case 'switch':
+        html += '<td><span style="color:#ffa726;">\u21c4 Switch</span></td>';
+        html += '<td>Desire \u2192 ' + CURR_SHORT[ev.newDesired] + '</td>';
+        break;
+      case 'claim':
+        html += '<td><span style="color:#4fc3f7;">\u2b06 Earned</span></td>';
+        html += '<td>+' + fmtNum(ev.amount) + ' ' + CURR_SHORT[ev.currType] + ' <span style="color:var(--text2);font-size:.8em;">(' + fmtTimeNoMs(ev.duration) + ')</span></td>';
+        break;
+      default:
+        html += '<td>' + ev.type + '</td><td></td>';
+    }
+
+    html += '<td class="num">' + fmtNum(ev.marbleRate) + '</td>';
+    html += '<td class="num" title="' + _currTip(ev.currRates) + '">' + fmtNum(ev.baseCurrRate) + '</td>';
+    html += '</tr>';
+  }
+
+  if (merged.length === 0) {
+    html += '<tr><td colspan="5" style="color:var(--text2);text-align:center;">No events &mdash; nothing to buy or no beneficial upgrades found.</td></tr>';
+  }
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function _card(title, val, sub, tip) {
+  return '<div class="card"' + (tip ? ' title="' + _escAttr(tip) + '"' : '') + '><div class="card-title">' + title + '</div>'
     + '<div class="card-val">' + val + '</div>'
     + (sub ? '<div class="card-sub">' + sub + '</div>' : '')
     + '</div>';
