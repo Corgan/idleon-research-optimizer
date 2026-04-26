@@ -303,6 +303,13 @@ function _renderPlanner(uLvs, mLvs, desired) {
   var _numUnlocked = 0;
   for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
   var _fillsPerHr = 3600 / baseFillTime;
+  var _marblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / baseMarbleFill;
+  // Per-currency earn rates
+  var _earnPerHr = [];
+  for (var _et = 0; _et < 9; _et++) {
+    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
+    _earnPerHr[_et] = _numUnlocked > 0 ? _fillsPerHr * _cv / _numUnlocked : 0;
+  }
 
   var candidates = [];
   for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
@@ -347,6 +354,15 @@ function _renderPlanner(uLvs, mLvs, desired) {
         marbleFillDiff = baseMarbleFill - newMFill;
       }
 
+      // TTA calculations
+      var _avail = F.fountCurrencyAvail(saveData, opalType);
+      var _currRemaining = Math.max(0, cost - _avail);
+      var _currTtaSec = _currRemaining <= 0 ? 0 : (_earnPerHr[opalType] > 0 ? (_currRemaining / _earnPerHr[opalType]) * 3600 : Infinity);
+      var _mCost = F.marbleCost(u, mLvs[w][u] || 0);
+      var _mAvail = F.marbleCurrency(saveData);
+      var _mRemaining = Math.max(0, _mCost - _mAvail);
+      var _mTtaSec = _mRemaining <= 0 ? 0 : (_marblePerHr > 0 ? (_mRemaining / _marblePerHr) * 3600 : Infinity);
+
       candidates.push({
         w: w, u: u, name: d[0], lv: lv,
         cost: cost, opalType: opalType,
@@ -355,6 +371,7 @@ function _renderPlanner(uLvs, mLvs, desired) {
         efficiency: efficiency,
         newVal: newVal,
         fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
+        currTta: _currTtaSec, mTta: _mTtaSec,
       });
     }
   }
@@ -371,7 +388,7 @@ function _renderPlanner(uLvs, mLvs, desired) {
   var isFill = (goal === 'fill');
   var html = '<table class="data-table"><thead><tr>';
   html += '<th>#</th><th>Water</th><th>Upgrade</th><th class="num">Lv</th>';
-  html += '<th class="num">Cost</th><th class="num">Gain</th>';
+  html += '<th class="num">Cost</th><th class="num">Currency TTA</th><th class="num">Marble TTA</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
@@ -388,6 +405,8 @@ function _renderPlanner(uLvs, mLvs, desired) {
     html += '<td>' + c.name + '</td>';
     html += '<td class="num">' + c.lv + ' \u2192 ' + (c.lv + 1) + '</td>';
     html += '<td class="num">' + fmtCost(c.cost, c.opalType) + '</td>';
+    html += '<td class="num">' + (c.currTta <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(c.currTta) ? fmtTimeFull(c.currTta) : '\u221e')) + '</td>';
+    html += '<td class="num">' + (c.mTta <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(c.mTta) ? fmtTimeFull(c.mTta) : '\u221e')) + '</td>';
     html += '<td class="num">+' + fmtNum(c.delta) + '</td>';
     html += '<td class="num">+' + c.pctGain.toFixed(3) + '%</td>';
     if (isFill) {
@@ -399,7 +418,7 @@ function _renderPlanner(uLvs, mLvs, desired) {
     html += '</tr>';
   }
   if (candidates.length > limit) {
-    html += '<tr><td colspan="' + (isFill ? 11 : 9) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+    html += '<tr><td colspan="' + (isFill ? 13 : 11) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1554,7 +1573,14 @@ function _renderOptimizer(uLvs, mLvs, desired) {
 
   var _numUnlocked = 0;
   for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
-  var _fillsPerHr = 3600 / (F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs));
+  var _baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
+  var _fillsPerHr = 3600 / _baseFillTime;
+  var _marblePerHr = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / (F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs));
+  var _earnPerHr = [];
+  for (var _et = 0; _et < 9; _et++) {
+    var _cv = F.currencyTotalValue(saveData, uLvs, mLvs, _et, desired);
+    _earnPerHr[_et] = _numUnlocked > 0 ? _fillsPerHr * _cv / _numUnlocked : 0;
+  }
 
   for (var step = 0; step < maxSteps; step++) {
     var bestEff = -1, bestW = -1, bestU = -1, bestCost = 0, bestDelta = 0, bestPct = 0;
@@ -1654,6 +1680,7 @@ function _renderOptimizer(uLvs, mLvs, desired) {
   html += '<table class="data-table"><thead><tr>';
   html += '<th>Water</th><th>Upgrade</th><th class="num">Levels</th>';
   html += '<th class="num">From</th><th class="num">To</th><th class="num">Total Cost</th>';
+  html += '<th class="num">Currency TTA</th>';
   if (goal === 'fill') html += '<th class="num">Coin Fill</th><th class="num">Marble Fill</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < groupOrder.length; i++) {
@@ -1665,6 +1692,10 @@ function _renderOptimizer(uLvs, mLvs, desired) {
     html += '<td class="num">' + (g.startLv) + '</td>';
     html += '<td class="num"><b>' + g.endLv + '</b></td>';
     html += '<td class="num">' + fmtCost(g.totalCost, g.opalType) + '</td>';
+    var _oCurrAvail = F.fountCurrencyAvail(saveData, g.opalType);
+    var _oCurrRem = Math.max(0, g.totalCost - _oCurrAvail);
+    var _oCurrTta = _oCurrRem <= 0 ? 0 : (_earnPerHr[g.opalType] > 0 ? (_oCurrRem / _earnPerHr[g.opalType]) * 3600 : Infinity);
+    html += '<td class="num">' + (_oCurrTta <= 0 ? '<span class="badge badge-green">Now</span>' : (isFinite(_oCurrTta) ? fmtTimeFull(_oCurrTta) : '\u221e')) + '</td>';
     if (goal === 'fill') {
       html += '<td class="num">' + fmtTimeFull(g.coinFill) + '</td>';
       html += '<td class="num">' + fmtTimeFull(g.marbleFill) + '</td>';
