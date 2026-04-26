@@ -1020,11 +1020,14 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
         marbleFillDiff = baseMarbleFill - newMFill;
       }
 
+      var ttaSec = _marblePerHour > 0 ? (cost / _marblePerHour) * 3600 : Infinity;
+
       candidates.push({
         w: w, u: u, name: F.UPG_DATA[w][u][0], mLv: mLv,
         cost: cost, canAfford: canAfford,
         delta: delta, pctGain: pctGain,
         efficiency: efficiency, fillDiff: fillDiff, marbleFillDiff: marbleFillDiff,
+        tta: ttaSec,
       });
     }
   }
@@ -1040,7 +1043,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   var maxEff = candidates[0].efficiency;
   var html = '<table class="data-table"><thead><tr>';
   html += '<th>#</th><th>Water</th><th>Upgrade</th><th class="num">Marble Lv</th>';
-  html += '<th class="num">Cost</th><th class="num">Gain</th>';
+  html += '<th class="num">Cost</th><th class="num">Time to Afford</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
@@ -1057,6 +1060,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
     html += '<td>' + c.name + '</td>';
     html += '<td class="num">' + c.mLv + ' \u2192 ' + (c.mLv + 1) + '</td>';
     html += '<td class="num">' + fmtNum(c.cost) + ' marble</td>';
+    html += '<td class="num">' + (c.tta < Infinity ? fmtTime(c.tta) : '-') + '</td>';
     html += '<td class="num">+' + fmtNum(c.delta) + '</td>';
     html += '<td class="num">+' + c.pctGain.toFixed(3) + '%</td>';
     if (isFill) {
@@ -1068,7 +1072,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
     html += '</tr>';
   }
   if (candidates.length > limit) {
-    html += '<tr><td colspan="' + (isFill ? 11 : 9) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
+    html += '<tr><td colspan="' + (isFill ? 12 : 10) + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1176,10 +1180,12 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
   html += '<table class="data-table"><thead><tr>';
   html += '<th>Water</th><th>Upgrade</th><th class="num">Levels</th>';
   html += '<th class="num">From</th><th class="num">To</th><th class="num">Total Cost</th>';
+  html += '<th class="num">Time to Afford</th>';
   if (goal === 'fill') html += '<th class="num">Coin Fill</th><th class="num">Marble Fill</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < groupOrder.length; i++) {
     var g = groups[groupOrder[i]];
+    var ttaSec = _marblePerHour > 0 ? (g.totalCost / _marblePerHour) * 3600 : Infinity;
     html += '<tr>';
     html += '<td><span style="color:' + F.WATER_COLORS[g.w] + '">' + F.WATER_NAMES[g.w] + '</span></td>';
     html += '<td>' + g.name + '</td>';
@@ -1187,6 +1193,7 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
     html += '<td class="num">' + g.startLv + '</td>';
     html += '<td class="num"><b>' + g.endLv + '</b></td>';
     html += '<td class="num">' + fmtNum(g.totalCost) + ' marble</td>';
+    html += '<td class="num">' + (ttaSec < Infinity ? fmtTime(ttaSec) : '-') + '</td>';
     if (goal === 'fill') {
       html += '<td class="num">' + fmtTimeFull(g.coinFill) + '</td>';
       html += '<td class="num">' + fmtTimeFull(g.marbleFill) + '</td>';
