@@ -268,6 +268,10 @@ var _mPlannerAffordable = false;
 var _mOptimizerGoal = 'currency';
 var _mOptimizerMaxSteps = 50;
 var _mOptimizerAffordable = true;
+var _plannerPerHr = false;
+var _optimizerPerHr = false;
+var _mPlannerPerHr = false;
+var _mOptimizerPerHr = false;
 
 // Render the planner table
 function _renderPlanner(uLvs, mLvs, desired) {
@@ -277,6 +281,9 @@ function _renderPlanner(uLvs, mLvs, desired) {
   var baseline = F.measureGoal(saveData, goal, uLvs, mLvs, desired);
   var baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
   var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
+  var _numUnlocked = 0;
+  for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
+  var _fillsPerHr = 3600 / baseFillTime;
 
   var candidates = [];
   for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
@@ -298,12 +305,20 @@ function _renderPlanner(uLvs, mLvs, desired) {
       if (delta <= 0) continue;
 
       var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
-      var normCost = cost;
-      if (_plannerNormalize) {
+      var efficiency;
+      if (_plannerPerHr) {
         var cv = F.currencyTotalValue(saveData, uLvs, mLvs, opalType, desired);
-        normCost = cost * cv;
+        var earnRate = _numUnlocked > 0 ? _fillsPerHr * cv / _numUnlocked : 0;
+        var hrsToEarn = earnRate > 0 ? cost / earnRate : Infinity;
+        efficiency = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
+      } else {
+        var normCost = cost;
+        if (_plannerNormalize) {
+          var cv = F.currencyTotalValue(saveData, uLvs, mLvs, opalType, desired);
+          normCost = cost * cv;
+        }
+        efficiency = normCost > 0 ? pctGain / normCost : 0;
       }
-      var efficiency = normCost > 0 ? pctGain / normCost : 0;
 
       var fillDiff = null, marbleFillDiff = null;
       if (goal === 'fill') {
@@ -632,7 +647,8 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="planner-affordable"' + (_plannerAffordable ? ' checked' : '') + '> Affordable only</label>';
-  html += '<label><input type="checkbox" id="planner-normalize"' + (_plannerNormalize ? ' checked' : '') + '> Normalize cost by currency value</label>';
+  html += '<label><input type="checkbox" id="planner-normalize"' + (_plannerNormalize ? ' checked' : '') + (_plannerPerHr ? ' disabled' : '') + '> Normalize cost by currency value</label>';
+  html += '<label><input type="checkbox" id="planner-perhr"' + (_plannerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="planner-table"></div>';
   html += '</div>';
@@ -652,7 +668,8 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="optimizer-affordable"' + (_optimizerAffordable ? ' checked' : '') + '> Affordable only</label>';
-  html += '<label><input type="checkbox" id="optimizer-normalize"' + (_optimizerNormalize ? ' checked' : '') + '> Normalize cost by currency value</label>';
+  html += '<label><input type="checkbox" id="optimizer-normalize"' + (_optimizerNormalize ? ' checked' : '') + (_optimizerPerHr ? ' disabled' : '') + '> Normalize cost by currency value</label>';
+  html += '<label><input type="checkbox" id="optimizer-perhr"' + (_optimizerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="optimizer-table"></div>';
   html += '</div>';
@@ -670,6 +687,7 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="mplanner-affordable"' + (_mPlannerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '<label><input type="checkbox" id="mplanner-perhr"' + (_mPlannerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="mplanner-table"></div>';
   html += '</div>';
@@ -689,6 +707,7 @@ function _renderAll() {
   }
   html += '</select></label>';
   html += '<label><input type="checkbox" id="moptimizer-affordable"' + (_mOptimizerAffordable ? ' checked' : '') + '> Affordable only</label>';
+  html += '<label><input type="checkbox" id="moptimizer-perhr"' + (_mOptimizerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
   html += '</div>';
   html += '<div id="moptimizer-table"></div>';
   html += '</div>';
@@ -742,6 +761,11 @@ function _renderAll() {
     _plannerNormalize = this.checked;
     _renderPlanner(uLvs, mLvs, desired);
   });
+  document.getElementById('planner-perhr').addEventListener('change', function() {
+    _plannerPerHr = this.checked;
+    document.getElementById('planner-normalize').disabled = _plannerPerHr;
+    _renderPlanner(uLvs, mLvs, desired);
+  });
 
   // Wire optimizer
   document.getElementById('optimizer-goal').addEventListener('change', function() {
@@ -760,6 +784,11 @@ function _renderAll() {
     _optimizerNormalize = this.checked;
     _renderOptimizer(uLvs, mLvs, desired);
   });
+  document.getElementById('optimizer-perhr').addEventListener('change', function() {
+    _optimizerPerHr = this.checked;
+    document.getElementById('optimizer-normalize').disabled = _optimizerPerHr;
+    _renderOptimizer(uLvs, mLvs, desired);
+  });
 
   // Wire marble planner
   document.getElementById('mplanner-goal').addEventListener('change', function() {
@@ -768,6 +797,10 @@ function _renderAll() {
   });
   document.getElementById('mplanner-affordable').addEventListener('change', function() {
     _mPlannerAffordable = this.checked;
+    _renderMarblePlanner(uLvs, mLvs, desired);
+  });
+  document.getElementById('mplanner-perhr').addEventListener('change', function() {
+    _mPlannerPerHr = this.checked;
     _renderMarblePlanner(uLvs, mLvs, desired);
   });
 
@@ -782,6 +815,10 @@ function _renderAll() {
   });
   document.getElementById('moptimizer-affordable').addEventListener('change', function() {
     _mOptimizerAffordable = this.checked;
+    _renderMarbleOptimizer(uLvs, mLvs, desired);
+  });
+  document.getElementById('moptimizer-perhr').addEventListener('change', function() {
+    _mOptimizerPerHr = this.checked;
     _renderMarbleOptimizer(uLvs, mLvs, desired);
   });
 }
@@ -806,6 +843,10 @@ function _renderOptimizer(uLvs, mLvs, desired) {
   var steps = [];
   var bought = {};
 
+  var _numUnlocked = 0;
+  for (var _t = 0; _t < 9; _t++) if (F.currencyUnlocked(uLvs, mLvs, _t)) _numUnlocked++;
+  var _fillsPerHr = 3600 / (F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs));
+
   for (var step = 0; step < maxSteps; step++) {
     var bestEff = -1, bestW = -1, bestU = -1, bestCost = 0, bestDelta = 0, bestPct = 0;
 
@@ -823,12 +864,20 @@ function _renderOptimizer(uLvs, mLvs, desired) {
         var delta = newVal - baseline;
         if (delta <= 0) continue;
         var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
-        var normCost = cost;
-        if (_optimizerNormalize) {
+        var eff;
+        if (_optimizerPerHr) {
           var cv = F.currencyTotalValue(saveData, simLvs, mLvs, oType, F.desiredCurrency(saveData));
-          normCost = cost * cv;
+          var earnRate = _numUnlocked > 0 ? _fillsPerHr * cv / _numUnlocked : 0;
+          var hrsToEarn = earnRate > 0 ? cost / earnRate : Infinity;
+          eff = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
+        } else {
+          var normCost = cost;
+          if (_optimizerNormalize) {
+            var cv = F.currencyTotalValue(saveData, simLvs, mLvs, oType, F.desiredCurrency(saveData));
+            normCost = cost * cv;
+          }
+          eff = normCost > 0 ? pctGain / normCost : 0;
         }
-        var eff = normCost > 0 ? pctGain / normCost : 0;
         if (eff > bestEff) {
           bestEff = eff; bestW = w; bestU = u;
           bestCost = cost; bestDelta = delta; bestPct = pctGain;
@@ -937,6 +986,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   var marbleAvail = F.marbleCurrency(saveData);
   var baseFillTime = F.barFillTime(saveData, uLvs, mLvs) / F.activeSpeedMulti(uLvs, mLvs);
   var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
+  var _marblePerHour = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / baseMarbleFill;
 
   var candidates = [];
   for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
@@ -955,7 +1005,13 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
       if (delta <= 0) continue;
 
       var pctGain = baseline > 0 ? (delta / baseline) * 100 : 0;
-      var efficiency = cost > 0 ? pctGain / cost : 0;
+      var efficiency;
+      if (_mPlannerPerHr) {
+        var hrsToEarn = _marblePerHour > 0 ? cost / _marblePerHour : Infinity;
+        efficiency = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
+      } else {
+        efficiency = cost > 0 ? pctGain / cost : 0;
+      }
       var fillDiff = null, marbleFillDiff = null;
       if (goal === 'fill') {
         var newFill = F.barFillTime(saveData, uLvs, simMLvs) / F.activeSpeedMulti(uLvs, simMLvs);
@@ -1030,6 +1086,8 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
 
   var baseline = F.measureGoal(saveData, goal, uLvs, simMLvs, desired);
   var steps = [];
+  var _baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
+  var _marblePerHour = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / _baseMarbleFill;
 
   for (var step = 0; step < maxSteps; step++) {
     var bestEff = -1, bestW = -1, bestU = -1, bestCost = 0, bestDelta = 0, bestPct = 0;
@@ -1048,7 +1106,13 @@ function _renderMarbleOptimizer(uLvs, mLvs, desired) {
         var delta = newVal - baseline;
         if (delta <= 0) continue;
         var pctGain = baseline > 0 ? delta / baseline * 100 : 0;
-        var eff = cost > 0 ? pctGain / cost : 0;
+        var eff;
+        if (_mOptimizerPerHr) {
+          var hrsToEarn = _marblePerHour > 0 ? cost / _marblePerHour : Infinity;
+          eff = hrsToEarn > 0 && hrsToEarn < Infinity ? pctGain / hrsToEarn : 0;
+        } else {
+          eff = cost > 0 ? pctGain / cost : 0;
+        }
         if (eff > bestEff) {
           bestEff = eff; bestW = w; bestU = u;
           bestCost = cost; bestDelta = delta; bestPct = pctGain;
