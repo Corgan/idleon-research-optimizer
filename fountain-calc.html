@@ -1085,7 +1085,7 @@ function _renderAll() {
   for (var i = 0; i < xb.length; i++) {
     var b = xb[i];
     var _xbMul = 1 + b[1] / 100;
-    var val = b[1] > 0 ? fmtNum(_xbMul) + b[2] : '-';
+    var val = b[1] > 0 ? _xbMul.toFixed(2) + b[2] : '-';
     html += _card(b[0], val, b[3]);
   }
   html += '</div></div>';
