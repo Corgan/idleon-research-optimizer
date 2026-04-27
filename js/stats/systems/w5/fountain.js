@@ -9,6 +9,7 @@ import { getLOG } from '../../../formulas.js';
 export var WATER_NAMES = ['Blue', 'Yellow', 'Green'];
 export var WATER_COLORS = ['#64b5f6', '#ffe066', '#a5d6a7'];
 export var WATERS_IMPLEMENTED = 2;
+export function setWatersImplemented(n) { WATERS_IMPLEMENTED = n; }
 export var CURRENCY_NAMES = [
   'Bronze Coins', 'Silver Coins', 'Golden Coins',
   'Dollar Bills', 'Credit Bills', 'Treasury Bills',
@@ -255,7 +256,8 @@ export function canMarble(w, u) { return !_NO_MARBLE[w + '_' + u]; }
 
 export function upgUnlocked(uLvs, w, u) {
   var prereqIdx = UPG_DATA[w][u][1];
-  if (prereqIdx === -1 || prereqIdx === '?') return true;
+  if (prereqIdx === -1) return true;
+  if (typeof prereqIdx !== 'number') return false;
   var prereqLv = uLvs[w][prereqIdx] || 0;
   if (w === 0 && (u === 2 || u === 14)) return prereqLv >= 1;
   return prereqLv >= 10;
@@ -454,9 +456,9 @@ export function currencyBaseValue(saveData, uLvs, mLvs, t) {
     case 2: return 1 + bonTOT(uLvs, mLvs, 0, 4) * (1 + bonTOT(uLvs, mLvs, 0, 6) / 100) * mythrilLog;
     case 3: return 1 + bonTOT(uLvs, mLvs, 1, 2) * (1 + bonTOT(uLvs, mLvs, 0, 7) / 100) * sharpLog;
     case 4: return 1 + bonTOT(uLvs, mLvs, 1, 3) * (1 + bonTOT(uLvs, mLvs, 1, 5) / 100) * sharpLog;
-    case 5: return 1 + bonTOT(uLvs, mLvs, 1, 4) * (1 + bonTOT(uLvs, mLvs, 1, 6) / 100) * sharpLog;
-    case 6: return 1 + bonTOT(uLvs, mLvs, 2, 2) * (1 + bonTOT(uLvs, mLvs, 1, 7) / 100);
-    case 7: return 1 + bonTOT(uLvs, mLvs, 2, 3);
+    case 5: return 1 + bonTOT(uLvs, mLvs, 1, 4) * (1 + bonTOT(uLvs, mLvs, 1, 5) / 100) * sharpLog;
+    case 6: return 1 + bonTOT(uLvs, mLvs, 2, 2) * (1 + bonTOT(uLvs, mLvs, 1, 6) / 100);
+    case 7: return 1 + bonTOT(uLvs, mLvs, 2, 3) * (1 + bonTOT(uLvs, mLvs, 1, 7) / 100);
     case 8: return 1 + bonTOT(uLvs, mLvs, 2, 4);
     default: return 1;
   }
@@ -472,14 +474,14 @@ export function currencyTotalValue(saveData, uLvs, mLvs, t, desired) {
 export function currencyUnlocked(uLvs, mLvs, t) {
   switch (t) {
     case 0: return true;
-    case 1: return bonTOT(uLvs, mLvs, 0, 3) >= 1;
-    case 2: return bonTOT(uLvs, mLvs, 0, 4) >= 1;
-    case 3: return bonTOT(uLvs, mLvs, 1, 2) >= 1;
-    case 4: return bonTOT(uLvs, mLvs, 1, 3) >= 1;
-    case 5: return bonTOT(uLvs, mLvs, 1, 4) >= 1;
-    case 6: return bonTOT(uLvs, mLvs, 2, 2) >= 1;
-    case 7: return bonTOT(uLvs, mLvs, 2, 3) >= 1;
-    case 8: return bonTOT(uLvs, mLvs, 2, 4) >= 1;
+    case 1: return upgUnlocked(uLvs, 0, 3);
+    case 2: return upgUnlocked(uLvs, 0, 4);
+    case 3: return upgUnlocked(uLvs, 1, 2);
+    case 4: return upgUnlocked(uLvs, 1, 3);
+    case 5: return upgUnlocked(uLvs, 1, 4);
+    case 6: return upgUnlocked(uLvs, 2, 2);
+    case 7: return upgUnlocked(uLvs, 2, 3);
+    case 8: return upgUnlocked(uLvs, 2, 4);
     default: return false;
   }
 }

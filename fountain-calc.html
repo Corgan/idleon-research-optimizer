@@ -161,6 +161,9 @@ h1 span { color: var(--accent); }
   <span style="color:var(--text2);margin:0 4px;">or</span>
   <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
   <span id="import-msg"></span>
+  <label id="green-water-toggle" style="display:none;margin-left:16px;font-size:.82em;cursor:pointer;color:var(--text2);" title="Enable placeholder Green Water upgrades (not yet active in-game)">
+    <input type="checkbox" id="green-water-cb" style="accent-color:#a5d6a7;"> Green Water <span style="color:#a5d6a7;font-size:.85em;">(preview)</span>
+  </label>
 </div>
 <div id="json-paste-wrap">
   <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
@@ -212,12 +215,18 @@ function fmtTime(sec) {
 }
 
 // ========== SAVE LOADING ==========
+document.getElementById('green-water-cb').addEventListener('change', function() {
+  F.setWatersImplemented(this.checked ? 3 : 2);
+  if (saveData && saveData.holesData) _renderAll();
+});
+
 function _loadRaw(raw) {
   var msg = document.getElementById('import-msg');
   try {
     loadSaveData(raw);
     msg.className = 'ok';
     msg.textContent = '\u2713 Save loaded.';
+    document.getElementById('green-water-toggle').style.display = '';
     _renderAll();
   } catch (err) {
     msg.className = 'err';
@@ -1305,7 +1314,6 @@ function _renderAll() {
       var ml = mLvs[w][u] || 0;
       var bon = F.bonTOT(uLvs, mLvs, w, u);
       var unlocked = F.upgUnlocked(uLvs, w, u);
-      if (!unlocked) continue;
       var desc = d[7].replace(/\}x/g, fmtNum(bon) + 'x')
                       .replace(/\+\{%/g, '+' + fmtNum(bon) + '%')
                       .replace(/\+\{/g, '+' + fmtNum(bon))
@@ -1321,7 +1329,7 @@ function _renderAll() {
         desc += ' \u2022 Marble fill: ' + fmtTimeFull(F.marbleBarFillTime())
           + ' (' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill)';
       }
-      html += '<tr>';
+      html += '<tr' + (unlocked ? '' : ' class="locked"') + '>';
       html += '<td>' + u + '</td>';
       html += '<td>' + d[0] + '</td>';
       html += '<td class="num">' + lv + '</td>';
@@ -1338,7 +1346,7 @@ function _renderAll() {
       var _upgMCost = F.marbleCost(u, ml);
       html += '<td class="num">' + (lv > 0 && F.canMarble(w, u) ? fmtNum(_upgMCost) : '-') + '</td>';
       html += '<td data-tip="' + _escAttr(desc) + '" style="cursor:help;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _truncate(desc, 50) + '</td>';
-      html += '<td>' + (lv > 0 ? '<span class="badge badge-green">Lv ' + lv + '</span>' : '<span class="badge badge-blue">Available</span>') + '</td>';
+      html += '<td>' + (!unlocked ? '<span class="badge badge-red">Locked</span>' : lv > 0 ? '<span class="badge badge-green">Lv ' + lv + '</span>' : '<span class="badge badge-blue">Available</span>') + (unlocked ? _upgBreakpoint(w, u, bon, lv, saveData, uLvs, mLvs) : '') + '</td>';
       html += '</tr>';
     }
     html += '</tbody></table></div>';
@@ -2310,6 +2318,35 @@ function _card(title, val, sub, tip) {
 
 function _escAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _upgBreakpoint(w, u, bon, lv, saveData, uLvs, mLvs) {
+  var hints = [];
+  // W0U10 Extra Space: cap 16
+  if (w === 0 && u === 10) {
+    var cur = F.spacesOwned(uLvs, mLvs);
+    if (cur >= 16) hints.push(['Capped', 'Spaces maxed at 16']);
+    else hints.push(['Near cap', cur + '/16 spaces']);
+  }
+  // W0U11 Taller Stacks: cap 50
+  if (w === 0 && u === 11) {
+    var cur = F.maxStackSize(saveData, uLvs, mLvs);
+    if (cur >= 50) hints.push(['Capped', 'Stack size maxed at 50']);
+    else hints.push(['Near cap', cur + '/50 stack']);
+  }
+  // W0U12 Water Bender: min(4, 4*b) soft cap
+  if (w === 0 && u === 12) {
+    if (bon >= 1) hints.push(['Soft cap', '4x term maxed. Extra levels give +' + F.UPG_DATA[w][u][6]/100 + '/lv only']);
+  }
+  // Currency type caps at 9 types
+  if (w === 0 && u === 0) {
+    var wo = F.watersOwned(uLvs, mLvs);
+    if (wo >= F.WATERS_IMPLEMENTED) hints.push(['Max water', wo + '/' + F.WATERS_IMPLEMENTED + ' waters']);
+  }
+  if (!hints.length) return '';
+  var h = hints[0];
+  var color = h[0] === 'Capped' ? 'badge-red' : 'badge-gold';
+  return ' <span class="badge ' + color + '" title="' + _escAttr(h[1]) + '">' + h[0] + '</span>';
 }
 
 function _truncate(s, n) {
