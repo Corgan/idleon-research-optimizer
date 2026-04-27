@@ -864,6 +864,17 @@ function _renderAll() {
   html += _card('Total Multi', fmtNum(F.currencyAllMulti(saveData, uLvs, mLvs)) + 'x', 'Currency value multiplier');
   var rc = F.royalChance(uLvs, mLvs);
   html += _card('Royal Chance', '1 in ' + Math.round(1 / rc), fmtPct(rc) + ' per fill');
+  var _ms = F.maxStackSize(saveData, uLvs, mLvs);
+  var _pRoyal = 1 - Math.pow(1 - rc, _ms);
+  var _fillTimeActive = fillSec / activeMul;
+  var _avgFillsPerRoyal = _ms / _pRoyal;
+  var _royalTimeSec = _avgFillsPerRoyal * _fillTimeActive;
+  var _royalTip = 'Stack size: ' + _ms + ' fills\nP(royal in stack): ' + fmtPct(_pRoyal) + '\nAvg fills per royal stack: ' + _avgFillsPerRoyal.toFixed(1) + '\nFill time: ' + fmtTimeFull(_fillTimeActive) + ' per fill';
+  html += _card('Royal Stack', fmtTimeFull(_royalTimeSec), 'Avg ' + _avgFillsPerRoyal.toFixed(1) + ' fills (' + _ms + ' + ' + (_avgFillsPerRoyal - _ms).toFixed(1) + ' wait)', _royalTip);
+  var _spaces = F.spacesOwned(uLvs, mLvs);
+  var _allRoyalSec = _royalTimeSec * _spaces;
+  var _allRoyalTip = _spaces + ' spaces × ' + fmtTimeFull(_royalTimeSec) + ' per royal stack\n= ' + fmtTimeFull(_allRoyalSec) + ' to fill all as royal';
+  html += _card('All Royal', fmtTimeFull(_allRoyalSec), _spaces + ' spaces × ' + fmtTimeFull(_royalTimeSec) + ' each', _allRoyalTip);
   // Redeem value breakdown by currency type
   var _redeemStacks = F.coinStacks(saveData);
   var _redeemByType = {};
@@ -1073,7 +1084,8 @@ function _renderAll() {
   ];
   for (var i = 0; i < xb.length; i++) {
     var b = xb[i];
-    var val = b[1] > 0 ? fmtNum(b[1]) + b[2] : '-';
+    var _xbMul = 1 + b[1] / 100;
+    var val = b[1] > 0 ? fmtNum(_xbMul) + b[2] : '-';
     html += _card(b[0], val, b[3]);
   }
   html += '</div></div>';
