@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Jar Calculator</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --yellow: #ffe066; --orange: #ff9800; --pink: #f48fb1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+
+/* Save import */
+#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+#save-area label { font-weight: 600; }
+#save-area input[type="file"] { color: var(--text2); }
+.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
+.btn:hover { filter: brightness(1.2); }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+#import-msg { font-size: .82em; margin-left: 8px; }
+#import-msg.ok { color: var(--green); }
+#import-msg.err { color: var(--red); }
+#json-paste-wrap { display: none; padding: 0 16px 12px; background: var(--bg2); gap: 8px; align-items: flex-start; }
+#json-paste { flex: 1; min-width: 0; background: #111; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; color: var(--text); font-size: .8em; font-family: monospace; resize: vertical; }
+
+/* Custom tooltip */
+#js-tip { display:none; position:fixed; z-index:9999; max-width:360px; padding:8px 12px; background:#1a1a2e; border:1px solid var(--gold); border-radius:6px; color:var(--text); font-size:.72em; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+
+/* Main layout */
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
+
+/* Cards */
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card-grid.cols-5 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Badges */
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-blue { background: rgba(33,150,243,.15); color: var(--blue); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+.badge-purple { background: rgba(187,134,252,.15); color: var(--purple); }
+.badge-cyan { background: rgba(77,208,225,.15); color: var(--cyan); }
+
+/* Main tabs */
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all .2s; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Inline number */
+.n { color: var(--gold); font-weight: 600; }
+.n-blue { color: var(--blue); font-weight: 600; }
+
+/* Progress bar */
+.bar-outer { height: 10px; border-radius: 5px; background: #333; overflow: hidden; min-width: 80px; }
+.bar-fill { height: 100%; border-radius: 5px; }
+
+/* Scroll wrapper for table overflow */
+.table-scroll { overflow-x: auto; }
+
+/* Collectible item */
+.coll-item { display: inline-flex; flex-direction: column; align-items: center; padding: 8px 10px; background: var(--bg3); border-radius: 6px; border: 1px solid #444; min-width: 100px; font-size: .78em; cursor: default; }
+.coll-item .ci-name { font-weight: 700; font-size: .9em; margin-bottom: 2px; text-align: center; }
+.coll-item .ci-lv { font-weight: 700; font-size: 1.1em; }
+.coll-item .ci-bonus { font-size: .85em; margin-top: 2px; }
+.coll-item.unfound { opacity: .35; border-style: dashed; }
+.coll-items-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Rupie pill */
+.rupie-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: .82em; font-weight: 600; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+.rupie-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.rupies-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div id="js-tip"></div>
+
+<h1>&#x1FAD9; <span>Idleon</span> Jar Calculator</h1>
+
+<div id="save-area">
+  <label>Load save:</label>
+  <input type="file" id="file-input" accept=".json">
+  <span style="color:var(--text2);margin:0 4px;">or</span>
+  <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
+  <span id="import-msg"></span>
+</div>
+<div id="json-paste-wrap">
+  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
+  <button class="btn" id="paste-load-btn">Load</button>
+</div>
+
+<div class="main" id="main-content">
+  <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+</div>
+
+<script type="module">
+'use strict';
+
+import { saveData } from './js/state.js';
+import { loadSaveData } from './js/save/loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import * as J from './js/stats/systems/w5/jar.js';
+
+// ========== FORMATTING ==========
+function fmtNum(n) {
+  if (n === 0) return '0';
+  if (n === Math.floor(n) && Math.abs(n) < 1e3) return String(n);
+  return fmtVal(n);
+}
+function fmtPct(n) { return (n * 100).toFixed(2) + '%'; }
+function fmtPct1(n) { return (n * 100).toFixed(1) + '%'; }
+function fmtChance(n) {
+  if (n <= 0) return '0%';
+  if (n >= 1) return '100%';
+  var pct = n * 100;
+  if (pct >= 0.01) return pct.toFixed(2) + '%';
+  return '1 in ' + fmtNum(Math.round(1 / n));
+}
+function fmtTimeFull(sec) {
+  if (!isFinite(sec) || sec <= 0) return '0s';
+  var d = Math.floor(sec / 86400);
+  var h = Math.floor((sec % 86400) / 3600);
+  var m = Math.floor((sec % 3600) / 60);
+  var s = Math.floor(sec % 60);
+  var parts = [];
+  if (d > 0) parts.push(d + 'd');
+  if (h > 0) parts.push(h + 'h');
+  if (m > 0) parts.push(m + 'm');
+  if (s > 0 || parts.length === 0) parts.push(s + 's');
+  return parts.join(' ');
+}
+function fmtTimeHrs(hrs) {
+  return fmtTimeFull(hrs * 3600);
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ========== TOOLTIP ==========
+var tipEl;
+function _initTip() {
+  tipEl = document.getElementById('js-tip');
+  document.addEventListener('mousemove', function(e) {
+    if (tipEl.style.display === 'block') {
+      tipEl.style.left = Math.min(e.clientX + 12, window.innerWidth - tipEl.offsetWidth - 10) + 'px';
+      tipEl.style.top = Math.min(e.clientY + 12, window.innerHeight - tipEl.offsetHeight - 10) + 'px';
+    }
+  });
+}
+
+function _card(title, val, sub, tip) {
+  return '<div class="card"'
+    + (tip ? ' data-tip="' + escHtml(tip) + '"' : '')
+    + '><div class="card-title">' + title + '</div>'
+    + '<div class="card-val">' + val + '</div>'
+    + '<div class="card-sub">' + sub + '</div></div>';
+}
+
+function _attachTips(root) {
+  (root || document).querySelectorAll('[data-tip]').forEach(function(el) {
+    el.addEventListener('mouseenter', function() {
+      tipEl.textContent = this.getAttribute('data-tip');
+      tipEl.style.display = 'block';
+    });
+    el.addEventListener('mouseleave', function() { tipEl.style.display = 'none'; });
+  });
+}
+
+// ========== EXTERNAL BONUS CONTEXT ==========
+// Bonuses from other systems. Lamp, measurements 10/12/14 are now auto-computed from save.
+function _ext() {
+  return {
+    legendPts29: 0,
+    ola355: 0,
+    monument2_1: 0,
+    bell4: 0,
+    cosmo0_3: 0,
+    stampCavernRes: 0,
+    bolaia10: 0,
+    paletteBonus2: 0,
+    exoticBonus52: 0,
+    spelunk6Len: 0,
+    superBit32: 1,
+  };
+}
+
+// ========== SAVE LOADING ==========
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function(ev) { _loadRaw(ev.target.result); };
+  r.readAsText(f);
+});
+
+var pasteBtn = document.getElementById('paste-btn');
+var pasteWrap = document.getElementById('json-paste-wrap');
+pasteBtn.addEventListener('click', function() {
+  pasteWrap.style.display = pasteWrap.style.display === 'flex' ? 'none' : 'flex';
+});
+document.getElementById('paste-load-btn').addEventListener('click', function() {
+  _loadRaw(document.getElementById('json-paste').value);
+});
+
+function _loadRaw(raw) {
+  var msg = document.getElementById('import-msg');
+  try {
+    var json = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    loadSaveData(json);
+    msg.textContent = 'Save loaded!';
+    msg.className = 'ok';
+    _renderAll();
+  } catch (err) {
+    msg.textContent = 'Error: ' + err.message;
+    msg.className = 'err';
+  }
+}
+
+if (saveData && saveData.holesData) _renderAll();
+
+// ========== TABS ==========
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('tab')) {
+    var tabId = e.target.getAttribute('data-tab');
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-tab') === tabId); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab-' + tabId); });
+  }
+});
+
+// ========== MAIN RENDER ==========
+function _renderAll() {
+  _initTip();
+  var el = document.getElementById('main-content');
+  var ext = _ext();
+  var html = '';
+
+  // ===== TAB BAR =====
+  html += '<div class="tabs">';
+  html += '<div class="tab active" data-tab="overview">Overview</div>';
+  html += '<div class="tab" data-tab="production">Production</div>';
+  html += '<div class="tab" data-tab="rupie">Rupie Value</div>';
+  html += '<div class="tab" data-tab="chances">Chances</div>';
+  html += '<div class="tab" data-tab="collectibles">Collectibles</div>';
+  html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '</div>';
+
+  html += _renderOverview(ext);
+  html += _renderProduction(ext);
+  html += _renderRupieValue(ext);
+  html += _renderChances(ext);
+  html += _renderCollectibles(ext);
+  html += _renderUpgrades(ext);
+
+  el.innerHTML = html;
+  _attachTips(el);
+}
+
+// ===== OVERVIEW TAB =====
+function _renderOverview(ext) {
+  var html = '<div id="tab-overview" class="tab-content active">';
+
+  // Top summary cards
+  html += '<div class="section"><h2>Jar Overview</h2>';
+  html += '<div class="card-grid cols-4">';
+  var owned = J.jarTypesOwned(saveData);
+  var total = J.totalJarTypes(saveData);
+  html += _card('Jar Types', total + ' / 10', owned < 9 ? 'Next: ' + fmtNum(Math.round(J.newJarCost(saveData))) + ' ' + J.RUPIE_NAMES[owned] : 'All owned');
+  html += _card('Slots', J.productionSlots(saveData), 'Production slots');
+  html += _card('Opals Found', J.opalsFromJars(saveData), 'From jars');
+  var found = J.collectiblesFound(saveData);
+  var maxColl = J.page2Unlocked(saveData) ? 40 : 16;
+  html += _card('Collectibles', found + ' / ' + maxColl, J.totalEnchantLevels(saveData) + ' enchant levels');
+  html += '</div>';
+
+  // Rupie balances
+  html += '<h3>Rupie Balances</h3>';
+  html += '<div class="rupies-row">';
+  for (var i = 0; i < 12; i++) {
+    var bal = J.rupieBalance(saveData, i);
+    if (i < 10 && i >= total && bal <= 0) continue; // hide unearned standard rupies
+    html += '<div class="rupie-pill"><span class="rupie-dot" style="background:' + J.RUPIE_COLORS[i] + '"></span>'
+          + J.RUPIE_NAMES[i] + ': <span class="n">' + fmtNum(bal) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Quick stats
+  html += '<div class="card-grid cols-4" style="margin-top:12px">';
+  html += _card('Rupie Value', J.rupieValue(saveData, ext).toFixed(1) + 'x', 'Per rupie multiplier');
+  html += _card('Production/hr', fmtNum(Math.round(J.productionPerHR(saveData, ext))), 'Progress per hour');
+  html += _card('Opal Chance', fmtChance(J.opalChance(saveData, ext)), 'Per type-1 jar break');
+  html += _card('Enchant Chance', fmtChance(J.enchantChance(saveData, ext)), 'Per type-4 jar break');
+  html += '</div>';
+
+  // Doubler & Break All status
+  html += '<div class="card-grid cols-3" style="margin-top:12px">';
+  var db = J.doublerBonus(saveData);
+  html += _card('Doubler Bonus', db > 0 ? '+' + db + '%' : 'None', db > 0 ? 'Applied to next rupie break' : 'Break a Doubler jar to get bonus');
+  html += _card('Break All', J.breakAllUnlocked(saveData) ? '<span style="color:var(--green)">Unlocked</span>' : '<span style="color:var(--red)">Locked</span>', 'B_UPG 69');
+  var tgt = J.targetedEnchantIdx(saveData);
+  html += _card('Targeted Enchant', tgt >= 0 ? J.COLLECTIBLE_DATA[tgt][0] : 'None',
+    tgt >= 0 ? fmtPct1(J.targetedEnchantProb(saveData)) + ' chance to target' : 'Click a collectible in-game');
+  html += '</div>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== PRODUCTION TAB =====
+function _renderProduction(ext) {
+  var html = '<div id="tab-production" class="tab-content">';
+  html += '<div class="section"><h2>Production Slots</h2>';
+
+  var slots = J.productionSlots(saveData);
+  var prodHr = J.productionPerHR(saveData, ext);
+
+  html += '<div class="card-grid cols-3">';
+  html += _card('Production/hr', fmtNum(Math.round(prodHr)), 'All slots share this rate');
+  html += _card('Active Slots', slots + ' / 3', '');
+  html += _card('Base', '36,000', '/hr before bonuses');
+  html += '</div>';
+
+  // Production breakdown
+  var bkd = J.productionPerHRBreakdown(saveData, ext);
+  if (bkd.length > 1) {
+    html += '<h3>Production Multipliers</h3>';
+    html += '<table class="data-table"><thead><tr><th>Source</th><th class="num">Value</th></tr></thead><tbody>';
+    for (var i = 0; i < bkd.length; i++) {
+      html += '<tr><td>' + bkd[i][0] + '</td><td class="num">' + (i === 0 ? fmtNum(bkd[i][1]) : '+' + fmtNum(bkd[i][1]) + '%') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // Per-slot details
+  html += '<h3>Slot Details</h3>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>'
+        + '<th>#</th><th>Jar Type</th><th class="num">Req</th>'
+        + '<th class="num">Progress</th><th>Fill</th>'
+        + '<th class="num">T0</th><th class="num">T1</th><th class="num">T2</th><th class="num">T3</th><th class="num">T4</th><th class="num">T5</th>'
+        + '</tr></thead><tbody>';
+  for (var s = 0; s < slots; s++) {
+    var jt = J.productionSlotType(saveData, s);
+    var prog = J.productionSlotProgress(saveData, s);
+    var req = J.productionREQ(saveData, jt);
+    var pct = Math.min(1, prog / req);
+    html += '<tr>';
+    html += '<td>' + (s + 1) + '</td>';
+    html += '<td>' + J.JAR_TYPE_NAMES[jt] + ' <span class="badge badge-' + (J.JAR_TYPE_CATS[jt] === 'rupie' ? 'gold' : J.JAR_TYPE_CATS[jt] === 'chance' ? 'cyan' : 'purple') + '">' + J.JAR_TYPE_CATS[jt] + '</span></td>';
+    html += '<td class="num">' + fmtNum(Math.round(req)) + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(prog)) + '</td>';
+    html += '<td><div class="bar-outer" style="width:120px"><div class="bar-fill" style="width:' + (pct * 100) + '%;background:var(--green)"></div></div> ' + fmtPct1(pct) + '</td>';
+    for (var t = 0; t < 6; t++) {
+      html += '<td class="num">' + fmtTimeHrs(J.timeToTier(saveData, jt, t, ext)) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Tier times for all jar types
+  html += '<h3>Tier Times by Jar Type</h3>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th><th class="num">Req</th>';
+  for (var t = 0; t < 6; t++) html += '<th class="num">T' + t + '</th>';
+  html += '</tr></thead><tbody>';
+  var total = J.totalJarTypes(saveData);
+  for (var jt = 0; jt < total; jt++) {
+    var effReq = J.productionREQ(saveData, jt);
+    html += '<tr>';
+    html += '<td>' + J.JAR_TYPE_NAMES[jt] + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(effReq)) + '</td>';
+    for (var t = 0; t < 6; t++) {
+      html += '<td class="num">' + fmtTimeHrs(J.timeToTier(saveData, jt, t, ext)) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Requirements table for all jar types
+  html += '<h3>Production Requirements by Type</h3>';
+  html += '<table class="data-table"><thead><tr><th>Type</th><th class="num">Base Req</th><th class="num">Effective Req</th><th class="num">Broken</th><th class="num">B74 Source</th><th class="num">B74 Bonus</th></tr></thead><tbody>';
+  var total = J.totalJarTypes(saveData);
+  for (var jt = 0; jt < total; jt++) {
+    var baseReq = 1000 + 2000 * jt;
+    var effReq = J.productionREQ(saveData, jt);
+    var ownBroken = J.jarsProducedOfType(saveData, jt);
+    var b74src = J.jarsProducedOfType(saveData, Math.max(0, jt - 1));
+    var b74srcName = J.JAR_TYPE_NAMES[Math.max(0, jt - 1)];
+    html += '<tr>';
+    html += '<td>' + J.JAR_TYPE_NAMES[jt] + '</td>';
+    html += '<td class="num">' + fmtNum(baseReq) + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(effReq)) + '</td>';
+    html += '<td class="num">' + fmtNum(ownBroken) + '</td>';
+    html += '<td class="num">' + (J.bupgOwned(saveData, 74) ? fmtNum(b74src) + ' <span style="color:var(--text2);font-size:.8em">(' + b74srcName + ')</span>' : '—') + '</td>';
+    html += '<td class="num">' + (J.bupgOwned(saveData, 74) ? fmtPct1(5 * Math.log10(Math.max(1, b74src)) / 100) : '—') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== RUPIE VALUE TAB =====
+function _renderRupieValue(ext) {
+  var html = '<div id="tab-rupie" class="tab-content">';
+  html += '<div class="section"><h2>Rupie Value Breakdown</h2>';
+
+  var rv = J.rupieValue(saveData, ext);
+  html += '<div class="card-grid cols-3">';
+  html += _card('Total Rupie Value', rv.toFixed(2) + 'x', 'Applied to every rupie dropped');
+  var avgR = J.avgRupiesPerBreak(saveData, ext);
+  html += _card('Avg Rupies/Break', avgR.toFixed(2), 'Extra chance: ' + fmtPct1(J.extraRupieChance(saveData, ext)));
+  var db = J.doublerBonus(saveData);
+  html += _card('Doubler Active', db > 0 ? '+' + db + '%' : 'No', db > 0 ? 'Consumed on next rupie break' : '');
+  html += '</div>';
+
+  // Multiplier breakdown table
+  var bkd = J.rupieValueBreakdown(saveData, ext);
+  html += '<h3>Multiplier Sources</h3>';
+  html += '<table class="data-table"><thead><tr><th>Source</th><th class="num">Multiplier</th></tr></thead><tbody>';
+  for (var i = 0; i < bkd.length; i++) {
+    html += '<tr><td>' + bkd[i][0] + '</td><td class="num">' + bkd[i][1].toFixed(3) + 'x</td></tr>';
+  }
+  html += '<tr style="border-top:2px solid #444"><td><strong>Total</strong></td><td class="num"><strong>' + rv.toFixed(3) + 'x</strong></td></tr>';
+  html += '</tbody></table>';
+
+  // Rupie value per type per tier
+  html += '<h3>Rupie Value by Type &times; Tier</h3>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th>';
+  for (var t = 0; t < 5; t++) html += '<th class="num">Tier ' + t + '</th>';
+  html += '</tr></thead><tbody>';
+  var rupieTypes = [0, 3, 5, 6, 8, 9];
+  for (var ri = 0; ri < rupieTypes.length; ri++) {
+    var jt = rupieTypes[ri];
+    if (jt >= J.totalJarTypes(saveData)) continue;
+    html += '<tr><td>' + J.JAR_TYPE_NAMES[jt] + '</td>';
+    for (var t = 0; t < 5; t++) {
+      html += '<td class="num">' + fmtNum(Math.round(rv * Math.pow(10, t))) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Extra rupie sources
+  html += '<h3>Extra Rupie Chance</h3>';
+  html += '<table class="data-table"><thead><tr><th>Source</th><th class="num">Value</th></tr></thead><tbody>';
+  if (ext.bell4) html += '<tr><td>Bell 4</td><td class="num">+' + ext.bell4 + '%</td></tr>';
+  if (ext.cosmo0_3) html += '<tr><td>Cosmo(0,3)</td><td class="num">+' + ext.cosmo0_3 + '%</td></tr>';
+  if (J.bupgOwned(saveData, 64)) html += '<tr><td>B_UPG 64 (+50%)</td><td class="num">+50%</td></tr>';
+  html += '<tr style="border-top:2px solid #444"><td><strong>Total</strong></td><td class="num"><strong>' + fmtPct1(J.extraRupieChance(saveData, ext)) + '</strong></td></tr>';
+  html += '</tbody></table>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== CHANCES TAB =====
+function _renderChances(ext) {
+  var html = '<div id="tab-chances" class="tab-content">';
+  html += '<div class="section"><h2>Break Chances</h2>';
+
+  html += '<div class="card-grid cols-3">';
+  var oc = J.opalChance(saveData, ext);
+  html += _card('Opal Chance', fmtChance(oc), 'Per type-1 jar break', 'Opals found: ' + J.opalsFromJars(saveData) + '\nBase: 25% × 0.43^opals\nEach opal reduces chance by 57%');
+  var cc = J.collectibleChance(saveData, ext);
+  html += _card('Collectible Chance', fmtChance(cc), 'Per type-2 jar break', 'Found: ' + J.collectiblesFound(saveData) + '\nScaling: harder after 16 found');
+  var ec = J.enchantChance(saveData, ext);
+  html += _card('Enchant Chance', fmtChance(ec), 'Per type-4 jar break', 'Total enchant levels: ' + J.totalEnchantLevels(saveData) + '\nMore enchants = harder to enchant');
+  html += '</div>';
+
+  // Tier scaling
+  html += '<h3>Chance × Tier (how tier multiplies chances)</h3>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Chance jars (types 1, 2, 4) multiply their chance by 10<sup>tier</sup>. At high enough tier, the chance exceeds 100% = guaranteed.</p>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Chance Type</th><th class="num">Base</th>';
+  for (var t = 0; t < 6; t++) html += '<th class="num">Tier ' + t + '</th>';
+  html += '<th class="num">Tier for 100%</th></tr></thead><tbody>';
+
+  var chances = [
+    ['Opal (type 1)', oc],
+    ['Collectible (type 2)', cc],
+    ['Enchant (type 4)', ec],
+  ];
+  for (var ci = 0; ci < chances.length; ci++) {
+    var base = chances[ci][1];
+    html += '<tr><td>' + chances[ci][0] + '</td>';
+    html += '<td class="num">' + fmtChance(base) + '</td>';
+    for (var t = 0; t < 6; t++) {
+      var val = base * Math.pow(10, t);
+      var color = val >= 1 ? 'var(--green)' : val >= 0.5 ? 'var(--yellow)' : '';
+      html += '<td class="num"' + (color ? ' style="color:' + color + '"' : '') + '>'
+            + (val >= 1 ? '100%+' : fmtChance(val)) + '</td>';
+    }
+    // Tier needed for 100%
+    var tierFor100 = base > 0 ? Math.ceil(Math.log10(1 / base)) : '∞';
+    html += '<td class="num"><span class="n">' + tierFor100 + '</span></td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Expected time to events
+  html += '<h3>Expected Time per Event (Tier 0)</h3>';
+  html += '<table class="data-table"><thead><tr><th>Event</th><th class="num">Chance</th><th class="num">Avg Breaks</th><th class="num">Est. Time</th></tr></thead><tbody>';
+  var evts = [
+    ['Next Opal', 1, oc],
+    ['Next Collectible', 2, cc],
+    ['Next Enchant', 4, ec],
+  ];
+  for (var ei = 0; ei < evts.length; ei++) {
+    var ch = evts[ei][2];
+    var breaks = J.expectedBreaksToEvent(ch);
+    var hrs = J.expectedHoursToEvent(saveData, ext, evts[ei][1], ch);
+    html += '<tr><td>' + evts[ei][0] + '</td>';
+    html += '<td class="num">' + fmtChance(ch) + '</td>';
+    html += '<td class="num">' + (isFinite(breaks) ? fmtNum(Math.round(breaks)) : '∞') + '</td>';
+    html += '<td class="num">' + (isFinite(hrs) ? fmtTimeHrs(hrs) : '∞') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  // Targeted enchant
+  var tgt = J.targetedEnchantIdx(saveData);
+  if (tgt >= 0) {
+    html += '<h3>Targeted Enchant</h3>';
+    html += '<div class="card-grid cols-3">';
+    html += _card('Target', J.COLLECTIBLE_DATA[tgt][0], '#' + tgt);
+    html += _card('Target Chance', fmtPct1(J.targetedEnchantProb(saveData)), '5 / (found+3) = 5/' + (J.collectiblesFound(saveData) + 3));
+    html += _card('Combined', fmtPct(ec * J.targetedEnchantProb(saveData)), 'Enchant × Target');
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== COLLECTIBLES TAB =====
+function _renderCollectibles(ext) {
+  var html = '<div id="tab-collectibles" class="tab-content">';
+  html += '<div class="section"><h2>Collectibles</h2>';
+  var lp = ext.legendPts29 || 0;
+  var levels = J.collectibleLevels(saveData);
+  var found = J.collectiblesFound(saveData);
+  var maxIdx = J.page2Unlocked(saveData) ? 40 : 16;
+
+  html += '<div class="card-grid cols-4">';
+  html += _card('Found', found + ' / ' + maxIdx, 'Unfound shown as dashed');
+  html += _card('Total Enchant Lvs', J.totalEnchantLevels(saveData), 'Sum of (level-1) for all enchanted');
+  html += _card('Page 2', J.page2Unlocked(saveData) ? '<span style="color:var(--green)">Unlocked</span>' : '<span style="color:var(--red)">Locked</span>', 'B_UPG 75');
+  if (lp > 0) html += _card('Legend PTS 29', '+' + lp + '%', 'Bonus to all collectibles');
+  html += '</div>';
+
+  // Group by category
+  var byCategory = {};
+  for (var i = 0; i < maxIdx; i++) {
+    var cat = J.COLLECTIBLE_DATA[i][2];
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(i);
+  }
+
+  for (var cat in byCategory) {
+    var indices = byCategory[cat];
+    var catLabel = J.CATEGORY_LABELS[cat] || cat;
+    var catColor = J.CATEGORY_COLORS[cat] || '#888';
+    html += '<h3 style="color:' + catColor + '">' + catLabel + '</h3>';
+    html += '<div class="coll-items-row">';
+    for (var ci = 0; ci < indices.length; ci++) {
+      var idx = indices[ci];
+      var cd = J.COLLECTIBLE_DATA[idx];
+      var lv = levels[idx];
+      var enchLv = Math.max(0, lv - 1);
+      var bonus = J.collectibleBonus(saveData, idx, lp);
+      var tierBorder = enchLv >= 20 ? 'var(--gold)' : enchLv >= 5 ? '#aaa' : enchLv >= 1 ? '#cd7f32' : '#444';
+      html += '<div class="coll-item' + (lv === 0 ? ' unfound' : '') + '" style="border-color:' + tierBorder + '"'
+            + ' data-tip="#' + idx + ' ' + cd[0] + '\nLevel: ' + lv + (enchLv > 0 ? ' (enchant +' + enchLv + ')' : '') + '\nPer level: ' + cd[1] + cd[3] + '\nTotal bonus: ' + bonus.toFixed(1) + '%">';
+      html += '<div class="ci-name" style="color:' + catColor + '">' + cd[0] + '</div>';
+      html += '<div class="ci-lv">' + (lv === 0 ? '—' : (enchLv >= 20 ? '+' : '') + lv) + '</div>';
+      html += '<div class="ci-bonus">' + (lv === 0 ? 'Not found' : '+' + bonus.toFixed(1) + '%') + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Enchant priority table
+  var prio = J.enchantPriority(saveData, ext);
+  if (prio.length > 0) {
+    html += '<h3>Enchant Priority (sorted by marginal value)</h3>';
+    html += '<table class="data-table"><thead><tr><th>#</th><th>Name</th><th>Category</th><th class="num">Level</th><th class="num">Enchant</th><th class="num">Current Bonus</th><th class="num">+1 Enchant</th></tr></thead><tbody>';
+    for (var i = 0; i < prio.length; i++) {
+      var p = prio[i];
+      html += '<tr>';
+      html += '<td>' + p.idx + '</td>';
+      html += '<td style="color:' + (J.CATEGORY_COLORS[p.category] || '#888') + '">' + p.name + '</td>';
+      html += '<td>' + p.categoryLabel + '</td>';
+      html += '<td class="num">' + p.level + '</td>';
+      html += '<td class="num">' + p.enchantLevels + '</td>';
+      html += '<td class="num">' + p.totalBonus.toFixed(1) + '</td>';
+      html += '<td class="num"><span class="n">+' + p.marginalValue.toFixed(1) + '</span></td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== UPGRADES TAB =====
+function _renderUpgrades(ext) {
+  var html = '<div id="tab-upgrades" class="tab-content">';
+  html += '<div class="section"><h2>B_UPG Upgrades</h2>';
+
+  // Group display
+  for (var group in J.B_UPG_GROUPS) {
+    var indices = J.B_UPG_GROUPS[group];
+    html += '<h3>' + group + '</h3>';
+    html += '<table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Effect</th><th class="num">Status</th></tr></thead><tbody>';
+    for (var i = 0; i < indices.length; i++) {
+      var idx = indices[i];
+      // Find in B_UPG_DATA
+      var upg = null;
+      for (var u = 0; u < J.B_UPG_DATA.length; u++) {
+        if (J.B_UPG_DATA[u][0] === idx) { upg = J.B_UPG_DATA[u]; break; }
+      }
+      if (!upg) continue;
+      var owned = J.bupgOwned(saveData, idx);
+      html += '<tr' + (owned ? '' : ' class="locked" style="opacity:.5"') + '>';
+      html += '<td>' + idx + '</td>';
+      html += '<td>' + upg[1] + '</td>';
+      html += '<td>' + upg[3] + '</td>';
+      html += '<td class="num">' + (owned ? '<span class="badge badge-green">Owned</span>' : '<span class="badge badge-red">Locked</span>') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // New jar cost
+  var ownedTypes = J.jarTypesOwned(saveData);
+  if (ownedTypes < 9) {
+    html += '<h3>Next Jar Type</h3>';
+    html += '<div class="card-grid cols-3">';
+    html += _card('Next Type', J.JAR_TYPE_NAMES[owned + 1], 'Type #' + (owned + 1));
+    var cost = J.newJarCost(saveData);
+    var currType = J.newJarCurrencyType(saveData);
+    var bal = J.rupieBalance(saveData, currType);
+    html += _card('Cost', fmtNum(Math.round(cost)), J.RUPIE_NAMES[currType] + ' rupies');
+    html += _card('Can Afford', J.canAffordNewJar(saveData) ? '<span style="color:var(--green)">Yes</span>' : '<span style="color:var(--red)">No</span>',
+      'Balance: ' + fmtNum(bal));
+    html += '</div>';
+  }
+
+  // Jar cost table for all types
+  html += '<h3>Jar Type Costs</h3>';
+  html += '<table class="data-table"><thead><tr><th>#</th><th>Type</th><th class="num">Cost</th><th>Currency</th><th class="num">Status</th></tr></thead><tbody>';
+  html += '<tr><td>0</td><td>' + J.JAR_TYPE_NAMES[0] + '</td><td class="num">Free</td><td>—</td><td class="num"><span class="badge badge-green">Default</span></td></tr>';
+  for (var j = 0; j < 9; j++) {
+    var c = 50 * Math.pow(1 + j, 1.5) * Math.pow(4.8, j);
+    html += '<tr' + (j < ownedTypes ? '' : ' style="opacity:.5"') + '>';
+    html += '<td>' + (j + 1) + '</td>';
+    html += '<td>' + J.JAR_TYPE_NAMES[j + 1] + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(c)) + '</td>';
+    html += '<td>' + J.RUPIE_NAMES[j] + '</td>';
+    html += '<td class="num">' + (j < ownedTypes ? '<span class="badge badge-green">Owned</span>' : j === ownedTypes ? '<span class="badge badge-blue">Next</span>' : '') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  // Doubler analysis
+  html += '<h3>Doubler Tier Values</h3>';
+  html += '<table class="data-table"><thead><tr><th class="num">Tier</th><th class="num">Doubler %</th><th class="num">Multiplier</th></tr></thead><tbody>';
+  for (var t = 0; t < 6; t++) {
+    html += '<tr><td class="num">' + t + '</td>';
+    html += '<td class="num">+' + J.doublerTierValue(t) + '%</td>';
+    html += '<td class="num">' + J.doublerMultiplier(t).toFixed(2) + 'x</td></tr>';
+  }
+  html += '</tbody></table>';
+
+  html += '</div></div>';
+  return html;
+}
+
+</script>
+</body>
+</html>

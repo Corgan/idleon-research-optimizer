@@ -4,6 +4,10 @@
 import { cosmoUpgBase, holesBolaiaPerLv, holesMeasBase, holesMeasType } from '../../data/w5/hole.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { getLOG } from '../../../formulas.js';
+import { tomeQTY, computeTomeScore } from '../w4/tome-score.js';
+import { deathNoteRank } from '../w7/research-math.js';
+import { numCharacters, klaData } from '../../../save/data.js';
+import { DeathNoteMobs, MapAFKtarget, MapDetails, NinjaInfo } from '../../data/game/customlists.js';
 
 // ========== CONSTANTS ==========
 export var WATER_NAMES = ['Blue', 'Yellow', 'Green'];
@@ -274,6 +278,41 @@ function _cosmoBonus(saveData, t, i) {
   return Math.floor(base * lv);
 }
 
+function _overkillQTY(saveData) {
+  var nChars = numCharacters || (saveData.lv0AllData ? saveData.lv0AllData.length : 0);
+  var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
+  var sum = 0;
+  var worldCount = Math.min(7, DeathNoteMobs.length);
+  for (var w = 0; w < worldCount; w++) {
+    var mobs = DeathNoteMobs[w];
+    if (!mobs) continue;
+    var worldSum = 0;
+    for (var m = 0; m < mobs.length; m++) {
+      var mapIdx = MapAFKtarget.indexOf(mobs[m]);
+      if (mapIdx < 0) continue;
+      var killReq = Number(MapDetails[mapIdx] && MapDetails[mapIdx][0] && MapDetails[mapIdx][0][0]) || 0;
+      var totalKills = 0;
+      for (var ci = 0; ci < nChars; ci++) {
+        var kla = klaData[ci];
+        var klaEntry = kla && kla[mapIdx];
+        var remaining = Number(Array.isArray(klaEntry) ? klaEntry[0] : klaEntry) || 0;
+        totalKills += killReq - remaining;
+      }
+      worldSum += deathNoteRank(Math.max(0, totalKills), 0, riftLv);
+    }
+    sum += worldSum;
+  }
+  var ninjaList = NinjaInfo && NinjaInfo[30];
+  var ninja105 = saveData.ninjaData && saveData.ninjaData[105];
+  if (ninjaList && ninja105) {
+    for (var n = 0; n < ninjaList.length; n++) {
+      var nk = Number(ninja105[n]) || 0;
+      sum += deathNoteRank(Math.max(0, nk), 7842, riftLv);
+    }
+  }
+  return sum;
+}
+
 function _arcadeBonus68(saveData) {
   return +arcadeBonus(68, saveData);
 }
@@ -311,7 +350,16 @@ function _measMulti(saveData, typeIdx) {
   var qty = 0;
   switch (typeIdx) {
     case 0: { var raw = Number(_h(saveData, 11)?.[28]) || 0; qty = raw > 0 ? getLOG(raw) : 0; break; }
-    case 8: qty = (saveData.cards1Data?.length || 0) / 150; break;
+    case 1: { qty = (saveData.farmCropCount || 0) / 14; break; }
+    case 2: { qty = tomeQTY(5, saveData) / 500; break; }
+    case 3: { qty = computeTomeScore(saveData, 0, saveData) / 2500; break; }
+    case 4: { var sk = tomeQTY(11, saveData); qty = sk / 5000 + Math.max(0, sk - 18000) / 1500; break; }
+    case 5: { qty = 0; break; }
+    case 6: { qty = _overkillQTY(saveData) / 125; break; }
+    case 7: { var hi = Number((saveData.tasksGlobalData?.[0]?.[1] || [])[0]) || 0; qty = hi > 0 ? getLOG(hi) / 2 : 0; break; }
+    case 8: { qty = (saveData.cards1Data?.length || 0) / 150; break; }
+    case 9: { var h26 = _h(saveData, 26); var sum = 0; for (var j = 0; j < h26.length; j++) sum += Number(h26[j]) || 0; qty = sum / 6; break; }
+    case 10: { var gk = Number(_h(saveData, 11)?.[63]) || 0; qty = gk > 0 ? Math.max(0, getLOG(gk) - 2) : 0; break; }
     default: qty = 0;
   }
   if (qty < 5) return 1 + 18 * qty / 100;
