@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Statue Calculator</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+
+/* Save import */
+#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+#save-area label { font-weight: 600; }
+#save-area input[type="file"] { color: var(--text2); }
+.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
+.btn:hover { filter: brightness(1.2); }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+#import-msg { font-size: .82em; margin-left: 8px; }
+#import-msg.ok { color: var(--green); }
+#import-msg.err { color: var(--red); }
+#json-paste-wrap { display: none; padding: 0 16px 12px; background: var(--bg2); gap: 8px; align-items: flex-start; }
+#json-paste { flex: 1; min-width: 0; background: #111; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; color: var(--text); font-size: .8em; font-family: monospace; resize: vertical; }
+
+/* Main layout */
+.main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+
+/* Cards */
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .statue-name { font-weight: 600; }
+.data-table .cur-lv { color: var(--cyan); text-align: right; }
+
+/* Inputs in table */
+.st-input { background: var(--bg); border: 1px solid #444; color: var(--text); padding: 3px 6px; border-radius: 3px; width: 64px; font-size: .85em; text-align: right; }
+.st-input:focus { outline: none; border-color: var(--accent); }
+
+/* Target header control */
+.th-ctrl { display: flex; flex-direction: column; gap: 3px; }
+.th-ctrl-row { display: flex; gap: 4px; align-items: center; }
+.th-ctrl-row input { width: 64px; padding: 3px 6px; font-size: .85em; background: var(--bg); border: 1px solid #444; color: var(--text); border-radius: 3px; text-align: right; }
+.th-ctrl-row input:focus { outline: none; border-color: var(--accent); }
+.th-ctrl-row button { padding: 2px 8px; font-size: .75em; background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 3px; cursor: pointer; }
+.th-ctrl-row button:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Note */
+.note { font-size: .75em; color: var(--text2); margin-top: 12px; line-height: 1.6; }
+.note strong { color: var(--text); }
+.note .hl { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<h1>&#x1F3DB; <span>Idleon</span> Statue Calculator</h1>
+
+<div id="save-area">
+  <label>Load save:</label>
+  <input type="file" id="file-input" accept=".json">
+  <span style="color:var(--text2);margin:0 4px;">or</span>
+  <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
+  <span id="import-msg"></span>
+</div>
+<div id="json-paste-wrap">
+  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
+  <button class="btn" id="paste-load-btn">Load</button>
+</div>
+
+<div class="main" id="main-content">
+
+  <!-- Summary cards -->
+  <div class="section">
+    <div class="card-grid cols-4" id="summary"></div>
+  </div>
+
+  <!-- Statue table -->
+  <div class="section">
+    <h2>Statues</h2>
+    <div style="overflow-x:auto">
+    <table class="data-table" id="statue-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Statue</th>
+          <th>Bonus</th>
+          <th style="text-align:right">Current</th>
+          <th>
+            <div class="th-ctrl">
+              <span>Target</span>
+              <div class="th-ctrl-row">
+                <input type="number" id="set-all" min="0" placeholder="all">
+                <button id="apply-all">Set</button>
+              </div>
+            </div>
+          </th>
+          <th>Per Hr</th>
+          <th class="num">Needed</th>
+          <th class="num">Time</th>
+        </tr>
+      </thead>
+      <tbody id="statue-body"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <p class="note">
+    <strong>Formula:</strong> EXP to next level = level<sup>1.17</sup> &times; 1.35<sup>(level/10)</sup> + 1 (rounded for lv &le; 300).<br>
+    Each statue dropped = 1 EXP. The <span class="hl">STARTUE_EXP</span> bubble (green cauldron, bubble 3) retains exp after each level-up,
+    reducing the effective cost. Retention factor = max(0.5, 1 &minus; bubble/100).<br>
+    Per Hr accepts suffixes: <span class="hl">K</span> (thousands), <span class="hl">M</span> (millions), <span class="hl">B</span> (billions), <span class="hl">T</span> (trillions).
+  </p>
+
+</div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { loadSaveData } from './js/save/loader.js';
+import { cauldronInfoData } from './js/save/data.js';
+import { AlchemyDescription } from './js/stats/data/game/customlists.js';
+import { formulaEval } from './js/formulas.js';
+import { computeStatueBonusGiven } from './js/stats/systems/common/stats.js';
+
+// ── Statue data ─────────────────────────────────────────────────────────
+var STATUES = [
+  ['POWER',     'Base Damage',      3],
+  ['SPEED',     'Move Speed %',     0.1],
+  ['MINING',    'Mining Power',     0.3],
+  ['FEASTY',    'Food Effect %',    1],
+  ['HEALTH',    'Base Health',      3],
+  ['KACHOW',    'Crit Damage %',    0.4],
+  ['LUMBERBOB', 'Choppin Power',    0.3],
+  ['THICC SKIN','Base Defence',     1],
+  ['OCEANMAN',  'Fishing Power',    0.3],
+  ['OL RELIABLE','Catching Power',  0.3],
+  ['EXP',       'Class EXP %',      0.1],
+  ['ANVIL',     'Product Spd %',    0.5],
+  ['CAULDRON',  'Alchemy EXP %',    0.5],
+  ['BEHOLDER',  'Crit Chance %',    0.2],
+  ['BULLSEYE',  'Accuracy %',       0.8],
+  ['BOX',       'Trappin Power',    0.3],
+  ['TWOSOUL',   'Worship Power',    0.3],
+  ['EHEXPEE',   'Skill EXP %',      0.1],
+  ['SEESAW',    'Cons EXP %',       0.5],
+  ['PECUNIA',   'Coins %',          1],
+  ['MUTTON',    'Cooking EXP %',    0.3],
+  ['EGG',       'Breeding EXP %',   0.4],
+  ['BATTLEAXE', 'Damage %',         0.2],
+  ['SPIRAL',    'Divinity EXP %',   1],
+  ['BOAT',      'Sailing Spd %',    0.5],
+  ['COMPOST',   'Farming EXP %',    0.4],
+  ['STEALTH',   'Stealth %',        0.3],
+  ['ESSENCE',   'White Ess %',      0.6],
+  ['VILLAGER',  'Villager EXP %',   0.3],
+  ['DRAGON',    'Statues Bonus %',  0.2],
+  ['SPELUNKY',  'Spelunk EXP %',    0.1],
+  ['CORAL',     'Daily Coral %',    0.02]
+];
+
+// ── Parse K/M/B/T suffixes ──────────────────────────────────────────────
+var SUFFIXES = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 };
+function parseSuffix(str) {
+  str = String(str).trim().toLowerCase();
+  if (!str) return 0;
+  var last = str.charAt(str.length - 1);
+  if (SUFFIXES[last]) return (parseFloat(str.slice(0, -1)) || 0) * SUFFIXES[last];
+  return parseFloat(str) || 0;
+}
+
+// ── Formula: exp required to level up at a given level ──────────────────
+function statueExpReq(lv) {
+  if (lv <= 0) return 1;
+  var raw = Math.pow(lv, 1.17) * Math.pow(1.35, lv / 10) + 1;
+  return lv <= 300 ? Math.round(raw) : raw;
+}
+
+// ── Total statues from level `from` to level `to` with bubble ──────────
+function statuesFromTo(fromLv, toLv, bubblePct) {
+  if (toLv <= fromLv) return 0;
+  var factor = Math.max(0.5, 1 - bubblePct / 100);
+  var total = 0;
+  for (var lv = fromLv; lv < toLv; lv++) {
+    total += statueExpReq(lv) * factor;
+  }
+  return Math.ceil(total);
+}
+
+// ── Compute STARTUE_EXP bubble value from save data ─────────────────────
+function _getBubblePct() {
+  var desc = AlchemyDescription && AlchemyDescription[1] && AlchemyDescription[1][2];
+  var lv = Number((cauldronInfoData && cauldronInfoData[1] && cauldronInfoData[1][2]) || 0);
+  if (!desc || lv <= 0) return 0;
+  return formulaEval(desc[3], Number(desc[1]), Number(desc[2]), lv);
+}
+
+// ── State ───────────────────────────────────────────────────────────────
+var currentLvs = new Array(STATUES.length).fill(0);
+var targetLvs  = new Array(STATUES.length).fill(100);
+var perHrRaw   = new Array(STATUES.length).fill('');
+var perHrVals  = new Array(STATUES.length).fill(0);
+var bubblePct  = 0;
+
+// ── Save loading ────────────────────────────────────────────────────────
+function _loadRaw(raw) {
+  var msgEl = document.getElementById('import-msg');
+  try {
+    var save = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    loadSaveData(save);
+
+    var statueArr = saveData.statueData || [];
+    for (var i = 0; i < STATUES.length; i++) {
+      currentLvs[i] = Number(statueArr[i]) || 0;
+      targetLvs[i] = currentLvs[i] + 1;
+    }
+
+    bubblePct = _getBubblePct();
+
+    msgEl.className = 'ok';
+    msgEl.textContent = '\u2713 Loaded! Bubble = ' + Math.round(bubblePct * 10) / 10 + '%';
+    render();
+  } catch (e) {
+    msgEl.className = 'err';
+    msgEl.textContent = '\u2717 ' + e.message;
+  }
+}
+
+// File input
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(ev) {
+    document.getElementById('json-paste').value = ev.target.result;
+    _loadRaw(ev.target.result);
+  };
+  r.readAsText(f);
+});
+
+// Paste toggle
+document.getElementById('paste-btn').addEventListener('click', function() {
+  var wrap = document.getElementById('json-paste-wrap');
+  wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex';
+});
+
+// Paste load
+document.getElementById('paste-load-btn').addEventListener('click', function() {
+  var txt = document.getElementById('json-paste').value.trim();
+  if (txt) _loadRaw(txt);
+});
+
+// ── Render ──────────────────────────────────────────────────────────────
+function render() {
+  var bp = Math.min(50, Math.max(0, bubblePct));
+  var factor = Math.max(0.5, 1 - bp / 100);
+  var tbody = document.getElementById('statue-body');
+  var html = '';
+  var grandTotal = 0;
+  var grandHrs = 0;
+  var anyRate = false;
+
+  for (var i = 0; i < STATUES.length; i++) {
+    var s = STATUES[i];
+    var cur = currentLvs[i];
+    var tgt = targetLvs[i];
+    var phr = perHrVals[i];
+    var needed = statuesFromTo(cur, tgt, bp);
+    var hrs = phr > 0 ? needed / phr : Infinity;
+    grandTotal += needed;
+    if (phr > 0) { grandHrs += hrs; anyRate = true; }
+
+    // Compute full bonus with all multipliers
+    var bonusVal = 0;
+    try { bonusVal = Number(computeStatueBonusGiven(i, 0, saveData)) || 0; } catch(e) {}
+    var isPct = s[1].indexOf('%') >= 0;
+    var bonusStr = cur > 0
+      ? (isPct ? '+' + fmtBonusNum(bonusVal) + '%' : '+' + fmtBonusNum(bonusVal)) + ' ' + escHtml(s[1].replace(' %', '').replace('%', ''))
+      : escHtml(s[2] + ' ' + s[1] + '/lv');
+
+    html += '<tr>'
+      + '<td>' + i + '</td>'
+      + '<td class="statue-name">' + escHtml(s[0]) + '</td>'
+      + '<td>' + bonusStr + '</td>'
+      + '<td class="cur-lv">' + fmtNum(cur) + '</td>'
+      + '<td><input class="st-input" type="number" min="0" value="' + tgt + '" data-idx="' + i + '" data-field="tgt"></td>'
+      + '<td><input class="st-input" value="' + escHtml(perHrRaw[i]) + '" data-idx="' + i + '" data-field="phr" placeholder="0"></td>'
+      + '<td class="num">' + fmtNum(needed) + '</td>'
+      + '<td class="num">' + (phr > 0 ? fmtTime(hrs) : '\u2014') + '</td>'
+      + '</tr>';
+  }
+  tbody.innerHTML = html;
+
+  tbody.querySelectorAll('input').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var idx = Number(this.dataset.idx);
+      if (this.dataset.field === 'tgt') {
+        targetLvs[idx] = Math.max(0, Number(this.value) || 0);
+      } else {
+        perHrRaw[idx] = this.value;
+        perHrVals[idx] = Math.max(0, parseSuffix(this.value));
+      }
+      render();
+    });
+  });
+
+  document.getElementById('summary').innerHTML =
+    card('Total Statues', fmtNum(grandTotal), 'across all types') +
+    card('Retention', ((1 - factor) * 100).toFixed(1) + '%', 'exp kept per level-up') +
+    card('Bubble', bp.toFixed(1) + '%', bp > 0 ? 'from save' : 'load save to populate');
+}
+
+function card(title, val, sub) {
+  return '<div class="card"><div class="card-title">' + title + '</div>'
+    + '<div class="card-val">' + val + '</div>'
+    + '<div class="card-sub">' + sub + '</div></div>';
+}
+
+function fmtBonusNum(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  if (n >= 100) return Math.round(n).toLocaleString('en-US');
+  if (n >= 10) return n.toFixed(1);
+  return n.toFixed(2);
+}
+
+function fmtNum(n) {
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString('en-US');
+}
+
+function fmtTime(hrs) {
+  if (!isFinite(hrs)) return '\u2014';
+  if (hrs < 1) return Math.round(hrs * 60) + 'm';
+  if (hrs < 24) return hrs.toFixed(1) + 'h';
+  if (hrs < 24 * 365) return (hrs / 24).toFixed(1) + 'd';
+  return (hrs / 24 / 365).toFixed(1) + 'y';
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ── Events ──────────────────────────────────────────────────────────────
+document.getElementById('apply-all').addEventListener('click', function() {
+  var val = Number(document.getElementById('set-all').value);
+  if (val >= 0) { targetLvs.fill(val); render(); }
+});
+
+render();
+</script>
+</body>
+</html>

@@ -6,27 +6,31 @@
 <title>IdleOn Cog Board Optimizer</title>
 <style>
 :root {
-  --bg: #101020; --bg2: #181830; --bg3: #222244;
-  --text: #ddd; --text2: #888; --accent: #66ccff;
-  --green: #6f6; --gold: #ffd700; --orange: #ffa060; --purple: #b388ff;
-  --red: #f66; --cyan: #5ff; --border: #333;
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --orange: #ffa060; --border: #333;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); }
-h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5em; }
-.subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 14px; }
-.container { max-width: 960px; margin: 0 auto; padding: 0 12px 40px; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+.subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 0; padding: 8px 0; background: var(--bg2); }
+.container { max-width: 960px; margin: 0 auto; padding: 16px 12px 40px; }
 
-/* Import */
-.import-box { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 16px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-.import-box summary { cursor: pointer; font-weight: 600; color: var(--accent); }
-.import-box textarea { width: 100%; height: 80px; margin-top: 8px; background: var(--bg); color: var(--text); border: none; box-shadow: inset 0 0 0 1px var(--border); border-radius: 4px; font-size: .82em; font-family: monospace; padding: 6px; resize: vertical; }
-.import-msg { font-size: .82em; margin-top: 6px; }
-.import-msg.ok { color: var(--green); }
-.import-msg.err { color: var(--red); }
-.top-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-.top-bar .btn { padding: 6px 16px; background: var(--accent); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85em; }
-.top-bar .btn:hover { filter: brightness(1.2); }
+/* Save import */
+#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+#save-area label { font-weight: 600; }
+#save-area input[type="file"] { color: var(--text2); }
+.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
+.btn:hover { filter: brightness(1.2); }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+#import-msg { font-size: .82em; margin-left: 8px; }
+#import-msg.ok { color: var(--green); }
+#import-msg.err { color: var(--red); }
+#json-paste-wrap { display: none; padding: 0 16px 12px; background: var(--bg2); gap: 8px; align-items: flex-start; }
+#json-paste { flex: 1; min-width: 0; background: #111; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; color: var(--text); font-size: .8em; font-family: monospace; resize: vertical; }
 
 /* Row 1: stat cards */
 .stats-row { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -319,23 +323,22 @@ h1 { text-align: center; color: var(--gold); padding: 18px 0 4px; font-size: 1.5
 </style>
 </head>
 <body>
-<h1>&#x2699; IdleOn Cog Board Optimizer</h1>
+<h1>&#x2699; <span>IdleOn</span> Cog Board Optimizer</h1>
 <p class="subtitle">Optimize cog placement for Build Speed, Flaggy Rate, or Player XP</p>
-<div class="container">
 
-<!-- Import -->
-<details class="import-box" open>
-  <summary>&#x1F4CB; Import Save JSON</summary>
-  <div style="margin-top:8px;">
-    <label style="font-size:.85em;color:var(--text2)">Load save (it.json or save.json):</label>
-    <input type="file" id="file-input" accept=".json" style="margin-left:6px;">
-  </div>
-  <textarea id="json-in" placeholder="...or paste your it.json / save.json contents here..."></textarea>
-  <div class="top-bar">
-    <button class="btn" id="btn-import">Load Pasted JSON</button>
-  </div>
-  <div id="import-msg" class="import-msg"></div>
-</details>
+<div id="save-area">
+  <label>Load save:</label>
+  <input type="file" id="file-input" accept=".json">
+  <span style="color:var(--text2);margin:0 4px;">or</span>
+  <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
+  <span id="import-msg"></span>
+</div>
+<div id="json-paste-wrap">
+  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
+  <button class="btn" id="btn-import">Load</button>
+</div>
+
+<div class="container">
 
 <!-- Row 1: Stat cards -->
 <div id="summary-section" style="display:none">
@@ -514,12 +517,17 @@ function smallCogMinObtainableTier() {
 
 /* ========== IMPORT ========== */
 function doImport() {
-  var txt = document.getElementById('json-in').value.trim();
+  var txt = document.getElementById('json-paste').value.trim();
   if (!txt) return showMsg('Paste save JSON first', true);
   try { loadFromParsed(JSON.parse(txt)); }
   catch (e) { showMsg('Invalid JSON: ' + e.message, true); }
 }
 document.getElementById('btn-import').addEventListener('click', doImport);
+
+document.getElementById('paste-btn').addEventListener('click', function() {
+  var wrap = document.getElementById('json-paste-wrap');
+  wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex';
+});
 
 document.getElementById('file-input').addEventListener('change', function(e) {
   var file = e.target.files[0]; if (!file) return;
@@ -590,7 +598,7 @@ function countFilled(board) {
 function showMsg(msg, isErr) {
   var el = document.getElementById('import-msg');
   el.textContent = msg;
-  el.className = 'import-msg ' + (isErr ? 'err' : 'ok');
+  el.className = isErr ? 'err' : 'ok';
 }
 
 /* ========== STATS ========== */
