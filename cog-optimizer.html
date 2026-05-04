@@ -1,4 +1,4 @@
-ï»¿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -257,7 +257,7 @@ h1 span { color: var(--accent); }
 .cog-cell.dir-highlight { box-shadow: 0 0 0 2px var(--cyan); z-index: 1; }
 .cog-cell.dir-source { box-shadow: 0 0 0 2px var(--gold); z-index: 2; }
 
-/* Board analysis highlights â€” corner triangles */
+/* Board analysis highlights — corner triangles */
 .cog-cell.cog-weakest::after,
 .cog-cell.cog-best::after {
   content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0;
@@ -323,7 +323,7 @@ h1 span { color: var(--accent); }
 </style>
 </head>
 <body>
-<h1><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="All Tools">&larr;</a>&#x2699; <span>IdleOn</span> Cog Board Optimizer</h1>
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x2699; <span>IdleOn</span> Cog Board Optimizer</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
 <p class="subtitle">Optimize cog placement for Build Speed, Flaggy Rate, or Player XP</p>
 
 <div id="save-area">
@@ -345,17 +345,17 @@ h1 span { color: var(--accent); }
   <div class="stats-row">
     <div class="stat-card" data-stat="build" onclick="toggleStatOverlay('build')">
       <div class="label">Build Speed</div>
-      <div class="val" id="stat-build" style="color:var(--cyan)">â€”</div>
+      <div class="val" id="stat-build" style="color:var(--cyan)">—</div>
       <div class="sub" id="stat-build-sub"></div>
     </div>
     <div class="stat-card" data-stat="conexp" onclick="toggleStatOverlay('conexp')">
       <div class="label">Con EXP/hr</div>
-      <div class="val" id="stat-conexp" style="color:var(--gold)">â€”</div>
+      <div class="val" id="stat-conexp" style="color:var(--gold)">—</div>
       <div class="sub" id="stat-conexp-sub"></div>
     </div>
     <div class="stat-card" data-stat="flaggy" onclick="toggleStatOverlay('flaggy')">
       <div class="label">Flaggy Rate</div>
-      <div class="val" id="stat-flaggy" style="color:var(--green)">â€”</div>
+      <div class="val" id="stat-flaggy" style="color:var(--green)">—</div>
       <div class="sub" id="stat-flaggy-sub"></div>
     </div>
   </div>
@@ -386,12 +386,12 @@ h1 span { color: var(--accent); }
     </div>
     <div class="grade-card" style="grid-column:2">
       <div class="label">Player EXP %</div>
-      <div class="val" id="stat-exppct" style="color:var(--purple)">â€”</div>
+      <div class="val" id="stat-exppct" style="color:var(--purple)">—</div>
       <div class="sub" id="stat-exppct-sub"></div>
     </div>
     <div class="grade-card">
       <div class="label">Grade</div>
-      <div class="val" id="board-grade" style="color:var(--gold)">â€”</div>
+      <div class="val" id="board-grade" style="color:var(--gold)">—</div>
       <div class="sub" id="board-grade-sub"></div>
     </div>
   </div>
@@ -562,7 +562,7 @@ function loadFromParsed(parsed) {
     // Daily crystal cog claims: 1 + legendPTSbonus(18) where perPt=2
     var cogLoverLv = Number((saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][18]) || 0);
     DAILY_CRYSTAL_ROLLS = 1 + Math.round(cogLoverLv * 2);
-    // Grid node 69: "Adequate Sized, Actually" â€” level * 50% chance for +1 tiny cog tier
+    // Grid node 69: "Adequate Sized, Actually" — level * 50% chance for +1 tiny cog tier
     var gridLevels = saveData.gridLevels || [];
     GRID69_TIER_UP_PCT = Math.min((Number(gridLevels[69]) || 0) * 50, 100);
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
@@ -720,7 +720,7 @@ function computeBoardInsights(board, goal) {
     var roll = '';
 
     if (tier >= 0 && tier < 3) {
-      // Low-tier cog â€” always suggest upgrading to Ulti
+      // Low-tier cog — always suggest upgrading to Ulti
       why = 'T' + tier + ' cog (low tier)';
       if (ap) {
         roll = 'Roll Ulti directional with ' + goalSurrLabel + ' \u2265 15%';
@@ -841,7 +841,7 @@ function _rollRangeStats(tier, conLv) {
   function dConvert(v) { return Math.max(Math.floor(Math.pow(Math.max(v,1), 0.4) + 10 * Math.log(Math.max(v,1)) / 2.30259 - 5), 2); }
   var maxD = dConvert(maxV) * maxRolls;
 
-  // Surround ranges â€” fixed per tier, NOT con-level dependent
+  // Surround ranges — fixed per tier, NOT con-level dependent
   // T0: 5-10, T1: 8-15, T2: 12-40, T3: 20-65
   // Crystal: 30-40 + 23*(cryLv+1)
   var surrRanges = [
@@ -1007,7 +1007,7 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
     var surrVal = cog[surrKey] || 0;
     if (ap && surrVal && cog.h) {
       var dirEl = document.createElement('div'); dirEl.className = 'cog-dir';
-      dirEl.textContent = 'â–¸' + surrVal + '%'; cell.appendChild(dirEl);
+      dirEl.textContent = '?' + surrVal + '%'; cell.appendChild(dirEl);
     }
   }
 
@@ -1016,7 +1016,7 @@ function makeCogCell(cog, idx, refBoard, extraClass) {
     var yySurr = cog[surrKey] || 0;
     if (yySurr) {
       var dirEl2 = document.createElement('div'); dirEl2.className = 'cog-dir';
-      dirEl2.textContent = 'â–¸' + yySurr + '%'; cell.appendChild(dirEl2);
+      dirEl2.textContent = '?' + yySurr + '%'; cell.appendChild(dirEl2);
     }
   }
 
@@ -1412,7 +1412,7 @@ window.runOptimizer = function() {
       progressFill.style.width = pct + '%';
     } else if (d.type === 'progress') {
       progressFill.style.width = (d.iter / iters * 100).toFixed(0) + '%';
-      statusEl.textContent = 'Phase 2/3: SA â€” Iter ' + d.iter + '/' + iters + ' | Best: ' + fmtBig(d.best);
+      statusEl.textContent = 'Phase 2/3: SA — Iter ' + d.iter + '/' + iters + ' | Best: ' + fmtBig(d.best);
     } else if (d.type === 'done') {
       COG_WORKER.terminate(); COG_WORKER = null;
       var result = d.result;
@@ -1511,7 +1511,7 @@ function showResults(result) {
       if (tr.bonusAfter[si] !== tr.bonusBefore[si]) {
         var d = tr.bonusAfter[si] - tr.bonusBefore[si];
         resultHtml += '<div class="ri-tiny-bonus">' + smLabels[si] + ': ' +
-          (1 + tr.bonusBefore[si] / 100).toFixed(2) + 'x â†’ ' + (1 + tr.bonusAfter[si] / 100).toFixed(2) + 'x' +
+          (1 + tr.bonusBefore[si] / 100).toFixed(2) + 'x ? ' + (1 + tr.bonusAfter[si] / 100).toFixed(2) + 'x' +
           ' <span class="ri-up">(+' + d + '%)</span></div>';
       }
     }
@@ -1628,11 +1628,11 @@ window.showPerfectBoard = function() {
   // Build a candidate board using layered eviction strategy.
   // 1. Fill all slots with T3 non-directional (base stats only)
   // 2. Place player
-  // 3. T3 directionals â€” best direction per slot if gain
-  // 4. CogCry5 non-directional â€” replace non-dir T3 if higher base stats
-  // 5. CogCry5 directional (row/col) â€” evict if gain (crystal can do e/f, not g)
-  // 6. Excogia 2Ã—2 â€” evaluated against final board state so eviction cost is accurate
-  // 7. Yang â€” evict best "around" slot if gain
+  // 3. T3 directionals — best direction per slot if gain
+  // 4. CogCry5 non-directional — replace non-dir T3 if higher base stats
+  // 5. CogCry5 directional (row/col) — evict if gain (crystal can do e/f, not g)
+  // 6. Excogia 2×2 — evaluated against final board state so eviction cost is accurate
+  // 7. Yang — evict best "around" slot if gain
   function buildCandidate(pSlot) {
     var board = new Array(BOARD_SIZE);
 
@@ -1673,7 +1673,7 @@ window.showPerfectBoard = function() {
       return false;
     }
 
-    // Layer 3: T3 directionals â€” try every slot Ã— every direction, pick best
+    // Layer 3: T3 directionals — try every slot × every direction, pick best
     // Build/flaggy surround benefits ALL cogs, not just the player.
     // ConExp surround (f) only matters at the player, but base stats are the same.
     // tryEvict will only keep it if the surround actually improves the score.
@@ -1713,7 +1713,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 4: CogCry5 non-directional â€” replace remaining non-dir T3 if higher base stats
+    // Layer 4: CogCry5 non-directional — replace remaining non-dir T3 if higher base stats
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (i === pSlot) continue;
       if (board[i].h) continue; // already directional, skip
@@ -1728,7 +1728,7 @@ window.showPerfectBoard = function() {
       tryEvict(i, crFiller);
     }
 
-    // Layer 5: CogCry5 directional (row/col) â€” crystal can do e/f but not g
+    // Layer 5: CogCry5 directional (row/col) — crystal can do e/f but not g
     // Build/conexp surround affects ALL cogs in that row/col, not just the player.
     // Try both row and column at every slot, pick the best direction.
     if (crystalCanSurr) {
@@ -1768,7 +1768,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 6: Excogia 2Ã—2 blocks â€” evaluated against the final board state.
+    // Layer 6: Excogia 2×2 blocks — evaluated against the final board state.
     // Their "everything" f=20 surround reaches all slots including the player.
     // Scored against fully-placed directionals so the eviction cost is accurate.
     var exNames = ['CogZA00', 'CogZA01', 'CogZA02', 'CogZA03'];
@@ -1813,7 +1813,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 7: Yang â€” evict best "around" slot if gain
+    // Layer 7: Yang — evict best "around" slot if gain
     var yp = 0;
     for (var yi = 0; yi < yangCount; yi++) {
       var bestSlot = -1, bestGain = 0;
@@ -1849,7 +1849,7 @@ window.showPerfectBoard = function() {
     return { board: board, yangPlaced: yp, playerSlot: pSlot };
   }
 
-  // Single "Layered eviction" strategy â€” tested at every position
+  // Single "Layered eviction" strategy — tested at every position
   var strats = [
     { name: 'Layered eviction' },
   ];
@@ -1918,7 +1918,7 @@ window.showPerfectBoard = function() {
   var goalName = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
   var pPos = slotToPos(bestPSlot);
   document.getElementById('opt-status').textContent =
-    'Perfect ' + goalName + ' â€” ' + bestStratName + ', player (' +
+    'Perfect ' + goalName + ' — ' + bestStratName + ', player (' +
     pPos.col + ',' + pPos.row + '), ' + exBlocks + ' excogia, ' +
     bestYangP + ' yang, T10 tiny.';
 
@@ -1949,7 +1949,7 @@ window.showPerfectBoard = function() {
         var gn = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
         var p = slotToPos(sr.pSlot);
         document.getElementById('opt-status').textContent =
-          'Perfect ' + gn + ' â€” ' + sr.name + ', player (' + p.col + ',' + p.row + '), ' +
+          'Perfect ' + gn + ' — ' + sr.name + ', player (' + p.col + ',' + p.row + '), ' +
           exBlocks + ' excogia, ' + sr.yangPlaced + ' yang, T10 tiny.';
         // Highlight active button
         for (var bi = 0; bi < sbBox.children.length; bi++) {
