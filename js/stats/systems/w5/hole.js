@@ -261,7 +261,7 @@ export var cosmo = {
 // Formula: if bonusInfo < 30: level * bonusInfo * max(1, HoleozDN)
 //   else: 0.1 * ceil(level / (250+level) * 10 * bonusInfo * max(1, HoleozDN))
 // HoleozDN (for i != 9) = 1 + MonumentROGbonuses(t, 9)/100 + CosmoBonusQTY(0, 0)/100
-export function computeMonumentROGbonus(t, i, saveData) {
+export function computeMonumentROGbonus(t, i, saveData, ext) {
   var holesArr = saveData.holesData && saveData.holesData[15];
   if (!holesArr) return 0;
   var slot = 10 * t + i;
@@ -272,13 +272,16 @@ export function computeMonumentROGbonus(t, i, saveData) {
 
   var holeozDN = 1;
   if (i !== 9) {
-    holeozDN = 1 + computeMonumentROGbonus(t, 9, saveData) / 100 + computeCosmoBonus(0, 0, saveData) / 100;
+    holeozDN = 1 + computeMonumentROGbonus(t, 9, saveData, ext) / 100 + computeCosmoBonus(0, 0, saveData) / 100;
   }
 
+  // Fountain monument boost: BonTOT(t, 13) where t=0 Bravery, 1 Justice, 2 Wisdom
+  var fountMon = (ext && ext.fountMonument && ext.fountMonument[t]) || 0;
+
   if (bonusInfo < 30) {
-    return level * bonusInfo * Math.max(1, holeozDN);
+    return level * bonusInfo * Math.max(1, holeozDN) * (1 + fountMon / 100);
   } else {
-    return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN));
+    return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN)) * (1 + fountMon / 100);
   }
 }
 

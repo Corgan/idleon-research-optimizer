@@ -363,9 +363,10 @@ export function rupieValue(saveData, ext) {
   var cb28 = 1 + collectibleBonus(saveData, 28, lp) / 100;
   var cbAdd = 1 + _cbSum(saveData, [0, 6, 13, 21, 33], lp) / 100;
   var stamp = 1 + (ext.stampCavernRes || 0) / 100;
+  var cglunko = 1 + (ext.cglunko14 || 0) / 100;
 
   return base * ola355 * lamp * monument * meas * evertree * doubler
-       * cb3 * cb17 * cb28 * cbAdd * stamp;
+       * cb3 * cb17 * cb28 * cbAdd * stamp * cglunko;
 }
 
 // Rupie value multiplier breakdown — returns array of [label, value] pairs
@@ -537,7 +538,8 @@ export function enchantChance(saveData, ext) {
     * (1 + collectibleBonus(saveData, 18, lp) / 100)
     * (1 + (ext.bolaia10 || 0) / 100)
     * (1 + collectibleBonus(saveData, 26, lp) / 100)
-    * (1 + collectibleBonus(saveData, 34, lp) / 100);
+    * (1 + collectibleBonus(saveData, 34, lp) / 100)
+    * (1 + (ext.fountBonTOT2_15 || 0) / 100);
 }
 
 // --- Targeted Enchant Chance ---

@@ -43,6 +43,7 @@ export var NODE_GOAL = {
   146:'Minehead', 147:'Minehead', 148:'Minehead', 149:'Glimbo', 166:'Minehead', 150:'Masterclass', 151:'Spelunking', 152:'Class EXP',
   167:'Minehead', 168:'DR Multi', 169:'Glimbo', 170:'All Quick', 171:'Day/Nite', 172:'Clothing', 173:'Drop Rate',
   105:'Sailing', 106:'Artifacts', 188:'Sushi', 189:'Sushi',
+  190:'Cooking',
 };
 export var NODE_GOAL_COLORS = {
   'Res EXP':'var(--green)', 'Res True\u00d7':'#ff6b6b', 'Obs\u00d7Insight':'var(--gold)',

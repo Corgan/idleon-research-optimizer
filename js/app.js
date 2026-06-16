@@ -54,11 +54,11 @@ import { renderSushiTab } from './ui/sushi-ui.js';
 import {
   applySupplements,
   copyStateBox,
-  loadFromPaste,
   loadSaveData,
   loadStateBox,
   toggleStateBox,
 } from './ui/state-io.js';
+import { initSaveLoader } from './ui/save-loader.js';
 
 
 // ===== EVENT HANDLERS =====
@@ -225,16 +225,19 @@ document.getElementById('dt-shape-opacity')?.addEventListener('input', (e) => {
 // Initial render
 renderAll();
 
-// Button handlers (migrated from inline onclick)
-document.getElementById('paste-json-btn')?.addEventListener('click', () => {
-  const wrap = document.getElementById('json-paste-wrap');
-  wrap.style.display = wrap.style.display === 'none' ? 'flex' : 'none';
+// Save loader (standardized bar with auth support)
+initSaveLoader({
+  target: '#save-area',
+  skipLoad: true,
+  onLoad: function(sd, parsed) { loadSaveData(parsed); },
+  auth: true
 });
+
+// Button handlers (migrated from inline onclick)
 document.getElementById('export-state-btn')?.addEventListener('click', () => toggleStateBox('export'));
 document.getElementById('import-state-btn')?.addEventListener('click', () => toggleStateBox('import'));
 document.getElementById('state-box-copy')?.addEventListener('click', () => copyStateBox());
 document.getElementById('state-box-load')?.addEventListener('click', () => loadStateBox());
-document.getElementById('paste-load-btn')?.addEventListener('click', () => loadFromPaste());
 document.getElementById('supplements-apply-btn')?.addEventListener('click', () => applySupplements());
 document.getElementById('comp-select-all')?.addEventListener('change', (e) => {
   document.querySelectorAll('.comp-toggle').forEach(cb => { cb.checked = e.target.checked; });

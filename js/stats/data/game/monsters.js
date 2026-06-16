@@ -3281,17 +3281,17 @@ export var MONSTERS = {
     ]
   },
   "caveD": {
-    "Name": "Shimmer_Glunko",
+    "Name": "Crystal_Glunko",
     "AFKtype": "FIGHTING",
-    "MonsterFace": 89,
+    "MonsterFace": 116,
     "MonsterOffsetX": 34,
     "MonsterOffsetY": 49,
     "HeightOfMonster": 90,
     "MonsterMoving": 1,
     "MovingFrame": 10,
     "DeathFrame": 22,
-    "RespawnTime": 45,
-    "MonsterHPTotal": 10000000,
+    "RespawnTime": 30,
+    "MonsterHPTotal": 10000000000000000000,
     "SpecialType": "_",
     "ExpGiven": 10000,
     "ExpType": 0,
@@ -3841,14 +3841,14 @@ export var MONSTERS = {
     "MovingFrame": 10,
     "DeathFrame": 21,
     "RespawnTime": 45,
-    "MonsterHPTotal": 1e+37,
+    "MonsterHPTotal": 7.5e+32,
     "SpecialType": "_",
-    "ExpGiven": 300000000000,
+    "ExpGiven": 15000000000000,
     "ExpType": 0,
-    "Defence": 2500000,
+    "Defence": 1000000000,
     "MoveSPEED": 4,
     "Damages": [
-      600000,
+      600000000,
       1
     ]
   },
@@ -5766,6 +5766,28 @@ export var MONSTERS = {
       1
     ]
   },
+  "fm_frog": {
+    "Name": "Abacus_Frog",
+    "AFKtype": "FIGHTING",
+    "MonsterFace": 23,
+    "MonsterOffsetX": 38,
+    "MonsterOffsetY": 47,
+    "HeightOfMonster": 60,
+    "MonsterMoving": 1,
+    "MovingFrame": 9,
+    "DeathFrame": 18,
+    "RespawnTime": 40,
+    "MonsterHPTotal": 14000,
+    "SpecialType": "_",
+    "ExpGiven": 420,
+    "ExpType": 0,
+    "Defence": 1,
+    "MoveSPEED": 4,
+    "Damages": [
+      2,
+      1
+    ]
+  },
   "T1a": {
     "Name": "Bronze_Champion_Ram",
     "AFKtype": "FIGHTING",
@@ -5829,6 +5851,72 @@ export var MONSTERS = {
     "MoveSPEED": 6,
     "Damages": [
       2500,
+      1
+    ]
+  },
+  "T2a": {
+    "Name": "Bronze_Champion_Troll",
+    "AFKtype": "FIGHTING",
+    "MonsterFace": 79,
+    "MonsterOffsetX": 34,
+    "MonsterOffsetY": 49,
+    "HeightOfMonster": 60,
+    "MonsterMoving": 1,
+    "MovingFrame": 9,
+    "DeathFrame": 20,
+    "RespawnTime": 58,
+    "MonsterHPTotal": 20000000000,
+    "SpecialType": "_",
+    "ExpGiven": 7000000,
+    "ExpType": 0,
+    "Defence": 90000,
+    "MoveSPEED": 6,
+    "Damages": [
+      80000,
+      1
+    ]
+  },
+  "T2b": {
+    "Name": "Silver_Champion_Troll",
+    "AFKtype": "FIGHTING",
+    "MonsterFace": 79,
+    "MonsterOffsetX": 34,
+    "MonsterOffsetY": 49,
+    "HeightOfMonster": 60,
+    "MonsterMoving": 1,
+    "MovingFrame": 9,
+    "DeathFrame": 20,
+    "RespawnTime": 58,
+    "MonsterHPTotal": 20000000000,
+    "SpecialType": "_",
+    "ExpGiven": 7000000,
+    "ExpType": 0,
+    "Defence": 90000,
+    "MoveSPEED": 6,
+    "Damages": [
+      80000,
+      1
+    ]
+  },
+  "T2c": {
+    "Name": "Gold_Champion_Troll",
+    "AFKtype": "FIGHTING",
+    "MonsterFace": 79,
+    "MonsterOffsetX": 34,
+    "MonsterOffsetY": 49,
+    "HeightOfMonster": 60,
+    "MonsterMoving": 1,
+    "MovingFrame": 9,
+    "DeathFrame": 20,
+    "RespawnTime": 58,
+    "MonsterHPTotal": 20000000000,
+    "SpecialType": "_",
+    "ExpGiven": 7000000,
+    "ExpType": 0,
+    "Defence": 90000,
+    "MoveSPEED": 6,
+    "Damages": [
+      80000,
       1
     ]
   },

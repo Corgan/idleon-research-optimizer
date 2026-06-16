@@ -115,7 +115,7 @@ function recalc() {
 
   document.getElementById('dr-total').textContent = tree.val.toFixed(2) + 'x';
   document.getElementById('dr-sub').textContent =
-    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + '  ·  Map: ' + (MapDispName[CUR_MAP] || CUR_MAP).replace(/_/g, ' ');
+    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + '  ï¿½  Map: ' + (MapDispName[CUR_MAP] || CUR_MAP).replace(/_/g, ' ');
 
   var renderRoot = toRenderNode(tree);
   renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });

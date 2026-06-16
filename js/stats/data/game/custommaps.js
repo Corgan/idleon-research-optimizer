@@ -3110,6 +3110,50 @@ export var DropTables = {
       "1",
       "N/A"
     ]
+  ],
+  "DropTable39": [
+    [
+      "COIN",
+      "0",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape6",
+      "0.000001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape7",
+      "0.0000001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape8",
+      "0.00000001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape9",
+      "0.000000001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape10",
+      "0.0000000001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape11",
+      "0.00000000001",
+      "1",
+      "N/A"
+    ]
   ]
 };
 
@@ -4839,8 +4883,10 @@ export var GemPopupBundleMessages = {
   "bon_u": "...and_at_the_end_of_the_rainbow,_you_found_this_cute_lil'_Potluck_pet!_This_pack_also_boosts_EVERY_Vault_Upgrade_max_LV,_apart_from_those_with_Max_LV_1_of_course._Tap_to_take_a_look!",
   "bon_v": "TWO_exclusive_items,_and_edible_ones_at_that!_You'll_get_the_Eggroll_pet_AND_the_Dragonroll_cape_from_this_here_bundle!_Tap_to_take_a_look!",
   "ban_a": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!",
-  "ban_b": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!",
-  "ban_c": "Happy_birthday!_5,555_gems_for_a_special_5th_anniversary_offer,_not_to_mention_that_sweet_Wicker_Spirit_pet!_Tap_to_take_a_look!"
+  "ban_b": "Issa_Smokey_Boi!",
+  "ban_c": "Beeg_egggg,_buy_buy_buuuuuy_yees!!!",
+  "ban_d": "BOO!_Spooked_ya!_This_pack_marks_the_first_time_you_could_collect_all_5_unique_Rift_Monsters_as_pets..._Slug,_Jocund,_Hivemind,_Stalker,_and_now_SPOOKER!_Tap_to_take_a_look!",
+  "ban_e": "Sir,_another_Glunko_has_arrived_in_IdleOn..._the_CRYSTAL_GLUNKO!_Big,_Blue,_Beautiful,_this_creature_will_serve_you_well_in_the_years_to_come!_Click_to_check_it_out!"
 };
 
 export var GemShopExtraDisplay = {
@@ -12436,8 +12482,50 @@ export var MonsterDrops = {
       "N/A"
     ],
     [
-      "SpiD3",
-      "0",
+      "CardsH17",
+      "0.05",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape0",
+      "0.1",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape1",
+      "0.02",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape2",
+      "0.005",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape3",
+      "0.001",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape4",
+      "0.0002",
+      "1",
+      "N/A"
+    ],
+    [
+      "HoleGshape5",
+      "0.00001",
+      "1",
+      "N/A"
+    ],
+    [
+      "DropTable39",
+      "1",
       "1",
       "N/A"
     ]
@@ -13194,18 +13282,24 @@ export var MonsterDrops = {
     [
       "COIN",
       "0.5",
-      "1100000",
+      "2000000000.0",
       "N/A"
     ],
     [
       "w7B12",
-      "0.0010",
+      "0.00010",
+      "1",
+      "N/A"
+    ],
+    [
+      "w7B12b",
+      "0.000000001",
       "1",
       "N/A"
     ],
     [
       "CardsJ24",
-      ".0000001",
+      ".00000003",
       "1",
       "N/A"
     ],
@@ -18758,6 +18852,7 @@ export var PetIDtoBundle = {
   "36": "bon_n",
   "49": "bon_l",
   "51": "bon_p",
+  "87": "ban_d",
   "135": "ban_c",
   "143": "bon_s",
   "145": "bon_v",

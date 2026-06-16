@@ -186,6 +186,7 @@ export default createDescriptor({
 
     // 13-19. Grid bonuses (additive, game source confirmed)
     items.push(_gbItem(50));
+    items.push(_gbItem(51));
     items.push(_gbItem(90));
     items.push(_gbItem(110));
     items.push(_gbItem(112));
@@ -227,6 +228,18 @@ export default createDescriptor({
 
     var rog0val = rogBonusQTY(0, saveData.cachedUniqueSushi);
     multItems.push({ name: 'Sushi RoG (2x)', val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
+
+    // Cglunko upgrade 11: Research EXP boost (perLv=1)
+    var _cg11Lv = Number(saveData.olaData && saveData.olaData[641]) || 0;
+    var _cg11 = _cg11Lv * 1;
+    if (_cg11 > 0) multItems.push({ name: 'Glunko Research', val: 1 + _cg11 / 100, fmt: 'x', note: 'Cglunko upgrade 11, Lv ' + _cg11Lv });
+
+    // Fountain W2U16 (Pen N Paper): Research EXP boost (bonPerLv=1)
+    var _fLv2_16 = Number(saveData.holesData && saveData.holesData[31] && saveData.holesData[31][2] && saveData.holesData[31][2][16]) || 0;
+    var _fMlv2_16 = Number(saveData.holesData && saveData.holesData[32] && saveData.holesData[32][2] && saveData.holesData[32][2][16]) || 0;
+    var _fMb = _fMlv2_16 <= 0 ? 1 : 1.5 + 0.5 * _fMlv2_16;
+    var _fBon2_16 = Math.round(_fMb * _fLv2_16 * 1);
+    if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'W2U16, Lv ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ' (M' + _fMlv2_16 + ')' : '') });
 
     // ---- Build result ----
     var children = [];

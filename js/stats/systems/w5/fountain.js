@@ -12,14 +12,13 @@ import { DeathNoteMobs, MapAFKtarget, MapDetails, NinjaInfo } from '../../data/g
 // ========== CONSTANTS ==========
 export var WATER_NAMES = ['Blue', 'Yellow', 'Green'];
 export var WATER_COLORS = ['#64b5f6', '#ffe066', '#a5d6a7'];
-export var WATERS_IMPLEMENTED = 2;
-export function setWatersImplemented(n) { WATERS_IMPLEMENTED = n; }
+export var WATERS_IMPLEMENTED = 3;
 export var CURRENCY_NAMES = [
   'Bronze Coins', 'Silver Coins', 'Golden Coins',
   'Dollar Bills', 'Credit Bills', 'Treasury Bills',
   'Moolah Stacks', 'Shilling Stacks', 'Greane Stacks'
 ];
-var BAR_FILL_TIMES = [7200, 36000, 86400]; // seconds: 2h, 10h, 24h
+var BAR_FILL_TIMES = [7200, 36000, 90000]; // seconds: 2h, 10h, 25h
 
 // ========== UPG_DATA ==========
 // Format: [name, prereqIdx, xy, currencyTypeIdx, baseCost, costScale, bonPerLv, description]
@@ -56,7 +55,7 @@ export var UPG_DATA = [
     ['In Gov We Trust',9,'190,160',5,1,1.15,1,'You can now find Treasury Bills.'],
     ["Stackin' Creds",3,'300,80',3,50,1.10,5,'Credit bills are worth }x more.'],
     ["Stackin' T-Bills",4,'134,146',4,100,1.10,5,'Treasury bills are worth }x more.'],
-    ["Stackin' Monayy",0,'41,227',5,250,1.10,5,'Moolah Stacks are worth }x more.'],
+    ["Stackin' Monayy",0,'41,227',5,250,1.10,1,'Moolah Stacks are worth }x more.'],
     ['Royal Stacks',5,'238,97',3,100,1.15,1,'1 in $ chance for a currency stack to become royal when the fountain fills.'],
     ['Regal Riches',8,'249,153',4,250,1.25,10,'Royal stacks are worth $x more.'],
     ['Marble Filling',-1,'463,113',2,50000,1.10,5,'Adds a new fountain bar which when filled creates $ marble.'],
@@ -70,28 +69,28 @@ export var UPG_DATA = [
     ['Better Poppy',17,'711,92',5,1500,1.10,5,'Permanently boost Fish Generation rate at Poppy by }x'],
     ['Sharp Surrogate',6,'79,157',5,10000,1.20,1,'Dollar, Credit, and Treasury bills are worth +{% more per POW 10 Sharp Notes you have.'],
   ],
-  // Water 2 (Green) — mostly placeholder
+  // Water 2 (Green/Red)
   [
-    ['Black Water','?','X',8,1,1.1,3,'Unlock Black Water. Also, }x Currency Value!'],
-    ['Currency Booster III','?','X',6,1,1.1,30,'All currencies are worth +{% more.'],
-    ['Moolah Discovery','?','X',6,1,1.1,0,'You can now find Moolah Stacks.'],
-    ['Shilling Discovery','?','X',7,1,1.1,0,'You can now find Shilling Stacks.'],
-    ['Greane Discovery','?','X',8,1,1.1,0,'You can now find Greane Stacks.'],
-    ["Stackin' Shillings",'?','X',6,1,1.1,0,'Shilling Stacks are worth }x more.'],
-    ["Stackin' Greane",'?','X',7,1,1.1,0,'Greane Stacks are worth }x more.'],
-    ["Stackin' Oldmoney",'?','X',8,1,1.1,0,'Oldmoney Stacks are worth }x more.'],
-    ['Lucky Coins','?','X',7,1,1.1,0,'1 in $ chance for a currency to be LUCKY, multiplying its value forever!'],
-    ['Lucky Boost','?','X',8,1,1.1,0,'Boosts the LUCKY multi by +{%.'],
-    ['Rubber Ducky Chance','?','X',9,1,1.1,0,'Royal stacks boost Rubber Ducky and LUCKY coin chances by +{%'],
-    ['Rubber Ducky Value','?','X',7,1,1.1,0,'Rubber Duckies multiply the value of all coins by $x.'],
-    ['Ducky Bar','?','X',6,1,1.1,0,'Adds a new fountain bar which when filled has a 1 in $ chance of adding a Rubber Ducky.'],
-    ['Wisdom Monument','?','X',7,1,1.1,0,'All Wisdom Monument bonuses are }x larger.'],
-    ["Minau's Discount",'?','X',6,1,1.1,0,"Minau's upgrades are }x cheaper."],
-    ['Jar Enchant','?','X',7,1,1.1,0,'Your Enchant chance at The Jar is }x larger.'],
-    ['Research EXP','?','X',6,1,1.1,0,'Boosts Research EXP gain by }x'],
-    ['Masterclass Drops','?','X',8,1,1.1,0,'All Masterclass Drops are }x larger'],
-    ['Bubba Boost','?','X',7,1,1.1,0,"Permanently boost Meat Slice Production at Bubba by }x"],
-    ['Red Rupie Transience','?','X',7,1,1.1,0,'Moolah, Shilling, and Greane stacks worth +{% more per POW 10 Red Rupie.'],
+    ['Red Water',6,'53,142',8,1000000000,1.50,3,"Unlock Red Water. Also, }x Currency Value!"],
+    ['Currency Booster III',5,'154,209',6,10000000,1.70,30,'All currencies are worth +{% more.'],
+    ['Moolahleluja',12,'390,151',6,5000,1.40,1,'You can now find Moolah Stacks.'],
+    ['Shillin Grillin',8,'275,209',7,20000,1.60,1,'You can now find Shilling Stacks.'],
+    ['Rob Greane',1,'95,230',8,100000,1.80,1,'You can now find Greane Stacks.'],
+    ["Stackin' Shillin",3,'217,225',6,50000,1.30,1,'Shilling Stacks are worth }x more.'],
+    ["Stackin' Gbacks",4,'33,199',7,200000,1.50,1,'Greane Stacks are worth }x more.'],
+    ["Stackin' Funds",19,'121,142',8,1000000,1.70,1,'Oldmoney Stacks are worth }x more.'],
+    ["Luck fo' REAL",2,'333,181',6,10000,1.50,1,'1 in $ chance for a currency to be LUCKY, multiplying its value forever!'],
+    ['Skilluck',11,'364,64',8,350000,1.90,1,'Boosts bonus of each LUCKY coin to +$%.'],
+    ['Lucky Ducky',11,'247,127',8,100000,1.70,1,'Boost Rubber Ducky and LUCKY coin chance by +{%'],
+    ['Ducktactular',8,'309,106',7,10000,1.50,1,'Your Rubber Duckies each boost the value of all coins by }x.'],
+    ['Rubber Ducky',-1,'447,117',5,10000000,10.00,5,'Adds a new fountain bar which when filled has a 1 in $ chance of giving +1 Rubber Ducky.'],
+    ['Wisdom Boost',18,'640,136',7,10000,50.00,1,'All Wisdom Monument bonuses are }x larger.'],
+    ["Minau's Costs",12,'505,82',6,15000,8.50,1,"Minau the Villager's upgrades are }x cheaper."],
+    ['Enchanterest',17,'685,74',7,25000,4.00,1,'Your Enchant chance at The Jar is }x larger.'],
+    ['Pen N Paper',14,'565,94',6,50000,20.00,1,'Boosts Research EXP gain by }x'],
+    ['Cook Maxxing',16,'623,61',8,100000,6.20,1,'Boosts Cooking Mastery EXP gain by }x.'],
+    ['Bubba Forever',15,'706,133',7,250000,5.40,2,'Permanently boost Meat Slice Production at Bubba by }x'],
+    ['Rupie Monie',1,'185,149',7,1000000,2.50,1,'Moolah, Shilling, and Greane stacks worth +{% more per POW 10 Red Rupie.'],
   ],
 ];
 
@@ -234,7 +233,7 @@ export function bonTOT(uLvs, mLvs, w, u) {
   var lv = uLvs[w][u] || 0;
   var mLv = mLvs[w][u] || 0;
   var bonPerLv = UPG_DATA[w][u][6] || 0;
-  return marbleBon(mLv) * lv * bonPerLv;
+  return Math.round(marbleBon(mLv) * lv * bonPerLv);
 }
 
 export function opalCost(fLv) {
@@ -249,7 +248,8 @@ export function upgCost(w, u, currentLv) {
   return baseCost * Math.pow(costScale, currentLv);
 }
 
-export function marbleCost(u, mLv) {
+export function marbleCost(w, u, mLv) {
+  if (w >= 2) return 250000 * Math.pow(2 * (5 + mLv), mLv);
   if (u === 13) return 1500 * Math.pow(10 + 5 * mLv, mLv);
   return 500 * Math.pow(5 + mLv, mLv);
 }
@@ -321,6 +321,13 @@ function _bellBonus(saveData, idx) {
   var lv = Number(_h(saveData, 17)[idx]) || 0;
   var HI59_PERLV = [10, 0.5, 10, 0.3, 0.5, 2.0, 0.2];
   return lv * (HI59_PERLV[idx] || 0);
+}
+
+// Cglunko upgrade bonuses: OLA[630+t] * perLv[t]
+var _CGLUNKO_PERLV = [1,20,2,10,5,1,1,3,1,10,2,1,25,3,10,100,10,100,3,1,5,150,2,1];
+function _cglunkoUpgBon(saveData, t) {
+  var lv = Number(saveData.olaData?.[630 + t]) || 0;
+  return lv * (_CGLUNKO_PERLV[t] || 0);
 }
 
 function _lampBonus99(saveData) {
@@ -419,7 +426,7 @@ export function currencyKeep(uLvs, mLvs) {
 }
 
 export function royalChance(uLvs, mLvs) {
-  return 0.003333 * (1 + bonTOT(uLvs, mLvs, 1, 8) / 100);
+  return (1 / 300) * (1 + bonTOT(uLvs, mLvs, 1, 8) / 100);
 }
 
 export function royalMulti(uLvs, mLvs) {
@@ -428,6 +435,67 @@ export function royalMulti(uLvs, mLvs) {
 
 export function desireMulti(uLvs, mLvs) {
   return 1 + bonTOT(uLvs, mLvs, 1, 11) / 100;
+}
+
+// ========== LUCKY COIN SYSTEM (Green Water) ==========
+// Holes[30][t] = number of lucky coins collected for currency type t
+export function luckyCoinCount(saveData, t) {
+  return Math.max(0, Number((saveData.holesData[30] || [])[0 | t]) || 0);
+}
+
+// Chance of a collected currency being "lucky" (permanently boosting that type).
+// 0 if Luck fo' REAL (W2U8) hasn't been bought.
+// Each lucky coin of the same type makes the next 4x rarer.
+export function luckyCoinChance(saveData, uLvs, mLvs, t) {
+  var base = bonTOT(uLvs, mLvs, 2, 8);
+  if (base === 0) return 0;
+  var boost = bonTOT(uLvs, mLvs, 2, 10); // Lucky Ducky
+  var count = luckyCoinCount(saveData, t);
+  return 0.001 * (1 + (base + boost) / 100) * Math.pow(0.25, count);
+}
+
+// Per-lucky-coin value bonus (%).
+export function luckyCoinValuePer(uLvs, mLvs) {
+  return 25 + bonTOT(uLvs, mLvs, 2, 9); // Skilluck
+}
+
+// Total lucky coin multiplier for currency type t.
+export function luckyCoinValue(saveData, uLvs, mLvs, t) {
+  var count = luckyCoinCount(saveData, t);
+  if (count <= 0) return 1;
+  return 1 + count * luckyCoinValuePer(uLvs, mLvs) / 100;
+}
+
+// ========== RUBBER DUCK SYSTEM (Green Water) ==========
+// OptionsListAccount[601] = number of rubber ducks owned
+export function duckCount(saveData) {
+  return Number(saveData.olaData?.[601]) || 0;
+}
+
+// Chance per duck bar fill of getting +1 duck.
+// 0.333 base, boosted by Rubber Ducky (W2U12) + Lucky Ducky (W2U10).
+// Each existing duck makes next 5x rarer.
+export function duckChance(saveData, uLvs, mLvs) {
+  var boost = bonTOT(uLvs, mLvs, 2, 12) + bonTOT(uLvs, mLvs, 2, 10);
+  var count = duckCount(saveData);
+  return (1 / 3) * (1 + boost / 100) * Math.pow(0.2, count);
+}
+
+// Multiplier from rubber ducks on all currency value.
+// Each duck: (1 + Ducktactular%/100)^duckCount
+export function duckMulti(saveData, uLvs, mLvs) {
+  var count = duckCount(saveData);
+  if (count <= 0) return 1;
+  return Math.pow(1 + bonTOT(uLvs, mLvs, 2, 11) / 100, count);
+}
+
+// Duck bar fill time (seconds) and progress.
+export function duckBarFillTime() {
+  return BAR_FILL_TIMES[2]; // 90000s = 25h
+}
+
+export function duckBarProgress(saveData) {
+  return Number((saveData.holesData[33] || [])[2]) || 0;
 }
 
 export function currencyFountainMulti(uLvs, mLvs) {
@@ -439,16 +507,18 @@ export function currencyFountainMulti(uLvs, mLvs) {
   return (1 + w0 / 100) * (1 + boosters / 100) * (1 + w1 / 100) * (1 + w2 / 100);
 }
 
-export function currencyExternalMulti(saveData) {
+export function currencyExternalMulti(saveData, ext) {
+  var cglunko14 = _cglunkoUpgBon(saveData, 14) || (ext && ext.cglunko14) || 0;
   return Math.max(1, _bUpg(saveData, 94, 1) * Math.pow(1.1, _motherlodeLv3(saveData)))
+    * (1 + cglunko14 / 100)
     * (1 + 25 * _cosmoBonus(saveData, 0, 4) / 100)
     * (1 + _lampBonus99(saveData) / 400)
     * (1 + _measBonus(saveData, 16) / 100)
     * (1 + _bellBonus(saveData, 6) / 100);
 }
 
-export function currencyAllMulti(saveData, uLvs, mLvs) {
-  return currencyFountainMulti(uLvs, mLvs) * currencyExternalMulti(saveData);
+export function currencyAllMulti(saveData, uLvs, mLvs, ext) {
+  return currencyFountainMulti(uLvs, mLvs) * currencyExternalMulti(saveData, ext);
 }
 
 // Returns breakdown tree data for all multipliers
@@ -468,6 +538,7 @@ export function multiBreakdown(saveData, uLvs, mLvs) {
   var lamp99 = _lampBonus99(saveData);
   var meas16 = _measBonus(saveData, 16);
   var bell6 = _bellBonus(saveData, 6);
+  var cglunko14 = _cglunkoUpgBon(saveData, 14);
 
   return {
     fountain: {
@@ -486,28 +557,39 @@ export function multiBreakdown(saveData, uLvs, mLvs) {
       lamp: 1 + lamp99 / 400, lamp99: lamp99,
       meas: 1 + meas16 / 100, meas16: meas16,
       bell: 1 + bell6 / 100, bell6: bell6,
+      cglunko: 1 + cglunko14 / 100, cglunko14: cglunko14,
     },
     allMulti: currencyAllMulti(saveData, uLvs, mLvs),
     royal: { total: royalMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 9) },
     desire: { total: desireMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 11) },
     royalChance: { total: royalChance(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 8) },
     keep: { total: currencyKeep(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 0, 8) },
+    lucky: {
+      valuePer: luckyCoinValuePer(uLvs, mLvs),
+      counts: [0,1,2,3,4,5,6,7,8].map(function(t) { return luckyCoinCount(saveData, t); }),
+    },
+    duck: {
+      count: duckCount(saveData),
+      multi: duckMulti(saveData, uLvs, mLvs),
+      chance: duckChance(saveData, uLvs, mLvs),
+    },
   };
 }
 
 export function currencyBaseValue(saveData, uLvs, mLvs, t) {
   var mythrilLog = 1 + getLOG(Number(_h(saveData, 9)[3]) || 0) * bonTOT(uLvs, mLvs, 0, 19) / 100;
   var sharpLog  = 1 + getLOG(Number(_h(saveData, 9)[16]) || 0) * bonTOT(uLvs, mLvs, 1, 19) / 100;
+  var rupieLog  = 1 + getLOG(Number(_h(saveData, 9)[20]) || 0) * bonTOT(uLvs, mLvs, 2, 19) / 100;
   switch (t) {
     case 0: return 1 + bonTOT(uLvs, mLvs, 0, 2) * (1 + bonTOT(uLvs, mLvs, 0, 2) / 100) * mythrilLog;
     case 1: return 1 + bonTOT(uLvs, mLvs, 0, 3) * (1 + bonTOT(uLvs, mLvs, 0, 5) / 100) * mythrilLog;
     case 2: return 1 + bonTOT(uLvs, mLvs, 0, 4) * (1 + bonTOT(uLvs, mLvs, 0, 6) / 100) * mythrilLog;
     case 3: return 1 + bonTOT(uLvs, mLvs, 1, 2) * (1 + bonTOT(uLvs, mLvs, 0, 7) / 100) * sharpLog;
     case 4: return 1 + bonTOT(uLvs, mLvs, 1, 3) * (1 + bonTOT(uLvs, mLvs, 1, 5) / 100) * sharpLog;
-    case 5: return 1 + bonTOT(uLvs, mLvs, 1, 4) * (1 + bonTOT(uLvs, mLvs, 1, 5) / 100) * sharpLog;
-    case 6: return 1 + bonTOT(uLvs, mLvs, 2, 2) * (1 + bonTOT(uLvs, mLvs, 1, 6) / 100);
-    case 7: return 1 + bonTOT(uLvs, mLvs, 2, 3) * (1 + bonTOT(uLvs, mLvs, 1, 7) / 100);
-    case 8: return 1 + bonTOT(uLvs, mLvs, 2, 4);
+    case 5: return 1 + bonTOT(uLvs, mLvs, 1, 4) * (1 + bonTOT(uLvs, mLvs, 1, 6) / 100) * sharpLog;
+    case 6: return 1 + bonTOT(uLvs, mLvs, 2, 2) * (1 + bonTOT(uLvs, mLvs, 1, 7) / 100) * rupieLog;
+    case 7: return 1 + bonTOT(uLvs, mLvs, 2, 3) * (1 + bonTOT(uLvs, mLvs, 2, 5) / 100) * rupieLog;
+    case 8: return 1 + bonTOT(uLvs, mLvs, 2, 4) * (1 + bonTOT(uLvs, mLvs, 2, 6) / 100) * rupieLog;
     default: return 1;
   }
 }
@@ -515,8 +597,16 @@ export function currencyBaseValue(saveData, uLvs, mLvs, t) {
 export function currencyTotalValue(saveData, uLvs, mLvs, t, desired) {
   var base = currencyBaseValue(saveData, uLvs, mLvs, t);
   var allM = currencyAllMulti(saveData, uLvs, mLvs);
-  var desire = (t === desired) ? desireMulti(uLvs, mLvs) : 1;
-  return base * allM * desire;
+  var desM = desireMulti(uLvs, mLvs);
+  var lucky = luckyCoinValue(saveData, uLvs, mLvs, t);
+  var duck = duckMulti(saveData, uLvs, mLvs);
+  if (t >= 6) {
+    // Green currencies: desire always applies (inside sqrt)
+    return Math.pow(desM * base * allM, 0.5) * lucky * duck;
+  }
+  // Blue/yellow: desire only when selected
+  var desire = (t === desired) ? desM : 1;
+  return desire * base * allM * lucky * duck;
 }
 
 export function currencyUnlocked(uLvs, mLvs, t) {
@@ -544,7 +634,12 @@ export function watersOwned(uLvs, mLvs) {
   var n = 0;
   if (bonTOT(uLvs, mLvs, 0, 0) >= 1) n++;
   if (bonTOT(uLvs, mLvs, 1, 0) >= 1) n++;
+  if (bonTOT(uLvs, mLvs, 2, 0) >= 1) n++;
   return Math.min(n, WATERS_IMPLEMENTED);
+}
+
+export function duckBarUnlocked(uLvs, mLvs) {
+  return (uLvs[2][12] || 0) >= 1; // Rubber Ducky (W2U12)
 }
 
 // ========== PLANNER/OPTIMIZER HELPERS ==========

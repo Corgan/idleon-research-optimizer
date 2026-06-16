@@ -170,7 +170,7 @@ function runSim(cfg) {
   // marbleTarget: from _findBestMarbleTarget(), for discounting optGain-only upgrades
   function _scoreMarble(w, u, rates, marbleTarget) {
     var mLv  = simMLvs[w][u] || 0;
-    var cost = F.marbleCost(u, mLv);
+    var cost = F.marbleCost(w, u, mLv);
     var have = marbles;
     var remaining = Math.max(0, cost - have);
 
@@ -255,7 +255,7 @@ function runSim(cfg) {
           if ((simULvs[w][u] || 0) <= 0) continue;
           if (!F.canMarble(w, u)) continue;
           var mLv = simMLvs[w][u] || 0;
-          var cost = F.marbleCost(u, mLv);
+          var cost = F.marbleCost(w, u, mLv);
           if (marbles < cost) continue;
           var c = _scoreMarble(w, u, rates, mt);
           if (c.score > bestScore) {
@@ -348,7 +348,7 @@ function runSim(cfg) {
               if ((simULvs[mw][mu] || 0) <= 0) continue;
               if (!F.canMarble(mw, mu)) continue;
               var mLv = simMLvs[mw][mu] || 0;
-              var mCost = F.marbleCost(mu, mLv);
+              var mCost = F.marbleCost(mw, mu, mLv);
               if (marbles < mCost) continue;
               var mc = _scoreMarble(mw, mu, rates, null);
               if (mc.score > bestMS) { bestMS = mc.score; bestMC = mc; }

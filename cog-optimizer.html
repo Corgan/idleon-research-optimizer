@@ -19,18 +19,7 @@ h1 span { color: var(--accent); }
 .subtitle { text-align: center; color: var(--text2); font-size: .85em; margin-bottom: 0; padding: 8px 0; background: var(--bg2); }
 .container { max-width: 960px; margin: 0 auto; padding: 16px 12px 40px; }
 
-/* Save import */
-#save-area { padding: 16px; display: flex; gap: 12px; align-items: center; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
-#save-area label { font-weight: 600; }
-#save-area input[type="file"] { color: var(--text2); }
-.btn { padding: 6px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85em; }
-.btn:hover { filter: brightness(1.2); }
-.btn-sm { padding: 4px 10px; font-size: .8em; }
-#import-msg { font-size: .82em; margin-left: 8px; }
-#import-msg.ok { color: var(--green); }
-#import-msg.err { color: var(--red); }
-#json-paste-wrap { display: none; padding: 0 16px 12px; background: var(--bg2); gap: 8px; align-items: flex-start; }
-#json-paste { flex: 1; min-width: 0; background: #111; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; color: var(--text); font-size: .8em; font-family: monospace; resize: vertical; }
+
 
 /* Row 1: stat cards */
 .stats-row { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -257,7 +246,7 @@ h1 span { color: var(--accent); }
 .cog-cell.dir-highlight { box-shadow: 0 0 0 2px var(--cyan); z-index: 1; }
 .cog-cell.dir-source { box-shadow: 0 0 0 2px var(--gold); z-index: 2; }
 
-/* Board analysis highlights — corner triangles */
+/* Board analysis highlights ï¿½ corner triangles */
 .cog-cell.cog-weakest::after,
 .cog-cell.cog-best::after {
   content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0;
@@ -326,17 +315,7 @@ h1 span { color: var(--accent); }
 <h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x2699; <span>IdleOn</span> Cog Board Optimizer</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
 <p class="subtitle">Optimize cog placement for Build Speed, Flaggy Rate, or Player XP</p>
 
-<div id="save-area">
-  <label>Load save:</label>
-  <input type="file" id="file-input" accept=".json">
-  <span style="color:var(--text2);margin:0 4px;">or</span>
-  <button class="btn btn-sm" id="paste-btn">Paste JSON</button>
-  <span id="import-msg"></span>
-</div>
-<div id="json-paste-wrap">
-  <textarea id="json-paste" rows="3" placeholder="Paste it.json or save.json contents here..."></textarea>
-  <button class="btn" id="btn-import">Load</button>
-</div>
+<div id="save-area"></div>
 
 <div class="container">
 
@@ -345,17 +324,17 @@ h1 span { color: var(--accent); }
   <div class="stats-row">
     <div class="stat-card" data-stat="build" onclick="toggleStatOverlay('build')">
       <div class="label">Build Speed</div>
-      <div class="val" id="stat-build" style="color:var(--cyan)">—</div>
+      <div class="val" id="stat-build" style="color:var(--cyan)">ï¿½</div>
       <div class="sub" id="stat-build-sub"></div>
     </div>
     <div class="stat-card" data-stat="conexp" onclick="toggleStatOverlay('conexp')">
       <div class="label">Con EXP/hr</div>
-      <div class="val" id="stat-conexp" style="color:var(--gold)">—</div>
+      <div class="val" id="stat-conexp" style="color:var(--gold)">ï¿½</div>
       <div class="sub" id="stat-conexp-sub"></div>
     </div>
     <div class="stat-card" data-stat="flaggy" onclick="toggleStatOverlay('flaggy')">
       <div class="label">Flaggy Rate</div>
-      <div class="val" id="stat-flaggy" style="color:var(--green)">—</div>
+      <div class="val" id="stat-flaggy" style="color:var(--green)">ï¿½</div>
       <div class="sub" id="stat-flaggy-sub"></div>
     </div>
   </div>
@@ -386,12 +365,12 @@ h1 span { color: var(--accent); }
     </div>
     <div class="grade-card" style="grid-column:2">
       <div class="label">Player EXP %</div>
-      <div class="val" id="stat-exppct" style="color:var(--purple)">—</div>
+      <div class="val" id="stat-exppct" style="color:var(--purple)">ï¿½</div>
       <div class="sub" id="stat-exppct-sub"></div>
     </div>
     <div class="grade-card">
       <div class="label">Grade</div>
-      <div class="val" id="board-grade" style="color:var(--gold)">—</div>
+      <div class="val" id="board-grade" style="color:var(--gold)">ï¿½</div>
       <div class="sub" id="board-grade-sub"></div>
     </div>
   </div>
@@ -465,8 +444,9 @@ h1 span { color: var(--accent); }
 <script type="module">
 'use strict';
 
-import { loadSaveData } from './js/save/loader.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
 import { saveData } from './js/state.js';
+import { loadSaveData } from './js/save/loader.js';
 import {
   BOARD_SIZE, BOARD_W, BOARD_H,
   COG_MATRICES, DIR_TO_INDEX,
@@ -516,29 +496,11 @@ function smallCogMinObtainableTier() {
 
 
 /* ========== IMPORT ========== */
-function doImport() {
-  var txt = document.getElementById('json-paste').value.trim();
-  if (!txt) return showMsg('Paste save JSON first', true);
-  try { loadFromParsed(JSON.parse(txt)); }
-  catch (e) { showMsg('Invalid JSON: ' + e.message, true); }
-}
-document.getElementById('btn-import').addEventListener('click', doImport);
-
-document.getElementById('paste-btn').addEventListener('click', function() {
-  var wrap = document.getElementById('json-paste-wrap');
-  wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex';
-});
-
-document.getElementById('file-input').addEventListener('change', function(e) {
-  var file = e.target.files[0]; if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    try { loadFromParsed(JSON.parse(ev.target.result)); }
-    catch (err) { showMsg('Failed to parse file: ' + err.message, true); }
-  };
-  reader.readAsText(file);
-  // Reset so re-importing the same file triggers 'change' again
-  e.target.value = '';
+initSaveLoader({
+  target: '#save-area',
+  skipLoad: true,
+  onLoad: function(sd, parsed) { loadFromParsed(parsed); },
+  auth: true
 });
 
 function loadFromParsed(parsed) {
@@ -562,7 +524,7 @@ function loadFromParsed(parsed) {
     // Daily crystal cog claims: 1 + legendPTSbonus(18) where perPt=2
     var cogLoverLv = Number((saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][18]) || 0);
     DAILY_CRYSTAL_ROLLS = 1 + Math.round(cogLoverLv * 2);
-    // Grid node 69: "Adequate Sized, Actually" — level * 50% chance for +1 tiny cog tier
+    // Grid node 69: "Adequate Sized, Actually" ï¿½ level * 50% chance for +1 tiny cog tier
     var gridLevels = saveData.gridLevels || [];
     GRID69_TIER_UP_PCT = Math.min((Number(gridLevels[69]) || 0) * 50, 100);
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
@@ -596,9 +558,10 @@ function countFilled(board) {
 }
 
 function showMsg(msg, isErr) {
-  var el = document.getElementById('import-msg');
+  var el = document.querySelector('.sl-msg') || document.getElementById('import-msg');
+  if (!el) return;
   el.textContent = msg;
-  el.className = isErr ? 'err' : 'ok';
+  el.className = 'sl-msg ' + (isErr ? 'err' : 'ok');
 }
 
 /* ========== STATS ========== */
@@ -720,7 +683,7 @@ function computeBoardInsights(board, goal) {
     var roll = '';
 
     if (tier >= 0 && tier < 3) {
-      // Low-tier cog — always suggest upgrading to Ulti
+      // Low-tier cog ï¿½ always suggest upgrading to Ulti
       why = 'T' + tier + ' cog (low tier)';
       if (ap) {
         roll = 'Roll Ulti directional with ' + goalSurrLabel + ' \u2265 15%';
@@ -841,7 +804,7 @@ function _rollRangeStats(tier, conLv) {
   function dConvert(v) { return Math.max(Math.floor(Math.pow(Math.max(v,1), 0.4) + 10 * Math.log(Math.max(v,1)) / 2.30259 - 5), 2); }
   var maxD = dConvert(maxV) * maxRolls;
 
-  // Surround ranges — fixed per tier, NOT con-level dependent
+  // Surround ranges ï¿½ fixed per tier, NOT con-level dependent
   // T0: 5-10, T1: 8-15, T2: 12-40, T3: 20-65
   // Crystal: 30-40 + 23*(cryLv+1)
   var surrRanges = [
@@ -1412,7 +1375,7 @@ window.runOptimizer = function() {
       progressFill.style.width = pct + '%';
     } else if (d.type === 'progress') {
       progressFill.style.width = (d.iter / iters * 100).toFixed(0) + '%';
-      statusEl.textContent = 'Phase 2/3: SA — Iter ' + d.iter + '/' + iters + ' | Best: ' + fmtBig(d.best);
+      statusEl.textContent = 'Phase 2/3: SA ï¿½ Iter ' + d.iter + '/' + iters + ' | Best: ' + fmtBig(d.best);
     } else if (d.type === 'done') {
       COG_WORKER.terminate(); COG_WORKER = null;
       var result = d.result;
@@ -1628,11 +1591,11 @@ window.showPerfectBoard = function() {
   // Build a candidate board using layered eviction strategy.
   // 1. Fill all slots with T3 non-directional (base stats only)
   // 2. Place player
-  // 3. T3 directionals — best direction per slot if gain
-  // 4. CogCry5 non-directional — replace non-dir T3 if higher base stats
-  // 5. CogCry5 directional (row/col) — evict if gain (crystal can do e/f, not g)
-  // 6. Excogia 2×2 — evaluated against final board state so eviction cost is accurate
-  // 7. Yang — evict best "around" slot if gain
+  // 3. T3 directionals ï¿½ best direction per slot if gain
+  // 4. CogCry5 non-directional ï¿½ replace non-dir T3 if higher base stats
+  // 5. CogCry5 directional (row/col) ï¿½ evict if gain (crystal can do e/f, not g)
+  // 6. Excogia 2ï¿½2 ï¿½ evaluated against final board state so eviction cost is accurate
+  // 7. Yang ï¿½ evict best "around" slot if gain
   function buildCandidate(pSlot) {
     var board = new Array(BOARD_SIZE);
 
@@ -1673,7 +1636,7 @@ window.showPerfectBoard = function() {
       return false;
     }
 
-    // Layer 3: T3 directionals — try every slot × every direction, pick best
+    // Layer 3: T3 directionals ï¿½ try every slot ï¿½ every direction, pick best
     // Build/flaggy surround benefits ALL cogs, not just the player.
     // ConExp surround (f) only matters at the player, but base stats are the same.
     // tryEvict will only keep it if the surround actually improves the score.
@@ -1713,7 +1676,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 4: CogCry5 non-directional — replace remaining non-dir T3 if higher base stats
+    // Layer 4: CogCry5 non-directional ï¿½ replace remaining non-dir T3 if higher base stats
     for (var i = 0; i < BOARD_SIZE; i++) {
       if (i === pSlot) continue;
       if (board[i].h) continue; // already directional, skip
@@ -1728,7 +1691,7 @@ window.showPerfectBoard = function() {
       tryEvict(i, crFiller);
     }
 
-    // Layer 5: CogCry5 directional (row/col) — crystal can do e/f but not g
+    // Layer 5: CogCry5 directional (row/col) ï¿½ crystal can do e/f but not g
     // Build/conexp surround affects ALL cogs in that row/col, not just the player.
     // Try both row and column at every slot, pick the best direction.
     if (crystalCanSurr) {
@@ -1768,7 +1731,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 6: Excogia 2×2 blocks — evaluated against the final board state.
+    // Layer 6: Excogia 2ï¿½2 blocks ï¿½ evaluated against the final board state.
     // Their "everything" f=20 surround reaches all slots including the player.
     // Scored against fully-placed directionals so the eviction cost is accurate.
     var exNames = ['CogZA00', 'CogZA01', 'CogZA02', 'CogZA03'];
@@ -1813,7 +1776,7 @@ window.showPerfectBoard = function() {
       }
     }
 
-    // Layer 7: Yang — evict best "around" slot if gain
+    // Layer 7: Yang ï¿½ evict best "around" slot if gain
     var yp = 0;
     for (var yi = 0; yi < yangCount; yi++) {
       var bestSlot = -1, bestGain = 0;
@@ -1849,7 +1812,7 @@ window.showPerfectBoard = function() {
     return { board: board, yangPlaced: yp, playerSlot: pSlot };
   }
 
-  // Single "Layered eviction" strategy — tested at every position
+  // Single "Layered eviction" strategy ï¿½ tested at every position
   var strats = [
     { name: 'Layered eviction' },
   ];
@@ -1918,7 +1881,7 @@ window.showPerfectBoard = function() {
   var goalName = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
   var pPos = slotToPos(bestPSlot);
   document.getElementById('opt-status').textContent =
-    'Perfect ' + goalName + ' — ' + bestStratName + ', player (' +
+    'Perfect ' + goalName + ' ï¿½ ' + bestStratName + ', player (' +
     pPos.col + ',' + pPos.row + '), ' + exBlocks + ' excogia, ' +
     bestYangP + ' yang, T10 tiny.';
 
@@ -1949,7 +1912,7 @@ window.showPerfectBoard = function() {
         var gn = goal === 'build' ? 'Build Speed' : goal === 'flaggy' ? 'Flaggy Rate' : 'ConExp';
         var p = slotToPos(sr.pSlot);
         document.getElementById('opt-status').textContent =
-          'Perfect ' + gn + ' — ' + sr.name + ', player (' + p.col + ',' + p.row + '), ' +
+          'Perfect ' + gn + ' ï¿½ ' + sr.name + ', player (' + p.col + ',' + p.row + '), ' +
           exBlocks + ' excogia, ' + sr.yangPlaced + ' yang, T10 tiny.';
         // Highlight active button
         for (var bi = 0; bi < sbBox.children.length; bi++) {
