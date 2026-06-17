@@ -484,6 +484,7 @@ function _renderMultiBreakdown(bd, uLvs, mLvs) {
     { label: 'Lamp Bonus 99 \u2014 ' + fmtNum(ex.lamp99), val: ex.lamp, fmt: 'x' },
     { label: 'Measurement #16 \u2014 ' + fmtNum(ex.meas16) + '%', val: ex.meas, fmt: 'x' },
     { label: 'Bell #6 \u2014 ' + fmtNum(ex.bell6) + '%', val: ex.bell, fmt: 'x' },
+    { label: 'Cglunko #14 \u2014 ' + fmtNum(ex.cglunko14) + '%', val: ex.cglunko, fmt: 'x' },
   ];
 
   var root = {
@@ -1025,6 +1026,7 @@ function _renderAll() {
       var _dc = F.duckCount(saveData);
       var _dm = F.duckMulti(saveData, uLvs, mLvs);
       var _dch = F.duckChance(saveData, uLvs, mLvs);
+      var _dco = F.duckOddsDisplay(_dch);
       var _dbProg = F.duckBarProgress(saveData);
       var _dbFill = F.duckBarFillTime();
       var _dbActiveFill = _dbFill / activeMul;
@@ -1033,7 +1035,7 @@ function _renderAll() {
       var _dbRemainActive = _dbRemainAFK / activeMul;
       html += '<div class="card-grid cols-4">';
       html += _card('Ducks', _dc, 'Currency multi: ' + _dm.toFixed(2) + 'x');
-      html += _card('Next Duck Chance', _dch > 0 ? '1 in ' + fmtNum(Math.round(1 / _dch)) : '-', fmtPct(_dch) + ' per bar fill');
+      html += _card('Next Duck Chance', _dco.ratio !== '-' ? '1 in ' + _dco.ratio.toLocaleString() : '-', _dco.pct + '% per duck bar fill');
       html += _card('Duck Bar', fmtPct(_dbPct), fmtTimeFull(_dbRemainActive) + ' active \u2022 ' + fmtTimeFull(_dbRemainAFK) + ' AFK');
       html += _card('Bar Fill Time', fmtTimeFull(_dbActiveFill), 'AFK: ' + fmtTimeFull(_dbFill) + ' \u2022 ' + activeMul.toFixed(2) + 'x active');
       html += '</div>';

@@ -481,6 +481,17 @@ export function duckChance(saveData, uLvs, mLvs) {
   return (1 / 3) * (1 + boost / 100) * Math.pow(0.2, count);
 }
 
+// Format duck odds as "1 in X (Y%)" with appropriate precision.
+// Shows full odds ratio and percentage to avoid rounding confusion.
+export function duckOddsDisplay(chance) {
+  if (chance <= 0) return { ratio: '-', pct: '-' };
+  var ratio = Math.round(1 / chance);
+  // Use enough decimal places to show meaningful precision (min 2 decimals)
+  var pctValue = chance * 100;
+  var pctStr = pctValue < 0.1 ? pctValue.toFixed(4) : pctValue.toFixed(2);
+  return { ratio: ratio, pct: pctStr };
+}
+
 // Multiplier from rubber ducks on all currency value.
 // Each duck: (1 + Ducktactular%/100)^duckCount
 export function duckMulti(saveData, uLvs, mLvs) {
