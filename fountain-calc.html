@@ -254,6 +254,8 @@ function _renderPlanner(uLvs, mLvs, desired) {
   // Per-currency optimal earn rates: collect only full royal stacks.
   // Crowns accumulate on all spaces (including full). No MBG.
   var _pRc = F.royalChance(uLvs, mLvs);
+  var _pDch = F.duckBarUnlocked(uLvs, mLvs) ? F.duckChance(saveData, uLvs, mLvs) : 0;
+  var _pLcBase = F.luckyCoinBaseChance(uLvs, mLvs);
   var _pRm = F.royalMulti(uLvs, mLvs);
   var _pSizeBon = F._sizeMatterBonus(saveData);
   var _pMaxStack = F.maxStackSize(saveData, uLvs, mLvs);
@@ -316,6 +318,22 @@ function _renderPlanner(uLvs, mLvs, desired) {
         }
       }
 
+      var rcNew = F.royalChance(simLvs, mLvs);
+      var rcDelta = rcNew - _pRc;
+
+      var dchNew = F.duckBarUnlocked(simLvs, mLvs) ? F.duckChance(saveData, simLvs, mLvs) : 0;
+      var dchDelta = dchNew - _pDch;
+
+      var lcDeltas = [];
+      var lcBaseDelta = 0;
+      var _lcBaseNew = F.luckyCoinBaseChance(simLvs, mLvs);
+      lcBaseDelta = _lcBaseNew - _pLcBase;
+      for (var _lt = 0; _lt < 9; _lt++) {
+        var _lcOld = F.luckyCoinChance(saveData, uLvs, mLvs, _lt);
+        var _lcNew = F.luckyCoinChance(saveData, simLvs, mLvs, _lt);
+        lcDeltas.push({ old: _lcOld, new: _lcNew, delta: _lcNew - _lcOld });
+      }
+
       var speedPct = 0, valPct = 0;
       if (_isOptimal) {
         var _newStacks = F.optimalStacksPerHr(saveData, simLvs, mLvs);
@@ -338,6 +356,9 @@ function _renderPlanner(uLvs, mLvs, desired) {
         newVal: newVal,
         fillDiff: fillDiff, marbleFillDiff: marbleFillDiff, duckFillDiff: duckFillDiff,
         currTta: _currTtaSec,
+        rcNew: rcNew, rcDelta: rcDelta,
+        dchNew: dchNew, dchDelta: dchDelta,
+        lcBaseDelta: lcBaseDelta, lcBaseNew: _lcBaseNew, lcDeltas: lcDeltas,
         speedPct: speedPct, valPct: valPct,
       });
     }
@@ -358,7 +379,14 @@ function _renderPlanner(uLvs, mLvs, desired) {
   html += '<th class="num">Cost</th><th class="num">Currency TTA</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   var _hasDuck = baseDuckFill > 0;
+  var _isRoyal = (goal === 'royal');
+  var _isDuck = (goal === 'duck');
+  var _isLucky = (goal === 'lucky');
+  var _isOptimal = (goal === 'optimal');
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>' + (_hasDuck ? '<th class="num">Duck \u0394</th>' : '');
+  if (_isRoyal) html += '<th class="num">Royal \u0394</th>';
+  if (_isDuck) html += '<th class="num">Duck \u0394</th>';
+  if (_isLucky) html += '<th class="num" title="Base lucky coin chance delta (hover rows for per-currency breakdown)">Lucky \u0394</th>';
   if (_isOptimal) html += '<th class="num" title="Fill speed change (stacks/hr)">Speed \u0394</th><th class="num" title="Stack value change (currency × royal × stack bonus)">Value \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
   html += '</tr></thead><tbody>';
@@ -382,6 +410,41 @@ function _renderPlanner(uLvs, mLvs, desired) {
       html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
       if (_hasDuck) html += '<td class="num" style="color:var(--green)">' + (c.duckFillDiff > 0.0005 ? '-' + fmtTimeFull(c.duckFillDiff) : '-') + '</td>';
     }
+    if (_isRoyal) {
+      if (c.rcDelta > 0) {
+        var _rcOldOdds = (1 / _pRc).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _rcNewOdds = (1 / c.rcNew).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)" title="' + _rcOldOdds + ' \u2192 ' + _rcNewOdds + '">1 in ' + _rcOldOdds + ' \u2192 ' + _rcNewOdds + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
+    if (_isDuck) {
+      if (c.dchDelta > 0) {
+        var _dchOldOdds = F.duckOddsDisplay(_pDch);
+        var _dchNewOdds = F.duckOddsDisplay(c.dchNew);
+        var _dchOldFmt = Number(_dchOldOdds.ratio).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _dchNewFmt = Number(_dchNewOdds.ratio).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)">1 in ' + _dchOldFmt + ' \u2192 ' + _dchNewFmt + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
+    if (_isLucky) {
+      if (c.lcBaseDelta > 0) {
+        var _lcTip = c.lcDeltas.map(function(d, t) {
+          if (d.delta <= 0) return CURR_SHORT[t] + ': -';
+          var oldOdds = Math.round(1 / d.old).toLocaleString();
+          var newOdds = Math.round(1 / d.new).toLocaleString();
+          return CURR_SHORT[t] + ': 1 in ' + oldOdds + ' \u2192 1 in ' + newOdds;
+        }).join('\n');
+        var _lcOldFmt = (1 / _pLcBase).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _lcNewFmt = (1 / c.lcBaseNew).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)" data-tip="' + _lcTip + '">1 in ' + _lcOldFmt + ' \u2192 ' + _lcNewFmt + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
     if (_isOptimal) {
       html += '<td class="num" style="color:' + (c.speedPct > 0 ? 'var(--green)' : c.speedPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.speedPct >= 0 ? '+' : '') + c.speedPct.toFixed(3) + '%</td>';
       html += '<td class="num" style="color:' + (c.valPct > 0 ? 'var(--green)' : c.valPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.valPct >= 0 ? '+' : '') + c.valPct.toFixed(3) + '%</td>';
@@ -390,7 +453,7 @@ function _renderPlanner(uLvs, mLvs, desired) {
     html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
     html += '</tr>';
   }
-  var _pColCount = 10 + (isFill ? 2 + (_hasDuck ? 1 : 0) : 0) + (_isOptimal ? 2 : 0);
+  var _pColCount = 10 + (isFill ? 2 + (_hasDuck ? 1 : 0) : 0) + (_isRoyal ? 1 : 0) + (_isDuck ? 1 : 0) + (_isLucky ? 1 : 0) + (_isOptimal ? 2 : 0);
   if (candidates.length > limit) {
     html += '<tr><td colspan="' + _pColCount + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }
@@ -510,7 +573,7 @@ function _renderMultiBreakdown(bd, uLvs, mLvs) {
     ]
   };
   var rcRoot = {
-    label: 'Royal Chance (1 in ' + Math.round(1 / bd.royalChance.total) + ')', val: bd.royalChance.total * 100, fmt: 'pct',
+    label: 'Royal Chance (1 in ' + (1 / bd.royalChance.total).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + ')', val: bd.royalChance.total * 100, fmt: 'pct',
     children: [
       { label: 'Base Chance', val: 0.3333, fmt: 'pct' },
       { label: F.UPG_DATA[1][8][0] + ' (W1U8)', val: bd.royalChance.raw, fmt: '+%' },
@@ -791,6 +854,9 @@ function _renderAll() {
     ['dollar', 'Dollar Bills'],
     ['credit', 'Credit Bills'],
     ['treasury', 'Treasury Bills'],
+    ['royal', 'Royal Chance'],
+    ['duck', 'Duck Chance'],
+    ['lucky', 'Lucky Coin Chance'],
     ['marble-rate', 'Marble /hr'],
     ['optimal', 'Optimal /hr (Desired)'],
   ];
@@ -833,7 +899,8 @@ function _renderAll() {
   html += _card('Marble Fill', fmtTimeFull(marbleFillSec / activeMul), 'AFK: ' + fmtTimeFull(marbleFillSec) + ' \u2022 ' + fmtNum(F.marblePerFill(saveData, uLvs, mLvs)) + '/fill', _marbleFillTip);
   html += _card('Total Multi', fmtNum(F.currencyAllMulti(saveData, uLvs, mLvs)) + 'x', 'Currency value multiplier');
   var rc = F.royalChance(uLvs, mLvs);
-  html += _card('Royal Chance', '1 in ' + Math.round(1 / rc), fmtPct(rc) + ' per fill');
+  var rcPct = (rc * 100).toFixed(2);
+  html += _card('Royal Chance', '1 in ' + (1 / rc).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}), rcPct + '% per fill');
   var _ms = F.maxStackSize(saveData, uLvs, mLvs);
   var _pRoyal = 1 - Math.pow(1 - rc, _ms);
   var _fillTimeActive = fillSec / activeMul;
@@ -1035,7 +1102,7 @@ function _renderAll() {
       var _dbRemainActive = _dbRemainAFK / activeMul;
       html += '<div class="card-grid cols-4">';
       html += _card('Ducks', _dc, 'Currency multi: ' + _dm.toFixed(2) + 'x');
-      html += _card('Next Duck Chance', _dco.ratio !== '-' ? '1 in ' + _dco.ratio.toLocaleString() : '-', _dco.pct + '% per duck bar fill');
+      html += _card('Next Duck Chance', _dco.ratio !== '-' ? '1 in ' + Number(_dco.ratio).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '-', _dco.pct + '% per duck bar fill');
       html += _card('Duck Bar', fmtPct(_dbPct), fmtTimeFull(_dbRemainActive) + ' active \u2022 ' + fmtTimeFull(_dbRemainAFK) + ' AFK');
       html += _card('Bar Fill Time', fmtTimeFull(_dbActiveFill), 'AFK: ' + fmtTimeFull(_dbFill) + ' \u2022 ' + activeMul.toFixed(2) + 'x active');
       html += '</div>';
@@ -1878,6 +1945,8 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   var baseMarbleFill = F.marbleBarFillTime() / F.activeSpeedMulti(uLvs, mLvs);
   var baseDuckFill = F.duckBarUnlocked(uLvs, mLvs) ? F.duckBarFillTime() / F.activeSpeedMulti(uLvs, mLvs) : 0;
   var _marblePerHour = F.marblePerFill(saveData, uLvs, mLvs) * 3600 / baseMarbleFill;
+  var _mDchBase = F.duckBarUnlocked(uLvs, mLvs) ? F.duckChance(saveData, uLvs, mLvs) : 0;
+  var _mLcBase = F.luckyCoinBaseChance(uLvs, mLvs);
   var _mIsOptimal = (goal === 'optimal');
   var _mBaseStacks = _mIsOptimal ? F.optimalStacksPerHr(saveData, uLvs, mLvs) : 0;
   var _mBaseStackVal = _mIsOptimal ? F.optimalStackValue(saveData, uLvs, mLvs, desired) : 0;
@@ -1913,6 +1982,22 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
         }
       }
 
+      var mRcNew = F.royalChance(uLvs, simMLvs);
+      var mRcDelta = mRcNew - F.royalChance(uLvs, mLvs);
+
+      var mDchNew = F.duckBarUnlocked(uLvs, simMLvs) ? F.duckChance(saveData, uLvs, simMLvs) : 0;
+      var mDchDelta = mDchNew - _mDchBase;
+
+      var mLcDeltas = [];
+      var mLcBaseDelta = 0;
+      var _mLcBaseNew = F.luckyCoinBaseChance(uLvs, simMLvs);
+      mLcBaseDelta = _mLcBaseNew - _mLcBase;
+      for (var _mlt = 0; _mlt < 9; _mlt++) {
+        var _mlcOld = F.luckyCoinChance(saveData, uLvs, mLvs, _mlt);
+        var _mlcNew = F.luckyCoinChance(saveData, uLvs, simMLvs, _mlt);
+        mLcDeltas.push({ old: _mlcOld, new: _mlcNew, delta: _mlcNew - _mlcOld });
+      }
+
       var mSpeedPct = 0, mValPct = 0;
       if (_mIsOptimal) {
         var _mnStacks = F.optimalStacksPerHr(saveData, uLvs, simMLvs);
@@ -1928,7 +2013,10 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
         cost: cost, canAfford: canAfford,
         delta: delta, pctGain: pctGain,
         efficiency: efficiency, fillDiff: fillDiff, marbleFillDiff: marbleFillDiff, duckFillDiff: duckFillDiff,
-        tta: ttaSec, speedPct: mSpeedPct, valPct: mValPct,
+        tta: ttaSec, rcNew: mRcNew, rcDelta: mRcDelta,
+        dchNew: mDchNew, dchDelta: mDchDelta,
+        lcBaseDelta: mLcBaseDelta, lcBaseNew: _mLcBaseNew, lcDeltas: mLcDeltas,
+        speedPct: mSpeedPct, valPct: mValPct,
       });
     }
   }
@@ -1947,7 +2035,13 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
   html += '<th class="num">Cost</th><th class="num">Time to Afford</th><th class="num">Gain</th>';
   html += '<th class="num">% Gain</th>';
   var _mHasDuck = baseDuckFill > 0;
+  var _mIsRoyal = (goal === 'royal');
+  var _mIsDuck = (goal === 'duck');
+  var _mIsLucky = (goal === 'lucky');
   if (isFill) html += '<th class="num">Coin \u0394</th><th class="num">Marble \u0394</th>' + (_mHasDuck ? '<th class="num">Duck \u0394</th>' : '');
+  if (_mIsRoyal) html += '<th class="num">Royal \u0394</th>';
+  if (_mIsDuck) html += '<th class="num">Duck \u0394</th>';
+  if (_mIsLucky) html += '<th class="num" title="Base lucky coin chance delta (hover rows for per-currency breakdown)">Lucky \u0394</th>';
   if (_mIsOptimal) html += '<th class="num" title="Fill speed change (stacks/hr)">Speed \u0394</th><th class="num" title="Stack value change (currency \u00d7 royal \u00d7 stack bonus)">Value \u0394</th>';
   html += '<th>Efficiency</th><th>Affordable</th>';
   html += '</tr></thead><tbody>';
@@ -1971,6 +2065,41 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
       html += '<td class="num" style="color:var(--green)">' + (c.marbleFillDiff > 0.0005 ? '-' + fmtTimeFull(c.marbleFillDiff) : '-') + '</td>';
       if (_mHasDuck) html += '<td class="num" style="color:var(--green)">' + (c.duckFillDiff > 0.0005 ? '-' + fmtTimeFull(c.duckFillDiff) : '-') + '</td>';
     }
+    if (_mIsRoyal) {
+      if (c.rcDelta > 0) {
+        var _mrcOldOdds = (1 / F.royalChance(uLvs, mLvs)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _mrcNewOdds = (1 / c.rcNew).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)" title="' + _mrcOldOdds + ' \u2192 ' + _mrcNewOdds + '">1 in ' + _mrcOldOdds + ' \u2192 ' + _mrcNewOdds + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
+    if (_mIsDuck) {
+      if (c.dchDelta > 0) {
+        var _mdchOldOdds = F.duckOddsDisplay(_mDchBase);
+        var _mdchNewOdds = F.duckOddsDisplay(c.dchNew);
+        var _mdchOldFmt = Number(_mdchOldOdds.ratio).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _mdchNewFmt = Number(_mdchNewOdds.ratio).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)">1 in ' + _mdchOldFmt + ' \u2192 ' + _mdchNewFmt + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
+    if (_mIsLucky) {
+      if (c.lcBaseDelta > 0) {
+        var _mlcTip = c.lcDeltas.map(function(d, t) {
+          if (d.delta <= 0) return CURR_SHORT[t] + ': -';
+          var oldOdds = Math.round(1 / d.old).toLocaleString();
+          var newOdds = Math.round(1 / d.new).toLocaleString();
+          return CURR_SHORT[t] + ': 1 in ' + oldOdds + ' \u2192 1 in ' + newOdds;
+        }).join('\n');
+        var _mlcOldFmt = (1 / _mLcBase).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var _mlcNewFmt = (1 / c.lcBaseNew).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<td class="num" style="color:var(--green)" data-tip="' + _mlcTip + '">1 in ' + _mlcOldFmt + ' \u2192 ' + _mlcNewFmt + '</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">-</td>';
+      }
+    }
     if (_mIsOptimal) {
       html += '<td class="num" style="color:' + (c.speedPct > 0 ? 'var(--green)' : c.speedPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.speedPct >= 0 ? '+' : '') + c.speedPct.toFixed(3) + '%</td>';
       html += '<td class="num" style="color:' + (c.valPct > 0 ? 'var(--green)' : c.valPct < 0 ? '#e57373' : 'var(--text2)') + '">' + (c.valPct >= 0 ? '+' : '') + c.valPct.toFixed(3) + '%</td>';
@@ -1979,7 +2108,7 @@ function _renderMarblePlanner(uLvs, mLvs, desired) {
     html += '<td>' + (c.canAfford ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>') + '</td>';
     html += '</tr>';
   }
-  var _mpColCount = 10 + (isFill ? 2 + (_mHasDuck ? 1 : 0) : 0) + (_mIsOptimal ? 2 : 0);
+  var _mpColCount = 10 + (isFill ? 2 + (_mHasDuck ? 1 : 0) : 0) + (_mIsRoyal ? 1 : 0) + (_mIsDuck ? 1 : 0) + (_mIsLucky ? 1 : 0) + (_mIsOptimal ? 2 : 0);
   if (candidates.length > limit) {
     html += '<tr><td colspan="' + _mpColCount + '" style="color:var(--text2);text-align:center;">\u2026 and ' + (candidates.length - limit) + ' more</td></tr>';
   }

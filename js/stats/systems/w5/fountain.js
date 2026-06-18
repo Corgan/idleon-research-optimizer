@@ -454,6 +454,15 @@ export function luckyCoinChance(saveData, uLvs, mLvs, t) {
   return 0.001 * (1 + (base + boost) / 100) * Math.pow(0.25, count);
 }
 
+// Base lucky coin chance (ignoring per-currency coin count).
+// This is the part that upgrades can change.
+export function luckyCoinBaseChance(uLvs, mLvs) {
+  var base = bonTOT(uLvs, mLvs, 2, 8);
+  if (base === 0) return 0;
+  var boost = bonTOT(uLvs, mLvs, 2, 10);
+  return 0.001 * (1 + (base + boost) / 100);
+}
+
 // Per-lucky-coin value bonus (%).
 export function luckyCoinValuePer(uLvs, mLvs) {
   return 25 + bonTOT(uLvs, mLvs, 2, 9); // Skilluck
@@ -485,7 +494,8 @@ export function duckChance(saveData, uLvs, mLvs) {
 // Shows full odds ratio and percentage to avoid rounding confusion.
 export function duckOddsDisplay(chance) {
   if (chance <= 0) return { ratio: '-', pct: '-' };
-  var ratio = Math.round(1 / chance);
+  var raw = 1 / chance;
+  var ratio = raw.toFixed(2);
   // Use enough decimal places to show meaningful precision (min 2 decimals)
   var pctValue = chance * 100;
   var pctStr = pctValue < 0.1 ? pctValue.toFixed(4) : pctValue.toFixed(2);
@@ -687,6 +697,8 @@ export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
     case 'credit': return currencyTotalValue(saveData, uLvs, mLvs, 4, 4) * royalMulti(uLvs, mLvs);
     case 'treasury': return currencyTotalValue(saveData, uLvs, mLvs, 5, 5) * royalMulti(uLvs, mLvs);
     case 'royal': return royalChance(uLvs, mLvs);
+    case 'duck': return duckChance(saveData, uLvs, mLvs);
+    case 'lucky': return luckyCoinBaseChance(uLvs, mLvs);
     case 'monument-bravery': return bonTOT(uLvs, mLvs, 0, 13);
     case 'monument-justice': return bonTOT(uLvs, mLvs, 1, 13);
     case 'cosmo-exp': return bonTOT(uLvs, mLvs, 0, 14);
