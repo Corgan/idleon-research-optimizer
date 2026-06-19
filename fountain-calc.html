@@ -225,12 +225,14 @@ var _activeWater = 0;
 var _plannerGoal = 'currency';
 var _plannerAffordable = false;
 var _plannerNormalize = false;
+var _plannerDesired = -1; // -1 = use save's desired
 var _optimizerGoal = 'currency';
 var _optimizerMaxSteps = 50;
 var _optimizerAffordable = true;
 var _optimizerNormalize = false;
 var _mPlannerGoal = 'currency';
 var _mPlannerAffordable = false;
+var _mPlannerDesired = -1; // -1 = use save's desired
 var _mOptimizerGoal = 'currency';
 var _mOptimizerMaxSteps = 50;
 var _mOptimizerAffordable = true;
@@ -1506,6 +1508,10 @@ function _renderAll() {
     html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _plannerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
   }
   html += '</select></label>';
+  html += '<label id="planner-desired-wrap" style="display:' + (_plannerGoal === 'optimal' ? '' : 'none') + '">Currency: <select id="planner-desired">';
+  html += '<option value="-1"' + (_plannerDesired === -1 ? ' selected' : '') + '>Save (' + CURR_SHORT[desired] + ')</option>';
+  for (var _ci = 0; _ci < 9; _ci++) html += '<option value="' + _ci + '"' + (_plannerDesired === _ci ? ' selected' : '') + '>' + CURR_SHORT[_ci] + '</option>';
+  html += '</select></label>';
   html += '<label><input type="checkbox" id="planner-affordable"' + (_plannerAffordable ? ' checked' : '') + '> Affordable only</label>';
   html += '<label><input type="checkbox" id="planner-normalize"' + (_plannerNormalize ? ' checked' : '') + (_plannerPerHr ? ' disabled' : '') + '> Normalize cost by currency value</label>';
   html += '<label><input type="checkbox" id="planner-perhr"' + (_plannerPerHr ? ' checked' : '') + '> Rank by /hr</label>';
@@ -1546,6 +1552,10 @@ function _renderAll() {
   for (var gi = 0; gi < goals.length; gi++) {
     html += '<option value="' + goals[gi][0] + '"' + (goals[gi][0] === _mPlannerGoal ? ' selected' : '') + '>' + goals[gi][1] + '</option>';
   }
+  html += '</select></label>';
+  html += '<label id="mplanner-desired-wrap" style="display:' + (_mPlannerGoal === 'optimal' ? '' : 'none') + '">Currency: <select id="mplanner-desired">';
+  html += '<option value="-1"' + (_mPlannerDesired === -1 ? ' selected' : '') + '>Save (' + CURR_SHORT[desired] + ')</option>';
+  for (var _ci = 0; _ci < 9; _ci++) html += '<option value="' + _ci + '"' + (_mPlannerDesired === _ci ? ' selected' : '') + '>' + CURR_SHORT[_ci] + '</option>';
   html += '</select></label>';
   html += '<label><input type="checkbox" id="mplanner-affordable"' + (_mPlannerAffordable ? ' checked' : '') + '> Affordable only</label>';
   html += '</div>';
@@ -1610,11 +1620,13 @@ function _renderAll() {
       document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
       // Lazy render on first visit
       if (tab.dataset.tab === 'planner') {
-        _renderPlanner(uLvs, mLvs, desired);
+        var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+        _renderPlanner(uLvs, mLvs, _pd);
         _renderOptimizer(uLvs, mLvs, desired);
       }
       if (tab.dataset.tab === 'marble') {
-        _renderMarblePlanner(uLvs, mLvs, desired);
+        var _mpd = _mPlannerDesired >= 0 ? _mPlannerDesired : desired;
+        _renderMarblePlanner(uLvs, mLvs, _mpd);
         _renderMarbleOptimizer(uLvs, mLvs, desired);
       }
       if (tab.dataset.tab === 'upgrades') {
@@ -1665,20 +1677,30 @@ function _renderAll() {
   // Wire planner
   document.getElementById('planner-goal').addEventListener('change', function() {
     _plannerGoal = this.value;
-    _renderPlanner(uLvs, mLvs, desired);
+    document.getElementById('planner-desired-wrap').style.display = _plannerGoal === 'optimal' ? '' : 'none';
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
+  });
+  document.getElementById('planner-desired').addEventListener('change', function() {
+    _plannerDesired = Number(this.value);
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
   });
   document.getElementById('planner-affordable').addEventListener('change', function() {
     _plannerAffordable = this.checked;
-    _renderPlanner(uLvs, mLvs, desired);
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
   });
   document.getElementById('planner-normalize').addEventListener('change', function() {
     _plannerNormalize = this.checked;
-    _renderPlanner(uLvs, mLvs, desired);
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
   });
   document.getElementById('planner-perhr').addEventListener('change', function() {
     _plannerPerHr = this.checked;
     document.getElementById('planner-normalize').disabled = _plannerPerHr;
-    _renderPlanner(uLvs, mLvs, desired);
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
   });
 
   // Wire optimizer
@@ -1707,11 +1729,19 @@ function _renderAll() {
   // Wire marble planner
   document.getElementById('mplanner-goal').addEventListener('change', function() {
     _mPlannerGoal = this.value;
-    _renderMarblePlanner(uLvs, mLvs, desired);
+    document.getElementById('mplanner-desired-wrap').style.display = _mPlannerGoal === 'optimal' ? '' : 'none';
+    var _mpd = _mPlannerDesired >= 0 ? _mPlannerDesired : desired;
+    _renderMarblePlanner(uLvs, mLvs, _mpd);
+  });
+  document.getElementById('mplanner-desired').addEventListener('change', function() {
+    _mPlannerDesired = Number(this.value);
+    var _mpd = _mPlannerDesired >= 0 ? _mPlannerDesired : desired;
+    _renderMarblePlanner(uLvs, mLvs, _mpd);
   });
   document.getElementById('mplanner-affordable').addEventListener('change', function() {
     _mPlannerAffordable = this.checked;
-    _renderMarblePlanner(uLvs, mLvs, desired);
+    var _mpd = _mPlannerDesired >= 0 ? _mPlannerDesired : desired;
+    _renderMarblePlanner(uLvs, mLvs, _mpd);
   });
 
   // Wire marble optimizer
@@ -1741,11 +1771,13 @@ function _renderAll() {
 
   // Trigger lazy render if restored tab needs it
   if (_prevTabId === 'planner') {
-    _renderPlanner(uLvs, mLvs, desired);
+    var _pd = _plannerDesired >= 0 ? _plannerDesired : desired;
+    _renderPlanner(uLvs, mLvs, _pd);
     _renderOptimizer(uLvs, mLvs, desired);
   }
   if (_prevTabId === 'marble') {
-    _renderMarblePlanner(uLvs, mLvs, desired);
+    var _mpd = _mPlannerDesired >= 0 ? _mPlannerDesired : desired;
+    _renderMarblePlanner(uLvs, mLvs, _mpd);
     _renderMarbleOptimizer(uLvs, mLvs, desired);
   }
   if (_prevTabId === 'upgrades') {
