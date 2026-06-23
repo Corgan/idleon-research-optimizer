@@ -49,7 +49,7 @@ async function exportState() {
     companionIds: [...saveData.companionIds], totalTomePoints: saveData.totalTomePoints, serverVarResXP: saveData.serverVarResXP, serverVarMineHP: saveData.serverVarMineHP,
     cachedEventShopStr: saveData.cachedEventShopStr, cachedResearchExp: saveData.cachedResearchExp, cachedSpelunkyUpg7: saveData.cachedSpelunkyUpg7, cachedFailedRolls: saveData.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: saveData.cachedComp0DivOk,
     cachedStickerFixed: saveData.cachedStickerFixed, cachedBoonyCount: saveData.cachedBoonyCount, cachedEvShop37: saveData.cachedEvShop37, cachedExtPctExSticker: saveData.cachedExtPctExSticker,
-    cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5, cachedDream14: saveData.cachedDream14,
+    cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5, cachedDream14: saveData.cachedDream14, cachedCglunko11: saveData.cachedCglunko11, cachedFountain2_16: saveData.cachedFountain2_16,
     extBonusOverrides: saveData.extBonusOverrides, loadedSaveFormat,
     shapeTiers: { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() },
   };
@@ -137,6 +137,8 @@ function importState(raw) {
   assignState({ cachedBtnBaseNoGrid: raw.cachedBtnBaseNoGrid || 0 });
   assignState({ cachedKillroy5: raw.cachedKillroy5 || 0 });
   assignState({ cachedDream14: raw.cachedDream14 || 0 });
+  assignState({ cachedCglunko11: raw.cachedCglunko11 || 0 });
+  assignState({ cachedFountain2_16: raw.cachedFountain2_16 || 0 });
   // Backward compat: old state exports lack sticker cache fields - derive from saveData.extBonuses
   if ('saveData.cachedStickerFixed' in raw) {
     assignState({ cachedStickerFixed: raw.cachedStickerFixed || 0 });

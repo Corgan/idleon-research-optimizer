@@ -9,7 +9,7 @@ import { parseSaveKey } from './helpers.js';
 import { eventShopOwned, buildEventShopArray, superBitType, cloudBonus } from '../game-helpers.js';
 import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
-import { SceneNPCquestOrder } from '../stats/data/game/customlists.js';
+import { SceneNPCquestOrder, CompanionDB } from '../stats/data/game/customlists.js';
 import { rogBonusQTY, buildRogArray, computeUniqueSushi } from '../stats/systems/w7/sushi.js';
 import { stickerBase } from '../stats/data/w7/research.js';
 import { computeMagnifiersOwnedWith, magMaxForLevel, gbWith } from '../sim-math.js';
@@ -73,6 +73,7 @@ export function loadSaveData(raw) {
   assignState({ refineryData: parseSaveKey(save, 'Refinery') || [] });
   assignState({ boatsData: parseSaveKey(save, 'Boats') || [] });
   assignState({ cookingData: parseSaveKey(save, 'Cooking') || [] });
+  assignState({ cookMasterData: parseSaveKey(save, 'CookMaster') || [] });
   assignState({ petsData: parseSaveKey(save, 'Pets') || [] });
   assignState({ petsStoredData: parseSaveKey(save, 'PetsStored') || [] });
   assignState({ captainsData: parseSaveKey(save, 'Captains') || [] });
@@ -222,6 +223,17 @@ export function loadSaveData(raw) {
       const id = parseInt(String(entry).split(',')[0]);
       if (!isNaN(id)) ids.add(id);
     }
+    // Pet Bonus Token: OLA[606] is a comma-separated list of CompanionDB names
+    // whose bonuses apply even without owning the pet.
+    const tokenStr = String(olaRaw[606] || '');
+    if (tokenStr && tokenStr !== '0') {
+      const tokenNames = tokenStr.split(',');
+      for (const name of tokenNames) {
+        for (let ci = 0; ci < CompanionDB.length; ci++) {
+          if (CompanionDB[ci][0] === name) { ids.add(ci); break; }
+        }
+      }
+    }
     assignState({ companionIds: ids });
   }
 
@@ -342,14 +354,28 @@ export function recomputeDerivedBonuses() {
   }
   // simTotalExpWith adds grid bonuses dynamically (so optimizer sees changes),
   // so extPctExSticker must exclude both sticker AND grids to avoid double-counting.
+  // Grid(112) and Grid(94) are added by the sim with i=2 multipliers (×occFound, ×obsLVs),
+  // so we must subtract those same scaled values here.
   const _abmCtx = { abm: saveData.allBonusMulti };
+  const R = saveData.research || [];
+  const _rLv = saveData.researchLevel || 0;
+  const _occCount = _rLv < 1 ? 0 : ((R[2] || [])[0] === 0 ? 1 :
+    Math.min(43, 5 * Math.floor((_rLv + 10) / 10) - Math.floor(_rLv / 20) - Math.floor(_rLv / 30) - Math.floor(_rLv / 50)));
+  let _occFound = 0, _obsLVs = 0;
+  const _resObs = R[2] || [], _resObsLv = R[4] || [];
+  for (let oi = 0; oi < _occCount; oi++) {
+    if ((Number(_resObs[oi]) || 0) >= 1) _occFound++;
+    const olv = Number(_resObsLv[oi]) || 0;
+    if (olv >= 1) _obsLVs += olv;
+  }
   const _gridAdd =
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 50, _abmCtx) +
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 90, _abmCtx) +
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 110, _abmCtx) +
-    gbWith(saveData.gridLevels, saveData.shapeOverlay, 112, _abmCtx) +
-    gbWith(saveData.gridLevels, saveData.shapeOverlay, 94, _abmCtx) +
-    gbWith(saveData.gridLevels, saveData.shapeOverlay, 31, _abmCtx);
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 112, _abmCtx) * _occFound +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 94, _abmCtx) * _obsLVs +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 31, _abmCtx) +
+    gbWith(saveData.gridLevels, saveData.shapeOverlay, 51, _abmCtx);
   assignState({
     externalResearchPct: rexp.val,
     cachedExtPctExSticker: rexp.val - _stickerVal - _gridAdd,
@@ -378,6 +404,16 @@ export function recomputeDerivedBonuses() {
 
   // Nonstop Studies: DreamUpg[12] → Dream[14] (offset +2). Coeff = 3.
   assignState({ cachedDream14: Number(dreamData[14]) || 0 });
+
+  // Cglunko_upgBon(11): OLA[641] * perLv(1). Applied as (1+val/100) true multiplier.
+  var _cg11 = (Number(saveData.olaData[641]) || 0) * 1;
+  assignState({ cachedCglunko11: _cg11 });
+
+  // Fountain_BonTOT(2,16): MarbleBon(2,16) * Holes[31][2][16] * perLv(1).
+  var _fLv = Number(saveData.holesData?.[31]?.[2]?.[16]) || 0;
+  var _fMLv = Number(saveData.holesData?.[32]?.[2]?.[16]) || 0;
+  var _fMB = _fMLv <= 0 ? 1 : 1.5 + 0.5 * _fMLv;
+  assignState({ cachedFountain2_16: Math.round(_fMB * _fLv * 1) });
 
   assignSaveData({ cachedAFKRate: buildTree(afkGainsDesc, getCatalog(), { saveData: saveData }) });
 }

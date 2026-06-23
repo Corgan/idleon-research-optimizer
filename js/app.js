@@ -149,14 +149,14 @@ document.getElementById('opt-run-btn')?.addEventListener('click', async () => {
     const extendInsightLA = !!document.getElementById('opt-insight-la')?.checked;
     const tournamentEl = document.getElementById('opt-tournament');
     const includeTournament = tournamentEl ? tournamentEl.checked : undefined;
-    const snapshotF6 = !!document.getElementById('opt-snapshot-f6')?.checked;
+
     const result = await runParallelOptimizer(target, (done, total, msg, detail) => {
       const frac = done / total;
       const pct = (frac * 100).toFixed(0);
       progBar.style.width = pct + '%';
       progText.textContent = msg || (pct + '%');
       progDetail.innerText = detail || '';
-    }, { assumeObs, extendInsightLA, includeTournament, snapshotF6 });
+    }, { assumeObs, extendInsightLA, includeTournament });
     progBar.style.width = '100%';
     progText.textContent = result.notice || 'Done!';
     progDetail.textContent = '';
@@ -261,17 +261,4 @@ document.getElementById('dt-zoom-in')?.addEventListener('click', () => dtTreeZoo
 document.getElementById('dt-zoom-reset')?.addEventListener('click', () => dtTreeZoomReset());
 document.getElementById('dt-auto-insight')?.addEventListener('click', () => dtToggleAutoInsight());
 
-// Sync F6 snapshot checkboxes between dashboard and optimizer tabs
-{
-  const dashCb = document.getElementById('dash-snapshot-f6');
-  const optCb = document.getElementById('opt-snapshot-f6');
-  if (dashCb && optCb) {
-    dashCb.addEventListener('change', () => {
-      optCb.checked = dashCb.checked;
-      renderAll();
-    });
-    optCb.addEventListener('change', () => {
-      dashCb.checked = optCb.checked;
-    });
-  }
-}
+

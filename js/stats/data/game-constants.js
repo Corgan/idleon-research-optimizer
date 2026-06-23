@@ -63,7 +63,7 @@ export var GALLERY_TROPH_CHIP_MULTI = 10;
 
 // Friend bonus formula constants for type 3 (DR)
 // Game: 25 * min(1, 0.2 + min(12000, i) / (min(12000, i) + 3000))
-export var FRIEND_DR = { scale: 25, base: 0.2, half: 3000, cap: 12000 };
+export var FRIEND_DR = { scale: 25, base: 0.25, half: 12000, cap: 30000, max: 1.5 };
 
 // DR dream coefficient: flat DR% from Equinox Symbols dream level
 // Game: 5 * Dream[10] in Drop_Rarity formula

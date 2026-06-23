@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Cooking Mastery Optimizer</title>
+<link rel="stylesheet" href="css/breakdown.css">
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+
+.main { max-width: 900px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+
+.card-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card.highlight { border-color: var(--gold); box-shadow: 0 0 8px rgba(255,215,0,.15); }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 4px; }
+.card .card-val { font-weight: 700; font-size: 1.3em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; margin-top: 2px; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 6px 8px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .pos { color: var(--green); }
+.data-table .best td { background: rgba(76,175,80,.08); }
+
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+
+.n { color: var(--gold); font-weight: 600; }
+.result-box { background: var(--bg3); border: 1px solid var(--green); border-radius: 8px; padding: 14px; margin: 12px 0; }
+.result-box .big { font-size: 1.4em; font-weight: 700; color: var(--gold); }
+.result-box .sub { color: var(--text2); font-size: .82em; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F373; <span style="color:var(--accent);">Cooking Mastery</span> EXP Optimizer</span></h1>
+
+<div id="save-area"></div>
+
+<div class="main" id="main-content">
+  <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+</div>
+
+<div class="bt-tooltip" id="bt-tooltip"></div>
+
+<script type="module">
+'use strict';
+
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import { getLOG, formulaEval } from './js/formulas.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
+import { numCharacters } from './js/save/data.js';
+import { cauldronInfoData } from './js/save/data.js';
+import { RandoListo2, AlchemyDescription } from './js/stats/data/game/customlists.js';
+import { companions } from './js/stats/systems/common/companions.js';
+import { arcadeBonus } from './js/stats/systems/w2/arcade.js';
+import { computeSaltLick } from './js/stats/systems/w3/construction.js';
+import { bonTOT, upgLvs, marbleLvs } from './js/stats/systems/w5/fountain.js';
+import { superBitType } from './js/game-helpers.js';
+import { gbWith } from './js/stats/systems/w7/research-math.js';
+import { mainframeBonus } from './js/stats/systems/w4/lab.js';
+import { vaultUpgBonus } from './js/stats/systems/common/vault.js';
+import { computeMeritocBonusz } from './js/stats/systems/w7/meritoc.js';
+
+// ========== FORMAT HELPERS ==========
+function fmtNum(n) {
+  if (n === 0) return '0';
+  if (n === Math.floor(n) && Math.abs(n) < 1e3) return String(n);
+  return fmtVal(n);
+}
+
+// ========== CONSTANTS ==========
+// Per-level bonus values: RandoListo2[8][t]
+var PERLV = [];
+try { for (var i = 0; i < 6; i++) PERLV.push(Number(RandoListo2[8][i]) || 0); }
+catch(e) { PERLV = [200, 1, 30, 10, 2, 20]; }
+
+var UPG_NAMES = [
+  'SALTY — Ladles Used',       // t=0: +% per pow10 ladles used
+  'SPICY — Account Cook LV',  // t=1: +% per cooking LV above 1000
+  'SWEET — Divorce Cake',     // t=2: +% per Divorce Cake lv above 75
+  'SMOKY — Ribbon Rank+',     // t=3: ribbon rank chance (NOT EXP)
+  'SOUR — Total Ribbons',     // t=4: +% per total ribbon rank
+  'SAVORY — Mastery Rank',    // t=5: +% per mastery rank
+];
+
+// RankREQcook: mastery level required to unlock each upgrade
+var RANK_REQ = [0, 1, 5, 10, 25, 100];
+
+// Upgrades that contribute to ExpRateCook
+var EXP_UPGRADES = [0, 1, 2, 4, 5];
+
+// ========== SAVE DATA ACCESS ==========
+function getCM(row, idx) {
+  var cm = saveData.cookMasterData;
+  if (!cm || !cm[row]) return 0;
+  return Number(cm[row][idx]) || 0;
+}
+
+function getMasteryLevel() { return getCM(1, 0); }
+function getLadlesUsed() { return getCM(1, 3); }
+function getUpgLevel(t) { return getCM(2, t); }
+function isUpgUnlocked(t) { return getMasteryLevel() >= (RANK_REQ[t] || 0); }
+
+function getTotalCookingLv() {
+  var total = 0;
+  var lv0All = saveData.lv0AllData || [];
+  for (var ci = 0; ci < numCharacters; ci++) {
+    var lv0 = lv0All[ci];
+    total += Number(lv0 && lv0[10]) || 0;
+  }
+  return total;
+}
+
+function getMeal73Level() {
+  var meals = saveData.mealsData;
+  return Number(meals && meals[0] && meals[0][73]) || 0;
+}
+
+function getTotalRibbonLv() {
+  var ribbon = saveData.ribbonData || [];
+  var sum = 0;
+  for (var i = 28; i < ribbon.length; i++) {
+    sum += Number(ribbon[i]) || 0;
+  }
+  return sum;
+}
+
+// ========== SCALING FACTORS ==========
+function scalingFactor(t) {
+  switch (t) {
+    case 0: return getLOG(Math.max(1, getLadlesUsed())); // log10(ladles used)
+    case 1: return Math.max(0, getTotalCookingLv() - 1000);   // cook LV above 1000
+    case 2: return Math.max(0, getMeal73Level() - 75);         // Divorce Cake above 75
+    case 4: return getTotalRibbonLv();                         // total ribbon ranks
+    case 5: return getMasteryLevel() + 1;                      // mastery rank + 1
+    default: return 0;
+  }
+}
+
+// BonusAmountcook(t, 0) = perLv × level
+function bonusBase(t, levelOverride) {
+  var lv = levelOverride != null ? levelOverride : getUpgLevel(t);
+  return PERLV[t] * lv;
+}
+
+// BonusAmountcook(t, 99) — scaled total
+function bonusTotal(t, levelOverride) {
+  var base = bonusBase(t, levelOverride);
+  var sf = scalingFactor(t);
+  if (t === 3) {
+    // Diminishing: base / (25 + base) × 250
+    return base / (25 + base) * 250;
+  }
+  return sf * base;
+}
+
+// The contribution to ExpRateCook from upgrade t: (1 + bonusTotal(t)/100)
+function expMultiplier(t, levelOverride) {
+  return 1 + bonusTotal(t, levelOverride) / 100;
+}
+
+// ========== EXTERNAL MULTIPLIERS (constant for optimization) ==========
+function _safe(fn) { try { var v = fn(); return v || 0; } catch(e) { console.warn('[cook-mastery] _safe error:', e.message); return 0; } }
+
+function computeExternalMulti() {
+  var grid190 = _safe(function() {
+    return gbWith(saveData.gridLevels, saveData.shapeOverlay || [], 190, { abm: saveData.allBonusMulti || 1 });
+  });
+  var g12 = saveData.gamingData && saveData.gamingData[12];
+  var superBit68 = _safe(function() { return superBitType(68, g12); });
+  var comp87 = _safe(function() { return companions(87, saveData); });
+  var fountainBonus = 0;
+  try {
+    var uLvs = upgLvs(saveData);
+    var mLvs = marbleLvs(saveData);
+    fountainBonus = bonTOT(uLvs, mLvs, 2, 17);
+  } catch(e) {}
+  var arcade69 = _safe(function() { return arcadeBonus(69, saveData); });
+  var saltLick10 = _safe(function() { return Number(computeSaltLick(10, saveData)) || 0; });
+
+  // Vial: find "7cookmastery" in AlchemyDescription[4]
+  var vialBonus = 0;
+  var _vialLv = 0, _vialBase = 0, _mf10 = 0, _dNzz = 0, _meritoc20 = 0;
+  var _ciRaw = cauldronInfoData;
+  console.log('[cook-mastery] cauldronInfoData:', _ciRaw ? 'exists, len=' + _ciRaw.length : 'MISSING');
+  console.log('[cook-mastery] ci[4]:', _ciRaw && _ciRaw[4] ? 'exists, type=' + typeof _ciRaw[4] + ' isArr=' + Array.isArray(_ciRaw[4]) + ' len=' + (_ciRaw[4].length || Object.keys(_ciRaw[4]).length) : 'MISSING');
+  console.log('[cook-mastery] ci[4][85]:', _ciRaw && _ciRaw[4] && _ciRaw[4][85]);
+  try {
+    var vials = cauldronInfoData && cauldronInfoData[4] || [];
+    var vialDescs = AlchemyDescription[4] || [];
+    for (var vi = 0; vi < vialDescs.length; vi++) {
+      if (vialDescs[vi][11] !== '7cookmastery') continue;
+      _vialLv = Number(vials[vi]) || 0;
+      if (_vialLv <= 0) break;
+      _vialBase = formulaEval(vialDescs[vi][3], Number(vialDescs[vi][1]) || 0, Number(vialDescs[vi][2]) || 0, _vialLv);
+      var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
+      var vub42 = _safe(function() { return vaultUpgBonus(42, saveData); });
+      var maxLvVials = 0;
+      if (riftActive) { for (var rvi = 0; rvi < vials.length; rvi++) { if ((Number(vials[rvi]) || 0) >= 13) maxLvVials++; } }
+      _dNzz = (riftActive ? 2 * maxLvVials : 0) + vub42;
+      _mf10 = _safe(function() { return mainframeBonus(10, saveData); });
+      var labMult = _mf10 === 2 ? 2 : 1;
+      _meritoc20 = _safe(function() { return computeMeritocBonusz(20, saveData); });
+      vialBonus = labMult * (1 + _dNzz / 100) * (1 + _meritoc20 / 100) * _vialBase;
+      break;
+    }
+  } catch(e) { console.warn('[cook-mastery] vial error:', e); }
+
+  var additivePct = vialBonus + arcade69 + saltLick10;
+
+  return {
+    grid190: grid190,
+    superBit68: superBit68,
+    comp87: comp87,
+    fountain: fountainBonus,
+    vialBonus: vialBonus,
+    arcade69: arcade69,
+    saltLick10: saltLick10,
+    additivePct: additivePct,
+    _vialLv: _vialLv, _vialBase: _vialBase, _mf10: _mf10, _dNzz: _dNzz, _meritoc20: _meritoc20,
+    total: (1 + grid190 / 100)
+      * (1 + 40 * superBit68 / 100)
+      * (1 + 2 * comp87)
+      * (1 + fountainBonus / 100)
+      * (1 + additivePct / 100),
+  };
+}
+
+// ========== EXP RATE ==========
+var _extMulti = null;
+
+function computeExpRate(overrides) {
+  var rate = 2;
+  for (var i = 0; i < EXP_UPGRADES.length; i++) {
+    var t = EXP_UPGRADES[i];
+    var lv = overrides && overrides[t] != null ? overrides[t] : getUpgLevel(t);
+    rate *= expMultiplier(t, lv);
+  }
+  rate *= _extMulti.total;
+  return rate;
+}
+
+// ========== EXP REQUIREMENT ==========
+function expReq(masteryLv) {
+  return 100 * Math.pow(2.5, masteryLv) * Math.pow(5, Math.max(0, masteryLv - 40));
+}
+
+// ========== POINTS AVAILABLE ==========
+function totalPointsSpent() {
+  var cm2 = saveData.cookMasterData && saveData.cookMasterData[2];
+  if (!cm2) return 0;
+  var sum = 0;
+  for (var i = 0; i < cm2.length; i++) sum += Number(cm2[i]) || 0;
+  return sum;
+}
+
+function pointsAvailable() {
+  var comp87 = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  return Math.max(0, getMasteryLevel() + 1 + comp87 - totalPointsSpent());
+}
+
+// ========== OPTIMIZER ==========
+function findBestUpgrade() {
+  var currentRate = computeExpRate();
+  var results = [];
+
+  for (var i = 0; i < EXP_UPGRADES.length; i++) {
+    var t = EXP_UPGRADES[i];
+    var curLv = getUpgLevel(t);
+    var locked = !isUpgUnlocked(t);
+    var overrides = {};
+    overrides[t] = curLv + 1;
+    var newRate = locked ? currentRate : computeExpRate(overrides);
+    var gain = newRate - currentRate;
+    var pctGain = currentRate > 0 ? gain / currentRate * 100 : 0;
+    results.push({
+      t: t, name: UPG_NAMES[t], curLv: curLv, locked: locked,
+      curBonus: bonusTotal(t), newBonus: bonusTotal(t, curLv + 1),
+      scalingFactor: scalingFactor(t), perLv: PERLV[t],
+      gain: gain, pctGain: pctGain, newRate: newRate,
+      reqLv: RANK_REQ[t],
+    });
+  }
+
+  results.sort(function(a, b) { return b.pctGain - a.pctGain; });
+  return { currentRate: currentRate, results: results };
+}
+
+// ========== OPTIMAL DISTRIBUTION (daily reset) ==========
+function optimizeDistribution(totalPoints) {
+  // Greedy: start from 0, each step put the next point into the upgrade
+  // that gives the highest marginal multiplier increase.
+  var levels = {};
+  for (var i = 0; i < EXP_UPGRADES.length; i++) levels[EXP_UPGRADES[i]] = 0;
+
+  var mLv = getMasteryLevel();
+  for (var p = 0; p < totalPoints; p++) {
+    var bestT = -1;
+    var bestRatio = 0;
+    for (var i = 0; i < EXP_UPGRADES.length; i++) {
+      var t = EXP_UPGRADES[i];
+      if (mLv < (RANK_REQ[t] || 0)) continue; // locked
+      var curMulti = expMultiplier(t, levels[t]);
+      var newMulti = expMultiplier(t, levels[t] + 1);
+      var ratio = newMulti / curMulti;
+      if (ratio > bestRatio) { bestRatio = ratio; bestT = t; }
+    }
+    if (bestT >= 0) levels[bestT]++;
+  }
+
+  // Compute rate with optimal levels
+  var optRate = 2 * _extMulti.total;
+  for (var i = 0; i < EXP_UPGRADES.length; i++) {
+    optRate *= expMultiplier(EXP_UPGRADES[i], levels[EXP_UPGRADES[i]]);
+  }
+
+  return { levels: levels, rate: optRate };
+}
+
+// ========== RENDER ==========
+function render() {
+  var main = document.getElementById('main-content');
+  if (!saveData.cookMasterData || !saveData.cookMasterData[2]) {
+    main.innerHTML = '<div class="section" style="text-align:center;color:var(--text2);padding:40px;">Cooking Mastery data not found in save.<br>Requires Rift level 58+ or Companion 87.</div>';
+    return;
+  }
+
+  _extMulti = computeExternalMulti();
+  var opt = findBestUpgrade();
+  var masteryLv = getMasteryLevel();
+  var ptsLeft = pointsAvailable();
+  var reqExp = expReq(masteryLv);
+  var timeToLevel = opt.currentRate > 0 ? reqExp / opt.currentRate : Infinity;
+
+  var html = '<div class="section"><h2>Overview</h2>';
+  html += '<div class="card-grid">';
+  html += '<div class="card"><div class="card-title">Mastery Level</div><div class="card-val">' + masteryLv + '</div></div>';
+  html += '<div class="card"><div class="card-title">Points Available</div><div class="card-val">' + ptsLeft + '</div></div>';
+  html += '<div class="card"><div class="card-title">EXP Rate</div><div class="card-val">' + fmtNum(opt.currentRate) + '/hr</div></div>';
+  html += '<div class="card"><div class="card-title">EXP to Next Lv</div><div class="card-val">' + fmtNum(reqExp) + '</div></div>';
+  html += '<div class="card"><div class="card-title">Hrs to Next Lv</div><div class="card-val">' + (isFinite(timeToLevel) ? timeToLevel.toFixed(1) : '∞') + '</div></div>';
+  html += '</div></div>';
+
+  // Recommendation
+  if (opt.results.length > 0 && ptsLeft > 0) {
+    var best = opt.results[0];
+    html += '<div class="result-box">';
+    html += '<div class="big">Next point → ' + best.name + ' (upgrade ' + best.t + ')</div>';
+    html += '<div class="sub">+' + best.pctGain.toFixed(4) + '% EXP rate | Lv ' + best.curLv + ' → ' + (best.curLv + 1) + '</div>';
+    html += '</div>';
+  } else if (ptsLeft <= 0) {
+    html += '<div class="result-box" style="border-color:var(--text2);"><div class="big" style="color:var(--text2);">No points available</div><div class="sub">Level up mastery to gain more points</div></div>';
+  }
+
+  // Upgrade table
+  html += '<div class="section"><h2>Upgrade Comparison</h2>';
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Upgrade</th><th class="num">Level</th><th class="num">Per Lv</th><th class="num">Scaling</th><th class="num">Current Bonus%</th><th class="num">+1 Gain%</th>';
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < opt.results.length; i++) {
+    var r = opt.results[i];
+    var cls = r.locked ? ' style="opacity:.4;"' : (i === 0 ? ' class="best"' : '');
+    html += '<tr' + cls + '>';
+    html += '<td>' + (i + 1) + (!r.locked && i === 0 ? ' <span class="badge badge-green">BEST</span>' : '') + '</td>';
+    html += '<td>' + r.name + (r.locked ? ' <span style="color:var(--red);font-size:.75em;">(req lv ' + r.reqLv + ')</span>' : '') + '</td>';
+    html += '<td class="num">' + r.curLv + '</td>';
+    html += '<td class="num">' + r.perLv + '</td>';
+    html += '<td class="num">' + r.scalingFactor.toFixed(2) + '</td>';
+    html += '<td class="num">' + r.curBonus.toFixed(2) + '%</td>';
+    html += '<td class="num pos">+' + r.pctGain.toFixed(4) + '%</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '<p style="color:var(--text2);font-size:.75em;margin-top:8px;">Upgrade 3 (Diminishing) is excluded — it does not affect EXP rate.</p>';
+  html += '</div>';
+
+  // Optimal distribution (daily reset)
+  var totalPts = getMasteryLevel() + 1 + (saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0);
+  var optimal = optimizeDistribution(totalPts);
+  var optReqExp = expReq(masteryLv);
+  var optTimeToLevel = optimal.rate > 0 ? optReqExp / optimal.rate : Infinity;
+  var currentImprovement = opt.currentRate > 0 ? ((optimal.rate - opt.currentRate) / opt.currentRate * 100) : 0;
+
+  html += '<div class="section"><h2>Optimal Distribution (Daily Reset)</h2>';
+  html += '<p style="color:var(--text2);font-size:.82em;margin-bottom:12px;">Best allocation of all ' + totalPts + ' points from scratch, maximizing EXP/hr.</p>';
+
+  html += '<div class="result-box">';
+  html += '<div class="big">' + fmtNum(optimal.rate) + '/hr</div>';
+  html += '<div class="sub">';
+  if (currentImprovement > 0.01) {
+    html += 'vs current: +' + currentImprovement.toFixed(2) + '% | Time to next lv: ' + (isFinite(optTimeToLevel) ? optTimeToLevel.toFixed(1) + 'h' : '∞');
+  } else {
+    html += 'Your current distribution is already optimal!';
+  }
+  html += '</div></div>';
+
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Upgrade</th><th class="num">Current</th><th class="num">Optimal</th><th class="num">Change</th><th class="num">EXP Bonus%</th>';
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < EXP_UPGRADES.length; i++) {
+    var t = EXP_UPGRADES[i];
+    var curLv = getUpgLevel(t);
+    var optLv = optimal.levels[t];
+    var diff = optLv - curLv;
+    var cls = diff > 0 ? 'pos' : (diff < 0 ? 'neg' : '');
+    var optBonus = bonusTotal(t, optLv);
+    html += '<tr>';
+    html += '<td>' + UPG_NAMES[t] + '</td>';
+    html += '<td class="num">' + curLv + '</td>';
+    html += '<td class="num" style="font-weight:700;">' + optLv + '</td>';
+    html += '<td class="num ' + cls + '">' + (diff > 0 ? '+' : '') + diff + '</td>';
+    html += '<td class="num">' + optBonus.toFixed(1) + '%</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '</div>';
+
+  // Breakdown tree
+  html += '<div class="section"><h2>EXP Rate Breakdown</h2><div id="exp-tree"></div></div>';
+
+  main.innerHTML = html;
+
+  // Build tree
+  var treeChildren = [];
+  treeChildren.push(_bNode('Base', 2, null, { fmt: 'raw' }));
+  for (var i = 0; i < EXP_UPGRADES.length; i++) {
+    var t = EXP_UPGRADES[i];
+    var multi = expMultiplier(t);
+    var bonus = bonusTotal(t);
+    treeChildren.push(_bNode(UPG_NAMES[t] + ' (upg ' + t + ')', multi, [
+      _bNode('Level', getUpgLevel(t), null, { fmt: 'raw' }),
+      _bNode('Per Level', PERLV[t], null, { fmt: 'raw' }),
+      _bNode('Scaling Factor', scalingFactor(t), null, { fmt: 'raw' }),
+      _bNode('Scaled Bonus', bonus, null, { fmt: '%' }),
+    ], { fmt: 'x', note: 'perLv×level×scaling = ' + bonus.toFixed(1) + '% → ×' + multi.toFixed(4) }));
+  }
+  // External multipliers
+  var em = _extMulti;
+  var extChildren = [
+    _bNode('Grid 190', 1 + em.grid190 / 100, null, { fmt: 'x' }),
+    _bNode('SuperBit 68', 1 + 40 * em.superBit68 / 100, null, { fmt: 'x', note: em.superBit68 ? 'Unlocked (+40%)' : 'Not unlocked' }),
+    _bNode('Companion 87', 1 + 2 * em.comp87, null, { fmt: 'x' }),
+    _bNode('Fountain (2,17)', 1 + em.fountain / 100, null, { fmt: 'x' }),
+    _bNode('Vial + Arcade 69 + SaltLick 10', 1 + em.additivePct / 100, [
+      _bNode('Vial 7cookmastery (lv ' + em._vialLv + ')', em.vialBonus, null, { fmt: '%', note: 'base=' + em._vialBase.toFixed(2) + ' lab=' + em._mf10 + ' dNzz=' + em._dNzz.toFixed(0) + ' meritoc20=' + em._meritoc20.toFixed(1) }),
+      _bNode('Arcade 69', em.arcade69, null, { fmt: '%' }),
+      _bNode('SaltLick 10', em.saltLick10, null, { fmt: '%' }),
+    ], { fmt: 'x' }),
+  ];
+  treeChildren.push(_bNode('External Multipliers', em.total, extChildren, { fmt: 'x' }));
+  var root = _bNode('EXP Rate', opt.currentRate, treeChildren, { fmt: 'raw' });
+  renderBreakdownTree(root, document.getElementById('exp-tree'), { tooltipId: 'bt-tooltip' });
+}
+
+// ========== INIT ==========
+initSaveLoader({
+  target: '#save-area',
+  onLoad: function() { render(); },
+  auth: true,
+});
+</script>
+</body>
+</html>

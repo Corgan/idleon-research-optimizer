@@ -75,9 +75,11 @@ export default createDescriptor({
     var clvW7b1 = computeCardLv('w7b1', ctx.saveData);
     var clvW7b4 = computeCardLv('w7b4', ctx.saveData);
     var clvW7a11 = computeCardLv('w7a11', ctx.saveData);
+    var clvW7b8 = computeCardLv('w7b8', ctx.saveData);
     items.push({ name: 'Trench Fish Card', val: Math.min(clvW7b1, 10) });
-    items.push({ name: 'Eggroll Card', val: Math.min(2 * clvW7b4, 10) });
+    items.push({ name: 'Eggroll Card', val: Math.min(2 * clvW7b4, 15) });
     items.push({ name: 'Coralcave Crab Card', val: Math.min(clvW7a11, 10) });
+    items.push({ name: 'Seaweed Serpent Card', val: Math.min(3 * clvW7b8, 20) });
 
     // 6. Prehistoric Set (game caps at 50)
     var ola379 = String(saveData.olaData[379] || '');
@@ -112,13 +114,16 @@ export default createDescriptor({
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;
     var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
-    var mealBase = ribBon * mealLv * 0.01;
+    // BonusMultiCook(72): per-meal mastery bonus = 1 + CookMaster[0][72]/(CookMaster[0][72]+5)
+    var masteryLv72 = Number(saveData.cookMasterData && saveData.cookMasterData[0] && saveData.cookMasterData[0][72]) || 0;
+    var mealMastery = 1 + masteryLv72 / (masteryLv72 + 5);
     var cm = cookingMealMulti(saveData);
-    var meal = mealBase * cm.val;
+    var meal = mealMastery * cm.val * ribBon * mealLv * 0.01;
     items.push({ name: 'Meal (Giga Chip)', val: meal,
       children: mealLv > 0 ? [
         { name: 'Meal Lv', val: mealLv, fmt: 'raw' },
         { name: 'Ribbon', val: ribBon, fmt: 'x' },
+        { name: 'Mastery', val: mealMastery, fmt: 'x', note: 'Lv ' + masteryLv72 },
         { name: 'Cook Multi', val: cm.val, fmt: 'x', children: [
           { name: label('Mainframe', 116), val: cm.mfb116 },
           { name: label('Breeding', 20), val: cm.shinyS20 },
@@ -143,7 +148,7 @@ export default createDescriptor({
         { name: 'Multi', val: cropSCmulti, fmt: 'x' },
       ] : null });
 
-    // 11. MSA
+    // 11. MSA (SuperBit 44 gate, 0.3 × max(0, floor((stars-300)/10)))
     var hasSB44 = superBitType(44, gd12);
     var gamingStars = Array.isArray(saveData.totemInfoData[0]) ? saveData.totemInfoData[0].reduce(function(a, v) { return a + (Number(v) || 0); }, 0) : 0;
     var msa = hasSB44 ? 0.3 * Math.max(0, Math.floor((gamingStars - 300) / 10)) : 0;
@@ -189,9 +194,28 @@ export default createDescriptor({
     items.push(_gbItem(51));
     items.push(_gbItem(90));
     items.push(_gbItem(110));
-    items.push(_gbItem(112));
-    items.push(_gbItem(94));
     items.push(_gbItem(31));
+
+    // Grid(112,2) and Grid(94,2): game multiplies base by TotalOccurrencesFound / TotalObsLVs
+    var rLv = saveData.researchLevel || 0;
+    var occCount = rLv < 1 ? 0 : (saveData.research[2][0] === 0 ? 1 :
+      Math.min(43, 5 * Math.floor((rLv + 10) / 10) - Math.floor(rLv / 20) - Math.floor(rLv / 30) - Math.floor(rLv / 50)));
+    var totalOccFound = 0, totalObsLVs = 0;
+    var resObs = saveData.research[2] || [];
+    var resObsLv = saveData.research[4] || [];
+    for (var oi = 0; oi < occCount; oi++) {
+      if ((Number(resObs[oi]) || 0) >= 1) totalOccFound++;
+      var olv = Number(resObsLv[oi]) || 0;
+      if (olv >= 1) totalObsLVs += olv;
+    }
+    var g112base = gridBonusFinal(saveData, 112);
+    var g112val = g112base * totalOccFound;
+    items.push({ name: label('Grid', 112) + ' ×' + totalOccFound + ' occ', val: g112val,
+      children: [{ name: 'Grid Base', val: g112base }, { name: 'Occurrences Found', val: totalOccFound, fmt: 'raw' }] });
+    var g94base = gridBonusFinal(saveData, 94);
+    var g94val = g94base * totalObsLVs;
+    items.push({ name: label('Grid', 94) + ' ×' + totalObsLVs + ' obsLv', val: g94val,
+      children: [{ name: 'Grid Base', val: g94base }, { name: 'Total Obs Levels', val: totalObsLVs, fmt: 'raw' }] });
 
     // ---- Sum additive ----
     var totalAdd = 0;

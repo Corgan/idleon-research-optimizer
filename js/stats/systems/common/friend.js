@@ -8,7 +8,7 @@ import { FRIEND_DR, COMPANION_BONUS } from '../../data/game-constants.js';
 import { eventShopOwned } from '../../../game-helpers.js';
 
 // Per-type FriendBonusQTY scales from game source
-var FRIEND_SCALE = { 0: 100, 1: 30, 2: 50, 3: 25, 4: 30, 5: 40 };
+var FRIEND_SCALE = { 0: 100, 1: 30, 2: 50, 3: 25, 4: 30, 5: 40, 6: 10 };
 
 function computeFriendBonusSlots(saveData) {
   var comp44 = saveData.companionIds && saveData.companionIds.has(44) ? 1 : 0;
@@ -36,7 +36,7 @@ export var friend = {
       if (type !== id || !(type < 18)) continue;
       if (count > 0) {
         var c = Math.min(FRIEND_DR.cap, Math.max(0, count));
-        lastContrib = scale * Math.min(1, FRIEND_DR.base + c / (c + FRIEND_DR.half));
+        lastContrib = scale * Math.min(FRIEND_DR.max, FRIEND_DR.base + c / (c + FRIEND_DR.half) * FRIEND_DR.max);
         lastChild = node(parts[2] || '?', lastContrib, [
           node('Score', count, null, { fmt: 'raw' }),
         ], { fmt: '+' });

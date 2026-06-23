@@ -263,7 +263,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const dynSticker = ctx.stickerFixed > 0
     ? (1 + (gbWith(gl, so, 68, ctx) * ctx.boonyCount + 30 * ctx.evShop37) / 100) * ctx.stickerFixed
     : 0;
-  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + ctx.extPctExSticker + dynSticker;
+  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + gbWith(gl, so, 51, ctx) + ctx.extPctExSticker + dynSticker;
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
   additive += gbWith(gl, so, 112, ctx) * occFoundCount;
@@ -272,24 +272,11 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   additive += gbWith(gl, so, 94, ctx) * totalObsLV;
   const takinNotes = gbWith(gl, so, 70, ctx);
   // Compute button0 dynamically from grid 125 so optimizer sees changes to gl[125].
-  // F6 snapshot: players snapshot button bonus with best shape on cell 125, then move
-  // the shape elsewhere.  When bestShapePct > 0, use that; otherwise use actual so[125].
-  const _gb125raw = (() => {
-    const info = RES_GRID_RAW[125];
-    if (!info) return 0;
-    const lv = (gl && gl[125]) || 0;
-    if (lv === 0) return 0;
-    const bestPct = ctx.bestShapePct || 0;
-    if (bestPct > 0) {
-      return info[2] * lv * (1 + bestPct / 100) * ctx.abm;
-    }
-    // No snapshot — use actual shape overlay on cell 125
-    return gbWith(gl, so, 125, ctx);
-  })();
+  const _gb125 = gbWith(gl, so, 125, ctx);
   const button0 = ctx.btnBaseNoGrid > 0
-    ? ctx.btnBaseNoGrid * (1 + _gb125raw / 100)
+    ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;

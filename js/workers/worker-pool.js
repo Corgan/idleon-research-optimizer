@@ -183,9 +183,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
   const assumeObs = !!(opts && opts.assumeObs);
   const extendInsightLA = !!(opts && opts.extendInsightLA);
   const includeTournament = opts && opts.includeTournament !== undefined ? opts.includeTournament : undefined;
-  const snapshotF6 = opts && opts.snapshotF6 !== undefined ? opts.snapshotF6 : true;
   const _saveCtx = _buildWorkerCtx();
-  if (!snapshotF6) _saveCtx.bestShapePct = 0;
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 8));
 
   // Formatting helpers (main-thread copies)

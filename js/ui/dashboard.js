@@ -229,9 +229,6 @@ function showObsTooltip(e, obsIdx, mags, monos, kaleis, adjKal) {
 export function renderDashboard(saveCtx) {
   resetTreeCounter();
   _dSaveCtx = saveCtx || buildSaveContext();
-  // F6 snapshot toggle: if unchecked, zero out bestShapePct so button0 uses actual shape overlay
-  const snapshotF6 = document.getElementById('dash-snapshot-f6');
-  if (snapshotF6 && !snapshotF6.checked) _dSaveCtx.bestShapePct = 0;
   _dCtx = makeSimCtx(_dSaveCtx.gridLevels, _dSaveCtx);
   _simOpts = { gridLevels: _dSaveCtx.gridLevels, shapeOverlay: _dSaveCtx.shapeOverlay, magData: _dSaveCtx.magData, insightLvs: _dSaveCtx.insightLvs, occFound: _dSaveCtx.occFound, researchLevel: _dSaveCtx.researchLevel };
   // Summary

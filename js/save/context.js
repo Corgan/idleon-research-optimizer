@@ -15,7 +15,6 @@ import {
   computeShapesOwnedAt,
   simTotalExpWith,
 } from '../sim-math.js';
-import { SHAPE_BONUS_PCT } from '../stats/data/w7/research.js';
 import { buildEventShopArray, buildSuperBitArray, buildEmporiumArray, ribbonBonusAt, cloudBonus } from '../game-helpers.js';
 import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { buildRogArray } from '../stats/systems/w7/sushi.js';
@@ -68,6 +67,8 @@ export function buildSaveContext() {
     btnBaseNoGrid: saveData.cachedBtnBaseNoGrid,
     killroy5: saveData.cachedKillroy5,
     dream14: saveData.cachedDream14,
+    cglunko11: saveData.cachedCglunko11,
+    fountain2_16: saveData.cachedFountain2_16,
 
     // Sushi RoG bonuses (full precomputed array)
     rog: buildRogArray(saveData.cachedUniqueSushi),
@@ -93,13 +94,7 @@ export function buildSaveContext() {
     covLUTCache:  saveData._covLUTCache,
     covLUTCacheN: saveData._covLUTCacheN,
 
-    // Best shape bonus % the player owns (for F6 button snapshot)
-    bestShapePct: (() => {
-      const nShapes = computeShapesOwnedAt(saveData.researchLevel, { evShop: buildEventShopArray(eventShopStr), hasComp54: saveData.companionIds.has(54), spelunkyUpg7: saveData.cachedSpelunkyUpg7 });
-      let best = 0;
-      for (let i = 0; i < nShapes && i < SHAPE_BONUS_PCT.length; i++) if (SHAPE_BONUS_PCT[i] > best) best = SHAPE_BONUS_PCT[i];
-      return best;
-    })(),
+
 
     // Display-only (not used by sim math, but handy for callers)
     externalResearchPct: saveData.externalResearchPct,
@@ -147,7 +142,8 @@ export function makeSimCtx(gl, sc) {
       btnBaseNoGrid:  sc.btnBaseNoGrid || 0,
       killroy5:       sc.killroy5 || 0,
       dream14:        sc.dream14 || 0,
-      bestShapePct:   sc.bestShapePct || 0,
+      cglunko11:      sc.cglunko11 || 0,
+      fountain2_16:   sc.fountain2_16 || 0,
     };
   }
 
@@ -183,7 +179,8 @@ export function makeSimCtx(gl, sc) {
     button0:        saveData.cachedButtonBonus0 || 0,
     btnBaseNoGrid:  saveData.cachedBtnBaseNoGrid || 0,
     killroy5:       saveData.cachedKillroy5 || 0,
-    bestShapePct:   0,  // not available in this code path; always 0
+    cglunko11:      saveData.cachedCglunko11 || 0,
+    fountain2_16:   saveData.cachedFountain2_16 || 0,
   };
 }
 
