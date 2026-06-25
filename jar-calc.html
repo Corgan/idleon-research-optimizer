@@ -99,6 +99,7 @@ h1 span { color: var(--accent); }
 <div class="main" id="main-content">
   <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
 </div>
+<div class="bt-tooltip" id="bt-tooltip"></div>
 
 <script type="module">
 'use strict';
@@ -107,6 +108,15 @@ import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
 import { fmtVal } from './js/renderers/format.js';
 import * as J from './js/stats/systems/w5/jar.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
+import { computeStampBonusOfTypeX } from './js/stats/systems/w1/stamp.js';
+import { computeMonumentROGbonus } from './js/stats/systems/w5/hole.js';
+import { legendPTSbonus } from './js/stats/systems/w7/spelunking.js';
+import { superBitType } from './js/game-helpers.js';
+import { computePaletteBonus } from './js/stats/systems/w7/spelunking.js';
+import { computeExoticBonus } from './js/stats/systems/w6/farming.js';
+import { bonTOT, upgLvs, marbleLvs } from './js/stats/systems/w5/fountain.js';
 
 // ========== FORMATTING ==========
 function fmtNum(n) {
@@ -175,21 +185,43 @@ function _attachTips(root) {
 
 // ========== EXTERNAL BONUS CONTEXT ==========
 // Bonuses from other systems. Lamp, measurements 10/12/14 are now auto-computed from save.
+function _safe(fn) { try { return fn() || 0; } catch(e) { return 0; } }
+
 function _ext() {
-  return {
-    legendPts29: 0,
-    ola355: 0,
-    monument2_1: 0,
-    bell4: 0,
-    cosmo0_3: 0,
-    stampCavernRes: 0,
-    bolaia10: 0,
-    paletteBonus2: 0,
-    exoticBonus52: 0,
-    spelunk6Len: 0,
-    superBit32: 1,
+  var S = saveData;
+  var _h = function(i) { return S.holesData && S.holesData[i] || []; };
+  var _ola = S.olaData || [];
+  var _g12 = S.gamingData && S.gamingData[12];
+  var u = _safe(function() { return upgLvs(S); }) || [];
+  var m = _safe(function() { return marbleLvs(S); }) || [];
+  var _fm = [_safe(function(){return bonTOT(u,m,0,13)}), _safe(function(){return bonTOT(u,m,1,13)}), _safe(function(){return bonTOT(u,m,2,13)})];
+
+  var e = {
+    legendPts29: _safe(function() { return legendPTSbonus(29, S); }),
+    ola355: Number(_ola[355]) || 0,
+    monument2_1: _safe(function() { return computeMonumentROGbonus(2, 1, S, { fountMonument: _fm }); }),
+    bell4: (Number(_h(17)[4]) || 0) * 0.5,
+    cosmo0_3: Math.floor(35 * (Number(_h(4)[3]) || 0)),
+    stampCavernRes: _safe(function() { var v = computeStampBonusOfTypeX('CavernRes', S); return typeof v === 'object' ? v.val : v; }),
+    cglunko14: (Number(_ola[644]) || 0) * 10,
+    fountMonument: _fm,
+    bolaia10: _safe(function() { return (Number(_h(26)[10]) || 0) * 25; }),
+    paletteBonus2: _safe(function() { return computePaletteBonus(2, S); }),
+    exoticBonus52: _safe(function() { return computeExoticBonus(52, S); }),
+    spelunk6Len: (S.spelunkData && S.spelunkData[6] && S.spelunkData[6].length) || 0,
+    superBit32: _safe(function() { return superBitType(32, _g12) ? Math.pow(1.05, (S.spelunkData && S.spelunkData[6] && S.spelunkData[6].length) || 0) : 1; }),
+    fountBonTOT2_15: _safe(function() { return bonTOT(u, m, 2, 15); }),
   };
+  // Jarptomizer reset: zero all collectible levels
+  if (_simReset) {
+    var zeros = {};
+    for (var i = 0; i < 40; i++) zeros[i] = 0;
+    e.collectibleOverrides = zeros;
+  }
+  return e;
 }
+
+var _simReset = false;
 
 // ========== SAVE LOADING ==========
 initSaveLoader({ target: '#save-area', onLoad: _renderAll, auth: true });
@@ -210,10 +242,12 @@ function _renderAll() {
   _initTip();
   var el = document.getElementById('main-content');
   var ext = _ext();
+  var _ext2 = ext; // save for post-render tree building
   var html = '';
 
   // ===== TAB BAR =====
-  html += '<div class="tabs">';
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">';
+  html += '<div class="tabs" style="margin-bottom:0;">';
   html += '<div class="tab active" data-tab="overview">Overview</div>';
   html += '<div class="tab" data-tab="production">Production</div>';
   html += '<div class="tab" data-tab="rupie">Rupie Value</div>';
@@ -221,6 +255,9 @@ function _renderAll() {
   html += '<div class="tab" data-tab="collectibles">Collectibles</div>';
   html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
   html += '</div>';
+  html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82em;color:' + (_simReset ? 'var(--gold)' : 'var(--text2)') + ';margin-left:auto;">';
+  html += '<input type="checkbox" id="sim-reset-cb"' + (_simReset ? ' checked' : '') + '> Simulate Jarptomizer Reset';
+  html += '</label></div>';
 
   html += _renderOverview(ext);
   html += _renderProduction(ext);
@@ -243,6 +280,24 @@ function _renderAll() {
   }
 
   _attachTips(el);
+
+  // Render rupie value breakdown tree
+  var _rvTree = document.getElementById('rv-breakdown-tree');
+  if (_rvTree) {
+    var _ext = _ext2 || {};
+    var _rv = J.rupieValue(saveData, _ext);
+    var _bkd = J.rupieValueBreakdown(saveData, _ext);
+    var _children = [];
+    for (var bi = 0; bi < _bkd.length; bi++) {
+      _children.push(_bNode(_bkd[bi][0], _bkd[bi][1], null, { fmt: 'x' }));
+    }
+    var _root = _bNode('Rupie Value', _rv, _children, { fmt: 'x' });
+    renderBreakdownTree(_root, _rvTree, { tooltipId: 'bt-tooltip' });
+  }
+
+  // Wire the Jarptomizer reset toggle
+  var resetCb = document.getElementById('sim-reset-cb');
+  if (resetCb) resetCb.addEventListener('change', function() { _simReset = resetCb.checked; _renderAll(); });
 
   // Restore scroll position
   window.scrollTo(0, _prevScroll);
@@ -278,7 +333,7 @@ function _renderOverview(ext) {
 
   // Quick stats
   html += '<div class="card-grid cols-4" style="margin-top:12px">';
-  html += _card('Rupie Value', J.rupieValue(saveData, ext).toFixed(1) + 'x', 'Per rupie multiplier');
+  html += _card('Rupie Value', fmtNum(J.rupieValue(saveData, ext)) + 'x', 'Per rupie multiplier');
   html += _card('Production/hr', fmtNum(Math.round(J.productionPerHR(saveData, ext))), 'Progress per hour');
   html += _card('Opal Chance', fmtChance(J.opalChance(saveData, ext)), 'Per type-1 jar break');
   html += _card('Enchant Chance', fmtChance(J.enchantChance(saveData, ext)), 'Per type-4 jar break');
@@ -398,22 +453,16 @@ function _renderRupieValue(ext) {
 
   var rv = J.rupieValue(saveData, ext);
   html += '<div class="card-grid cols-3">';
-  html += _card('Total Rupie Value', rv.toFixed(2) + 'x', 'Applied to every rupie dropped');
+  html += _card('Total Rupie Value', fmtNum(rv) + 'x', 'Applied to every rupie dropped');
   var avgR = J.avgRupiesPerBreak(saveData, ext);
   html += _card('Avg Rupies/Break', avgR.toFixed(2), 'Extra chance: ' + fmtPct1(J.extraRupieChance(saveData, ext)));
   var db = J.doublerBonus(saveData);
   html += _card('Doubler Active', db > 0 ? '+' + db + '%' : 'No', db > 0 ? 'Consumed on next rupie break' : '');
   html += '</div>';
 
-  // Multiplier breakdown table
+  // Multiplier breakdown tree
   var bkd = J.rupieValueBreakdown(saveData, ext);
-  html += '<h3>Multiplier Sources</h3>';
-  html += '<table class="data-table"><thead><tr><th>Source</th><th class="num">Multiplier</th></tr></thead><tbody>';
-  for (var i = 0; i < bkd.length; i++) {
-    html += '<tr><td>' + bkd[i][0] + '</td><td class="num">' + bkd[i][1].toFixed(3) + 'x</td></tr>';
-  }
-  html += '<tr style="border-top:2px solid #444"><td><strong>Total</strong></td><td class="num"><strong>' + rv.toFixed(3) + 'x</strong></td></tr>';
-  html += '</tbody></table>';
+  html += '<h3>Multiplier Sources</h3><div id="rv-breakdown-tree"></div>';
 
   // Rupie value per type per tier
   html += '<h3>Rupie Value by Type &times; Tier</h3>';

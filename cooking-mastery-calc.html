@@ -43,16 +43,34 @@ h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2
 .result-box { background: var(--bg3); border: 1px solid var(--green); border-radius: 8px; padding: 14px; margin: 12px 0; }
 .result-box .big { font-size: 1.4em; font-weight: 700; color: var(--gold); }
 .result-box .sub { color: var(--text2); font-size: .82em; margin-top: 4px; }
+
+.tab-btn { padding: 8px 18px; border: 1px solid #444; background: var(--bg2); color: var(--text2); border-radius: 6px 6px 0 0; cursor: pointer; font-size: .9em; }
+.tab-btn.active { background: var(--bg3); color: var(--gold); border-bottom-color: var(--bg3); font-weight: 700; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
 </style>
 </head>
 <body>
 
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F373; <span style="color:var(--accent);">Cooking Mastery</span> EXP Optimizer</span></h1>
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F373; <span style="color:var(--accent);">Cooking Mastery</span> Optimizer</span></h1>
 
 <div id="save-area"></div>
 
-<div class="main" id="main-content">
-  <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+<div class="main">
+  <div style="display:flex;gap:4px;margin-bottom:12px;">
+    <button class="tab-btn active" data-tab="mastery-exp">Mastery EXP</button>
+    <button class="tab-btn" data-tab="meal-alloc">Yellow Point Allocator</button>
+  </div>
+  <div class="tab-content active" id="tab-mastery-exp">
+    <div id="main-content">
+      <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-meal-alloc">
+    <div id="meal-alloc-content">
+      <div style="color:var(--text2);text-align:center;padding:60px 0;">Load a save to begin.</div>
+    </div>
+  </div>
 </div>
 
 <div class="bt-tooltip" id="bt-tooltip"></div>
@@ -65,6 +83,7 @@ import { initSaveLoader } from './js/ui/save-loader.js';
 import { fmtVal } from './js/renderers/format.js';
 import { getLOG, formulaEval } from './js/formulas.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { GOALS, GOAL_MAP, optimizeForGoal, bonusMultiCook as bmc } from './js/stats/systems/common/meal-impact.js';
 import { _bNode } from './js/stats/node-helpers.js';
 import { numCharacters } from './js/save/data.js';
 import { cauldronInfoData } from './js/save/data.js';
@@ -470,10 +489,117 @@ function render() {
   renderBreakdownTree(root, document.getElementById('exp-tree'), { tooltipId: 'bt-tooltip' });
 }
 
+// ========== TAB SWITCHING ==========
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ========== YELLOW POINT MEAL ALLOCATOR ==========
+
+function yellowPointBudget() {
+  var mLv = getMasteryLevel();
+  var comp87pts = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  var g190lv = Math.round(Number(saveData.gridLevels && saveData.gridLevels[190]) || 0);
+  return mLv + 1 + comp87pts + g190lv;
+}
+
+var _selectedGoal = null;
+
+function renderMealAlloc() {
+  var el = document.getElementById('meal-alloc-content');
+  if (!saveData.cookMasterData) {
+    el.innerHTML = '<div class="section" style="text-align:center;color:var(--text2);padding:40px;">Cooking Mastery data not found in save.</div>';
+    return;
+  }
+
+  var budget = yellowPointBudget();
+  var goalId = _selectedGoal || GOALS[0].id;
+  var goal = GOAL_MAP[goalId];
+
+  var html = '<div class="section"><h2>Yellow Point Allocator</h2>';
+  html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your <span class="n">' + budget + '</span> yellow mastery points to maximize the chosen goal. For multi-category goals, points are allocated across all relevant meal categories.</p>';
+
+  // Goal selector
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
+  html += '<label style="color:var(--text2);font-size:.9em;">Goal:</label>';
+  html += '<select id="goal-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:400px;">';
+  for (var gi = 0; gi < GOALS.length; gi++) {
+    var g = GOALS[gi];
+    var catCount = g.categories.length;
+    var suffix = catCount > 1 ? ' [' + catCount + ' categories]' : '';
+    html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + suffix + '</option>';
+  }
+  html += '</select></div></div>';
+
+  // Run optimizer
+  var res = optimizeForGoal(goalId, budget, saveData);
+  if (!res || res.meals.length === 0) {
+    html += '<div class="section"><div class="result-box" style="border-color:var(--text2);"><div class="big" style="color:var(--text2);">No leveled meals in this goal\'s categories</div><div class="sub">Level up meals in these categories first.</div></div></div>';
+    el.innerHTML = html;
+    document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+    return;
+  }
+
+  // Summary
+  var improvement = res.curGoalValue > 0 ? ((res.goalValue - res.curGoalValue) / res.curGoalValue * 100) : 0;
+  html += '<div class="section"><h2>' + goal.name + '</h2>';
+  if (goal.categories.length > 1) {
+    html += '<p style="color:var(--purple);font-size:.8em;margin-bottom:8px;">Compound goal — allocates across: ' + goal.categories.join(', ') + '</p>';
+  }
+  html += '<div class="result-box">';
+  html += '<div class="big">Goal Value: ' + fmtNum(res.goalValue.toFixed(4)) + '</div>';
+  html += '<div class="sub">Current: ' + fmtNum(res.curGoalValue.toFixed(4));
+  if (Math.abs(improvement) > 0.01) {
+    html += ' → <span style="color:var(--green);">+' + improvement.toFixed(1) + '%</span> with optimal allocation';
+  } else {
+    html += ' — already optimal!';
+  }
+  html += '</div></div>';
+
+  // Allocation table — group by category for compound goals
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Meal</th>';
+  if (goal.categories.length > 1) html += '<th>Category</th>';
+  html += '<th class="num">Meal Lv</th><th class="num">Base</th><th class="num">Weight</th><th class="num">Current Y</th><th class="num">Optimal Y</th><th class="num">Mastery</th>';
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < res.meals.length; i++) {
+    var m = res.meals[i];
+    var diff = m.optLv - m.curLv;
+    var cls = m.optLv > 0 ? (diff > 0 ? ' class="best"' : '') : ' style="opacity:.5;"';
+    html += '<tr' + cls + '>';
+    html += '<td>' + m.name + '</td>';
+    if (goal.categories.length > 1) html += '<td><span class="badge badge-gold">' + m.cat + '</span></td>';
+    html += '<td class="num">' + fmtNum(m.mealLv) + '</td>';
+    html += '<td class="num">' + m.base + '</td>';
+    html += '<td class="num">' + fmtNum(m.baseWeight) + '</td>';
+    html += '<td class="num">' + m.curLv + '</td>';
+    html += '<td class="num" style="font-weight:700;color:var(--gold);">' + m.optLv + '</td>';
+    html += '<td class="num">' + bmc(m.optLv).toFixed(3) + 'x</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  var usedForGoal = 0;
+  for (var i = 0; i < res.meals.length; i++) usedForGoal += res.meals[i].optLv;
+  var leftover = budget - usedForGoal;
+  if (leftover > 0) {
+    html += '<p style="color:var(--text2);font-size:.8em;margin-top:8px;">' + leftover + ' point' + (leftover > 1 ? 's' : '') + ' remaining for other categories.</p>';
+  }
+  html += '</div>';
+
+  el.innerHTML = html;
+  document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+}
+
 // ========== INIT ==========
 initSaveLoader({
   target: '#save-area',
-  onLoad: function() { render(); },
+  onLoad: function() { render(); renderMealAlloc(); },
   auth: true,
 });
 </script>

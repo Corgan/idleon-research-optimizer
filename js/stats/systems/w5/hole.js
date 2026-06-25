@@ -270,18 +270,21 @@ export function computeMonumentROGbonus(t, i, saveData, ext) {
   var bonusInfo = Number(HolesInfo[37] && HolesInfo[37][slot]) || 0;
   if (bonusInfo <= 0) return 0;
 
+  // Game formula: holeozDN starts at 1, adds recursive MonROG(t,9)/100 + cosmo/100,
+  // then fountain multiplies holeozDN. The final result uses holeozDN directly (no extra fountain).
   var holeozDN = 1;
   if (i !== 9) {
     holeozDN = 1 + computeMonumentROGbonus(t, 9, saveData, ext) / 100 + computeCosmoBonus(0, 0, saveData) / 100;
   }
 
-  // Fountain monument boost: BonTOT(t, 13) where t=0 Bravery, 1 Justice, 2 Wisdom
+  // Fountain monument boost: multiplies holeozDN (game applies this regardless of i)
   var fountMon = (ext && ext.fountMonument && ext.fountMonument[t]) || 0;
+  holeozDN *= (1 + fountMon / 100);
 
   if (bonusInfo < 30) {
-    return level * bonusInfo * Math.max(1, holeozDN) * (1 + fountMon / 100);
+    return level * bonusInfo * Math.max(1, holeozDN);
   } else {
-    return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN)) * (1 + fountMon / 100);
+    return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN));
   }
 }
 

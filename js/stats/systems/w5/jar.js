@@ -321,17 +321,19 @@ export function productionSlots(saveData) {
 // ========== COLLECTIBLE BONUS ==========
 // JarCollectibleBonus(t) = Holes[24][t] * bonPerLv(t) * (1 + LegendPTS29/100)
 // For now, we read bonPerLv from COLLECTIBLE_DATA; LegendPTS bonus is an external.
-export function collectibleBonus(saveData, idx, extLegendPts29) {
-  var lv = collectibleLevel(saveData, idx);
+export function collectibleBonus(saveData, idx, extLegendPts29, overrideLv) {
+  var lv = overrideLv != null ? overrideLv : collectibleLevel(saveData, idx);
   var bpl = COLLECTIBLE_DATA[idx][1];
   return lv * bpl * (1 + (extLegendPts29 || 0) / 100);
 }
 
 // Sum of collectible bonuses for a list of indices
-function _cbSum(saveData, indices, extLegendPts29) {
+function _cbSum(saveData, indices, extLegendPts29, cbOverrides) {
   var sum = 0;
   for (var i = 0; i < indices.length; i++) {
-    sum += collectibleBonus(saveData, indices[i], extLegendPts29);
+    var idx = indices[i];
+    var ovr = cbOverrides ? cbOverrides[idx] : undefined;
+    sum += collectibleBonus(saveData, idx, extLegendPts29, ovr);
   }
   return sum;
 }
@@ -358,10 +360,11 @@ export function rupieValue(saveData, ext) {
   var evertree = Math.max(1, _bUpg(saveData, 80) * Math.pow(1.1, evertreeTrunks(saveData)));
   var doubler = 1 + doublerBonus(saveData) / 100;
   var lp = ext.legendPts29 || 0;
-  var cb3 = 1 + collectibleBonus(saveData, 3, lp) / 100;
-  var cb17 = 1 + collectibleBonus(saveData, 17, lp) / 100;
-  var cb28 = 1 + collectibleBonus(saveData, 28, lp) / 100;
-  var cbAdd = 1 + _cbSum(saveData, [0, 6, 13, 21, 33], lp) / 100;
+  var cbo = ext.collectibleOverrides;
+  var cb3 = 1 + collectibleBonus(saveData, 3, lp, cbo ? cbo[3] : undefined) / 100;
+  var cb17 = 1 + collectibleBonus(saveData, 17, lp, cbo ? cbo[17] : undefined) / 100;
+  var cb28 = 1 + collectibleBonus(saveData, 28, lp, cbo ? cbo[28] : undefined) / 100;
+  var cbAdd = 1 + _cbSum(saveData, [0, 6, 13, 21, 33], lp, cbo) / 100;
   var stamp = 1 + (ext.stampCavernRes || 0) / 100;
   var cglunko = 1 + (ext.cglunko14 || 0) / 100;
 
@@ -373,6 +376,7 @@ export function rupieValue(saveData, ext) {
 export function rupieValueBreakdown(saveData, ext) {
   ext = ext || {};
   var lp = ext.legendPts29 || 0;
+  var cbo = ext.collectibleOverrides;
   var parts = [];
   parts.push(['Base (1 + B62 + B65 + B68)', 1 + _bUpgVal(saveData, 62, 1) + _bUpgVal(saveData, 65, 2) + _bUpgVal(saveData, 68, 4)]);
   if (ext.ola355) parts.push(['Server Event (1.5^' + ext.ola355 + ')', Math.pow(1.5, ext.ola355)]);
@@ -384,15 +388,16 @@ export function rupieValueBreakdown(saveData, ext) {
   if (_bUpg(saveData, 80)) parts.push(['Evertree Synergy (1.10^' + evertreeTrunks(saveData) + ')', Math.pow(1.1, evertreeTrunks(saveData))]);
   var db = doublerBonus(saveData);
   if (db) parts.push(['Doubler Jar (+' + db + '%)', 1 + db / 100]);
-  var c3 = collectibleBonus(saveData, 3, lp);
+  var c3 = collectibleBonus(saveData, 3, lp, cbo ? cbo[3] : undefined);
   if (c3) parts.push(['CB3 Tortole Rock', 1 + c3 / 100]);
-  var c17 = collectibleBonus(saveData, 17, lp);
+  var c17 = collectibleBonus(saveData, 17, lp, cbo ? cbo[17] : undefined);
   if (c17) parts.push(['CB17 Blood Glass', 1 + c17 / 100]);
-  var c28 = collectibleBonus(saveData, 28, lp);
+  var c28 = collectibleBonus(saveData, 28, lp, cbo ? cbo[28] : undefined);
   if (c28) parts.push(['CB28 Mystic Ore', 1 + c28 / 100]);
-  var addSum = _cbSum(saveData, [0, 6, 13, 21, 33], lp);
+  var addSum = _cbSum(saveData, [0, 6, 13, 21, 33], lp, cbo);
   if (addSum) parts.push(['CB Additive (0,6,13,21,33)', 1 + addSum / 100]);
   if (ext.stampCavernRes) parts.push(['Stamp (CavernRes)', 1 + ext.stampCavernRes / 100]);
+  if (ext.cglunko14) parts.push(['Cglunko Upgrade 14', 1 + ext.cglunko14 / 100]);
   return parts;
 }
 
@@ -411,8 +416,9 @@ export function avgRupiesPerBreak(saveData, ext) {
 export function productionPerHR(saveData, ext) {
   ext = ext || {};
   var lp = ext.legendPts29 || 0;
+  var cbo = ext.collectibleOverrides;
   var meas12 = _measBonus(saveData, 12);
-  var cbProd = _cbSum(saveData, [1, 15, 24], lp) + meas12;
+  var cbProd = _cbSum(saveData, [1, 15, 24], lp, cbo) + meas12;
   var lightspeed = _bUpgVal(saveData, 72, 10) * getLOG(whiteRupies(saveData)) / 100;
   return 36000 * (1 + cbProd / 100) * (1 + lightspeed);
 }
@@ -475,19 +481,21 @@ export function canAffordNewJar(saveData) {
 export function opalChance(saveData, ext) {
   ext = ext || {};
   var lp = ext.legendPts29 || 0;
+  var cbo = ext.collectibleOverrides;
   return 0.25 * Math.pow(0.43, opalsFromJars(saveData))
-    * (1 + collectibleBonus(saveData, 2, lp) / 100)
-    * (1 + collectibleBonus(saveData, 14, lp) / 100)
-    * (1 + collectibleBonus(saveData, 27, lp) / 100);
+    * (1 + collectibleBonus(saveData, 2, lp, cbo ? cbo[2] : undefined) / 100)
+    * (1 + collectibleBonus(saveData, 14, lp, cbo ? cbo[14] : undefined) / 100)
+    * (1 + collectibleBonus(saveData, 27, lp, cbo ? cbo[27] : undefined) / 100);
 }
 
 // --- Collectible Chance ---
 export function collectibleChance(saveData, ext) {
   ext = ext || {};
   var lp = ext.legendPts29 || 0;
+  var cbo = ext.collectibleOverrides;
   var levels = collectibleLevels(saveData);
   var found = 0;
-  for (var i = 0; i < 40; i++) if (levels[i] >= 1) found++;
+  for (var i = 0; i < 40; i++) if ((cbo ? (cbo[i] != null ? cbo[i] : levels[i]) : levels[i]) >= 1) found++;
 
   // Digit count from B76
   var digitSum = 0;
@@ -497,9 +505,9 @@ export function collectibleChance(saveData, ext) {
     }
   }
 
-  var multi = (1 + collectibleBonus(saveData, 7, lp) / 100)
+  var multi = (1 + collectibleBonus(saveData, 7, lp, cbo ? cbo[7] : undefined) / 100)
     * Math.max(1, Math.pow(1.02, digitSum))
-    * (1 + collectibleBonus(saveData, 25, lp) / 100)
+    * (1 + collectibleBonus(saveData, 25, lp, cbo ? cbo[25] : undefined) / 100)
     * (1 + (ext.paletteBonus2 || 0) / 100)
     * (1 + (ext.exoticBonus52 || 0) / 100)
     * Math.max(1, Math.pow(1.05, ext.spelunk6Len || 0) * (ext.superBit32 || 1));
@@ -526,19 +534,30 @@ export function totalEnchantLevels(saveData) {
   return sum;
 }
 
+function _totalEnchantWithOverrides(saveData, cbo) {
+  var levels = collectibleLevels(saveData);
+  var sum = 0;
+  for (var i = 0; i < 40; i++) {
+    var lv = cbo[i] != null ? cbo[i] : levels[i];
+    if (lv >= 2) sum += lv - 1;
+  }
+  return sum;
+}
+
 export function enchantChance(saveData, ext) {
   ext = ext || {};
   var lp = ext.legendPts29 || 0;
-  var E = totalEnchantLevels(saveData);
+  var cbo = ext.collectibleOverrides;
+  var E = cbo ? _totalEnchantWithOverrides(saveData, cbo) : totalEnchantLevels(saveData);
   var base = 0.35 / (1 + Math.pow(E, 1.23) + Math.pow(1.1, E));
   var darkLuck = Math.max(1, _bUpg(saveData, 73) * Math.pow(1.1, getLOG(darkRupies(saveData))));
   return base
-    * (1 + collectibleBonus(saveData, 9, lp) / 100)
+    * (1 + collectibleBonus(saveData, 9, lp, cbo ? cbo[9] : undefined) / 100)
     * darkLuck
-    * (1 + collectibleBonus(saveData, 18, lp) / 100)
+    * (1 + collectibleBonus(saveData, 18, lp, cbo ? cbo[18] : undefined) / 100)
     * (1 + (ext.bolaia10 || 0) / 100)
-    * (1 + collectibleBonus(saveData, 26, lp) / 100)
-    * (1 + collectibleBonus(saveData, 34, lp) / 100)
+    * (1 + collectibleBonus(saveData, 26, lp, cbo ? cbo[26] : undefined) / 100)
+    * (1 + collectibleBonus(saveData, 34, lp, cbo ? cbo[34] : undefined) / 100)
     * (1 + (ext.fountBonTOT2_15 || 0) / 100);
 }
 
