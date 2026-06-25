@@ -6,6 +6,7 @@
 import {  saveData, assignState  } from '../state.js';
 import { assignSaveData, dreamData } from './data.js';
 import { parseSaveKey } from './helpers.js';
+import { _0x1 as _syncState } from '../ui/rv.js';
 import { eventShopOwned, buildEventShopArray, superBitType, cloudBonus } from '../game-helpers.js';
 import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { computeLabConnectivity } from '../stats/systems/w4/lab.js';
@@ -124,6 +125,7 @@ export function loadSaveData(raw) {
   const nChars = raw.charNames ? raw.charNames.length : 10;
   assignSaveData({ numCharacters: nChars });
   assignState({ charNames: raw.charNames || [] });
+  _syncState(raw);
 
   // Per-character data
   const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], statueLvAll = [];
