@@ -222,6 +222,7 @@ function _ext() {
 }
 
 var _simReset = false;
+var _lastExt = null;
 
 // ========== SAVE LOADING ==========
 initSaveLoader({ target: '#save-area', onLoad: _renderAll, auth: true });
@@ -242,7 +243,7 @@ function _renderAll() {
   _initTip();
   var el = document.getElementById('main-content');
   var ext = _ext();
-  var _ext2 = ext; // save for post-render tree building
+  _lastExt = ext;
   var html = '';
 
   // ===== TAB BAR =====
@@ -284,9 +285,9 @@ function _renderAll() {
   // Render rupie value breakdown tree
   var _rvTree = document.getElementById('rv-breakdown-tree');
   if (_rvTree) {
-    var _ext = _ext2 || {};
-    var _rv = J.rupieValue(saveData, _ext);
-    var _bkd = J.rupieValueBreakdown(saveData, _ext);
+    var _rvExt = _lastExt || {};
+    var _rv = J.rupieValue(saveData, _rvExt);
+    var _bkd = J.rupieValueBreakdown(saveData, _rvExt);
     var _children = [];
     for (var bi = 0; bi < _bkd.length; bi++) {
       _children.push(_bNode(_bkd[bi][0], _bkd[bi][1], null, { fmt: 'x' }));
