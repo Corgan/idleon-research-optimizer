@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Idleon Jar Calculator</title>
+<link rel="stylesheet" href="css/breakdown.css">
 <style>
 :root {
   --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
@@ -255,6 +256,7 @@ function _renderAll() {
   html += '<div class="tab" data-tab="chances">Chances</div>';
   html += '<div class="tab" data-tab="collectibles">Collectibles</div>';
   html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '<div class="tab" data-tab="nexttier">Next Tier</div>';
   html += '</div>';
   html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82em;color:' + (_simReset ? 'var(--gold)' : 'var(--text2)') + ';margin-left:auto;">';
   html += '<input type="checkbox" id="sim-reset-cb"' + (_simReset ? ' checked' : '') + '> Simulate Jarptomizer Reset';
@@ -266,6 +268,7 @@ function _renderAll() {
   html += _renderChances(ext);
   html += _renderCollectibles(ext);
   html += _renderUpgrades(ext);
+  html += _renderNextTier(ext);
 
   // Preserve active tab + scroll across re-renders
   var _prevTab = el.querySelector('.tab.active');
@@ -404,19 +407,41 @@ function _renderProduction(ext) {
   }
   html += '</tbody></table></div>';
 
-  // Tier times for all jar types
+  // Tier times for all jar types — lanternable focus
   html += '<h3>Tier Times by Jar Type</h3>';
-  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th><th class="num">Req</th>';
-  for (var t = 0; t < 6; t++) html += '<th class="num">T' + t + '</th>';
-  html += '</tr></thead><tbody>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Highlighted tier = highest reachable with a 2hr lantern skip. Shows ±2 tiers around it.</p>';
+
   var total = J.totalJarTypes(saveData);
+  var LANTERN_HRS = 2;
+  var lanternTiers = [];  // per jar type: internal tier index that's lanternable
+  var minTier = Infinity, maxTier = -Infinity;
+
+  for (var jt = 0; jt < total; jt++) {
+    var lt = 0;
+    for (var t = 0; t < 20; t++) {
+      if (J.timeToTier(saveData, jt, t, ext) <= LANTERN_HRS) lt = t;
+      else break;
+    }
+    lanternTiers.push(lt);
+    var lo = Math.max(0, lt - 2);
+    var hi = lt + 2;
+    if (lo < minTier) minTier = lo;
+    if (hi > maxTier) maxTier = hi;
+  }
+  if (minTier === Infinity) { minTier = 0; maxTier = 5; }
+
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th><th class="num">Req</th>';
+  for (var t = minTier; t <= maxTier; t++) html += '<th class="num">T' + (t + 1) + '</th>';
+  html += '</tr></thead><tbody>';
   for (var jt = 0; jt < total; jt++) {
     var effReq = J.productionREQ(saveData, jt);
     html += '<tr>';
     html += '<td>' + J.JAR_TYPE_NAMES[jt] + '</td>';
     html += '<td class="num">' + fmtNum(Math.round(effReq)) + '</td>';
-    for (var t = 0; t < 6; t++) {
-      html += '<td class="num">' + fmtTimeHrs(J.timeToTier(saveData, jt, t, ext)) + '</td>';
+    for (var t = minTier; t <= maxTier; t++) {
+      var hrs = J.timeToTier(saveData, jt, t, ext);
+      var isLantern = (t === lanternTiers[jt]);
+      html += '<td class="num"' + (isLantern ? ' style="background:rgba(255,255,255,.07);font-weight:bold"' : '') + '>' + fmtTimeHrs(hrs) + '</td>';
     }
     html += '</tr>';
   }
@@ -443,6 +468,54 @@ function _renderProduction(ext) {
   }
   html += '</tbody></table>';
 
+  // Lantern yield per jar type
+  html += '<h3>Jars per Lantern (2hr skip)</h3>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">'
+    + 'How many jars of each tier a single 2hr lantern produces per slot. '
+    + 'Simulates the offline production loop: each tick consumes from highest tier down.</p>';
+
+  var prodPerHr = J.productionPerHR(saveData, ext);
+  var lanternProgress = prodPerHr * 2;  // 2 hours of progress
+  var total = J.totalJarTypes(saveData);
+
+  // Find max tier across all types for column headers
+  var maxTierSeen = 0;
+  var yieldData = [];
+  for (var jt = 0; jt < total; jt++) {
+    var req = J.productionREQ(saveData, jt);
+    var counts = {};
+    var prog = lanternProgress;
+    while (prog >= req) {
+      var tier = Math.floor(Math.log10(prog / req));
+      counts[tier] = (counts[tier] || 0) + 1;
+      prog -= req * Math.pow(10, tier);
+      if (tier > maxTierSeen) maxTierSeen = tier;
+    }
+    yieldData.push({ type: jt, name: J.JAR_TYPE_NAMES[jt], counts: counts, req: req });
+  }
+
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th>';
+  for (var t = maxTierSeen; t >= 0; t--) html += '<th class="num">T' + (t + 1) + ' (' + Math.pow(10, t) + '×)</th>';
+  html += '<th class="num">Total Jars</th>';
+  if (J.bupgOwned(saveData, 74)) html += '<th class="num">B74 Count</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < yieldData.length; i++) {
+    var r = yieldData[i];
+    html += '<tr><td>' + r.name + '</td>';
+    var totalJars = 0, b74total = 0;
+    for (var t = maxTierSeen; t >= 0; t--) {
+      var c = r.counts[t] || 0;
+      totalJars += c;
+      b74total += c * Math.pow(10, t);
+      html += '<td class="num">' + (c > 0 ? c : '<span style="color:var(--text2)">0</span>') + '</td>';
+    }
+    html += '<td class="num"><b>' + totalJars + '</b></td>';
+    if (J.bupgOwned(saveData, 74)) html += '<td class="num">' + fmtNum(b74total) + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
   html += '</div></div>';
   return html;
 }
@@ -468,7 +541,7 @@ function _renderRupieValue(ext) {
   // Rupie value per type per tier
   html += '<h3>Rupie Value by Type &times; Tier</h3>';
   html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th>';
-  for (var t = 0; t < 5; t++) html += '<th class="num">Tier ' + t + '</th>';
+  for (var t = 0; t < 5; t++) html += '<th class="num">Tier ' + (t+1) + '</th>';
   html += '</tr></thead><tbody>';
   var rupieTypes = [0, 3, 5, 6, 8, 9];
   for (var ri = 0; ri < rupieTypes.length; ri++) {
@@ -491,6 +564,68 @@ function _renderRupieValue(ext) {
   html += '<tr style="border-top:2px solid #444"><td><strong>Total</strong></td><td class="num"><strong>' + fmtPct1(J.extraRupieChance(saveData, ext)) + '</strong></td></tr>';
   html += '</tbody></table>';
 
+  // Rupie income per break
+  var avgRupies = J.avgRupiesPerBreak(saveData, ext);
+  html += '<h3>Rupie Income Per Break</h3>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Each break rolls ' + avgRupies.toFixed(1) + ' rupies on average. Each rupie independently selects a color based on your current balances.</p>';
+
+  // Compute distribution for each rupie jar type
+  var rupieJars = [
+    { type: 0, name: 'Basic Rupie Jar', thresholds: [
+      { need: [1, 1000], colors: [0, 1, 2] },
+      { need: [0, 100],  colors: [0, 1] },
+      { fallback: true,  colors: [0] },
+    ]},
+    { type: 3, name: 'Decent Rupie Jar', thresholds: [
+      { need: [4, 500000], colors: [3, 4, 5] },
+      { need: [3, 10000],  colors: [3, 4] },
+      { fallback: true,    colors: [3] },
+    ]},
+    { type: 5, name: 'White Rupie Jar', thresholds: [{ fallback: true, colors: [10] }] },
+    { type: 6, name: 'Elegant Rupie Jar', thresholds: [
+      { need: [7, 50000000], colors: [6, 7, 8] },
+      { need: [6, 6000000],  colors: [6, 7] },
+      { fallback: true,      colors: [6] },
+    ]},
+    { type: 8, name: 'Dark Rupie Jar', thresholds: [{ fallback: true, colors: [11] }] },
+    { type: 9, name: 'Master Rupie Jar', thresholds: [{ fallback: true, colors: [9] }] },
+  ];
+
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar / Rupie Color</th><th class="num">Avg Count</th>';
+  for (var ti = 0; ti < 6; ti++) html += '<th class="num">Tier ' + (ti+1) + '</th>';
+  html += '</tr></thead><tbody>';
+  for (var ji = 0; ji < rupieJars.length; ji++) {
+    var rj = rupieJars[ji];
+    if (rj.type >= J.totalJarTypes(saveData)) continue;
+    var activeColors = null;
+    for (var ti = 0; ti < rj.thresholds.length; ti++) {
+      var th = rj.thresholds[ti];
+      if (th.fallback) { activeColors = th.colors; break; }
+      var bal = J.rupieBalance(saveData, th.need[0]);
+      if (bal >= th.need[1]) { activeColors = th.colors; break; }
+    }
+    if (!activeColors) activeColors = [rj.type];
+    var perColor = avgRupies / activeColors.length;
+    // Parent row (total for this jar type)
+    html += '<tr style="background:rgba(255,255,255,.02);border-top:1px solid #444;"><td style="font-weight:700;">' + rj.name + '</td>';
+    html += '<td class="num" style="font-weight:700;">' + avgRupies.toFixed(1) + '</td>';
+    for (var ti = 0; ti < 6; ti++) {
+      html += '<td class="num" style="font-weight:700;">' + fmtNum(Math.round(avgRupies * rv * Math.pow(10, ti))) + '</td>';
+    }
+    html += '</tr>';
+    // Sub-row only for multi-color jars, showing per-color amount
+    if (activeColors.length > 1) {
+      var colorNames = activeColors.map(function(c) { return J.RUPIE_NAMES[c] || 'Rupie ' + c; }).join(', ');
+      html += '<tr style="opacity:.85;"><td style="padding-left:24px;color:var(--text2);">└ each of: ' + colorNames + '</td>';
+      html += '<td class="num" style="color:var(--text2);">~' + perColor.toFixed(1) + '</td>';
+      for (var ti = 0; ti < 6; ti++) {
+        html += '<td class="num" style="color:var(--text2);">' + fmtNum(Math.round(perColor * rv * Math.pow(10, ti))) + '</td>';
+      }
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table></div>';
+
   html += '</div></div>';
   return html;
 }
@@ -511,9 +646,9 @@ function _renderChances(ext) {
 
   // Tier scaling
   html += '<h3>Chance × Tier (how tier multiplies chances)</h3>';
-  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Chance jars (types 1, 2, 4) multiply their chance by 10<sup>tier</sup>. At high enough tier, the chance exceeds 100% = guaranteed.</p>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Chance jars (types 1, 2, 4) multiply their chance by 10<sup>tier-1</sup>. At high enough tier, the chance exceeds 100% = guaranteed.</p>';
   html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Chance Type</th><th class="num">Base</th>';
-  for (var t = 0; t < 6; t++) html += '<th class="num">Tier ' + t + '</th>';
+  for (var t = 0; t < 6; t++) html += '<th class="num">Tier ' + (t+1) + '</th>';
   html += '<th class="num">Tier for 100%</th></tr></thead><tbody>';
 
   var chances = [
@@ -532,7 +667,7 @@ function _renderChances(ext) {
             + (val >= 1 ? '100%+' : fmtChance(val)) + '</td>';
     }
     // Tier needed for 100%
-    var tierFor100 = base > 0 ? Math.ceil(Math.log10(1 / base)) : '∞';
+    var tierFor100 = base > 0 ? Math.ceil(Math.log10(1 / base)) + 1 : '∞';
     html += '<td class="num"><span class="n">' + tierFor100 + '</span></td>';
     html += '</tr>';
   }
@@ -713,6 +848,297 @@ function _renderUpgrades(ext) {
     html += '<td class="num">' + J.doublerMultiplier(t).toFixed(2) + 'x</td></tr>';
   }
   html += '</tbody></table>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== NEXT TIER TAB =====
+function _renderNextTier(ext) {
+  var html = '<div id="tab-nexttier" class="tab-content">';
+  html += '<div class="section"><h2>Next Pow10 Milestone Ranking</h2>';
+
+  if (!J.bupgOwned(saveData, 74)) {
+    html += '<p style="color:var(--text2)">B74 is not owned — this tab ranks jar types by how fast they reach the next power-of-10 in their produced count, which feeds B74\'s bonus to the <em>next</em> jar type.</p>';
+    html += '</div></div>';
+    return html;
+  }
+
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">'
+    + 'B74 reduces production REQ for each type by <b>5% × log<sub>10</sub>(prev type produced)</b>. '
+    + 'Each pow10 milestone = +5% speed for the next jar type. '
+    + 'Higher tier jars count for 10<sup>tier</sup> breaks (tier 1 = 10, tier 2 = 100, etc).</p>';
+
+  var prodPerHr = J.productionPerHR(saveData, ext);
+  var total = J.totalJarTypes(saveData);
+  var rows = [];
+
+  for (var jt = 0; jt < total; jt++) {
+    var count = J.jarsProducedOfType(saveData, jt);
+    var logCount = count > 0 ? Math.floor(Math.log10(count)) : -1;
+    var nextPow10 = Math.pow(10, logCount + 1);
+    var deficit = nextPow10 - count;
+    var req = J.productionREQ(saveData, jt);
+    var jarsPerHr = prodPerHr / req;  // tier-0 rate per slot
+    var hrsAllSlots = deficit / (jarsPerHr * 3);  // assume all 3 slots
+    var benefitsType = jt + 1 < total ? J.JAR_TYPE_NAMES[jt + 1] : '—';
+    var curBonus = 5 * Math.log10(Math.max(1, count));
+    var nextBonus = 5 * (logCount + 2);  // after reaching next pow10
+
+    rows.push({
+      type: jt, name: J.JAR_TYPE_NAMES[jt], count: count,
+      nextPow10: nextPow10, deficit: deficit,
+      hrsAllSlots: hrsAllSlots, benefitsType: benefitsType,
+      curBonus: curBonus, nextBonus: nextBonus, req: req
+    });
+  }
+
+  // Sort by time
+  rows.sort(function(a, b) { return a.hrsAllSlots - b.hrsAllSlots; });
+
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Jar Type</th><th class="num">Current Count</th>';
+  html += '<th class="num">Next Milestone</th><th class="num">Deficit</th>';
+  html += '<th class="num">Time (3 slots)</th>';
+  html += '<th>Benefits</th>';
+  html += '<th class="num">B74 Now→Next</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var isBest = i === 0;
+    html += '<tr' + (isBest ? ' style="background:rgba(var(--green-rgb,80,200,120),.12)"' : '') + '>';
+    html += '<td>' + (i + 1) + '</td>';
+    html += '<td>' + r.name + (isBest ? ' <span class="badge badge-green">Fastest</span>' : '') + '</td>';
+    html += '<td class="num">' + fmtNum(r.count) + '</td>';
+    html += '<td class="num">' + fmtNum(r.nextPow10) + '</td>';
+    html += '<td class="num">' + fmtNum(r.deficit) + '</td>';
+    html += '<td class="num">' + fmtTimeHrs(r.hrsAllSlots) + '</td>';
+    html += '<td>' + r.benefitsType + '</td>';
+    html += '<td class="num">' + r.curBonus.toFixed(1) + '% → ' + r.nextBonus.toFixed(1) + '%</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Insight
+  if (rows.length > 0) {
+    var best = rows[0];
+    html += '<div style="margin-top:12px;padding:10px;border-left:3px solid var(--green);background:rgba(80,200,120,.06)">';
+    html += '<b>Recommendation:</b> Produce <b>' + best.name + '</b> to reach ' + fmtNum(best.nextPow10) + ' fastest';
+    html += ' (' + fmtNum(best.deficit) + ' more needed, ~' + fmtTimeHrs(best.hrsAllSlots) + ' with all 3 slots).';
+    if (best.benefitsType !== '—') html += ' This will speed up <b>' + best.benefitsType + '</b> production by +5%.';
+    html += '</div>';
+  }
+
+  // === Off-Map Tier Accumulation Chart ===
+  html += '<h2 style="margin-top:28px">Off-Map Tier Accumulation</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">'
+    + 'Off-map, the game ticks every 5s but only produces 1 jar per slot per tick. '
+    + 'If per-tick progress > REQ, the remainder accumulates until it reaches 10×, 100×, 1000× REQ — producing higher tier jars. '
+    + 'When the board is full (120 jars), a 10% chance upgrades a jar +1 tier beyond computed. '
+    + 'Max Tier shows computed + the 10% upgrade.</p>';
+
+  var prodPerHr = J.productionPerHR(saveData, ext);
+  var perTick5s = prodPerHr * 5 / 3600;
+  var totalUnsorted = J.totalJarTypes(saveData);
+  var b67mult = 1 + (J.bupgOwned(saveData, 67) ? 30 : 0) / 100;
+
+  // Simulate max tier for a given REQ
+  function _simMaxTier(perTick, req) {
+    if (perTick <= req) return 0;
+    var prog = 0, best = 0;
+    for (var t = 0; t < 500; t++) {
+      prog += perTick;
+      if (prog >= req) {
+        var tier = Math.floor(Math.log10(prog / req));
+        if (tier > best) best = tier;
+        prog -= req * Math.pow(10, tier);
+        if (prog < 0) prog = 0;
+      }
+    }
+    return best;
+  }
+
+  // Compute REQ for a given B74 prev count
+  function _reqForPrevCount(baseReq, prevCount) {
+    var b74 = 5 * Math.log10(Math.max(1, prevCount));
+    return baseReq / (b67mult * (1 + b74 / 100));
+  }
+
+  // Binary search: find min prevCount to reach target tier
+  function _prevCountForTier(baseReq, targetTier) {
+    var lo = 1, hi = 1e30;
+    for (var step = 0; step < 200; step++) {
+      var mid = Math.sqrt(lo * hi);  // geometric midpoint for log scale
+      var req = _reqForPrevCount(baseReq, mid);
+      var tier = _simMaxTier(perTick5s, req);
+      if (tier >= targetTier) hi = mid;
+      else lo = mid;
+      if (hi / lo < 1.01) break;
+    }
+    return Math.ceil(hi);
+  }
+
+  // Binary search: find min prodPerHr to reach target tier with given req
+  function _prodForTier(req, targetTier) {
+    var lo = 1, hi = 1e15;
+    for (var step = 0; step < 100; step++) {
+      var mid = (lo + hi) / 2;
+      var tick = mid * 5 / 3600;
+      if (_simMaxTier(tick, req) >= targetTier) hi = mid;
+      else lo = mid;
+      if (hi - lo < 1) break;
+    }
+    return Math.ceil(hi);
+  }
+
+  // Simulate ticks-to-next-tier and count frequency at a tier
+  function _simTierStats(perTick, req) {
+    if (perTick <= req) return { sustained: -1, ticksBetweenMax: Infinity };
+    // Sustained tier = floor(log10(perTick/req)) — tier you can produce every tick
+    var sustained = Math.floor(Math.log10(perTick / req));
+    // Simulate to find time between jars at sustained+1 (the max tier from accumulation)
+    var maxTier = _simMaxTier(perTick, req);
+    var prog = 0, firstHit = -1, hits = 0;
+    for (var t = 0; t < 1000; t++) {
+      prog += perTick;
+      if (prog >= req) {
+        var tier = Math.floor(Math.log10(prog / req));
+        if (tier >= maxTier && maxTier > sustained) {
+          hits++;
+          if (firstHit < 0) firstHit = t + 1;
+        }
+        prog -= req * Math.pow(10, tier);
+        if (prog < 0) prog = 0;
+      }
+    }
+    var avgInterval = hits > 1 ? Math.ceil(1000 / hits) : (firstHit > 0 ? firstHit : Infinity);
+    return { sustained: sustained, maxTier: maxTier, ticksBetweenMax: avgInterval, firstHitMax: firstHit };
+  }
+
+  // Build rows
+  var accRows = [];
+  for (var jt = 0; jt < totalUnsorted; jt++) {
+    var req = J.productionREQ(saveData, jt);
+    var baseReq = 1000 + 2000 * jt;
+    var prevCount = J.jarsProducedOfType(saveData, Math.max(0, jt - 1));
+    var computedTier = _simMaxTier(perTick5s, req);
+
+    var stats = _simTierStats(perTick5s, req);
+    var sustained = stats.sustained;  // tier we CAN sustain (net positive)
+    var netSustained = sustained >= 0 ? perTick5s - req * Math.pow(10, sustained) : perTick5s - req;
+    var nextTier = sustained + 1;  // tier we CAN'T sustain yet
+    var netNext = perTick5s - req * Math.pow(10, nextTier);
+
+    // Time between max-tier jar productions (5s per tick)
+    var secsBetween;
+    if (perTick5s > req && isFinite(stats.ticksBetweenMax)) {
+      secsBetween = stats.ticksBetweenMax * 5;
+    } else {
+      // Can't accumulate — time to produce one tier-0 jar from progress buildup
+      secsBetween = Math.ceil(req / perTick5s) * 5;
+    }
+
+    // To SUSTAIN nextTier: need perTick >= REQ * 10^nextTier
+    var sustainReqNeeded = perTick5s / Math.pow(10, nextTier);
+    var b74multNeeded = baseReq / (sustainReqNeeded * b67mult);
+    var b74pctNeeded = (b74multNeeded - 1) * 100;
+    var neededB74 = b74pctNeeded > 0 ? Math.pow(10, b74pctNeeded / 5) : 1;
+
+    // Prod path: what prod/hr makes perTick >= REQ * 10^nextTier at current REQ?
+    var neededProd = req * Math.pow(10, nextTier) * 3600 / 5;
+
+    accRows.push({
+      type: jt, name: J.JAR_TYPE_NAMES[jt],
+      req: req, baseReq: baseReq,
+      sustained: sustained,
+      computedTier: computedTier,
+      netSustained: netSustained,
+      nextTier: nextTier,
+      netNext: netNext,
+      secsBetween: secsBetween,
+      neededB74: neededB74,
+      neededProd: neededProd,
+      prevCount: prevCount
+    });
+  }
+
+  // Summary cards
+  html += '<div class="card-grid cols-2">';
+  html += _card('Production/hr', fmtNum(Math.round(prodPerHr)), '');
+  html += _card('Per 5s Tick', fmtNum(Math.round(perTick5s)), 'progress added per off-map tick');
+  html += '</div>';
+
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
+  html += '<th>Jar Type</th>';
+  html += '<th class="num">REQ</th>';
+  html += '<th class="num">Sustained<br>Tier</th>';
+  html += '<th class="num">Net/Tick<br>(sustained)</th>';
+  html += '<th class="num">Time per<br>Max Jar</th>';
+  html += '<th class="num">Next Tier<br>Net/Tick</th>';
+  html += '<th class="num">Next via B74</th>';
+  html += '<th class="num">Next via Prod</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < accRows.length; i++) {
+    var r = accRows[i];
+    html += '<tr>';
+    html += '<td>' + r.name + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(r.req)) + '</td>';
+
+    // Sustained tier
+    if (r.sustained >= 0) {
+      html += '<td class="num"><b>T' + (r.sustained + 2) + '</b> (' + Math.pow(10, r.sustained) + '×)';
+      if (r.computedTier > r.sustained) html += '<br><span style="font-size:.8em;color:var(--text2)">peaks T' + (r.computedTier + 2) + ' via accum</span>';
+      html += '</td>';
+    } else {
+      html += '<td class="num" style="color:var(--text2)">T1 only</td>';
+    }
+
+    // Net/tick at sustained tier (surplus that accumulates to higher tiers)
+    html += '<td class="num"' + (r.netSustained > 0 ? ' style="color:var(--green)"' : ' style="color:var(--red)"') + '>';
+    html += (r.netSustained > 0 ? '+' : '') + fmtNum(Math.round(r.netSustained)) + '</td>';
+
+    // Time per max-tier jar
+    html += '<td class="num">';
+    if (!isFinite(r.secsBetween) || r.secsBetween <= 0) html += '—';
+    else if (r.secsBetween < 60) html += Math.round(r.secsBetween) + 's';
+    else if (r.secsBetween < 3600) html += Math.round(r.secsBetween / 60) + 'm';
+    else html += fmtTimeHrs(r.secsBetween / 3600);
+    html += '</td>';
+
+    // Next tier net/tick (negative = how much short)
+    html += '<td class="num" style="color:var(--red)">';
+    html += fmtNum(Math.round(r.netNext));
+    html += ' <span style="font-size:.8em">(T' + (r.nextTier + 2) + ')</span></td>';
+
+    // B74 path
+    html += '<td class="num">';
+    if (r.neededB74 <= r.prevCount) {
+      html += '<span style="color:var(--green)">✓ Have ' + fmtNum(r.prevCount) + '</span>';
+    } else if (r.neededB74 < 1e20) {
+      var b74pow10 = Math.pow(10, Math.ceil(Math.log10(Math.max(2, r.neededB74))));
+      html += fmtNum(r.neededB74);
+      html += ' <span style="font-size:.8em;color:var(--text2)">(' + J.JAR_TYPE_NAMES[Math.max(0, r.type - 1)] + ')</span>';
+      html += '<br><span style="font-size:.8em;color:var(--text2)">pow10: ' + fmtNum(b74pow10) + ' (have ' + fmtNum(r.prevCount) + ')</span>';
+    } else {
+      html += '<span style="color:var(--text2)">B74 alone can\'t</span>';
+    }
+    html += '</td>';
+
+    // Prod path
+    html += '<td class="num">';
+    if (r.neededProd <= Math.round(prodPerHr)) {
+      html += '<span style="color:var(--green)">✓ Have ' + fmtNum(Math.round(prodPerHr)) + '</span>';
+    } else {
+      html += fmtNum(r.neededProd) + '/hr';
+      html += '<br><span style="font-size:.8em;color:var(--text2)">need +' + fmtNum(r.neededProd - Math.round(prodPerHr)) + '</span>';
+    }
+    html += '</td>';
+
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
 
   html += '</div></div>';
   return html;
