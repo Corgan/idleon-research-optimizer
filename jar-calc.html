@@ -210,7 +210,7 @@ function _ext() {
     paletteBonus2: _safe(function() { return computePaletteBonus(2, S); }),
     exoticBonus52: _safe(function() { return computeExoticBonus(52, S); }),
     spelunk6Len: (S.spelunkData && S.spelunkData[6] && S.spelunkData[6].length) || 0,
-    superBit32: _safe(function() { return superBitType(32, _g12) ? Math.pow(1.05, (S.spelunkData && S.spelunkData[6] && S.spelunkData[6].length) || 0) : 1; }),
+    superBit32: _safe(function() { return superBitType(32, _g12); }),
     fountBonTOT2_15: _safe(function() { return bonTOT(u, m, 2, 15); }),
   };
   // Jarptomizer reset: zero all collectible levels
@@ -346,7 +346,7 @@ function _renderOverview(ext) {
   // Doubler & Break All status
   html += '<div class="card-grid cols-3" style="margin-top:12px">';
   var db = J.doublerBonus(saveData);
-  html += _card('Doubler Bonus', db > 0 ? '+' + db + '%' : 'None', db > 0 ? 'Applied to next rupie break' : 'Break a Doubler jar to get bonus');
+  html += _card('Gilded Bonus', db > 0 ? '+' + db + '%' : 'None', db > 0 ? 'Applied to next rupie break' : 'Break a Gilded jar to get bonus');
   html += _card('Break All', J.breakAllUnlocked(saveData) ? '<span style="color:var(--green)">Unlocked</span>' : '<span style="color:var(--red)">Locked</span>', 'B_UPG 69');
   var tgt = J.targetedEnchantIdx(saveData);
   html += _card('Targeted Enchant', tgt >= 0 ? J.COLLECTIBLE_DATA[tgt][0] : 'None',
@@ -387,7 +387,7 @@ function _renderProduction(ext) {
   html += '<div class="table-scroll"><table class="data-table"><thead><tr>'
         + '<th>#</th><th>Jar Type</th><th class="num">Req</th>'
         + '<th class="num">Progress</th><th>Fill</th>'
-        + '<th class="num">T0</th><th class="num">T1</th><th class="num">T2</th><th class="num">T3</th><th class="num">T4</th><th class="num">T5</th>'
+        + '<th class="num">T1</th><th class="num">T2</th><th class="num">T3</th><th class="num">T4</th><th class="num">T5</th><th class="num">T6</th>'
         + '</tr></thead><tbody>';
   for (var s = 0; s < slots; s++) {
     var jt = J.productionSlotType(saveData, s);
@@ -396,7 +396,7 @@ function _renderProduction(ext) {
     var pct = Math.min(1, prog / req);
     html += '<tr>';
     html += '<td>' + (s + 1) + '</td>';
-    html += '<td>' + J.JAR_TYPE_NAMES[jt] + ' <span class="badge badge-' + (J.JAR_TYPE_CATS[jt] === 'rupie' ? 'gold' : J.JAR_TYPE_CATS[jt] === 'chance' ? 'cyan' : 'purple') + '">' + J.JAR_TYPE_CATS[jt] + '</span></td>';
+    html += '<td>' + J.JAR_TYPE_NAMES[jt] + ' <span class="badge badge-' + (J.JAR_TYPE_CATS[jt] === 'rupie' ? 'gold' : J.JAR_TYPE_CATS[jt] === 'chance' ? 'cyan' : 'purple') + '">' + (J.JAR_TYPE_CATS[jt] === 'gilded' ? 'gilded' : J.JAR_TYPE_CATS[jt]) + '</span></td>';
     html += '<td class="num">' + fmtNum(Math.round(req)) + '</td>';
     html += '<td class="num">' + fmtNum(Math.round(prog)) + '</td>';
     html += '<td><div class="bar-outer" style="width:120px"><div class="bar-fill" style="width:' + (pct * 100) + '%;background:var(--green)"></div></div> ' + fmtPct1(pct) + '</td>';
@@ -531,7 +531,7 @@ function _renderRupieValue(ext) {
   var avgR = J.avgRupiesPerBreak(saveData, ext);
   html += _card('Avg Rupies/Break', avgR.toFixed(2), 'Extra chance: ' + fmtPct1(J.extraRupieChance(saveData, ext)));
   var db = J.doublerBonus(saveData);
-  html += _card('Doubler Active', db > 0 ? '+' + db + '%' : 'No', db > 0 ? 'Consumed on next rupie break' : '');
+  html += _card('Gilded Active', db > 0 ? '+' + db + '%' : 'No', db > 0 ? 'Consumed on next rupie break' : '');
   html += '</div>';
 
   // Multiplier breakdown tree
@@ -539,21 +539,14 @@ function _renderRupieValue(ext) {
   html += '<h3>Multiplier Sources</h3><div id="rv-breakdown-tree"></div>';
 
   // Rupie value per type per tier
-  html += '<h3>Rupie Value by Type &times; Tier</h3>';
-  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th>';
+  html += '<h3>Rupie Value by Tier</h3>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
   for (var t = 0; t < 5; t++) html += '<th class="num">Tier ' + (t+1) + '</th>';
-  html += '</tr></thead><tbody>';
-  var rupieTypes = [0, 3, 5, 6, 8, 9];
-  for (var ri = 0; ri < rupieTypes.length; ri++) {
-    var jt = rupieTypes[ri];
-    if (jt >= J.totalJarTypes(saveData)) continue;
-    html += '<tr><td>' + J.JAR_TYPE_NAMES[jt] + '</td>';
-    for (var t = 0; t < 5; t++) {
-      html += '<td class="num">' + fmtNum(Math.round(rv * Math.pow(10, t))) + '</td>';
-    }
-    html += '</tr>';
+  html += '</tr></thead><tbody><tr>';
+  for (var t = 0; t < 5; t++) {
+    html += '<td class="num">' + fmtNum(Math.round(rv * Math.pow(10, t))) + '</td>';
   }
-  html += '</tbody></table></div>';
+  html += '</tr></tbody></table></div>';
 
   // Extra rupie sources
   html += '<h3>Extra Rupie Chance</h3>';
@@ -567,33 +560,33 @@ function _renderRupieValue(ext) {
   // Rupie income per break
   var avgRupies = J.avgRupiesPerBreak(saveData, ext);
   html += '<h3>Rupie Income Per Break</h3>';
-  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Each break rolls ' + avgRupies.toFixed(1) + ' rupies on average. Each rupie independently selects a color based on your current balances.</p>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Each break produces ' + avgRupies.toFixed(1) + ' rupies on average (extra chance: ' + fmtPct1(J.extraRupieChance(saveData, ext)) + '). Multi-color jars split evenly across active colors.</p>';
 
-  // Compute distribution for each rupie jar type
   var rupieJars = [
-    { type: 0, name: 'Basic Rupie Jar', thresholds: [
+    { type: 0, name: 'Basic Rupie', thresholds: [
       { need: [1, 1000], colors: [0, 1, 2] },
       { need: [0, 100],  colors: [0, 1] },
       { fallback: true,  colors: [0] },
     ]},
-    { type: 3, name: 'Decent Rupie Jar', thresholds: [
+    { type: 3, name: 'Decent Rupie', thresholds: [
       { need: [4, 500000], colors: [3, 4, 5] },
       { need: [3, 10000],  colors: [3, 4] },
       { fallback: true,    colors: [3] },
     ]},
-    { type: 5, name: 'White Rupie Jar', thresholds: [{ fallback: true, colors: [10] }] },
-    { type: 6, name: 'Elegant Rupie Jar', thresholds: [
+    { type: 5, name: 'White Rupie', thresholds: [{ fallback: true, colors: [10] }] },
+    { type: 6, name: 'Elegant Rupie', thresholds: [
       { need: [7, 50000000], colors: [6, 7, 8] },
       { need: [6, 6000000],  colors: [6, 7] },
       { fallback: true,      colors: [6] },
     ]},
-    { type: 8, name: 'Dark Rupie Jar', thresholds: [{ fallback: true, colors: [11] }] },
-    { type: 9, name: 'Master Rupie Jar', thresholds: [{ fallback: true, colors: [9] }] },
+    { type: 8, name: 'Dark Rupie', thresholds: [{ fallback: true, colors: [11] }] },
+    { type: 9, name: 'Master Rupie', thresholds: [{ fallback: true, colors: [9] }] },
   ];
 
-  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar / Rupie Color</th><th class="num">Avg Count</th>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr><th>Jar Type</th>';
   for (var ti = 0; ti < 6; ti++) html += '<th class="num">Tier ' + (ti+1) + '</th>';
   html += '</tr></thead><tbody>';
+
   for (var ji = 0; ji < rupieJars.length; ji++) {
     var rj = rupieJars[ji];
     if (rj.type >= J.totalJarTypes(saveData)) continue;
@@ -605,23 +598,24 @@ function _renderRupieValue(ext) {
       if (bal >= th.need[1]) { activeColors = th.colors; break; }
     }
     if (!activeColors) activeColors = [rj.type];
-    var perColor = avgRupies / activeColors.length;
-    // Parent row (total for this jar type)
-    html += '<tr style="background:rgba(255,255,255,.02);border-top:1px solid #444;"><td style="font-weight:700;">' + rj.name + '</td>';
-    html += '<td class="num" style="font-weight:700;">' + avgRupies.toFixed(1) + '</td>';
+
+    // Total row for this jar type
+    html += '<tr style="border-top:1px solid #444"><td><b>' + rj.name + '</b></td>';
     for (var ti = 0; ti < 6; ti++) {
-      html += '<td class="num" style="font-weight:700;">' + fmtNum(Math.round(avgRupies * rv * Math.pow(10, ti))) + '</td>';
+      html += '<td class="num"><b>' + fmtNum(Math.round(avgRupies * rv * Math.pow(10, ti))) + '</b></td>';
     }
     html += '</tr>';
-    // Sub-row only for multi-color jars, showing per-color amount
+
+    // Sub-rows per color (for multi-color jars)
     if (activeColors.length > 1) {
-      var colorNames = activeColors.map(function(c) { return J.RUPIE_NAMES[c] || 'Rupie ' + c; }).join(', ');
-      html += '<tr style="opacity:.85;"><td style="padding-left:24px;color:var(--text2);">└ each of: ' + colorNames + '</td>';
-      html += '<td class="num" style="color:var(--text2);">~' + perColor.toFixed(1) + '</td>';
-      for (var ti = 0; ti < 6; ti++) {
-        html += '<td class="num" style="color:var(--text2);">' + fmtNum(Math.round(perColor * rv * Math.pow(10, ti))) + '</td>';
+      var perColor = avgRupies / activeColors.length;
+      for (var ci = 0; ci < activeColors.length; ci++) {
+        html += '<tr style="opacity:.8"><td style="padding-left:20px"><span class="rupie-dot" style="background:' + J.RUPIE_COLORS[activeColors[ci]] + ';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px"></span>' + J.RUPIE_NAMES[activeColors[ci]] + '</td>';
+        for (var ti = 0; ti < 6; ti++) {
+          html += '<td class="num">' + fmtNum(Math.round(perColor * rv * Math.pow(10, ti))) + '</td>';
+        }
+        html += '</tr>';
       }
-      html += '</tr>';
     }
   }
   html += '</tbody></table></div>';
@@ -840,8 +834,8 @@ function _renderUpgrades(ext) {
   html += '</tbody></table>';
 
   // Doubler analysis
-  html += '<h3>Doubler Tier Values</h3>';
-  html += '<table class="data-table"><thead><tr><th class="num">Tier</th><th class="num">Doubler %</th><th class="num">Multiplier</th></tr></thead><tbody>';
+  html += '<h3>Gilded Tier Values</h3>';
+  html += '<table class="data-table"><thead><tr><th class="num">Tier</th><th class="num">Gilded %</th><th class="num">Multiplier</th></tr></thead><tbody>';
   for (var t = 0; t < 6; t++) {
     html += '<tr><td class="num">' + t + '</td>';
     html += '<td class="num">+' + J.doublerTierValue(t) + '%</td>';

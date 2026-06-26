@@ -17,14 +17,14 @@ export var JAR_TYPE_NAMES = [
   'Enchant',        // 4
   'White Rupie',    // 5
   'Elegant Rupie',  // 6
-  'Doubler',        // 7
+  'Gilded',         // 7
   'Dark Rupie',     // 8
   'Master Rupie',   // 9
 ];
 
 export var JAR_TYPE_CATS = [
   'rupie', 'chance', 'chance', 'rupie', 'chance',
-  'rupie', 'rupie', 'doubler', 'rupie', 'rupie',
+  'rupie', 'rupie', 'gilded', 'rupie', 'rupie',
 ];
 
 export var RUPIE_NAMES = [
@@ -387,7 +387,7 @@ export function rupieValueBreakdown(saveData, ext) {
   if (m10 + m14) parts.push(['Measurements 10+14 (' + m10.toFixed(1) + '+' + m14.toFixed(1) + ')', 1 + (m10 + m14) / 100]);
   if (_bUpg(saveData, 80)) parts.push(['Evertree Synergy (1.10^' + evertreeTrunks(saveData) + ')', Math.pow(1.1, evertreeTrunks(saveData))]);
   var db = doublerBonus(saveData);
-  if (db) parts.push(['Doubler Jar (+' + db + '%)', 1 + db / 100]);
+  if (db) parts.push(['Gilded Jar (+' + db + '%)', 1 + db / 100]);
   var c3 = collectibleBonus(saveData, 3, lp, cbo ? cbo[3] : undefined);
   if (c3) parts.push(['CB3 Tortole Rock', 1 + c3 / 100]);
   var c17 = collectibleBonus(saveData, 17, lp, cbo ? cbo[17] : undefined);
@@ -510,7 +510,7 @@ export function collectibleChance(saveData, ext) {
     * (1 + collectibleBonus(saveData, 25, lp, cbo ? cbo[25] : undefined) / 100)
     * (1 + (ext.paletteBonus2 || 0) / 100)
     * (1 + (ext.exoticBonus52 || 0) / 100)
-    * Math.max(1, Math.pow(1.05, ext.spelunk6Len || 0) * (ext.superBit32 || 1));
+    * Math.max(1, Math.pow(1.05, ext.spelunk6Len || 0) * (ext.superBit32 != null ? ext.superBit32 : 0));
 
   if (found === 0) return 0.25;
   if (found < 16) return 0.2 * multi / (1 + Math.pow(found, 1.9));
