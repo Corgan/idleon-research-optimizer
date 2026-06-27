@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Cglunko Calculator (C18)</title>
+<link rel="stylesheet" href="css/breakdown.css">
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-blue { background: rgba(33,150,243,.15); color: var(--blue); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+.badge-purple { background: rgba(187,134,252,.15); color: var(--purple); }
+.badge-cyan { background: rgba(77,208,225,.15); color: var(--cyan); }
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all .2s; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F48E; <span>Idleon</span> Cglunko Calculator (C18)</span></h1>
+
+<div id="save-area"></div>
+
+<div class="main" id="main-content">
+  <p style="color:var(--text2);text-align:center;padding:40px">Load a save to see Cglunko data.</p>
+</div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import * as C from './js/stats/systems/w5/cglunko.js';
+import { fmtVal } from './js/renderers/format.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
+
+initSaveLoader({ target: '#save-area', onLoad: render, auth: true });
+
+if (saveData && saveData.optionsListAccount) render();
+
+var S;
+function fmtNum(n) { if (n == null || isNaN(n)) return '0'; return fmtVal(n); }
+function fmtPct1(n) { return (n * 100).toFixed(1) + '%'; }
+
+function _fmtDesc(idx) {
+  var desc = C.upgDescription(idx);
+  var bon = C.upgBonus(S, idx);
+  var plv = C.upgPerLvVal(idx);
+  return desc.replace(/\{/g, '' + fmtNum(bon)).replace(/\}/g, '' + (1 + (bon || 0) / 100).toFixed(2)).replace(/\$/g, '' + (bon > 0 ? fmtNum(Math.round(bon)) : plv));
+}
+
+function _card(title, val, sub) {
+  return '<div class="card"><div class="card-title">' + title + '</div><div class="card-val">' + val + '</div>'
+    + (sub ? '<div class="card-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function render() {
+  S = saveData;
+  var el = document.getElementById('main-content');
+  var ext = { bolaia17discount: false };  // TODO: compute from save
+
+  var html = '';
+
+  // Tabs
+  html += '<div class="tabs" style="margin-bottom:12px">';
+  html += '<div class="tab active" data-tab="overview">Overview</div>';
+  html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '<div class="tab" data-tab="optimizer">Optimizer</div>';
+  html += '<div class="tab" data-tab="stones">Stones</div>';
+  html += '</div>';
+
+  html += _renderOverview(ext);
+  html += _renderUpgrades(ext);
+  html += _renderOptimizer(ext);
+  html += _renderStones(ext);
+
+  var _prevTab = el.querySelector('.tab.active');
+  var _prevTabId = _prevTab ? _prevTab.dataset.tab : 'overview';
+  var _prevScroll = window.scrollY;
+
+  el.innerHTML = html;
+
+  // Render DR breakdown tree
+  var _drTree = el.querySelector('#dr-breakdown-tree');
+  if (_drTree) {
+    var b = C.upgBonus;
+    var addDR = _bNode('Additive DR (+%)', b(S,1) + b(S,17) + b(S,21), [
+      _bNode('Upg 1: DR%', b(S,1), null, { fmt: '+' }),
+      _bNode('Upg 17: DR%', b(S,17), null, { fmt: '+' }),
+      _bNode('Upg 21: DR flat', b(S,21), null, { fmt: '+' }),
+    ], { fmt: '%' });
+    var drChildren = [
+      _bNode('Base + Additive DR', 1 + (b(S,1) + b(S,17) + b(S,21)) / 100, [addDR], { fmt: 'x' }),
+      _bNode('Upg 3: DR multi', 1 + b(S,3) / 100, null, { fmt: 'x', note: 'upgBon(3) = ' + b(S,3) }),
+      _bNode('Upg 12: DR multi', 1 + b(S,12) / 100, null, { fmt: 'x', note: 'upgBon(12) = ' + b(S,12) }),
+      _bNode('Upg 10 × Blue Digits', 1 + b(S,10) * C.bdig(S) / 100, null, { fmt: 'x', note: b(S,10) + '% × ' + C.bdig(S) + ' Bdig' }),
+      _bNode('Upg 22 × Purple Digits', 1 + b(S,22) * C.pdig(S) / 100, null, { fmt: 'x', note: b(S,22) + '% × ' + C.pdig(S) + ' Pdig' }),
+      _bNode('Upg 4 × Glunko Kills', 1 + b(S,4) * C._debugOla668() / 100, null, { fmt: 'x', note: b(S,4) + '% × ' + C._debugOla668() + ' digits (raw: ' + fmtNum(C._debugOla668raw()) + ')' }),
+      _bNode('Upg 18 × Normal DR', 1 + b(S,18) * C._debugOla200() / 100, null, { fmt: 'x', note: b(S,18) + '% × ' + C._debugOla200() + ' digits (raw: ' + fmtNum(C._debugOla200raw()) + ')' }),
+    ];
+    var drRoot = _bNode('Cglunko DR', C.drBonus(S), drChildren, { fmt: 'x' });
+    renderBreakdownTree(drRoot, _drTree, { tooltipId: 'bt-tooltip' });
+  }
+
+  if (_prevTabId !== 'overview') {
+    el.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === _prevTabId); });
+    el.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab-' + _prevTabId); });
+  }
+
+  el.querySelectorAll('.tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      el.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      el.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      tab.classList.add('active');
+      var tc = el.querySelector('#tab-' + tab.dataset.tab);
+      if (tc) tc.classList.add('active');
+    });
+  });
+
+  window.scrollTo(0, _prevScroll);
+}
+
+// ===== OVERVIEW =====
+function _renderOverview(ext) {
+  var html = '<div id="tab-overview" class="tab-content active">';
+  html += '<div class="section"><h2>Summary</h2>';
+
+  html += '<div class="card-grid cols-4">';
+  html += _card('Total DR Bonus', (C.drBonus(S) || 0).toFixed(2) + '×', 'Combined Cglunko DR multiplier');
+  html += _card('AFK Gains', '+' + ((C.afkGains(S) || 0) * 100).toFixed(1) + '%', 'Cglunko AFK rate boost');
+  html += _card('MK Tier', '+' + fmtNum(C.mkTier(S)) + '%', 'Multikill per dmg tier');
+  html += _card('MK Base', '+' + fmtNum(C.mkBase(S)) + '%', 'Multikill base boost');
+  html += '</div>';
+
+  html += '<div class="card-grid cols-4" style="margin-top:10px">';
+  html += _card('Respawn', '+' + fmtNum(C.respawnBonus(S)) + '%', 'Crystal respawn rate');
+  html += _card('Cavern Multi', '+' + fmtNum(C.cavernCurrencyBonus(S)) + '%', 'All cavern resources');
+  html += _card('Research EXP', '×' + (1 + (C.researchExpBonus(S) || 0) / 100).toFixed(2), 'Research EXP multiplier');
+  html += _card('Total DMG', '×' + (1 + (C.totalDmgBonus(S) || 0) / 100).toFixed(2), 'All character damage');
+  html += '</div>';
+
+  html += '<div class="card-grid cols-3" style="margin-top:10px">';
+  html += _card('Blue Digits (Bdig)', C.bdig(S).toString(), 'Sum of ceil(log10) of blue stones');
+  html += _card('Purple Digits (Pdig)', C.pdig(S).toString(), 'Sum of ceil(log10) of purple stones');
+  html += _card('Grand Discovery', '+' + fmtNum(C.grandDiscoveryBonus(S)) + '%', 'Spelunking find chance');
+  html += '</div>';
+
+  // DR Breakdown
+  html += '<h3 style="margin-top:16px">DR Formula Breakdown</h3>';
+  html += '<div id="dr-breakdown-tree"></div>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== UPGRADES =====
+function _renderUpgrades(ext) {
+  var html = '<div id="tab-upgrades" class="tab-content">';
+
+  for (var page = 0; page < 2; page++) {
+    html += '<div class="section"><h2>Page ' + (page + 1) + (page === 0 ? ' (Blue)' : ' (Purple)') + '</h2>';
+    html += '<table class="data-table"><thead><tr>';
+    html += '<th>#</th><th>Effect</th><th class="num">Lv</th><th class="num">Bonus</th>';
+    html += '<th class="num">Per Lv</th><th class="num">Next Cost</th>';
+    html += '</tr></thead><tbody>';
+
+    for (var i = 0; i < C.PAGE_SIZE; i++) {
+      var idx = page * C.PAGE_SIZE + i;
+      if (idx >= C.UPGRADE_COUNT) break;
+      var lv = C.upgLevel(S, idx);
+      var bon = C.upgBonus(S, idx);
+      var plv = C.upgPerLvVal(idx);
+      var cost = C.upgNextCost(S, idx, ext);
+      var desc = _fmtDesc(idx);
+
+      html += '<tr>';
+      html += '<td>' + idx + '</td>';
+      html += '<td>' + desc + '</td>';
+      html += '<td class="num">' + lv + '</td>';
+      html += '<td class="num">' + fmtNum(bon) + '</td>';
+      html += '<td class="num">' + plv + '</td>';
+      html += '<td class="num">' + fmtNum(Math.round(cost)) + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '</div>';
+  }
+
+  return html + '</div>';
+}
+
+// ===== OPTIMIZER =====
+function _renderOptimizer(ext) {
+  var html = '<div id="tab-optimizer" class="tab-content">';
+  html += '<div class="section"><h2>Upgrade Priority</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Ranked by marginal DR improvement per unit cost. Non-DR upgrades listed at the bottom.</p>';
+
+  var ranked = C.rankUpgrades(S, ext);
+
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Upgrade</th><th class="num">Lv</th>';
+  html += '<th class="num">Next Cost</th><th class="num">DR Gain</th><th class="num">DR/Cost</th>';
+  html += '</tr></thead><tbody>';
+
+  var drRows = ranked.filter(function(r) { return r.isDR; });
+  var otherRows = ranked.filter(function(r) { return !r.isDR; });
+
+  for (var i = 0; i < drRows.length; i++) {
+    var r = drRows[i];
+    var isBest = i === 0;
+    html += '<tr' + (isBest ? ' style="background:rgba(80,200,120,.1)"' : '') + '>';
+    html += '<td>' + (i + 1) + '</td>';
+    html += '<td>' + _fmtDesc(r.idx);
+    html += ' <span class="badge badge-' + (r.page === 0 ? 'blue' : 'purple') + '">P' + (r.page + 1) + '</span>';
+    if (isBest) html += ' <span class="badge badge-green">Best</span>';
+    html += '</td>';
+    html += '<td class="num">' + r.level + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(r.nextCost)) + '</td>';
+    html += '<td class="num" style="color:var(--green)">+' + (r.drGain * 100).toFixed(4) + '%</td>';
+    html += '<td class="num">' + r.drEfficiency.toExponential(2) + '</td>';
+    html += '</tr>';
+  }
+
+  if (otherRows.length > 0) {
+    html += '<tr><td colspan="6" style="padding:8px 6px;color:var(--text2);font-weight:700;border-top:2px solid #444">Non-DR Upgrades</td></tr>';
+    for (var i = 0; i < otherRows.length; i++) {
+      var r = otherRows[i];
+      html += '<tr style="opacity:.7">';
+      html += '<td></td>';
+      html += '<td>' + _fmtDesc(r.idx);
+      html += ' <span class="badge badge-' + (r.page === 0 ? 'blue' : 'purple') + '">P' + (r.page + 1) + '</span>';
+      html += '</td>';
+      html += '<td class="num">' + r.level + '</td>';
+      html += '<td class="num">' + fmtNum(Math.round(r.nextCost)) + '</td>';
+      html += '<td class="num" style="color:var(--text2)">—</td>';
+      html += '<td class="num" style="color:var(--text2)">—</td>';
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table>';
+  html += '</div></div>';
+  return html;
+}
+
+// ===== STONES =====
+function _renderStones(ext) {
+  var html = '<div id="tab-stones" class="tab-content">';
+  html += '<div class="section"><h2>Stone Focus</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">'
+    + 'Bdig and Pdig are sums of ceil(log10) of your stone counts. '
+    + 'Each stone reaching the next power of 10 adds +1 digit, boosting DR via upgrades 10 (blue) and 22 (purple). '
+    + 'Sorted by kills needed to reach the next digit (factoring in drop rate × your DR).</p>';
+
+  var stones = C.stoneEfficiency(S);
+
+  function _stoneTable(color, label, digitVal) {
+    var items = stones.filter(function(s) { return s.color === color; });
+    items.sort(function(a, b) {
+      if (a.deficit === 0 && b.deficit === 0) return 0;
+      if (a.deficit === 0) return 1;
+      if (b.deficit === 0) return -1;
+      return a.killsNeeded - b.killsNeeded;
+    });
+    var h = '<h3' + (label === 'Purple' ? ' style="margin-top:16px"' : '') + '>' + label + ' Stones (' + label.charAt(0) + 'dig = ' + digitVal + ')</h3>';
+    h += '<table class="data-table"><thead><tr>';
+    h += '<th>Stone</th><th class="num">Count</th><th class="num">Digits</th>';
+    h += '<th class="num">Next Pow10</th><th class="num">Deficit</th>';
+    h += '<th class="num">Drops/Kill</th><th class="num">Kills Needed</th>';
+    h += '<th class="num">Priority</th>';
+    h += '</tr></thead><tbody>';
+    for (var i = 0; i < items.length; i++) {
+      var s = items[i];
+      var isBest = i === 0 && s.deficit > 0;
+      h += '<tr' + (isBest ? ' style="background:rgba(' + (color === 'blue' ? '33,150,243' : '187,134,252') + ',.1)"' : '') + '>';
+      h += '<td>' + label + ' #' + (s.idx + 1) + '</td>';
+      h += '<td class="num">' + fmtNum(s.current) + '</td>';
+      h += '<td class="num">' + s.digits + '</td>';
+      h += '<td class="num">' + fmtNum(s.nextPow10) + '</td>';
+      h += '<td class="num">' + fmtNum(s.deficit) + '</td>';
+      h += '<td class="num">' + (s.dropsPerKill >= 0.01 ? s.dropsPerKill.toFixed(2) : s.dropsPerKill.toExponential(2));
+      if (s.focused) h += ' <span class="badge badge-gold">×' + fmtNum(Math.round(s.focusMulti)) + '</span>';
+      h += '</td>';
+      h += '<td class="num">' + (s.deficit > 0 ? fmtNum(Math.ceil(s.killsNeeded)) : '—') + '</td>';
+      h += '<td class="num">' + (isBest ? '<span class="badge badge-' + color + '">Next</span>' : '') + (s.focused ? ' <span class="badge badge-gold">Focused</span>' : '') + '</td>';
+      h += '</tr>';
+    }
+    h += '</tbody></table>';
+    return h;
+  }
+
+  html += _stoneTable('blue', 'Blue', C.bdig(S));
+  html += _stoneTable('purple', 'Purple', C.pdig(S));
+
+  // Best focus recommendation
+  var bestFocus = C.bestStoneFocus(S);
+  var blueFocus = bestFocus.filter(function(b) { return b.color === 'blue'; });
+  var purpFocus = bestFocus.filter(function(b) { return b.color === 'purple'; });
+
+  if (blueFocus.length > 0 || purpFocus.length > 0) {
+    html += '<h3 style="margin-top:16px">Recommended Focus Target</h3>';
+    html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Blue focus: ×' + fmtNum(Math.max(1, C.upgBonus(S, 9))) + ' per drop (upgBon 9). Purple focus: ×' + fmtNum(Math.max(1, C.upgBonus(S, 16))) + ' per drop (upgBon 16). Each color has its own focus slot.</p>';
+
+    function _focusTable(items, color, label) {
+      if (items.length === 0) return '';
+      var h = '<h4 style="margin:10px 0 4px;color:var(--' + color + ')">' + label + ' Focus (×' + fmtNum(Math.max(1, C.upgBonus(S, color === 'blue' ? 9 : 16))) + ')</h4>';
+      h += '<table class="data-table"><thead><tr>';
+      h += '<th>#</th><th>Stone</th><th class="num">Deficit</th><th class="num">Kills (focused)</th><th class="num">Kills (unfocused)</th><th class="num">DR/Digit</th>';
+      h += '</tr></thead><tbody>';
+      for (var fi = 0; fi < items.length; fi++) {
+        var bf = items[fi];
+        var isBest = fi === 0;
+        h += '<tr' + (isBest ? ' style="background:rgba(' + (color === 'blue' ? '33,150,243' : '187,134,252') + ',.08)"' : '') + '>';
+        h += '<td>' + (fi + 1) + '</td>';
+        h += '<td>' + label + ' #' + (bf.stoneIdx + 1);
+        if (isBest) h += ' <span class="badge badge-' + color + '">Recommend</span>';
+        h += '</td>';
+        h += '<td class="num">' + fmtNum(bf.deficit) + '</td>';
+        h += '<td class="num">' + fmtNum(Math.ceil(bf.killsWithFocus)) + '</td>';
+        h += '<td class="num">' + fmtNum(Math.ceil(bf.killsWithout)) + '</td>';
+        h += '<td class="num">+' + bf.drPerDigit + '%</td>';
+        h += '</tr>';
+      }
+      h += '</tbody></table>';
+      return h;
+    }
+
+    html += _focusTable(blueFocus, 'blue', 'Blue');
+    html += _focusTable(purpFocus, 'purple', 'Purple');
+  }
+
+  // DR impact
+  var drBdig = C.upgBonus(S, 10);
+  var drPdig = C.upgBonus(S, 22);
+  if (drBdig > 0 || drPdig > 0) {
+    html += '<h3 style="margin-top:16px">Digit DR Impact</h3>';
+    html += '<div class="card-grid cols-2">';
+    if (drBdig > 0) html += _card('Blue Digit DR', '+' + drBdig + '% per Bdig', 'Current: ' + C.bdig(S) + ' digits = +' + (drBdig * C.bdig(S)) + '% DR');
+    if (drPdig > 0) html += _card('Purple Digit DR', '+' + drPdig + '% per Pdig', 'Current: ' + C.pdig(S) + ' digits = +' + (drPdig * C.pdig(S)) + '% DR');
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+</script>
+</body>
+</html>

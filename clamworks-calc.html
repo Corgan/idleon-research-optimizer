@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Clamworks Calculator</title>
+<link rel="stylesheet" href="css/breakdown.css">
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-blue { background: rgba(33,150,243,.15); color: var(--blue); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+.badge-purple { background: rgba(187,134,252,.15); color: var(--purple); }
+.badge-cyan { background: rgba(77,208,225,.15); color: var(--cyan); }
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all .2s; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F41A; <span>Idleon</span> Clamworks Calculator</span></h1>
+
+<div id="save-area"></div>
+
+<div class="main" id="main-content">
+  <p style="color:var(--text2);text-align:center;padding:40px">Load a save to see Clamworks data.</p>
+</div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import * as CW from './js/stats/systems/w7/clamworks.js';
+import { fmtVal } from './js/renderers/format.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
+
+initSaveLoader({ target: '#save-area', onLoad: render, auth: true });
+
+if (saveData && saveData.optionsListData) render();
+
+function fmtNum(n) { if (n == null || isNaN(n)) return '0'; return fmtVal(n); }
+
+function _card(title, val, sub) {
+  return '<div class="card"><div class="card-title">' + title + '</div><div class="card-val">' + val + '</div>'
+    + (sub ? '<div class="card-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function _fmtDesc(idx) {
+  var desc = CW.upgDescription(idx);
+  var bon = idx === 3 ? CW.upgBonus3(0) : CW.upgBonus(idx);
+  var plv = CW.upgPerLvVal(idx);
+  return desc.replace(/\$/g, '' + (bon > 0 ? fmtNum(Math.round(bon)) : plv))
+    .replace(/\}/g, '' + (1 + (bon || 0) / 100).toFixed(2));
+}
+
+var _ext = { multikillTotal: 0 };
+
+function render() {
+  var el = document.getElementById('main-content');
+
+  var html = '';
+  // MK input
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">';
+  html += '<label style="font-size:.85em;color:var(--text2)">Multikill %: <input type="number" id="mk-input" value="' + _ext.multikillTotal + '" style="width:100px;background:var(--bg3);color:var(--text);border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:1em;"></label>';
+  html += '<span style="font-size:.75em;color:var(--text2)">(Check in-game — affects Upgrade 3 pearl multi)</span>';
+  html += '</div>';
+  html += '<div class="tabs" style="margin-bottom:12px">';
+  html += '<div class="tab active" data-tab="overview">Overview</div>';
+  html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '<div class="tab" data-tab="optimizer">Optimizer</div>';
+  html += '<div class="tab" data-tab="promotion">Promotion</div>';
+  html += '</div>';
+
+  html += _renderOverview();
+  html += _renderUpgrades();
+  html += _renderOptimizer();
+  html += _renderPromotion();
+
+  var _prevTab = el.querySelector('.tab.active');
+  var _prevTabId = _prevTab ? _prevTab.dataset.tab : 'overview';
+  var _prevScroll = window.scrollY;
+
+  el.innerHTML = html;
+
+  // Breakdown tree
+  var pvTree = el.querySelector('#pv-breakdown');
+  if (pvTree) {
+    var b0 = CW.upgBonus(0);
+    var b3 = CW.upgBonus3(_ext.multikillTotal);
+    var b7 = CW.upgBonus(7);
+    var pvChildren = [
+      _bNode('Base + Upg 0', 1 + b0, null, { fmt: 'x', note: 'Pearl base: 1 + ' + b0 }),
+      _bNode('Upg 3: MK multi', 1 + b3 / 100, null, { fmt: 'x', note: 'MK-based: ' + b3.toFixed(1) + '%' }),
+      _bNode('Upg 7: Value multi', 1 + b7 / 100, null, { fmt: 'x', note: '+' + b7 + '%' }),
+    ];
+    var pvRoot = _bNode('Pearl Value', CW.pearlValue(_ext), pvChildren, { fmt: 'x' });
+    renderBreakdownTree(pvRoot, pvTree, { tooltipId: 'bt-tooltip' });
+  }
+
+  if (_prevTabId !== 'overview') {
+    el.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === _prevTabId); });
+    el.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab-' + _prevTabId); });
+  }
+
+  el.querySelectorAll('.tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      el.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      el.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      tab.classList.add('active');
+      var tc = el.querySelector('#tab-' + tab.dataset.tab);
+      if (tc) tc.classList.add('active');
+    });
+  });
+
+  window.scrollTo(0, _prevScroll);
+
+  // MK input listener
+  var mkInput = el.querySelector('#mk-input');
+  if (mkInput) mkInput.addEventListener('change', function() { _ext.multikillTotal = Number(mkInput.value) || 0; render(); });
+}
+
+// ===== OVERVIEW =====
+function _renderOverview() {
+  var html = '<div id="tab-overview" class="tab-content active">';
+  html += '<div class="section"><h2>Summary</h2>';
+
+  html += '<div class="card-grid cols-4">';
+  html += _card('Pearl Balance', fmtNum(CW.pearlBalance()), '');
+  html += _card('Pearl Value', (CW.pearlValue(_ext) || 0).toFixed(2) + '×', 'Per pearl drop multiplier');
+  html += _card('10x Chance', (CW.pearl10xChance() * 100).toFixed(1) + '%', 'Expected multi: ' + CW.pearl10xExpected().toFixed(2) + '×');
+  html += _card('Effective/Drop', (CW.effectivePearlsPerDrop(_ext) || 0).toFixed(2), 'Value × 10x expected');
+  html += '</div>';
+
+  html += '<div class="card-grid cols-4" style="margin-top:10px">';
+  html += _card('Pearl Drop Rate', (CW.pearlDropRate() * 100).toFixed(3) + '%', 'Promo penalty: ×' + CW.promoPenalty().toFixed(3));
+  html += _card('Black Pearl Rate', (CW.blackPearlDropRate() * 100).toFixed(6) + '%', 'Value: ' + fmtNum(CW.blackPearlValue()) + ' per drop');
+  html += _card('Pearls/Kill', (CW.pearlsPerKill(_ext) || 0).toFixed(4), 'Regular + black pearl combined');
+  html += _card('Clam Count', CW.clamCount().toString(), 'Max 25');
+  html += '</div>';
+
+  html += '<div class="card-grid cols-3" style="margin-top:10px">';
+  html += _card('Promotion Level', CW.promotionLevel().toString(), '');
+  html += _card('Promo Chance', (CW.promotionChance() * 100).toFixed(1) + '%', 'Cost: ' + fmtNum(Math.round(CW.promotionCost())));
+  html += _card('Cost Reduction', ((1 - CW.costReduction()) * 100).toFixed(1) + '%', 'From upgrades 4 + 8');
+  html += '</div>';
+
+  html += '<h3>Pearl Value Breakdown</h3>';
+  html += '<div id="pv-breakdown"></div>';
+
+  html += '</div></div>';
+  return html;
+}
+
+// ===== UPGRADES =====
+function _renderUpgrades() {
+  var html = '<div id="tab-upgrades" class="tab-content">';
+  html += '<div class="section"><h2>All Upgrades</h2>';
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Effect</th><th class="num">Lv</th><th class="num">Bonus</th>';
+  html += '<th class="num">Per Lv</th><th class="num">Next Cost</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < CW.UPGRADE_COUNT; i++) {
+    var lv = CW.upgLevel(i);
+    var bon = i === 3 ? CW.upgBonus3(_ext.multikillTotal) : CW.upgBonus(i);
+    var cost = CW.upgNextCost(i);
+    html += '<tr>';
+    html += '<td>' + i + '</td>';
+    html += '<td>' + _fmtDesc(i) + '</td>';
+    html += '<td class="num">' + lv + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(bon)) + '</td>';
+    html += '<td class="num">' + CW.upgPerLvVal(i) + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(cost)) + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '</div></div>';
+  return html;
+}
+
+// ===== OPTIMIZER =====
+function _renderOptimizer() {
+  var html = '<div id="tab-optimizer" class="tab-content">';
+  html += '<div class="section"><h2>Upgrade Priority</h2>';
+  html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Ranked by marginal pearls-per-kill improvement per unit cost. Non-pearl upgrades listed separately.</p>';
+
+  var ranked = CW.rankUpgrades(_ext);
+  var pearlRows = ranked.filter(function(r) { return r.isPearlUpgrade; });
+  var otherRows = ranked.filter(function(r) { return !r.isPearlUpgrade; });
+
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>#</th><th>Upgrade</th><th class="num">Lv</th>';
+  html += '<th class="num">Next Cost</th><th class="num">PPK Gain</th><th class="num">PPK/Cost</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < pearlRows.length; i++) {
+    var r = pearlRows[i];
+    var isBest = i === 0;
+    html += '<tr' + (isBest ? ' style="background:rgba(80,200,120,.1)"' : '') + '>';
+    html += '<td>' + (i + 1) + '</td>';
+    html += '<td>' + _fmtDesc(r.idx);
+    if (isBest) html += ' <span class="badge badge-green">Best</span>';
+    html += '</td>';
+    html += '<td class="num">' + r.level + '</td>';
+    html += '<td class="num">' + fmtNum(Math.round(r.nextCost)) + '</td>';
+    html += '<td class="num" style="color:var(--green)">+' + (r.ppkGain * 100).toFixed(4) + '%</td>';
+    html += '<td class="num">' + r.efficiency.toExponential(2) + '</td>';
+    html += '</tr>';
+  }
+
+  if (otherRows.length > 0) {
+    html += '<tr><td colspan="6" style="padding:8px 6px;color:var(--text2);font-weight:700;border-top:2px solid #444">Utility Upgrades</td></tr>';
+    for (var i = 0; i < otherRows.length; i++) {
+      var r = otherRows[i];
+      var catBadge = r.cat === 'cost' ? '<span class="badge badge-cyan">Cost</span>'
+        : r.cat === 'clams' ? '<span class="badge badge-blue">Clams</span>'
+        : '<span class="badge badge-purple">Black</span>';
+      html += '<tr style="opacity:.7">';
+      html += '<td></td>';
+      html += '<td>' + _fmtDesc(r.idx) + ' ' + catBadge + '</td>';
+      html += '<td class="num">' + r.level + '</td>';
+      html += '<td class="num">' + fmtNum(Math.round(r.nextCost)) + '</td>';
+      if (r.costSave > 0) {
+        html += '<td class="num" style="color:var(--cyan)">-' + (r.costSave * 100).toFixed(2) + '% cost</td>';
+      } else if (r.ppkGain > 0) {
+        html += '<td class="num" style="color:var(--green)">+' + (r.ppkGain * 100).toFixed(4) + '%</td>';
+      } else {
+        html += '<td class="num" style="color:var(--text2)">—</td>';
+      }
+      html += '<td class="num" style="color:var(--text2)">—</td>';
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table>';
+  html += '</div></div>';
+  return html;
+}
+
+// ===== PROMOTION =====
+function _renderPromotion() {
+  var html = '<div id="tab-promotion" class="tab-content">';
+  html += '<div class="section"><h2>Promotion</h2>';
+
+  var promoLv = CW.promotionLevel();
+  var chance = CW.promotionChance();
+  var cost = CW.promotionCost();
+  var expected = CW.expectedPearlsPerPromotion();
+  var balance = CW.pearlBalance();
+
+  html += '<div class="card-grid cols-3">';
+  html += _card('Current Level', promoLv.toString(), 'Unlocks ClamWorkBonus tiers');
+  html += _card('Next Promo Chance', (chance * 100).toFixed(1) + '%', '0.5 / (2 + ' + promoLv + ')');
+  html += _card('Next Promo Cost', fmtNum(Math.round(cost)), balance >= cost ? '<span style="color:var(--green)">Can afford</span>' : '<span style="color:var(--red)">Need ' + fmtNum(Math.round(cost - balance)) + ' more</span>');
+  html += '</div>';
+
+  html += '<div class="card-grid cols-3" style="margin-top:10px">';
+  html += _card('Expected Attempts', Math.ceil(1 / chance).toString(), 'On average to promote');
+  html += _card('Expected Total Cost', fmtNum(Math.round(expected)), 'Cost × expected attempts');
+  html += _card('Clam HP After', fmtNum(1e16 * Math.pow(30, promoLv + 1)), 'HP = 1e16 × 30^lv');
+  html += '</div>';
+
+  // Promotion bonus history
+  html += '<h3>Promotion Bonuses Unlocked</h3>';
+  html += '<table class="data-table"><thead><tr><th>Promo #</th><th>Name</th><th>Bonus</th><th class="num">Status</th></tr></thead><tbody>';
+  var promoNames = 'PEARL VALUE,CLAM COMRADES,LUCKY DAY,MULTI-SCALPING,FRUGALITY,PURE PEARLS,ENCYSTATION UP,SHINIER PEARLS,ANTI INFLATION'.split(',');
+  for (var i = 0; i < CW.PROMO_BONUS_DESCS.length; i++) {
+    var unlocked = CW.clamWorkBonus(i);
+    var desc = CW.PROMO_BONUS_DESCS[i];
+    // Index 8 has a dynamic } multiplier based on promotion level
+    if (i === 8) desc = desc.replace(/\}/g, '' + (1 + 5 * Math.max(0, promoLv - 8) / 100).toFixed(2));
+    html += '<tr' + (!unlocked ? ' style="opacity:.4"' : '') + '>';
+    html += '<td>' + (i + 1) + '</td>';
+    html += '<td>' + (promoNames[i] || '') + '</td>';
+    html += '<td>' + desc + '</td>';
+    html += '<td class="num">' + (unlocked ? '<span class="badge badge-green">Unlocked</span>' : '<span class="badge badge-red">Locked</span>') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  html += '</div></div>';
+  return html;
+}
+
+</script>
+</body>
+</html>
