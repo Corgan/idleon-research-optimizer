@@ -1068,7 +1068,8 @@ function _renderAll() {
   html += '</div>';
 
   // Lucky Coins & Ducks
-  if (F.duckBarUnlocked(uLvs, mLvs) || bd.lucky.counts.some(function(c) { return c > 0; })) {
+  var _bd = F.multiBreakdown(saveData, uLvs, mLvs);
+  if (F.duckBarUnlocked(uLvs, mLvs) || _bd.lucky.counts.some(function(c) { return c > 0; })) {
     html += '<div class="section"><h2>Lucky Coins & Ducks</h2>';
 
     // Lucky coins per currency
@@ -1221,7 +1222,6 @@ function _renderAll() {
   html += '</div>';
 
   // Multiplier Breakdown (tree)
-  var _bd = F.multiBreakdown(saveData, uLvs, mLvs);
   html += '<div class="section" style="margin-bottom:12px;padding:10px 14px;">';
   html += '<h3 style="margin-top:0;">Multiplier Breakdown</h3>';
   html += '<div id="multi-breakdown"></div>';
