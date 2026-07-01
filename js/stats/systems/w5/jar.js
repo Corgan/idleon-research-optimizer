@@ -568,6 +568,28 @@ export function targetedEnchantProb(saveData) {
   return 5 / (found + 3);
 }
 
+// --- Parameterized enchant chance for simulation ---
+// Takes totalEnchantLvs directly + a pre-computed multiplier
+export function enchantChanceAt(totalEnchantLvs, multi) {
+  var base = 0.35 / (1 + Math.pow(totalEnchantLvs, 1.23) + Math.pow(1.1, totalEnchantLvs));
+  return base * (multi || 1);
+}
+
+// Compute the enchant multi (everything except the base formula)
+export function enchantMulti(saveData, ext) {
+  ext = ext || {};
+  var lp = ext.legendPts29 || 0;
+  var cbo = ext.collectibleOverrides;
+  var darkLuck = Math.max(1, _bUpg(saveData, 73) * Math.pow(1.1, getLOG(darkRupies(saveData))));
+  return (1 + collectibleBonus(saveData, 9, lp, cbo ? cbo[9] : undefined) / 100)
+    * darkLuck
+    * (1 + collectibleBonus(saveData, 18, lp, cbo ? cbo[18] : undefined) / 100)
+    * (1 + (ext.bolaia10 || 0) / 100)
+    * (1 + collectibleBonus(saveData, 26, lp, cbo ? cbo[26] : undefined) / 100)
+    * (1 + collectibleBonus(saveData, 34, lp, cbo ? cbo[34] : undefined) / 100)
+    * (1 + (ext.fountBonTOT2_15 || 0) / 100);
+}
+
 // ========== DOUBLER ANALYSIS ==========
 export function doublerTierValue(tier) {
   return 100 * Math.pow(3, tier);

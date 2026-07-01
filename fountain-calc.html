@@ -1230,17 +1230,20 @@ function _renderAll() {
   var _activeTypes = F.activeCurrencyTypes(saveData, uLvs, mLvs);
   var _ignoreOn = F.ignoreUnlocked(uLvs, mLvs);
   html += '<table class="data-table"><thead><tr>';
-  html += '<th>Currency</th><th class="num">Base</th><th class="num">Total</th>';
+  html += '<th>Currency</th><th class="num">Base</th><th class="num">Lucky Multi</th><th class="num">Total</th>';
   html += '<th class="num">Full Stack</th><th class="num">Royal Stack</th>';
   html += '<th>Status</th><th class="num">Create %</th>';
   html += '</tr></thead><tbody>';
   var stackSz = F.maxStackSize(saveData, uLvs, mLvs);
+  var dkM = F.duckMulti(saveData, uLvs, mLvs);
   for (var c = 0; c < 9; c++) {
     var unlocked = F.currencyUnlocked(uLvs, mLvs, c);
     var cls = unlocked ? '' : ' class="locked"';
     var bv = F.currencyBaseValue(saveData, uLvs, mLvs, c);
     var des = (c === desired) ? dm : 1;
-    var tv = bv * allM * des;
+    var lcM = F.luckyCoinValue(saveData, uLvs, mLvs, c);
+    var tv = bv * allM * des * lcM * dkM;
+    if (c >= 6) tv = Math.pow(des * bv * allM, 0.5) * lcM * dkM;
     var fullStack = tv * stackSz;
     var rtv = fullStack * rm;
     var _isActive = _activeTypes.indexOf(c) >= 0;
@@ -1249,6 +1252,7 @@ function _renderAll() {
     html += '<tr' + cls + '>';
     html += '<td>' + F.CURRENCY_NAMES[c] + (c === desired ? ' <span class="badge badge-gold">Desired</span>' : '') + '</td>';
     html += '<td class="num">' + fmtNum(bv) + '</td>';
+    html += '<td class="num">' + (lcM > 1 ? '<span style="color:var(--gold)">' + lcM.toFixed(2) + 'x</span>' : '1.00x') + '</td>';
     html += '<td class="num"><b>' + fmtNum(tv) + '</b></td>';
     html += '<td class="num" style="color:var(--gold)">' + fmtNum(fullStack) + '</td>';
     html += '<td class="num" style="color:var(--purple)">' + fmtNum(rtv) + '</td>';
@@ -1262,6 +1266,34 @@ function _renderAll() {
     html += '</tr>';
   }
   html += '</tbody></table>';
+
+  // Per-water currency multiplier breakdown
+  html += '<h3 style="margin-top:14px">Per-Water Specific Multipliers</h3>';
+  html += '<table class="data-table"><thead><tr>';
+  html += '<th>Water</th><th class="num">Shared All Multi</th>';
+  html += '<th class="num">Mythril Transience</th><th class="num">Sharp Surrogate</th><th class="num">Rupie Money</th>';
+  html += '</tr></thead><tbody>';
+  var _hd = saveData.holesData || [];
+  var _mythrilSed = Number((_hd[9] || [])[3]) || 0;
+  var _sharpSed = Number((_hd[9] || [])[16]) || 0;
+  var _rupieSed = Number((_hd[9] || [])[20]) || 0;
+  var _log10 = function(x) { return Math.log(Math.max(x, 1)) / 2.30259; };
+  var mythLog = 1 + _log10(_mythrilSed) * F.bonTOT(uLvs, mLvs, 0, 19) / 100;
+  var sharpLog = 1 + _log10(_sharpSed) * F.bonTOT(uLvs, mLvs, 1, 19) / 100;
+  var rupieLog = 1 + _log10(_rupieSed) * F.bonTOT(uLvs, mLvs, 2, 19) / 100;
+  var waterNames = ['Mythril', 'Sharp', 'Rupie'];
+  var waterLogs = [mythLog, sharpLog, rupieLog];
+  for (var w = 0; w < 3; w++) {
+    html += '<tr>';
+    html += '<td><span style="color:' + F.WATER_COLORS[w] + '">' + F.WATER_NAMES[w] + '</span></td>';
+    html += '<td class="num">' + fmtNum(allM) + 'x</td>';
+    html += '<td class="num"' + (w === 0 ? ' style="color:var(--gold);font-weight:bold"' : '') + '>' + (w === 0 ? mythLog.toFixed(4) + 'x' : '\u2014') + '</td>';
+    html += '<td class="num"' + (w === 1 ? ' style="color:var(--gold);font-weight:bold"' : '') + '>' + (w === 1 ? sharpLog.toFixed(4) + 'x' : '\u2014') + '</td>';
+    html += '<td class="num"' + (w === 2 ? ' style="color:var(--gold);font-weight:bold"' : '') + '>' + (w === 2 ? rupieLog.toFixed(4) + 'x' : '\u2014') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
   html += '</div>'; // end Currency Values section
 
   // Optimal Desired Currency Simulator
