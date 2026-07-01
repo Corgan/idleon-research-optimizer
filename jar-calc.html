@@ -1294,13 +1294,20 @@ function _attachSimEvents(ext) {
         for (var e = 0; e < enchCount; e++) {
           var curFocus = -1;
           if (strategy === 'smart' && hasTargets) {
+            // Check if all targets are met
+            var allMet = true;
             var worstRatio = Infinity;
             for (var ti = 0; ti < targetList.length; ti++) {
               var ci = targetList[ti];
               var curLv = Math.max(0, simLevels[ci] - 1);
-              var ratio = targets[ci] > 0 ? curLv / targets[ci] : 1;
-              if (ratio < worstRatio) { worstRatio = ratio; curFocus = ci; }
+              if (curLv < targets[ci]) {
+                allMet = false;
+                var ratio = targets[ci] > 0 ? curLv / targets[ci] : 1;
+                if (ratio < worstRatio) { worstRatio = ratio; curFocus = ci; }
+              }
             }
+            // Once all targets met, fall back to fixed focus dropdown
+            if (allMet && focusIdx >= 0) curFocus = focusIdx;
           } else if (strategy === 'fixed') {
             curFocus = focusIdx;
           }
