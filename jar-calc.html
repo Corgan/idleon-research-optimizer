@@ -240,7 +240,79 @@ document.addEventListener('click', function(e) {
 });
 
 // ========== MAIN RENDER ==========
+// Persist enchant sim state across re-renders
+var _esimState = null;
+
+function _saveEsimState() {
+  var s = {};
+  var el;
+  el = document.getElementById('esim-target'); if (el) s.enchCount = el.value;
+  el = document.getElementById('esim-count'); if (el) s.simCount = el.value;
+  el = document.getElementById('esim-strategy'); if (el) s.strategy = el.value;
+  el = document.getElementById('esim-focus'); if (el) s.focus = el.value;
+  var targets = {};
+  document.querySelectorAll('.esim-tgt').forEach(function(inp) {
+    var v = Number(inp.value) || 0;
+    if (v > 0) targets[inp.dataset.cidx] = v;
+  });
+  s.targets = targets;
+  var details = document.querySelector('#tab-enchantsim details');
+  if (details) s.detailsOpen = details.open;
+  _esimState = s;
+}
+
+function _restoreEsimState() {
+  if (!_esimState) return;
+  var s = _esimState;
+  var el;
+  el = document.getElementById('esim-target'); if (el && s.enchCount) el.value = s.enchCount;
+  el = document.getElementById('esim-count'); if (el && s.simCount) el.value = s.simCount;
+  el = document.getElementById('esim-strategy'); if (el && s.strategy) el.value = s.strategy;
+  el = document.getElementById('esim-focus'); if (el && s.focus) el.value = s.focus;
+  if (s.targets) {
+    document.querySelectorAll('.esim-tgt').forEach(function(inp) {
+      var v = s.targets[inp.dataset.cidx];
+      if (v) inp.value = v;
+    });
+  }
+  var details = document.querySelector('#tab-enchantsim details');
+  if (details && s.detailsOpen) details.open = true;
+  // Results are preserved via _simResults global
+  if (_simResults) {
+    var res = document.getElementById('esim-results');
+    if (res) res.innerHTML = _renderSimResults(_simResults);
+  }
+}
+
+// ===== ENCHANT HISTORY SNAPSHOTS =====
+var _HISTORY_KEY = 'idleon-enchant-history';
+
+function _loadHistory() {
+  try { return JSON.parse(localStorage.getItem(_HISTORY_KEY)) || []; }
+  catch (e) { return []; }
+}
+
+function _saveSnapshot() {
+  var levels = J.collectibleLevels(saveData);
+  var total = J.totalEnchantLevels(saveData);
+  var spread = [];
+  for (var i = 0; i < 40; i++) spread.push(Math.max(0, levels[i] - 1));
+
+  var history = _loadHistory();
+  // Don't add duplicate if last snapshot is identical
+  if (history.length > 0) {
+    var last = history[history.length - 1];
+    if (last.total === total && JSON.stringify(last.spread) === JSON.stringify(spread)) return;
+  }
+  history.push({ ts: Date.now(), total: total, spread: spread });
+  // Keep max 200 snapshots
+  if (history.length > 200) history = history.slice(-200);
+  localStorage.setItem(_HISTORY_KEY, JSON.stringify(history));
+}
+
 function _renderAll() {
+  _saveEsimState();
+  _saveSnapshot();
   _initTip();
   var el = document.getElementById('main-content');
   var ext = _ext();
@@ -258,6 +330,7 @@ function _renderAll() {
   html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
   html += '<div class="tab" data-tab="nexttier">Next Tier</div>';
   html += '<div class="tab" data-tab="enchantsim">Enchant Sim</div>';
+  html += '<div class="tab" data-tab="enchanthistory">Enchant History</div>';
   html += '</div>';
   html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.82em;color:' + (_simReset ? 'var(--gold)' : 'var(--text2)') + ';margin-left:auto;">';
   html += '<input type="checkbox" id="sim-reset-cb"' + (_simReset ? ' checked' : '') + '> Simulate Jarptomizer Reset';
@@ -271,6 +344,7 @@ function _renderAll() {
   html += _renderUpgrades(ext);
   html += _renderNextTier(ext);
   html += _renderEnchantSim(ext);
+  html += _renderEnchantHistory();
 
   // Preserve active tab + scroll across re-renders
   var _prevTab = el.querySelector('.tab.active');
@@ -287,6 +361,7 @@ function _renderAll() {
 
   _attachTips(el);
   _attachSimEvents(ext);
+  _restoreEsimState();
 
   // Render rupie value breakdown tree
   var _rvTree = document.getElementById('rv-breakdown-tree');
@@ -1203,6 +1278,82 @@ function _renderEnchantSim(ext) {
   html += '</div>';
 
   html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+function _renderEnchantHistory() {
+  var html = '<div id="tab-enchanthistory" class="tab-content">';
+  html += '<div class="section"><h2>Enchant History</h2>';
+  var history = _loadHistory();
+  if (history.length < 1) {
+    html += '<p style="color:var(--text2)">Snapshots are saved each time your save loads. Load your save to start tracking.</p>';
+  } else {
+    html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">' + history.length + ' snapshots recorded.</p>';
+
+    // Current spread grid with inline sparkline history
+    html += '<h3>Current Spread</h3>';
+    var levels = J.collectibleLevels(saveData);
+    var maxLv = 0;
+    for (var si = 0; si < 40; si++) {
+      for (var hi = 0; hi < history.length; hi++) {
+        var sp = history[hi].spread;
+        if (sp && sp[si] > maxLv) maxLv = sp[si];
+      }
+    }
+    if (maxLv < 1) maxLv = 1;
+
+    html += '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;">';
+    for (var si = 0; si < 40; si++) {
+      if (levels[si] < 1) continue;
+      var cname = J.COLLECTIBLE_DATA[si] ? J.COLLECTIBLE_DATA[si][0] : 'C' + si;
+      var curLv = history.length > 0 && history[history.length - 1].spread ? (history[history.length - 1].spread[si] || 0) : 0;
+
+      // Build sparkline SVG path
+      var svgW = 80, svgH = 36;
+      var points = [];
+      for (var hi = 0; hi < history.length; hi++) {
+        var sp = history[hi].spread;
+        var lv = sp ? (sp[si] || 0) : 0;
+        var x = history.length > 1 ? (hi / (history.length - 1)) * svgW : svgW / 2;
+        var y = svgH - (lv / maxLv * svgH);
+        points.push(Math.round(x * 10) / 10 + ',' + Math.round(y * 10) / 10);
+      }
+      var sparkline = points.length > 1 ? '<polyline points="' + points.join(' ') + '" fill="none" stroke="var(--cyan)" stroke-width="1.5" stroke-opacity="0.6"/>' : '';
+
+      html += '<div style="background:var(--bg3);border:1px solid #444;border-radius:4px;padding:4px;text-align:center;position:relative;overflow:hidden;min-height:50px;" title="' + cname + ' (+' + curLv + ')">';
+      // Sparkline as background
+      html += '<svg width="100%" height="100%" viewBox="0 0 ' + svgW + ' ' + svgH + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.5;">' + sparkline + '</svg>';
+      // Content
+      html += '<div style="position:relative;">';
+      html += '<div style="font-size:.6em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + cname + '</div>';
+      html += '<div style="font-size:1.1em;font-weight:700;color:var(--cyan)">+' + curLv + '</div>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+
+    // Table of recent snapshots
+    html += '<h3>Recent Snapshots</h3>';
+    html += '<table class="data-table"><thead><tr><th>Time</th><th class="num">Total Lvs</th><th class="num">\u0394</th></tr></thead><tbody>';
+    var recent = history.slice(-20).reverse();
+    for (var ri = 0; ri < recent.length; ri++) {
+      var snap = recent[ri];
+      var prev = ri < recent.length - 1 ? recent[ri + 1] : null;
+      var delta = prev ? snap.total - prev.total : 0;
+      var deltaColor = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : 'var(--text2)';
+      html += '<tr>';
+      html += '<td>' + new Date(snap.ts).toLocaleString() + '</td>';
+      html += '<td class="num">' + snap.total + '</td>';
+      html += '<td class="num" style="color:' + deltaColor + '">' + (delta > 0 ? '+' : '') + delta + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+
+    // Clear button
+    html += '<button id="esim-clear-history" style="margin-top:8px;padding:4px 12px;background:#333;color:var(--text2);border:1px solid #555;border-radius:4px;cursor:pointer;font-size:.8em;">Clear History</button>';
+  }
+  html += '</div>';
   html += '</div>';
   return html;
 }
@@ -1249,6 +1400,14 @@ function _renderSimResults(r) {
 }
 
 function _attachSimEvents(ext) {
+  // Clear history button
+  var clrBtn = document.getElementById('esim-clear-history');
+  if (clrBtn) clrBtn.addEventListener('click', function() {
+    if (confirm('Clear all enchant history snapshots?')) {
+      localStorage.removeItem(_HISTORY_KEY);
+      _renderAll();
+    }
+  });
   var btn = document.getElementById('esim-run');
   if (!btn) return;
   btn.addEventListener('click', function() {

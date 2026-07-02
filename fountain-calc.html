@@ -1068,7 +1068,9 @@ function _renderAll() {
   html += '</div>';
 
   // Lucky Coins & Ducks
-  if (F.duckBarUnlocked(uLvs, mLvs) || bd.lucky.counts.some(function(c) { return c > 0; })) {
+  var _anyLucky = false;
+  for (var _li = 0; _li < 9; _li++) { if (F.luckyCoinCount(saveData, _li) > 0) { _anyLucky = true; break; } }
+  if (F.duckBarUnlocked(uLvs, mLvs) || _anyLucky) {
     html += '<div class="section"><h2>Lucky Coins & Ducks</h2>';
 
     // Lucky coins per currency
