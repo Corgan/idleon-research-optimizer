@@ -413,13 +413,23 @@ function render() {
 
   // Optimal distribution (daily reset)
   var totalPts = getMasteryLevel() + 1 + (saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0);
-  var optimal = optimizeDistribution(totalPts);
+  var ptsInput = document.getElementById('pts-to-spend');
+  if (ptsInput) {
+    if (ptsInput.max != totalPts) { ptsInput.max = totalPts; }
+    if (!ptsInput.dataset.userSet) { ptsInput.value = totalPts; }
+  }
+  var spendPts = ptsInput ? Math.min(totalPts, Math.max(0, parseInt(ptsInput.value) || totalPts)) : totalPts;
+  var optimal = optimizeDistribution(spendPts);
   var optReqExp = expReq(masteryLv);
   var optTimeToLevel = optimal.rate > 0 ? optReqExp / optimal.rate : Infinity;
   var currentImprovement = opt.currentRate > 0 ? ((optimal.rate - opt.currentRate) / opt.currentRate * 100) : 0;
 
   html += '<div class="section"><h2>Optimal Distribution (Daily Reset)</h2>';
-  html += '<p style="color:var(--text2);font-size:.82em;margin-bottom:12px;">Best allocation of all ' + totalPts + ' points from scratch, maximizing EXP/hr.</p>';
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+  html += '<label style="color:var(--text2);font-size:.82em;">Points to spend:</label>';
+  html += '<input type="number" id="pts-to-spend" min="0" max="' + totalPts + '" value="' + spendPts + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;" oninput="this.dataset.userSet=1;renderAllocator()">';
+  html += '<span style="color:var(--text2);font-size:.82em;">of ' + totalPts + ' total</span>';
+  html += '</div>';
 
   html += '<div class="result-box">';
   html += '<div class="big">' + fmtNum(optimal.rate) + '/hr</div>';
@@ -509,6 +519,7 @@ function yellowPointBudget() {
 }
 
 var _selectedGoal = null;
+var _yellowBudgetOverride = null;
 
 function renderMealAlloc() {
   var el = document.getElementById('meal-alloc-content');
@@ -518,11 +529,17 @@ function renderMealAlloc() {
   }
 
   var budget = yellowPointBudget();
+  var spendBudget = _yellowBudgetOverride != null ? Math.min(budget, Math.max(0, _yellowBudgetOverride)) : budget;
   var goalId = _selectedGoal || GOALS[0].id;
   var goal = GOAL_MAP[goalId];
 
   var html = '<div class="section"><h2>Yellow Point Allocator</h2>';
-  html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your <span class="n">' + budget + '</span> yellow mastery points to maximize the chosen goal. For multi-category goals, points are allocated across all relevant meal categories.</p>';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">';
+  html += '<label style="color:var(--text2);font-size:.85em;">Points to spend:</label>';
+  html += '<input type="number" id="yellow-pts-budget" min="0" max="' + budget + '" value="' + spendBudget + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;" oninput="_yellowBudgetOverride=parseInt(this.value);renderMealAlloc()">';
+  html += '<span style="color:var(--text2);font-size:.85em;">of ' + budget + ' total</span>';
+  html += '</div>';
+  html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your <span class="n">' + spendBudget + '</span> yellow mastery points to maximize the chosen goal.</p>';
 
   // Goal selector
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
@@ -537,7 +554,7 @@ function renderMealAlloc() {
   html += '</select></div></div>';
 
   // Run optimizer
-  var res = optimizeForGoal(goalId, budget, saveData);
+  var res = optimizeForGoal(goalId, spendBudget, saveData);
   if (!res || res.meals.length === 0) {
     html += '<div class="section"><div class="result-box" style="border-color:var(--text2);"><div class="big" style="color:var(--text2);">No leveled meals in this goal\'s categories</div><div class="sub">Level up meals in these categories first.</div></div></div>';
     el.innerHTML = html;
@@ -552,10 +569,12 @@ function renderMealAlloc() {
     html += '<p style="color:var(--purple);font-size:.8em;margin-bottom:8px;">Compound goal — allocates across: ' + goal.categories.join(', ') + '</p>';
   }
   html += '<div class="result-box">';
-  html += '<div class="big">Goal Value: ' + fmtNum(res.goalValue.toFixed(4)) + '</div>';
+  html += '<div class="big">Optimal Value: ' + fmtNum(res.goalValue.toFixed(4)) + '</div>';
   html += '<div class="sub">Current: ' + fmtNum(res.curGoalValue.toFixed(4));
-  if (Math.abs(improvement) > 0.01) {
+  if (improvement > 0.01) {
     html += ' → <span style="color:var(--green);">+' + improvement.toFixed(1) + '%</span> with optimal allocation';
+  } else if (improvement < -0.01) {
+    html += ' → <span style="color:var(--red);">' + improvement.toFixed(1) + '%</span> (fewer points than currently spent)';
   } else {
     html += ' — already optimal!';
   }
@@ -586,7 +605,7 @@ function renderMealAlloc() {
 
   var usedForGoal = 0;
   for (var i = 0; i < res.meals.length; i++) usedForGoal += res.meals[i].optLv;
-  var leftover = budget - usedForGoal;
+  var leftover = spendBudget - usedForGoal;
   if (leftover > 0) {
     html += '<p style="color:var(--text2);font-size:.8em;margin-top:8px;">' + leftover + ' point' + (leftover > 1 ? 's' : '') + ' remaining for other categories.</p>';
   }
