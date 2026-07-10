@@ -265,6 +265,7 @@ function computeExternalMulti() {
 
 // ========== EXP RATE ==========
 var _extMulti = null;
+var _masteryBudgetOverride = null;
 
 function computeExpRate(overrides) {
   var rate = 2;
@@ -413,12 +414,7 @@ function render() {
 
   // Optimal distribution (daily reset)
   var totalPts = getMasteryLevel() + 1 + (saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0);
-  var ptsInput = document.getElementById('pts-to-spend');
-  if (ptsInput) {
-    if (ptsInput.max != totalPts) { ptsInput.max = totalPts; }
-    if (!ptsInput.dataset.userSet) { ptsInput.value = totalPts; }
-  }
-  var spendPts = ptsInput ? Math.min(totalPts, Math.max(0, parseInt(ptsInput.value) || totalPts)) : totalPts;
+  var spendPts = _masteryBudgetOverride != null ? Math.min(totalPts, Math.max(0, _masteryBudgetOverride)) : totalPts;
   var optimal = optimizeDistribution(spendPts);
   var optReqExp = expReq(masteryLv);
   var optTimeToLevel = optimal.rate > 0 ? optReqExp / optimal.rate : Infinity;
@@ -427,7 +423,7 @@ function render() {
   html += '<div class="section"><h2>Optimal Distribution (Daily Reset)</h2>';
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
   html += '<label style="color:var(--text2);font-size:.82em;">Points to spend:</label>';
-  html += '<input type="number" id="pts-to-spend" min="0" max="' + totalPts + '" value="' + spendPts + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;" oninput="this.dataset.userSet=1;renderAllocator()">';
+  html += '<input type="number" id="pts-to-spend" min="0" max="' + totalPts + '" value="' + spendPts + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;">';
   html += '<span style="color:var(--text2);font-size:.82em;">of ' + totalPts + ' total</span>';
   html += '</div>';
 
@@ -466,6 +462,10 @@ function render() {
   html += '<div class="section"><h2>EXP Rate Breakdown</h2><div id="exp-tree"></div></div>';
 
   main.innerHTML = html;
+
+  // Attach pts-to-spend listener
+  var ptsEl = document.getElementById('pts-to-spend');
+  if (ptsEl) ptsEl.addEventListener('input', function(e) { _masteryBudgetOverride = parseInt(e.target.value); render(); });
 
   // Build tree
   var treeChildren = [];
@@ -533,32 +533,43 @@ function renderMealAlloc() {
   var goalId = _selectedGoal || GOALS[0].id;
   var goal = GOAL_MAP[goalId];
 
-  var html = '<div class="section"><h2>Yellow Point Allocator</h2>';
-  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">';
-  html += '<label style="color:var(--text2);font-size:.85em;">Points to spend:</label>';
-  html += '<input type="number" id="yellow-pts-budget" min="0" max="' + budget + '" value="' + spendBudget + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;" oninput="_yellowBudgetOverride=parseInt(this.value);renderMealAlloc()">';
-  html += '<span style="color:var(--text2);font-size:.85em;">of ' + budget + ' total</span>';
-  html += '</div>';
-  html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your <span class="n">' + spendBudget + '</span> yellow mastery points to maximize the chosen goal.</p>';
-
-  // Goal selector
-  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
-  html += '<label style="color:var(--text2);font-size:.9em;">Goal:</label>';
-  html += '<select id="goal-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:400px;">';
-  for (var gi = 0; gi < GOALS.length; gi++) {
-    var g = GOALS[gi];
-    var catCount = g.categories.length;
-    var suffix = catCount > 1 ? ' [' + catCount + ' categories]' : '';
-    html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + suffix + '</option>';
+  // Only build controls if not yet rendered
+  var controlsEl = document.getElementById('meal-alloc-controls');
+  if (!controlsEl) {
+    var html = '<div class="section" id="meal-alloc-controls"><h2>Yellow Point Allocator</h2>';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">';
+    html += '<label style="color:var(--text2);font-size:.85em;">Points to spend:</label>';
+    html += '<input type="number" id="yellow-pts-budget" min="0" max="' + budget + '" value="' + spendBudget + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;">';
+    html += '<span style="color:var(--text2);font-size:.85em;">of ' + budget + ' total</span>';
+    html += '</div>';
+    html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your yellow mastery points to maximize the chosen goal.</p>';
+    // Goal selector
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
+    html += '<label style="color:var(--text2);font-size:.9em;">Goal:</label>';
+    html += '<select id="goal-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:400px;">';
+    for (var gi = 0; gi < GOALS.length; gi++) {
+      var g = GOALS[gi];
+      var catCount = g.categories.length;
+      var suffix = catCount > 1 ? ' [' + catCount + ' categories]' : '';
+      html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + suffix + '</option>';
+    }
+    html += '</select></div></div>';
+    html += '<div id="meal-alloc-results"></div>';
+    el.innerHTML = html;
+    document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+    document.getElementById('yellow-pts-budget').addEventListener('input', function(e) { _yellowBudgetOverride = parseInt(e.target.value); renderMealAlloc(); });
   }
-  html += '</select></div></div>';
+
+  // Only re-render results
+  var resultsEl = document.getElementById('meal-alloc-results');
+  if (!resultsEl) return;
 
   // Run optimizer
   var res = optimizeForGoal(goalId, spendBudget, saveData);
+  var html = '';
   if (!res || res.meals.length === 0) {
     html += '<div class="section"><div class="result-box" style="border-color:var(--text2);"><div class="big" style="color:var(--text2);">No leveled meals in this goal\'s categories</div><div class="sub">Level up meals in these categories first.</div></div></div>';
-    el.innerHTML = html;
-    document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+    resultsEl.innerHTML = html;
     return;
   }
 
@@ -611,8 +622,7 @@ function renderMealAlloc() {
   }
   html += '</div>';
 
-  el.innerHTML = html;
-  document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+  resultsEl.innerHTML = html;
 }
 
 // ========== INIT ==========

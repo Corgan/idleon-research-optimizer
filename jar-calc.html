@@ -277,10 +277,10 @@ function _restoreEsimState() {
   }
   var details = document.querySelector('#tab-enchantsim details');
   if (details && s.detailsOpen) details.open = true;
-  // Results are preserved via _simResults global
-  if (_simResults) {
+  // Results are preserved via _simResults global (but don't clobber progress bar)
+  if (_simResults && !_simRunning) {
     var res = document.getElementById('esim-results');
-    if (res) res.innerHTML = _renderSimResults(_simResults);
+    if (res) { res.innerHTML = _renderSimResults(_simResults); _attachTips(res); }
   }
 }
 
@@ -1264,7 +1264,11 @@ function _renderEnchantSim(ext) {
   for (var ci = 0; ci < 40; ci++) {
     if (levels[ci] < 1) continue;
     var cname = J.COLLECTIBLE_DATA[ci] ? J.COLLECTIBLE_DATA[ci][0] : 'C' + ci;
-    html += '<div style="background:var(--bg3);border:1px solid #444;border-radius:4px;padding:4px;text-align:center;" title="' + cname + '">';
+    var cbonus = J.collectibleBonus(saveData, ci);
+    var cdesc = J.COLLECTIBLE_DATA[ci] ? J.COLLECTIBLE_DATA[ci][3] : '';
+    var cbpl = J.COLLECTIBLE_DATA[ci] ? J.COLLECTIBLE_DATA[ci][1] : 0;
+    var ctip = cname + '\nBonus: ' + cbonus.toFixed(1) + '% (' + cbpl + '/lv)\n' + cdesc.replace('{', cbonus.toFixed(1)).replace('}', cbonus.toFixed(1));
+    html += '<div style="background:var(--bg3);border:1px solid #444;border-radius:4px;padding:4px;text-align:center;" data-tip="' + escHtml(ctip) + '">';
     html += '<div style="font-size:.65em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + cname + '</div>';
     html += '<input type="number" data-cidx="' + ci + '" class="esim-tgt" value="0" min="0" max="100" style="width:100%;background:var(--bg);color:var(--gold);border:1px solid #555;border-radius:3px;padding:2px;text-align:center;font-weight:700;font-size:.85em;">';
     html += '</div>';
@@ -1383,8 +1387,13 @@ function _renderSimResults(r) {
     var hasTarget = s.target > 0;
     var hitColor = hasTarget ? (s.hitPct >= 0.9 ? 'var(--green)' : s.hitPct >= 0.5 ? 'var(--gold)' : 'var(--red)') : null;
     var borderColor = hasTarget ? hitColor : (isFocus ? 'var(--gold)' : '#444');
+    var cbonus = J.collectibleBonus(saveData, s.idx);
+    var cdesc = J.COLLECTIBLE_DATA[s.idx] ? J.COLLECTIBLE_DATA[s.idx][3] : '';
+    var cbpl = J.COLLECTIBLE_DATA[s.idx] ? J.COLLECTIBLE_DATA[s.idx][1] : 0;
+    var simBonus = (s.avgLv * cbpl);
+    var ctip = s.name + '\nCurrent bonus: ' + cbonus.toFixed(1) + '% (' + cbpl + '/lv)\nAvg after sim: ' + simBonus.toFixed(1) + '%\n' + cdesc.replace('{', cbonus.toFixed(1)).replace('}', cbonus.toFixed(1));
 
-    html += '<div style="background:var(--bg3);border:1px solid ' + borderColor + ';border-radius:4px;padding:4px;position:relative;overflow:hidden;text-align:center;">';
+    html += '<div style="background:var(--bg3);border:1px solid ' + borderColor + ';border-radius:4px;padding:4px;position:relative;overflow:hidden;text-align:center;" data-tip="' + escHtml(ctip) + '">';
     html += '<div style="position:absolute;bottom:0;left:0;right:0;height:' + barPct + '%;background:rgba(77,208,225,.08);"></div>';
     html += '<div style="position:relative;">';
     html += '<div style="font-size:.6em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + s.name + '">' + s.name + '</div>';
@@ -1396,6 +1405,59 @@ function _renderSimResults(r) {
     html += '</div></div>';
   }
   html += '</div>';
+
+  // --- Enchant odds per tier ---
+  // Use average total enchant levels from sim spread
+  var avgTotalEnchLvs = 0;
+  for (var si = 0; si < r.spread.length; si++) avgTotalEnchLvs += r.spread[si].avgLv;
+  var multi = J.enchantMulti(saveData);
+  var baseChance = J.enchantChanceAt(0, multi);
+  var simChance = J.enchantChanceAt(Math.round(avgTotalEnchLvs), multi);
+  var curChance = J.enchantChance(saveData);
+
+  html += '<h3 style="margin-top:16px;">Enchant Odds by Jar Tier</h3>';
+  html += '<div style="font-size:.8em;color:var(--text2);margin-bottom:8px;">';
+  html += 'Current chance: <span style="color:var(--gold)">' + (curChance * 100).toFixed(4) + '%</span>';
+  html += ' | After sim avg (' + Math.round(avgTotalEnchLvs) + ' enchant lvs): <span style="color:var(--cyan)">' + (simChance * 100).toFixed(4) + '%</span>';
+  html += ' | Multi: ' + multi.toFixed(2) + 'x';
+  html += '</div>';
+
+  var prodHr = J.productionPerHR(saveData);
+  var jarTypes = J.jarTypesOwned(saveData);
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.8em;"><thead><tr style="border-bottom:1px solid #444;">';
+  html += '<th style="text-align:left;padding:3px 6px;">Tier</th>';
+  for (var jt = 0; jt < jarTypes; jt++) {
+    html += '<th style="text-align:right;padding:3px 6px;">Jar ' + (jt + 1) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (var tier = 1; tier <= 6; tier++) {
+    html += '<tr style="border-bottom:1px solid #222;">';
+    html += '<td style="padding:3px 6px;color:var(--text2);">T' + tier + '</td>';
+    for (var jt = 0; jt < jarTypes; jt++) {
+      var req = J.productionREQ(saveData, jt);
+      var progress = req * Math.pow(10, tier);
+      var breaksPerHr = prodHr / progress;
+      var enchantsPerHr = breaksPerHr * simChance;
+      var hrsPerEnchant = enchantsPerHr > 0 ? 1 / enchantsPerHr : Infinity;
+      var cell;
+      if (hrsPerEnchant < 1) {
+        cell = (enchantsPerHr).toFixed(1) + '/hr';
+      } else if (hrsPerEnchant < 24) {
+        cell = hrsPerEnchant.toFixed(1) + 'h';
+      } else if (hrsPerEnchant < 8760) {
+        cell = (hrsPerEnchant / 24).toFixed(1) + 'd';
+      } else {
+        cell = (hrsPerEnchant / 8760).toFixed(1) + 'y';
+      }
+      var color = enchantsPerHr >= 1 ? 'var(--green)' : enchantsPerHr >= 0.04 ? 'var(--gold)' : 'var(--text2)';
+      html += '<td style="text-align:right;padding:3px 6px;color:' + color + '">' + cell + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div style="font-size:.7em;color:var(--text2);margin-top:4px;">Values show time per enchant (green = &lt;1hr, gold = &lt;1day). Uses sim avg enchant levels + your current bonuses.</div>';
+
   return html;
 }
 
@@ -1413,7 +1475,7 @@ function _attachSimEvents(ext) {
   btn.addEventListener('click', function() {
     if (_simRunning) return;
     var enchCount = Number(document.getElementById('esim-target').value) || 50;
-    var simCount = Math.min(10000, Math.max(100, Number(document.getElementById('esim-count').value) || 2000));
+    var simCount = Math.max(100, Number(document.getElementById('esim-count').value) || 2000);
     var strategy = document.getElementById('esim-strategy').value;
     var focusIdx = Number(document.getElementById('esim-focus').value);
 
@@ -1423,109 +1485,80 @@ function _attachSimEvents(ext) {
     if (foundList.length === 0) { alert('No collectibles found'); return; }
     var focusChance = 5 / (foundList.length + 3);
 
-    // Gather targets
-    var targets = {};
-    var targetList = [];
-    var inputs = document.querySelectorAll('.esim-tgt');
-    inputs.forEach(function(inp) {
-      var ci = Number(inp.dataset.cidx);
-      var tgt = Number(inp.value) || 0;
-      if (tgt > 0) { targets[ci] = tgt; targetList.push(ci); }
-    });
-    var hasTargets = targetList.length > 0;
-
     _simRunning = true;
     btn.textContent = 'Running...';
     btn.disabled = true;
 
-    setTimeout(function() {
-      var spreadSums = new Array(40); for (var i = 0; i < 40; i++) spreadSums[i] = 0;
-      var spreadMins = new Array(40); for (var i = 0; i < 40; i++) spreadMins[i] = Infinity;
-      var spreadMaxs = new Array(40); for (var i = 0; i < 40; i++) spreadMaxs[i] = 0;
-      var allHit = 0;
-      var perTarget = {};
-      if (hasTargets) { for (var ci in targets) perTarget[ci] = 0; }
+    // Show progress bar
+    var resEl = document.getElementById('esim-results');
+    if (resEl) resEl.innerHTML = '<div style="margin:12px 0;"><div style="background:#1a1a2e;border:1px solid #333;border-radius:4px;height:20px;overflow:hidden;"><div id="esim-progress-bar" style="height:100%;background:#58a6ff;width:0%;transition:width 0.2s;"></div></div><div id="esim-progress-text" style="text-align:center;color:#8b949e;font-size:.8em;margin-top:4px;">0 / ' + simCount + '</div></div>';
 
-      for (var sim = 0; sim < simCount; sim++) {
-        var simLevels = new Array(40);
-        for (var i = 0; i < 40; i++) simLevels[i] = levels[i] >= 1 ? 1 : 0;
+    // Build targets
+    var targetsObj = {};
+    var targetListArr = [];
+    var inputs = document.querySelectorAll('.esim-tgt');
+    inputs.forEach(function(inp) {
+      var ci = Number(inp.dataset.cidx);
+      var tgt = Number(inp.value) || 0;
+      if (tgt > 0) { targetsObj[ci] = tgt; targetListArr.push(ci); }
+    });
 
-        for (var e = 0; e < enchCount; e++) {
-          var curFocus = -1;
-          if (strategy === 'smart' && hasTargets) {
-            // Check if all targets are met
-            var allMet = true;
-            var worstRatio = Infinity;
-            for (var ti = 0; ti < targetList.length; ti++) {
-              var ci = targetList[ti];
-              var curLv = Math.max(0, simLevels[ci] - 1);
-              if (curLv < targets[ci]) {
-                allMet = false;
-                var ratio = targets[ci] > 0 ? curLv / targets[ci] : 1;
-                if (ratio < worstRatio) { worstRatio = ratio; curFocus = ci; }
-              }
-            }
-            // Once all targets met, fall back to fixed focus dropdown
-            if (allMet && focusIdx >= 0) curFocus = focusIdx;
-          } else if (strategy === 'fixed') {
-            curFocus = focusIdx;
-          }
+    var worker = new Worker('./js/workers/enchant-sim-worker.js');
+    worker.postMessage({
+      simCount: simCount, enchCount: enchCount, levels: levels,
+      foundList: foundList, focusChance: focusChance, strategy: strategy,
+      focusIdx: focusIdx, targets: targetsObj, targetList: targetListArr
+    });
 
-          var target;
-          if (curFocus >= 0 && Math.random() < focusChance) {
-            target = curFocus;
-          } else {
-            target = foundList[Math.floor(Math.random() * foundList.length)];
-          }
-          simLevels[target]++;
-        }
+    worker.onmessage = function(e) {
+      var msg = e.data;
+      if (msg.type === 'progress') {
+        var pct = (msg.done / msg.total * 100).toFixed(1);
+        var bar = document.getElementById('esim-progress-bar');
+        var txt = document.getElementById('esim-progress-text');
+        if (bar) bar.style.width = pct + '%';
+        if (txt) txt.textContent = msg.done.toLocaleString() + ' / ' + msg.total.toLocaleString();
+        return;
+      }
+      if (msg.type === 'done') {
+        worker.terminate();
+        // Flash progress to 100% before replacing with results
+        var bar = document.getElementById('esim-progress-bar');
+        var txt = document.getElementById('esim-progress-text');
+        if (bar) bar.style.width = '100%';
+        if (txt) txt.textContent = msg.simCount.toLocaleString() + ' / ' + msg.simCount.toLocaleString();
 
+        var hasTargets = targetListArr.length > 0;
+
+        var spread = [];
         for (var i = 0; i < 40; i++) {
-          var enchLv = Math.max(0, simLevels[i] - 1);
-          spreadSums[i] += enchLv;
-          if (enchLv < spreadMins[i]) spreadMins[i] = enchLv;
-          if (enchLv > spreadMaxs[i]) spreadMaxs[i] = enchLv;
+          if (levels[i] < 1) continue;
+          var cname = J.COLLECTIBLE_DATA[i] ? J.COLLECTIBLE_DATA[i][0] : 'Collectible ' + i;
+          spread.push({
+            idx: i, name: cname,
+            avgLv: msg.spreadSums[i] / msg.simCount,
+            minLv: msg.spreadMins[i],
+            maxLv: msg.spreadMaxs[i],
+            target: targetsObj[i] || 0,
+            hitPct: msg.perTarget[i] != null ? msg.perTarget[i] / msg.simCount : null,
+          });
         }
 
-        if (hasTargets) {
-          var hitAll = true;
-          for (var ci in targets) {
-            var enchLv = Math.max(0, simLevels[Number(ci)] - 1);
-            if (enchLv >= targets[ci]) perTarget[ci]++;
-            else hitAll = false;
-          }
-          if (hitAll) allHit++;
-        }
+        _simResults = {
+          spread: spread, enchCount: enchCount, simCount: msg.simCount, strategy: strategy,
+          focusIdx: strategy !== 'none' ? (strategy === 'smart' ? -2 : focusIdx) : -1,
+          focusName: focusIdx >= 0 ? (J.COLLECTIBLE_DATA[focusIdx] ? J.COLLECTIBLE_DATA[focusIdx][0] : '#' + focusIdx) : '',
+          hasTargets: hasTargets,
+          allHitPct: hasTargets ? msg.allHit / msg.simCount : null,
+        };
+        _simRunning = false;
+
+        var el = document.getElementById('esim-results');
+        if (el) { el.innerHTML = _renderSimResults(_simResults); _attachTips(el); }
+        var b = document.getElementById('esim-run');
+        if (b) { b.textContent = 'Run Simulation'; b.disabled = false; }
       }
-
-      var spread = [];
-      for (var i = 0; i < 40; i++) {
-        if (levels[i] < 1) continue;
-        var cname = J.COLLECTIBLE_DATA[i] ? J.COLLECTIBLE_DATA[i][0] : 'Collectible ' + i;
-        spread.push({
-          idx: i, name: cname,
-          avgLv: spreadSums[i] / simCount,
-          minLv: spreadMins[i] === Infinity ? 0 : spreadMins[i],
-          maxLv: spreadMaxs[i],
-          target: targets[i] || 0,
-          hitPct: perTarget[i] != null ? perTarget[i] / simCount : null,
-        });
-      }
-
-      _simResults = {
-        spread: spread, enchCount: enchCount, simCount: simCount, strategy: strategy,
-        focusIdx: strategy !== 'none' ? (strategy === 'smart' ? -2 : focusIdx) : -1,
-        focusName: focusIdx >= 0 ? (J.COLLECTIBLE_DATA[focusIdx] ? J.COLLECTIBLE_DATA[focusIdx][0] : '#' + focusIdx) : '',
-        hasTargets: hasTargets,
-        allHitPct: hasTargets ? allHit / simCount : null,
-      };
-      _simRunning = false;
-
-      var el = document.getElementById('esim-results');
-      if (el) el.innerHTML = _renderSimResults(_simResults);
-      var b = document.getElementById('esim-run');
-      if (b) { b.textContent = 'Run Simulation'; b.disabled = false; }
-    }, 50);
+    };
   });
 }
 
