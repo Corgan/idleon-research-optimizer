@@ -122,9 +122,15 @@ export function loadSaveData(raw) {
   assignState({ farmRankData: parseSaveKey(save, 'FarmRank') || {} });
   assignState({ forgeLvData: parseSaveKey(save, 'ForgeLV') || [] });
 
-  const nChars = raw.charNames ? raw.charNames.length : 10;
+  let inferredChars = 0;
+  for (const key of Object.keys(save)) {
+    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign)_(\d+)$/.exec(key);
+    if (match) inferredChars = Math.max(inferredChars, Number(match[1]) + 1);
+  }
+  const loadedNames = Array.isArray(raw.charNames) ? raw.charNames : [];
+  const nChars = Math.max(loadedNames.length, inferredChars, 10);
   assignSaveData({ numCharacters: nChars });
-  assignState({ charNames: raw.charNames || [] });
+  assignState({ charNames: loadedNames });
   _syncState(raw);
 
   // Per-character data

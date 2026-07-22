@@ -116,6 +116,9 @@ function _slotToSymbolLVID(slotIdx) {
 
 // ----- GemstoneBonus(gemIdx) -----
 // Reads NjGem{gemIdx} from NjEQ, OLA[233+gemIdx] for level
+export function gemstoneBonus(gemIdx, olaData, saveData, activeCharIdx) {
+  return _gemstoneBonus(gemIdx, olaData, saveData, activeCharIdx);
+}
 function _gemstoneBonus(gemIdx, olaData, saveData, activeCharIdx) {
   var gemKey = 'NjGem' + gemIdx;
   var gem = NjEQ[gemKey];
@@ -152,6 +155,9 @@ function _gloveSPD(twinIdx, ninjaData) {
 
 // ----- NinjaBonus per twin (equipped charms) -----
 // Returns a map: bonusType -> total stat value for twin t
+export function twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses) {
+  return _twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses);
+}
 function _twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses) {
   var map = {};
   // Gold inventory type 12 bonus (charm power) — from goldInvBonuses
@@ -180,6 +186,9 @@ function _twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses) {
 // Scans Ninja[60..99] for Gold_ items, keeps first per bonus type.
 // Game compares raw > storedMultiplied, so the first match always wins.
 // Multiplied by (1 + gemstone3/100) * (1 + legendPts6/100) * (1 + symbolBon/100)
+export function goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
+  return _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx);
+}
 function _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
   var gem3 = _gemstoneBonus(3, olaData, saveData, activeCharIdx);
   var legend6 = 0;
@@ -525,7 +534,10 @@ export function getTwinAllyContributions(saveData, activeCharIdx) {
   var spelunkData = s.spelunkData || [];
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, s, activeCharIdx);
   var result = [];
-  for (var t = 0; t < 10; t++) {
+  var count = (s.charNames && s.charNames.length)
+    || (s.lv0AllData && s.lv0AllData.length)
+    || 10;
+  for (var t = 0; t < count; t++) {
     var map = _twinCharmBonuses(t, nd, spelunkData, goldInv);
     result.push({ type8: _num(map[8]), type16: _num(map[16]) });
   }

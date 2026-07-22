@@ -194,6 +194,7 @@ import {
   allyStealthMulti, simStealth,
 } from './js/stats/systems/w6/sneaking-math.js';
 import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras } from './js/stats/systems/w6/sneaking-stealth.js';
+import { computeJadeRate } from './js/stats/systems/w6/sneaking-jade.js';
 import { bubbleValByKey } from './js/stats/systems/w2/alchemy.js';
 import { emporiumBonus } from './js/game-helpers.js';
 
@@ -255,6 +256,12 @@ function _symDots(lv, color) {
   return d;
 }
 function _charName(idx) { return (saveData.charNames || [])[idx] || ('Twin ' + (idx + 1)); }
+function _loginContextIdx(fallbackIdx) {
+  var selected = Number(window._sneakLoginChar);
+  var count = (saveData.charNames || []).length || TWIN_COUNT;
+  if (Number.isInteger(selected) && selected >= 0 && selected < count) return selected;
+  return fallbackIdx;
+}
 
 function _fmt(n) {
   if (n == null || isNaN(n)) return '0';
@@ -293,7 +300,7 @@ function _fmtMulti(mult) {
 }
 
 // ===== TWIN DATA =====
-var TWIN_COUNT = 10; // only 0-9 are valid
+var TWIN_COUNT = 11; // 0-10 (11 characters)
 
 function _getActiveTwins() {
   var nd = _nd();
@@ -342,7 +349,7 @@ function _getActiveTwins() {
   // Also compute full stealth at current floor with actual allies
   // Use the best active character for ATL context
   var bestChar = findBestActiveChar(saveData);
-  var aci = bestChar.charIdx;
+  var aci = _loginContextIdx(bestChar.charIdx);
   var allTwinFloors = result.map(function(tw2) { return tw2.floor; });
   for (var r = 0; r < result.length; r++) {
     var detailed = computeCoreStealthDetailed(r, saveData, aci);
@@ -355,8 +362,10 @@ function _getActiveTwins() {
     result[r].dodgePct = cm[0] || 0;
     result[r].koPct = cm[1] || 0;
     result[r].itemFindPct = cm[5] || 0;
+    result[r].charmMap = cm;
   }
   result.bestActiveChar = bestChar;
+  result.activeCharIdx = aci;
 
   return result;
 }
@@ -450,7 +459,7 @@ var EMPTY_SLOT = { key: 'Blank', level: 0, _empty: true };
 // Returns array like _getActiveTwins() but with recomputed stats
 function _simulateLoadout(loadout, pool) {
   var nd = _nd();
-  var aci = findBestActiveChar(saveData).charIdx;
+  var aci = _loginContextIdx(findBestActiveChar(saveData).charIdx);
 
   // Save original slots
   var saved = {};
@@ -651,10 +660,12 @@ function _simulateLoadout(loadout, pool) {
         dodgePct: cm[0] || 0,
         koPct: cm[1] || 0,
         itemFindPct: cm[5] || 0,
+        charmMap: cm,
         dmgPct: 0,
       });
     }
     result.bestActiveChar = { charIdx: aci };
+    result.activeCharIdx = aci;
 
     // Compute ally contributions with modified equipment
     var allyContribs = getTwinAllyContributions(saveData, aci);
@@ -804,6 +815,16 @@ function _renderAllInner() {
     h += ' <span style="color:var(--text2);">(char ' + bc.charIdx + ')</span>';
     h += '</div>';
   }
+
+  h += '<label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.72em;color:var(--text2);">Login context';
+  h += '<span data-tip="The cloud save does not include the currently logged-in character. Select the same character as the game for matching displayed rates." style="cursor:help;color:var(--cyan);">&#x2753;</span>';
+  h += '<select id="sneak-login-char" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;">';
+  var loginCount = Math.max((saveData.charNames || []).length, (saveData.lv0AllData || []).length);
+  for (var loginIdx = 0; loginIdx < loginCount; loginIdx++) {
+    h += '<option value="' + loginIdx + '"' + (loginIdx === twins.activeCharIdx ? ' selected' : '') + '>'
+      + _charName(loginIdx) + (loginIdx === twins.bestActiveChar.charIdx ? ' (best)' : '') + '</option>';
+  }
+  h += '</select></label>';
 
   h += '<div class="loadout-grid">';
   for (var ti = 0; ti < twins.length; ti++) {
@@ -1016,6 +1037,13 @@ function _renderAllInner() {
       detail.classList.toggle('open');
     });
 
+    el.addEventListener('change', function(e) {
+      if (e.target.id !== 'sneak-login-char') return;
+      window._sneakLoginChar = Number(e.target.value);
+      _invalidateGridCache();
+      _renderAll();
+    });
+
     // Position fixed tooltips on hover, hide on mouseout
     el.addEventListener('mouseover', function(e) {
       var cell = e.target.closest('.col-0pct');
@@ -1120,7 +1148,9 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
         }
         simATA.push(allyStealthMulti(sop));
       }
-      simSets.push({ twins: simTwins, allyContribs: simAlly, allTogetherAlly: simATA, label: modeConfigs[mc].label, loadout: modeConfigs[mc].loadout });
+      simSets.push({ twins: simTwins, allyContribs: simAlly, allTogetherAlly: simATA,
+        activeCharIdx: simTwins.activeCharIdx,
+        label: modeConfigs[mc].label, loadout: modeConfigs[mc].loadout });
     }
   }
   // Default set (current loadout)
@@ -1129,11 +1159,13 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   for (var dai = 0; dai < twins.length; dai++) {
     var dop = [];
     for (var daj = 0; daj < twins.length; daj++) {
-      if (daj !== dai) dop.push(defaultAlly[twins[daj].idx]);
+      if (daj !== dai && defaultAlly[twins[daj].idx]) dop.push(defaultAlly[twins[daj].idx]);
     }
     defaultATA.push(allyStealthMulti(dop));
   }
-  var defaultSet = { twins: twins, allyContribs: defaultAlly, allTogetherAlly: defaultATA, label: 'Current', loadout: null };
+  var defaultSet = { twins: twins, allyContribs: defaultAlly, allTogetherAlly: defaultATA,
+    activeCharIdx: twins.activeCharIdx,
+    label: 'Current', loadout: null };
   var simElapsed = performance.now() - simStartT;
 
   if (curMode !== 'current' && modeConfigs.length > 0) {
@@ -1177,8 +1209,12 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     var charmLv = maxCharmDropLevel(nkLvs, mLv, nk11Extras);
     var dropTable = floorDropTable(fl);
     var bestDet = 1, worstDet = 0;
-    var totalFlHr = 0, totalJadeHr = 0, totalItemsHr = 0, totalDoorDmgHr = 0;
+    var totalFlHr = 0, totalJadeHr = 0, totalItemsHr = 0, totalDoorDmgHr = 0, totalJadePA = 0;
     var perTwin = [];
+    var scenarioFloors = [];
+    for (var scenarioIdx = 0; scenarioIdx < tw.length; scenarioIdx++) {
+      scenarioFloors[tw[scenarioIdx].idx] = fl;
+    }
     for (var ti4 = 0; ti4 < tw.length; ti4++) {
       var tw4 = tw[ti4];
       var simSt = simStealth(tw4.coreStealth, ata[ti4], funeralF);
@@ -1186,21 +1222,37 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       var spd4 = tw4.actionSpd;
       var fr4 = flowerRate(spd4, det4, tw4.dodgePct);
       var koInternal = koDuration(nkLvs, tw4.koPct);
-      var dodgeFrac = Math.min(0.9, (tw4.dodgePct || 0) / 100);
-      var dn3 = det4 < 1 ? (det4 / (1 - det4)) * (1 - dodgeFrac) : 1e12;
-      var successPerHr = 3600 * spd4 / (3600 + dn3 * (3600 + koInternal));
-      var jhr = jBase * successPerHr;
+      var jadeResult = computeJadeRate(tw4.idx, saveData, {
+        activeCharIdx: st.activeCharIdx,
+        floor: fl,
+        mastery: mLv,
+        twinFloors: scenarioFloors,
+        isSolo: tw.length === 1,
+        detection: det4,
+        actionSpeed: spd4,
+        koTime: koInternal,
+        dodgePct: tw4.dodgePct,
+        charmBonuses: tw4.charmMap,
+      });
+      var successPerHr = jadeResult.actionsPerHour;
+      var jhr = jadeResult.jadePerHour;
+      var jpa = jhr;
       var ifc = itemFindChance(nkLvs, tw4.itemFindPct, null, bubbleY9Val);
       var ihr = ifc * successPerHr;
       var dmg = doorDamage(nkLvs, tw4.dmgPct);
       var dmgHr = dmg * successPerHr;
+      var dodgeFrac = Math.min(0.9, (tw4.dodgePct || 0) / 100);
       var koProb = det4 * (1 - dodgeFrac);
       if (det4 < bestDet) bestDet = det4;
       if (det4 > worstDet) worstDet = det4;
-      totalFlHr += fr4; totalJadeHr += jhr; totalItemsHr += ihr; totalDoorDmgHr += dmgHr;
-      perTwin.push({ name: tw4.name, idx: tw4.idx, det: det4, spd: spd4, flHr: fr4, jHr: jhr, iHr: ihr, dmgHr: dmgHr, onFloor: tw4.floor === fl, curFloor: tw4.floor, koSec: koInternal, koProb: koProb, equip: tw4.equip });
+      totalFlHr += fr4; totalJadeHr += jhr; totalItemsHr += ihr; totalDoorDmgHr += dmgHr; totalJadePA += jpa;
+      perTwin.push({ name: tw4.name, idx: tw4.idx, det: det4, spd: spd4, flHr: fr4,
+        jHr: jhr, jPA: jpa, jadeCoin: jadeResult.coin, jadeActionsHr: jadeResult.actionsPerHour,
+        jadeContext: _charName(st.activeCharIdx),
+        iHr: ihr, dmgHr: dmgHr, onFloor: tw4.floor === fl, curFloor: tw4.floor,
+        koSec: koInternal, koProb: koProb, equip: tw4.equip });
     }
-    return { bestDet, worstDet, totalFlHr, totalJadeHr, totalItemsHr, totalDoorDmgHr, hp, charmLv, flCount, funeralF, jBase, dropTable, perTwin, configLabel: st.label };
+    return { bestDet, worstDet, totalFlHr, totalJadeHr, totalJadePA, totalItemsHr, totalDoorDmgHr, hp, charmLv, flCount, funeralF, jBase, dropTable, perTwin, loginContext: _charName(st.activeCharIdx), configLabel: st.label };
   }
 
   // Pick the best config for a floor×mastery based on mode target metric
@@ -1304,7 +1356,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       h += '<td class="col-det mg-sep' + cc2 + '" style="color:' + _detColor(cd.bestDet) + ';">' + _pct(cd.bestDet) + '</td>';
       var multiHr = cd.totalFlHr * nk21 / 100;
       h += '<td class="col-flhr' + cc2 + '" title="' + _fmt(cd.totalFlHr) + ' fl/hr × ' + nk21.toFixed(1) + '% NK21">' + (multiHr >= 0.01 ? multiHr.toFixed(2) : multiHr.toFixed(4)) + '×' + (isFaked ? '*' : '') + '</td>';
-      h += '<td class="col-jade' + cc2 + '">' + _fmt(cd.totalJadeHr) + '</td>';
+      h += '<td class="col-jade' + cc2 + '" data-tip="Login context: ' + cd.loginContext + '\nSum of per-character game display: ' + _fmt(cd.totalJadePA) + ' jade/hr">' + _fmt(cd.totalJadeHr) + '</td>';
       h += '<td class="col-door' + cc2 + '">' + (cd.hp > 0 ? _fmt(cd.totalDoorDmgHr) + '/' + _fmt(cd.hp) : '-') + '</td>';
       h += '<td class="col-0pct' + cc2 + '">' + _fmt(thresh[5].stealth);
       h += '<span class="tt">';
@@ -1328,34 +1380,25 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
 
     // Detail row (hidden) — colspan cells matching parent mastery column groups
     h += '<tr class="mg-detail" id="detail-' + rowId + '">';
-    // Left column: twin names (shared across all mastery columns)
-    var cd2_0 = cd1; // use current mastery twins for names
+    var cd2_0 = cd1;
     var hasConfigLabel = curMode !== 'current' && cd1.configLabel;
-    h += '<td colspan="2" style="vertical-align:top;padding:0;">';
-    if (hasConfigLabel) h += '<div style="font-size:.68em;padding:2px 4px;">&nbsp;</div>';
-    h += '<table class="data-table" style="margin-top:0;font-size:.82em;border:0;">';
-    h += '<tr><th style="padding:2px 4px;">&nbsp;</th></tr>';
-    for (var pn = 0; pn < cd2_0.perTwin.length; pn++) {
-      var pnm = cd2_0.perTwin[pn];
-      h += '<tr style="' + (pnm.onFloor ? 'background:rgba(77,208,225,.06);' : '') + '">';
-      h += '<td style="font-size:.9em;white-space:nowrap;padding:1px 4px;">' + pnm.name + '</td></tr>';
-    }
-    h += '</table></td>';
     for (var mi3 = 0; mi3 < mCount; mi3++) {
       var cd2 = mIsCur[mi3] ? cd1 : _bestCellData(fl, masteryLevels[mi3]);
-      h += '<td colspan="6" style="vertical-align:top;padding:0;">';
-      // Show winning config label for optimizer modes
+      var isFirstCol = (mi3 === 0);
+      h += '<td colspan="' + (isFirstCol ? '8' : '6') + '" style="vertical-align:top;padding:0;">';
       if (curMode !== 'current' && cd2.configLabel) {
         h += '<div style="font-size:.68em;color:var(--cyan);font-weight:600;padding:2px 4px;">' + cd2.configLabel + '</div>';
       }
       h += '<table class="data-table" style="margin-top:0;font-size:.82em;">';
       h += '<tr>';
+      if (isFirstCol) h += '<th></th>';
       if (curMode !== 'current') h += '<th>Loadout</th>';
       h += '<th class="num">Det</th><th class="num">Interval</th><th class="num">KO time</th><th class="num">Jade/hr</th><th class="num">×/hr</th><th class="num">Items/hr</th><th class="num">Door/hr</th></tr>';
       for (var pt = 0; pt < cd2.perTwin.length; pt++) {
         var p = cd2.perTwin[pt];
         var secPerAct = 3600 / p.spd;
         h += '<tr style="' + (p.onFloor ? 'background:rgba(77,208,225,.06);' : '') + '">';
+        if (isFirstCol) h += '<td style="font-size:.9em;white-space:nowrap;padding:1px 4px;">' + p.name + '</td>';
         if (curMode !== 'current' && p.equip) {
           var eqParts = [];
           for (var ei = 1; ei < p.equip.length; ei++) {
@@ -1373,7 +1416,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
         h += '<td class="num" style="color:' + _detColor(p.det) + ';font-weight:600;">' + _pct(p.det) + '</td>';
         h += '<td class="num">' + secPerAct.toFixed(1) + 's</td>';
         h += '<td class="num" style="color:var(--red);">' + (p.koProb > 0 ? (p.koSec / p.spd).toFixed(1) + 's' : '-') + '</td>';
-        h += '<td class="num" style="color:var(--gold);">' + _fmt(p.jHr) + '</td>';
+        h += '<td class="num" style="color:var(--gold);" data-tip="Login context: ' + p.jadeContext + '\nGame display: ' + _fmt(p.jPA) + ' jade/hr\nJade per action: ' + _fmt(p.jadeCoin) + '\nSuccessful actions/hr: ' + p.jadeActionsHr.toPrecision(4) + '">' + _fmt(p.jHr) + '</td>';
         var pMultiHr = p.flHr * nk21 / 100;
         h += '<td class="num" style="color:var(--purple);" title="' + p.flHr.toFixed(1) + ' fl/hr">' + (pMultiHr >= 0.01 ? pMultiHr.toFixed(2) : pMultiHr.toFixed(4)) + '×</td>';
         h += '<td class="num" style="color:var(--text);">' + p.iHr.toFixed(2) + '</td>';

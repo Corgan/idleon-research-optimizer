@@ -9,6 +9,7 @@ import { labData } from '../../../save/data.js';
 import { starSignDropVal } from '../../data/common/starSign.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { computeShinyBonusS } from '../w4/breeding.js';
+import { StarSigns } from '../../data/game/customlists.js';
 
 // Map bonus type → sign indices and accessor
 var SIGN_TABLES = {
@@ -135,6 +136,7 @@ var SIGN_BONUSES = {
   MoveSpd:  { 1: 2, 8: 4, 13: 2, 32: -3, 51: -12 },
   TotalHP:  { 28: -80 },
   FoodEffect: { 22: 15 },
+  Jade:     { 75: 10 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)
@@ -143,6 +145,15 @@ var SIGN_BONUSES = {
 function getEnabledStarSigns(saveData) {
   var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
   return riftLv >= 10 ? 5 + computeShinyBonusS(3, saveData) : 0;
+}
+
+function isStarSignActive(signIdx, charIdx, enabled, saveData) {
+  var equipped = String(starSignCharData[charIdx] || '').split(',');
+  if (equipped.indexOf(String(signIdx)) !== -1) return true;
+  if (signIdx >= enabled) return false;
+  var signName = StarSigns[signIdx] && StarSigns[signIdx][0];
+  return !!(signName && saveData.starSignsUnlocked
+    && Object.prototype.hasOwnProperty.call(saveData.starSignsUnlocked, signName));
 }
 
 export function computeStarSignBonus(key, ci, saveData) {
@@ -155,8 +166,7 @@ export function computeStarSignBonus(key, ci, saveData) {
   for (var i = 0; i < signIndices.length; i++) {
     var sigIdx = Number(signIndices[i]);
     var val = bonusMap[sigIdx];
-    // Game: if (signIndex > enabledStarSigns - 1) → apply negatives; else skip them
-    if (val < 0 && sigIdx < enabled) continue;
+    if (!isStarSignActive(sigIdx, ci, enabled, saveData)) continue;
     total += val;
     children.push(node('Sign ' + sigIdx, val, null, { fmt: 'raw' }));
   }

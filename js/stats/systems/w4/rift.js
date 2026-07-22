@@ -100,6 +100,55 @@ function computeSkillLvRanks(saveData) {
   return ranks;
 }
 
+// Game: RiftSkillBonus(skillIdx, threshold)
+// Returns 1 when Rift 15 is unlocked and the account-wide skill rank exceeds
+// the requested threshold, otherwise 0.
+export function computeRiftSkillBonus(skillIdx, threshold, saveData) {
+  var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
+  if (riftLv < 15) return 0;
+  var ranks = computeSkillLvRanks(saveData);
+  return (Number(ranks[skillIdx]) || 0) > threshold ? 1 : 0;
+}
+
+// Game: RandomEvent("KillroyBonuses", idx, 0)
+export function computeKillroyBonus(idx, saveData) {
+  var ola = saveData.olaData || [];
+  var value;
+  if (idx === 0) {
+    value = Number(ola[228]) || 0;
+    return 1 + value / (300 + value);
+  }
+  if (idx === 1) {
+    value = Number(ola[229]) || 0;
+    return 1 + value / (300 + value) * 9;
+  }
+  if (idx === 2) {
+    value = Number(ola[230]) || 0;
+    return 1 + value / (300 + value) * 2;
+  }
+  if (idx === 3) {
+    value = Number(ola[467]) || 0;
+    return value / (200 + value) * 10;
+  }
+  if (idx === 4) {
+    value = Number(ola[468]) || 0;
+    return 1 + value / (200 + value) * 1.3;
+  }
+  if (idx === 5) {
+    value = Number(ola[469]) || 0;
+    return 1 + value / (150 + value) * 0.8;
+  }
+  if (idx === 6) {
+    value = Number(ola[470]) || 0;
+    return value / (250 + value) * 25;
+  }
+  if (idx === 7) {
+    value = Number(ola[471]) || 0;
+    return 1 + value / (200 + value) * 2;
+  }
+  return 1;
+}
+
 export function computeRiftSkillETC(idx, saveData) {
   var s = saveData;
   var riftLv = Number(s.riftData && s.riftData[0]) || 0;

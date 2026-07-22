@@ -13,6 +13,7 @@ import { numCharacters, klaData } from '../../../save/data.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { HOLE_MULTIPLIERS } from '../../data/game-constants.js';
+import { bonTOT as fountainBonTOT } from './fountain.js';
 
 var HOLE_DATA = HOLE_MULTIPLIERS;
 
@@ -277,8 +278,16 @@ export function computeMonumentROGbonus(t, i, saveData, ext) {
     holeozDN = 1 + computeMonumentROGbonus(t, 9, saveData, ext) / 100 + computeCosmoBonus(0, 0, saveData) / 100;
   }
 
-  // Fountain monument boost: multiplies holeozDN (game applies this regardless of i)
-  var fountMon = (ext && ext.fountMonument && ext.fountMonument[t]) || 0;
+  // Fountain monument boost: Fountain_BonTOT(water=t, upgrade=13).
+  // ext.fountMonument can explicitly override the save-derived value.
+  var fountMon;
+  if (ext && ext.fountMonument && ext.fountMonument[t] != null) {
+    fountMon = Number(ext.fountMonument[t]) || 0;
+  } else {
+    var fountainUpgrades = (saveData.holesData && saveData.holesData[31]) || [];
+    var fountainMarbles = (saveData.holesData && saveData.holesData[32]) || [];
+    fountMon = fountainBonTOT(fountainUpgrades, fountainMarbles, t, 13);
+  }
   holeozDN *= (1 + fountMon / 100);
 
   if (bonusInfo < 30) {

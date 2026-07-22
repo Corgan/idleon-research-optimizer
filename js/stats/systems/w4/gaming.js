@@ -5,6 +5,7 @@ import { superBitType, emporiumBonus } from '../../../game-helpers.js';
 import { mainframeBonus } from './lab.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
+import { vaultUpgBonus } from '../common/vault.js';
 
 // ==================== GAMING STARS ====================
 
@@ -42,7 +43,7 @@ export function computeMSABonus(idx, saveData) {
   if (!cfg) return 0;
   var g12 = saveData.gamingData && saveData.gamingData[12];
   var ninja = saveData.ninjaData;
-  var ninjaStr = ninja && ninja[10] && ninja[10][2] && ninja[10][2][9];
+  var ninjaStr = ninja && ninja[102] && ninja[102][9];
   var unlocked = cfg.gate === 0
     ? superBitType(cfg.gateIdx, g12)
     : emporiumBonus(cfg.gateIdx, ninjaStr);
@@ -63,16 +64,15 @@ function slabboAllMulti(saveData) {
   try { meritoc23 = computeMeritocBonusz(23, saveData); } catch(e) {}
   var legend28 = 0;
   try { legend28 = legendPTSbonus(28, saveData); } catch(e) {}
-  // VaultUpg(74) — from summoning vault upgrades
-  // For now we skip VaultUpg since it requires summoning system wiring
   var vault74 = 0;
+  try { vault74 = vaultUpgBonus(74, saveData); } catch(e) {}
   return (1 + meritoc23 / 100) * (1 + legend28 / 100) * (1 + vault74 / 100);
 }
 
 export function computeSlabboBonus(idx, saveData) {
   var g12 = saveData.gamingData && saveData.gamingData[12];
   var ninja = saveData.ninjaData;
-  var ninjaStr = ninja && ninja[10] && ninja[10][2] && ninja[10][2][9];
+  var ninjaStr = ninja && ninja[102] && ninja[102][9];
   var cards1Len = (saveData.cards1Data && saveData.cards1Data.length) || 0;
 
   if (idx === 4) {

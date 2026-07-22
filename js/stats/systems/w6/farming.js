@@ -115,17 +115,27 @@ export var farm = {
 export function computeCropSC(idx, saveData) {
   var s = saveData;
   var ninjaData102_9 = s.ninjaData && s.ninjaData[102] && s.ninjaData[102][9];
-  var emp23 = emporiumBonus(23, ninjaData102_9);
-  if (!emp23) return 0;
   var cropCount = s.farmCropCount || 0;
-  var mf17 = _safe(mainframeBonus, 17);
-  var gub22 = _safe(grimoireUpgBonus22);
-  var exo40 = _safe(exoticBonusQTY40);
-  var vub79 = _safe(vaultUpgBonus, 79);
+  var gates = { 0: 27, 1: 24, 2: 25, 3: 26, 4: 23, 5: 28, 6: 29, 7: 38, 8: 40, 9: 44 };
+  if (!emporiumBonus(gates[idx], ninjaData102_9)) return 0;
+
+  var mf17 = _safe(mainframeBonus, 17, saveData);
+  var gub22 = _safe(grimoireUpgBonus22, saveData);
+  var exo40 = _safe(exoticBonusQTY40, saveData);
+  var vub79 = _safe(vaultUpgBonus, 79, saveData);
   var multi = (1 + mf17 / 100) * (1 + (gub22 + exo40 + vub79) / 100);
-  var baseMap = { 0: 20, 2: 8, 4: 15, 5: 7, 8: 10 };
-  var baseVal = baseMap[idx] || 0;
-  return baseVal * cropCount * multi;
+
+  if (idx === 0) return 20 * cropCount * multi;
+  if (idx === 1) return Math.pow(1.02, cropCount) * multi;
+  if (idx === 2) return 8 * cropCount * multi;
+  if (idx === 3) return Math.pow(1.1, cropCount) * multi;
+  if (idx === 4) return 15 * cropCount * multi;
+  if (idx === 5) return 7 * cropCount * multi;
+  if (idx === 6) return 0.1 * cropCount * multi;
+  if (idx === 7) return Math.max(0, cropCount - 100) * multi;
+  if (idx === 8) return 5 * Math.max(0, cropCount - 200) * multi;
+  if (idx === 9) return Math.max(0, Math.floor((cropCount - 200) / 10)) * multi;
+  return 0;
 }
 
 function _safe(fn) {
