@@ -524,25 +524,40 @@ function renderMealAlloc() {
 
   var budget = yellowPointBudget(saveData);
   var spendBudget = _yellowBudgetOverride != null ? Math.min(budget, Math.max(0, _yellowBudgetOverride)) : budget;
-  var goalId = _selectedGoal || GOALS[0].id;
+  var availableGoals = [];
+  for (var gi = 0; gi < GOALS.length; gi++) {
+    var preview = optimizeForGoal(GOALS[gi].id, 0, saveData, { activeCharIdx: _yellowCharIdx });
+    if (preview && preview.meals.length > 1) availableGoals.push(GOALS[gi]);
+  }
+  if (availableGoals.length === 0) {
+    el.innerHTML = '<div class="section" style="text-align:center;color:var(--text2);padding:40px;">No goals have at least two leveled meals to compare.</div>';
+    return;
+  }
+  var goalId = _selectedGoal;
+  if (!goalId || !availableGoals.some(function(item) { return item.id === goalId; })) {
+    goalId = availableGoals[0].id;
+    _selectedGoal = goalId;
+  }
   var goal = GOAL_MAP[goalId];
 
   // Only build controls if not yet rendered
+  var goalSignature = availableGoals.map(function(item) { return item.id; }).join('|');
   var controlsEl = document.getElementById('meal-alloc-controls');
+  if (controlsEl && controlsEl.dataset.goalSignature !== goalSignature) controlsEl = null;
   if (!controlsEl) {
-    var html = '<div class="section" id="meal-alloc-controls"><h2>Yellow Point Allocator</h2>';
+    var html = '<div class="section" id="meal-alloc-controls" data-goal-signature="' + goalSignature + '"><h2>Yellow Point Allocator</h2>';
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">';
     html += '<label style="color:var(--text2);font-size:.85em;">Points to spend:</label>';
     html += '<input type="number" id="yellow-pts-budget" min="0" max="' + budget + '" value="' + spendBudget + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;">';
     html += '<span style="color:var(--text2);font-size:.85em;">of ' + budget + ' total</span>';
     html += '</div>';
-    html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Distributes all selected yellow points to maximize a source-backed meal effect. Cooking-speed goals sum output across all unlocked kitchens, assuming they cook the same meal; other non-meal bonuses are omitted when they do not affect allocation weights.</p>';
+    html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Distributes all selected yellow points to maximize a source-backed meal effect. Goals with fewer than two leveled meal choices are hidden. Cooking-speed goals sum output across all unlocked kitchens, assuming they cook the same meal.</p>';
     // Goal selector
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
     html += '<label style="color:var(--text2);font-size:.9em;">Goal:</label>';
     html += '<select id="goal-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:400px;">';
-    for (var gi = 0; gi < GOALS.length; gi++) {
-      var g = GOALS[gi];
+    for (var gi = 0; gi < availableGoals.length; gi++) {
+      var g = availableGoals[gi];
       html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + '</option>';
     }
     html += '</select>';
