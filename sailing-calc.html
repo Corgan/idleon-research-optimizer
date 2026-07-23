@@ -75,6 +75,8 @@ input[type=checkbox] { width:16px; min-height:16px; padding:0; accent-color:var(
 .boat-tier-detail-row:hover td { background:#101b35; }
 .boat-tier-detail-row .boat-tier-payout-label { padding-left:20px; border-left:3px solid var(--cyan); color:var(--cyan); }
 .boat-tier-detail-row .payout-value { font-size:1em; }
+.boat-tier-total-row td { background:rgba(255,215,0,.045); border-top:1px solid rgba(255,215,0,.22); }
+.boat-tier-total-row .boat-tier-payout-label { border-left-color:var(--gold); color:var(--gold); }
 .boat-tier-detail-last td { border-bottom:2px solid rgba(255,255,255,.14); }
 .replacement-arrow { display:inline-block; width:14px; color:var(--text2); }
 .replacement-detail-cell { padding:8px 10px 12px !important; background:#101b35 !important; border-bottom:2px solid rgba(255,255,255,.14) !important; }
@@ -470,7 +472,7 @@ function sameTierComparisonCell(incoming,banked,tier){
     'Compounded: '+pct(outcome.exactSameTierChance,3)+' × '+pct(outcome.ulsChance,3)+' = '+pct(outcome.sameTierUpgradeChance,3),
     '',
     'This cell excludes deterministic higher-tier replacements.',
-    'Earlier banked entries may stop the scan first.'
+    'An earlier eligible same-tier match stops the scan even if its roll fails.'
   ];
   return '<td class="num '+(outcome.sameTierUpgradeChance>0?'replacement-eligible':'replacement-ineligible')+'" data-tip="'+attr(lines.join('\n'))+'">'+(outcome.sameTierUpgradeChance>0?compactMatrixChance(outcome.sameTierUpgradeChance):'—')+'</td>';
 }
@@ -526,7 +528,7 @@ function renderReplacementMatrix(fleet,capacity){
   h+=card('Data scope','Per target reached','Pile order and future evolution are not simulated');
   h+='</div><div class="callout" style="margin-top:10px">Cells show the direct chance per incoming chest to change the hypothetical strongest-source chest: exact same-tier drop chance &times; conditional ULS upgrade chance, plus the deterministic qualifying-higher-tier chance. Tooltips show both paths. Pile order can lower the realized chance if an earlier banked entry stops the scan. Green needs at most the next natural tier, gold must skip tiers, and red has no direct path.</div>';
   h+='<div class="table-wrap" style="margin-top:10px"><table class="data-table replacement-matrix"><thead><tr><th>Boat</th><th>Captain</th><th class="num">T0 value / payout</th><th class="num">% max</th>';
-  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num">Strongest T'+targetTier+'</th>';
+  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num" data-tip="Per incoming chest if this banked target is reached: exact same-tier drop chance × conditional ULS chance + qualifying higher-tier chance">Strongest T'+targetTier+'</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(function(route){
     h+='<tr class="replacement-source-row '+(route===strongest?'best':'')+'" data-replacement-boat="'+route.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(route.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(route.captainIdx))+'">'+captainCode(route.captainIdx)+'</td><td class="num">'+fmt(route.loot.value)+'</td><td class="num">'+pct(route.loot.value/strongest.loot.value,1)+'</td>';
@@ -548,10 +550,11 @@ function renderBoatTierPayoutRows(routeRow,primaryCurrency,rareCurrency){
     {name:'Gold Bars',share:shares.gold},
     {name:primaryCurrency.name,share:shares.primary},
     {name:rareCurrency.name,share:shares.rare},
+    {name:'Total value',share:1,total:true},
   ];
   var h='';
   currencies.forEach(function(currency,index){
-    h+='<tr class="boat-tier-detail-row '+(index===currencies.length-1?'boat-tier-detail-last':'')+'" data-boat-tier-detail="'+routeRow.boatIdx+'" hidden><td class="boat-tier-payout-label" colspan="5"><strong>'+esc(currency.name)+'</strong><span class="payout-detail">Expected total / opened chest</span></td>';
+    h+='<tr class="boat-tier-detail-row '+(currency.total?'boat-tier-total-row ':'')+(index===currencies.length-1?'boat-tier-detail-last':'')+'" data-boat-tier-detail="'+routeRow.boatIdx+'" hidden><td class="boat-tier-payout-label" colspan="5"><strong>'+esc(currency.name)+'</strong><span class="payout-detail">'+(currency.total?'All guaranteed payouts combined':'Expected total / opened chest')+'</span></td>';
     for(var tier=0;tier<6;tier++)h+='<td class="num payout-value">'+fmt(tierValues[tier]*currency.share)+'</td>';
     h+='</tr>';
   });
@@ -604,7 +607,7 @@ function renderOdds(fleet,capacity,rec){
   });
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Click a boat row to show its expected Gold Bar, primary-currency, and rare-currency totals aligned beneath each chest tier. Each actual payout independently selects one currency. Captain Rare Chest Chance shifts generated chests into higher tiers; the ship changes chest rate and stored value, not tier odds.</div></div>';
   h+=renderReplacementMatrix(fleet,capacity);
-  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from index 0 onward. Failed same-island, same-tier, sufficient-value rolls fall through to later chests; the first successful upgrade or qualifying higher-tier replacement stops the scan. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
+  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from index 0 onward. The first same-island, same-tier, sufficient-value match rolls its tier-up chance and stops the scan whether it succeeds or fails. Otherwise, the first same-island chest with both a strictly higher tier and strictly greater stored value replaces the banked chest automatically. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
 
 function currencyPayoutCell(currency){
   return '<td class="num"><span class="payout-value">'+fmt(currency.expectedValuePerChest)+'</span><span class="payout-detail">'+currency.expectedPayoutsPerChest.toFixed(2)+' payouts avg · '+pct(currency.chancePerPayout,1)+'</span></td>';

@@ -1,5 +1,7 @@
 // ===== SAILING PILE SIMULATION (W5) =====
 // Monte Carlo for fresh boat departures, near-full processing, and final opening payouts.
+// Eligible same-tier matches stop the scan on success or failure.
+// Same-island chests with strictly higher tier and stored value replace deterministically.
 
 function _num(value) { return Number(value) || 0; }
 
@@ -55,6 +57,7 @@ function _processNearFull(pile, incoming, config, random) {
         pile[index] = incoming;
         return 'upgrade';
       }
+      return 'overflowDiscard';
     }
     if (incoming.islandIdx === existing.islandIdx && incoming.tier > existing.tier
         && incoming.value > existing.value) {

@@ -400,6 +400,7 @@ export function chestReplacementThreshold(incomingRoute, referenceRoute, referen
   };
 }
 
+/** Direct change chance per incoming chest, assuming the near-full scan reaches this target. */
 export function chestReplacementOutcome(incomingRoute, referenceRoute, referenceTier, saveData, activeCharIdx) {
   var threshold = chestReplacementThreshold(incomingRoute, referenceRoute, referenceTier);
   var distribution = incomingRoute && (incomingRoute.rarity
