@@ -316,7 +316,10 @@ export function boatSpeed(boatIdx, saveData, options) {
     * (1 + bless4 / 100) * (1 + bless6 / 100) * (1 + vote / 100) * second;
   return { value: speed, base: boatBaseSpeed(level), captain: captain, first: first,
     davey: daveyJonesBonus(boatIdx, saveData), bless4: bless4, bless6: bless6,
-    vote: vote, second: second };
+    vote: vote, second: second, factors: { divMinor: divMinor, card1: card1,
+      cardBoss: cardBoss, bubble: bubble, bless9: bless9, artifact: artifact,
+      stamp: stamp, statue: statue, meal: meal, vial: vial, rift: rift,
+      msa: msa, star: star, vault: vault } };
 }
 
 export function routeTiming(boatIdx, islandIdx, saveData, options) {
@@ -485,15 +488,20 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
   var boat = saveData.boatsData && saveData.boatsData[boatIdx] || [];
   var captainIdx = options.captainIdx != null ? options.captainIdx : Math.round(_num(boat[0]));
   var activeCharIdx = options.activeCharIdx != null ? options.activeCharIdx : 0;
-  var additive = computeArtifactBonus(3, activeCharIdx, { saveData: saveData })
-    + captainBonus(captainIdx, 3, saveData)
-    + computeShinyBonusS(21, saveData)
-    + 20 * (_num(saveData.olaData && saveData.olaData[184]) >= 2500 ? 1 : 0)
-    + _treeVal(getBribeBonus(34, saveData))
-    + 25 * Math.min(30, legendaryCaptainCount(saveData))
-    + _num(arcadeBonus(32, saveData)) + _num(arcadeBonus(66, saveData))
-    + _bUpg55(saveData) + computeStickerBonus(2, saveData)
-    + _gridBonus(109, saveData) + vaultUpgBonus(63, saveData);
+  var artifact = computeArtifactBonus(3, activeCharIdx, { saveData: saveData });
+  var captain = captainBonus(captainIdx, 3, saveData);
+  var shiny = computeShinyBonusS(21, saveData);
+  var fractal = 20 * (_num(saveData.olaData && saveData.olaData[184]) >= 2500 ? 1 : 0);
+  var bribe = _treeVal(getBribeBonus(34, saveData));
+  var legendary = 25 * Math.min(30, legendaryCaptainCount(saveData));
+  var arcade32 = _num(arcadeBonus(32, saveData));
+  var arcade66 = _num(arcadeBonus(66, saveData));
+  var hole55 = _bUpg55(saveData);
+  var sticker = computeStickerBonus(2, saveData);
+  var grid109 = _gridBonus(109, saveData);
+  var vault63 = vaultUpgBonus(63, saveData);
+  var additive = artifact + captain + shiny + fractal + bribe + legendary
+    + arcade32 + arcade66 + hole55 + sticker + grid109 + vault63;
   var star = _treeVal(computeStarSignBonus('ArtifactFind', activeCharIdx, saveData));
   var companion154 = companions(154, saveData);
   var killroy = computeKillroyBonus(0, saveData);
@@ -522,11 +530,14 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
     * (1 + vote / 100) * (1 + companion43) * (1 + monument / 100)
     * (1 + exotic / 100) * (1 + palette / 100) * spelunk;
 
-  return { value: value, additive: additive, factors: { star: star, companion154: companion154,
-    killroy: killroy, minehead: minehead, grid106: grid106, vial: vial, purpleSlugs: purpleSlugs,
-    sushi: sushi, win: win, davey: davey, lab: lab, lore: lore, pristine: pristine,
-    vote: vote, companion43: companion43, monument: monument, exotic: exotic,
-    palette: palette, spelunk: spelunk } };
+  return { value: value, additive: additive, factors: { artifact: artifact, captain: captain,
+    shiny: shiny, fractal: fractal, bribe: bribe, legendary: legendary,
+    arcade32: arcade32, arcade66: arcade66, hole55: hole55, sticker: sticker,
+    grid109: grid109, vault63: vault63, star: star, companion154: companion154,
+    killroy: killroy, minehead: minehead, grid106: grid106, vial: vial,
+    purpleSlugs: purpleSlugs, sushi: sushi, win: win, davey: davey, lab: lab,
+    lore: lore, pristine: pristine, vote: vote, companion43: companion43,
+    monument: monument, exotic: exotic, palette: palette, spelunk: spelunk } };
 }
 
 export function islandArtifactOdds(islandIdx, artifactMultiplier, saveData, options) {

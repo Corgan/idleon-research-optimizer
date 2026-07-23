@@ -7,8 +7,8 @@
 <style>
 :root {
   --bg:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --accent:#e94560;
-  --text:#eee; --text2:#c0c0d4; --gold:#ffd700; --green:#4caf50;
-  --blue:#2196f3; --purple:#bb86fc; --cyan:#4dd0e1; --red:#f44;
+  --text:#eee; --text1:#eee; --text2:#c0c0d4; --gold:#ffd700; --green:#4caf50;
+  --blue:#2196f3; --purple:#bb86fc; --cyan:#4dd0e1; --red:#f44; --orange:#ffa060; --border:#425071;
 }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
@@ -27,6 +27,8 @@ h1 a { color:var(--text2); font-size:.62em; text-decoration:none; }
 .control { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-size:.72em; }
 select,input { min-height:30px; border:1px solid #586482; border-radius:4px; background:#101b35; color:var(--text); padding:4px 7px; }
 input[type=number] { width:108px; }
+input[type=checkbox] { width:16px; min-height:16px; padding:0; accent-color:var(--accent); }
+.check-control { display:flex; align-items:center; gap:7px; color:var(--text2); font-size:.78em; cursor:pointer; }
 .segmented { display:flex; border:1px solid #586482; border-radius:4px; overflow:hidden; }
 .segmented button,.tabs button { border:0; background:#101b35; color:var(--text2); padding:7px 11px; cursor:pointer; }
 .segmented button + button { border-left:1px solid #586482; }
@@ -40,6 +42,11 @@ input[type=number] { width:108px; }
 .data-table td { padding:5px 6px; border-bottom:1px solid rgba(255,255,255,.05); }
 .data-table tr:hover td { background:rgba(255,255,255,.035); }
 .data-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.ship-pair-first td:not(.ship-boat-cell) { border-bottom:0; padding-bottom:2px; }
+.ship-pair-second td { padding-top:2px; border-bottom:2px solid rgba(255,255,255,.11); }
+.ship-boat-cell { vertical-align:middle; color:var(--cyan); font-weight:700; border-right:1px solid rgba(255,255,255,.09); border-bottom:2px solid rgba(255,255,255,.11) !important; }
+.ship-group-alt td { background:rgba(255,255,255,.018); }
+.ship-group-alt:hover td { background:rgba(255,255,255,.05); }
 .best td { background:rgba(76,175,80,.07); }
 .badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.72em; font-weight:700; }
 .badge-green { background:rgba(76,175,80,.2); color:var(--green); }
@@ -62,9 +69,28 @@ details > summary { cursor:pointer; color:var(--cyan); }
 .formula-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:10px; }
 .formula { background:#101b35; border:1px solid #3b4765; border-radius:5px; padding:9px; font-size:.72em; line-height:1.55; }
 .formula strong { color:var(--cyan); }
+.breakdown-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.breakdown-panel { background:#101b35; border:1px solid #3b4765; border-radius:6px; padding:10px; min-width:0; }
+.breakdown-panel h3 { color:var(--cyan); font-size:.92em; margin-bottom:8px; }
+.bt-controls { margin-bottom:8px; display:flex; gap:6px; }
+.bt-controls .btn-sm { padding:4px 10px; background:var(--bg3); color:var(--text2); border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:.8em; }
+.bt-controls .btn-sm:hover { color:var(--cyan); border-color:var(--cyan); }
+.bt-tree { font-size:.78em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-bottom:1px solid rgba(255,255,255,.04); min-height:26px; cursor:pointer; }
+.bt-row:hover { background:rgba(255,255,255,.07); }
+.bt-children { background:rgba(0,0,0,.12); border-left:2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight:700; font-size:1.05em; padding-top:6px; padding-bottom:6px; border-bottom:2px solid #444; }
+.bt-arrow { cursor:pointer; color:var(--text2); width:14px; text-align:center; user-select:none; flex-shrink:0; }
+.bt-arrow:hover { color:var(--cyan); }
+.bt-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bt-val { font-weight:600; text-align:right; flex-shrink:0; white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums; }
+.bt-tag { font-size:.7em; opacity:.7; margin-left:4px; }
+.bt-tag.auto { color:var(--accent); }
+.bt-tag.manual { color:var(--orange); }
+.bt-tooltip { position:fixed; background:#10182d; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px 12px; font-size:.82em; max-width:350px; pointer-events:none; z-index:10000; display:none; }
 #js-tip { display:none; position:fixed; z-index:9999; max-width:390px; padding:8px 11px; background:#10182d; border:1px solid var(--gold); border-radius:5px; color:var(--text); font-size:.72em; line-height:1.45; white-space:pre-line; pointer-events:none; box-shadow:0 4px 18px #000a; }
 .empty { padding:30px; color:var(--text2); text-align:center; }
-@media(max-width:850px) { .split { grid-template-columns:1fr; } .main { padding:8px; } h1 { font-size:1.05em; } .captain-bonus { grid-template-columns:132px 84px 32px 58px; min-width:324px; } }
+@media(max-width:850px) { .split,.breakdown-grid { grid-template-columns:1fr; } .main { padding:8px; } h1 { font-size:1.05em; } .captain-bonus { grid-template-columns:132px 84px 32px 58px; min-width:324px; } }
 </style>
 </head>
 <body>
@@ -72,10 +98,13 @@ details > summary { cursor:pointer; color:var(--cyan); }
 <div id="save-area"></div>
 <div class="main" id="main-content"><div class="empty">Load a save to calculate sailing routes.</div></div>
 <div id="js-tip"></div>
+<div class="bt-tooltip" id="bt-tooltip"></div>
 
 <script type="module">
 import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { _bNode } from './js/stats/node-helpers.js';
 import {
   CHEST_TIER_NAMES,
   allArtifactsMaxed,
@@ -114,6 +143,7 @@ var selectedCaptain = 0;
 var selectedIsland = 0;
 var minimumTier = 0;
 var collectHours = 8;
+var sortLevelsByEta = false;
 var fleetCache = new Map();
 
 initSaveLoader({
@@ -207,6 +237,7 @@ function render() {
   html+='<div class="tabs">'+tabButton('fleet','Fleet Optimizer')+tabButton('levels','Ship Levels')+tabButton('captains','Captains')+tabButton('odds','Chest Odds')+tabButton('artifacts','Artifacts')+tabButton('formula','Breakdowns')+'</div>';
   html+='<div id="tab-body">'+(activeTab==='fleet'?renderFleet(fleet,current,pile):activeTab==='levels'?renderLevels(fleet):activeTab==='captains'?renderCaptains(fleet):activeTab==='odds'?renderOdds(fleet,capacity,rec):activeTab==='artifacts'?renderArtifacts(fleet):renderFormula(fleet))+'</div>';
   document.getElementById('main-content').innerHTML=html;
+  if(activeTab==='formula')renderBreakdownTrees(fleet);
 }
 
 function controls() {
@@ -230,20 +261,24 @@ function renderFleet(fleet) {
 }
 
 function renderLevels() {
-  var rows=[];
+  var groups=[];
   for(var boat=0;boat<boatCount();boat++){
+    var boatRows=[];
     ['loot','speed'].forEach(function(stat){
       var upgrade=boatUpgradeCost(boat,stat,saveData);
       var currency=sailingCurrencyMeta(upgrade.type);
       var targetIsland=Math.max(0,currency.islandIdx);
       var targetAvailable=targetIsland<islandCount();
       var targetFleet=targetAvailable?optimizedFleet(targetIsland,'treasure'):[];
-      rows.push(Object.assign(boatUpgradeEta(boat,stat,targetFleet,saveData),{
+      boatRows.push(Object.assign(boatUpgradeEta(boat,stat,targetFleet,saveData),{
         targetIsland:targetIsland,
         targetAvailable:targetAvailable,
       }));
     });
+    groups.push({boatIdx:boat,rows:boatRows,lowestEta:Math.min.apply(null,boatRows.map(levelEtaValue))});
   }
+  if(sortLevelsByEta)groups.sort(function(a,b){return a.lowestEta-b.lowestEta||a.boatIdx-b.boatIdx;});
+  var rows=groups.reduce(function(all,group){return all.concat(group.rows);},[]);
   var ready=rows.filter(function(row){return row.remaining<=0;}).length;
   var fastest=rows.reduce(function(best,row){return row.hours<best.hours?row:best;},{hours:Infinity});
   var fastestText=isFinite(fastest.hours)?'Boat '+(fastest.boatIdx+1)+' '+fastest.stat:'No current resource income';
@@ -251,16 +286,24 @@ function renderLevels() {
   h+=card('Upgrades ready',fmt(ready),fmt(rows.length)+' loot and speed upgrades checked');
   h+=card('Fastest next level',isFinite(fastest.hours)?(fastest.hours<=0?'Ready':time(fastest.hours*3600)):'&mdash;',fastestText);
   h+=card('ETA strategy','Per-resource routes','Each fleet targets the required island');
-  h+='</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Boat</th><th>Upgrade</th><th class="num">Level</th><th>Resource</th><th>Target route</th><th class="num">Cost</th><th class="num">Balance</th><th class="num">Needed</th><th class="num">Fleet/hr</th><th class="num">ETA</th></tr></thead><tbody>';
-  rows.forEach(function(row){
-    var isFastest=isFinite(fastest.hours)&&row.hours===fastest.hours;
-    var status=row.remaining<=0?'<span class="badge badge-green">ready</span>':isFinite(row.hours)?time(row.hours*3600):'&mdash;';
-    var target=row.targetAvailable?islandLabel(row.targetIsland):'<span class="badge badge-red">locked</span>';
-    h+='<tr class="'+(isFastest?'best':'')+'"><td>Boat '+(row.boatIdx+1)+'</td><td>'+(row.stat==='loot'?'Loot value':'Speed')+'</td><td class="num">'+fmt(row.level)+' &rarr; '+fmt(row.level+1)+'</td><td>'+esc(row.currency.name)+'</td><td>'+target+'</td><td class="num">'+fmt(row.cost)+'</td><td class="num">'+fmt(row.balance)+'</td><td class="num">'+fmt(row.remaining)+'</td><td class="num">'+fmt(row.rate)+'</td><td class="num">'+status+'</td></tr>';
+  h+='</div><div class="controls" style="margin-top:10px"><label class="check-control"><input type="checkbox" data-set="sortEta"'+(sortLevelsByEta?' checked':'')+'>Sort boats by lowest ETA</label></div>';
+  h+='<div class="table-wrap" style="margin-top:8px"><table class="data-table"><thead><tr><th>Boat</th><th>Upgrade</th><th class="num">Level</th><th>Resource</th><th>Target route</th><th class="num">Cost</th><th class="num">Balance</th><th class="num">Needed</th><th class="num">Fleet/hr</th><th class="num">ETA</th></tr></thead><tbody>';
+  groups.forEach(function(group,groupIdx){
+    group.rows.forEach(function(row,rowIdx){
+      var isFastest=isFinite(fastest.hours)&&row.hours===fastest.hours;
+      var status=row.remaining<=0?'<span class="badge badge-green">ready</span>':isFinite(row.hours)?time(row.hours*3600):'&mdash;';
+      var target=row.targetAvailable?islandLabel(row.targetIsland):'<span class="badge badge-red">locked</span>';
+      var rowClass=(rowIdx===0?'ship-pair-first':'ship-pair-second')+(groupIdx%2?' ship-group-alt':'')+(isFastest?' best':'');
+      h+='<tr class="'+rowClass+'">';
+      if(rowIdx===0)h+='<td class="ship-boat-cell" rowspan="2">Boat '+(group.boatIdx+1)+'</td>';
+      h+='<td>'+(row.stat==='loot'?'Loot value':'Speed')+'</td><td class="num">'+fmt(row.level)+' &rarr; '+fmt(row.level+1)+'</td><td>'+esc(row.currency.name)+'</td><td>'+target+'</td><td class="num">'+fmt(row.cost)+'</td><td class="num">'+fmt(row.balance)+'</td><td class="num">'+fmt(row.remaining)+'</td><td class="num">'+fmt(row.rate)+'</td><td class="num">'+status+'</td></tr>';
+    });
   });
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Each ETA assumes the entire fleet targets the island that provides that upgrade resource, with captains optimized for loot value. Gold Bars use Island 1 because they can drop everywhere and the shortest route maximizes chest generation. A blank ETA now means the required island is locked or the save cannot yet generate that currency.</div></div>';
   return h;
 }
+
+function levelEtaValue(row){return row.remaining<=0?0:row.hours;}
 
 function captainRollCell(quality,captainIdx) {
   if(quality.bonusType<0)return '&mdash;';
@@ -383,10 +426,186 @@ function renderArtifacts(){var r=route(selectedBoat,selectedIsland,selectedCapta
   h+='<div class="section"><h2>Selected Island Artifacts</h2>'+artifactDetail(r)+'</div>';return h;}
 function artifactDetail(r){var weighted={};r.tiers.forEach(function(t){if(!t.kept)return;var odds=islandArtifactOdds(r.islandIdx,t.artifactMultiplier,saveData,{serverVars:rawServerVars});odds.artifacts.forEach(function(a){if(!weighted[a.artifactIdx])weighted[a.artifactIdx]=Object.assign({},a,{chance:0});weighted[a.artifactIdx].chance+=t.probability*a.exactChance;});});var list=Object.values(weighted);if(!list.length)return '<div class="empty">No artifacts on this island.</div>';var h='<table class="data-table"><thead><tr><th>Artifact</th><th class="num">Current tier</th><th class="num">Next odds</th><th class="num">Per generated chest</th><th>Status</th></tr></thead><tbody>';list.forEach(function(a){h+='<tr><td>'+esc(a.name)+'</td><td class="num">'+a.currentTier+'</td><td class="num">'+(isFinite(a.denominator)?'1 in '+fmt(a.denominator):'—')+'</td><td class="num">'+chance(a.chance)+'</td><td>'+(a.currentTier>=6?'<span class="badge badge-green">max</span>':a.unlocked?'available':'locked')+'</td></tr>';});return h+'</tbody></table>';}
 
-function renderFormula(){var r=route(selectedBoat,selectedIsland,selectedCaptain);var lf=r.loot.factors,sf=r.timing.speedBreakdown,af=r.artifactBase;var h='<div class="section"><h2>Formula Breakdown</h2><div class="formula-grid">';h+='<div class="formula"><strong>Loot value</strong><br>Base '+fmt(r.loot.base)+'<br>Additive '+fmt(r.loot.additive)+'%<br>Talent '+fmt(lf.talent)+'%<br>Davey Jones '+lf.davey.toFixed(3)+'x<br>Lamp '+fmt(lf.lamp)+'%<br>Sushi '+fmt(lf.sushi)+'%<br>Fountain '+fmt(lf.fountain)+'%<br><strong>Total '+fmt(r.loot.value)+'</strong></div>';h+='<div class="formula"><strong>Trip cadence</strong><br>Base speed '+fmt(sf.base)+'<br>Captain '+fmt(sf.captain)+'%<br>First global '+sf.first.toFixed(3)+'x<br>Davey Jones '+sf.davey.toFixed(3)+'x<br>Second global '+sf.second.toFixed(3)+'x<br>Raw '+fmt(r.timing.rawSpeed)+'<br>Effective '+fmt(r.timing.effectiveSpeed)+'<br><strong>'+time(r.timing.tripSeconds)+'</strong></div>';h+='<div class="formula"><strong>Artifact find</strong><br>Additive '+fmt(af.additive)+'%<br>Base multiplier '+fmt(af.value)+'x<br>Chest tier '+r.tiers.map(function(t){return t.name+': '+fmt(t.artifactMultiplier)+'x';}).join('<br>')+'</div>';h+='<div class="formula"><strong>Treasure opening</strong><br>Each roll grants the full chest value.<br>Rolls = 1 + min(4, tier) + achievement 300.<br>At Sailing Lv 5+: 50% gold bars, 47.5% primary island treasure, 2.5% rare island treasure.</div>';h+='</div></div><div class="section"><div class="callout">Minimum chest tier only discards generated chests below the threshold; it does not improve the roll. Use it when your pile would fill before collection. For active collection, tier 0 maximizes total treasure and artifact attempts.</div></div>';return h;}
+function breakdownRoute(fleet){
+  if(!fleet.length)return null;
+  var selected=fleet.find(function(routeRow){return routeRow.boatIdx===selectedBoat;});
+  if(!selected){selected=fleet[0];selectedBoat=selected.boatIdx;}
+  return selected;
+}
+
+function renderFormula(fleet){
+  var selected=breakdownRoute(fleet);
+  if(!selected)return '<div class="section"><div class="empty">No unlocked boats to break down.</div></div>';
+  var h='<div class="section"><div class="controls"><label class="control">Break down boat<select data-set="breakdownBoat">';
+  fleet.forEach(function(routeRow){h+='<option value="'+routeRow.boatIdx+'"'+(routeRow.boatIdx===selected.boatIdx?' selected':'')+'>Boat '+(routeRow.boatIdx+1)+' · Captain '+(routeRow.captainIdx+1)+'</option>';});
+  h+='</select></label><div class="control">Assignment<span class="badge badge-cyan">'+islandLabel(selected.islandIdx)+'</span></div></div></div>';
+  h+='<div class="section"><h2>Interactive Formula Breakdowns</h2><div class="breakdown-grid">';
+  h+='<div class="breakdown-panel"><h3>Loot Value</h3><div id="breakdown-loot"></div></div>';
+  h+='<div class="breakdown-panel"><h3>Route Speed &amp; Trip Time</h3><div id="breakdown-speed"></div></div>';
+  h+='<div class="breakdown-panel"><h3>Artifact Find</h3><div id="breakdown-artifact"></div></div>';
+  h+='<div class="breakdown-panel"><h3>Chest Opening</h3><div id="breakdown-chest"></div></div>';
+  h+='</div></div><div class="section"><div class="callout">Click any row with an arrow to expand it. Hover rows with formula notes for exact stacking details. The selected boat uses its captain from the current optimized fleet.</div></div>';
+  return h;
+}
+
+function pctFactorNode(label,value,note){
+  return _bNode(label,1+(Number(value)||0)/100,[_bNode('Bonus',value,null,{fmt:'%'})],{fmt:'x',note:note||'1 + bonus / 100'});
+}
+
+function buildLootTree(r){
+  var factors=r.loot.factors;
+  var additiveChildren=[
+    _bNode('Sigil 21',factors.sigil,null,{fmt:'%'}),
+    _bNode('Captain Loot Value',factors.captain,null,{fmt:'%'}),
+    _bNode('Artifact 5',factors.artifact,null,{fmt:'%'}),
+    _bNode('Legendary Captains',factors.legendary,null,{fmt:'%',note:'25% per legendary captain, capped at 30'}),
+    _bNode('Arcade 33',factors.arcade,null,{fmt:'%'}),
+    _bNode('Vault 67',factors.vault,null,{fmt:'%'})
+  ];
+  return _bNode('Boat '+(r.boatIdx+1)+' Loot Value',r.loot.value,[
+    _bNode('Base Loot',r.loot.base,null,{note:'5 + (2 + floor(loot level / 8)^2) × loot level'}),
+    _bNode('Additive Bonuses',1+r.loot.additive/100,additiveChildren,{fmt:'x',note:'1 + sum / 100'}),
+    pctFactorNode('Unending Loot Search',factors.talent,'Talent 325: 1 + bonus / 100'),
+    _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
+    pctFactorNode('Lamp: World 5 Things',factors.lamp),
+    pctFactorNode('Sushi 57',factors.sushi),
+    pctFactorNode('Fountain 0 / 17',factors.fountain)
+  ],{note:'Base × additive × talent × Davey Jones × Lamp × Sushi × Fountain'});
+}
+
+function buildSpeedTree(r){
+  var speed=r.timing.speedBreakdown;
+  var factors=speed.factors||{};
+  var cap=r.timing.minimumMinutes>0?60*r.timing.distance/r.timing.minimumMinutes:0;
+  var minimum=r.timing.minimumBreakdown||{};
+  var rawNode=_bNode('Raw Boat Speed',r.timing.rawSpeed,[
+    _bNode('Base Speed',speed.base,null,{note:'10 + (5 + floor(speed level / 7)^2) × speed level'}),
+    pctFactorNode('Captain Boat Speed',speed.captain),
+    _bNode('First Global Group',speed.first,[
+      _bNode('Divinity Minor 6',factors.divMinor,null,{fmt:'+'}),
+      _bNode('W5 Sailing Card',factors.card1,null,{fmt:'+'}),
+      _bNode('Boss 5A Card',factors.cardBoss,null,{fmt:'+'}),
+      _bNode('Alchemy Bubble Y1',factors.bubble,null,{fmt:'+'})
+    ],{fmt:'x',note:'1 + sum / 125'}),
+    _bNode('Davey Jones',speed.davey,null,{fmt:'x'}),
+    pctFactorNode('Divinity Blessing 4',speed.bless4),
+    pctFactorNode('Divinity Blessing 6',speed.bless6),
+    pctFactorNode('Voting Bonus 24',speed.vote),
+    _bNode('Second Global Group',speed.second,[
+      _bNode('Divinity Blessing 9',factors.bless9,null,{fmt:'+'}),
+      _bNode('Artifact 10',factors.artifact,null,{fmt:'+'}),
+      _bNode('Sailing Speed Stamps',factors.stamp,null,{fmt:'+'}),
+      _bNode('Sailing Statue',factors.statue,null,{fmt:'+'}),
+      _bNode('Sailing Meals',factors.meal,null,{fmt:'+'}),
+      _bNode('SailSpd Vial',factors.vial,null,{fmt:'+'}),
+      _bNode('Rift Skill Bonus',factors.rift,null,{fmt:'+'}),
+      _bNode('MSA Bonus 2',factors.msa,null,{fmt:'+'}),
+      _bNode('Sailing Speed Star Sign',factors.star,null,{fmt:'+'}),
+      _bNode('Vault 62',factors.vault,null,{fmt:'+'})
+    ],{fmt:'x',note:'1 + sum / 125'})
+  ],{note:'All listed speed factors multiply'});
+  var minimumNode=_bNode('Minimum Travel Time',r.timing.minimumMinutes,[
+    _bNode('Base Minutes',120),
+    _bNode('Percent Reduction Group',1+(minimum.totalPercent||0)/100,[
+      _bNode('Siege Breaker Family',minimum.family,null,{fmt:'%'}),
+      _bNode('Shiny Breeding Pets',minimum.shiny,null,{fmt:'%'}),
+      _bNode('Davey Jones Returns',minimum.legend,null,{fmt:'%'})
+    ],{fmt:'x',note:'120 / (1 + sum / 100)'}),
+    _bNode('Davey Jones Training',-(minimum.gemMinutes||0),null,{fmt:'+',note:(minimum.gemPurchases||0)+' purchases × -4 minutes'}),
+    _bNode('Hard Floor',minimum.floor||15,null,{note:'Minimum cannot go below 15 minutes'})
+  ],{note:'round(max(15, 120 / percent group - Training minutes))'});
+  return _bNode('Trips per Hour',r.timing.tripsPerHour,[
+    _bNode('Trip Time ('+time(r.timing.tripSeconds)+')',r.timing.tripSeconds,null,{note:'3600 × distance / effective speed'}),
+    _bNode('Effective Route Speed',r.timing.effectiveSpeed,[rawNode,_bNode('Minimum-Time Speed Cap',cap,[minimumNode],{note:'60 × island distance / minimum travel minutes'})],{note:'min(raw boat speed, minimum-time speed cap)'}),
+    _bNode('Island Distance',r.timing.distance)
+  ],{fmt:'/hr',note:'3600 / trip seconds'});
+}
+
+function buildArtifactTree(r){
+  var factors=r.artifactBase.factors;
+  var additiveChildren=[
+    _bNode('Artifact 3',factors.artifact,null,{fmt:'%'}),
+    _bNode('Captain Artifact Find',factors.captain,null,{fmt:'%'}),
+    _bNode('Shiny Breeding Pets 21',factors.shiny,null,{fmt:'%'}),
+    _bNode('Fractal Island Bonus 3',factors.fractal,null,{fmt:'%'}),
+    _bNode('Bribe 34',factors.bribe,null,{fmt:'%'}),
+    _bNode('Legendary Captains',factors.legendary,null,{fmt:'%',note:'25% per legendary captain, capped at 30'}),
+    _bNode('Arcade 32',factors.arcade32,null,{fmt:'%'}),
+    _bNode('Arcade 66',factors.arcade66,null,{fmt:'%'}),
+    _bNode('Hole Upgrade 55',factors.hole55,null,{fmt:'%'}),
+    _bNode('Farming Sticker 2',factors.sticker,null,{fmt:'%'}),
+    _bNode('Research Grid 109',factors.grid109,null,{fmt:'%'}),
+    _bNode('Vault 63',factors.vault63,null,{fmt:'%'})
+  ];
+  var multiplierChildren=[
+    _bNode('Additive Sources',Math.max(1,1+r.artifactBase.additive/100),additiveChildren,{fmt:'x',note:'max(1, 1 + sum / 100)'}),
+    pctFactorNode('Artifact Find Star Sign',factors.star),
+    _bNode('Companion 154',Math.max(1,Math.min(2,1+2*factors.companion154)),null,{fmt:'x'}),
+    _bNode('Killroy',Math.max(1,factors.killroy),null,{fmt:'x'}),
+    pctFactorNode('Minehead Button 3',factors.minehead),
+    pctFactorNode('Research Grid 106',factors.grid106),
+    pctFactorNode('6turtle Vial',factors.vial),
+    _bNode('Purple Chest Slugs',Math.max(1,Math.pow(1.5,factors.purpleSlugs)),null,{fmt:'x'}),
+    pctFactorNode('Sushi 7',factors.sushi),
+    pctFactorNode('Summoning Win 3',factors.win),
+    _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
+    pctFactorNode('Mainframe 14',factors.lab),
+    pctFactorNode('Lore Episode 3',factors.lore),
+    pctFactorNode('Pristine Charm 2',factors.pristine),
+    pctFactorNode('Voting Bonus 20',factors.vote),
+    _bNode('Companion 43',1+factors.companion43,null,{fmt:'x'}),
+    pctFactorNode('Monument 1 / 2',factors.monument),
+    pctFactorNode('Exotic 45',factors.exotic),
+    pctFactorNode('Palette 5',factors.palette),
+    _bNode('Spelunking',factors.spelunk,null,{fmt:'x'})
+  ];
+  var tierChildren=r.tiers.filter(function(tier){return tier.kept;}).map(function(tier){
+    return _bNode(tier.name+' Weighted Chance',100*tier.probability*tier.artifactChance,[
+      _bNode('Exact Tier Chance',100*tier.probability,null,{fmt:'pct'}),
+      _bNode('Artifact Multiplier',tier.artifactMultiplier,null,{fmt:'x'}),
+      _bNode('Artifact Chance at Tier',100*tier.artifactChance,null,{fmt:'pct'})
+    ],{fmt:'pct',note:'tier probability × artifact chance at this tier'});
+  });
+  return _bNode('Expected Artifact Finds / Hour',r.artifactFindsPerHour,[
+    _bNode('Generated Chests / Hour',r.generatedChestsPerHour,null,{fmt:'/hr'}),
+    _bNode('Chance per Generated Chest',100*r.artifactChancePerTrip,tierChildren,{fmt:'pct',note:'Sum of kept tier probability × tier artifact chance'}),
+    _bNode('Base Artifact Multiplier',r.artifactBase.value,multiplierChildren,{fmt:'x'})
+  ],{fmt:'/hr',note:'generated chests per hour × artifact chance per generated chest'});
+}
+
+function buildChestTree(r){
+  var expectedPerChest=r.generatedChestsPerHour>0?r.treasurePerHour/r.generatedChestsPerHour:0;
+  var tierChildren=r.tiers.map(function(tier){
+    var contribution=tier.kept?tier.probability*tier.treasureValue:0;
+    return _bNode(tier.name+(tier.kept?'':' (discarded)'),contribution,[
+      _bNode('Exact Tier Chance',100*tier.probability,null,{fmt:'pct'}),
+      _bNode('Stored Value / Payout',tier.chestValue),
+      _bNode('Guaranteed Payouts',tier.rolls,null,{note:'1 + min(4, tier) + Achievement 300'}),
+      _bNode('Full Value if Opened',tier.treasureValue)
+    ],{note:tier.kept?'tier chance × full opened value':'Filtered tiers contribute zero'});
+  });
+  return _bNode('Expected Treasure / Hour',r.treasurePerHour,[
+    _bNode('Generated Chests / Hour',r.generatedChestsPerHour,null,{fmt:'/hr'}),
+    _bNode('Expected Value / Generated Chest',expectedPerChest,tierChildren,{note:'Sum of exact tier chance × stored value × guaranteed payouts'}),
+    _bNode('Currency Split / Hour',r.treasurePerHour,[
+      _bNode('Gold Bars',r.treasurePerHour*r.treasureShares.gold,null,{note:pct(r.treasureShares.gold,1)+' per payout'}),
+      _bNode('Island Primary',r.treasurePerHour*r.treasureShares.primary,null,{note:pct(r.treasureShares.primary,1)+' per payout'}),
+      _bNode('Island Rare',r.treasurePerHour*r.treasureShares.rare,null,{note:pct(r.treasureShares.rare,1)+' per payout'})
+    ],{note:'Each guaranteed payout independently chooses its currency'})
+  ],{fmt:'/hr',note:'generated chests per hour × expected opened value per generated chest'});
+}
+
+function renderBreakdownTrees(fleet){
+  var selected=breakdownRoute(fleet);
+  if(!selected)return;
+  renderBreakdownTree(buildLootTree(selected),document.getElementById('breakdown-loot'),{tooltipId:'bt-tooltip'});
+  renderBreakdownTree(buildSpeedTree(selected),document.getElementById('breakdown-speed'),{tooltipId:'bt-tooltip'});
+  renderBreakdownTree(buildArtifactTree(selected),document.getElementById('breakdown-artifact'),{tooltipId:'bt-tooltip'});
+  renderBreakdownTree(buildChestTree(selected),document.getElementById('breakdown-chest'),{tooltipId:'bt-tooltip'});
+}
 
 document.addEventListener('click',function(e){var tab=e.target.closest('[data-tab]');if(tab){activeTab=tab.dataset.tab;render();return;}var gb=e.target.closest('[data-goal]');if(gb){goal=gb.dataset.goal;render();}});
-document.addEventListener('change',function(e){var key=e.target.dataset.set;if(key==='char')activeCharIdx=Number(e.target.value);else if(key==='minTier')minimumTier=Number(e.target.value);else if(key==='hours')collectHours=Math.max(.25,Number(e.target.value)||.25);else if(key==='boat')selectedBoat=Number(e.target.value);else if(key==='captain')selectedCaptain=Number(e.target.value);else if(key==='island')selectedIsland=Number(e.target.value);else if(e.target.dataset.override)overrides[e.target.dataset.override]=Number(e.target.value)||0;else return;render();});
+document.addEventListener('change',function(e){var key=e.target.dataset.set;if(key==='char')activeCharIdx=Number(e.target.value);else if(key==='minTier')minimumTier=Number(e.target.value);else if(key==='hours')collectHours=Math.max(.25,Number(e.target.value)||.25);else if(key==='sortEta')sortLevelsByEta=e.target.checked;else if(key==='boat'||key==='breakdownBoat')selectedBoat=Number(e.target.value);else if(key==='captain')selectedCaptain=Number(e.target.value);else if(key==='island')selectedIsland=Number(e.target.value);else if(e.target.dataset.override)overrides[e.target.dataset.override]=Number(e.target.value)||0;else return;render();});
 (function(){var tip=document.getElementById('js-tip');document.addEventListener('mouseover',function(e){var el=e.target.closest('[data-tip]');if(!el){tip.style.display='none';return;}tip.textContent=el.getAttribute('data-tip');tip.style.display='block';});document.addEventListener('mousemove',function(e){if(tip.style.display!=='block')return;var x=e.clientX+12,y=e.clientY+12;if(x+tip.offsetWidth>innerWidth-8)x=e.clientX-tip.offsetWidth-8;if(y+tip.offsetHeight>innerHeight-8)y=e.clientY-tip.offsetHeight-8;tip.style.left=x+'px';tip.style.top=y+'px';});document.addEventListener('mouseout',function(e){if(e.target.closest('[data-tip]'))tip.style.display='none';});})();
 </script>
 </body>
