@@ -72,8 +72,8 @@ function _lampBonus(t, i, saveData) {
   var lampLv = _num(saveData.holesData && saveData.holesData[21]
     && saveData.holesData[21][Math.min(11, 4 + 2 * t)]);
   var zenithLv = _num(saveData.spelunkData && saveData.spelunkData[45]
-    && saveData.spelunkData[45][t]);
-  var zenith = Math.floor(zenithMarketPerLevel(t) * zenithLv);
+    && saveData.spelunkData[45][2]);
+  var zenith = Math.floor(zenithMarketPerLevel(2) * zenithLv);
   return _num(grid[t] && grid[t][i]) * lampLv * (1 + zenith / 100);
 }
 
