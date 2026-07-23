@@ -83,7 +83,7 @@ import { initSaveLoader } from './js/ui/save-loader.js';
 import { fmtVal } from './js/renderers/format.js';
 import { getLOG, formulaEval } from './js/formulas.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
-import { GOALS, GOAL_MAP, optimizeForGoal, bonusMultiCook as bmc } from './js/stats/systems/common/meal-impact.js';
+import { GOALS, GOAL_MAP, optimizeForGoal, bonusMultiCook as bmc, farmingMealCookingScale, kitchenCookingAggregate, summoningCropEvolutionScale, yellowPointBudget } from './js/stats/systems/common/meal-impact.js';
 import { _bNode } from './js/stats/node-helpers.js';
 import { numCharacters } from './js/save/data.js';
 import { cauldronInfoData } from './js/save/data.js';
@@ -511,15 +511,9 @@ document.querySelectorAll('.tab-btn').forEach(function(btn) {
 
 // ========== YELLOW POINT MEAL ALLOCATOR ==========
 
-function yellowPointBudget() {
-  var mLv = getMasteryLevel();
-  var comp87pts = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
-  var g190lv = Math.round(Number(saveData.gridLevels && saveData.gridLevels[190]) || 0);
-  return mLv + 1 + comp87pts + g190lv;
-}
-
 var _selectedGoal = null;
 var _yellowBudgetOverride = null;
+var _yellowCharIdx = 0;
 
 function renderMealAlloc() {
   var el = document.getElementById('meal-alloc-content');
@@ -528,7 +522,7 @@ function renderMealAlloc() {
     return;
   }
 
-  var budget = yellowPointBudget();
+  var budget = yellowPointBudget(saveData);
   var spendBudget = _yellowBudgetOverride != null ? Math.min(budget, Math.max(0, _yellowBudgetOverride)) : budget;
   var goalId = _selectedGoal || GOALS[0].id;
   var goal = GOAL_MAP[goalId];
@@ -542,21 +536,25 @@ function renderMealAlloc() {
     html += '<input type="number" id="yellow-pts-budget" min="0" max="' + budget + '" value="' + spendBudget + '" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text1);border-radius:4px;">';
     html += '<span style="color:var(--text2);font-size:.85em;">of ' + budget + ' total</span>';
     html += '</div>';
-    html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Optimally distributes your yellow mastery points to maximize the chosen goal.</p>';
+    html += '<p style="color:var(--text2);font-size:.85em;margin-bottom:10px;">Distributes all selected yellow points to maximize a source-backed meal effect. Cooking-speed goals sum output across all unlocked kitchens, assuming they cook the same meal; other non-meal bonuses are omitted when they do not affect allocation weights.</p>';
     // Goal selector
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">';
     html += '<label style="color:var(--text2);font-size:.9em;">Goal:</label>';
     html += '<select id="goal-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:400px;">';
     for (var gi = 0; gi < GOALS.length; gi++) {
       var g = GOALS[gi];
-      var catCount = g.categories.length;
-      var suffix = catCount > 1 ? ' [' + catCount + ' categories]' : '';
-      html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + suffix + '</option>';
+      html += '<option value="' + g.id + '"' + (g.id === goalId ? ' selected' : '') + '>' + g.name + '</option>';
     }
+    html += '</select>';
+    html += '<label style="color:var(--text2);font-size:.9em;margin-left:8px;">Character context:</label>';
+    html += '<select id="yellow-char-select" style="padding:6px 10px;background:var(--bg);border:1px solid #555;border-radius:4px;color:var(--text);font-size:.9em;max-width:240px;">';
+    var charCount = Math.max(saveData.charNames && saveData.charNames.length || 0, saveData.lv0AllData && saveData.lv0AllData.length || 0);
+    for (var ci = 0; ci < charCount; ci++) html += '<option value="' + ci + '"' + (ci === _yellowCharIdx ? ' selected' : '') + '>' + (saveData.charNames && saveData.charNames[ci] || ('Character ' + (ci + 1))) + '</option>';
     html += '</select></div></div>';
     html += '<div id="meal-alloc-results"></div>';
     el.innerHTML = html;
     document.getElementById('goal-select').addEventListener('change', function(e) { _selectedGoal = e.target.value; renderMealAlloc(); });
+    document.getElementById('yellow-char-select').addEventListener('change', function(e) { _yellowCharIdx = Number(e.target.value) || 0; renderMealAlloc(); });
     document.getElementById('yellow-pts-budget').addEventListener('input', function(e) { _yellowBudgetOverride = parseInt(e.target.value); renderMealAlloc(); });
   }
 
@@ -565,7 +563,7 @@ function renderMealAlloc() {
   if (!resultsEl) return;
 
   // Run optimizer
-  var res = optimizeForGoal(goalId, spendBudget, saveData);
+  var res = optimizeForGoal(goalId, spendBudget, saveData, { activeCharIdx: _yellowCharIdx });
   var html = '';
   if (!res || res.meals.length === 0) {
     html += '<div class="section"><div class="result-box" style="border-color:var(--text2);"><div class="big" style="color:var(--text2);">No leveled meals in this goal\'s categories</div><div class="sub">Level up meals in these categories first.</div></div></div>';
@@ -573,17 +571,37 @@ function renderMealAlloc() {
     return;
   }
 
+  function goalValueText(value) {
+    var formatted = fmtNum(Number(value) || 0);
+    if (goal.unit === 'percent') return '+' + formatted + '%';
+    if (goal.unit === 'levels') return '+' + formatted + ' levels';
+    if (goal.unit === 'multiplier') return formatted + 'x';
+    return formatted;
+  }
+
   // Summary
   var improvement = res.curGoalValue > 0 ? ((res.goalValue - res.curGoalValue) / res.curGoalValue * 100) : 0;
   html += '<div class="section"><h2>' + goal.name + '</h2>';
-  if (goal.categories.length > 1) {
-    html += '<p style="color:var(--purple);font-size:.8em;margin-bottom:8px;">Compound goal — allocates across: ' + goal.categories.join(', ') + '</p>';
+  html += '<p style="color:var(--text2);font-size:.8em;margin-bottom:8px;">Game categor' + (goal.categories.length > 1 ? 'ies' : 'y') + ': ';
+  for (var gc = 0; gc < goal.categories.length; gc++) html += '<span class="badge badge-gold" style="margin-right:4px;">' + goal.categories[gc] + '</span>';
+  html += (goal.note ? ' · ' + goal.note : '') + '</p>';
+  if (goal.id === 'mcook') {
+    var farmScale = farmingMealCookingScale(saveData, _yellowCharIdx);
+    var mealKitchenScale = kitchenCookingAggregate(saveData, 'meal');
+    html += '<p style="color:var(--cyan);font-size:.8em;margin-bottom:8px;">Farming context: ' + (saveData.charNames && saveData.charNames[_yellowCharIdx] || ('Character ' + (_yellowCharIdx + 1))) + ' · Lv ' + farmScale.farmingLv + ' · Burned Mello applied ' + farmScale.steps + 'x</p>';
+    html += '<p style="color:var(--cyan);font-size:.8em;margin-bottom:8px;">Kitchen aggregate: ' + mealKitchenScale.kitchenCount + ' unlocked · ' + fmtNum(mealKitchenScale.averageUpgradeLevels) + ' average total upgrade levels · ' + mealKitchenScale.weightedSteps.toFixed(2) + ' rate-weighted Cabbage steps (' + mealKitchenScale.minSteps + '–' + mealKitchenScale.maxSteps + ')</p>';
+  } else if (goal.id === 'rcook') {
+    var recipeKitchenScale = kitchenCookingAggregate(saveData, 'recipe');
+    html += '<p style="color:var(--cyan);font-size:.8em;margin-bottom:8px;">Kitchen aggregate: ' + recipeKitchenScale.kitchenCount + ' unlocked · ' + fmtNum(recipeKitchenScale.averageUpgradeLevels) + ' average total upgrade levels · ' + recipeKitchenScale.weightedSteps.toFixed(2) + ' rate-weighted Cabbage steps (' + recipeKitchenScale.minSteps + '–' + recipeKitchenScale.maxSteps + ')</p>';
+  } else if (goal.id === 'cropevo') {
+    var summonScale = summoningCropEvolutionScale(saveData, _yellowCharIdx);
+    html += '<p style="color:var(--cyan);font-size:.8em;margin-bottom:8px;">Summoning context: ' + (saveData.charNames && saveData.charNames[_yellowCharIdx] || ('Character ' + (_yellowCharIdx + 1))) + ' · Lv ' + summonScale.summoningLv + ' · Nyanborgir applied ' + summonScale.steps + 'x</p>';
   }
   html += '<div class="result-box">';
-  html += '<div class="big">Optimal Value: ' + fmtNum(res.goalValue.toFixed(4)) + '</div>';
-  html += '<div class="sub">Current: ' + fmtNum(res.curGoalValue.toFixed(4));
+  html += '<div class="big">Optimal Meal Bonus: ' + goalValueText(res.goalValue) + '</div>';
+  html += '<div class="sub">Current meal bonus: ' + goalValueText(res.curGoalValue);
   if (improvement > 0.01) {
-    html += ' → <span style="color:var(--green);">+' + improvement.toFixed(1) + '%</span> with optimal allocation';
+    html += ' → <span style="color:var(--green);">+' + improvement.toFixed(1) + '%</span> category bonus with optimal allocation';
   } else if (improvement < -0.01) {
     html += ' → <span style="color:var(--red);">' + improvement.toFixed(1) + '%</span> (fewer points than currently spent)';
   } else {
@@ -591,11 +609,12 @@ function renderMealAlloc() {
   }
   html += '</div></div>';
 
-  // Allocation table — group by category for compound goals
+  // Allocation table
   html += '<table class="data-table"><thead><tr>';
   html += '<th>Meal</th>';
   if (goal.categories.length > 1) html += '<th>Category</th>';
-  html += '<th class="num">Meal Lv</th><th class="num">Base</th><th class="num">Weight</th><th class="num">Current Y</th><th class="num">Optimal Y</th><th class="num">Mastery</th>';
+  html += '<th>Effect</th>';
+  html += '<th class="num">Meal Lv</th><th class="num">Per Lv</th><th class="num">Base Contribution</th><th class="num">Current Y</th><th class="num">Optimal Y</th><th class="num">Mastery</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < res.meals.length; i++) {
     var m = res.meals[i];
@@ -604,6 +623,7 @@ function renderMealAlloc() {
     html += '<tr' + cls + '>';
     html += '<td>' + m.name + '</td>';
     if (goal.categories.length > 1) html += '<td><span class="badge badge-gold">' + m.cat + '</span></td>';
+    html += '<td>' + m.effect + '</td>';
     html += '<td class="num">' + fmtNum(m.mealLv) + '</td>';
     html += '<td class="num">' + m.base + '</td>';
     html += '<td class="num">' + fmtNum(m.baseWeight) + '</td>';

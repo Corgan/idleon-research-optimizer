@@ -46,24 +46,13 @@ export function computeAllMealBonuses(saveData, masteryOverrides) {
   return bonuses;
 }
 
-// ========== NON-MEAL POOL COMPUTATION ==========
-// For each formula, compute the non-meal portion of the additive pool
-// the meal sits in, using existing save data and system functions.
-// This lets us compute the FULL pool total = nonMeal + mealBonus.
-
-function _n(v) { return Number(v) || 0; }
-function _s(fn) { try { return fn() || 0; } catch(e) { return 0; } }
-
-/**
- * Compute non-meal additive pool for a formula from save data.
- * Uses whatever cached values are available.
- */
-function computeNonMealPool(formulaKey, saveData) {
-  // Many sub-components are hard to compute independently.
-  // We read what we can from save data caches; the rest stays at 0.
-  // This underestimates the pool slightly, making marginals slightly too high,
-  // but the RELATIVE marginals between meals are still correct.
-  return 0; // Will be overridden per-goal where we have data
+/** Total yellow points available for a full reallocation. */
+export function yellowPointBudget(saveData) {
+  var rank = Number(saveData.cookMasterData && saveData.cookMasterData[1]
+    && saveData.cookMasterData[1][0]) || 0;
+  var companion = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  var grid190 = Math.round(Number(saveData.gridLevels && saveData.gridLevels[190]) || 0);
+  return Math.max(0, Math.round(rank + 1 + companion + grid190));
 }
 
 // ========== GOAL DEFINITIONS ==========
@@ -73,156 +62,186 @@ function computeNonMealPool(formulaKey, saveData) {
  *   id: string
  *   name: string
  *   categories: string[] — meal categories that affect this goal
- *   value(mealBonuses, saveData): number — goal metric given meal bonuses
- *
- * The value function should be monotonically increasing with relevant meal bonuses.
- * It doesn't need to compute the exact game value — it just needs to preserve
- * the relative marginal gains so the optimizer makes correct allocation decisions.
+ *   value(mealBonuses): number — direct MealBonusesS category total
  */
 
-// For simple single-category goals, value = mealBonuses[cat].
-// This is optimal because within a single (1+pool/100) multiplier,
-// the relative marginal is the same regardless of non-meal pool size.
-function simpleGoal(id, name, cats) {
-  var catArr = typeof cats === 'string' ? [cats] : cats;
+function simpleGoal(id, name, category, options) {
+  options = options || {};
   return {
-    id: id, name: name, categories: catArr,
+    id: id, name: name, categories: [category], unit: options.unit || 'percent',
+    note: options.note || '',
     value: function(mb) {
-      var sum = 0;
-      for (var i = 0; i < catArr.length; i++) sum += mb[catArr[i]] || 0;
-      return sum;
+      return mb[category] || 0;
     },
   };
 }
 
-// For multi-pool goals where categories enter different multiplier terms,
-// we model the formula structure so the optimizer allocates between them correctly.
+export function farmingMealCookingScale(saveData, activeCharIdx) {
+  activeCharIdx = Math.max(0, Math.round(Number(activeCharIdx) || 0));
+  var farmingLv = Number(saveData.lv0AllData && saveData.lv0AllData[activeCharIdx]
+    && saveData.lv0AllData[activeCharIdx][16]) || 0;
+  return { activeCharIdx: activeCharIdx, farmingLv: farmingLv,
+    steps: Math.ceil((farmingLv + 1) / 50) };
+}
+
+export function kitchenCookingAggregate(saveData, mode) {
+  var isRecipe = mode === 'recipe';
+  var kitchens = saveData.cookingData || [];
+  var gemKitchenCount = Math.max(0, Math.floor(Number(saveData.gemItemsData
+    && saveData.gemItemsData[120]) || 0));
+  var totalBaseWeight = 0;
+  var weightedStepTotal = 0;
+  var totalUpgradeLevels = 0;
+  var minSteps = Infinity;
+  var maxSteps = 0;
+  var kitchenCount = 0;
+
+  for (var i = 0; i < kitchens.length; i++) {
+    var kitchen = kitchens[i];
+    if (!kitchen || kitchen.length <= 8 || Number(kitchen[0]) === 0) continue;
+    var speedLv = Number(kitchen[6]) || 0;
+    var fireLv = Number(kitchen[7]) || 0;
+    var luckLv = Number(kitchen[8]) || 0;
+    var upgradeLevels = speedLv + fireLv + luckLv;
+    var steps = Math.floor(upgradeLevels / 10);
+    var upgradeLv = isRecipe ? fireLv : speedLv;
+    var gemMulti = gemKitchenCount > i ? (isRecipe ? 2 : 3) : 1;
+    var baseWeight = gemMulti * (1 + upgradeLv / 10);
+    totalBaseWeight += baseWeight;
+    weightedStepTotal += baseWeight * steps;
+    totalUpgradeLevels += upgradeLevels;
+    minSteps = Math.min(minSteps, steps);
+    maxSteps = Math.max(maxSteps, steps);
+    kitchenCount++;
+  }
+
+  return {
+    mode: isRecipe ? 'recipe' : 'meal',
+    kitchenCount: kitchenCount,
+    totalBaseWeight: totalBaseWeight,
+    totalUpgradeLevels: totalUpgradeLevels,
+    averageUpgradeLevels: kitchenCount > 0 ? totalUpgradeLevels / kitchenCount : 0,
+    weightedSteps: totalBaseWeight > 0 ? weightedStepTotal / totalBaseWeight : 0,
+    minSteps: kitchenCount > 0 ? minSteps : 0,
+    maxSteps: maxSteps,
+  };
+}
+
+export function summoningCropEvolutionScale(saveData, activeCharIdx) {
+  activeCharIdx = Math.max(0, Math.round(Number(activeCharIdx) || 0));
+  var summoningLv = Number(saveData.lv0AllData && saveData.lv0AllData[activeCharIdx]
+    && saveData.lv0AllData[activeCharIdx][18]) || 0;
+  return { activeCharIdx: activeCharIdx, summoningLv: summoningLv,
+    steps: Math.ceil((summoningLv + 1) / 50) };
+}
 
 export var GOALS = [
   // ---- Skill & Lab ----
-  simpleGoal('seff', 'Skill Efficiency (all skills)', 'Seff'),
-  simpleGoal('lexp', 'Lab EXP (direct only)', 'Lexp'),
-  {
-    id: 'labexp_full',
-    name: 'Lab EXP (Lexp + Seff + GFood)',
-    categories: ['Lexp', 'Seff', 'zGoldFood'],
-    // LabEXPmulti ∝ pow(AllEff, exponent) * (1 + (lexp + AllSkillxpz)/100)
-    // AllEff includes (1 + Seff/100) as one multiplier term.
-    // AllSkillxpz includes GoldFoodBonuses("SkillExp") which scales with zGoldFood via GfoodBonusMULTI.
-    // zGoldFood enters GfoodBonusMULTI as (1 + (zGoldFood+others)/100), so it's multiplicative on gfood.
-    // For allocation: seff goes through pow(,0.25), lexp & gfood are additive in the exp pool.
-    value: function(mb) {
-      var seff = mb['Seff'] || 0;
-      var lexp = mb['Lexp'] || 0;
-      var gfood = mb['zGoldFood'] || 0;
-      // GfoodBonusMULTI is (1 + (gfood + nonMeal)/100). The SkillExp golden food
-      // bonus scales linearly with GfoodBonusMULTI, so gfood enters the skill EXP
-      // additive pool proportionally. Model as additive with lexp, scaled down
-      // since gfood multiplies the gfood amount (not the full lexp pool).
-      return Math.pow(1 + seff / 100, 0.25) * (1 + lexp / 100) * (1 + gfood / 100);
-    },
-  },
-  simpleGoal('pxline', 'Lab Line Width', 'PxLine'),
-  simpleGoal('linepct', 'Lab Line %', 'LinePct'),
+  simpleGoal('seff', 'Skill Efficiency', 'Seff'),
+  simpleGoal('lexp', 'Lab EXP', 'Lexp'),
+  simpleGoal('linepct', 'Lab Line Width (%)', 'LinePct'),
 
   // ---- Combat ----
   simpleGoal('totdmg', 'Total Damage', 'TotDmg'),
-  simpleGoal('crit', 'Crit Damage', 'Crit'),
-  simpleGoal('atkspd', 'Attack Speed', 'AtkSpd'),
+  simpleGoal('crit', 'Critical Chance', 'Crit', { note: 'Mutton grants Critical Chance, not Critical Damage.' }),
+  simpleGoal('atkspd', 'Basic Attack Speed', 'AtkSpd'),
   simpleGoal('totacc', 'Total Accuracy', 'TotAcc'),
-  simpleGoal('def', 'Defence', 'Def'),
-  {
-    id: 'combat',
-    name: 'Combat (Dmg + Crit + AtkSpd)',
-    categories: ['TotDmg', 'Crit', 'AtkSpd'],
-    // Damage ∝ (1 + dmg/100) * (1 + crit/100) / (1 - atkspd_reduction)
-    // AtkSpd meal reduces attack cooldown, modeled as multiplicative benefit
-    value: function(mb) {
-      return (1 + (mb['TotDmg'] || 0) / 100) * (1 + (mb['Crit'] || 0) / 100)
-        * (1 + (mb['AtkSpd'] || 0) / 100);
-    },
-  },
+  simpleGoal('def', 'Base Defence', 'Def', { unit: 'flat' }),
 
   // ---- Cooking ----
   {
-    id: 'cooking_speed',
-    name: 'Cooking Speed',
-    categories: ['Mcook', 'KitchenEff', 'zMealFarm'],
-    // CookingSPEED has Mcook and KitchenEff in separate multiplier terms
-    // CookingFIRE has KitchenEff and Rcook
-    value: function(mb) {
-      return (1 + (mb['Mcook'] || 0) / 100) * (1 + (mb['KitchenEff'] || 0) / 100)
-        * (1 + (mb['zMealFarm'] || 0) / 100);
+    id: 'mcook',
+    name: 'Meal Cooking Speed',
+    categories: ['Mcook', 'zMealFarm', 'KitchenEff'],
+    unit: 'multiplier',
+    note: 'Combines direct Meal Cooking Speed, Farming-scaled Burned Mello, and the summed Cabbage benefit across all unlocked kitchens.',
+    value: function(mb, saveData, options) {
+      var farmScale = farmingMealCookingScale(saveData, options && options.activeCharIdx);
+      var kitchenScale = kitchenCookingAggregate(saveData, 'meal');
+      return (1 + (mb.Mcook || 0) / 100)
+        * (1 + (mb.zMealFarm || 0) * farmScale.steps / 100)
+        * (1 + (mb.KitchenEff || 0) * kitchenScale.weightedSteps / 100);
     },
   },
-  simpleGoal('rcook', 'Cooking Fire Speed', 'Rcook'),
-  simpleGoal('kitchc', 'Kitchen Capacity', 'KitchC'),
+  {
+    id: 'rcook',
+    name: 'Recipe Cooking Speed',
+    categories: ['Rcook', 'KitchenEff'],
+    unit: 'multiplier',
+    note: 'Combines direct Recipe Cooking Speed with the summed Cabbage benefit across all unlocked kitchens.',
+    value: function(mb, saveData) {
+      var kitchenScale = kitchenCookingAggregate(saveData, 'recipe');
+      return (1 + (mb.Rcook || 0) / 100)
+        * (1 + (mb.KitchenEff || 0) * kitchenScale.weightedSteps / 100);
+    },
+  },
+  simpleGoal('kitchc', 'Lower Kitchen Upgrade Costs', 'KitchC'),
   simpleGoal('cookexp', 'Cooking EXP', 'CookExp'),
 
   // ---- Breeding & Pets ----
   simpleGoal('brexp', 'Breeding EXP', 'BrExp'),
-  simpleGoal('breed', 'Breedability Speed', 'Breed'),
-  simpleGoal('npet', 'New Pet Chance', 'Npet'),
-  simpleGoal('petdmg', 'Pet Damage', 'PetDmg'),
-  simpleGoal('tppete', 'TP Pets', 'TPpete'),
-  simpleGoal('timeegg', 'Time Egg Speed', 'TimeEgg'),
+  simpleGoal('breed', 'Mob Breedability Rate', 'Breed'),
+  simpleGoal('npet', 'New Mob Breed Odds', 'Npet'),
+  simpleGoal('petdmg', 'Mob Battle Damage', 'PetDmg'),
+  simpleGoal('tppete', 'Toilet Paper Postage Max Levels', 'TPpete', { unit: 'levels' }),
+  simpleGoal('timeegg', 'Lower Egg Creation Time', 'TimeEgg'),
 
   // ---- Alchemy ----
-  {
-    id: 'liquid_all',
-    name: 'Liquid Capacity (1-4)',
-    categories: ['Liquid12', 'Liquid34'],
-    value: function(mb) {
-      return (mb['Liquid12'] || 0) + (mb['Liquid34'] || 0);
-    },
-  },
-  simpleGoal('liquid12', 'Liquid 1+2 Cap', 'Liquid12'),
-  simpleGoal('liquid34', 'Liquid 3+4 Cap', 'Liquid34'),
+  simpleGoal('liquid12', 'Liquid 1+2 Max Capacity', 'Liquid12'),
+  simpleGoal('liquid34', 'Liquid 3+4 Max Capacity', 'Liquid34'),
 
   // ---- Sailing ----
-  simpleGoal('sailing', 'Boat Speed', 'Sailing'),
+  simpleGoal('sailing', 'Sailing Speed', 'Sailing'),
 
   // ---- Gaming ----
-  simpleGoal('gamingbits', 'Gaming Bits', 'GamingBits'),
+  simpleGoal('gamingbits', 'Bits Gain', 'GamingBits'),
   simpleGoal('gamingexp', 'Gaming EXP', 'GamingExp'),
-  simpleGoal('sprow', 'Sprout Growth', 'Sprow'),
+  simpleGoal('sprow', 'Skilling Prowess', 'Sprow',
+    { note: 'Leek grants skilling prowess. It does not affect Gaming sprout growth.' }),
 
   // ---- Divinity ----
   simpleGoal('divexp', 'Divinity EXP', 'DivExp'),
 
   // ---- Library ----
-  simpleGoal('lib', 'Library Speed', 'Lib'),
-  simpleGoal('vip', 'VIP Bonus', 'VIP'),
+  simpleGoal('lib', 'Library Checkout Speed', 'Lib'),
+  simpleGoal('vip', 'VIP Library Points', 'VIP'),
 
   // ---- Farming ----
   simpleGoal('farmexp', 'Farming EXP', 'zFarmExp'),
-  simpleGoal('cropevo', 'Crop Evolution Chance', ['zCropEvo', 'zCropEvoSumm']),
-  simpleGoal('mealfarm', 'Meal from Farming', 'zMealFarm'),
-  simpleGoal('goldfood', 'Golden Food Bonus', 'zGoldFood'),
+  {
+    id: 'cropevo',
+    name: 'Crop Evolution Chance',
+    categories: ['zCropEvo', 'zCropEvoSumm'],
+    unit: 'multiplier',
+    note: 'Combines direct Crop Evolution Chance with Nyanborgir scaled by the selected character’s Summoning level.',
+    value: function(mb, saveData, options) {
+      var scale = summoningCropEvolutionScale(saveData, options && options.activeCharIdx);
+      return (1 + (mb.zCropEvo || 0) / 100) * (1 + (mb.zCropEvoSumm || 0) * scale.steps / 100);
+    },
+  },
+  simpleGoal('goldfood', 'Golden Food Bonuses', 'zGoldFood'),
 
   // ---- Sneaking ----
   simpleGoal('sneakexp', 'Sneaking EXP', 'zSneakExp'),
-  simpleGoal('jade', 'Jade', 'zJade'),
+  simpleGoal('jade', 'Jade Gain', 'zJade'),
 
   // ---- Summoning ----
-  simpleGoal('sumess', 'Summoning Essence', 'zSumEss'),
+  simpleGoal('sumess', 'Summoning Essence Gain', 'zSumEss'),
   simpleGoal('sumexp', 'Summoning EXP', 'zSummonExp'),
 
   // ---- Spelunking / W7 ----
   simpleGoal('splkexp', 'Spelunking EXP', 'SplkExp'),
-  simpleGoal('splkupg', 'Spelunking Upgrades', 'SplkUpg'),
+  simpleGoal('splkupg', 'Lower Spelunking Costs', 'SplkUpg'),
   simpleGoal('splkpow', 'Spelunking Power', 'SplkPOW'),
-  simpleGoal('splkamb', 'Spelunking Ambush', 'SplkAmb'),
+  simpleGoal('splkamb', 'Amber Gain from Spelunking', 'SplkAmb'),
   simpleGoal('researchxp', 'Research EXP', 'ResearchXP'),
-  simpleGoal('minecurr', 'Mine Currency', 'MineCurr'),
-  simpleGoal('polyref', 'Poly Refine Speed', 'PolyRefSpd'),
+  simpleGoal('minecurr', 'Mine Currency Gain', 'MineCurr'),
+  simpleGoal('polyref', 'Polymer Refinery Speed', 'PolyRefSpd'),
 
   // ---- Cash & misc ----
-  simpleGoal('cash', 'Cash/Money', 'Cash'),
-  simpleGoal('critter', 'Critter', 'Critter'),
-  simpleGoal('tdpts', 'TD Points', 'TDpts'),
-  simpleGoal('clexp', 'Class EXP (combat)', 'Clexp'),
-  simpleGoal('allstat', 'All Stats', 'Stat'),
+  simpleGoal('cash', 'Cash from Monsters', 'Cash'),
+  simpleGoal('critter', 'Critters from Traps', 'Critter'),
+  simpleGoal('tdpts', 'Tower Defence Points', 'TDpts'),
 ];
 
 // Build lookup
@@ -237,7 +256,7 @@ for (var i = 0; i < GOALS.length; i++) GOAL_MAP[GOALS[i].id] = GOALS[i];
  *
  * Returns { alloc: {mealIdx: level}, goalValue, curGoalValue, meals: [...] }
  */
-export function optimizeForGoal(goalId, budget, saveData) {
+export function optimizeForGoal(goalId, budget, saveData, options) {
   var goal = GOAL_MAP[goalId];
   if (!goal) return null;
 
@@ -282,7 +301,7 @@ export function optimizeForGoal(goalId, budget, saveData) {
   // Greedy allocation
   for (var p = 0; p < budget; p++) {
     var mb = buildMealBonuses();
-    var curVal = goal.value(mb);
+    var curVal = goal.value(mb, saveData, options);
 
     var bestIdx = -1;
     var bestGain = -1;
@@ -298,7 +317,7 @@ export function optimizeForGoal(goalId, budget, saveData) {
       var testMb = {};
       for (var k in mb) testMb[k] = mb[k];
       testMb[m.cat] = (testMb[m.cat] || 0) + delta;
-      var newVal = goal.value(testMb);
+      var newVal = goal.value(testMb, saveData, options);
       var gain = newVal - curVal;
       if (gain > bestGain) { bestGain = gain; bestIdx = i; }
     }
@@ -308,7 +327,7 @@ export function optimizeForGoal(goalId, budget, saveData) {
 
   // Build results
   var finalMb = buildMealBonuses();
-  var goalValue = goal.value(finalMb);
+  var goalValue = goal.value(finalMb, saveData, options);
 
   // Current value (with actual mastery levels)
   var cm0 = saveData.cookMasterData && saveData.cookMasterData[0] || [];
@@ -319,7 +338,7 @@ export function optimizeForGoal(goalId, budget, saveData) {
     var mastery = m.isPxLine ? 1 : bonusMultiCook(curLv);
     curMb[m.cat] = (curMb[m.cat] || 0) + m.baseWeight * mastery;
   }
-  var curGoalValue = goal.value(curMb);
+  var curGoalValue = goal.value(curMb, saveData, options);
 
   var mealResults = [];
   for (var i = 0; i < relevantMeals.length; i++) {
@@ -329,6 +348,7 @@ export function optimizeForGoal(goalId, budget, saveData) {
     mealResults.push({
       idx: m.idx,
       name: (MealINFO[m.idx][0] || '').replace(/_/g, ' '),
+      effect: (MealINFO[m.idx][3] || '').replace(/_/g, ' ').replace(/[{}]/g, ''),
       cat: m.cat,
       optLv: optLv,
       curLv: curLv,
