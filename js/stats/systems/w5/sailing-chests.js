@@ -363,6 +363,43 @@ export function chestLootRolls(tier, saveData) {
   return 1 + Math.min(4, tier) + achieveStatus(300, saveData);
 }
 
+export function chestReplacementThreshold(incomingRoute, referenceRoute, referenceTier) {
+  incomingRoute = incomingRoute || {};
+  referenceRoute = referenceRoute || {};
+  referenceTier = Math.max(0, Math.min(5, Math.round(_num(referenceTier))));
+  var sameIsland = incomingRoute.islandIdx === referenceRoute.islandIdx;
+  var incomingBase = _num(incomingRoute.loot && incomingRoute.loot.value);
+  var referenceBase = _num(referenceRoute.loot && referenceRoute.loot.value);
+  var referenceValue = referenceBase * CHEST_LOOT_MULTIS[referenceTier];
+  var sameTierValue = incomingBase * CHEST_LOOT_MULTIS[referenceTier];
+  var requiredTier = -1;
+  var replacementValue = 0;
+
+  if (sameIsland) {
+    for (var tier = referenceTier + 1; tier < CHEST_LOOT_MULTIS.length; tier++) {
+      var candidateValue = incomingBase * CHEST_LOOT_MULTIS[tier];
+      if (candidateValue > referenceValue) {
+        requiredTier = tier;
+        replacementValue = candidateValue;
+        break;
+      }
+    }
+  }
+
+  var maxValue = incomingBase * CHEST_LOOT_MULTIS[CHEST_LOOT_MULTIS.length - 1];
+  return {
+    sameIsland: sameIsland,
+    sameTierEligible: sameIsland && sameTierValue >= referenceValue,
+    referenceTier: referenceTier,
+    referenceValue: referenceValue,
+    requiredTier: requiredTier,
+    replacementValue: replacementValue,
+    margin: requiredTier >= 0 && referenceValue > 0 ? replacementValue / referenceValue - 1 : 0,
+    maxValue: maxValue,
+    shortfall: requiredTier < 0 && referenceValue > 0 ? Math.max(0, 1 - maxValue / referenceValue) : 0,
+  };
+}
+
 export function fleetChestPayoutBreakdown(routes, tier, saveData) {
   routes = routes || [];
   tier = Math.max(0, Math.min(5, Math.round(_num(tier))));
@@ -596,7 +633,6 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
   var chestValuePerTrip = 0;
   var treasurePerTrip = 0;
   var artifactChancePerTrip = 0;
-  var overflowUpgradePerTrip = 0;
   var tierRows = [];
 
   for (var t = 0; t < distribution.tiers.length; t++) {
@@ -611,7 +647,6 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
       chestValuePerTrip += tier.probability * chestValue;
       treasurePerTrip += tier.probability * chestValue * rolls;
       artifactChancePerTrip += tier.probability * artifact.anyChance;
-      overflowUpgradePerTrip += tier.probability * overflowUpgradeChance(t, saveData, options.activeCharIdx);
     }
     tierRows.push(Object.assign({}, tier, { kept: kept, chestValue: chestValue, rolls: rolls,
       treasureValue: chestValue * rolls, artifactMultiplier: artifactMultiplier,
@@ -634,8 +669,6 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
     treasurePerHour: trips * treasurePerTrip,
     artifactChancePerTrip: artifactChancePerTrip,
     artifactFindsPerHour: trips * artifactChancePerTrip,
-    overflowUpgradePerChest: overflowUpgradePerTrip,
-    overflowUpgradesPerHour: trips * overflowUpgradePerTrip,
     treasureShares: { gold: goldShare, primary: primaryShare, rare: rareShare },
     captainExpPerHour: trips * captainExpPerTrip(islandIdx, saveData, options.activeCharIdx),
   };
@@ -644,6 +677,8 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
 function _assignmentScore(route, goal) {
   if (goal === 'artifact') return route.artifactFindsPerHour;
   if (goal === 'chests') return route.keptChestsPerHour;
+  // Direct generated-chest value only. Near-full processing cannot be decomposed
+  // into independent boat/captain weights because it depends on shared pile order.
   return route.treasurePerHour;
 }
 
@@ -696,7 +731,9 @@ function _hungarianMax(weights) {
   return assignment;
 }
 
-// Maximum-weight one-captain-per-boat assignment for a shared destination.
+// Maximum-weight one-captain-per-boat assignment for a fixed shared destination.
+// Goals use direct generated-chest outcomes; current/future near-full pile upgrades
+// and replacements are intentionally excluded from this separable assignment model.
 export function optimizeCaptainAssignment(islandIdx, goal, saveData, options) {
   options = options || {};
   var boatTotal = Math.min(saveData.boatsData && saveData.boatsData.length || 0,
