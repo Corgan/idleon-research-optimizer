@@ -35,6 +35,7 @@ export const saveData = {
   cards0Data: {},
   cards1Data: [],
   sailingData: [],
+  sailChestsData: [],
   lv0Data: [],
   totemInfoData: [],
   gamingData: [],

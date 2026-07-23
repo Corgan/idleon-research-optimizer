@@ -39,7 +39,7 @@ import { shiny as shinyResolver } from '../w4/breeding.js';
 import { arcade as arcadeResolver } from '../w2/arcade.js';
 import { owl as owlResolver } from '../w1/owl.js';
 import { companion as companionResolver } from './companions.js';
-import { talent as talentResolver, computeAllTalentLVz } from './talent.js';
+import { talent as talentResolver, computeAllTalentLVz, maxTalentBonus } from './talent.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
 import { StarSigns, PostOffUpgradeInfo, ClassFamilyBonuses, ClassAccountBonus,
   ClassPromotionChoices } from '../../data/game/customlists.js';
@@ -697,7 +697,9 @@ export function computeFamBonusQTYs(activeCharIdx, saveData) {
         var key = Math.round(2 * clsIdx + type);
         if (!result[key] || bonus > result[key]) {
           result[key] = bonus;
-          if (rawLv144 > 0 && ci === activeCharIdx) {
+          if (key === 24 || key === 44) {
+            result[key] = bonus * (1 + maxTalentBonus(144, activeCharIdx, saveData) / 100);
+          } else if (rawLv144 > 0 && ci === activeCharIdx) {
             // Compute tal144val lazily, reading FamBonusQTYs[68] from the
             // partially-built map to match the game's AllTalentLVz behavior.
             var bonus144 = computeAllTalentLVz(144, activeCharIdx, { partialFamBonusMap: result }, saveData);

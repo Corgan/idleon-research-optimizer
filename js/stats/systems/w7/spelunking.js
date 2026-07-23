@@ -41,6 +41,7 @@ import { SpelunkUpg, SpelunkChapters } from '../../data/game/customlists.js';
 import { superBitType } from '../../../game-helpers.js';
 import { formulaEval } from '../../../formulas.js';
 import { computeArtifactBonus } from '../w5/sailing.js';
+import { equipSetBonus } from '../../data/common/equipment.js';
 
 // SuperBit → palette index pairs for doubling
 var PALETTE_SUPERBIT_PAIRS = [
@@ -67,6 +68,23 @@ export function computePaletteBonus(paletteIdx, saveData) {
   var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;
   return raw * palLegendMulti * palLoreMulti;
+}
+
+// Game: LoreEpiBon(idx). Spelunky[21][idx] stores "base|tome threshold".
+export function computeLoreEpisodeBonus(idx, saveData) {
+  var completed = Number(saveData.spelunkData && saveData.spelunkData[13]
+    && saveData.spelunkData[13][2]) || 0;
+  var params = Spelunky[21] && Spelunky[21][idx];
+  if (completed <= idx || !params) return 0;
+  var parts = String(params).split('|');
+  var base = Number(parts[0]) || 0;
+  var threshold = Number(parts[1]) || 0;
+  var x = Math.floor(Math.max(0, (Number(saveData.totalTomePoints) || 0) - threshold) / 100);
+  var pow = Math.pow(x, 0.7);
+  var grimoire17 = Number(saveData.grimoireData && saveData.grimoireData[17]) || 0;
+  var troll = String(saveData.olaData && saveData.olaData[379] || '').indexOf('TROLL_SET') !== -1
+    ? equipSetBonus('TROLL_SET') : 0;
+  return (1 + (grimoire17 + troll) / 100) * base * Math.max(0, pow / (25 + pow));
 }
 
 // System resolver for palette bonuses (used by pool-based descriptors).

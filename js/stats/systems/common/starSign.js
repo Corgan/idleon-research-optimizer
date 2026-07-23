@@ -137,6 +137,8 @@ var SIGN_BONUSES = {
   TotalHP:  { 28: -80 },
   FoodEffect: { 22: 15 },
   Jade:     { 75: 10 },
+  ArtifactFind: { 61: 15 },
+  SailingSpd: { 63: 20 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)

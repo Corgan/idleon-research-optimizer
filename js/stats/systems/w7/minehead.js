@@ -10,6 +10,7 @@ import { arcadeBonus } from '../w2/arcade.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
+import { gbWith } from '../../../sim-math.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -22,6 +23,23 @@ export function buildMhqArray(mineFloor) {
   var arr = new Array(MINEHEAD_BONUS_QTY.length);
   for (var i = 0; i < arr.length; i++) arr[i] = mineFloor > i ? (MINEHEAD_BONUS_QTY[i] || 0) : 0;
   return arr;
+}
+
+var BUTTON_RATES = [2, 3, 2, 2, 4, 5, 4, 25, 5];
+
+// Game: Button_Bonuses(slotIdx). Presses rotate through nine slots in groups of five.
+export function computeButtonBonus(slotIdx, saveData) {
+  var presses = Number(saveData.olaData && saveData.olaData[594]) || 0;
+  if (presses <= 0 || slotIdx < 0 || slotIdx >= BUTTON_RATES.length) return 0;
+  var fullCycles = Math.floor(presses / 45);
+  var rem = presses % 45;
+  var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
+  var comp147 = saveData.companionIds && saveData.companionIds.has(147) ? companionBonus(147) : 0;
+  var grid125 = gbWith(saveData.gridLevels || [], saveData.shapeOverlay || [], 125, {
+    abm: Number(saveData.allBonusMulti) || 1,
+    c52: Number(saveData.comp52TrueMulti) || 1,
+  });
+  return hits * BUTTON_RATES[slotIdx] * (1 + comp147 / 100) * (1 + grid125 / 100);
 }
 
 // ===== MINEHEAD CURRENCY SOURCES =====

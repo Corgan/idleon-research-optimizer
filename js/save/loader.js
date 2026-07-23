@@ -45,6 +45,7 @@ export function loadSaveData(raw) {
   assignState({ cards0Data: parseSaveKey(save, 'Cards0') || {} });
   assignState({ cards1Data: parseSaveKey(save, 'Cards1') || [] });
   assignState({ sailingData: parseSaveKey(save, 'Sailing') || [] });
+  assignState({ sailChestsData: parseSaveKey(save, 'SailChests') || [] });
   assignState({ lv0Data: parseSaveKey(save, 'Lv0_0') || parseSaveKey(save, 'Lv0') || [] });
   assignState({ totemInfoData: parseSaveKey(save, 'TotemInfo') || [] });
   assignState({ gamingData: parseSaveKey(save, 'Gaming') || [] });
