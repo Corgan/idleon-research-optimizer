@@ -68,9 +68,14 @@ input[type=checkbox] { width:16px; min-height:16px; padding:0; accent-color:var(
 .replacement-next { color:var(--green); background:rgba(76,175,80,.08); }
 .replacement-jump { color:var(--gold); background:rgba(255,215,0,.07); }
 .replacement-never { color:var(--red); background:rgba(255,68,68,.07); }
-.replacement-source-row { cursor:pointer; }
-.replacement-source-row:hover td { background:rgba(77,208,225,.07); }
-.replacement-source-row.expanded td { border-bottom-color:transparent; }
+.replacement-source-row,.boat-tier-source-row { cursor:pointer; }
+.replacement-source-row:hover td,.boat-tier-source-row:hover td { background:rgba(77,208,225,.07); }
+.replacement-source-row.expanded td,.boat-tier-source-row.expanded td { border-bottom-color:transparent; }
+.boat-tier-detail-row td { background:#101b35; }
+.boat-tier-detail-row:hover td { background:#101b35; }
+.boat-tier-detail-row .boat-tier-payout-label { padding-left:20px; border-left:3px solid var(--cyan); color:var(--cyan); }
+.boat-tier-detail-row .payout-value { font-size:1em; }
+.boat-tier-detail-last td { border-bottom:2px solid rgba(255,255,255,.14); }
 .replacement-arrow { display:inline-block; width:14px; color:var(--text2); }
 .replacement-detail-cell { padding:8px 10px 12px !important; background:#101b35 !important; border-bottom:2px solid rgba(255,255,255,.14) !important; }
 .replacement-detail-wrap { border-left:3px solid var(--cyan); padding-left:10px; }
@@ -143,6 +148,7 @@ import {
   captainLevelTime,
   captainRollQuality,
   chestLootRolls,
+  chestReplacementOutcome,
   chestReplacementThreshold,
   chestTierDistribution,
   collectionWindowStats,
@@ -230,10 +236,15 @@ function optimizedFleet(island,mode) {
   return fleetCache.get(key);
 }
 function fleetTotal(rows,key){return rows.reduce(function(sum,row){return sum+(Number(row[key])||0);},0);}
+function captainCode(idx) {
+  var value=Math.max(0,Math.floor(Number(idx)||0))+1,code='';
+  while(value>0){value--;code=String.fromCharCode(65+value%26)+code;value=Math.floor(value/26);}
+  return code;
+}
 function captainLabel(idx) {
   var c=saveData.captainsData?.[idx]; if(!c)return 'No captain';
   var parts=[]; for(var s=0;s<2;s++){var t=Number(c[1+s]); if(t>=0)parts.push(captainBonusName(t)+' +'+fmt(captainBonus(idx,t,saveData))+'%');}
-  return 'C'+(idx+1)+' Lv'+fmt(c[3])+(parts.length?' · '+parts.join(' / '):'');
+  return 'Captain '+captainCode(idx)+' · Lv'+fmt(c[3])+(parts.length?' · '+parts.join(' / '):'');
 }
 function islandLabel(i) { return 'Island '+(i+1)+' · '+fmt(islandDistance(i))+' dist'; }
 function metric(r) { return goal==='artifact'?r.artifactFindsPerHour:goal==='chests'?r.keptChestsPerHour:r.treasurePerHour; }
@@ -282,7 +293,7 @@ function tabButton(key,label){return '<button data-tab="'+key+'" class="'+(activ
 
 function renderFleet(fleet) {
   var h='<div class="section"><h2>Direct Fleet Assignment</h2><div class="callout" style="margin-bottom:10px"><strong>Included:</strong> trip rate, Boat Value, captain Loot Value, captain Rare Chest Chance, natural tier odds, guaranteed payouts, artifact odds, and the minimum-tier filter. <strong>Not included:</strong> banked chest order, repeated same-tier eligibility rolls, higher-tier replacements, or future pile evolution. Those effects couple every boat together and are not part of the one-captain-per-boat assignment score.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Boat</th><th>Captain</th><th>Route</th><th class="num">Trip</th><th class="num">Chest/hr</th><th class="num">Base chest</th><th class="num" data-tip="How many fleet boat-value sources this incoming same-tier chest can meet or exceed">Value coverage</th><th class="num">Direct treasure/hr</th><th class="num">Artifact/hr</th><th>Best direct route</th></tr></thead><tbody>';
-  fleet.forEach(function(r){var best=bestIsland(r.boatIdx,r.captainIdx);var coverage=fleet.filter(function(other){return r.loot.value>=other.loot.value;}).length;h+='<tr><td>Boat '+(r.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(r.captainIdx))+'">C'+(r.captainIdx+1)+'</td><td>'+islandLabel(r.islandIdx)+'</td><td class="num">'+time(r.timing.tripSeconds)+(r.timing.capped?' <span class="badge badge-cyan">cap</span>':'')+'</td><td class="num">'+fmt(r.generatedChestsPerHour)+'</td><td class="num">'+fmt(r.loot.value)+'</td><td class="num" data-tip="Same-tier source coverage only; actual eligibility depends on current pile contents and order">'+coverage+' / '+fleet.length+'</td><td class="num">'+fmt(r.treasurePerHour)+'</td><td class="num">'+chance(r.artifactFindsPerHour)+'</td><td>'+islandLabel(best.islandIdx)+'</td></tr>';});
+  fleet.forEach(function(r){var best=bestIsland(r.boatIdx,r.captainIdx);var coverage=fleet.filter(function(other){return r.loot.value>=other.loot.value;}).length;h+='<tr><td>Boat '+(r.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(r.captainIdx))+'">'+captainCode(r.captainIdx)+'</td><td>'+islandLabel(r.islandIdx)+'</td><td class="num">'+time(r.timing.tripSeconds)+(r.timing.capped?' <span class="badge badge-cyan">cap</span>':'')+'</td><td class="num">'+fmt(r.generatedChestsPerHour)+'</td><td class="num">'+fmt(r.loot.value)+'</td><td class="num" data-tip="Same-tier source coverage only; actual eligibility depends on current pile contents and order">'+coverage+' / '+fleet.length+'</td><td class="num">'+fmt(r.treasurePerHour)+'</td><td class="num">'+chance(r.artifactFindsPerHour)+'</td><td>'+islandLabel(best.islandIdx)+'</td></tr>';});
   h+='</tbody></table></div></div>';
   h+='<div class="section"><div class="callout"><strong>Fixed destination:</strong> the selected island is an input, not something the captain assignment optimizer chooses. Keeping all boats on one island improves near-full matching. Treasure amount per chest is island-independent; after reaching the trip-time cap, choose the island for its currency or artifacts.</div></div>';
   return h;
@@ -358,7 +369,7 @@ function renderCaptains(fleet) {
       }
     }
     var progress=levelInfo&&levelInfo.requirement>0?Math.max(0,Math.min(1,levelInfo.progress/levelInfo.requirement)):0;
-    h+='<tr><td>C'+(captain+1)+' <span class="card-sub">Type '+fmt(data[0])+'</span></td><td>'+(assignment?'Boat '+(assignment.boatIdx+1):'<span class="card-sub">not assigned</span>')+'</td><td class="num">'+fmt(data[3])+'</td><td>'+captainRollCell(captainRollQuality(captain,0,saveData),captain)+'</td><td>'+captainRollCell(captainRollQuality(captain,1,saveData),captain)+'</td><td class="num">'+(levelInfo?fmt(levelInfo.progress)+' / '+fmt(levelInfo.requirement)+' ('+pct(progress,1)+')':'&mdash;')+'</td><td class="num">'+(levelInfo?fmt(levelInfo.expPerHour):'&mdash;')+'</td><td class="num">'+(levelInfo&&isFinite(levelInfo.hours)?(levelInfo.hours<=0?'Ready':time(levelInfo.hours*3600)):'&mdash;')+'</td><td>'+(fastest&&isFinite(fastest.hours)?islandLabel(fastest.islandIdx)+' · '+time(fastest.hours*3600):'&mdash;')+'</td></tr>';
+    h+='<tr><td>'+captainCode(captain)+' <span class="card-sub">Type '+fmt(data[0])+'</span></td><td>'+(assignment?'Boat '+(assignment.boatIdx+1):'<span class="card-sub">not assigned</span>')+'</td><td class="num">'+fmt(data[3])+'</td><td>'+captainRollCell(captainRollQuality(captain,0,saveData),captain)+'</td><td>'+captainRollCell(captainRollQuality(captain,1,saveData),captain)+'</td><td class="num">'+(levelInfo?fmt(levelInfo.progress)+' / '+fmt(levelInfo.requirement)+' ('+pct(progress,1)+')':'&mdash;')+'</td><td class="num">'+(levelInfo?fmt(levelInfo.expPerHour):'&mdash;')+'</td><td class="num">'+(levelInfo&&isFinite(levelInfo.hours)?(levelInfo.hours<=0?'Ready':time(levelInfo.hours*3600)):'&mdash;')+'</td><td>'+(fastest&&isFinite(fastest.hours)?islandLabel(fastest.islandIdx)+' · '+time(fastest.hours*3600):'&mdash;')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Each bonus gain is rolled once when the captain is generated and stays fixed as they level; it is not an average of level-up rolls. Current total = captain level &times; fixed gain. Quality compares that fixed gain with the exact recruitment minimum and maximum for the captain type and bonus. Boat assignment is optimized for the selected <strong>direct</strong> goal, not future near-full pile evolution.</div></div>';
   return h;
@@ -397,77 +408,88 @@ function compactMatrixChance(value){
 }
 
 function replacementMatrixCell(route,strongest,targetTier){
-  var threshold=chestReplacementThreshold(route,strongest,targetTier);
+  var outcome=chestReplacementOutcome(route,strongest,targetTier,saveData,activeCharIdx);
+  var threshold=outcome.threshold;
   var required=threshold.requiredTier;
   var gap=required<0?Infinity:required-targetTier;
-  var distribution=route.rarity||chestTierDistribution(route.captainIdx,saveData);
-  var tierChance=required>=0?distribution.tiers[required].cumulative:0;
-  var qualifyingRate=route.generatedChestsPerHour*tierChance;
-  var sameTierChance=threshold.sameTierEligible?overflowUpgradeChance(targetTier,saveData,activeCharIdx):0;
   var lines=[
-    'Boat '+(route.boatIdx+1)+' / Captain '+(route.captainIdx+1),
+    'Boat '+(route.boatIdx+1)+' / Captain '+captainCode(route.captainIdx),
     'Base Boat Value: '+fmt(route.loot.value)+' per payout at Tier 0',
     '',
-    'Reference: Boat '+(strongest.boatIdx+1)+' / Captain '+(strongest.captainIdx+1)+' '+CHEST_TIER_NAMES[targetTier],
+    'Reference: Boat '+(strongest.boatIdx+1)+' / Captain '+captainCode(strongest.captainIdx)+' '+CHEST_TIER_NAMES[targetTier],
     'Reference value: '+fmt(threshold.referenceValue)+' per payout',
+    '',
+    'Same-tier ULS path:',
+    'Exact '+CHEST_TIER_NAMES[targetTier]+' drop chance: '+pct(outcome.exactSameTierChance,3),
+    'Conditional ULS chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
+    'Compounded: '+pct(outcome.exactSameTierChance,3)+' × '+pct(outcome.ulsChance,3)+' = '+pct(outcome.sameTierUpgradeChance,3),
+    '',
+    'Natural higher-tier path:'
   ];
   if(required>=0){
     lines.push('Minimum natural replacement: '+CHEST_TIER_NAMES[required]);
     lines.push('Incoming value: '+fmt(threshold.replacementValue)+' per payout');
     lines.push('Value margin: +'+pct(threshold.margin,1));
-    lines.push(CHEST_TIER_NAMES[required]+'+ chance: '+pct(tierChance,3));
-    lines.push('Qualifying rate: '+fmt(qualifyingRate)+'/hr');
+    lines.push(CHEST_TIER_NAMES[required]+'+ drop chance: '+pct(outcome.naturalReplacementChance,3));
+    lines.push('Replacement is deterministic if this target is reached.');
   }else{
     lines.push('Natural replacement: Never');
     lines.push('Maximum Tier 5 value: '+fmt(threshold.maxValue)+' per payout');
     lines.push('Value shortfall: '+pct(threshold.shortfall,1));
   }
-  lines.push('Same-tier ULS: '+(sameTierChance>0?'Eligible at '+chance(sameTierChance)+' per matching banked chest':'Not eligible'));
+  lines.push('');
+  lines.push('Total direct change chance: '+pct(outcome.totalChance,3));
+  lines.push('Same-tier compounded + natural higher-tier.');
+  lines.push('Direct change rate: '+fmt(outcome.totalRatePerHour)+'/hr');
+  if(!outcome.active)lines.push('Unending Loot Search is inactive, so near-full processing does not run.');
   lines.push('');
   lines.push('Exact threshold; hypothetical strongest-source chest.');
-  lines.push('Current pile order and future evolution are not simulated.');
+  lines.push('Chance assumes this banked target is reached in the scan.');
+  lines.push('Earlier pile entries and future evolution are not simulated.');
   lines.push('Banked chests do not store their source boat or captain.');
-  var cls='replacement-cell '+(required<0?'replacement-never':gap===1?'replacement-next':'replacement-jump');
-  var content=required<0?'Never':'T'+required+' <span class="replacement-chance">'+compactMatrixChance(tierChance)+'</span>';
+  var cls='replacement-cell '+(outcome.totalChance<=0?'replacement-never':required<0||gap===1?'replacement-next':'replacement-jump');
+  var path=required>=0?'T'+required+'+':outcome.sameTierUpgradeChance>0?'ULS':'';
+  var content=compactMatrixChance(outcome.totalChance)+(path?' <span class="replacement-chance">'+path+'</span>':'');
   return '<td class="'+cls+'" data-tip="'+attr(lines.join('\n'))+'">'+content+'</td>';
 }
 
 function sameTierComparisonCell(incoming,banked,tier){
-  var threshold=chestReplacementThreshold(incoming,banked,tier);
-  var upgradeChance=threshold.sameTierEligible?overflowUpgradeChance(tier,saveData,activeCharIdx):0;
+  var outcome=chestReplacementOutcome(incoming,banked,tier,saveData,activeCharIdx);
+  var threshold=outcome.threshold;
   var incomingValue=incoming.loot.value*CHEST_LOOT_MULTIS[tier];
   var bankedValue=banked.loot.value*CHEST_LOOT_MULTIS[tier];
   var lines=[
-    'Incoming: Boat '+(incoming.boatIdx+1)+' / Captain '+(incoming.captainIdx+1)+' '+CHEST_TIER_NAMES[tier],
+    'Incoming: Boat '+(incoming.boatIdx+1)+' / Captain '+captainCode(incoming.captainIdx)+' '+CHEST_TIER_NAMES[tier],
     'Incoming value: '+fmt(incomingValue)+' per payout',
-    'Banked: Boat '+(banked.boatIdx+1)+' / Captain '+(banked.captainIdx+1)+' '+CHEST_TIER_NAMES[tier],
+    'Banked: Boat '+(banked.boatIdx+1)+' / Captain '+captainCode(banked.captainIdx)+' '+CHEST_TIER_NAMES[tier],
     'Banked value: '+fmt(bankedValue)+' per payout',
     'Value comparison: '+(threshold.sameTierEligible?'eligible ('+pct(incomingValue/bankedValue-1,1)+' margin)':'not eligible ('+pct(1-incomingValue/bankedValue,1)+' short)'),
-    'ULS chance per eligible match: '+chance(overflowUpgradeChance(tier,saveData,activeCharIdx)),
     '',
-    'This is a per-match chance, not the overall arrival chance.',
+    'Exact '+CHEST_TIER_NAMES[tier]+' drop chance: '+pct(outcome.exactSameTierChance,3),
+    'Conditional ULS chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
+    'Compounded: '+pct(outcome.exactSameTierChance,3)+' × '+pct(outcome.ulsChance,3)+' = '+pct(outcome.sameTierUpgradeChance,3),
+    '',
+    'This cell excludes deterministic higher-tier replacements.',
     'Earlier banked entries may stop the scan first.'
   ];
-  return '<td class="num '+(upgradeChance>0?'replacement-eligible':'replacement-ineligible')+'" data-tip="'+attr(lines.join('\n'))+'">'+(upgradeChance>0?chance(upgradeChance):'—')+'</td>';
+  return '<td class="num '+(outcome.sameTierUpgradeChance>0?'replacement-eligible':'replacement-ineligible')+'" data-tip="'+attr(lines.join('\n'))+'">'+(outcome.sameTierUpgradeChance>0?compactMatrixChance(outcome.sameTierUpgradeChance):'—')+'</td>';
 }
 
 function naturalReplacementComparisonCell(incoming,banked){
-  var threshold=chestReplacementThreshold(incoming,banked,1);
+  var outcome=chestReplacementOutcome(incoming,banked,1,saveData,activeCharIdx);
+  var threshold=outcome.threshold;
   var required=threshold.requiredTier;
-  var distribution=incoming.rarity||chestTierDistribution(incoming.captainIdx,saveData);
-  var tierChance=required>=0?distribution.tiers[required].cumulative:0;
-  var qualifyingRate=incoming.generatedChestsPerHour*tierChance;
   var lines=[
-    'Incoming: Boat '+(incoming.boatIdx+1)+' / Captain '+(incoming.captainIdx+1),
-    'Banked reference: Boat '+(banked.boatIdx+1)+' / Captain '+(banked.captainIdx+1)+' Tier 1',
+    'Incoming: Boat '+(incoming.boatIdx+1)+' / Captain '+captainCode(incoming.captainIdx),
+    'Banked reference: Boat '+(banked.boatIdx+1)+' / Captain '+captainCode(banked.captainIdx)+' Tier 1',
     'Banked value: '+fmt(threshold.referenceValue)+' per payout'
   ];
   if(required>=0){
     lines.push('Minimum natural replacement: '+CHEST_TIER_NAMES[required]);
     lines.push('Incoming value: '+fmt(threshold.replacementValue)+' per payout');
     lines.push('Value margin: +'+pct(threshold.margin,1));
-    lines.push(CHEST_TIER_NAMES[required]+'+ chance: '+pct(tierChance,3));
-    lines.push('Qualifying rate: '+fmt(qualifyingRate)+'/hr');
+    lines.push(CHEST_TIER_NAMES[required]+'+ drop chance: '+pct(outcome.naturalReplacementChance,3));
+    lines.push('Qualifying rate: '+fmt(incoming.generatedChestsPerHour*outcome.naturalReplacementChance)+'/hr');
   }else{
     lines.push('Natural replacement: Never');
     lines.push('Maximum Tier 5 value: '+fmt(threshold.maxValue)+' per payout');
@@ -476,21 +498,21 @@ function naturalReplacementComparisonCell(incoming,banked){
   lines.push('');
   lines.push('A qualifying higher-tier replacement is deterministic if this banked chest is reached.');
   lines.push('Earlier banked entries may stop the scan first.');
-  var content=required<0?'Never':'T'+required+' <span class="replacement-chance">'+compactMatrixChance(tierChance)+'</span>';
+  var content=required<0?'Never':'T'+required+' <span class="replacement-chance">'+compactMatrixChance(outcome.naturalReplacementChance)+'</span>';
   return '<td class="num '+(required<0?'replacement-never':required===2?'replacement-next':'replacement-jump')+'" data-tip="'+attr(lines.join('\n'))+'">'+content+'</td>';
 }
 
 function renderReplacementDetail(incoming,fleet){
   var references=fleet.filter(function(route){return route.boatIdx!==incoming.boatIdx;}).sort(function(a,b){return b.loot.value-a.loot.value||a.boatIdx-b.boatIdx;});
   var eligible=references.filter(function(banked){return chestReplacementThreshold(incoming,banked,0).sameTierEligible;}).length;
-  var h='<div class="replacement-detail-wrap"><div class="replacement-detail-title">Boat '+(incoming.boatIdx+1)+' / Captain '+(incoming.captainIdx+1)+' as the incoming source · '+fmt(incoming.loot.value)+' Tier 0 value per payout · same-tier eligible against '+eligible+' / '+references.length+' other sources</div>';
+  var h='<div class="replacement-detail-wrap"><div class="replacement-detail-title">Boat '+(incoming.boatIdx+1)+' / Captain '+captainCode(incoming.captainIdx)+' as the incoming source · '+fmt(incoming.loot.value)+' Tier 0 value per payout · same-tier eligible against '+eligible+' / '+references.length+' other sources</div>';
   h+='<table class="data-table replacement-detail-table"><thead><tr><th>Banked source</th><th class="num">Banked T0 value</th><th class="num">Incoming / banked</th><th class="num">T0 &rarr; T1</th><th class="num">T1 &rarr; T2</th><th class="num">T2 &rarr; T3</th><th class="num">T3 &rarr; T4</th><th class="num" data-tip="Minimum natural tier from the selected incoming source that can replace this source\'s banked Tier 1">Natural vs banked T1</th></tr></thead><tbody>';
   references.forEach(function(banked){
-    h+='<tr><td data-tip="'+attr(captainLabel(banked.captainIdx))+'">Boat '+(banked.boatIdx+1)+' / C'+(banked.captainIdx+1)+'</td><td class="num">'+fmt(banked.loot.value)+'</td><td class="num">'+pct(incoming.loot.value/banked.loot.value,1)+'</td>';
+    h+='<tr><td data-tip="'+attr(captainLabel(banked.captainIdx))+'">Boat '+(banked.boatIdx+1)+' / '+captainCode(banked.captainIdx)+'</td><td class="num">'+fmt(banked.loot.value)+'</td><td class="num">'+pct(incoming.loot.value/banked.loot.value,1)+'</td>';
     for(var tier=0;tier<4;tier++)h+=sameTierComparisonCell(incoming,banked,tier);
     h+=naturalReplacementComparisonCell(incoming,banked)+'</tr>';
   });
-  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier percentages are independent ULS rolls per eligible banked match. They do not include arrival tier probability or the chance that the scan reaches that banked index. The natural column includes the selected captain\'s required-tier-or-higher chance.</div></div>';
+  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier cells show exact tier-drop chance &times; the conditional ULS roll. The natural column shows the separate deterministic higher-tier path. Neither includes the chance that an earlier banked entry stops the scan.</div></div>';
 }
 
 function renderReplacementMatrix(fleet,capacity){
@@ -498,21 +520,41 @@ function renderReplacementMatrix(fleet,capacity){
   var strongest=fleet.reduce(function(best,route){return route.loot.value>best.loot.value?route:best;},fleet[0]);
   var rows=fleet.slice().sort(function(a,b){return b.loot.value-a.loot.value||a.boatIdx-b.boatIdx;});
   var h='<div class="section"><h2>Strongest-Source Replacement Matrix</h2><div class="card-grid">';
-  h+=card('Strongest source','Boat '+(strongest.boatIdx+1)+' / C'+(strongest.captainIdx+1),fmt(strongest.loot.value)+' Tier 0 value per payout');
-  h+=card('Matrix basis','Natural replacement','Minimum natural tier versus strongest-source T0-T4');
+  h+=card('Strongest source','Boat '+(strongest.boatIdx+1)+' / '+captainCode(strongest.captainIdx),fmt(strongest.loot.value)+' Tier 0 value per payout');
+  h+=card('Matrix basis','Combined direct chance','Same-tier drop × ULS, plus natural replacement');
   h+=card('Current pile',fmt(saveData.sailChestsData?.length||0)+' / '+capacity,'Source boat and captain are not stored');
-  h+=card('Data scope','Threshold only','Pile order and future evolution are not simulated');
-  h+='</div><div class="callout" style="margin-top:10px">Cells show the minimum natural tier and the assigned captain\'s chance to roll that tier or higher. Green needs the next tier, gold must skip one or more tiers, and red is impossible by Tier 5. The highlighted row is the strongest source. Click a boat row to expand its incoming-chest comparison against every other boat.</div>';
+  h+=card('Data scope','Per target reached','Pile order and future evolution are not simulated');
+  h+='</div><div class="callout" style="margin-top:10px">Cells show the direct chance per incoming chest to change the hypothetical strongest-source chest: exact same-tier drop chance &times; conditional ULS upgrade chance, plus the deterministic qualifying-higher-tier chance. Tooltips show both paths. Pile order can lower the realized chance if an earlier banked entry stops the scan. Green needs at most the next natural tier, gold must skip tiers, and red has no direct path.</div>';
   h+='<div class="table-wrap" style="margin-top:10px"><table class="data-table replacement-matrix"><thead><tr><th>Boat</th><th>Captain</th><th class="num">T0 value / payout</th><th class="num">% max</th>';
   for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num">Strongest T'+targetTier+'</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(function(route){
-    h+='<tr class="replacement-source-row '+(route===strongest?'best':'')+'" data-replacement-boat="'+route.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(route.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(route.captainIdx))+'">C'+(route.captainIdx+1)+'</td><td class="num">'+fmt(route.loot.value)+'</td><td class="num">'+pct(route.loot.value/strongest.loot.value,1)+'</td>';
+    h+='<tr class="replacement-source-row '+(route===strongest?'best':'')+'" data-replacement-boat="'+route.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(route.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(route.captainIdx))+'">'+captainCode(route.captainIdx)+'</td><td class="num">'+fmt(route.loot.value)+'</td><td class="num">'+pct(route.loot.value/strongest.loot.value,1)+'</td>';
     for(var targetTier=0;targetTier<5;targetTier++)h+=replacementMatrixCell(route,strongest,targetTier);
     h+='</tr>';
     h+='<tr class="replacement-detail-row" data-replacement-detail="'+route.boatIdx+'" hidden><td class="replacement-detail-cell" colspan="9">'+renderReplacementDetail(route,fleet)+'</td></tr>';
   });
   h+='</tbody></table></div></div>';
+  return h;
+}
+
+function renderBoatTierPayoutRows(routeRow,primaryCurrency,rareCurrency){
+  var shares=routeRow.treasureShares||{gold:1,primary:0,rare:0};
+  var tierValues=[];
+  for(var tier=0;tier<6;tier++){
+    tierValues[tier]=routeRow.loot.value*CHEST_LOOT_MULTIS[tier]*chestLootRolls(tier,saveData);
+  }
+  var currencies=[
+    {name:'Gold Bars',share:shares.gold},
+    {name:primaryCurrency.name,share:shares.primary},
+    {name:rareCurrency.name,share:shares.rare},
+  ];
+  var h='';
+  currencies.forEach(function(currency,index){
+    h+='<tr class="boat-tier-detail-row '+(index===currencies.length-1?'boat-tier-detail-last':'')+'" data-boat-tier-detail="'+routeRow.boatIdx+'" hidden><td class="boat-tier-payout-label" colspan="5"><strong>'+esc(currency.name)+'</strong><span class="payout-detail">Expected total / opened chest</span></td>';
+    for(var tier=0;tier<6;tier++)h+='<td class="num payout-value">'+fmt(tierValues[tier]*currency.share)+'</td>';
+    h+='</tr>';
+  });
   return h;
 }
 
@@ -555,11 +597,12 @@ function renderOdds(fleet,capacity,rec){
   h+='</tr></thead><tbody>';
   fleet.forEach(function(routeRow){
     var distribution=routeRow.rarity||chestTierDistribution(routeRow.captainIdx,saveData);
-    h+='<tr><td>Boat '+(routeRow.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(routeRow.captainIdx))+'">C'+(routeRow.captainIdx+1)+'</td><td class="num">'+fmt(routeRow.generatedChestsPerHour)+'</td><td class="num">+'+fmt(distribution.captain)+'%</td><td class="num">'+distribution.rarityScale.toFixed(3)+'x</td>';
+    h+='<tr class="boat-tier-source-row" data-boat-tier-values="'+routeRow.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(routeRow.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(routeRow.captainIdx))+'">'+captainCode(routeRow.captainIdx)+'</td><td class="num">'+fmt(routeRow.generatedChestsPerHour)+'</td><td class="num">+'+fmt(distribution.captain)+'%</td><td class="num">'+distribution.rarityScale.toFixed(3)+'x</td>';
     distribution.tiers.forEach(function(tierRow){h+='<td class="num">'+pct(tierRow.probability,5)+'</td>';});
     h+='</tr>';
+    h+=renderBoatTierPayoutRows(routeRow,primaryCurrency,rareCurrency);
   });
-  h+='</tbody></table></div><div class="callout" style="margin-top:10px">Captain Rare Chest Chance does not create more chests; it shifts that captain\'s generated chests into higher tiers. The Loot Value optimizer includes this direct tier-distribution gain. The ship changes chest rate and stored value, not tier odds.</div></div>';
+  h+='</tbody></table></div><div class="callout" style="margin-top:10px">Click a boat row to show its expected Gold Bar, primary-currency, and rare-currency totals aligned beneath each chest tier. Each actual payout independently selects one currency. Captain Rare Chest Chance shifts generated chests into higher tiers; the ship changes chest rate and stored value, not tier odds.</div></div>';
   h+=renderReplacementMatrix(fleet,capacity);
   var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from index 0 onward. Failed same-island, same-tier, sufficient-value rolls fall through to later chests; the first successful upgrade or qualifying higher-tier replacement stops the scan. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
 
@@ -567,7 +610,7 @@ function currencyPayoutCell(currency){
   return '<td class="num"><span class="payout-value">'+fmt(currency.expectedValuePerChest)+'</span><span class="payout-detail">'+currency.expectedPayoutsPerChest.toFixed(2)+' payouts avg · '+pct(currency.chancePerPayout,1)+'</span></td>';
 }
 
-function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No direct-optimized route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>Direct Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+(r.captainIdx+1)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',chance(r.artifactFindsPerHour),'Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<6)incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+chance(x.artifactFindsPerHour)+'</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat\'s captain from the current direct assignment. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
+function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No direct-optimized route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>Direct Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+captainCode(r.captainIdx)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',chance(r.artifactFindsPerHour),'Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<6)incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+chance(x.artifactFindsPerHour)+'</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat\'s captain from the current direct assignment. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
   h+='<div class="section"><h2>Selected Island Artifacts</h2>'+artifactDetail(r)+'</div>';return h;}
 function artifactDetail(r){var weighted={};r.tiers.forEach(function(t){if(!t.kept)return;var odds=islandArtifactOdds(r.islandIdx,t.artifactMultiplier,saveData,{serverVars:rawServerVars});odds.artifacts.forEach(function(a){if(!weighted[a.artifactIdx])weighted[a.artifactIdx]=Object.assign({},a,{chance:0});weighted[a.artifactIdx].chance+=t.probability*a.exactChance;});});var list=Object.values(weighted);if(!list.length)return '<div class="empty">No artifacts on this island.</div>';var h='<table class="data-table"><thead><tr><th>Artifact</th><th class="num">Current tier</th><th class="num">Next odds</th><th class="num">Per generated chest</th><th>Status</th></tr></thead><tbody>';list.forEach(function(a){h+='<tr><td>'+esc(a.name)+'</td><td class="num">'+a.currentTier+'</td><td class="num">'+(isFinite(a.denominator)?'1 in '+fmt(a.denominator):'—')+'</td><td class="num">'+chance(a.chance)+'</td><td>'+(a.currentTier>=6?'<span class="badge badge-green">max</span>':a.unlocked?'available':'locked')+'</td></tr>';});return h+'</tbody></table>';}
 
@@ -582,7 +625,7 @@ function renderFormula(fleet){
   var selected=breakdownRoute(fleet);
   if(!selected)return '<div class="section"><div class="empty">No unlocked boats to break down.</div></div>';
   var h='<div class="section"><div class="controls"><label class="control">Break down boat<select data-set="breakdownBoat">';
-  fleet.forEach(function(routeRow){h+='<option value="'+routeRow.boatIdx+'"'+(routeRow.boatIdx===selected.boatIdx?' selected':'')+'>Boat '+(routeRow.boatIdx+1)+' · Captain '+(routeRow.captainIdx+1)+'</option>';});
+  fleet.forEach(function(routeRow){h+='<option value="'+routeRow.boatIdx+'"'+(routeRow.boatIdx===selected.boatIdx?' selected':'')+'>Boat '+(routeRow.boatIdx+1)+' · Captain '+captainCode(routeRow.captainIdx)+'</option>';});
   h+='</select></label><div class="control">Assignment<span class="badge badge-cyan">'+islandLabel(selected.islandIdx)+'</span></div></div></div>';
   h+='<div class="section"><h2>Interactive Formula Breakdowns</h2><div class="breakdown-grid">';
   h+='<div class="breakdown-panel"><h3>Loot Value</h3><div id="breakdown-loot"></div></div>';
@@ -873,8 +916,19 @@ function toggleReplacementRow(row){
   if(open){detail.hidden=false;row.classList.add('expanded');row.setAttribute('aria-expanded','true');var arrow=row.querySelector('.replacement-arrow');if(arrow)arrow.innerHTML='&#9662;';}
 }
 
-document.addEventListener('click',function(e){var replacementRow=e.target.closest('[data-replacement-boat]');if(replacementRow){toggleReplacementRow(replacementRow);return;}var simRun=e.target.closest('[data-sim-run]');if(simRun){startSailingSimulation();return;}var simCancel=e.target.closest('[data-sim-cancel]');if(simCancel){cancelSailingSimulation(true);return;}var preset=e.target.closest('[data-sim-hours]');if(preset){simHours=Number(preset.dataset.simHours);simResult=null;simError='';render();return;}var tab=e.target.closest('[data-tab]');if(tab){activeTab=tab.dataset.tab;render();return;}var gb=e.target.closest('[data-goal]');if(gb){if(simRunning)cancelSailingSimulation(false);goal=gb.dataset.goal;simResult=null;simError='';render();}});
-document.addEventListener('keydown',function(e){var row=e.target.closest('[data-replacement-boat]');if(!row)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleReplacementRow(row);}});
+function toggleBoatTierRow(row){
+  if(!row)return;
+  var boatIdx=row.dataset.boatTierValues;
+  var details=document.querySelectorAll('[data-boat-tier-detail="'+boatIdx+'"]');
+  if(!details.length)return;
+  var open=details[0].hidden;
+  document.querySelectorAll('.boat-tier-detail-row').forEach(function(other){other.hidden=true;});
+  document.querySelectorAll('.boat-tier-source-row').forEach(function(other){other.classList.remove('expanded');other.setAttribute('aria-expanded','false');var arrow=other.querySelector('.replacement-arrow');if(arrow)arrow.innerHTML='&#9656;';});
+  if(open){details.forEach(function(detail){detail.hidden=false;});row.classList.add('expanded');row.setAttribute('aria-expanded','true');var arrow=row.querySelector('.replacement-arrow');if(arrow)arrow.innerHTML='&#9662;';}
+}
+
+document.addEventListener('click',function(e){var boatTierRow=e.target.closest('[data-boat-tier-values]');if(boatTierRow){toggleBoatTierRow(boatTierRow);return;}var replacementRow=e.target.closest('[data-replacement-boat]');if(replacementRow){toggleReplacementRow(replacementRow);return;}var simRun=e.target.closest('[data-sim-run]');if(simRun){startSailingSimulation();return;}var simCancel=e.target.closest('[data-sim-cancel]');if(simCancel){cancelSailingSimulation(true);return;}var preset=e.target.closest('[data-sim-hours]');if(preset){simHours=Number(preset.dataset.simHours);simResult=null;simError='';render();return;}var tab=e.target.closest('[data-tab]');if(tab){activeTab=tab.dataset.tab;render();return;}var gb=e.target.closest('[data-goal]');if(gb){if(simRunning)cancelSailingSimulation(false);goal=gb.dataset.goal;simResult=null;simError='';render();}});
+document.addEventListener('keydown',function(e){var boatTierRow=e.target.closest('[data-boat-tier-values]');if(boatTierRow&&(e.key==='Enter'||e.key===' ')){e.preventDefault();toggleBoatTierRow(boatTierRow);return;}var row=e.target.closest('[data-replacement-boat]');if(!row)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleReplacementRow(row);}});
 document.addEventListener('change',function(e){var key=e.target.dataset.set;if(key==='char'){if(simRunning)cancelSailingSimulation(false);activeCharIdx=Number(e.target.value);simResult=null;}else if(key==='minTier'){if(simRunning)cancelSailingSimulation(false);minimumTier=Number(e.target.value);simResult=null;}else if(key==='hours')collectHours=Math.max(.25,Number(e.target.value)||.25);else if(key==='sortEta')sortLevelsByEta=e.target.checked;else if(key==='boat'||key==='breakdownBoat')selectedBoat=Number(e.target.value);else if(key==='island')selectedIsland=Number(e.target.value);else if(key==='simHours'){simHours=Math.max(.25,Math.min(168,Number(e.target.value)||8));simResult=null;}else if(key==='simIsland'){simIsland=Number(e.target.value);simResult=null;}else if(key==='simTrials'){simTrials=Math.max(100,Math.min(100000,Math.round(Number(e.target.value)||5000)));simResult=null;}else if(e.target.dataset.override)overrides[e.target.dataset.override]=Number(e.target.value)||0;else return;simError='';render();});
 (function(){var tip=document.getElementById('js-tip');document.addEventListener('mouseover',function(e){var el=e.target.closest('[data-tip]');if(!el){tip.style.display='none';return;}tip.textContent=el.getAttribute('data-tip');tip.style.display='block';});document.addEventListener('mousemove',function(e){if(tip.style.display!=='block')return;var x=e.clientX+12,y=e.clientY+12;if(x+tip.offsetWidth>innerWidth-8)x=e.clientX-tip.offsetWidth-8;if(y+tip.offsetHeight>innerHeight-8)y=e.clientY-tip.offsetHeight-8;tip.style.left=x+'px';tip.style.top=y+'px';});document.addEventListener('mouseout',function(e){if(e.target.closest('[data-tip]'))tip.style.display='none';});})();
 </script>

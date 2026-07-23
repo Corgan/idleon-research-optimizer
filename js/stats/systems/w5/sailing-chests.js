@@ -400,6 +400,36 @@ export function chestReplacementThreshold(incomingRoute, referenceRoute, referen
   };
 }
 
+export function chestReplacementOutcome(incomingRoute, referenceRoute, referenceTier, saveData, activeCharIdx) {
+  var threshold = chestReplacementThreshold(incomingRoute, referenceRoute, referenceTier);
+  var distribution = incomingRoute && (incomingRoute.rarity
+    || chestTierDistribution(incomingRoute.captainIdx, saveData));
+  var tierRows = distribution && distribution.tiers || [];
+  var exactSameTierChance = _num(tierRows[threshold.referenceTier]
+    && tierRows[threshold.referenceTier].probability);
+  var talent = unendingLootSearch(saveData, activeCharIdx);
+  var active = talent > 0;
+  var ulsChance = active && threshold.sameTierEligible
+    ? overflowUpgradeChance(threshold.referenceTier, saveData, activeCharIdx) : 0;
+  var sameTierUpgradeChance = exactSameTierChance * ulsChance;
+  var naturalReplacementChance = active && threshold.requiredTier >= 0
+    ? _num(tierRows[threshold.requiredTier] && tierRows[threshold.requiredTier].cumulative) : 0;
+  var totalChance = Math.min(1, sameTierUpgradeChance + naturalReplacementChance);
+  var generatedRate = _num(incomingRoute && incomingRoute.generatedChestsPerHour);
+
+  return {
+    active: active,
+    talent: talent,
+    threshold: threshold,
+    exactSameTierChance: exactSameTierChance,
+    ulsChance: ulsChance,
+    sameTierUpgradeChance: sameTierUpgradeChance,
+    naturalReplacementChance: naturalReplacementChance,
+    totalChance: totalChance,
+    totalRatePerHour: generatedRate * totalChance,
+  };
+}
+
 export function fleetChestPayoutBreakdown(routes, tier, saveData) {
   routes = routes || [];
   tier = Math.max(0, Math.min(5, Math.round(_num(tier))));
