@@ -33,7 +33,7 @@ function _talVal(talentIdx, ci, saveData) {
 
 export default createDescriptor({
   id: 'construction-exp',
-  name: 'Player Construction XP',
+  name: 'Player Construction EXP/hr',
   scope: 'character',
   category: 'construction',
 
@@ -69,8 +69,8 @@ export default createDescriptor({
       + stampConstExp + voting18 + starConstExp + poBonus;
 
     var children = [
-      { name: 'Build Speed', val: buildSpd, note: 'pow(buildSpd, 0.7)/2 = ' + (Math.pow(buildSpd, 0.7) / 2).toFixed(2) },
-      { name: 'Base Part', val: basePart, note: 'pow(bspd,0.7)/2 + 2 + 6×' + constLv },
+      { name: 'Build Speed', val: buildSpd, note: 'Build-speed contribution ' + (Math.pow(buildSpd, 0.7) / 2).toFixed(2) },
+      { name: 'Base Construction EXP', val: basePart, note: 'Build-speed contribution + 2 + 6 × Construction level ' + constLv },
       { name: 'Mode', val: isActive ? 1 : 0, note: isActive ? 'Active' : 'Inactive' },
     ];
 
@@ -87,14 +87,14 @@ export default createDescriptor({
           { name: 'Star Sign: Construction EXP', val: starConstExp },
           { name: label('Post Office', 17), val: poBonus, note: '0.5×(' + postOffice17 + '-100)' },
         ], note: 'sum=' + addPool.toFixed(1) },
-        { name: 'Small Cog EXP', val: 1 + smallCogExp / 100, fmt: 'x', note: 'total=' + smallCogExp }
+        { name: 'Small Cog Construction EXP', val: 1 + smallCogExp / 100, fmt: 'x', note: '+' + smallCogExp + '%' }
       );
     }
 
     children.push(
-      { name: 'Cog Board Flat Exp/HR', val: cogTotals.flatExp },
-      { name: 'Cog Board % Const EXP', val: cogTotals.pctConstExp },
-      { name: 'Cog Board % Player XP', val: cogTotals.pctPlayerConstXP }
+      { name: 'Cog Board Flat Construction EXP/hr', val: cogTotals.flatExp },
+      { name: 'Cog Board Construction EXP', val: cogTotals.pctConstExp },
+      { name: 'Cog Board Player Construction EXP', val: cogTotals.pctPlayerConstXP }
     );
 
     return {

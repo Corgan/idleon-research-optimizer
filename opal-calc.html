@@ -141,6 +141,8 @@ function escHtml(s) {
 
 // ========== CONSTANTS ==========
 var MAX_VILLAGERS = 5; // Currently 5 villagers in game
+var VILLAGER_NAMES = ['Explorer', 'Engineer', 'Conjuror', 'Measurer', 'Librarian'];
+function villagerName(idx) { return VILLAGER_NAMES[idx] || ('Villager ' + (idx + 1)); }
 
 // ========== DATA ACCESS HELPERS ==========
 function _h(sd, i) { return sd.holesData[i] || []; }
@@ -582,7 +584,7 @@ function renderCurrentTab() {
   html += '<div class="card"><div class="card-title">Total Opals</div><div class="card-val">' + fmtNum(totalOpals) + '</div></div>';
   html += '<div class="card"><div class="card-title">Min Opals</div><div class="card-val">' + fmtNum(minOpals) + '</div></div>';
   html += '<div class="card"><div class="card-title">Equal Spread Bonus</div><div class="card-val">' + (ext.cosmoBonus_1_5 * Math.floor(minOpals / 5)) + '%</div><div class="card-sub">Cosmo Lv ' + getCosmoLevel(1, 5) + '</div></div>';
-  html += '<div class="card"><div class="card-title">Opal Enthusiasm</div><div class="card-val">×' + ext.cosmoBonus_1_0 + '</div><div class="card-sub">per 10 opals, Cosmo Lv ' + getCosmoLevel(1, 0) + '</div></div>';
+  html += '<div class="card"><div class="card-title">Opal Enthusiasm</div><div class="card-val">+' + ext.cosmoBonus_1_0 + '%</div><div class="card-sub">per 10 opals, Cosmo Lv ' + getCosmoLevel(1, 0) + '</div></div>';
   html += '<div class="card highlight"><div class="card-title">Total EXP/hr</div><div class="card-val">' + fmtNum(totalExp) + '</div></div>';
   html += '</div></div>';
 
@@ -595,7 +597,7 @@ function renderCurrentTab() {
     var rate = villagerExpRate(i, currentOpals, ext);
     var pct = totalExp > 0 ? (rate / totalExp * 100).toFixed(1) : '0.0';
     html += '<tr>';
-    html += '<td>Villager ' + i + '</td>';
+    html += '<td>' + villagerName(i) + '</td>';
     html += '<td class="num">' + getVillagerLevel(i) + '</td>';
     html += '<td class="num">★' + getVillagerStars(i) + '</td>';
     html += '<td class="num"><span class="n">' + fmtNum(currentOpals[i]) + '</span></td>';
@@ -616,41 +618,41 @@ function renderCurrentTab() {
   var addTotal = ext.additiveBase;
 
   var multiChildren = [
-    _bNode('Compass Bonus 59', b.compass59, null, { fmt: '%' }),
-    _bNode('Legend PTS 12', b.legend12, null, { fmt: '%' }),
-    _bNode('Pristine Charm 21', b.pristine21, null, { fmt: '%' }),
-    _bNode('Companion 13', 1 + 2 * b.comp13, null, { fmt: 'x', note: 'flat 2× per companion' }),
-    _bNode('Statue 28 (Villager EXP)', b.statue28, null, { fmt: '%', note: 'statueLv × 0.3 × gold × statue29 × talent56 × meritoc26' }),
-    _bNode('Jar Collectibles', b.jarSum, null, { fmt: '%', note: 'indices 4, 10, 12, 22, 29, 35' }),
-    _bNode('Event Shop 6', 25 * b.evShop6, null, { fmt: '%' }),
-    _bNode('Lore Episode 1', b.loreEpi1, null, { fmt: '%', note: 'base × decay(tomeScore) × (1 + grim17 + trollSet)' }),
-    _bNode('Bundle bun_u', 50 * b.bundleU, null, { fmt: '%' }),
+    _bNode('Villagerz Learnz (Compass)', b.compass59, null, { fmt: '%' }),
+    _bNode('Opa Opal Style (Legend Talent)', b.legend12, null, { fmt: '%' }),
+    _bNode('Candy Cache (Pristine Charm)', b.pristine21, null, { fmt: '%' }),
+    _bNode('Samurai Guardian (Companion)', 1 + 2 * b.comp13, null, { fmt: 'x', note: '2× per companion' }),
+    _bNode('Villager Statue', b.statue28, null, { fmt: '%' }),
+    _bNode('Villager EXP Jar Collectibles', b.jarSum, null, { fmt: '%', note: 'Natural Pearl, Shadow Prism, Emerald Ore, Tabula Rasastone, Arcane Prism, and Sunroot Splinters' }),
+    _bNode('Village Encouragement (Event Shop)', 25 * b.evShop6, null, { fmt: '%' }),
+    _bNode('Lore Episode: Villager EXP', b.loreEpi1, null, { fmt: '%' }),
+    _bNode('Clothing Bundle', 50 * b.bundleU, null, { fmt: '%', note: '+50% Villager EXP' }),
   ];
   var multiNode = _bNode('Multiplicative Chain', b.multiChain, multiChildren, { fmt: 'x' });
 
   var outerMultiChildren = [
-    _bNode('Base + B_UPG(0,25)', b.basePlusUpg, null, { fmt: 'raw', note: '100 + 25 if building 0 built' }),
+    _bNode('Base + Opal Dividends', b.basePlusUpg, null, { fmt: 'raw', note: '100 base; 125 when Opal Dividends is built' }),
     multiNode,
-    _bNode('Exotic Bonus 51', 1 + b.exotic51 / 100, null, { fmt: 'x' }),
-    _bNode('Arcade Bonus 38', 1 + b.arcade38 / 100, null, { fmt: 'x' }),
-    _bNode('Grimoire 29', 1 + b.grimoire29 / 100, null, { fmt: 'x' }),
-    _bNode('Arcane 32', 1 + b.arcane32 / 100, null, { fmt: 'x' }),
+    _bNode('Grapevine (Exotic Crop)', 1 + b.exotic51 / 100, null, { fmt: 'x' }),
+    _bNode('Villager XP Multiplier (Arcade)', 1 + b.arcade38 / 100, null, { fmt: 'x' }),
+    _bNode('Villager Extracurricular (Grimoire)', 1 + b.grimoire29 / 100, null, { fmt: 'x' }),
+    _bNode('Villager Indoctrination (Arcane)', 1 + b.arcane32 / 100, null, { fmt: 'x' }),
   ];
   var baseMultiNode = _bNode('Base Multiplier', ext.baseMulti, outerMultiChildren, { fmt: 'x' });
 
   var addChildren = [
-    _bNode('Monument (0,3)', b.mon03, null, { fmt: '%' }),
-    _bNode('Monument (1,3)', b.mon13, null, { fmt: '%' }),
-    _bNode('Monument (2,3)', b.mon23, null, { fmt: '%' }),
-    _bNode('Measurement 7', b.meas7, null, { fmt: '%' }),
-    _bNode('Measurement 0', b.meas0, null, { fmt: '%' }),
-    _bNode('Contented Creator', b.cosmoBonus_1_1 * b.cosSchBlt, null, { fmt: '%', note: 'cosmo(1,1)=' + b.cosmoBonus_1_1 + ' × schematics=' + b.cosSchBlt }),
-    _bNode('Cosmo Enhance', b.cosmoBonus_1_2, null, { fmt: '%' }),
-    _bNode('B_UPG(48)', b.bUpg48, null, { fmt: '%', note: '10 × Holes[11][26]' }),
-    _bNode('Card caveB', b.cardCaveB, null, { fmt: '%', note: 'min(4 × cardLv, 50)' }),
-    _bNode('Bell Bonus (1)', b.bell1_0, null, { fmt: '%' }),
-    _bNode('Summoning Win 21', b.summWin21, null, { fmt: '%' }),
-    _bNode('Vault Upgrade 73', b.vaultUpg73, null, { fmt: '%' }),
+    _bNode('Bravery: Villager EXP', b.mon03, null, { fmt: '%' }),
+    _bNode('Justice: Villager EXP', b.mon13, null, { fmt: '%' }),
+    _bNode('Wisdom: Villager EXP', b.mon23, null, { fmt: '%' }),
+    _bNode('Villager EXP Measurement (Slab Items)', b.meas7, null, { fmt: '%' }),
+    _bNode('Villager EXP Measurement (Tome Score)', b.meas0, null, { fmt: '%' }),
+    _bNode('Contented Creator', b.cosmoBonus_1_1 * b.cosSchBlt, null, { fmt: '%', note: 'Per schematic created' }),
+    _bNode('Cosmo, Enhance!', b.cosmoBonus_1_2, null, { fmt: '%' }),
+    _bNode('Gloomie Opie', b.bUpg48, null, { fmt: '%' }),
+    _bNode('Gloomie Mushroom Card', b.cardCaveB, null, { fmt: '%' }),
+    _bNode('Bell: All Villager EXP', b.bell1_0, null, { fmt: '%' }),
+    _bNode('Sigil Bonus (Summoning)', b.summWin21, null, { fmt: '%' }),
+    _bNode('Smarter Villagers (Vault)', b.vaultUpg73, null, { fmt: '%' }),
   ];
   var addNode = _bNode('Additive % (constant part)', 1 + addTotal / 100, addChildren, { fmt: 'x', note: '(1 + sum/100) — Opal Enthusiasm per villager adds to sum' });
 
@@ -671,7 +673,7 @@ function renderOptimizerTab() {
   html += '<div class="controls">';
   html += '<label>Target: <select id="opt-target"><option value="-1">All Villagers (Total EXP)</option>';
   for (var i = 0; i < MAX_VILLAGERS; i++) {
-    if (ext.unlocked[i]) html += '<option value="' + i + '">Villager ' + i + ' (★' + getVillagerStars(i) + ')</option>';
+    if (ext.unlocked[i]) html += '<option value="' + i + '">' + villagerName(i) + ' (★' + getVillagerStars(i) + ')</option>';
   }
   html += '</select></label>';
   html += '<label>Total Opals: <input type="number" id="opt-total" value="' + totalOpals + '" min="0" style="width:80px;"></label>';
@@ -724,7 +726,7 @@ function runOptimizer() {
     var curExp = villagerExpRate(i, currentOpals, ext);
     var optExp = villagerExpRate(i, optimized, ext);
     html += '<tr' + (i === target ? ' style="background:rgba(255,215,0,.06);"' : '') + '>';
-    html += '<td>Villager ' + i + (i === target ? ' <span class="badge badge-gold">TARGET</span>' : '') + '</td>';
+    html += '<td>' + villagerName(i) + (i === target ? ' <span class="badge badge-gold">TARGET</span>' : '') + '</td>';
     html += '<td class="num">★' + getVillagerStars(i) + '</td>';
     html += '<td class="num">' + fmtNum(currentOpals[i]) + '</td>';
     html += '<td class="num">' + fmtNum(optimized[i]) + '</td>';
@@ -748,7 +750,7 @@ function renderSimulatorTab() {
   for (var i = 0; i < MAX_VILLAGERS; i++) {
     if (!ext.unlocked[i]) continue;
     html += '<div class="sim-cell">';
-    html += '<label>Villager ' + i + ' (★' + getVillagerStars(i) + ')</label>';
+    html += '<label>' + villagerName(i) + ' (★' + getVillagerStars(i) + ')</label>';
     html += '<input type="number" data-v="' + i + '" value="' + currentOpals[i] + '" min="0">';
     html += '</div>';
   }
@@ -803,7 +805,7 @@ function recalcSim() {
     curTotalExp += curRate;
     var diff = curRate > 0 ? ((simRate - curRate) / curRate * 100) : 0;
     var cls = diff > 0 ? 'pos' : (diff < 0 ? 'neg' : '');
-    html += '<tr><td>Villager ' + i + '</td>';
+    html += '<tr><td>' + villagerName(i) + '</td>';
     html += '<td class="num">' + simOpals[i] + '</td>';
     html += '<td class="num">' + fmtNum(simRate) + '</td>';
     html += '<td class="num ' + cls + '">' + (diff > 0 ? '+' : '') + diff.toFixed(1) + '%</td>';

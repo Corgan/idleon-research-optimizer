@@ -269,13 +269,13 @@ export default createDescriptor({
 
     // G1: Alchemy x Stats
     var g1ch = [];
-    if (g1strPart > 0) g1ch.push({ name: 'CashSTR x floor(STR/250)', val: g1strPart, fmt: 'raw',
-      note: 'STR=' + Math.round(totalSTR) + ' bubble=' + cashSTR.toFixed(1) });
-    if (g1agiPart > 0) g1ch.push({ name: 'CashAGI x floor(AGI/250)', val: g1agiPart, fmt: 'raw',
-      note: 'AGI=' + Math.round(totalAGI) + ' bubble=' + cashAGI.toFixed(1) });
-    if (g1wisPart > 0) g1ch.push({ name: 'CashWIS x floor(WIS/250)', val: g1wisPart, fmt: 'raw',
-      note: 'WIS=' + Math.round(totalWIS) + ' bubble=' + cashWIS.toFixed(1) });
-    children.push({ name: 'Alchemy x Stats', val: groups[0], children: g1ch.length ? g1ch : null, fmt: 'x' });
+    if (g1strPart > 0) g1ch.push({ name: label('Bubble', 'O15'), val: g1strPart, fmt: 'raw',
+      note: 'STR ' + Math.round(totalSTR) + ', bubble value ' + Number(cashSTR).toFixed(1) });
+    if (g1agiPart > 0) g1ch.push({ name: label('Bubble', 'G15'), val: g1agiPart, fmt: 'raw',
+      note: 'AGI ' + Math.round(totalAGI) + ', bubble value ' + Number(cashAGI).toFixed(1) });
+    if (g1wisPart > 0) g1ch.push({ name: label('Bubble', 'P15'), val: g1wisPart, fmt: 'raw',
+      note: 'WIS ' + Math.round(totalWIS) + ', bubble value ' + Number(cashWIS).toFixed(1) });
+    children.push({ name: 'Cash Bubbles from Main Stats', val: groups[0], children: g1ch.length ? g1ch : null, fmt: 'x' });
 
     // G2-4: Companions
     children.push({ name: label('Companion', 24), val: groups[1], fmt: 'x', note: 'cap 4' });
@@ -283,19 +283,19 @@ export default createDescriptor({
     children.push({ name: label('Companion', 159), val: groups[3], fmt: 'x', note: 'cap 4' });
 
     // G4b: CoinDropMulti
-    children.push({ name: 'CoinDropMulti (' + label('Companion', 38) + ')', val: groups[4], fmt: 'x' });
+    children.push({ name: label('Companion', 38), val: groups[4], fmt: 'x' });
 
     // G5-6: EventShop
-    children.push({ name: label('EventShop', 9) + ' x0.5', val: groups[5], fmt: 'x' });
-    children.push({ name: label('EventShop', 20) + ' x0.6', val: groups[6], fmt: 'x' });
+    children.push({ name: 'Event Shop: Monster Cash I', val: groups[5], fmt: 'x', note: '0.5 per purchase' });
+    children.push({ name: 'Event Shop: Monster Cash II', val: groups[6], fmt: 'x', note: '0.6 per purchase' });
 
     // G7: EtcBonuses 77
     children.push({ name: 'Equip Bonus Money', val: groups[7],
       children: etc77 > 0 ? [{ name: label('EtcBonus', 77), val: etc77, fmt: 'raw' }] : null, fmt: 'x' });
 
     // G8-9: RoG Sushi bonuses
-    children.push({ name: 'RoG Bonus: Cash', val: groups[8], fmt: 'x', note: rog18 + '%' });
-    children.push({ name: 'RoG Bonus: Cash Multi', val: groups[9], fmt: 'x', note: rog37 + '%' });
+    children.push({ name: label('RoG', 18) + ' I', val: groups[8], fmt: 'x', note: rog18 + '%' });
+    children.push({ name: label('RoG', 37) + ' II', val: groups[9], fmt: 'x', note: rog37 + '%' });
 
     // G10: Grid
     var g10ch = [];
@@ -308,48 +308,48 @@ export default createDescriptor({
       children: etc100 > 0 ? [{ name: label('EtcBonus', 100), val: etc100, fmt: 'raw' }] : null, fmt: 'x' });
 
     // G12: GOLD_SET
-    children.push({ name: label('SetBonus', 'GOLD_SET'), val: groups[12], fmt: 'x' });
+    children.push({ name: 'Gold Equipment Set', val: groups[12], fmt: 'x' });
 
     // G13: Gambit
     children.push({ name: label('Gambit', 7), val: groups[13], fmt: 'x',
       note: gambit7 > 0 ? gambit7.toFixed(1) + '%' : 'Not unlocked' });
 
     // G14: Bundle
-    children.push({ name: label('Bundle', 'bun_y') + ' x250', val: groups[14], fmt: 'x' });
+    children.push({ name: 'Bundle: Monster Cash', val: groups[14], fmt: 'x', note: '+250% when owned' });
 
     // G15: Talent 433 x log
     var g15ch = [];
     if (chipBonus433 > 0) g15ch.push({ name: label('Talent', 433), val: chipBonus433, fmt: 'raw' });
-    if (ola362 > 0) g15ch.push({ name: 'log(OLA[362])', val: getLOG(ola362), fmt: 'raw', note: 'raw=' + ola362 });
-    children.push({ name: label('Talent', 433) + ' x log', val: groups[15], children: g15ch.length ? g15ch : null, fmt: 'x' });
+    if (ola362 > 0) g15ch.push({ name: 'Cooking Level Scaling', val: getLOG(ola362), fmt: 'raw', note: 'Cooking level ' + ola362 });
+    children.push({ name: label('Talent', 433) + ' and Cooking Level', val: groups[15], children: g15ch.length ? g15ch : null, fmt: 'x' });
 
     // G16: Meal + Artifact + Roo + Voting
     var g16ch = [];
-    if (mealCash > 0) g16ch.push({ name: 'Meal Cash', val: mealCash, fmt: 'raw' });
-    if (artifactBonus1 > 0) g16ch.push({ name: label('Artifact', 1) + ' (Maneki Kat)', val: artifactBonus1, fmt: 'raw' });
-    if (rooBonus6 > 0) g16ch.push({ name: 'RoG Bonus: Roo 6', val: rooBonus6, fmt: 'raw' });
+    if (mealCash > 0) g16ch.push({ name: 'Meals: Monster Cash', val: mealCash, fmt: 'raw' });
+    if (artifactBonus1 > 0) g16ch.push({ name: label('Artifact', 1), val: artifactBonus1, fmt: 'raw' });
+    if (rooBonus6 > 0) g16ch.push({ name: 'Poppy: Monster Cash', val: rooBonus6, fmt: 'raw' });
     if (voting34 > 0) g16ch.push({ name: label('Voting', 34), val: voting34, fmt: 'raw' });
-    children.push({ name: 'Meal + Artifact + Roo + Voting', val: groups[16],
+    children.push({ name: 'Meals, Maneki Kat, Poppy, and Voting', val: groups[16],
       children: g16ch.length ? g16ch : null, fmt: 'x' });
 
     // G17: PetArena + Friend + Statue
     var g17ch = [];
-    if (friend5 > 0) g17ch.push({ name: label('Friend', 5), val: friend5, fmt: 'raw' });
+    if (friend5 > 0) g17ch.push({ name: 'Friend Bonus: Monster Cash', val: friend5, fmt: 'raw' });
     if (petArena5 > 0) g17ch.push({ name: 'Pet Arena: Cash I', val: 0.5 * petArena5, fmt: 'raw' });
     if (petArena14 > 0) g17ch.push({ name: 'Pet Arena: Cash II', val: petArena14, fmt: 'raw' });
-    if (statue19 > 0) g17ch.push({ name: label('Statue', 19) + ' (Pecunia)', val: statue19 / 100,
-      fmt: 'raw', note: 'raw=' + statue19.toFixed(1) });
-    children.push({ name: 'PetArena + Friend + Statue', val: groups[17],
+    if (statue19 > 0) g17ch.push({ name: label('Statue', 19), val: statue19 / 100,
+      fmt: 'raw', note: 'Statue bonus ' + Number(statue19).toFixed(1) });
+    children.push({ name: 'Pet Arena, Friends, and Pecunia', val: groups[17],
       children: g17ch.length ? g17ch : null, fmt: 'x' });
 
     // G18: Mainframe + Vault x Killz
     var g18ch = [];
     if (mf9 > 0) g18ch.push({ name: label('Mainframe', 9), val: mf9, fmt: 'raw' });
-    if (vault34 * killz8 > 0) g18ch.push({ name: label('Vault', 34) + ' x Killz8', val: vault34 * killz8,
-      fmt: 'raw', note: 'tasks=' + killz8 });
-    if (vault37 * killz9 > 0) g18ch.push({ name: label('Vault', 37) + ' x Killz9', val: vault37 * killz9,
-      fmt: 'raw', note: 'bubbles=' + killz9 });
-    children.push({ name: 'Mainframe + Vault x Killz', val: groups[18],
+    if (vault34 * killz8 > 0) g18ch.push({ name: label('Vault', 34), val: vault34 * killz8,
+      fmt: 'raw', note: killz8 + ' completed tasks' });
+    if (vault37 * killz9 > 0) g18ch.push({ name: label('Vault', 37), val: vault37 * killz9,
+      fmt: 'raw', note: killz9 + ' capped bubble levels' });
+    children.push({ name: 'Mainframe and Vault Progress', val: groups[18],
       children: g18ch.length ? g18ch : null, fmt: 'x' });
 
     // G19: Pristine
@@ -367,7 +367,7 @@ export default createDescriptor({
     if (divMinor > 0) g21ch.push({ name: 'Divinity Minor: Harriep', val: divMinor, fmt: 'raw' });
     if (cropSC4 > 0) g21ch.push({ name: 'Crop Scientist: Cash', val: cropSC4, fmt: 'raw',
       note: s.farmCropCount + ' crops' });
-    children.push({ name: 'Divinity + CropSC', val: groups[21],
+    children.push({ name: 'Divinity and Crop Scientist', val: groups[21],
       children: g21ch.length ? g21ch : null, fmt: 'x' });
 
     // G22: Big additive group
@@ -375,21 +375,21 @@ export default createDescriptor({
     if (talent657 > 0) g22ch.push({ name: label('Talent', 657), val: talent657, fmt: 'raw' });
     if (vialMC > 0) g22ch.push({ name: 'Vial: Monster Cash', val: vialMC, fmt: 'raw' });
     if (etc3 > 0) g22ch.push({ name: label('EtcBonus', 3), val: etc3, fmt: 'raw' });
-    if (cardBonus11 > 0) g22ch.push({ name: 'Card Bonus: Monster Cash', val: cardBonus11, fmt: 'raw' });
-    if (cardW5b1 > 0) g22ch.push({ name: 'Card: 7 × Card Level', val: cardW5b1, fmt: 'raw' });
+    if (cardBonus11 > 0) g22ch.push({ name: 'Cards: Monster Cash', val: cardBonus11, fmt: 'raw' });
+    if (cardW5b1 > 0) g22ch.push({ name: 'Card: Molti', val: cardW5b1, fmt: 'raw', note: '7 per card level' });
     if (talent22 > 0) g22ch.push({ name: label('Talent', 22), val: talent22, fmt: 'raw' });
     if (flurboShop4 > 0) g22ch.push({ name: label('Flurbo Shop', 4), val: flurboShop4, fmt: 'raw' });
-    if (arcade10 + arcade11 > 0) g22ch.push({ name: label('Arcade', '10+11'), val: arcade10 + arcade11, fmt: 'raw' });
+    if (arcade10 + arcade11 > 0) g22ch.push({ name: 'Arcade: Cash from Mobs', val: arcade10 + arcade11, fmt: 'raw' });
     if (boxReward13c > 0) g22ch.push({ name: 'Box Rewards: Monster Cash', val: boxReward13c, fmt: 'raw' });
     if (guildContrib > 0) g22ch.push({ name: label('Guild', 8) + ' x map', val: guildContrib, children: [
       { name: 'Guild Base', val: guild8, fmt: 'raw' },
       { name: 'Map Factor', val: guildMapFactor, fmt: 'x', note: 'map=' + mapIdx },
     ], fmt: 'raw' });
-    if (talentCalc643 > 0) g22ch.push({ name: label('Talent', 643), val: talentCalc643, fmt: 'raw', note: 'needs MaxDmg+MonsterHP' });
-    if (talentCalc644 > 0) g22ch.push({ name: label('Talent', 644), val: talentCalc644, fmt: 'raw', note: 'Lv0[10]=' + lv0_10 });
+    if (talentCalc643 > 0) g22ch.push({ name: label('Talent', 643), val: talentCalc643, fmt: 'raw', note: 'scales with overkill tier' });
+    if (talentCalc644 > 0) g22ch.push({ name: label('Talent', 644), val: talentCalc644, fmt: 'raw', note: 'class level scaler ' + lv0_10 });
     if (gfoodMC > 0) g22ch.push({ name: 'Golden Food: Monster Cash', val: gfoodMC, fmt: 'raw' });
-    if (vaultLog > 0) g22ch.push({ name: label('Vault', 17) + ' x log', val: vaultLog,
-      fmt: 'raw', note: 'OLA[340]=' + ola340 });
+    if (vaultLog > 0) g22ch.push({ name: label('Vault', 17), val: vaultLog,
+      fmt: 'raw', note: 'Vault scaling progress ' + ola340 });
     var achSum = ach235 + ach350 + ach376;
     if (achSum > 0) g22ch.push({ name: 'Achievements', val: achSum, fmt: 'raw', children: [
       { name: label('Achievement', 235) + ' x5', val: ach235, fmt: 'raw' },
@@ -397,12 +397,12 @@ export default createDescriptor({
       { name: label('Achievement', 376) + ' x20', val: ach376, fmt: 'raw' },
     ] });
     if (vault2 > 0) g22ch.push({ name: label('Vault', 2), val: vault2, fmt: 'raw' });
-    if (vault14 * killz4 > 0) g22ch.push({ name: label('Vault', 14) + ' x Killz4', val: vault14 * killz4, fmt: 'raw' });
-    if (vault31 * killz7 > 0) g22ch.push({ name: label('Vault', 31) + ' x Killz7', val: vault31 * killz7, fmt: 'raw' });
+    if (vault14 * killz4 > 0) g22ch.push({ name: label('Vault', 14), val: vault14 * killz4, fmt: 'raw', note: 'kill-count tier ' + killz4 });
+    if (vault31 * killz7 > 0) g22ch.push({ name: label('Vault', 31), val: vault31 * killz7, fmt: 'raw', note: 'kill-count tier ' + killz7 });
     if (ola420 > 0) g22ch.push({ name: label('Ola', 420), val: ola420, fmt: 'raw' });
     if (vault70 * cardsCollected > 0) g22ch.push({ name: label('Vault', 70) + ' x Cards', val: vault70 * cardsCollected,
       fmt: 'raw', note: cardsCollected + ' cards' });
-    children.push({ name: 'Big Additive Group', val: groups[22], children: g22ch.length ? g22ch : null, fmt: 'x' });
+    children.push({ name: 'Other Additive Sources', val: groups[22], children: g22ch.length ? g22ch : null, fmt: 'x' });
 
     return { val: val, children: children };
   },

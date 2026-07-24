@@ -1,7 +1,7 @@
 /**
  * Fountain Simulator Web Worker
  *
- * Receives: { saveData, uLvs, mLvs, desired, timeLimit, marbleBarSec, currencies, marbles }
+ * Receives: { saveData, uLvs, mLvs, desired, timeLimit, marbleBarProgress, currencies, marbles }
  * Posts back:
  *   { type: 'progress', pct }           — progress update (0–100)
  *   { type: 'done', result }            — final result
@@ -9,16 +9,18 @@
  */
 import * as F from './stats/systems/w5/fountain.js';
 
-self.onmessage = function(e) {
-  try {
-    var result = runSim(e.data);
-    self.postMessage({ type: 'done', result: result });
-  } catch (err) {
-    self.postMessage({ type: 'error', message: err.message || String(err) });
-  }
-};
+if (typeof self !== 'undefined') {
+  self.onmessage = function(e) {
+    try {
+      var result = runSim(e.data);
+      self.postMessage({ type: 'done', result: result });
+    } catch (err) {
+      self.postMessage({ type: 'error', message: err.message || String(err) });
+    }
+  };
+}
 
-function runSim(cfg) {
+export function runSim(cfg) {
   var saveData   = cfg.saveData;
   var simULvs    = F.cloneUpgLvs(cfg.uLvs);
   var simMLvs    = F.cloneMarbleLvs(cfg.mLvs);
@@ -30,13 +32,13 @@ function runSim(cfg) {
   var currencies = cfg.currencies.slice();
   var marbles    = cfg.marbles;
 
-  // Marble bar: REAL seconds accumulated toward next fill.
-  // Save stores raw game seconds; convert to real seconds by dividing by active speed.
-  var _initActiveSpeed = F.activeSpeedMulti(simULvs, simMLvs);
-  var marbleBarSec = (cfg.marbleBarSec || 0) / _initActiveSpeed;
+  // Save stores raw bar progress. Keeping raw units makes speed changes exact.
+  var marbleBarProgress = cfg.marbleBarProgress || 0;
 
-  // Current desired currency type being farmed
+  // Desired changes value; focus changes the generated pool through Turn and Push.
   var curDesired = desired;
+  var _initialActive = F.activeCurrencyTypes(saveData, simULvs, simMLvs);
+  var focusType = F.ignoreUnlocked(simULvs, simMLvs) && _initialActive.length === 1 ? _initialActive[0] : -1;
 
   var events = []; // timeline events
   var stepCount = 0;
@@ -44,39 +46,109 @@ function runSim(cfg) {
   // Snapshot marble/hr at start
   var startMarbleRate = F.marblePerHr(saveData, simULvs, simMLvs);
   var startBaseCurr   = F.baseCurrencyPerHr(saveData, simULvs, simMLvs);
-  var startCurrRates  = F.earnRatesPerHr(saveData, simULvs, simMLvs);
+  var startCurrRates  = F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType);
 
   // ========== HELPERS ==========
 
   // Recalculate all dynamic rates for current state
   function _rates() {
-    var earnRates = F.earnRatesPerHr(saveData, simULvs, simMLvs);
+    var earnRates = F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType);
     var mRate     = F.marblePerHr(saveData, simULvs, simMLvs);
-    var mFillSec  = F.marbleBarFillTime() / F.activeSpeedMulti(simULvs, simMLvs);
-    return { earnRates: earnRates, marbleRate: mRate, marbleFillSec: mFillSec };
+    var mProgressPerSec = F.marbleBarUnlocked(simULvs, simMLvs) ? F.activeSpeedMulti(simULvs, simMLvs) : 0;
+    return { earnRates: earnRates, marbleRate: mRate, marbleProgressPerSec: mProgressPerSec };
+  }
+
+  function _targetStateFor(type, uLvs, mLvs) {
+    var canDesire = F.bonTOT(uLvs, mLvs, 1, 11) > 0;
+    var canFocus = F.ignoreUnlocked(uLvs, mLvs);
+    return {
+      desired: canDesire ? type : curDesired,
+      focus: canFocus ? type : focusType,
+      changesDesired: canDesire && curDesired !== type,
+      changesFocus: canFocus && focusType !== type,
+    };
+  }
+
+  function _targetState(type) {
+    return _targetStateFor(type, simULvs, simMLvs);
+  }
+
+  function _targetRateFor(type, uLvs, mLvs) {
+    var target = _targetStateFor(type, uLvs, mLvs);
+    return F.activeEarnRatesPerHr(saveData, uLvs, mLvs, target.desired, target.focus)[type];
+  }
+
+  function _targetRate(type) {
+    return _targetRateFor(type, simULvs, simMLvs);
+  }
+
+  function _marbleTargetTimeSaved(marbleTarget, candidateTtaSec, candidateCostType, candidateCost, nextULvs, nextMLvs, candidateChangesFocus) {
+    if (!marbleTarget || !(marbleTarget.ttaSec > 0) || !isFinite(candidateTtaSec)) return 0;
+
+    var targetType = marbleTarget.costType;
+    var balanceAfterCandidate = currencies[targetType];
+    if (candidateCostType === targetType) {
+      balanceAfterCandidate = Math.max(0, balanceAfterCandidate - candidateCost);
+    }
+
+    var targetRemaining = Math.max(0, marbleTarget.cost - balanceAfterCandidate);
+    var targetState = _targetStateFor(targetType, nextULvs, nextMLvs);
+    var targetRate = F.activeEarnRatesPerHr(saveData, nextULvs, nextMLvs, targetState.desired, targetState.focus)[targetType];
+    if (!(targetRate > 0)) return 0;
+
+    var targetTtaSec = targetRemaining / targetRate * 3600;
+    var focusAfterCandidate = candidateChangesFocus ? candidateCostType : focusType;
+    if (targetRemaining > 0 && F.ignoreUnlocked(nextULvs, nextMLvs) && focusAfterCandidate !== targetType) {
+      targetTtaSec += F.flushTime(saveData, nextULvs, nextMLvs);
+    }
+
+    var routeTtaSec = candidateTtaSec + targetTtaSec;
+    return routeTtaSec < marbleTarget.ttaSec
+      ? 1 - routeTtaSec / marbleTarget.ttaSec
+      : 0;
+  }
+
+  function _pushClaims(earned, duration, rates) {
+    for (var t = 0; t < earned.length; t++) {
+      if (!(earned[t] > 0)) continue;
+      events.push({
+        time: clock, type: 'claim',
+        currType: t, amount: earned[t],
+        total: currencies[t], duration: duration,
+        marbleRate: rates.marbleRate,
+        baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
+        currRates: rates.earnRates.slice(),
+      });
+    }
+  }
+
+  function _relativeGain(current, next) {
+    if (!(next > current)) return 0;
+    return current > 0 ? (next - current) / current : 1;
   }
 
   // Find the best marble/hr-boosting regular upgrade (for scoring currency-only upgrades).
-  // Returns { mPct, ttaHrs } or null if no marble/hr upgrade is available.
+  // Returns the best target and its marble-rate gain, cost type, and ETA.
   function _findBestMarbleTarget(rates) {
     var best = null;
     var bestScore = 0;
     for (var bw = 0; bw < F.WATERS_IMPLEMENTED; bw++) {
       for (var bu = 0; bu < 20; bu++) {
-        if (!F.upgUnlocked(simULvs, bw, bu)) continue;
+        if (!F.upgradeAccessible(simULvs, bw, bu)) continue;
         var bLv = simULvs[bw][bu] || 0;
         var bTry = F.cloneUpgLvs(simULvs);
         bTry[bw][bu] = bLv + 1;
         var bNewM = F.marblePerHr(saveData, bTry, simMLvs);
         var bMGain = bNewM - rates.marbleRate;
         if (bMGain <= 0) continue;
-        var bMPct = rates.marbleRate > 0 ? bMGain / rates.marbleRate : 0;
+        var bMPct = _relativeGain(rates.marbleRate, bNewM);
         var bType = F.UPG_DATA[bw][bu][3];
         var bCost = F.upgCost(bw, bu, bLv);
         var bRemaining = Math.max(0, bCost - currencies[bType]);
-        var bEarnRate = rates.earnRates[bType];
+        var bEarnRate = _targetRate(bType);
         var bEarnSec = bEarnRate > 0 ? (bRemaining / bEarnRate) * 3600 : Infinity;
-        var bSwitch = (bType !== curDesired && bRemaining > 0)
+        var bTarget = _targetState(bType);
+        var bSwitch = (bTarget.changesFocus && bRemaining > 0)
           ? F.flushTime(saveData, simULvs, simMLvs) : 0;
         var bTTA = bEarnSec + bSwitch;
         if (!isFinite(bTTA)) continue;
@@ -84,7 +156,10 @@ function runSim(cfg) {
         var s = bMPct / ttaHrs;
         if (s > bestScore) {
           bestScore = s;
-          best = { mPct: bMPct, ttaHrs: ttaHrs };
+          best = {
+            mPct: bMPct, ttaHrs: ttaHrs, ttaSec: bTTA,
+            w: bw, u: bu, costType: bType, cost: bCost,
+          };
         }
       }
     }
@@ -101,12 +176,13 @@ function runSim(cfg) {
     var remaining = Math.max(0, cost - have);
 
     // Time to afford = earn time + switch cost if needed
-    var earnRate = rates.earnRates[type];
+    var earnRate = _targetRate(type);
     var earnTimeSec = earnRate > 0 ? (remaining / earnRate) * 3600 : Infinity;
 
-    // If we're not farming this type, add flush time to switch
+    // Changing the ignore-mask focus requires clearing the existing board.
     var switchCost = 0;
-    if (type !== curDesired && remaining > 0) {
+    var targetState = _targetState(type);
+    if (targetState.changesFocus && remaining > 0) {
       switchCost = F.flushTime(saveData, simULvs, simMLvs);
     }
 
@@ -118,23 +194,24 @@ function runSim(cfg) {
     tryLvs[w][u] = lv + 1;
     var newMRate = F.marblePerHr(saveData, tryLvs, simMLvs);
     var mGain = newMRate - rates.marbleRate;
-    var mPct = rates.marbleRate > 0 ? mGain / rates.marbleRate : 0;
+    var mPct = _relativeGain(rates.marbleRate, newMRate);
 
     var curOpt = F.measureGoal(saveData, 'optimal', simULvs, simMLvs, desired);
     var newOpt = F.measureGoal(saveData, 'optimal', tryLvs, simMLvs, desired);
-    var optGain = curOpt > 0 ? (newOpt - curOpt) / curOpt : 0;
+    var optGain = _relativeGain(curOpt, newOpt);
+    var targetTimeSaved = _marbleTargetTimeSaved(
+      marbleTarget, ttaSec, type, cost, tryLvs, simMLvs,
+      targetState.changesFocus && remaining > 0
+    );
 
     // Effective gain depends on whether this directly boosts marble/hr.
     // Direct marble booster: mPct weighted 3x (primary goal) + optGain (secondary).
-    // Currency-only (no mPct): value = how much it accelerates the next marble/hr
-    // milestone. If earn rate goes up by optGain%, the marble target's TTA shrinks,
-    // so we get marbleTarget.mPct sooner. Equivalent gain ≈ marbleTarget.mPct * optGain.
-    // This naturally penalizes detours that cost more time than they save.
+    // Currency-only: value the fraction of the selected marble target's earn time saved.
     var effectiveGain;
     if (mPct > 0) {
       effectiveGain = mPct * 3 + Math.max(0, optGain);
-    } else if (optGain > 0 && marbleTarget) {
-      effectiveGain = marbleTarget.mPct * 3 * optGain;
+    } else if (targetTimeSaved > 0 && marbleTarget) {
+      effectiveGain = marbleTarget.mPct * 3 * targetTimeSaved;
     } else if (optGain > 0) {
       effectiveGain = optGain; // no marble milestone — pure earn rate optimization
     } else {
@@ -182,11 +259,14 @@ function runSim(cfg) {
     tryMLvs[w][u] = mLv + 1;
     var newMRate = F.marblePerHr(saveData, simULvs, tryMLvs);
     var mGain = newMRate - rates.marbleRate;
-    var mPct = rates.marbleRate > 0 ? mGain / rates.marbleRate : 0;
+    var mPct = _relativeGain(rates.marbleRate, newMRate);
 
     var curOpt = F.measureGoal(saveData, 'optimal', simULvs, simMLvs, desired);
     var newOpt = F.measureGoal(saveData, 'optimal', simULvs, tryMLvs, desired);
-    var optGain = curOpt > 0 ? (newOpt - curOpt) / curOpt : 0;
+    var optGain = _relativeGain(curOpt, newOpt);
+    var targetTimeSaved = _marbleTargetTimeSaved(
+      marbleTarget, ttaSec, -1, cost, simULvs, tryMLvs, false
+    );
 
     // Effective gain: same marble-target discounting as regular upgrades.
     // Marble upgrades that only boost earn rate (optGain) are valued by how
@@ -195,8 +275,8 @@ function runSim(cfg) {
     var effectiveGain;
     if (mPct > 0) {
       effectiveGain = mPct * 3 + Math.max(0, optGain);
-    } else if (optGain > 0 && marbleTarget) {
-      effectiveGain = marbleTarget.mPct * 3 * optGain;
+    } else if (targetTimeSaved > 0 && marbleTarget) {
+      effectiveGain = marbleTarget.mPct * 3 * targetTimeSaved;
     } else if (optGain > 0) {
       effectiveGain = optGain;
     } else {
@@ -237,7 +317,7 @@ function runSim(cfg) {
       // Check regular upgrades
       for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
         for (var u = 0; u < 20; u++) {
-          if (!F.upgUnlocked(simULvs, w, u)) continue;
+          if (!F.upgradeAccessible(simULvs, w, u)) continue;
           var lv = simULvs[w][u] || 0;
           var cost = F.upgCost(w, u, lv);
           var type = F.UPG_DATA[w][u][3];
@@ -275,7 +355,7 @@ function runSim(cfg) {
             cost: bestC.cost, newLv: bestC.newMLv,
             marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
             baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-            currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
+            currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
           });
         } else {
           currencies[bestC.costType] -= bestC.cost;
@@ -286,7 +366,7 @@ function runSim(cfg) {
             cost: bestC.cost, costType: bestC.costType, newLv: bestC.newLv,
             marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
             baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-            currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
+            currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
           });
         }
         rates = _rates(); // recalculate rates after purchase
@@ -301,73 +381,88 @@ function runSim(cfg) {
   // ========== ADVANCE HELPER ==========
   // Advance time by dt seconds, processing marble fills incrementally.
   // After each fill, buy any affordable marble upgrades (they compound).
-  // Earns curDesired currency throughout.
-  // Returns { rates, earned } — updated rates and total currency earned.
+  // Earns every currency in the actual active pool throughout.
+  // Returns { rates, earned } — updated rates and currency earned by type.
   function _advanceTime(dt, rates) {
     var tRemaining = dt;
-    var totalEarned = 0;
-    while (tRemaining > 0) {
-      // Time until next marble fill
-      var timeToFill = rates.marbleFillSec - marbleBarSec;
-      if (timeToFill <= 0) timeToFill = rates.marbleFillSec;
+    var totalEarned = Array(9).fill(0);
 
-      if (timeToFill > tRemaining) {
-        // No fill in remaining time — just earn and advance
-        var seg = (rates.earnRates[curDesired] / 3600) * tRemaining;
-        currencies[curDesired] += seg;
-        totalEarned += seg;
-        marbleBarSec += tRemaining;
+    function earnFor(seconds) {
+      for (var t = 0; t < rates.earnRates.length; t++) {
+        var amount = (rates.earnRates[t] / 3600) * seconds;
+        currencies[t] += amount;
+        totalEarned[t] += amount;
+      }
+    }
+
+    while (tRemaining > 0) {
+      if (!(rates.marbleProgressPerSec > 0)) {
+        earnFor(tRemaining);
         clock += tRemaining;
         tRemaining = 0;
+        break;
+      }
+
+      var marbleReq = F.marbleBarFillTime();
+      if (marbleBarProgress >= marbleReq) {
+        marbleBarProgress -= marbleReq;
       } else {
-        // Advance to next fill
-        var seg = (rates.earnRates[curDesired] / 3600) * timeToFill;
-        currencies[curDesired] += seg;
-        totalEarned += seg;
+        var timeToFill = (marbleReq - marbleBarProgress) / rates.marbleProgressPerSec;
+
+        if (timeToFill > tRemaining) {
+          earnFor(tRemaining);
+          marbleBarProgress += rates.marbleProgressPerSec * tRemaining;
+          clock += tRemaining;
+          tRemaining = 0;
+          continue;
+        }
+
+        earnFor(timeToFill);
+        marbleBarProgress += rates.marbleProgressPerSec * timeToFill;
         clock += timeToFill;
         tRemaining -= timeToFill;
-        marbleBarSec = 0;
+        marbleBarProgress -= marbleReq;
+      }
 
-        var marblesGained = F.marblePerFill(saveData, simULvs, simMLvs);
-        marbles += marblesGained;
-        events.push({
-          time: clock, type: 'marble-fill',
-          marbles: marblesGained, totalMarbles: marbles,
-          marbleRate: rates.marbleRate,
-          baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-          currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
-        });
+      var marblesGained = F.marblePerFill(saveData, simULvs, simMLvs);
+      marbles += marblesGained;
+      events.push({
+        time: clock, type: 'marble-fill',
+        marbles: marblesGained, totalMarbles: marbles,
+        marbleRate: rates.marbleRate,
+        baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
+        currRates: rates.earnRates.slice(),
+      });
 
-        // Buy any affordable marble upgrades after this fill
-        var boughtMarble = true;
-        while (boughtMarble) {
-          boughtMarble = false;
-          var bestMS = 0, bestMC = null;
-          for (var mw = 0; mw < F.WATERS_IMPLEMENTED; mw++) {
-            for (var mu = 0; mu < 20; mu++) {
-              if ((simULvs[mw][mu] || 0) <= 0) continue;
-              if (!F.canMarble(mw, mu)) continue;
-              var mLv = simMLvs[mw][mu] || 0;
-              var mCost = F.marbleCost(mw, mu, mLv);
-              if (marbles < mCost) continue;
-              var mc = _scoreMarble(mw, mu, rates, null);
-              if (mc.score > bestMS) { bestMS = mc.score; bestMC = mc; }
-            }
+      // Buy any affordable marble upgrades after this fill
+      var boughtMarble = true;
+      while (boughtMarble) {
+        boughtMarble = false;
+        var bestMS = 0, bestMC = null;
+        for (var mw = 0; mw < F.WATERS_IMPLEMENTED; mw++) {
+          for (var mu = 0; mu < 20; mu++) {
+            if ((simULvs[mw][mu] || 0) <= 0) continue;
+            if (!F.canMarble(mw, mu)) continue;
+            var mLv = simMLvs[mw][mu] || 0;
+            var mCost = F.marbleCost(mw, mu, mLv);
+            if (marbles < mCost) continue;
+            var mc = _scoreMarble(mw, mu, rates, null);
+            if (mc.score > bestMS) { bestMS = mc.score; bestMC = mc; }
           }
-          if (bestMC) {
-            marbles -= bestMC.cost;
-            simMLvs[bestMC.w][bestMC.u] = bestMC.newMLv;
-            events.push({
-              time: clock, type: 'buy-marble',
-              name: bestMC.name, w: bestMC.w, u: bestMC.u,
-              cost: bestMC.cost, newLv: bestMC.newMLv,
-              marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
-              baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-              currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
-            });
-            rates = _rates();
-            boughtMarble = true;
-          }
+        }
+        if (bestMC) {
+          marbles -= bestMC.cost;
+          simMLvs[bestMC.w][bestMC.u] = bestMC.newMLv;
+          events.push({
+            time: clock, type: 'buy-marble',
+            name: bestMC.name, w: bestMC.w, u: bestMC.u,
+            cost: bestMC.cost, newLv: bestMC.newMLv,
+            marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
+            baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
+            currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
+          });
+          rates = _rates();
+          boughtMarble = true;
         }
       }
     }
@@ -390,7 +485,7 @@ function runSim(cfg) {
 
     for (var w = 0; w < F.WATERS_IMPLEMENTED; w++) {
       for (var u = 0; u < 20; u++) {
-        if (!F.upgUnlocked(simULvs, w, u)) continue;
+        if (!F.upgradeAccessible(simULvs, w, u)) continue;
         var c = _scoreUpgrade(w, u, rates, mt);
         if (c.score > 0 && (!best || c.score > best.score)) best = c;
       }
@@ -404,16 +499,7 @@ function runSim(cfg) {
         // Emit claim for currency earned during idle
         var adv = _advanceTime(remainingTime, rates);
         rates = adv.rates;
-        if (adv.earned > 0) {
-          events.push({
-            time: clock, type: 'claim',
-            currType: curDesired, amount: adv.earned,
-            total: currencies[curDesired], duration: remainingTime,
-            marbleRate: rates.marbleRate,
-            baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-            currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
-          });
-        }
+        _pushClaims(adv.earned, remainingTime, rates);
       }
       break;
     }
@@ -431,7 +517,7 @@ function runSim(cfg) {
         cost: best.cost, costType: best.costType, newLv: best.newLv,
         marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
         baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-        currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
+        currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
       });
       stepCount++;
       rates = _rates();
@@ -441,9 +527,8 @@ function runSim(cfg) {
 
     if (!isFinite(targetTtaSec)) break;
 
-    // If target requires currency switch, handle flush
-    var needSwitch = best.costType !== curDesired && best.remaining > 0;
-    if (needSwitch) {
+    var targetState = _targetState(best.costType);
+    if (targetState.changesFocus && best.remaining > 0) {
       var flushSec = F.flushTime(saveData, simULvs, simMLvs);
       if (clock + flushSec > timeLimitS) {
         clock = timeLimitS;
@@ -454,26 +539,19 @@ function runSim(cfg) {
       var flushAdv = _advanceTime(flushDt, rates);
       rates = flushAdv.rates;
 
-      // Claim event for currency collected during flush
-      if (flushAdv.earned > 0) {
-        events.push({
-          time: clock, type: 'claim',
-          currType: curDesired, amount: flushAdv.earned,
-          total: currencies[curDesired], duration: flushDt,
-          marbleRate: rates.marbleRate,
-          baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-          currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
-        });
-      }
+      _pushClaims(flushAdv.earned, flushDt, rates);
+    }
 
-      // Switch desired
-      curDesired = best.costType;
+    if ((targetState.changesDesired || targetState.changesFocus) && best.remaining > 0) {
+      curDesired = targetState.desired;
+      focusType = targetState.focus;
       events.push({
         time: clock, type: 'switch',
         newDesired: curDesired,
+        newFocus: focusType,
         marbleRate: rates.marbleRate,
         baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-        currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
+        currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
       });
 
       rates = _rates();
@@ -495,17 +573,7 @@ function runSim(cfg) {
       var earnAdv = _advanceTime(advanceSec, rates);
       rates = earnAdv.rates;
 
-      // Claim event: currency collected during earning
-      if (earnAdv.earned > 0) {
-        events.push({
-          time: clock, type: 'claim',
-          currType: curDesired, amount: earnAdv.earned,
-          total: currencies[curDesired], duration: advanceSec,
-          marbleRate: rates.marbleRate,
-          baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-          currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
-        });
-      }
+      _pushClaims(earnAdv.earned, advanceSec, rates);
     }
 
     // Check if we hit time limit
@@ -520,7 +588,7 @@ function runSim(cfg) {
       cost: best.cost, costType: best.costType, newLv: best.newLv,
       marbleRate: F.marblePerHr(saveData, simULvs, simMLvs),
       baseCurrRate: F.baseCurrencyPerHr(saveData, simULvs, simMLvs),
-      currRates: F.earnRatesPerHr(saveData, simULvs, simMLvs),
+      currRates: F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType),
     });
 
     stepCount++;
@@ -533,14 +601,14 @@ function runSim(cfg) {
     var pct = Math.floor(clock / timeLimitS * 100);
     if (pct > lastProgressPct) {
       lastProgressPct = pct;
-      self.postMessage({ type: 'progress', pct: pct });
+      if (typeof self !== 'undefined') self.postMessage({ type: 'progress', pct: pct });
     }
   }
 
   // Final snapshot
   var endMarbleRate  = F.marblePerHr(saveData, simULvs, simMLvs);
   var endBaseCurr    = F.baseCurrencyPerHr(saveData, simULvs, simMLvs);
-  var endCurrRates   = F.earnRatesPerHr(saveData, simULvs, simMLvs);
+  var endCurrRates   = F.activeEarnRatesPerHr(saveData, simULvs, simMLvs, curDesired, focusType);
 
   return {
     events: events,
@@ -554,7 +622,7 @@ function runSim(cfg) {
     stepCount: stepCount,
     currencies: currencies,
     marbles: marbles,
-    marbleBarSec: marbleBarSec,
+    marbleBarProgress: marbleBarProgress,
     uLvs: simULvs,
     mLvs: simMLvs,
   };

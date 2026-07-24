@@ -13,6 +13,7 @@ import { bubbleValByKey } from '../systems/w2/alchemy.js';
 import { shrine } from '../systems/w3/construction.js';
 import { ITEMS } from '../data/game/items.js';
 import { equipOrderData, equipQtyData, currentMapData } from '../../save/data.js';
+import { entityName, label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
@@ -63,14 +64,14 @@ export default createDescriptor({
     var _bCardSet01 = _bCardSet01T.val || 0;
     var boostEff = 1 + (_bBoxVal + _bStatue3 + _bEtc9 + _bStampVal + _bStar + _bCard48 + _bCardSet01 + _bT631) / 100;
     var boostEffChildren = [
-      { name: 'Box PowerFoodEffect', val: _bBoxVal, fmt: 'raw' },
-      { name: 'Statue 3', val: _bStatue3, fmt: 'raw', children: _bStatue3T.children },
-      { name: 'Stamp BFood', val: _bStampVal, fmt: 'raw', children: _bStampT.children },
-      { name: 'Star Sign FoodEffect', val: _bStar, fmt: 'raw', children: _bStarT.children },
-      { name: 'Cards (type 48)', val: _bCard48, fmt: 'raw', children: _bCard48T.children },
-      { name: 'Talent 631', val: _bT631, fmt: 'raw' },
-      { name: 'EtcBonus 9', val: _bEtc9, fmt: 'raw' },
-      { name: 'CardSet 1', val: _bCardSet01, fmt: 'raw', children: _bCardSet01T.children },
+      { name: 'Box Rewards: Food Effect', val: _bBoxVal, fmt: 'raw' },
+      { name: label('Statue', 3), val: _bStatue3, fmt: 'raw', children: _bStatue3T.children },
+      { name: 'Stamps: Food Effect', val: _bStampVal, fmt: 'raw', children: _bStampT.children },
+      { name: 'Star Signs: Food Effect', val: _bStar, fmt: 'raw', children: _bStarT.children },
+      { name: 'Cards: Food Effect', val: _bCard48, fmt: 'raw', children: _bCard48T.children },
+      { name: label('Talent', 631), val: _bT631, fmt: 'raw' },
+      { name: label('EtcBonus', 9), val: _bEtc9, fmt: 'raw' },
+      { name: 'Food Effect Card Set', val: _bCardSet01, fmt: 'raw', children: _bCardSet01T.children },
     ];
 
     var foodHPdn = 0;
@@ -86,7 +87,7 @@ export default createDescriptor({
             var amt = Number(ITEMS[fn2].Amount) || 0;
             var contrib = amt * boostEff;
             foodHPdn += contrib;
-            foodHPchildren.push({ name: fn2, val: contrib, fmt: 'raw', note: 'base ' + amt + ' × ' + boostEff.toFixed(3) });
+            foodHPchildren.push({ name: entityName('Item', fn2) || fn2, val: contrib, fmt: 'raw', note: 'base ' + amt + ' × ' + boostEff.toFixed(3) });
           }
         }
       }
@@ -134,32 +135,32 @@ export default createDescriptor({
     var val = list0 * list1 * list2;
 
     var children = [
-      { name: 'Base HP (LIST[0])', val: list0, fmt: 'raw', children: [
+      { name: 'Base HP Sources', val: list0, fmt: 'raw', children: [
         { name: 'Constant', val: 15, fmt: 'raw' },
         { name: 'STR Portion', val: strPortion, fmt: 'raw', note: 'pow(STR×(1+t95/100), 1.05)' },
-        { name: 'Card Bonus 1', val: cardBonus1, fmt: 'raw', children: _cardBonus1T.children },
-        { name: 'Bubble BaseHP', val: bubbleBaseHP, fmt: 'raw', children: _bubbleBaseHPT.children },
-        { name: 'Stamp BaseHP', val: stampBaseHP, fmt: 'raw', children: _stampBaseHPT.children },
-        { name: 'Food HP + Statue 4', val: foodHPdn, fmt: 'raw', children: [
+        { name: 'Cards: Base HP', val: cardBonus1, fmt: 'raw', children: _cardBonus1T.children },
+        { name: 'Alchemy Bubble: Base HP', val: bubbleBaseHP, fmt: 'raw', children: _bubbleBaseHPT.children },
+        { name: 'Stamps: Base HP', val: stampBaseHP, fmt: 'raw', children: _stampBaseHPT.children },
+        { name: 'Food HP and Health Statue', val: foodHPdn, fmt: 'raw', children: [
           { name: 'Boost Effect Multi', val: boostEff, fmt: 'x', children: boostEffChildren },
         ].concat(foodHPchildren).concat([
-          { name: 'Statue 4 (flat add)', val: statue4, fmt: 'raw', children: _statue4T.children },
+          { name: label('Statue', 4), val: statue4, fmt: 'raw', children: _statue4T.children },
         ]) },
-        { name: 'Talents 0+642', val: talent0 + talent642, fmt: 'raw' },
+        { name: label('Talent', 0) + ' + ' + entityName('Talent', 642), val: talent0 + talent642, fmt: 'raw' },
         { name: 'Box Rewards', val: boxBaseHP, fmt: 'raw' },
       ]},
-      { name: 'Pct Multiplier (LIST[1])', val: list1, fmt: 'x', children: [
-        { name: 'Talents 92+272', val: talent92 + talent272, fmt: 'raw' },
-        { name: 'EtcBonus 15', val: etc15, fmt: 'raw' },
-        { name: 'Shrine 1', val: shrine1, fmt: 'raw' },
-        { name: 'Golden Food MaxHPpct', val: gfHPpct, fmt: 'x', children: _gfHPT.children },
-        { name: 'Box pctHP', val: boxPctHP, fmt: 'raw' },
+      { name: 'HP Multipliers', val: list1, fmt: 'x', children: [
+        { name: label('Talent', 92) + ' + ' + entityName('Talent', 272), val: talent92 + talent272, fmt: 'raw' },
+        { name: label('EtcBonus', 15), val: etc15, fmt: 'raw' },
+        { name: label('Shrine', 1), val: shrine1, fmt: 'raw' },
+        { name: 'Golden Food: Max HP', val: gfHPpct, fmt: 'x', children: _gfHPT.children },
+        { name: 'Box Rewards: Total HP', val: boxPctHP, fmt: 'raw' },
         { name: 'Family Bonus 18', val: famBonus18, fmt: 'raw' },
-        { name: 'Card Bonus 8', val: cardBonus8, fmt: 'raw', children: _cardBonus8T.children },
-        { name: 'Star Signs HP', val: starSignHP, fmt: 'raw', children: _starSignHPT.children },
-        { name: 'Buff 108 (HP debuff)', val: buff108 ? -(buff108) : 0, fmt: 'raw', note: '×(1-buff/100)' },
+        { name: 'Cards: Total HP', val: cardBonus8, fmt: 'raw', children: _cardBonus8T.children },
+        { name: 'Star Signs: Total HP', val: starSignHP, fmt: 'raw', children: _starSignHPT.children },
+        { name: 'Active HP Penalty', val: buff108 ? -(buff108) : 0, fmt: 'raw' },
       ]},
-      { name: 'LIST[2]', val: list2, fmt: 'x', note: mapIdx > 19 && mapIdx < 24 ? 'Maps 20-23 override' : 'normal' },
+      { name: 'Map HP Override', val: list2, fmt: 'x', note: mapIdx > 19 && mapIdx < 24 ? 'Active on maps 20-23' : 'Not active' },
     ];
 
     return { val: val, children: children };

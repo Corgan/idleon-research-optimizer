@@ -25,6 +25,7 @@ import { talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { arcade } from '../systems/w2/arcade.js';
 import { charClassData } from '../../save/data.js';
+import { label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
@@ -130,48 +131,48 @@ export default createDescriptor({
       + rooBonus1 + summVault5);
 
     var children = [
-      { name: 'Equipment DN', val: totalStatsDN, fmt: 'raw', children: [
-        { name: 'Equip Base', val: equipDef, fmt: 'raw', children: _equipDefT.children },
-        { name: 'Gallery', val: galleryDef, fmt: 'raw', children: _galleryDefT.children },
-        { name: 'Obols', val: obolDef, fmt: 'raw', children: _obolDefT.children },
+      { name: 'Equipment Defence', val: totalStatsDN, fmt: 'raw', children: [
+        { name: 'Equipment Base Defence', val: equipDef, fmt: 'raw', children: _equipDefT.children },
+        { name: 'Gallery Defence', val: galleryDef, fmt: 'raw', children: _galleryDefT.children },
+        { name: 'Obol Defence', val: obolDef, fmt: 'raw', children: _obolDefT.children },
       ]},
-      { name: 'Equip % Multi', val: equipPctMult, fmt: 'x', children: [
+      { name: 'Equipment Defence Multiplier', val: equipPctMult, fmt: 'x', children: [
         { name: 'FMJ Bubble', val: fmjBubble, fmt: 'raw', children: _fmjBubbleT.children },
-        { name: 'Summon Vault 46', val: summVault46, fmt: 'raw', children: _summVault46T.children },
-        { name: 'Cards (type 15)', val: cardBonus15, fmt: 'raw', children: _cardBonus15T.children },
-        { name: 'Companion 21', val: comp21, fmt: 'raw' },
-        { name: 'Card w6a2 (×3)', val: w6a2bonus, fmt: 'raw' },
+        { name: 'Summoning Upgrade: Equipment Defence', val: summVault46, fmt: 'raw', children: _summVault46T.children },
+        { name: 'Cards: Defence from Equipment', val: cardBonus15, fmt: 'raw', children: _cardBonus15T.children },
+        { name: label('Companion', 21), val: comp21, fmt: 'raw' },
+        { name: 'Card: Ricecake', val: w6a2bonus, fmt: 'raw', note: '3 per card level' },
       ]},
       { name: 'Flat Adds', val: flatSum, fmt: 'raw', children: [
         { name: 'Box Rewards', val: boxDef, fmt: 'raw' },
-        { name: 'Cards (type 26)', val: cardBonus26, fmt: 'raw', children: _cardBonus26T.children },
-        { name: 'FMJ base (min LV, bubble)', val: defPctBase, fmt: 'raw' },
-        { name: 'Stamp BaseDef', val: stampBaseDef, fmt: 'raw', children: _stampBaseDefT.children },
-        { name: 'EtcBonus 50', val: etc50, fmt: 'raw' },
-        { name: 'Arcade 1', val: arcade1, fmt: 'raw' },
-        { name: 'Statue 7', val: statue7, fmt: 'raw', children: _statue7T.children },
-        { name: 'Meal Def', val: mealDef, fmt: 'raw', children: _mealDefT.children },
-        { name: 'Talent 122', val: talent122, fmt: 'raw' },
+        { name: 'Cards: Base Defence', val: cardBonus26, fmt: 'raw', children: _cardBonus26T.children },
+        { name: 'FMJ Base Defence', val: defPctBase, fmt: 'raw', note: 'minimum of class level and bubble value' },
+        { name: 'Stamps: Base Defence', val: stampBaseDef, fmt: 'raw', children: _stampBaseDefT.children },
+        { name: label('EtcBonus', 50), val: etc50, fmt: 'raw' },
+        { name: label('Arcade', 1), val: arcade1, fmt: 'raw' },
+        { name: label('Statue', 7), val: statue7, fmt: 'raw', children: _statue7T.children },
+        { name: 'Meals: Defence', val: mealDef, fmt: 'raw', children: _mealDefT.children },
+        { name: label('Talent', 122), val: talent122, fmt: 'raw' },
       ]},
-      { name: 'Base Value', val: baseVal, fmt: 'raw', note: 'DN×equip% + flat' },
+      { name: 'Base Value', val: baseVal, fmt: 'raw', note: 'equipment defence × equipment multiplier + flat sources' },
       { name: 'Shrine Multi', val: shrineMult, fmt: 'x', children: [
-        { name: 'Shrine 1', val: shrine1, fmt: 'raw' },
-        { name: 'Bribe 22', val: bribe22, fmt: 'raw', children: _bribe22T.children },
+        { name: label('Shrine', 1), val: shrine1, fmt: 'raw' },
+        { name: label('Bribe', 22), val: bribe22, fmt: 'raw', children: _bribe22T.children },
       ] },
       { name: 'Prayer Multi', val: prayerMult, fmt: 'x', children: [
-        { name: 'Prayer 15 (penalty)', val: -prayer15pen, fmt: 'raw', children: _prayer15penT.children },
-        { name: 'Prayer 16 (penalty)', val: -prayer16pen, fmt: 'raw', children: _prayer16penT.children },
+        { name: label('Prayer', 15) + ' Penalty', val: -prayer15pen, fmt: 'raw', children: _prayer15penT.children },
+        { name: label('Prayer', 16) + ' Penalty', val: -prayer16pen, fmt: 'raw', children: _prayer16penT.children },
       ]},
       { name: 'Pct Multi', val: pctMult, fmt: 'x', children: [
-        { name: 'Golden Food Def', val: gfDef, fmt: 'raw', children: _gfDefT.children },
-        { name: 'Talent 9', val: talent9, fmt: 'raw' },
-        { name: 'EtcBonus 7', val: etc7, fmt: 'raw' },
-        { name: 'Star Sign DefPct', val: starDefPct, fmt: 'raw', children: _starDefPctT.children },
-        { name: 'CardSet 4', val: cardSet4, fmt: 'raw', children: _cardSet4T.children },
-        { name: 'Flurbo Shop 6', val: flurbo6, fmt: 'raw', children: _flurbo6T.children },
-        { name: 'Chip def', val: chipDef, fmt: 'raw', children: _chipDefT.children },
+        { name: 'Golden Food: Defence', val: gfDef, fmt: 'raw', children: _gfDefT.children },
+        { name: label('Talent', 9), val: talent9, fmt: 'raw' },
+        { name: label('EtcBonus', 7), val: etc7, fmt: 'raw' },
+        { name: 'Star Signs: Defence', val: starDefPct, fmt: 'raw', children: _starDefPctT.children },
+        { name: 'Defence Card Set', val: cardSet4, fmt: 'raw', children: _cardSet4T.children },
+        { name: label('Flurbo Shop', 6), val: flurbo6, fmt: 'raw', children: _flurbo6T.children },
+        { name: 'Lab Chip: Defence', val: chipDef, fmt: 'raw', children: _chipDefT.children },
         { name: 'Amarok Set', val: amarokSet, fmt: 'raw', children: _amarokSetT.children },
-        { name: 'Buff 124 (DefPct)', val: buff124, fmt: 'raw' },
+        { name: 'Active Buff: Defence', val: buff124, fmt: 'raw' },
       ]},
       { name: 'Divinity Multi', val: divMult, fmt: 'x', children: _divinityMinorT.children },
     ];

@@ -51,7 +51,7 @@ export function galleryBonusMulti(saveData) {
   if (killroy3 > 0) ch.push(node(label('Killroy', 3), killroy3, null, { fmt: 'raw' }));
   if (y13capped > 0) ch.push(node('Bubble Y13 (capped 20)', y13capped, null, { fmt: 'raw', note: 'kazam bubble 13' }));
   if (cardLv > 0) ch.push(node('Card w7a11 (capped 10)', cardLv, null, { fmt: 'raw' }));
-  if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw', note: 'companion 49' }));
+  if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw' }));
   return { val: val, children: ch };
 }
 

@@ -5,6 +5,7 @@ import { computePrayerReal } from '../systems/w3/prayer.js';
 import { shrine } from '../systems/w3/construction.js';
 import { computeVialByKey } from '../systems/w2/alchemy.js';
 import { optionsListData } from '../../save/data.js';
+import { label } from '../entity-names.js';
 import { safe, safeTree, rval, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
@@ -22,7 +23,7 @@ export default createDescriptor({
     var prayer5 = _prayer5T.val;
     if (prayer5 <= 5) {
       return { val: 0, children: [
-        { name: 'Prayer 5 (Big Ol\' Giant)', val: prayer5, fmt: 'raw', note: 'Need >5 to enable', children: _prayer5T.children },
+        { name: label('Prayer', 5), val: prayer5, fmt: 'raw', note: 'Needs a bonus above 5 to enable giant mobs', children: _prayer5T.children },
       ]};
     }
 
@@ -47,11 +48,11 @@ export default createDescriptor({
     var oneIn = odds > 0 ? Math.round(1 / odds) : Infinity;
 
     var children = [
-      { name: 'Prayer 5 (gate)', val: prayer5, fmt: 'raw', children: _prayer5T.children },
-      { name: 'Giant Kill Count', val: killCount, fmt: 'raw', note: 'OLA[57]' },
-      { name: 'Prayer 18 (penalty)', val: prayer18pen, fmt: 'raw', children: _prayer18penT.children },
-      { name: 'Shrine 6', val: shrine6, fmt: 'raw' },
-      { name: 'Vial GiantMob', val: vialGiant, fmt: 'raw', children: _vialGiantT.children },
+      { name: label('Prayer', 5), val: prayer5, fmt: 'raw', children: _prayer5T.children },
+      { name: 'Giant Kill Count', val: killCount, fmt: 'raw' },
+      { name: label('Prayer', 18) + ' Penalty', val: prayer18pen, fmt: 'raw', children: _prayer18penT.children },
+      { name: label('Shrine', 6), val: shrine6, fmt: 'raw' },
+      { name: 'Vial: Giant Mob Chance', val: vialGiant, fmt: 'raw', children: _vialGiantT.children },
       { name: 'Boost Multi', val: boostMult, fmt: 'x' },
       { name: 'Penalty Multi', val: penaltyMult, fmt: 'x' },
       { name: 'Odds', val: odds, fmt: 'raw', note: '1 in ' + oneIn },

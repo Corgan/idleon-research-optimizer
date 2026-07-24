@@ -8,6 +8,7 @@ import { talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { bubbleValByKey } from '../systems/w2/alchemy.js';
+import { label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 function lukCurve(v) {
@@ -56,16 +57,16 @@ export default createDescriptor({
       { name: 'Base', val: base, fmt: 'raw' },
       { name: 'STR Scaling', val: strScaling, fmt: 'raw', note: 'STR=' + Math.round(totalSTR) + ' curve/1.8×100' },
     ];
-    if (talent87) children.push({ name: 'Talent 87', val: talent87, fmt: 'raw' });
-    if (talent76) children.push({ name: 'Talent 76', val: talent76, fmt: 'raw' });
-    if (talent447t2) children.push({ name: 'Talent 447 (tab2)', val: talent447t2, fmt: 'raw' });
-    if (statue5) children.push({ name: 'Statue 5', val: statue5, fmt: 'raw', children: _statue5T.children });
-    if (bubbleCritDMG) children.push({ name: 'Bubble critDMG', val: bubbleCritDMG, fmt: 'raw', children: _bubbleCritDMGT.children });
-    if (cardBonus19) children.push({ name: 'Card Bonus 19', val: cardBonus19, fmt: 'raw', children: _cardBonus19T.children });
-    if (stampCritDmg) children.push({ name: 'Stamp CritDmg', val: stampCritDmg, fmt: 'raw', children: _stampCritDmgT.children });
-    if (prayer11pen) children.push({ name: 'Prayer 11 (penalty)', val: -prayer11pen, fmt: 'raw' });
-    if (etc22) children.push({ name: 'EtcBonus 22', val: etc22, fmt: 'raw' });
-    if (buff167) children.push({ name: 'Buff 167 (CritDmg)', val: buff167, fmt: 'raw' });
+    if (talent87) children.push({ name: label('Talent', 87), val: talent87, fmt: 'raw' });
+    if (talent76) children.push({ name: label('Talent', 76), val: talent76, fmt: 'raw' });
+    if (talent447t2) children.push({ name: label('Talent', 447), val: talent447t2, fmt: 'raw' });
+    if (statue5) children.push({ name: label('Statue', 5), val: statue5, fmt: 'raw', children: _statue5T.children });
+    if (bubbleCritDMG) children.push({ name: 'Alchemy Bubble: Critical Damage', val: bubbleCritDMG, fmt: 'raw', children: _bubbleCritDMGT.children });
+    if (cardBonus19) children.push({ name: 'Cards: Critical Damage', val: cardBonus19, fmt: 'raw', children: _cardBonus19T.children });
+    if (stampCritDmg) children.push({ name: 'Stamps: Critical Damage', val: stampCritDmg, fmt: 'raw', children: _stampCritDmgT.children });
+    if (prayer11pen) children.push({ name: label('Prayer', 11) + ' Penalty', val: -prayer11pen, fmt: 'raw' });
+    if (etc22) children.push({ name: label('EtcBonus', 22), val: etc22, fmt: 'raw' });
+    if (buff167) children.push({ name: 'Active Buff: Critical Damage', val: buff167, fmt: 'raw' });
     children.push({ name: 'Pct Sum / 100', val: pctSum / 100, fmt: 'raw' });
 
     return { val: val, children: children };

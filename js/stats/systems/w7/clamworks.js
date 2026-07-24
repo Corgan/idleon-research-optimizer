@@ -10,6 +10,8 @@ import { optionsListData } from '../../../save/data.js';
 var _descs = Spelunky[27];   // 9 description strings
 var _perLv = Spelunky[28];   // 9 per-level bonus values
 var _costB = Spelunky[29];   // 9 cost bases
+var _names = ['PEARL VALUE', 'CLAM COMRADES', 'LUCKY DAY', 'MULTI-SCALPING',
+  'FRUGALITY', 'PURE PEARLS', 'ENCYSTATION UP', 'SHINIER PEARLS', 'ANTI INFLATION'];
 
 export var UPGRADE_COUNT = 9;
 
@@ -21,6 +23,10 @@ function _ola(idx) {
 // ========== UPGRADE DATA ==========
 export function upgLevel(idx) {
   return _ola(455 + idx);
+}
+
+export function upgName(idx) {
+  return _names[idx] || ('Upgrade ' + (idx + 1));
 }
 
 export function upgPerLvVal(idx) {

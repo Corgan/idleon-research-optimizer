@@ -42,9 +42,9 @@ export default createDescriptor({
 
     // Grid bonuses
     var gb71 = gridBonusFinal(saveData, 71);
-    items.push({ name: 'Grid: Powered Down Research', val: gb71 });
+    items.push({ name: label('Grid', 71), val: gb71 });
     var gb111 = gridBonusFinal(saveData, 111);
-    items.push({ name: 'Grid: Research AFK Gains', val: gb111 });
+    items.push({ name: label('Grid', 111), val: gb111 });
 
     // Sailing artifact 36 (Ender Pearl)
     var sail36 = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][36]) || 0;
@@ -58,12 +58,11 @@ export default createDescriptor({
     var gemShop45 = Number(saveData.gemItemsData && saveData.gemItemsData[45]) || 0;
     items.push({ name: 'Gem Shop (Research AFK)', val: 2 * gemShop45 });
 
-    // Sushi RoG
+    // Ring of Glory
     var rog4 = rogBonusQTY(4, saveData.cachedUniqueSushi);
     var rog24 = rogBonusQTY(24, saveData.cachedUniqueSushi);
-    if (rog4 + rog24 > 0) {
-      items.push({ name: 'Sushi RoG AFK', val: rog4 + rog24 });
-    }
+    items.push({ name: label('RoG', 4), val: rog4 });
+    items.push({ name: label('RoG', 24), val: rog24 });
 
     // Sum and compute rate
     var sum = 0;

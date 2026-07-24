@@ -16,11 +16,11 @@ export var companion = {
     var owned = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(id) : false;
     var bonusVal = companionBonus(id);
     var val = owned ? bonusVal : 0;
-    if (!owned) return node(name, 0, [node('Not owned', 0, null, { fmt: 'raw' })], { note: 'companion ' + id });
+    if (!owned) return node(name, 0, [node('Not owned', 0, null, { fmt: 'raw' })]);
     return node(name, val, [
       node('Owned', 1, null, { fmt: 'raw' }),
       node('Bonus', bonusVal, null, { fmt: '+' }),
-    ], { fmt: '+', note: 'companion ' + id });
+    ], { fmt: '+' });
   },
 };
 

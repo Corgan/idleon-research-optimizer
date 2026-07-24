@@ -36,7 +36,7 @@ export default createDescriptor({
 
     // 3. × (1+RoG(12)/100)
     var rog12 = rogBonusQTY(12, saveData.cachedUniqueSushi);
-    children.push({ name: label('Sushi', 12), val: 1 + rog12 / 100, fmt: 'x' });
+    children.push({ name: label('RoG', 12), val: 1 + rog12 / 100, fmt: 'x' });
 
     // 4. × max(1, min(2, Comp143))
     var comp143raw = saveData.companionIds && saveData.companionIds.has(143) ? companionBonus(143) : 0;
@@ -55,17 +55,17 @@ export default createDescriptor({
     var upg28 = mhUpgradeQTY(28, saveData) * getLOG(research76);
     var arcade62 = arcadeBonus(62, ctx.saveData);
     var additive6 = upg5 + upg22 + upg28 + arcade62;
-    children.push({ name: 'Upgrades+Arcade', val: 1 + additive6 / 100, fmt: 'x',
+    children.push({ name: 'Minehead Upgrades and Arcade', val: 1 + additive6 / 100, fmt: 'x',
       children: [
-        { name: 'Upg 5', val: upg5, fmt: 'raw' },
-        { name: 'Upg 22', val: upg22, fmt: 'raw' },
-        { name: 'Upg 28×LOG', val: upg28, fmt: 'raw' },
+        { name: label('Minehead', 5), val: upg5, fmt: 'raw' },
+        { name: label('Minehead', 22), val: upg22, fmt: 'raw' },
+        { name: label('Minehead', 28), val: upg28, fmt: 'raw', note: 'scaled by Research progress' },
         { name: label('Arcade', 62), val: arcade62, fmt: 'raw', children: arcade62.children },
       ] });
 
     // 7. × (1+Button_Bonuses(1)/100)
     var bb1 = computeButtonBonus(1, saveData);
-    children.push({ name: 'Button Bonus', val: 1 + bb1 / 100, fmt: 'x' });
+    children.push({ name: label('Button', 1), val: 1 + bb1 / 100, fmt: 'x' });
 
     // 8. × (1+Atom(13)/100)
     var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
@@ -76,11 +76,11 @@ export default createDescriptor({
     var grid166 = gridBonusFinal(saveData, 166);
     var mealMineCurr = 0;
     try { mealMineCurr = computeMealBonus('MineCurr', ctx.saveData) || 0; } catch(e) {}
-    children.push({ name: 'Grid+Meal', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
+    children.push({ name: 'Research Grid and Meals', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
       children: [
         { name: label('Grid', 147), val: grid147, fmt: 'raw' },
         { name: label('Grid', 166), val: grid166, fmt: 'raw' },
-        { name: 'Meal MineCurr', val: mealMineCurr, fmt: 'raw' },
+        { name: 'Meals: Minehead Currency', val: mealMineCurr, fmt: 'raw' },
       ] });
 
     // Multiply all

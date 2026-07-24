@@ -177,6 +177,9 @@ export function entityName(system, id) {
 
 export function label(system, id, suffix) {
   var name = entityName(system, id);
-  if (!name) return system + ' ' + (Array.isArray(id) ? id.join(',') : id) + (suffix || '');
-  return system + ': ' + name + (suffix || '');
+  var systemName = system === 'RoG' ? 'Ring of Glory'
+    : system === 'EtcBonus' ? 'Combined Item Sources'
+    : system;
+  if (!name) return systemName + ' ' + (Array.isArray(id) ? id.join(',') : id) + (suffix || '');
+  return systemName + ': ' + name + (suffix || '');
 }

@@ -31,7 +31,7 @@ import { safe, rval, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
   id: 'build-rate',
-  name: 'Player Build Speed',
+  name: 'Player Build Speed/hr',
   scope: 'character',
   category: 'construction',
 
@@ -114,7 +114,7 @@ export default createDescriptor({
       { name: 'Vial: Build Speed', val: vialContspd },
       { name: label('Arcade', 44), val: arcade44 },
       { name: label('Voting', 18), val: voting18 },
-      { name: 'Vault Summ 48×11', val: summUpg48 * vaultKills11, note: summUpg48.toFixed(1) + ' × ' + vaultKills11 },
+      { name: label('Vault', 48), val: summUpg48 * vaultKills11, note: 'Summoning upgrade value × eligible Vault kills' },
       { name: 'Bubba RoG: Build Speed', val: bubbaRoG1 },
     ];
 
@@ -127,12 +127,15 @@ export default createDescriptor({
     return {
       val: total,
       children: [
-        { name: 'Base (constLv ' + constLv + ')', val: base },
-        { name: 'Bubble Multi', val: bubbleMult, fmt: 'x', note: 'Bubble=' + constBubble.toFixed(2) },
+        { name: 'Base from Construction Level', val: base, note: 'Construction level ' + constLv },
+        { name: 'Construction Bubble Multiplier', val: bubbleMult, fmt: 'x', note: 'Bubble value ' + Number(constBubble).toFixed(2) },
         { name: 'Additive Pool', val: additiveMulti, fmt: 'x', children: addChildren, note: 'sum=' + addPool.toFixed(1) },
         { name: 'True Multipliers', val: trueMulti, fmt: 'x', children: trueChildren },
-        { name: label('Talent', 131), val: talentPart, fmt: 'x', note: rawLv131 > 0 ? 'val=' + talent131Val.toFixed(1) + ' atom=' + atomBonus1 + ' logRef=' + logRef1.toFixed(2) : 'no talent' },
-        { name: 'Extra Build Multi', val: extraBuildMulti, fmt: 'x', note: 'SmallCog(1)=' + computeSmallCogBonusTOTAL(1, ctx.saveData) + ' comp157=' + rval(companion, 157, ctx) },
+        { name: label('Talent', 131), val: talentPart, fmt: 'x', note: rawLv131 > 0 ? 'Talent ' + talent131Val.toFixed(1) + ', atom ' + atomBonus1 + ', refinery scaling ' + logRef1.toFixed(2) : 'Talent not learned' },
+        { name: 'Extra Build Speed Multiplier', val: extraBuildMulti, fmt: 'x', children: [
+          { name: 'Small Cog Build Speed', val: 1 + computeSmallCogBonusTOTAL(1, ctx.saveData) / 100, fmt: 'x' },
+          { name: label('Companion', 157), val: 1 + rval(companion, 157, ctx) / 100, fmt: 'x' },
+        ] },
       ],
       _debug: {
         constLv: constLv,

@@ -23,6 +23,7 @@ import { getBribeBonus } from '../systems/w3/bribe.js';
 import { talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { arcade } from '../systems/w2/arcade.js';
+import { label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 function secondaryStatForClass(ci) {
@@ -139,47 +140,46 @@ export default createDescriptor({
     var val = base * postMult1 * prayerMult * postMult2 * postMult3;
 
     var children = [
-      { name: 'TotalStats("Accuracy")', val: totalStatsAcc, fmt: 'raw', children: [
-        { name: 'Constant', val: 2, fmt: 'raw' },
+      { name: 'Base Accuracy Sources', val: totalStatsAcc, fmt: 'raw', children: [
+        { name: 'Base Accuracy', val: 2, fmt: 'raw' },
         { name: 'Equipment Accuracy', val: equipAcc, fmt: 'raw', children: _equipAccT.children },
         { name: 'Gallery Accuracy', val: galleryAcc, fmt: 'raw', children: _galleryAccT.children },
         { name: 'Obol Accuracy', val: obolAcc, fmt: 'raw', children: _obolAccT.children },
-        { name: 'Vial baseACC', val: vialBaseACC, fmt: 'raw', children: _vialBaseACCT.children },
-        { name: 'Box Rewards acc', val: boxAcc, fmt: 'raw' },
-        { name: 'Cards (type 23)', val: cardBonus23, fmt: 'raw', children: _cardBonus23T.children },
-        { name: 'EtcBonus 28', val: etc28, fmt: 'raw' },
-        { name: 'Golden Food BaseAcc', val: gfBaseAcc, fmt: 'raw', children: _gfBaseAccT.children },
-        { name: 'Stamp BaseAcc', val: stampBaseAcc, fmt: 'raw', children: _stampBaseAccT.children },
-        { name: 'Summoning Vault 4', val: summVault4, fmt: 'raw', children: _summVault4T.children },
+        { name: 'Vial: Base Accuracy', val: vialBaseACC, fmt: 'raw', children: _vialBaseACCT.children },
+        { name: 'Box Rewards: Base Accuracy', val: boxAcc, fmt: 'raw' },
+        { name: 'Cards: Base Accuracy', val: cardBonus23, fmt: 'raw', children: _cardBonus23T.children },
+        { name: label('EtcBonus', 28), val: etc28, fmt: 'raw' },
+        { name: 'Golden Food: Base Accuracy', val: gfBaseAcc, fmt: 'raw', children: _gfBaseAccT.children },
+        { name: 'Stamps: Base Accuracy', val: stampBaseAcc, fmt: 'raw', children: _stampBaseAccT.children },
+        { name: 'Summoning Upgrade: Base Accuracy', val: summVault4, fmt: 'raw', children: _summVault4T.children },
       ]},
       { name: 'Secondary Stat (' + secName + ')', val: secondaryStat, fmt: 'raw', children: secResult.tree && secResult.tree.children },
-      { name: 'Bubble AccPct', val: accPct, fmt: 'raw', children: _accPctT.children },
-      { name: 'Pct Sum (×1+X/100)', val: pctSum, fmt: 'raw', children: [
-        { name: 'Cards (type 17)', val: cardBonus17, fmt: 'raw', children: _cardBonus17T.children },
-        { name: 'Star Sign AccPct', val: starAccPct, fmt: 'raw', children: _starAccPctT.children },
-        { name: 'Statue 14', val: statue14, fmt: 'raw', children: _statue14T.children },
-        { name: 'Arcade 2', val: arcade2, fmt: 'raw' },
-        { name: 'Flurbo Shop 5', val: flurbo5, fmt: 'raw', children: _flurbo5T.children },
-        { name: 'Bribe 21', val: bribe21, fmt: 'raw', children: _bribe21T.children },
-        { name: 'Companion 23', val: comp23, fmt: 'raw' },
-        { name: 'Buff 288 (AccPct)', val: buff288, fmt: 'raw' },
-        { name: 'Buff 124 (AccPct)', val: buff124, fmt: 'raw' },
+      { name: 'Accuracy Bubble', val: accPct, fmt: 'raw', children: _accPctT.children },
+      { name: 'Total Accuracy Sources', val: pctSum, fmt: 'raw', children: [
+        { name: 'Cards: Total Accuracy', val: cardBonus17, fmt: 'raw', children: _cardBonus17T.children },
+        { name: 'Star Signs: Accuracy', val: starAccPct, fmt: 'raw', children: _starAccPctT.children },
+        { name: label('Statue', 14), val: statue14, fmt: 'raw', children: _statue14T.children },
+        { name: label('Arcade', 2), val: arcade2, fmt: 'raw' },
+        { name: label('Flurbo Shop', 5), val: flurbo5, fmt: 'raw', children: _flurbo5T.children },
+        { name: label('Bribe', 21), val: bribe21, fmt: 'raw', children: _bribe21T.children },
+        { name: label('Companion', 23), val: comp23, fmt: 'raw' },
+        { name: 'Active Buff: Accuracy', val: buff288 + buff124, fmt: 'raw' },
       ]},
-      { name: 'PlayerACCDN (scaled secondary)', val: playerACCDN, fmt: 'raw' },
-      { name: 'Base (pow + flat)', val: base, fmt: 'raw', note: 'pow(DN/4, 1.4) + DN + flat' },
-      { name: 'CardSet 4 Multi', val: postMult1, fmt: 'x', children: [
-        { name: 'CardSet 4', val: cardSet4, fmt: 'raw', children: _cardSet4T.children },
+      { name: 'Scaled Secondary Stat', val: playerACCDN, fmt: 'raw' },
+      { name: 'Accuracy Formula Base', val: base, fmt: 'raw', note: 'scaled stat^1.4 + scaled stat + base sources' },
+      { name: 'Accuracy Card Set Multiplier', val: postMult1, fmt: 'x', children: [
+        { name: 'Accuracy Card Set Bonus', val: cardSet4, fmt: 'raw', children: _cardSet4T.children },
       ] },
       { name: 'Prayer Multi', val: prayerMult, fmt: 'x', children: [
-        { name: 'Prayer 6', val: prayer6, fmt: 'raw', children: _prayer6T.children },
-        { name: 'Prayer 15 (penalty)', val: -prayer15pen, fmt: 'raw', children: _prayer15penT.children },
-        { name: 'Prayer 16 (penalty)', val: -prayer16pen, fmt: 'raw', children: _prayer16penT.children },
+        { name: label('Prayer', 6), val: prayer6, fmt: 'raw', children: _prayer6T.children },
+        { name: label('Prayer', 15) + ' Penalty', val: -prayer15pen, fmt: 'raw', children: _prayer15penT.children },
+        { name: label('Prayer', 16) + ' Penalty', val: -prayer16pen, fmt: 'raw', children: _prayer16penT.children },
       ]},
       { name: 'Post Multi', val: postMult2, fmt: 'x', children: [
-        { name: 'Chip acc', val: chipAcc, fmt: 'raw', children: _chipAccT.children },
-        { name: 'Meal TotAcc', val: mealTotAcc, fmt: 'raw', children: _mealTotAccT.children },
-        { name: 'Roo Bonus 3', val: rooBonus3, fmt: 'raw', children: _rooBonus3T.children },
-        { name: 'Voting Bonus 3', val: votingBonus3, fmt: 'raw' },
+        { name: 'Lab Chip: Accuracy', val: chipAcc, fmt: 'raw', children: _chipAccT.children },
+        { name: 'Meals: Total Accuracy', val: mealTotAcc, fmt: 'raw', children: _mealTotAccT.children },
+        { name: 'Poppy Bonus: Accuracy', val: rooBonus3, fmt: 'raw', children: _rooBonus3T.children },
+        { name: label('Voting', 3), val: votingBonus3, fmt: 'raw' },
         { name: 'Amarok Set', val: amarokSet, fmt: 'raw', children: _amarokSetT.children },
       ]},
       { name: 'Divinity Minor', val: postMult3, fmt: 'x', children: _divinityMinorT.children },

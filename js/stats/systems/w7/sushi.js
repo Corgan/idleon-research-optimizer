@@ -3,6 +3,7 @@
 // Pure computation functions - no side effects, no global state.
 
 import { node, treeResult } from '../../node.js';
+import { label } from '../../entity-names.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
   KNOWLEDGE_CAT_VALUE, MAX_TIER, MAX_SLOTS,
@@ -33,10 +34,10 @@ export var sushiRoG = {
     var saveData = ctx.saveData;
     var us = saveData.cachedUniqueSushi || 0;
     var val = rogBonusQTY(id, us);
-    return node('RoG Bonus ' + id, val, [
-      node('Unique Sushi', us, null, { fmt: 'raw' }),
-      node('RoG Value', ROG_BONUS_QTY[id] || 0, null, { fmt: 'raw', note: us > id ? 'Unlocked' : 'Locked (need ' + (id + 1) + ')' }),
-    ], { fmt: '+', note: 'sushi RoG ' + id });
+    return node(label('RoG', id), val, [
+      node('Unique Sushi Found', us, null, { fmt: 'raw' }),
+      node('Bonus Value', ROG_BONUS_QTY[id] || 0, null, { fmt: 'raw', note: us > id ? 'Unlocked' : 'Locked (need ' + (id + 1) + ')' }),
+    ], { fmt: '+' });
   },
 };
 
@@ -413,8 +414,8 @@ export function computeRooBonus(idx, saveData) {
   return treeResult(val, [
     { name: 'Tiers', val: tiers, fmt: 'raw' },
     { name: 'Per-Index Multi', val: multi, fmt: 'x' },
-    { name: 'Legend 26 Multi', val: 1 + legend26 / 100, fmt: 'x' },
-    { name: 'Companion 51 Multi', val: 1 + comp51, fmt: 'x' },
+    { name: label('Legend', 26), val: 1 + legend26 / 100, fmt: 'x' },
+    { name: label('Companion', 51), val: 1 + comp51, fmt: 'x' },
     { name: 'Mega Feather Multi', val: 1 + rooAll / 100, fmt: 'x' },
   ]);
 }

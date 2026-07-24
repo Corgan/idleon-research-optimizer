@@ -11,7 +11,12 @@ var T = TomeData.map(function(e) { return [Number(e[1]), Number(e[2]), Number(e[
 if (T.length <= 117) T.push([300, 0, 500]);
 
 // Clean slot names from customlists Tome data
-var SLOT_NAMES = TomeData.map(function(e) { return String(e[0]).replace(/_/g, ' '); });
+var SLOT_NAMES = TomeData.map(function(e) {
+  return String(e[0]).replace(/_/g, ' ')
+    .replace(/[\u4E00-\u9FFF\uF900-\uFAFF]/g, '')
+    .replace(/\s*\(Tap for more info\)\s*/gi, ' ')
+    .replace(/\s+/g, ' ').trim();
+});
 if (SLOT_NAMES.length <= 117) SLOT_NAMES.push('Button Presses');
 
 export default createDescriptor({

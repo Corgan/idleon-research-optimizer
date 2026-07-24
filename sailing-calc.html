@@ -138,6 +138,7 @@ import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { _bNode } from './js/stats/node-helpers.js';
+import { label } from './js/stats/entity-names.js';
 import {
   CHEST_ARTIFACT_MULTIS,
   CHEST_LOOT_MULTIS,
@@ -282,7 +283,7 @@ function render() {
   html+=card('Fleet assignment',fleetAssignmentMode==='optimized'?'Optimized':'Current save',fmt(fleet.length)+' active boat/captain pairings');
   html+=card('Generated chests/hr',fmt(totalChest),fmt(totalKept)+' kept at tier '+minimumTier+'+');
   html+=card('Direct treasure/hr',fmt(totalLoot),'Generated kept tiers · near-full upgrades excluded');
-  html+=card('Artifact finds/hr',fmt(totalArtifact),'Expected successful chest opens');
+  html+=card('Artifact finds/hr',fmt(totalArtifact)+'/hr','Expected successful chest opens');
   html+=card('Ideal collection',isFinite(pile.hoursToFill)?time(pile.hoursToFill*3600):'—',fmt(pile.current)+' / '+fmt(pile.targetCount)+' target slots');
   html+=card('Window recommendation','Tier '+rec.tier+'+',fmt(rec.kept)+' kept in '+collectHours+'h');
   html+=card('Minimum trip',fmt(fleet[0]?.timing.minimumMinutes || 0)+'m','<span data-tip="'+attr(minimumTip)+'">+'+fmt(minimum.totalPercent)+'% combined · Training -'+fmt(minimum.gemMinutes)+'m</span>');
@@ -311,7 +312,7 @@ function tabButton(key,label){return '<button data-tab="'+key+'" class="'+(activ
 function renderFleet(fleet) {
   var assignmentNote=fleetAssignmentMode==='optimized'?'<strong>Optimized:</strong> captains are assigned one-to-one to maximize the selected direct goal.':'<strong>Current save:</strong> each boat keeps the captain stored in the save; no captain reassignment is performed.';
   var h='<div class="section"><h2>'+(fleetAssignmentMode==='optimized'?'Optimized':'Current Save')+' Fleet Assignment</h2><div class="callout" style="margin-bottom:10px">'+assignmentNote+' Trip rate, Boat Value, natural tier odds, payouts, and artifact odds are included. Stateful banked-chest order and future pile evolution remain excluded.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Boat</th><th>Captain</th><th>Route</th><th class="num">Trip</th><th class="num">Chest/hr</th><th class="num">Base chest</th><th class="num" data-tip="How many fleet boat-value sources this incoming same-tier chest can meet or exceed">Value coverage</th><th class="num">Direct treasure/hr</th><th class="num">Artifact/hr</th><th>Best direct route</th></tr></thead><tbody>';
-  fleet.forEach(function(r){var best=bestIsland(r.boatIdx,r.captainIdx);var coverage=fleet.filter(function(other){return r.loot.value>=other.loot.value;}).length;h+='<tr><td>Boat '+(r.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(r.captainIdx))+'">'+captainCode(r.captainIdx)+'</td><td>'+islandLabel(r.islandIdx)+'</td><td class="num">'+time(r.timing.tripSeconds)+(r.timing.capped?' <span class="badge badge-cyan">cap</span>':'')+'</td><td class="num">'+fmt(r.generatedChestsPerHour)+'</td><td class="num">'+fmt(r.loot.value)+'</td><td class="num" data-tip="Same-tier source coverage only; actual eligibility depends on current pile contents and order">'+coverage+' / '+fleet.length+'</td><td class="num">'+fmt(r.treasurePerHour)+'</td><td class="num">'+chance(r.artifactFindsPerHour)+'</td><td>'+islandLabel(best.islandIdx)+'</td></tr>';});
+  fleet.forEach(function(r){var best=bestIsland(r.boatIdx,r.captainIdx);var coverage=fleet.filter(function(other){return r.loot.value>=other.loot.value;}).length;h+='<tr><td>Boat '+(r.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(r.captainIdx))+'">'+captainCode(r.captainIdx)+'</td><td>'+islandLabel(r.islandIdx)+'</td><td class="num">'+time(r.timing.tripSeconds)+(r.timing.capped?' <span class="badge badge-cyan">cap</span>':'')+'</td><td class="num">'+fmt(r.generatedChestsPerHour)+'</td><td class="num">'+fmt(r.loot.value)+'</td><td class="num" data-tip="Same-tier source coverage only; actual eligibility depends on current pile contents and order">'+coverage+' / '+fleet.length+'</td><td class="num">'+fmt(r.treasurePerHour)+'</td><td class="num">'+fmt(r.artifactFindsPerHour)+'/hr</td><td>'+islandLabel(best.islandIdx)+'</td></tr>';});
   h+='</tbody></table></div></div>';
   h+='<div class="section"><div class="callout"><strong>Fixed destination:</strong> the selected island is applied to every active pairing in both modes. Current Save preserves captain-to-boat pairings, not each boat\'s saved destination or trip progress. Keeping all boats on one island improves near-full matching.</div></div>';
   return h;
@@ -387,7 +388,7 @@ function renderCaptains(fleet) {
       }
     }
     var progress=levelInfo&&levelInfo.requirement>0?Math.max(0,Math.min(1,levelInfo.progress/levelInfo.requirement)):0;
-    h+='<tr><td>'+captainCode(captain)+' <span class="card-sub">Type '+fmt(data[0])+'</span></td><td>'+(assignment?'Boat '+(assignment.boatIdx+1):'<span class="card-sub">not assigned</span>')+'</td><td class="num">'+fmt(data[3])+'</td><td>'+captainRollCell(captainRollQuality(captain,0,saveData),captain)+'</td><td>'+captainRollCell(captainRollQuality(captain,1,saveData),captain)+'</td><td class="num">'+(levelInfo?fmt(levelInfo.progress)+' / '+fmt(levelInfo.requirement)+' ('+pct(progress,1)+')':'&mdash;')+'</td><td class="num">'+(levelInfo?fmt(levelInfo.expPerHour):'&mdash;')+'</td><td class="num">'+(levelInfo&&isFinite(levelInfo.hours)?(levelInfo.hours<=0?'Ready':time(levelInfo.hours*3600)):'&mdash;')+'</td><td>'+(fastest&&isFinite(fastest.hours)?islandLabel(fastest.islandIdx)+' · '+time(fastest.hours*3600):'&mdash;')+'</td></tr>';
+    h+='<tr><td>'+captainCode(captain)+'</td><td>'+(assignment?'Boat '+(assignment.boatIdx+1):'<span class="card-sub">not assigned</span>')+'</td><td class="num">'+fmt(data[3])+'</td><td>'+captainRollCell(captainRollQuality(captain,0,saveData),captain)+'</td><td>'+captainRollCell(captainRollQuality(captain,1,saveData),captain)+'</td><td class="num">'+(levelInfo?fmt(levelInfo.progress)+' / '+fmt(levelInfo.requirement)+' ('+pct(progress,1)+')':'&mdash;')+'</td><td class="num">'+(levelInfo?fmt(levelInfo.expPerHour):'&mdash;')+'</td><td class="num">'+(levelInfo&&isFinite(levelInfo.hours)?(levelInfo.hours<=0?'Ready':time(levelInfo.hours*3600)):'&mdash;')+'</td><td>'+(fastest&&isFinite(fastest.hours)?islandLabel(fastest.islandIdx)+' · '+time(fastest.hours*3600):'&mdash;')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Each bonus gain is rolled once when the captain is generated and stays fixed as they level. Current total = captain level &times; fixed gain. The boat column uses the <strong>'+(fleetAssignmentMode==='optimized'?'optimized assignment':'current save assignment')+'</strong>; future near-full pile evolution is excluded.</div></div>';
   return h;
@@ -437,9 +438,9 @@ function replacementMatrixCell(route,strongest,targetTier){
     'Reference: Boat '+(strongest.boatIdx+1)+' / Captain '+captainCode(strongest.captainIdx)+' '+CHEST_TIER_NAMES[targetTier],
     'Reference value: '+fmt(threshold.referenceValue)+' per payout',
     '',
-    'Same-tier ULS path:',
+    'Same-tier Unending Loot Search path:',
     'Exact '+CHEST_TIER_NAMES[targetTier]+' drop chance: '+pct(outcome.exactSameTierChance,3),
-    'Conditional ULS chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
+    'Conditional Unending Loot Search chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
     'Compounded: '+pct(outcome.exactSameTierChance,3)+' × '+pct(outcome.ulsChance,3)+' = '+pct(outcome.sameTierUpgradeChance,3),
     '',
     'Natural higher-tier path:'
@@ -466,7 +467,7 @@ function replacementMatrixCell(route,strongest,targetTier){
   lines.push('Earlier pile entries and future evolution are not simulated.');
   lines.push('Banked chests do not store their source boat or captain.');
   var cls='replacement-cell '+(outcome.totalChance<=0?'replacement-never':required<0||gap===1?'replacement-next':'replacement-jump');
-  var path=required>=0?'T'+required+'+':outcome.sameTierUpgradeChance>0?'ULS':'';
+  var path=required>=0?'Tier '+required+'+':outcome.sameTierUpgradeChance>0?'Unending Loot Search':'';
   var content=compactMatrixChance(outcome.totalChance)+(path?' <span class="replacement-chance">'+path+'</span>':'');
   return '<td class="'+cls+'" data-tip="'+attr(lines.join('\n'))+'">'+content+'</td>';
 }
@@ -484,7 +485,7 @@ function sameTierComparisonCell(incoming,banked,tier){
     'Value comparison: '+(threshold.sameTierEligible?'eligible ('+pct(incomingValue/bankedValue-1,1)+' margin)':'not eligible ('+pct(1-incomingValue/bankedValue,1)+' short)'),
     '',
     'Exact '+CHEST_TIER_NAMES[tier]+' drop chance: '+pct(outcome.exactSameTierChance,3),
-    'Conditional ULS chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
+    'Conditional Unending Loot Search chance: '+(threshold.sameTierEligible?pct(outcome.ulsChance,3):'Not value-eligible'),
     'Compounded: '+pct(outcome.exactSameTierChance,3)+' × '+pct(outcome.ulsChance,3)+' = '+pct(outcome.sameTierUpgradeChance,3),
     '',
     'This cell excludes deterministic higher-tier replacements.',
@@ -524,13 +525,13 @@ function renderReplacementDetail(incoming,fleet){
   var references=fleet.filter(function(route){return route.boatIdx!==incoming.boatIdx;}).sort(function(a,b){return b.loot.value-a.loot.value||a.boatIdx-b.boatIdx;});
   var eligible=references.filter(function(banked){return chestReplacementThreshold(incoming,banked,0).sameTierEligible;}).length;
   var h='<div class="replacement-detail-wrap"><div class="replacement-detail-title">Boat '+(incoming.boatIdx+1)+' / Captain '+captainCode(incoming.captainIdx)+' as the incoming source · '+fmt(incoming.loot.value)+' Tier 0 value per payout · same-tier eligible against '+eligible+' / '+references.length+' other sources</div>';
-  h+='<table class="data-table replacement-detail-table"><thead><tr><th>Banked source</th><th class="num">Banked T0 value</th><th class="num">Incoming / banked</th><th class="num">T0 &rarr; T1</th><th class="num">T1 &rarr; T2</th><th class="num">T2 &rarr; T3</th><th class="num">T3 &rarr; T4</th><th class="num" data-tip="Minimum natural tier from the selected incoming source that can replace this source\'s banked Tier 1">Natural vs banked T1</th></tr></thead><tbody>';
+  h+='<table class="data-table replacement-detail-table"><thead><tr><th>Banked source</th><th class="num">Banked Tier 0 value</th><th class="num">Incoming / banked</th><th class="num">Tier 0 &rarr; Tier 1</th><th class="num">Tier 1 &rarr; Tier 2</th><th class="num">Tier 2 &rarr; Tier 3</th><th class="num">Tier 3 &rarr; Tier 4</th><th class="num" data-tip="Minimum natural tier from the selected incoming source that can replace this source\'s banked Tier 1">Natural vs banked Tier 1</th></tr></thead><tbody>';
   references.forEach(function(banked){
     h+='<tr><td data-tip="'+attr(captainLabel(banked.captainIdx))+'">Boat '+(banked.boatIdx+1)+' / '+captainCode(banked.captainIdx)+'</td><td class="num">'+fmt(banked.loot.value)+'</td><td class="num">'+pct(incoming.loot.value/banked.loot.value,1)+'</td>';
     for(var tier=0;tier<4;tier++)h+=sameTierComparisonCell(incoming,banked,tier);
     h+=naturalReplacementComparisonCell(incoming,banked)+'</tr>';
   });
-  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier cells show exact tier-drop chance &times; the conditional ULS roll. The natural column shows the separate deterministic higher-tier path. Neither includes the chance that an earlier banked entry stops the scan.</div></div>';
+  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier cells show exact tier-drop chance &times; the conditional Unending Loot Search roll. The natural column shows the separate deterministic higher-tier path. Neither includes the chance that an earlier banked entry stops the scan.</div></div>';
 }
 
 function renderReplacementMatrix(fleet,capacity){
@@ -539,12 +540,12 @@ function renderReplacementMatrix(fleet,capacity){
   var rows=fleet.slice().sort(function(a,b){return b.loot.value-a.loot.value||a.boatIdx-b.boatIdx;});
   var h='<div class="section"><h2>Strongest-Source Replacement Matrix</h2><div class="card-grid">';
   h+=card('Strongest source','Boat '+(strongest.boatIdx+1)+' / '+captainCode(strongest.captainIdx),fmt(strongest.loot.value)+' Tier 0 value per payout');
-  h+=card('Matrix basis','Combined direct chance','Same-tier drop × ULS, plus natural replacement');
+  h+=card('Matrix basis','Combined direct chance','Same-tier drop × Unending Loot Search, plus natural replacement');
   h+=card('Current pile',fmt(saveData.sailChestsData?.length||0)+' / '+capacity,'Source boat and captain are not stored');
   h+=card('Data scope','Per target reached','Pile order and future evolution are not simulated');
-  h+='</div><div class="callout" style="margin-top:10px">Cells show the direct chance per incoming chest to change the hypothetical strongest-source chest: exact same-tier drop chance &times; conditional ULS upgrade chance, plus the deterministic qualifying-higher-tier chance. Tooltips show both paths. Pile order can lower the realized chance if an earlier banked entry stops the scan. Green needs at most the next natural tier, gold must skip tiers, and red has no direct path.</div>';
-  h+='<div class="table-wrap" style="margin-top:10px"><table class="data-table replacement-matrix"><thead><tr><th>Boat</th><th>Captain</th><th class="num">T0 value / payout</th><th class="num">% max</th>';
-  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num" data-tip="Per incoming chest if this banked target is reached: exact same-tier drop chance × conditional ULS chance + qualifying higher-tier chance">Strongest T'+targetTier+'</th>';
+  h+='</div><div class="callout" style="margin-top:10px">Cells show the direct chance per incoming chest to change the hypothetical strongest-source chest: exact same-tier drop chance &times; conditional Unending Loot Search upgrade chance, plus the deterministic qualifying-higher-tier chance. Tooltips show both paths. Pile order can lower the realized chance if an earlier banked entry stops the scan. Green needs at most the next natural tier, gold must skip tiers, and red has no direct path.</div>';
+  h+='<div class="table-wrap" style="margin-top:10px"><table class="data-table replacement-matrix"><thead><tr><th>Boat</th><th>Captain</th><th class="num">Tier 0 value / payout</th><th class="num">% max</th>';
+  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num" data-tip="Per incoming chest if this banked target is reached: exact same-tier drop chance × conditional Unending Loot Search chance + qualifying higher-tier chance">Strongest Tier '+targetTier+'</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(function(route){
     h+='<tr class="replacement-source-row '+(route===strongest?'best':'')+'" data-replacement-boat="'+route.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(route.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(route.captainIdx))+'">'+captainCode(route.captainIdx)+'</td><td class="num">'+fmt(route.loot.value)+'</td><td class="num">'+pct(route.loot.value/strongest.loot.value,1)+'</td>';
@@ -626,13 +627,13 @@ function renderOdds(fleet,capacity,rec){
   });
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Click a boat row to show the displayed Treasure value per payout, expected currency totals, and combined value aligned beneath each chest tier. Each actual payout independently selects one currency. Captain Rare Chest Chance shifts generated chests into higher tiers; the ship changes chest rate and stored value, not tier odds.</div></div>';
   h+=renderReplacementMatrix(fleet,capacity);
-  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from index 0 onward. The first same-island, same-tier, sufficient-value match rolls its tier-up chance and stops the scan whether it succeeds or fails. Otherwise, the first same-island chest with both a strictly higher tier and strictly greater stored value replaces the banked chest automatically. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
+  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from the first chest onward. The first same-island, same-tier, sufficient-value match rolls its tier-up chance and stops the scan whether it succeeds or fails. Otherwise, the first same-island chest with both a strictly higher tier and strictly greater stored value replaces the banked chest automatically. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
 
 function currencyPayoutCell(currency){
   return '<td class="num"><span class="payout-value">'+fmt(currency.expectedValuePerChest)+'</span><span class="payout-detail">'+currency.expectedPayoutsPerChest.toFixed(2)+' payouts avg · '+pct(currency.chancePerPayout,1)+'</span></td>';
 }
 
-function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No active fleet route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>'+(fleetAssignmentMode==='optimized'?'Optimized':'Current Save')+' Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+captainCode(r.captainIdx)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',chance(r.artifactFindsPerHour),'Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<6)incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+chance(x.artifactFindsPerHour)+'</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat and captain from the active <strong>'+(fleetAssignmentMode==='optimized'?'optimized':'current save')+' assignment</strong>. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
+function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No active fleet route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>'+(fleetAssignmentMode==='optimized'?'Optimized':'Current Save')+' Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+captainCode(r.captainIdx)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',fmt(r.artifactFindsPerHour)+'/hr','Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<6)incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+fmt(x.artifactFindsPerHour)+'/hr</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat and captain from the active <strong>'+(fleetAssignmentMode==='optimized'?'optimized':'current save')+' assignment</strong>. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
   h+='<div class="section"><h2>Selected Island Artifacts</h2>'+artifactDetail(r)+'</div>';return h;}
 function artifactDetail(r){var weighted={};r.tiers.forEach(function(t){if(!t.kept)return;var odds=islandArtifactOdds(r.islandIdx,t.artifactMultiplier,saveData,{serverVars:rawServerVars});odds.artifacts.forEach(function(a){if(!weighted[a.artifactIdx])weighted[a.artifactIdx]=Object.assign({},a,{chance:0});weighted[a.artifactIdx].chance+=t.probability*a.exactChance;});});var list=Object.values(weighted);if(!list.length)return '<div class="empty">No artifacts on this island.</div>';var h='<table class="data-table"><thead><tr><th>Artifact</th><th class="num">Current tier</th><th class="num">Next odds</th><th class="num">Per generated chest</th><th>Status</th></tr></thead><tbody>';list.forEach(function(a){h+='<tr><td>'+esc(a.name)+'</td><td class="num">'+a.currentTier+'</td><td class="num">'+(isFinite(a.denominator)?'1 in '+fmt(a.denominator):'—')+'</td><td class="num">'+chance(a.chance)+'</td><td>'+(a.currentTier>=6?'<span class="badge badge-green">max</span>':a.unlocked?'available':'locked')+'</td></tr>';});return h+'</tbody></table>';}
 
@@ -665,22 +666,22 @@ function pctFactorNode(label,value,note){
 function buildLootTree(r){
   var factors=r.loot.factors;
   var additiveChildren=[
-    _bNode('Sigil 21',factors.sigil,null,{fmt:'%'}),
+    _bNode('Loot Pile (Sigil)',factors.sigil,null,{fmt:'%'}),
     _bNode('Captain Loot Value',factors.captain,null,{fmt:'%'}),
-    _bNode('Artifact 5',factors.artifact,null,{fmt:'%'}),
+    _bNode('Genie Lamp (Artifact)',factors.artifact,null,{fmt:'%'}),
     _bNode('Legendary Captains',factors.legendary,null,{fmt:'%',note:'25% per legendary captain, capped at 30'}),
-    _bNode('Arcade 33',factors.arcade,null,{fmt:'%'}),
-    _bNode('Vault 67',factors.vault,null,{fmt:'%'})
+    _bNode('Sailing Loot (Arcade)',factors.arcade,null,{fmt:'%'}),
+    _bNode('Sailing Loot (Vault)',factors.vault,null,{fmt:'%'})
   ];
   return _bNode('Boat '+(r.boatIdx+1)+' Loot Value',r.loot.value,[
     _bNode('Base Loot',r.loot.base,null,{note:'5 + (2 + floor(loot level / 8)^2) × loot level'}),
     _bNode('Additive Bonuses',1+r.loot.additive/100,additiveChildren,{fmt:'x',note:'1 + sum / 100'}),
-    pctFactorNode('Unending Loot Search',factors.talent,'Talent 325: 1 + bonus / 100'),
+    pctFactorNode('Unending Loot Search',factors.talent,'1 + talent bonus / 100'),
     _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
     pctFactorNode('Lamp: World 5 Things',factors.lamp),
-    pctFactorNode('Sushi 57',factors.sushi),
-    pctFactorNode('Fountain 0 / 17',factors.fountain)
-  ],{note:'Base × additive × talent × Davey Jones × Lamp × Sushi × Fountain'});
+    pctFactorNode(label('RoG',57),factors.sushi),
+    pctFactorNode('Treasure Boost (Fountain)',factors.fountain)
+  ],{note:'Base × additive × talent × Davey Jones × Lamp × Ring of Glory × Fountain'});
 }
 
 function buildSpeedTree(r){
@@ -692,18 +693,18 @@ function buildSpeedTree(r){
     _bNode('Base Speed',speed.base,null,{note:'10 + (5 + floor(speed level / 7)^2) × speed level'}),
     pctFactorNode('Captain Boat Speed',speed.captain),
     _bNode('First Global Group',speed.first,[
-      _bNode('Divinity Minor 6',factors.divMinor,null,{fmt:'+'}),
-      _bNode('W5 Sailing Card',factors.card1,null,{fmt:'+'}),
-      _bNode('Boss 5A Card',factors.cardBoss,null,{fmt:'+'}),
-      _bNode('Alchemy Bubble Y1',factors.bubble,null,{fmt:'+'})
+      _bNode('Purrmep Minor Bonus',factors.divMinor,null,{fmt:'+'}),
+      _bNode('Crawler Card',factors.card1,null,{fmt:'+'}),
+      _bNode('Kattlekruk Card',factors.cardBoss,null,{fmt:'+'}),
+      _bNode('Boaty Bubble',factors.bubble,null,{fmt:'+'})
     ],{fmt:'x',note:'1 + sum / 125'}),
     _bNode('Davey Jones',speed.davey,null,{fmt:'x'}),
     pctFactorNode('Divinity Blessing 4',speed.bless4),
     pctFactorNode('Divinity Blessing 6',speed.bless6),
-    pctFactorNode('Voting Bonus 24',speed.vote),
+    pctFactorNode(label('Voting',24),speed.vote),
     _bNode('Second Global Group',speed.second,[
       _bNode('Divinity Blessing 9',factors.bless9,null,{fmt:'+'}),
-      _bNode('Artifact 10',factors.artifact,null,{fmt:'+'}),
+      _bNode('10 AD Tablet (Artifact)',factors.artifact,null,{fmt:'+'}),
       _bNode('Sailing Speed Stamps',factors.stamp,null,{fmt:'+'}),
       _bNode('Sailing Statue',factors.statue,null,{fmt:'+'}),
       _bNode('Sailing Meals',factors.meal,null,{fmt:'+'}),
@@ -711,7 +712,7 @@ function buildSpeedTree(r){
       _bNode('Rift Skill Bonus',factors.rift,null,{fmt:'+'}),
       _bNode('MSA Bonus 2',factors.msa,null,{fmt:'+'}),
       _bNode('Sailing Speed Star Sign',factors.star,null,{fmt:'+'}),
-      _bNode('Vault 62',factors.vault,null,{fmt:'+'})
+      _bNode(label('Vault',62),factors.vault,null,{fmt:'+'})
     ],{fmt:'x',note:'1 + sum / 125'})
   ],{note:'All listed speed factors multiply'});
   var minimumNode=_bNode('Minimum Travel Time',r.timing.minimumMinutes,[
@@ -734,39 +735,39 @@ function buildSpeedTree(r){
 function buildArtifactTree(r){
   var factors=r.artifactBase.factors;
   var additiveChildren=[
-    _bNode('Artifact 3',factors.artifact,null,{fmt:'%'}),
+    _bNode(label('Artifact',3),factors.artifact,null,{fmt:'%'}),
     _bNode('Captain Artifact Find',factors.captain,null,{fmt:'%'}),
-    _bNode('Shiny Breeding Pets 21',factors.shiny,null,{fmt:'%'}),
-    _bNode('Fractal Island Bonus 3',factors.fractal,null,{fmt:'%'}),
-    _bNode('Bribe 34',factors.bribe,null,{fmt:'%'}),
+    _bNode(label('Breeding',21),factors.shiny,null,{fmt:'%'}),
+    _bNode('Fractal Island: Artifact Find Chance',factors.fractal,null,{fmt:'%'}),
+    _bNode(label('Bribe',34),factors.bribe,null,{fmt:'%'}),
     _bNode('Legendary Captains',factors.legendary,null,{fmt:'%',note:'25% per legendary captain, capped at 30'}),
-    _bNode('Arcade 32',factors.arcade32,null,{fmt:'%'}),
-    _bNode('Arcade 66',factors.arcade66,null,{fmt:'%'}),
-    _bNode('Hole Upgrade 55',factors.hole55,null,{fmt:'%'}),
-    _bNode('Farming Sticker 2',factors.sticker,null,{fmt:'%'}),
-    _bNode('Research Grid 109',factors.grid109,null,{fmt:'%'}),
-    _bNode('Vault 63',factors.vault63,null,{fmt:'%'})
+    _bNode(label('Arcade',32),factors.arcade32,null,{fmt:'%'}),
+    _bNode(label('Arcade',66),factors.arcade66,null,{fmt:'%'}),
+    _bNode('Tune of Artifaction (The Hole)',factors.hole55,null,{fmt:'%'}),
+    _bNode('Farming Stickers: Artifact Find Chance',factors.sticker,null,{fmt:'%'}),
+    _bNode(label('Grid',109),factors.grid109,null,{fmt:'%'}),
+    _bNode(label('Vault',63),factors.vault63,null,{fmt:'%'})
   ];
   var multiplierChildren=[
     _bNode('Additive Sources',Math.max(1,1+r.artifactBase.additive/100),additiveChildren,{fmt:'x',note:'max(1, 1 + sum / 100)'}),
     pctFactorNode('Artifact Find Star Sign',factors.star),
-    _bNode('Companion 154',Math.max(1,Math.min(2,1+2*factors.companion154)),null,{fmt:'x'}),
+    _bNode('Glimbo (Companion)',Math.max(1,Math.min(2,1+2*factors.companion154)),null,{fmt:'x'}),
     _bNode('Killroy',Math.max(1,factors.killroy),null,{fmt:'x'}),
-    pctFactorNode('Minehead Button 3',factors.minehead),
-    pctFactorNode('Research Grid 106',factors.grid106),
-    pctFactorNode('6turtle Vial',factors.vial),
+    pctFactorNode('Minehead Button: Artifact Find Chance',factors.minehead),
+    pctFactorNode(label('Grid',106),factors.grid106),
+    pctFactorNode('Turtle Tisane (Vial)',factors.vial),
     _bNode('Purple Chest Slugs',Math.max(1,Math.pow(1.5,factors.purpleSlugs)),null,{fmt:'x'}),
-    pctFactorNode('Sushi 7',factors.sushi),
-    pctFactorNode('Summoning Win 3',factors.win),
+    pctFactorNode(label('RoG',7),factors.sushi),
+    pctFactorNode('Summoning Winner Bonus: Artifact Find Chance',factors.win),
     _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
-    pctFactorNode('Mainframe 14',factors.lab),
-    pctFactorNode('Lore Episode 3',factors.lore),
-    pctFactorNode('Pristine Charm 2',factors.pristine),
-    pctFactorNode('Voting Bonus 20',factors.vote),
-    _bNode('Companion 43',1+factors.companion43,null,{fmt:'x'}),
-    pctFactorNode('Monument 1 / 2',factors.monument),
-    pctFactorNode('Exotic 45',factors.exotic),
-    pctFactorNode('Palette 5',factors.palette),
+    pctFactorNode('Laboratory: Artifact Find Chance',factors.lab),
+    pctFactorNode('Lore Episode: Artifact Find Chance',factors.lore),
+    pctFactorNode(label('Pristine',2),factors.pristine),
+    pctFactorNode(label('Voting',20),factors.vote),
+    _bNode(label('Companion',43),1+factors.companion43,null,{fmt:'x'}),
+    pctFactorNode('Justice: Artifact Find Chance',factors.monument),
+    pctFactorNode(label('Exotic',45),factors.exotic),
+    pctFactorNode(label('Palette',5),factors.palette),
     _bNode('Spelunking',factors.spelunk,null,{fmt:'x'})
   ];
   var tierChildren=r.tiers.filter(function(tier){return tier.kept;}).map(function(tier){
@@ -875,7 +876,7 @@ function renderSimulationTierTable(result){
 function renderSimulationSlotTable(result){
   var h='<div class="section"><h2>Average Banked Chest by Pile Position</h2><div class="table-wrap"><table class="data-table"><thead><tr><th>Position</th><th class="num">Occupied</th><th class="num">Average tier</th><th>Most likely tier</th><th class="num">Value / payout</th><th class="num">Payouts</th><th class="num">Opened value</th><th class="num">Artifact x</th><th class="num">Gold</th><th class="num">Primary</th><th class="num">Rare</th></tr></thead><tbody>';
   result.slots.forEach(function(slot){if(slot.occupancy<=0)return;h+='<tr><td>#'+(slot.index+1)+'</td><td class="num">'+pct(slot.occupancy,1)+'</td><td class="num">'+slot.averageTier.toFixed(2)+'</td><td>'+(slot.mostLikelyTier>=0?CHEST_TIER_NAMES[slot.mostLikelyTier]:'—')+'</td><td class="num">'+fmt(slot.averageValuePerPayout)+'</td><td class="num">'+slot.averagePayouts.toFixed(2)+'</td><td class="num">'+fmt(slot.averageOpenedValue)+'</td><td class="num">'+fmt(slot.averageArtifactMultiplier)+'x</td><td class="num">'+fmt(slot.averageCurrencyValue.gold)+'</td><td class="num">'+fmt(slot.averageCurrencyValue.primary)+'</td><td class="num">'+fmt(slot.averageCurrencyValue.rare)+'</td></tr>';});
-  return h+'</tbody></table></div><div class="callout" style="margin-top:10px">Position is game array order: #1 is the next chest opened and the first banked chest scanned by incoming near-full chests. Averages are conditional on occupancy except the currency columns, which are expected contribution per trial.</div></div>';
+  return h+'</tbody></table></div><div class="callout" style="margin-top:10px">Position is opening order: #1 is the next chest opened and the first banked chest scanned by incoming near-full chests. Averages are conditional on occupancy except the currency columns, which are expected contribution per trial.</div></div>';
 }
 
 function buildSailingSimulationConfig(){

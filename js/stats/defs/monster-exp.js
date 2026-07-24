@@ -348,24 +348,24 @@ export default createDescriptor({
     // ======= Build breakdown tree =======
     var children = [];
 
-    children.push({ name: 'WorkbenchStuff', val: wb, fmt: 'x' });
-    children.push({ name: 'SuperBit + Bundle', val: 1 + egl3 / 100, fmt: 'x',
-      note: 'EGL3=' + egl3 });
-    children.push({ name: 'ExpGainLUK5 (multiplicative)', val: egl5, fmt: 'x' });
+    children.push({ name: 'Construction Workbench Multiplier', val: wb, fmt: 'x' });
+    children.push({ name: 'Super Bit and Bundle', val: 1 + egl3 / 100, fmt: 'x',
+      note: '+' + egl3 + '%' });
+    children.push({ name: 'Account Progress Multipliers', val: egl5, fmt: 'x' });
     children.push({ name: label('EtcBonus', 78), val: 1 + etc78 / 100, fmt: 'x' });
 
-    var lukPart = { name: 'LUK contribution', val: lukContrib, fmt: 'raw',
-      note: 'LUK=' + Math.round(totalLUK) + ' EGL=' + expGainLUK.toFixed(4) };
+    var lukPart = { name: 'LUK Contribution', val: lukContrib, fmt: 'raw',
+      note: 'LUK ' + Math.round(totalLUK) + ', scaling ' + expGainLUK.toFixed(4) };
 
     var addCh = [];
     if (etc4 > 0) addCh.push({ name: label('EtcBonus', 4), val: etc4, fmt: 'raw' });
     if (boxMonsterExp > 0) addCh.push({ name: 'Box Rewards: Monster EXP', val: boxMonsterExp, fmt: 'raw' });
-    if (gfoodClassEXP > 0) addCh.push({ name: 'GoldFood ClassEXP', val: gfoodClassEXP, fmt: 'raw' });
+    if (gfoodClassEXP > 0) addCh.push({ name: 'Golden Food: Class EXP', val: gfoodClassEXP, fmt: 'raw' });
     if (vialMonsterEXP > 0) addCh.push({ name: 'Vial: Monster EXP', val: vialMonsterEXP, fmt: 'raw' });
     if (bubbleExpActive > 0) addCh.push({ name: 'Bubble: Active EXP', val: bubbleExpActive, fmt: 'raw' });
-    if (card44 > 0) addCh.push({ name: 'Card Bonus: Monster EXP', val: card44, fmt: 'raw' });
-    if (egl2 > 0) addCh.push({ name: 'EGL2 (level/boss/div bonuses)', val: egl2, fmt: 'raw' });
-    if (statue10 > 0) addCh.push({ name: label('Statue', 10) + ' (Spiritus)', val: statue10, fmt: 'raw' });
+    if (card44 > 0) addCh.push({ name: 'Cards: Monster EXP', val: card44, fmt: 'raw' });
+    if (egl2 > 0) addCh.push({ name: 'Class Level, Boss, and Divinity Bonuses', val: egl2, fmt: 'raw' });
+    if (statue10 > 0) addCh.push({ name: label('Statue', 10), val: statue10, fmt: 'raw' });
     if (talent632 > 0) addCh.push({ name: label('Talent', 632), val: talent632, fmt: 'raw' });
     if (shrine5 > 0) addCh.push({ name: label('Shrine', 5), val: shrine5, fmt: 'raw' });
     if (saltLick3val > 0) addCh.push({ name: label('SaltLick', 3), val: saltLick3val, fmt: 'raw' });
@@ -377,7 +377,7 @@ export default createDescriptor({
     if (arcade12 > 0) addCh.push({ name: label('Arcade', 12), val: arcade12, fmt: 'raw' });
     if (shinyBonus1 > 0) addCh.push({ name: label('Breeding', 1), val: shinyBonus1, fmt: 'raw' });
     if (talent55 > 0) addCh.push({ name: label('Talent', 55), val: talent55, fmt: 'raw' });
-    if (egl6 > 0) addCh.push({ name: 'EGL6 (cards/companions/food/stamps)', val: egl6, fmt: 'raw' });
+    if (egl6 > 0) addCh.push({ name: 'Cards, Companions, Golden Food, and Stamps', val: egl6, fmt: 'raw' });
 
     children.push({ name: 'Base + Additive Pool', val: lukContrib + additivePool / 100 + 1, fmt: 'x',
       children: [lukPart].concat(addCh) });

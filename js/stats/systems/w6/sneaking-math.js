@@ -316,9 +316,9 @@ export function equipInfo(itemKey, level) {
   if (type === 2) {
     var sv = charmStat(itemKey, level);
     var desc = (data[4] || '').replace(/_/g, ' ').replace(/\{/g, '' + sv.toFixed(1)).replace(/\}/g, '' + (1 + sv / 100).toFixed(2));
-    return { type: 2, name: name, label: CHARM_BONUS_TYPES[bt] || ('T' + bt), desc: desc, stat: sv, bonusType: bt };
+    return { type: 2, name: name, label: CHARM_BONUS_TYPES[bt] || 'Unknown charm bonus', desc: desc, stat: sv, bonusType: bt };
   }
-  return { type: type, name: name, label: 'T' + type, desc: '', stat: null };
+  return { type: type, name: name, label: 'Unknown equipment type', desc: '', stat: null };
 }
 
 // ----- Funeral stealth bonus -----

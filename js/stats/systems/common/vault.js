@@ -78,6 +78,6 @@ export var vault = {
         node('Mastery Lv', masteryLv, null, { fmt: 'raw' }),
       ], { fmt: 'x' }));
     }
-    return node(name, val, children, { fmt: '+', note: 'vault ' + id });
+    return node(name, val, children, { fmt: '+' });
   },
 };

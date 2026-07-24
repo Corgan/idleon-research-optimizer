@@ -76,7 +76,7 @@ export var grid = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
     var gridLv = (saveData.gridLevels && saveData.gridLevels[id]) || 0;
-    if (gridLv < 1) return node(label('Grid', id), 0, null, { note: 'grid ' + id });
+    if (gridLv < 1) return node(label('Grid', id), 0);
 
     var si = saveData.shapeOverlay && saveData.shapeOverlay[id];
     var shapePct = (si >= 0 && si < SHAPE_BONUS_PCT.length) ? SHAPE_BONUS_PCT[si] : 0;
@@ -91,10 +91,10 @@ export var grid = {
     var val = rawVal * shapeMult * Math.max(1, allMulti);
 
     var allMultiChildren = [];
-    if (am.comp55 > 0) allMultiChildren.push(node(label('Companion', 55), am.comp55, null, { fmt: 'raw', note: 'companion 55' }));
+    if (am.comp55 > 0) allMultiChildren.push(node(label('Companion', 55), am.comp55, null, { fmt: 'raw' }));
     if (am.comp0 > 0) allMultiChildren.push(node(label('Companion', 0), 5 * Math.min(1, am.grid173Lv * am.comp0), [
       node(label('Grid', 173, ' Lv'), am.grid173Lv, null, { fmt: 'raw' }),
-    ], { fmt: 'raw', note: 'companion 0' }));
+    ], { fmt: 'raw' }));
 
     // Grid 168 has special Glimbo trade logic
     if (id === 168) {
@@ -108,7 +108,7 @@ export var grid = {
         node('Shape Bonus', shapeMult, null, { fmt: 'x', note: 'shape=' + si }),
         node('All Multi', allMulti, allMultiChildren.length ? allMultiChildren : null, { fmt: 'x' }),
         node('Total Trades', totalTrades, null, { fmt: 'raw', note: tradeGroups + ' groups' }),
-      ], { fmt: 'x', note: 'grid 168' });
+      ], { fmt: 'x' });
     }
 
     return node(label('Grid', id), val, [
@@ -116,7 +116,7 @@ export var grid = {
       node('Base per Level', rawVal, null, { fmt: 'raw', note: bonusPerLv + '/level' }),
       node('Shape Bonus', shapeMult, null, { fmt: 'x', note: 'shape=' + si }),
       node('All Multi', Math.max(1, allMulti), allMultiChildren.length ? allMultiChildren : null, { fmt: 'x' }),
-    ], { fmt: '+', note: 'grid ' + id });
+    ], { fmt: '+' });
   },
 };
 

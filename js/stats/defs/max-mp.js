@@ -5,6 +5,7 @@ import { computeTotalStat, computeCardBonusByType, computeBoxReward } from '../s
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { talent } from '../systems/common/talent.js';
 import { bubbleValByKey } from '../systems/w2/alchemy.js';
+import { entityName, label } from '../entity-names.js';
 import { safe, rval, safeTree, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
@@ -47,19 +48,19 @@ export default createDescriptor({
     var val = list0 * list1;
 
     var children = [
-      { name: 'Base MP (LIST[0])', val: list0, fmt: 'raw', children: [
+      { name: 'Base MP Sources', val: list0, fmt: 'raw', children: [
         { name: 'Constant', val: 10, fmt: 'raw' },
         { name: 'Total WIS', val: totalWIS, fmt: 'raw' },
-        { name: 'Card Bonus 3', val: cardBonus3, fmt: 'raw', children: _cardBonus3T.children },
-        { name: 'Bubble BaseMP', val: bubbleBaseMP, fmt: 'raw', children: _bubbleBaseMPT.children },
-        { name: 'Stamp BaseMP', val: stampBaseMP, fmt: 'raw', children: _stampBaseMPT.children },
-        { name: 'Talent 1', val: talent1, fmt: 'raw' },
+        { name: 'Cards: Base MP', val: cardBonus3, fmt: 'raw', children: _cardBonus3T.children },
+        { name: 'Alchemy Bubble: Base MP', val: bubbleBaseMP, fmt: 'raw', children: _bubbleBaseMPT.children },
+        { name: 'Stamps: Base MP', val: stampBaseMP, fmt: 'raw', children: _stampBaseMPT.children },
+        { name: label('Talent', 1), val: talent1, fmt: 'raw' },
         { name: 'Box Rewards', val: boxBaseMP, fmt: 'raw' },
       ]},
-      { name: 'Pct Multiplier (LIST[1])', val: list1, fmt: 'x', children: [
-        { name: 'Talents 452+272', val: talent452 + talent272, fmt: 'raw' },
-        { name: 'Box pctMP', val: boxPctMP, fmt: 'raw' },
-        { name: 'Card Bonus 29', val: cardBonus29, fmt: 'raw', children: _cardBonus29T.children },
+      { name: 'MP Multipliers', val: list1, fmt: 'x', children: [
+        { name: label('Talent', 452) + ' + ' + entityName('Talent', 272), val: talent452 + talent272, fmt: 'raw' },
+        { name: 'Box Rewards: Total MP', val: boxPctMP, fmt: 'raw' },
+        { name: 'Cards: Total MP', val: cardBonus29, fmt: 'raw', children: _cardBonus29T.children },
       ]},
     ];
 

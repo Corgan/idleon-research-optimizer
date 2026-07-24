@@ -32,6 +32,7 @@ h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2
 .data-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .data-table tr:hover td { background: rgba(255,255,255,.03); }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-scroll { overflow-x: auto; }
 .data-table .pos { color: var(--green); }
 .data-table .best td { background: rgba(76,175,80,.08); }
 
@@ -359,7 +360,7 @@ function optimizeDistribution(totalPoints) {
 function render() {
   var main = document.getElementById('main-content');
   if (!saveData.cookMasterData || !saveData.cookMasterData[2]) {
-    main.innerHTML = '<div class="section" style="text-align:center;color:var(--text2);padding:40px;">Cooking Mastery data not found in save.<br>Requires Rift level 58+ or Companion 87.</div>';
+    main.innerHTML = '<div class="section" style="text-align:center;color:var(--text2);padding:40px;">Cooking Mastery data not found in save.<br>Requires Rift progress 59+ or Rift Spooker.</div>';
     return;
   }
 
@@ -383,7 +384,7 @@ function render() {
   if (opt.results.length > 0 && ptsLeft > 0) {
     var best = opt.results[0];
     html += '<div class="result-box">';
-    html += '<div class="big">Next point → ' + best.name + ' (upgrade ' + best.t + ')</div>';
+    html += '<div class="big">Next point → ' + best.name + '</div>';
     html += '<div class="sub">+' + best.pctGain.toFixed(4) + '% EXP rate | Lv ' + best.curLv + ' → ' + (best.curLv + 1) + '</div>';
     html += '</div>';
   } else if (ptsLeft <= 0) {
@@ -392,7 +393,7 @@ function render() {
 
   // Upgrade table
   html += '<div class="section"><h2>Upgrade Comparison</h2>';
-  html += '<table class="data-table"><thead><tr>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
   html += '<th>#</th><th>Upgrade</th><th class="num">Level</th><th class="num">Per Lv</th><th class="num">Scaling</th><th class="num">Current Bonus%</th><th class="num">+1 Gain%</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < opt.results.length; i++) {
@@ -408,8 +409,8 @@ function render() {
     html += '<td class="num pos">+' + r.pctGain.toFixed(4) + '%</td>';
     html += '</tr>';
   }
-  html += '</tbody></table>';
-  html += '<p style="color:var(--text2);font-size:.75em;margin-top:8px;">Upgrade 3 (Diminishing) is excluded — it does not affect EXP rate.</p>';
+  html += '</tbody></table></div>';
+  html += '<p style="color:var(--text2);font-size:.75em;margin-top:8px;">SMOKY — Ribbon Rank+ is excluded because it does not affect EXP rate.</p>';
   html += '</div>';
 
   // Optimal distribution (daily reset)
@@ -437,7 +438,7 @@ function render() {
   }
   html += '</div></div>';
 
-  html += '<table class="data-table"><thead><tr>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
   html += '<th>Upgrade</th><th class="num">Current</th><th class="num">Optimal</th><th class="num">Change</th><th class="num">EXP Bonus%</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < EXP_UPGRADES.length; i++) {
@@ -455,7 +456,7 @@ function render() {
     html += '<td class="num">' + optBonus.toFixed(1) + '%</td>';
     html += '</tr>';
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   html += '</div>';
 
   // Breakdown tree
@@ -474,7 +475,7 @@ function render() {
     var t = EXP_UPGRADES[i];
     var multi = expMultiplier(t);
     var bonus = bonusTotal(t);
-    treeChildren.push(_bNode(UPG_NAMES[t] + ' (upg ' + t + ')', multi, [
+    treeChildren.push(_bNode(UPG_NAMES[t], multi, [
       _bNode('Level', getUpgLevel(t), null, { fmt: 'raw' }),
       _bNode('Per Level', PERLV[t], null, { fmt: 'raw' }),
       _bNode('Scaling Factor', scalingFactor(t), null, { fmt: 'raw' }),
@@ -484,14 +485,14 @@ function render() {
   // External multipliers
   var em = _extMulti;
   var extChildren = [
-    _bNode('Grid 190', 1 + em.grid190 / 100, null, { fmt: 'x' }),
-    _bNode('SuperBit 68', 1 + 40 * em.superBit68 / 100, null, { fmt: 'x', note: em.superBit68 ? 'Unlocked (+40%)' : 'Not unlocked' }),
-    _bNode('Companion 87', 1 + 2 * em.comp87, null, { fmt: 'x' }),
-    _bNode('Fountain (2,17)', 1 + em.fountain / 100, null, { fmt: 'x' }),
-    _bNode('Vial + Arcade 69 + SaltLick 10', 1 + em.additivePct / 100, [
-      _bNode('Vial 7cookmastery (lv ' + em._vialLv + ')', em.vialBonus, null, { fmt: '%', note: 'base=' + em._vialBase.toFixed(2) + ' lab=' + em._mf10 + ' dNzz=' + em._dNzz.toFixed(0) + ' meritoc20=' + em._meritoc20.toFixed(1) }),
-      _bNode('Arcade 69', em.arcade69, null, { fmt: '%' }),
-      _bNode('SaltLick 10', em.saltLick10, null, { fmt: '%' }),
+    _bNode('Masterius Cookerius (Research)', 1 + em.grid190 / 100, null, { fmt: 'x' }),
+    _bNode('Cooking Master (Zuperbit)', 1 + 40 * em.superBit68 / 100, null, { fmt: 'x', note: em.superBit68 ? 'Unlocked (+40%)' : 'Not unlocked' }),
+    _bNode('Rift Spooker', 1 + 2 * em.comp87, null, { fmt: 'x' }),
+    _bNode('Cook Maxxing (Fountain)', 1 + em.fountain / 100, null, { fmt: 'x' }),
+    _bNode('Additive EXP Bonuses', 1 + em.additivePct / 100, [
+      _bNode('Canteen Read (Vial), Lv ' + em._vialLv, em.vialBonus, null, { fmt: '%' }),
+      _bNode('Cook Mastery EXP (Arcade)', em.arcade69, null, { fmt: '%' }),
+      _bNode('Salt Lick: Cooking Mastery EXP', em.saltLick10, null, { fmt: '%' }),
     ], { fmt: 'x' }),
   ];
   treeChildren.push(_bNode('External Multipliers', em.total, extChildren, { fmt: 'x' }));
@@ -597,8 +598,9 @@ function renderMealAlloc() {
   // Summary
   var improvement = res.curGoalValue > 0 ? ((res.goalValue - res.curGoalValue) / res.curGoalValue * 100) : 0;
   html += '<div class="section"><h2>' + goal.name + '</h2>';
-  html += '<p style="color:var(--text2);font-size:.8em;margin-bottom:8px;">Game categor' + (goal.categories.length > 1 ? 'ies' : 'y') + ': ';
-  for (var gc = 0; gc < goal.categories.length; gc++) html += '<span class="badge badge-gold" style="margin-right:4px;">' + goal.categories[gc] + '</span>';
+  var categoryLabels = { Mcook:'Direct Meal Cooking Speed', zMealFarm:'Burned Mello (Farming-scaled)', KitchenEff:'Cabbage (Kitchen upgrades)', Rcook:'Direct Recipe Cooking Speed', zCropEvo:'Direct Crop Evolution Chance', zCropEvoSumm:'Nyanborgir (Summoning-scaled)' };
+  html += '<p style="color:var(--text2);font-size:.8em;margin-bottom:8px;">Meal sources: ';
+  for (var gc = 0; gc < goal.categories.length; gc++) html += '<span class="badge badge-gold" style="margin-right:4px;">' + (categoryLabels[goal.categories[gc]] || goal.name) + '</span>';
   html += (goal.note ? ' · ' + goal.note : '') + '</p>';
   if (goal.id === 'mcook') {
     var farmScale = farmingMealCookingScale(saveData, _yellowCharIdx);
@@ -625,11 +627,11 @@ function renderMealAlloc() {
   html += '</div></div>';
 
   // Allocation table
-  html += '<table class="data-table"><thead><tr>';
+  html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
   html += '<th>Meal</th>';
   if (goal.categories.length > 1) html += '<th>Category</th>';
   html += '<th>Effect</th>';
-  html += '<th class="num">Meal Lv</th><th class="num">Per Lv</th><th class="num">Base Contribution</th><th class="num">Current Y</th><th class="num">Optimal Y</th><th class="num">Mastery</th>';
+  html += '<th class="num">Meal Lv</th><th class="num">Per Lv</th><th class="num">Base Contribution</th><th class="num">Current Yellow Points</th><th class="num">Optimal Yellow Points</th><th class="num">Mastery</th>';
   html += '</tr></thead><tbody>';
   for (var i = 0; i < res.meals.length; i++) {
     var m = res.meals[i];
@@ -637,7 +639,7 @@ function renderMealAlloc() {
     var cls = m.optLv > 0 ? (diff > 0 ? ' class="best"' : '') : ' style="opacity:.5;"';
     html += '<tr' + cls + '>';
     html += '<td>' + m.name + '</td>';
-    if (goal.categories.length > 1) html += '<td><span class="badge badge-gold">' + m.cat + '</span></td>';
+    if (goal.categories.length > 1) html += '<td><span class="badge badge-gold">' + (categoryLabels[m.cat] || goal.name) + '</span></td>';
     html += '<td>' + m.effect + '</td>';
     html += '<td class="num">' + fmtNum(m.mealLv) + '</td>';
     html += '<td class="num">' + m.base + '</td>';
@@ -647,7 +649,7 @@ function renderMealAlloc() {
     html += '<td class="num">' + bmc(m.optLv).toFixed(3) + 'x</td>';
     html += '</tr>';
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
 
   var usedForGoal = 0;
   for (var i = 0; i < res.meals.length; i++) usedForGoal += res.meals[i].optLv;

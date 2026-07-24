@@ -98,7 +98,7 @@ export function computeSummUpgBonus(t, saveData) {
     }
     moltoz += tal597Add + bonus78 / 100;
     moltozChildren.push({ name: 'Gilded Base', val: 2, fmt: 'raw' });
-    if (tal597Add > 0) moltozChildren.push({ name: 'Talent 597', val: tal597Add, fmt: 'raw' });
+    if (tal597Add > 0) moltozChildren.push({ name: label('Talent', 597), val: tal597Add, fmt: 'raw' });
     if (bonus78 > 0) moltozChildren.push({ name: 'Bonus78 (' + bonus78 + '/100)', val: bonus78 / 100, fmt: 'raw' });
   }
   // SumStoneTrialz multiplier

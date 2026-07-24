@@ -4,6 +4,7 @@
 
 export var FALLBACK_NAMES = {
   Meritoc: {
+    5: 'Total Damage',
     9: 'Voting Multi',
     20: 'All Stat Multi',
     21: 'Sigil Multi',
@@ -121,6 +122,7 @@ export var FALLBACK_NAMES = {
   },
   Family: {
     66: 'Gold Food',
+    80: 'Total Damage Multiplier',
   },
   'Super Bit': {
     2: 'Obol Stat Bonus',
@@ -128,7 +130,9 @@ export var FALLBACK_NAMES = {
     44: 'MSA Bonus',
     47: 'Talent Lv Bonus',
     62: 'Sticker Multi',
+    64: 'Destructive Gamer',
     67: 'Surcharge Multi',
+    68: 'Cooking Master',
   },
   'Card Type': {
     10: 'DR Bonus',
@@ -144,6 +148,7 @@ export var FALLBACK_NAMES = {
   },
   Tome: {
     2: 'DR',
+    6: 'Damage Multiplier',
     7: 'DR Multi',
   },
   Cavern: {

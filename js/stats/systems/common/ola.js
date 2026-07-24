@@ -16,6 +16,6 @@ export var ola = {
       node('Value', val, null, { fmt: 'raw' }),
       node('Threshold', threshold, null, { fmt: 'raw' }),
       node('Active', active ? 1 : 0, null, { fmt: 'raw' }),
-    ], { fmt: '+', note: 'OLA[' + id + ']' });
+    ], { fmt: '+' });
   },
 };

@@ -37,10 +37,10 @@ export var owl = {
     var val = base * legendMulti * (1 + comp51) * (1 + owlAll / 100) * rawCount;
     return node('Summoning Owl', val, [
       node('Base Per Owl', base, null, { fmt: 'raw', note: 'OWL_BASE[' + id + ']' }),
-      node('Owl Count', rawCount, null, { fmt: 'raw', note: 'OLA[255]=' + ola255 }),
-      node(label('Legend', 26), legendMulti, null, { fmt: 'x', note: 'legend 26' }),
-      node(label('Companion', 51), 1 + comp51, null, { fmt: 'x', note: 'companion 51' }),
-      node('Megafeather Bonus', 1 + owlAll / 100, mfChildren.length ? mfChildren : null, { fmt: 'x', note: 'OLA[262]=' + ola262 }),
+      node('Owl Count', rawCount, null, { fmt: 'raw', note: 'Saved progress ' + ola255 }),
+      node(label('Legend', 26), legendMulti, null, { fmt: 'x' }),
+      node(label('Companion', 51), 1 + comp51, null, { fmt: 'x' }),
+      node('Megafeather Bonus', 1 + owlAll / 100, mfChildren.length ? mfChildren : null, { fmt: 'x', note: 'Megafeathers earned ' + ola262 }),
     ], { fmt: '+', note: 'owl ' + id });
   },
 };

@@ -16,6 +16,7 @@ import { currentMapData } from '../../save/data.js';
 import { MapAFKtarget } from '../data/game/customlists.js';
 import { MONSTERS } from '../data/game/monsters.js';
 import { getLOG } from '../../formulas.js';
+import { label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 function lukCurve(v) {
@@ -91,20 +92,20 @@ export default createDescriptor({
       { name: 'Base', val: base, fmt: 'raw' },
       { name: 'AGI Scaling', val: agiBubblePart, fmt: 'raw', note: 'AGI=' + Math.round(totalAGI) + ' curve/' + (2.3).toFixed(1) + '×100' },
     ];
-    if (cardSetBonus9) children.push({ name: 'Card Set 9', val: cardSetBonus9, fmt: 'raw' });
-    if (cardBonus13) children.push({ name: 'Card Bonus 13', val: cardBonus13, fmt: 'raw', children: _cardBonus13T.children });
-    if (cardW4c3) children.push({ name: 'Card w4c3', val: cardW4c3, fmt: 'raw', note: 'min(1.5×' + w4c3lv + ', 50)' });
-    if (talent267) children.push({ name: 'Talent 267', val: talent267, fmt: 'raw' });
-    if (talent447) children.push({ name: 'Talent 447', val: talent447, fmt: 'raw' });
-    if (talent640) children.push({ name: 'Talent 640', val: talent640, fmt: 'raw' });
-    if (talentCalc645) children.push({ name: 'TalentCalc 645', val: talentCalc645, fmt: 'raw', note: 'AccOverflow: t645×log₁₀(acc-1.5×monDef)' });
-    if (etc23) children.push({ name: 'EtcBonus 23', val: etc23, fmt: 'raw' });
-    if (prayer11) children.push({ name: 'Prayer 11', val: prayer11, fmt: 'raw' });
-    if (mealCrit) children.push({ name: 'Meal Crit', val: mealCrit, fmt: 'raw', children: _mealCritT.children });
-    if (statue13) children.push({ name: 'Statue 13', val: statue13, fmt: 'raw', children: _statue13T.children });
+    if (cardSetBonus9) children.push({ name: 'Card Set: Critical Chance', val: cardSetBonus9, fmt: 'raw' });
+    if (cardBonus13) children.push({ name: 'Cards: Critical Chance', val: cardBonus13, fmt: 'raw', children: _cardBonus13T.children });
+    if (cardW4c3) children.push({ name: 'Card: Flombeige', val: cardW4c3, fmt: 'raw', note: 'min(1.5×' + w4c3lv + ', 50)' });
+    if (talent267) children.push({ name: label('Talent', 267), val: talent267, fmt: 'raw' });
+    if (talent447) children.push({ name: label('Talent', 447), val: talent447, fmt: 'raw' });
+    if (talent640) children.push({ name: label('Talent', 640), val: talent640, fmt: 'raw' });
+    if (talentCalc645) children.push({ name: label('Talent', 645) + ' (Accuracy Overflow)', val: talentCalc645, fmt: 'raw', note: 'talent bonus × log10(accuracy - 1.5 × monster defence)' });
+    if (etc23) children.push({ name: label('EtcBonus', 23), val: etc23, fmt: 'raw' });
+    if (prayer11) children.push({ name: label('Prayer', 11), val: prayer11, fmt: 'raw' });
+    if (mealCrit) children.push({ name: 'Meals: Critical Chance', val: mealCrit, fmt: 'raw', children: _mealCritT.children });
+    if (statue13) children.push({ name: label('Statue', 13), val: statue13, fmt: 'raw', children: _statue13T.children });
     if (starSignCrit) children.push({ name: 'Star Signs', val: starSignCrit, fmt: 'raw', children: _starSignCritT.children });
-    if (bubbleCrit) children.push({ name: 'Bubble CritChance', val: bubbleCrit, fmt: 'raw', children: _bubbleCritT.children });
-    if (achieve184) children.push({ name: 'Achievement 184', val: achieve184, fmt: 'raw' });
+    if (bubbleCrit) children.push({ name: 'Alchemy Bubble: Critical Chance', val: bubbleCrit, fmt: 'raw', children: _bubbleCritT.children });
+    if (achieve184) children.push({ name: label('Achievement', 184), val: achieve184, fmt: 'raw' });
     if (boxCrit) children.push({ name: 'Box Rewards', val: boxCrit, fmt: 'raw' });
 
     return { val: val, children: children };

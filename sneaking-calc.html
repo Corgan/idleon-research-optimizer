@@ -722,9 +722,10 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
   var options = [{ item: EMPTY_SLOT, bt: -1 }];
   for (var btk in typeMap) options.push({ item: typeMap[btk], bt: Number(btk) });
 
-  // Short labels by bonusType
-  var BT_ABBR = { '-1':'∅', 0:'Dg', 1:'KO', 2:'AS', 3:'XR', 4:'St', 5:'IF', 6:'J%', 7:'JSt', 8:'FSt', 13:'XP', 14:'J3', 15:'J2', 19:'XP2', 23:'JLv' };
-  function _ab(idx) { return BT_ABBR[options[idx].bt] || 'T'+options[idx].bt; }
+  function _ab(idx) {
+    if (options[idx].bt < 0) return 'Empty';
+    return CHARM_BONUS_TYPES[options[idx].bt] || 'Unknown charm bonus';
+  }
 
   // All unordered pairs (main × support)
   var n = options.length;
@@ -812,7 +813,6 @@ function _renderAllInner() {
     h += '<div style="margin-bottom:4px;padding:3px 8px;background:rgba(76,175,80,.1);border:1px solid var(--green);border-radius:4px;font-size:.72em;">';
     h += '<span style="color:var(--green);font-weight:700;">&#x1F4A1; Best login char:</span> ';
     h += '<span style="color:var(--gold);font-weight:600;">' + bc.charName + '</span>';
-    h += ' <span style="color:var(--text2);">(char ' + bc.charIdx + ')</span>';
     h += '</div>';
   }
 
@@ -893,7 +893,7 @@ function _renderAllInner() {
       var firstSec = 360000 / maxSpd;
       var firstStr = _timeStr(firstSec);
       // Build tooltip with all tiers
-      var tipLines = 'Batch tiers (based on ' + maxSpdName + ', ActionSpd=' + Math.round(maxSpd) + '):\n';
+      var tipLines = 'Batch tiers (based on ' + maxSpdName + ', actions/hour=' + Math.round(maxSpd) + '):\n';
       for (var r = 0; r < 10; r++) {
         var dn6 = 100 * Math.pow(2, r);
         var threshold = 100 * 3600 * Math.pow(2, r);
@@ -923,10 +923,9 @@ function _renderAllInner() {
     var symLv = _symLvForInv(item.slot);
     var cls = 'inv-slot' + (isGold && !symLv ? ' gold' : '') + (isBest ? ' best' : '');
     if (symLv > 0) cls += ' sym-lv' + symLv;
-    var typeLabel = isGold
-      ? (CHARM_BONUS_TYPES[item.bonusType] || 'T' + item.bonusType)
-      : item.type === 2 ? (CHARM_BONUS_TYPES[item.bonusType] || 'T' + item.bonusType)
-      : item.type === 0 ? 'Hat' : item.type === 1 ? 'Weapon' : 'T' + item.type;
+    var typeLabel = isGold || item.type === 2
+      ? (CHARM_BONUS_TYPES[item.bonusType] || 'Unknown charm bonus')
+      : item.type === 0 ? 'Hat' : item.type === 1 ? 'Weapon' : 'Unknown equipment type';
     var statStr = item.stat != null ? item.stat.toFixed(1) : '';
     var bgStyle = symLv ? '' : _lvBg(item.level);
     var s = '<div class="' + cls + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + '>';
@@ -1314,14 +1313,14 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
 
   // Header: Floor | Funeral | then per mastery: Det | ×/hr | Jade/hr | Door | 0% | Rebuild
   h += '<thead><tr>';
-  h += '<th class="left">Fl</th><th>Funeral</th>';
+  h += '<th class="left">Floor</th><th>Funeral Flowers</th>';
   for (var mi = 0; mi < mCount; mi++) {
     var cc = mIsCur[mi] ? ' mcur' : '';
-    h += '<th class="mg-sep' + cc + '">Det</th>';
+    h += '<th class="mg-sep' + cc + '">Detection</th>';
     h += '<th class="' + cc + '" title="Funeral multi growth per hour">×/hr</th>';
     h += '<th class="' + cc + '">Jade/hr</th>';
     h += '<th class="' + cc + '">Door</th>';
-    h += '<th class="' + cc + '">0% det</th>';
+    h += '<th class="' + cc + '">0% Detection</th>';
     h += '<th class="' + cc + '">\u23F1</th>';
   }
   h += '</tr>';
@@ -1355,7 +1354,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
 
       h += '<td class="col-det mg-sep' + cc2 + '" style="color:' + _detColor(cd.bestDet) + ';">' + _pct(cd.bestDet) + '</td>';
       var multiHr = cd.totalFlHr * nk21 / 100;
-      h += '<td class="col-flhr' + cc2 + '" title="' + _fmt(cd.totalFlHr) + ' fl/hr × ' + nk21.toFixed(1) + '% NK21">' + (multiHr >= 0.01 ? multiHr.toFixed(2) : multiHr.toFixed(4)) + '×' + (isFaked ? '*' : '') + '</td>';
+      h += '<td class="col-flhr' + cc2 + '" title="' + _fmt(cd.totalFlHr) + ' flowers/hr × ' + nk21.toFixed(1) + '% Funeral Flowers bonus">' + (multiHr >= 0.01 ? multiHr.toFixed(2) : multiHr.toFixed(4)) + '×' + (isFaked ? '*' : '') + '</td>';
       h += '<td class="col-jade' + cc2 + '" data-tip="Login context: ' + cd.loginContext + '\nSum of per-character game display: ' + _fmt(cd.totalJadePA) + ' jade/hr">' + _fmt(cd.totalJadeHr) + '</td>';
       h += '<td class="col-door' + cc2 + '">' + (cd.hp > 0 ? _fmt(cd.totalDoorDmgHr) + '/' + _fmt(cd.hp) : '-') + '</td>';
       h += '<td class="col-0pct' + cc2 + '">' + _fmt(thresh[5].stealth);
@@ -1393,7 +1392,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       h += '<tr>';
       if (isFirstCol) h += '<th></th>';
       if (curMode !== 'current') h += '<th>Loadout</th>';
-      h += '<th class="num">Det</th><th class="num">Interval</th><th class="num">KO time</th><th class="num">Jade/hr</th><th class="num">×/hr</th><th class="num">Items/hr</th><th class="num">Door/hr</th></tr>';
+      h += '<th class="num">Detection</th><th class="num">Interval</th><th class="num">KO time</th><th class="num">Jade/hr</th><th class="num">Funeral ×/hr</th><th class="num">Items/hr</th><th class="num">Door/hr</th></tr>';
       for (var pt = 0; pt < cd2.perTwin.length; pt++) {
         var p = cd2.perTwin[pt];
         var secPerAct = 3600 / p.spd;
@@ -1429,7 +1428,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
         var mLvThis = masteryLevels[mi3];
         h += '<div style="margin-top:3px;"><strong style="color:var(--cyan);font-size:.68em;">Drops</strong>';
         h += '<table class="data-table" style="margin-top:1px;font-size:.78em;">';
-        h += '<tr><th>Item</th><th>Type</th><th class="num">Wt</th><th class="num">Max Lv</th></tr>';
+        h += '<tr><th>Item</th><th>Type</th><th class="num">Drop Weight</th><th class="num">Max Level</th></tr>';
         for (var di = 0; di < cd2.dropTable.length; di++) {
           var d = cd2.dropTable[di];
           var info2 = equipInfo(d.key, 0);

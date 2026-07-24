@@ -71,6 +71,7 @@ function _lampBonus(t, i, saveData) {
   var grid = [[25, 10, 8], [15, 40, 10], [20, 35, 12], [5, 1, 1], [2, 2, 2]];
   var lampLv = _num(saveData.holesData && saveData.holesData[21]
     && saveData.holesData[21][Math.min(11, 4 + 2 * t)]);
+  // Game LampBonuses(t, i) always scales with ZenithMarketBonus(2), not slot t.
   var zenithLv = _num(saveData.spelunkData && saveData.spelunkData[45]
     && saveData.spelunkData[45][2]);
   var zenith = Math.floor(zenithMarketPerLevel(2) * zenithLv);

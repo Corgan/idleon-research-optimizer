@@ -40,7 +40,7 @@
 </head>
 <body>
 <h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:#c0c0d4;text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x2694; IdleOn Damage Breakdown</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:#c0c0d4;text-decoration:none;" title="GitHub">GitHub</a></h1>
-<p class="subtitle">MaxDmg = DDL[0] &times; DDL[1] &times; DDL[2] &nbsp;|&nbsp; MinDmg = MaxDmg &times; Mastery</p>
+<p class="subtitle">Max Damage = Base Damage &times; Percentage Damage Multiplier &times; Multiplicative Damage Bonuses &nbsp;|&nbsp; Min Damage = Max Damage &times; Mastery</p>
 <div class="container">
 
 <!-- Import -->
@@ -97,17 +97,17 @@
 <div id="ddl-section" style="display:none">
   <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
     <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">DDL[0] — Base Damage</div>
+      <div class="dmg-label">Base Damage</div>
       <div class="dmg-val" id="ddl0-val" style="font-size:1.3em;color:var(--text)">—</div>
       <div class="dmg-sub" id="ddl0-note"></div>
     </div>
     <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">DDL[1] — % Multiplier</div>
+      <div class="dmg-label">Percentage Damage Multiplier</div>
       <div class="dmg-val" id="ddl1-val" style="font-size:1.3em;color:var(--cyan)">—</div>
       <div class="dmg-sub" id="ddl1-note"></div>
     </div>
     <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">DDL[2] — Big Multiplier</div>
+      <div class="dmg-label">Multiplicative Damage Bonuses</div>
       <div class="dmg-val" id="ddl2-val" style="font-size:1.3em;color:var(--green)">—</div>
       <div class="dmg-sub" id="ddl2-note"></div>
     </div>
@@ -140,6 +140,7 @@ import damageDesc from './js/stats/defs/damage.js';
 import { buildTree } from './js/stats/tree-builder.js';
 import { getCatalog } from './js/stats/registry.js';
 import { doImport as _doImport, wireFileInput } from './js/ui/save-import.js';
+import { entityName, label } from './js/stats/entity-names.js';
 
 var SAVE_RAW = null;
 var CHARS = [];
@@ -153,51 +154,51 @@ var DDL0_LABELS = {
   stampBaseDmg: ['Stamp: Base Damage', '+'],
   hpMax: ['HP Max', 'raw'],
   mpMax: ['MP Max', 'raw'],
-  bdmgHP: ['Bubble W4: Base Dmg from HP', '+'],
-  bdmgMP: ['Bubble A4: Base Dmg from MP', '+'],
-  bdmgSPD: ['Bubble M4: Base Dmg from SPD', '+'],
-  bubbleHP: ['Bubble HP%', '%'],
-  bubbleMP: ['Bubble MP%', '%'],
-  bubbleSPD: ['Bubble SPD%', '%'],
+  bdmgHP: [label('Bubble', 'O4'), '+'],
+  bdmgMP: [label('Bubble', 'G4'), '+'],
+  bdmgSPD: [label('Bubble', 'P4'), '+'],
+  bubbleHP: ['Reely Smart: HP Contribution', '%'],
+  bubbleMP: ['Anvilnomics: MP Contribution', '%'],
+  bubbleSPD: ['Noodubble: Speed Contribution', '%'],
   playerSpeed: ['Player Speed', 'raw'],
   boxBaseDmg: ['Box Reward: Base Damage', '+'],
-  preSoftcap: ['Pre-Softcap DDL[0]', 'raw'],
+  preSoftcap: ['Base Damage Before Softcap', 'raw'],
   owlBonus1: ['Owl Bonus (1)', '+'],
-  card4: ['Card Bonus (4)', '+'],
-  vault0: ['Vault Upgrade (0)', '+'],
-  arcade0: ['Arcade Bonus (0)', '+'],
+  card4: ['Cards: Base Damage', '+'],
+  vault0: [entityName('Vault', 0), '+'],
+  arcade0: [entityName('Arcade', 0), '+'],
   statue0: ['Statue: Power', '+'],
-  sigil4: ['Sigil (4)', '+'],
+  sigil4: [entityName('Sigil', 4), '+'],
   equipWP: ['Equipment WP (base)', 'raw'],
   galleryWP: ['Gallery WP', '+'],
   obolWP: ['Obol WP', '+'],
   _box12a: ['Box 12a: WP', '+'],
   _flurbo: ['Flurbo Shop: WP', '+'],
   _foodWP: ['Food: WP Boost', '+'],
-  _card18: ['Card Bonus (18): WP', '+'],
-  _cardW5b2: ['Card Level w5b2', '+'],
-  _sigil17: ['Sigil (17): WP', '+'],
-  _guild3: ['Guild Bonus (3)', '+'],
+  _card18: ['Cards: Weapon Power', '+'],
+  _cardW5b2: ['Purgatory Stalker Card Level', '+'],
+  _sigil17: [entityName('Sigil', 17) + ': Weapon Power', '+'],
+  _guild3: [label('Guild', 3), '+'],
   _chipWP: ['Lab Chip: WP', '%'],
-  _bubW1: ['Bubble W1: WP%', '%'],
-  _bubA1: ['Bubble A1: WP%', '%'],
-  _bubM1: ['Bubble M1: WP%', '%'],
-  _tc616: ['Talent 616: Beginner WP', '+'],
+  _bubW1: [label('Bubble', 'O1'), '%'],
+  _bubA1: [label('Bubble', 'G1'), '%'],
+  _bubM1: [label('Bubble', 'P1'), '%'],
+  _tc616: [entityName('Talent', 616), '+'],
   _vialWP: ['Vial: WP', '+'],
   _fam16: ['Family Bonus (16): WP', '+'],
   _starWP: ['Star Sign: WP', '+'],
-  _arc17: ['Arcade (17): WP', '+'],
-  _t530: ['Talent 530: Constr/10', '+'],
-  _t140: ['Talent 140: Mining/10', '+'],
-  _t170: ['Talent 170: Gaming/10', '+'],
-  _t320: ['Talent 320: Sailing/10', '+'],
-  _t500: ['Talent 500: Divinity/10', '+'],
-  _t365: ['Talent 365: Pet LOG', '+'],
+  _arc17: [entityName('Arcade', 17) + ': Weapon Power', '+'],
+  _t530: [entityName('Talent', 530), '+'],
+  _t140: [entityName('Talent', 140), '+'],
+  _t170: [entityName('Talent', 170), '+'],
+  _t320: [entityName('Talent', 320), '+'],
+  _t500: [entityName('Talent', 500), '+'],
+  _t365: [entityName('Talent', 365), '+'],
 };
 
 var DDL1_LABELS = {
-  preSoftcap: ['Pre-Softcap DDL[1]', 'x'],
-  postSoftcap: ['Post-Softcap DDL[1]', 'x'],
+  preSoftcap: ['Percentage Multiplier Before Softcap', 'x'],
+  postSoftcap: ['Percentage Multiplier After Softcap', 'x'],
   addBase: ['Additive Base', '+'],
   pctMultBase: ['Pct Mult Base', 'x'],
   smithMult: ['Smith Multi', 'x'],
@@ -207,63 +208,63 @@ var DDL1_LABELS = {
   talentChainMult: ['Talent Chain Multi', 'x'],
   gfDamage: ['Golden Food: Damage%', '%'],
   statPow: ['Stat^0.7 term', '+'],
-  vault27: ['Vault (27)', '%'],
-  vault15: ['Vault (15)', '%'],
-  ola338: ['OLA[338]', '%'],
-  vault10: ['Vault (10)', '%'],
-  vault80: ['Vault (80)', '%'],
+  vault27: [entityName('Vault', 27), '%'],
+  vault15: [entityName('Vault', 15), '%'],
+  ola338: ['Knockout! Sequence Progress', '%'],
+  vault10: [entityName('Vault', 10), '%'],
+  vault80: [entityName('Vault', 80), '%'],
   farmRank14: ['Farm Rank 14', '%'],
-  statue22: ['Statue 22', '%'],
+  statue22: [label('Statue', 22), '%'],
   hpLog: ['LOG(HPmax) x bubble', '+'],
-  talent86: ['Talent 86', '%'],
+  talent86: [entityName('Talent', 86), '%'],
   mpLog: ['LOG(MPmax) x bubble', '+'],
-  talent446: ['Talent 446', '%'],
-  bubbleW12: ['Bubble W12', '%'],
-  bubbleA12: ['Bubble A12', '%'],
-  bubbleM12: ['Bubble M12', '%'],
-  tc485: ['Talent 485', '%'],
+  talent446: [entityName('Talent', 446), '%'],
+  bubbleW12: [label('Bubble', 'O12'), '%'],
+  bubbleA12: [label('Bubble', 'G12'), '%'],
+  bubbleM12: [label('Bubble', 'P12'), '%'],
+  tc485: [entityName('Talent', 485), '%'],
   bUpg57: ['Bubba Upgrade 57', '%'],
-  tc656: ['Talent 656', '%'],
+  tc656: [entityName('Talent', 656), '%'],
   divMinor7: ['Divinity Minor (7)', '%'],
-  talent658: ['Talent 658 (max)', '%'],
-  tc31: ['Talent 31', '%'],
-  tc110: ['Talent 110', '%'],
-  tc125: ['Talent 125 (calc)', '%'],
-  tc305d50: ['Talent 305 / 50', '%'],
-  tc470d10: ['Talent 470 / 10', '%'],
-  t290speed: ['Talent 290 × Speed', '%'],
+  talent658: [entityName('Talent', 658) + ' (account best)', '%'],
+  tc31: [entityName('Talent', 31), '%'],
+  tc110: [entityName('Talent', 110), '%'],
+  tc125: [entityName('Talent', 125), '%'],
+  tc305d50: [entityName('Talent', 305), '%'],
+  tc470d10: [entityName('Talent', 470), '%'],
+  t290speed: [entityName('Talent', 290) + ' × Speed', '%'],
   quests658: ['Quests × t658', '%'],
   owlBonus2: ['Owl Bonus (2)', '%'],
   rooBonus4: ['Roo Bonus (4)', '%'],
-  bubbaRoG4: ['Bubba RoG (4)', '%'],
-  talent463: ['Talent 463', 'raw'],
-  minigameHS: ['Minigame HS', 'raw'],
+  bubbaRoG4: ['Bubba Restaurant of Gains: Total Damage', '%'],
+  talent463: [entityName('Talent', 463), 'raw'],
+  minigameHS: ['Log Minigame High Score', 'raw'],
 };
 
 var DDL2_LABELS = {
-  preSoftcap: ['Pre-Softcap DDL[2]', 'x'],
-  postSoftcap: ['Post-Softcap DDL[2]', 'x'],
-  final: ['Final DDL[2]', 'x'],
+  preSoftcap: ['Multiplicative Bonuses Before Softcap', 'x'],
+  postSoftcap: ['Multiplicative Bonuses After Softcap', 'x'],
+  final: ['Final Multiplicative Damage Bonus', 'x'],
   penaltyMult: ['Penalty Multiplier', 'x'],
   compMult: ['Companion Multi', 'x'],
-  etc72: ['EtcBonus 72', '%'],
-  etc75: ['EtcBonus 75', '%'],
-  etc104: ['EtcBonus 104', '%'],
+  etc72: [entityName('EtcBonus', 72), '%'],
+  etc75: [entityName('EtcBonus', 75), '%'],
+  etc104: [entityName('EtcBonus', 104), '%'],
   votingDmg: ['Voting Damage', '%'],
-  comp12: ['Companion 12', '%'],
-  comp33: ['Companion 33', '%'],
-  comp160: ['Companion 160', '%'],
-  ola232: ['OLA[232]', 'raw'],
-  ola232Bonus: ['OLA[232] Bonus', '%'],
-  card96: ['Card Bonus (96)', '%'],
-  ach371: ['Achievement 371', '%'],
-  ach384: ['Achievement 384', '%'],
-  rog49: ['Rog Bonus (49)', '%'],
-  superBit64: ['Super Bit (64)', '%'],
-  tomeBonus6: ['Tome Bonus (6)', '%'],
-  crystal6Bonus: ['Crystal Card LV 6', '%'],
-  meritoc5: ['Meritocracy (5)', '%'],
-  famBonus80: ['Family Bonus (80)', '%'],
+  comp12: [entityName('Companion', 12), '%'],
+  comp33: [entityName('Companion', 33), '%'],
+  comp160: [entityName('Companion', 160), '%'],
+  ola232: ['Highest Sneaking Mastery', 'raw'],
+  ola232Bonus: ['Highest Sneaking Mastery Bonus', '%'],
+  card96: ['Cards: Total Damage Multiplier', '%'],
+  ach371: [entityName('Achievement', 371), '%'],
+  ach384: [entityName('Achievement', 384), '%'],
+  rog49: [label('RoG', 49), '%'],
+  superBit64: [label('Super Bit', 64), '%'],
+  tomeBonus6: [label('Tome', 6), '%'],
+  crystal6Bonus: ['Crystal6 Card: Damage Multiplier', '%'],
+  meritoc5: [label('Meritoc', 5), '%'],
+  famBonus80: [label('Family', 80), '%'],
   bundleApplied: ['Bundle Bonus Applied', 'raw'],
 };
 
@@ -376,10 +377,10 @@ function recalc() {
 
   // Combined damage tree: DDL[0], DDL[1], DDL[2] as children of MaxDmg
   var ddl0Nodes = buildDebugTree(ddl0Debug, DDL0_LABELS);
-  var ddl0Root = _bNode('DDL[0] — Base Damage', baseDmg, ddl0Nodes, { fmt: 'raw', note: 'pow(WP/3, 2) + statType + flat adds, then softcap at 4000/15000. Pre-softcap: ' + fmtVal(ddl0Debug ? ddl0Debug.preSoftcap || 0 : 0) });
+  var ddl0Root = _bNode('Base Damage', baseDmg, ddl0Nodes, { fmt: 'raw', note: 'pow(WP/3, 2) + stat type + flat additions, then softcap at 4000/15000. Pre-softcap: ' + fmtVal(ddl0Debug ? ddl0Debug.preSoftcap || 0 : 0) });
 
   var ddl1Nodes = buildDebugTree(ddl1Debug, DDL1_LABELS);
-  var ddl1Root = _bNode('DDL[1] — Percent Multiplier', pctMult, ddl1Nodes, { fmt: 'x', note: 'stat^0.7 + pct adds, then softcaps. Pre-softcap: ' + fmtVal(ddl1Debug ? ddl1Debug.preSoftcap || 0 : 0) });
+  var ddl1Root = _bNode('Percentage Damage Multiplier', pctMult, ddl1Nodes, { fmt: 'x', note: 'stat^0.7 + percentage additions, then softcaps. Pre-softcap: ' + fmtVal(ddl1Debug ? ddl1Debug.preSoftcap || 0 : 0) });
 
   var ddl2Nodes = buildDebugTree(ddl2Debug, DDL2_LABELS);
   if (ddl2Debug && ddl2Debug.steps) {
@@ -389,13 +390,13 @@ function recalc() {
       var sLabel = step[0] || 'step ' + si;
       var sGroupVal = step.length > 2 ? step[1] : step[1];
       var sRunning = step.length > 2 ? step[2] : step[1];
-      stepsChildren.push(_bNode(sLabel, sRunning, null, { fmt: 'raw', note: 'group=' + (typeof sGroupVal === 'number' ? sGroupVal.toFixed(4) : sGroupVal) }));
+      stepsChildren.push(_bNode(sLabel, sRunning, null, { fmt: 'raw', note: 'Group contribution: ' + (typeof sGroupVal === 'number' ? sGroupVal.toFixed(4) : sGroupVal) }));
     }
     ddl2Nodes.unshift(_bNode('Build-up Steps (pre-softcap)', ddl2Debug.preSoftcap || 0, stepsChildren, { fmt: 'raw', note: 'Running product of multiplicative groups before softcap' }));
   }
-  var ddl2Root = _bNode('DDL[2] — Big Multiplier', bigMult, ddl2Nodes, { fmt: 'x', note: 'Large multiplicative bonuses, softcap chain, then post-cap multipliers. Pre-softcap: ' + fmtVal(ddl2Debug ? ddl2Debug.preSoftcap || 0 : 0) });
+  var ddl2Root = _bNode('Multiplicative Damage Bonuses', bigMult, ddl2Nodes, { fmt: 'x', note: 'Large multiplicative bonuses, softcap chain, then post-cap multipliers. Pre-softcap: ' + fmtVal(ddl2Debug ? ddl2Debug.preSoftcap || 0 : 0) });
 
-  var damageRoot = _bNode('Max Damage', maxDmg, [ddl0Root, ddl1Root, ddl2Root], { fmt: 'raw', note: 'DDL[0] × DDL[1] × DDL[2]' });
+  var damageRoot = _bNode('Max Damage', maxDmg, [ddl0Root, ddl1Root, ddl2Root], { fmt: 'raw', note: 'Base Damage × Percentage Damage Multiplier × Multiplicative Damage Bonuses' });
   renderBreakdownTree(damageRoot, document.getElementById('tree-damage'), { tooltipId: 'bt-tooltip' });
 }
 

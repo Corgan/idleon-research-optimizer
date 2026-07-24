@@ -107,11 +107,11 @@ var FMT = {
   'monster-exp':  function(v) { return v.toFixed(2) + 'x'; },
   'skill-exp':    function(v) { return v.toFixed(2) + 'x'; },
   'skill-efficiency': function(v) { return fmtVal(v); },
-  'build-rate':   function(v) { return v.toFixed(2) + 'x'; },
-  'construction-exp': function(v) { return v.toFixed(2) + 'x'; },
+  'build-rate':   function(v) { return fmtVal(v) + '/hr'; },
+  'construction-exp': function(v) { return fmtVal(v) + '/hr'; },
   'flaggy-speed': function(v) { return v.toFixed(2) + 'x'; },
-  'research-exp': function(v) { return v.toFixed(2) + 'x'; },
-  'research-afk-gains': function(v) { return v.toFixed(2) + 'x'; },
+  'research-exp': function(v) { return '+' + v.toFixed(2) + '%'; },
+  'research-afk-gains': function(v) { return (100 * v).toFixed(2) + '%'; },
   'sushi-bucks':  function(v) { return fmtVal(v) + '/hr'; },
   'minehead-currency': function(v) { return fmtVal(v) + '/hr'; },
   'spelunking-pow': function(v) { return fmtVal(v); },
@@ -326,6 +326,7 @@ function recalcAll() {
       result = { val: 0, children: null, name: desc.name, _error: e.message };
     }
     result.name = desc.name;
+    result.fmt = desc.fmt || result.fmt;
     RESULTS[desc.id] = result;
 
     // Update header value
@@ -338,7 +339,7 @@ function recalcAll() {
     var body = document.getElementById('body-' + desc.id);
     if (body && body.classList.contains('open')) {
       body.dataset.rendered = '';
-      var renderRoot = toRenderNode({ name: desc.name, val: result.val, children: result.children, fmt: 'x' });
+      var renderRoot = toRenderNode({ name: desc.name, val: result.val, children: result.children, fmt: result.fmt });
       renderBreakdownTree(renderRoot, document.getElementById('tree-' + desc.id), { tooltipId: 'bt-tooltip' });
       body.dataset.rendered = '1';
     }
@@ -358,7 +359,7 @@ function recalcAll() {
         bodyEl.classList.add('open');
         if (arrowEl) arrowEl.classList.add('open');
         if (!bodyEl.dataset.rendered && RESULTS[did]) {
-          var rr = toRenderNode({ name: RESULTS[did].name, val: RESULTS[did].val, children: RESULTS[did].children, fmt: 'x' });
+          var rr = toRenderNode({ name: RESULTS[did].name, val: RESULTS[did].val, children: RESULTS[did].children, fmt: RESULTS[did].fmt });
           renderBreakdownTree(rr, document.getElementById('tree-' + did), { tooltipId: 'bt-tooltip' });
           bodyEl.dataset.rendered = '1';
         }

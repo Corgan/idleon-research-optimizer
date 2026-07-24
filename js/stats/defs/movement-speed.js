@@ -14,6 +14,7 @@ import { etcBonus } from '../systems/common/etcBonus.js';
 import { optionsListData, equipOrderData, equipQtyData } from '../../save/data.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
 import { ITEMS } from '../data/game/items.js';
+import { entityName, label } from '../entity-names.js';
 import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.js';
 
 function agiScale(agiVal) {
@@ -52,14 +53,14 @@ export default createDescriptor({
     var _bCardSet01 = _bCardSet01T.val || 0;
     var boostEff = 1 + (_bBoxVal + _bStatue3 + _bEtc9 + _bStampVal + _bStar + _bCard48 + _bCardSet01 + _bT631) / 100;
     var boostEffChildren = [
-      { name: 'Box PowerFoodEffect', val: _bBoxVal, fmt: 'raw' },
-      { name: 'Statue 3', val: _bStatue3, fmt: 'raw', children: _bStatue3T.children },
-      { name: 'Stamp BFood', val: _bStampVal, fmt: 'raw', children: _bStampT.children },
-      { name: 'Star Sign FoodEffect', val: _bStar, fmt: 'raw', children: _bStarT.children },
-      { name: 'Cards (type 48)', val: _bCard48, fmt: 'raw', children: _bCard48T.children },
-      { name: 'Talent 631', val: _bT631, fmt: 'raw' },
-      { name: 'EtcBonus 9', val: _bEtc9, fmt: 'raw' },
-      { name: 'CardSet 1', val: _bCardSet01, fmt: 'raw', children: _bCardSet01T.children },
+      { name: 'Box Rewards: Food Effect', val: _bBoxVal, fmt: 'raw' },
+      { name: label('Statue', 3), val: _bStatue3, fmt: 'raw', children: _bStatue3T.children },
+      { name: 'Stamps: Food Effect', val: _bStampVal, fmt: 'raw', children: _bStampT.children },
+      { name: 'Star Signs: Food Effect', val: _bStar, fmt: 'raw', children: _bStarT.children },
+      { name: 'Cards: Food Effect', val: _bCard48, fmt: 'raw', children: _bCard48T.children },
+      { name: label('Talent', 631), val: _bT631, fmt: 'raw' },
+      { name: label('EtcBonus', 9), val: _bEtc9, fmt: 'raw' },
+      { name: 'Food Effect Card Set', val: _bCardSet01, fmt: 'raw', children: _bCardSet01T.children },
     ];
 
     var spdFood = 0;
@@ -75,7 +76,7 @@ export default createDescriptor({
             var amt = Number(ITEMS[fname].Amount) || 0;
             var contrib = amt * boostEff;
             spdFood += contrib;
-            spdFoodChildren.push({ name: fname, val: contrib, fmt: 'raw', note: 'base ' + amt + ' × ' + boostEff.toFixed(3) });
+            spdFoodChildren.push({ name: entityName('Item', fname) || fname, val: contrib, fmt: 'raw', note: 'base ' + amt + ' × ' + boostEff.toFixed(3) });
           }
         }
       }
@@ -128,25 +129,25 @@ export default createDescriptor({
     finalSpeed = Math.floor(100 * finalSpeed) / 100;
 
     var children = [
-      { name: 'Food (MoveSpdBoosts)', val: spdFood, fmt: 'raw', children: [
+      { name: 'Movement Speed Food', val: spdFood, fmt: 'raw', children: [
         { name: 'Boost Effect Multi', val: boostEff, fmt: 'x', children: boostEffChildren },
       ].concat(spdFoodChildren) },
-      { name: 'Talent 266', val: talent266, fmt: 'raw' },
-      { name: 'Stamp PctMoveSpd', val: stampSpd, fmt: 'raw', children: _stampSpdT.children },
-      { name: 'OLA[438]', val: ola438, fmt: 'raw' },
-      { name: 'Statue 1', val: statue1, fmt: 'raw', children: _statue1T.children },
-      { name: 'Star Sign MoveSpd', val: starMoveSpd, fmt: 'raw', children: _starMoveSpdT.children },
-      { name: 'EtcBonus 1', val: etc1, fmt: 'raw' },
-      { name: 'Cards (type 6)', val: cardBonus6, fmt: 'raw', children: _cardBonus6T.children },
-      { name: 'Talent 77', val: talent77, fmt: 'raw' },
-      { name: 'Buff 273 (Speed)', val: buff273, fmt: 'raw' },
+      { name: label('Talent', 266), val: talent266, fmt: 'raw' },
+      { name: 'Movement Speed Stamps', val: stampSpd, fmt: 'raw', children: _stampSpdT.children },
+      { name: 'Account Movement Speed Bonus', val: ola438, fmt: 'raw' },
+      { name: label('Statue', 1), val: statue1, fmt: 'raw', children: _statue1T.children },
+      { name: 'Movement Speed Star Signs', val: starMoveSpd, fmt: 'raw', children: _starMoveSpdT.children },
+      { name: label('EtcBonus', 1), val: etc1, fmt: 'raw' },
+      { name: 'Cards: Move Speed', val: cardBonus6, fmt: 'raw', children: _cardBonus6T.children },
+      { name: label('Talent', 77), val: talent77, fmt: 'raw' },
+      { name: 'Active Buff: Movement Speed', val: buff273, fmt: 'raw' },
       { name: 'AGI (' + Math.round(agiVal) + ')', val: _agiScale, fmt: 'raw', note: 'agiScale/2.2 added to speed', children: _agiChildren },
       { name: 'Pre-Cap Speed', val: preCapSpeed, fmt: 'raw' },
       { name: 'Post-Cap Adjustments', val: finalSpeed - preCapSpeed, fmt: 'raw', children: [
-        { name: 'Salt Lick 7', val: saltLick7, fmt: 'raw', children: _saltLick7T && _saltLick7T.children },
-        { name: 'Chip move', val: chipMove, fmt: 'raw', children: _chipMoveT && _chipMoveT.children },
-        { name: 'Talent 641', val: talent641, fmt: 'raw' },
-        { name: 'Sigil 13', val: sigil13, fmt: 'raw' },
+        { name: label('SaltLick', 7), val: saltLick7, fmt: 'raw', children: _saltLick7T && _saltLick7T.children },
+        { name: 'Lab Chip: Movement Speed', val: chipMove, fmt: 'raw', children: _chipMoveT && _chipMoveT.children },
+        { name: label('Talent', 641), val: talent641, fmt: 'raw' },
+        { name: label('Sigil', 13), val: sigil13, fmt: 'raw' },
       ] },
       { name: 'Final Speed', val: finalSpeed, fmt: 'raw' },
     ];

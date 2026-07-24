@@ -27,6 +27,7 @@ import { DN_MOB_DATA } from '../../data/w7/deathNote.js';
 import { DeathNoteMobs, Tome as TomeData, RANDOlist } from '../../data/game/customlists.js';
 import { createStatContext } from '../../stat-context.js';
 import { computeArcaneMapMultiBon } from '../mc/tesseract.js';
+import { label } from '../../entity-names.js';
 
 // ===== Static Tome data: [half, mode, maxPts] per slot =====
 // Derived from CustomLists.Tome: each entry is [name, half, mode, maxPts, ...].
@@ -614,8 +615,8 @@ function _arrSumPositive(a) {
 }
 
 // ===== Breakdown: returns { val, children } explaining how each slot's qty is composed =====
-// OLA shorthand for children
-function _olaNode(idx) { return { name: 'OLA[' + idx + ']', val: ola(idx), fmt: 'raw' }; }
+// Account progress is contextualized by the parent Tome slot.
+function _olaNode(idx) { return { name: 'Saved Progress', val: ola(idx), fmt: 'raw' }; }
 function _n(name, val) { return { name: name, val: val, fmt: 'raw' }; }
 
 // Per-tab sum for stamp data
@@ -656,7 +657,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
         var ca = sla[0];
         for (i = 0; i < ca.length; i++) {
           v = num(Array.isArray(ca[i]) ? ca[i][0] : ca[i]);
-          if (v > 0) ch.push(_n('statue ' + i, v));
+          if (v > 0) ch.push(_n(label('Statue', i), v));
         }
       }
       return { val: val, children: ch };
@@ -667,7 +668,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
       if (S.cards0Data) {
         for (var ck in S.cards0Data) {
           v = computeCardLv(ck, saveData);
-          if (v > 0) ch.push(_n(ck, v));
+          if (v > 0) ch.push(_n(label('Card', ck), v));
         }
       }
       return { val: val, children: ch };
@@ -682,7 +683,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
         for (var si in sk) { v = num(sk[si]); if (!maxPS[si] || v > maxPS[si]) maxPS[si] = v; }
       }
       ch = [];
-      for (var mk in maxPS) if (maxPS[mk] > 0) ch.push(_n('talent ' + mk, maxPS[mk]));
+      for (var mk in maxPS) if (maxPS[mk] > 0) ch.push(_n(label('Talent', Number(mk)), maxPS[mk]));
       return { val: val, children: ch };
     }
 
@@ -745,7 +746,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 15: // Star Talent Points — complex, delegate to detail
       return _starTalentPointsBreakdown(S, undefined, saveData);
 
-    case 16: return { val: val, children: [_olaNode(202), _n('1/OLA[202]', val)] };
+    case 16: return { val: val, children: [_olaNode(202), _n('Reciprocal Average', val)] };
 
     case 17: return { val: val, children: [_olaNode(71), _n('rank from thresholds', val)] };
 
@@ -787,7 +788,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
         var sigs = S.cauldronP2WData[4];
         for (i = 0; i < Math.ceil(sigs.length / 2); i++) {
           v = num(sigs[1 + 2 * i]) + 1;
-          ch.push(_n('sigil ' + i, v));
+          ch.push(_n(label('Sigil', i), v));
         }
       }
       return { val: val, children: ch };
@@ -805,7 +806,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 28: return { val: val, children: [_olaNode(205)] };
     case 29: return { val: val, children: [_olaNode(206)] };
 
-    case 30: return { val: val, children: [_olaNode(207), _n('1000 - OLA[207]', val)] };
+    case 30: return { val: val, children: [_olaNode(207), _n('1000 Minus Saved Time', val)] };
 
     case 31: return { val: val, children: [_olaNode(211)] };
     case 32: return { val: val, children: [_olaNode(212)] };
@@ -835,7 +836,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
             if (dKills > 0) worldDigits += Math.ceil(getLOG(dKills));
           }
           dnTotal += worldDigits;
-          ch.push(_n('DN world ' + dw + ' digits', worldDigits));
+          ch.push(_n('Death Note World ' + (dw + 1) + ' Digits', worldDigits));
         }
       }
       // Ninja[105] bonus
@@ -902,7 +903,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
       return { val: val, children: ch };
     }
 
-    case 47: return { val: val, children: [_olaNode(220), _n('1000 - OLA[220]', val)] };
+    case 47: return { val: val, children: [_olaNode(220), _n('1000 Minus Saved Time', val)] };
 
     case 48: { // Total Kitchen Upgrade LV
       ch = [];
@@ -970,13 +971,13 @@ export function tomeQTYBreakdown(slot, S, saveData) {
       ch = [];
       if (S.statueGData) {
         for (i = 0; i < S.statueGData.length; i++) {
-          if (num(S.statueGData[i]) >= 2) ch.push(_n('statue ' + i + ' (onyx+)', 1));
+          if (num(S.statueGData[i]) >= 2) ch.push(_n(label('Statue', i) + ' (Onyx)', 1));
         }
       }
       return { val: val, children: ch };
     }
 
-    case 56: return { val: val, children: [_olaNode(218), _n('1000 - OLA[218]', val)] };
+    case 56: return { val: val, children: [_olaNode(218), _n('1000 Minus Saved Time', val)] };
 
     case 57: { // Total Boat Upgrade LV
       ch = [];
@@ -1011,7 +1012,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 64: return { val: val, children: [_n('Gaming[8]', val)] };
     case 65: return { val: val, children: [_n('Cards1.length', val)] };
     case 66: return { val: val, children: [_n('Gaming[0]', val)] };
-    case 67: return { val: val, children: [_olaNode(219), _n('2^OLA[219]', val)] };
+    case 67: return { val: val, children: [_olaNode(219), _n('Crop Evolution Value', val)] };
     case 68: return { val: val, children: [_n('farmCropCount', val)] };
     case 69: return { val: val, children: [_n('sum Ninja[104]', val)] };
     case 70: return { val: val, children: [_n('sum Summon[0]', val)] };
@@ -1029,12 +1030,12 @@ export function tomeQTYBreakdown(slot, S, saveData) {
         }
       }
       ch.push(_n('Pet wins', petWins));
-      ch.push(_n('DN mob wins', dnWins));
-      ch.push(_n('OLA[319] endless', Math.round(ola(319))));
+      ch.push(_n('Death Note Mob Wins', dnWins));
+      ch.push(_n('Endless Summoning Wins', Math.round(ola(319))));
       return { val: val, children: ch };
     }
 
-    case 72: return { val: val, children: [_olaNode(232), _n('12 * OLA[232]', val)] };
+    case 72: return { val: val, children: [_olaNode(232), _n('Floors per Mastery', val)] };
 
     case 73: { // Familiars Owned
       ch = [];
@@ -1126,7 +1127,7 @@ export function tomeQTYBreakdown(slot, S, saveData) {
       return { val: val, children: ch };
     }
 
-    case 94: return { val: val, children: [_olaNode(353), _n('round(min(12,OLA[353]))+1', val)] };
+    case 94: return { val: val, children: [_olaNode(353), _n('Round Reached', val)] };
     case 95: return { val: val, children: [_olaNode(369)] };
 
     case 96: { // Summoning Boss Stone Wins
@@ -1240,30 +1241,30 @@ function _starTalentPointsBreakdown(S, activeCharIdx, saveData) {
       best = total;
       bestCI = ci;
       bestChildren = [
-        _n('charLv-1', charLv - 1),
-        _n('TalentDN4 (skillPts+t275)', dn4),
-        _n('talent 8', t8),
-        _n('CY star pts', cy5),
-        _n('famBonus64', famBonus64),
-        _n('talent 622', t622),
-        _n('stamp TalentS', stamp),
-        _n('talent 17', t17),
-        _n('guild 11', guild11),
-        _n('flurbo shop', flurbo),
-        _n('card w4b2', card1),
-        _n('card Boss2C', card2),
-        _n('card fallEvent1', card3),
-        _n('sigil 9', sigil2),
-        _n('achievements', ach),
-        _n('shiny 14', shiny),
-        _n('bribe 32', bribe),
-        _n('fractal', fractal),
-        _n('vault upg 53', vub),
-        _n('companion 20', comp),
+        _n('Character Level', charLv - 1),
+        _n('Skill Talent Points', dn4),
+        _n(label('Talent', 8), t8),
+        _n('Star Talent Points', cy5),
+        _n('Family Bonus: Star Talent Points', famBonus64),
+        _n(label('Talent', 622), t622),
+        _n('Stamps: Star Talent Points', stamp),
+        _n(label('Talent', 17), t17),
+        _n(label('Guild', 11), guild11),
+        _n(label('Flurbo Shop', 1), flurbo),
+        _n(label('Card', 'w4b2'), card1),
+        _n(label('Card', 'Boss2C'), card2),
+        _n(label('Card', 'fallEvent1'), card3),
+        _n(label('Sigil', 9), sigil2),
+        _n('Achievements', ach),
+        _n(label('Breeding', 14), shiny),
+        _n(label('Bribe', 32), bribe),
+        _n('Fractal Island', fractal),
+        _n(label('Vault', 53), vub),
+        _n(label('Companion', 20), comp),
       ];
     }
   }
-  return { val: best, children: [_n('best char: ' + bestCI, best, 'raw')].concat(bestChildren) };
+  return { val: best, children: [_n('Best Character Slot ' + (bestCI + 1), best)].concat(bestChildren) };
 }
 
 // ===== FamBonusQTYs[64] — ClassFamilyBonuses[32] star talent points =====

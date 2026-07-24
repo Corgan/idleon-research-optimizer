@@ -75,16 +75,16 @@ export var COLLECTIBLE_DATA = [
   ['Solarfang',          32, 'opal',         '}x opal chance'],
   ['Mystic Ore',         50, 'rupie-mul',    '}x rupie value'],
   ['Arcane Prism',       38, 'village',      '+{% villager EXP'],
-  ['Murky Faberge Egg',   1, 'gambit',       '+{% Gambit PTS'],
+  ['Murky Fabrege Egg',   1, 'gambit',       '+{% Gambit PTS'],
   ['Corpore Rock',        1, 'future',       'Future cavern'],
   ['Twilight Prism',      1, 'future',       'Future cavern'],
   ['Tewball Orbstone',   40, 'rupie-add',    '+{% rupie value'],
   ['Mad Muscle Rock',    40, 'enchant',      '}x enchant chance'],
   ['Sunroot Splinters',  40, 'village',      '+{% villager EXP'],
   ['Twisted Rupie',      75, 'bell',         '}x bell ring rate'],
-  ['Future 37',           1, 'future',       'Future cavern'],
-  ['Future 38',           1, 'future',       'Future cavern'],
-  ['Future 39',           1, 'future',       'Future cavern'],
+  ['Overloaded Relic',    1, 'future',       'Future cavern'],
+  ['Sunburst Pearl',      1, 'future',       'Future cavern'],
+  ['Bloodfang Spires',    1, 'future',       'Future cavern'],
 ];
 
 export var CATEGORY_COLORS = {
@@ -106,10 +106,10 @@ export var CATEGORY_LABELS = {
   'rupie-mul': 'Rupie ×',
   'production': 'Production',
   'opal': 'Opal Chance',
-  'collectible': 'Collect Chance',
+  'collectible': 'Collectible Chance',
   'enchant': 'Enchant Chance',
-  'village': 'Village EXP',
-  'bell': 'Bell Rate',
+  'village': 'Villager EXP',
+  'bell': 'Bell Ring Rate',
   'gambit': 'Gambit PTS',
   'other': 'Other',
   'future': 'Future',
@@ -126,17 +126,17 @@ export var B_UPG_DATA = [
   [67, 'Big Jar Mach VII',  30,  '-30% production requirement',       7,    0],
   [68, 'Big Jar Mach VIII',  4,  '+4 base rupie value',               9,    0],
   [69, 'Break All Button',   1,  'Enables Break All',                 1,  200],
-  [70, 'Monument Days',      2,  '+2 days monument reward',           4,    0],
+  [70, 'Max Monument Rewards',2, '+2 days monument reward',           4,    0],
   [71, 'Supergiant Jars',    1,  'Jars combine into tiers',           0,   25],
   [72, 'Light Speed',       10,  '+10% prod per log10(white rupies)', 5,    0],
   [73, 'Dark Luck',          1,  '1.10x enchant per log10(dark)',     7,    0],
-  [74, 'Jar Prod Line',      5,  '-5% req per log10(prev type made)', 2,    0],
+  [74, 'Jar Production Line',5,  '-5% requirement per power of 10 previous jars', 2, 0],
   [75, 'Advanced Collection',1,  'Unlocks page 2 collectibles (16-39)',8,   0],
   [76, "Collect 'Em All",    1,  '1.02x collect per rupie digit',     3,    0],
   [77, 'Roaring Flame',     25,  '+25% double torch chance',          6,    0],
   [78, 'The Sicilian',      10,  '+10% Total Gambit Score',           5,    0],
   [79, 'Evertree Trickledown',1, 'Skill eff per Evertree trunk',     0,  400],
-  [80, 'Evertree Synergy',   1,  '1.10x rupie per Evertree trunk',   0,  100],
+  [80, 'Evertree ~ Rupie Synergy',1,'1.10x rupie per Evertree trunk',0,100],
 ];
 
 var B_UPG_GROUPS = {
@@ -378,26 +378,26 @@ export function rupieValueBreakdown(saveData, ext) {
   var lp = ext.legendPts29 || 0;
   var cbo = ext.collectibleOverrides;
   var parts = [];
-  parts.push(['Base (1 + B62 + B65 + B68)', 1 + _bUpgVal(saveData, 62, 1) + _bUpgVal(saveData, 65, 2) + _bUpgVal(saveData, 68, 4)]);
-  if (ext.ola355) parts.push(['Server Event (1.5^' + ext.ola355 + ')', Math.pow(1.5, ext.ola355)]);
+  parts.push(['Big Jar Mach II, V & VIII', 1 + _bUpgVal(saveData, 62, 1) + _bUpgVal(saveData, 65, 2) + _bUpgVal(saveData, 68, 4)]);
+  if (ext.ola355) parts.push(['Rupie Slugs (1.5^' + ext.ola355 + ')', Math.pow(1.5, ext.ola355)]);
   var lamp99 = _lampBonus99(saveData);
-  if (lamp99) parts.push(['Lamp Wish 99 (+' + lamp99.toFixed(1) + ')', 1 + lamp99 / 400]);
-  if (ext.monument2_1) parts.push(['Monument (Wisdom)', 1 + ext.monument2_1 / 100]);
+  if (lamp99) parts.push(['Infinite Resources (Lamp)', 1 + lamp99 / 400]);
+  if (ext.monument2_1) parts.push(['Wisdom: Jar Rupie Value', 1 + ext.monument2_1 / 100]);
   var m10 = _measBonus(saveData, 10), m14 = _measBonus(saveData, 14);
-  if (m10 + m14) parts.push(['Measurements 10+14 (' + m10.toFixed(1) + '+' + m14.toFixed(1) + ')', 1 + (m10 + m14) / 100]);
-  if (_bUpg(saveData, 80)) parts.push(['Evertree Synergy (1.10^' + evertreeTrunks(saveData) + ')', Math.pow(1.1, evertreeTrunks(saveData))]);
+  if (m10 + m14) parts.push(['Rupie Value Measurements (Studies + Highest Damage)', 1 + (m10 + m14) / 100]);
+  if (_bUpg(saveData, 80)) parts.push(['Evertree ~ Rupie Synergy (1.10^' + evertreeTrunks(saveData) + ')', Math.pow(1.1, evertreeTrunks(saveData))]);
   var db = doublerBonus(saveData);
   if (db) parts.push(['Gilded Jar (+' + db + '%)', 1 + db / 100]);
   var c3 = collectibleBonus(saveData, 3, lp, cbo ? cbo[3] : undefined);
-  if (c3) parts.push(['CB3 Tortole Rock', 1 + c3 / 100]);
+  if (c3) parts.push(['Tortole Rock', 1 + c3 / 100]);
   var c17 = collectibleBonus(saveData, 17, lp, cbo ? cbo[17] : undefined);
-  if (c17) parts.push(['CB17 Blood Glass', 1 + c17 / 100]);
+  if (c17) parts.push(['Blood Glass', 1 + c17 / 100]);
   var c28 = collectibleBonus(saveData, 28, lp, cbo ? cbo[28] : undefined);
-  if (c28) parts.push(['CB28 Mystic Ore', 1 + c28 / 100]);
+  if (c28) parts.push(['Mystic Ore', 1 + c28 / 100]);
   var addSum = _cbSum(saveData, [0, 6, 13, 21, 33], lp, cbo);
-  if (addSum) parts.push(['CB Additive (0,6,13,21,33)', 1 + addSum / 100]);
-  if (ext.stampCavernRes) parts.push(['Stamp (CavernRes)', 1 + ext.stampCavernRes / 100]);
-  if (ext.cglunko14) parts.push(['Cglunko Upgrade 14', 1 + ext.cglunko14 / 100]);
+  if (addSum) parts.push(['Additive Collectibles', 1 + addSum / 100]);
+  if (ext.stampCavernRes) parts.push(['Cavern Resource Stamp', 1 + ext.stampCavernRes / 100]);
+  if (ext.cglunko14) parts.push(['All Cavern Resources (Cglunko)', 1 + ext.cglunko14 / 100]);
   return parts;
 }
 
@@ -429,13 +429,13 @@ export function productionPerHRBreakdown(saveData, ext) {
   var parts = [];
   parts.push(['Base', 36000]);
   var cb1 = collectibleBonus(saveData, 1, lp);
-  if (cb1) parts.push(['CB1 Sapphire Droplet', cb1]);
+  if (cb1) parts.push(['Sapphire Droplet', cb1]);
   var cb15 = collectibleBonus(saveData, 15, lp);
-  if (cb15) parts.push(['CB15 Frost Spirestone', cb15]);
+  if (cb15) parts.push(['Frost Spirestone', cb15]);
   var cb24 = collectibleBonus(saveData, 24, lp);
-  if (cb24) parts.push(['CB24 Earthbound Geode', cb24]);
+  if (cb24) parts.push(['Earthbound Geode', cb24]);
   var meas12 = _measBonus(saveData, 12);
-  if (meas12) parts.push(['Measurement 12', meas12]);
+  if (meas12) parts.push(['Jar Production Speed Measurement', meas12]);
   if (_bUpg(saveData, 72)) {
     var ls = _bUpgVal(saveData, 72, 10) * getLOG(whiteRupies(saveData));
     parts.push(['Light Speed (' + ls.toFixed(1) + '%)', ls]);

@@ -166,10 +166,10 @@ export default createDescriptor({
 
     var children = [];
     children.push({ name: 'Tool Power', val: skillStatsDN, fmt: 'raw',
-      note: 'WP=' + wpRaw + ' bubble=' + toolBubble.toFixed(1) });
+      note: 'WP=' + wpRaw + ' bubble=' + Number(toolBubble).toFixed(1) });
     children.push({ name: 'Inner (Power + Stat + Base)', val: sk.flat + inner, fmt: 'raw' });
-    children.push({ name: 'Skill Level /' + 200, val: skillLvMult, fmt: 'x',
-      note: skillType + ' lv=' + skillLv });
+    children.push({ name: 'Skill Level Multiplier', val: skillLvMult, fmt: 'x',
+      note: skillType + ' level ' + skillLv + ', +1% per 2 levels' });
     children.push({ name: 'All Efficiencies', val: allEff, fmt: 'x' });
     children.push({ name: skillType + ' Multipliers', val: perSkillMult, fmt: 'x' });
     if (gfMult > 1) children.push({ name: 'Golden Food: ' + skillType + ' Efficiency', val: gfMult, fmt: 'x' });

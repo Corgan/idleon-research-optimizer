@@ -182,7 +182,7 @@ export default createDescriptor({
       { name: label('Companion', 55, ' (+15%)'), val: _comp55, note: saveData.companionIds.has(55) ? 'Owned' : 'Not owned' },
       { name: label('Companion', 0, ' (+5%)'), val: _comp0, note: saveData.companionIds.has(0) ? 'Owned' : 'Not owned' },
       { name: 'Cloud Bonus: Grid', val: _cbGA },
-      { name: label('Sushi', 53, ' (+1%)'), val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
+      { name: label('RoG', 53), val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
     ];
     function _gbItem(idx) {
       return { name: label('Grid', idx), val: gridBonusFinal(saveData, idx),
@@ -227,7 +227,7 @@ export default createDescriptor({
 
     var grid70 = gridBonusFinal(saveData, 70);
     multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x',
-      children: [{ name: 'AllBonusMulti', val: abmVal, fmt: 'x', children: _abmChildren }] });
+      children: [{ name: 'Research Grid All-Bonus Multiplier', val: abmVal, fmt: 'x', children: _abmChildren }] });
 
     // Nonstop_Studies: DreamUpg[12], coeff 3. Dream save array uses +2 offset, so Dream[14] is correct.
     var dream14Lv = Number((dreamData && dreamData[14]) || 0);
@@ -236,7 +236,7 @@ export default createDescriptor({
     // Button_Bonuses(0): button presses contribute to 9 rotating slots
     var buttonPresses = Number(saveData.olaData[594]) || 0;
     var buttonBonus0 = computeButtonBonus(0, saveData);
-    multItems.push({ name: 'Button Bonus', val: 1 + buttonBonus0 / 100, fmt: 'x', note: buttonPresses + ' presses' });
+    multItems.push({ name: label('Button', 0), val: 1 + buttonBonus0 / 100, fmt: 'x', note: buttonPresses + ' presses' });
 
     // KillroyBonuses(5): game uses (1 + KB(5)/100) where KB(5) = 1 + OLA[469]/(150+OLA[469])*0.8
     var killroy5raw = computeKillroyBonus(5, saveData);
@@ -251,19 +251,19 @@ export default createDescriptor({
     multItems.push({ name: label('Companion', 153, ' (2x)'), val: 1 + comp153val, fmt: 'x', note: comp153owned ? 'Owned' : 'Not owned' });
 
     var rog0val = rogBonusQTY(0, saveData.cachedUniqueSushi);
-    multItems.push({ name: 'Sushi RoG (2x)', val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
+    multItems.push({ name: label('RoG', 0), val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
 
     // Cglunko upgrade 11: Research EXP boost (perLv=1)
     var _cg11Lv = Number(saveData.olaData && saveData.olaData[641]) || 0;
     var _cg11 = _cg11Lv * 1;
-    if (_cg11 > 0) multItems.push({ name: 'Glunko Research', val: 1 + _cg11 / 100, fmt: 'x', note: 'Cglunko upgrade 11, Lv ' + _cg11Lv });
+    if (_cg11 > 0) multItems.push({ name: 'Cglunko: Glunko Research', val: 1 + _cg11 / 100, fmt: 'x', note: 'Level ' + _cg11Lv });
 
     // Fountain W2U16 (Pen N Paper): Research EXP boost (bonPerLv=1)
     var _fLv2_16 = Number(saveData.holesData && saveData.holesData[31] && saveData.holesData[31][2] && saveData.holesData[31][2][16]) || 0;
     var _fMlv2_16 = Number(saveData.holesData && saveData.holesData[32] && saveData.holesData[32][2] && saveData.holesData[32][2][16]) || 0;
     var _fMb = _fMlv2_16 <= 0 ? 1 : 1.5 + 0.5 * _fMlv2_16;
     var _fBon2_16 = Math.round(_fMb * _fLv2_16 * 1);
-    if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'W2U16, Lv ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ' (M' + _fMlv2_16 + ')' : '') });
+    if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'Level ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ', Marble Level ' + _fMlv2_16 : '') });
 
     // ---- Build result ----
     var children = [];

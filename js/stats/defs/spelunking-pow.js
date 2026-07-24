@@ -88,13 +88,13 @@ export default createDescriptor({
     if (val !== val || val == null) val = 2;
 
     var children = [];
-    children.push({ name: 'POW Base', val: powBase, fmt: 'raw',
-      note: 'ShopUpg(0)=' + shop0 });
+    children.push({ name: label('Spelunking', 0), val: powBase, fmt: 'raw',
+      note: 'Upgrade bonus ' + shop0 });
     if (ola478 >= 8) {
       children.push({ name: 'POW Multi', val: powMulti, fmt: 'x' });
       if (elixirMod !== 1) children.push({ name: 'Elixir Modifier', val: elixirMod, fmt: 'x' });
     } else {
-      children.push({ name: 'Not fully unlocked', val: 2, fmt: 'raw', note: 'OLA[478]=' + ola478 });
+      children.push({ name: 'Spelunking Not Fully Unlocked', val: 2, fmt: 'raw', note: 'Unlock progress ' + ola478 + ' / 8' });
     }
 
     return { val: val, children: children };

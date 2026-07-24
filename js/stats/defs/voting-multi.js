@@ -3,6 +3,7 @@
 // Formula: (1 + comp161/100) * (1 + meritoc9/100) * (1 + innerSum/100)
 
 import { createDescriptor } from './helpers.js';
+import { label } from '../entity-names.js';
 
 export default createDescriptor({
   id: 'voting-multi',
@@ -38,8 +39,8 @@ export default createDescriptor({
     var val = (1 + comp161 / 100) * (1 + meritoc9 / 100) * (1 + innerSum / 100);
 
     var children = [
-      { name: 'Companion 161 \u00d7', val: 1 + comp161 / 100, children: pools.mult1.items, fmt: 'x' },
-      { name: 'Meritoc 9 \u00d7', val: 1 + meritoc9 / 100, children: pools.mult2.items, fmt: 'x' },
+      { name: label('Companion', 161), val: 1 + comp161 / 100, children: pools.mult1.items, fmt: 'x' },
+      { name: label('Meritoc', 9), val: 1 + meritoc9 / 100, children: pools.mult2.items, fmt: 'x' },
       { name: 'Additive Pool \u00d7', val: 1 + innerSum / 100, children: pools.inner.items, fmt: 'x' },
     ];
 

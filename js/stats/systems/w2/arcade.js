@@ -19,7 +19,7 @@ export function arcadeBonus(idx, saveData) {
   return treeResult(val, [
     { name: 'Raw (lv=' + lv + ')', val: raw, fmt: 'raw' },
     { name: 'Maxed Multi (101)', val: maxedM, fmt: 'x' },
-    { name: 'Companion 27 Multi', val: comp27M, fmt: 'x' },
+    { name: label('Companion', 27), val: comp27M, fmt: 'x' },
   ]);
 }
 
@@ -37,7 +37,7 @@ export var arcade = {
       node('Level', lv, null, { fmt: 'raw' }),
       node('Raw Value', val / maxedM / comp27M, null, { fmt: 'raw' }),
       node('Maxed Bonus', maxedM, null, { fmt: 'x', note: lv === 101 ? 'Level 101' : 'Not maxed' }),
-      node(label('Companion', 27), comp27M, null, { fmt: 'x', note: 'companion 27' }),
-    ], { fmt: '+', note: 'arcade ' + id });
+      node(label('Companion', 27), comp27M, null, { fmt: 'x' }),
+    ], { fmt: '+' });
   },
 };

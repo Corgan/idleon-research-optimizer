@@ -359,7 +359,7 @@ export var talent = {
     var saveData = ctx.saveData;
     var tab = args && args.tab;
     var data = getTalentData(id, tab);
-    if (!data) return node(label('Talent', id), 0, null, { note: 'talent ' + id + ' no data' });
+    if (!data) return node(label('Talent', id), 0, null, { note: 'No formula data' });
     var name = label('Talent', id);
 
     // args can specify mode: 'max' = best across all chars (getbonus2)
@@ -378,7 +378,7 @@ export var talent = {
           node('Best Character ' + r.bestChar, r.val, null, { fmt: 'raw' }),
         ];
       }
-      return node(name, r.val, maxChildren, { fmt: '+', note: 'talent ' + id });
+      return node(name, r.val, maxChildren, { fmt: '+' });
     }
 
     // Talent 328 (Archlord of the Pirates): multiplicative DR factor
@@ -390,7 +390,7 @@ export var talent = {
       var gb = getbonus2(id, data, ctx.charIdx, saveData);
       var plunderKills = Number(optionsListData && optionsListData[139]) || 0;
       var logVal = plunderKills > 0 ? getLOG(plunderKills) : 0;
-      if (gb.val <= 0 || plunderKills <= 0) return node(name, 1, null, { fmt: 'x', note: 'talent 328' });
+      if (gb.val <= 0 || plunderKills <= 0) return node(name, 1, null, { fmt: 'x' });
       var total328 = 1 + gb.val * logVal / 100;
       var talCh = [];
       if (gb.detail) {
@@ -402,13 +402,13 @@ export var talent = {
       }
       return node(name, total328, [
         node('Talent Value', gb.val, talCh, { fmt: 'raw', note: 'decay(6,150,' + (gb.detail ? gb.detail.effectiveLv : '?') + ')' }),
-        node('Plunderous Kills', plunderKills, null, { fmt: 'raw', note: 'OLA[139]' }),
+        node('Plunderous Kills', plunderKills, null, { fmt: 'raw' }),
         node('log\u2081\u2080(' + plunderKills + ')', logVal, null, { fmt: 'raw' }),
-      ], { fmt: 'x', note: 'talent 328' });
+      ], { fmt: 'x' });
     }
 
     r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, undefined, saveData);
-    if (r.val === 0) return node(name, 0, null, { note: 'talent ' + id });
+    if (r.val === 0) return node(name, 0);
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;
 
@@ -423,14 +423,14 @@ export var talent = {
         node('Bonus Levels', r.bonus || 0, bonusChildren, { fmt: '+' }),
         node('Effective Level', r.effectiveLv, null, { fmt: 'raw' }),
         node('Per Skull', perSkull, null, { fmt: 'raw' }),
-        node('Skulls Beaten', skulls, null, { fmt: 'raw', note: 'OLA[189]' }),
-      ], { fmt: '+', note: 'talent 655' });
+        node('Skulls Beaten', skulls, null, { fmt: 'raw' }),
+      ], { fmt: '+' });
     }
 
     return node(name, r.val, [
       node('Base Level', r.rawLv, null, { fmt: 'raw' }),
       node('Bonus Levels', r.bonus || 0, bonusChildren, { fmt: '+' }),
       node('Effective Level', r.effectiveLv, null, { fmt: 'raw' }),
-    ], { fmt: '+', note: 'talent ' + id });
+    ], { fmt: '+' });
   },
 };

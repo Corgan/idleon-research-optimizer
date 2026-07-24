@@ -53,7 +53,7 @@ export var friend = {
     var comp30 = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(30) : false;
     if (comp30) {
       total *= COMPANION_BONUS[30];
-      children.push(node(label('Companion', 30), COMPANION_BONUS[30], null, { fmt: 'x', note: 'companion 30' }));
+      children.push(node(label('Companion', 30), COMPANION_BONUS[30], null, { fmt: 'x' }));
     }
     return node('Friend Bonus', total, children, { fmt: '+', note: 'friend ' + id });
   },

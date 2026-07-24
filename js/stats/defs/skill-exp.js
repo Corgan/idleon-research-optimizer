@@ -267,7 +267,7 @@ var SKILL_EXP_CONFIG = {
           { name: 'Efficiency Term (capped 1)', val: effTerm, fmt: 'raw' },
           { name: 'Cooking sources', val: perSkill, fmt: 'raw' },
           { name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' },
-          { name: 'Talent Calc', val: calcTalent, fmt: 'raw' },
+          { name: 'Cooking Talent Bonus', val: calcTalent, fmt: 'raw' },
         ]
       };
     },
@@ -318,7 +318,7 @@ export default createDescriptor({
       }
       var val = customResult;
       if (val !== val || val == null) val = 1;
-      return { val: val, children: [{ name: skillType + ' (custom formula)', val: val, fmt: 'raw' }] };
+      return { val: val, children: [{ name: skillType + ' EXP Multiplier', val: val, fmt: 'raw' }] };
     }
 
     var allSkillxpz = computeAllSkillxpz(ci, ctx);
@@ -339,7 +339,7 @@ export default createDescriptor({
     children.push({ name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' });
     children.push({ name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' });
     children.push({ name: skillType + ' specific sources', val: perSkillSources, fmt: 'raw' });
-    if (calcTalent > 0) children.push({ name: 'Talent Calc', val: calcTalent, fmt: 'raw' });
+    if (calcTalent > 0) children.push({ name: skillType + ' Talent Bonus', val: calcTalent, fmt: 'raw' });
 
     return { val: val, children: children };
   }

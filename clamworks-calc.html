@@ -79,11 +79,17 @@ function _card(title, val, sub) {
 }
 
 function _fmtDesc(idx) {
-  var desc = CW.upgDescription(idx);
-  var bon = idx === 3 ? CW.upgBonus3(0) : CW.upgBonus(idx);
-  var plv = CW.upgPerLvVal(idx);
-  return desc.replace(/\$/g, '' + (bon > 0 ? fmtNum(Math.round(bon)) : plv))
-    .replace(/\}/g, '' + (1 + (bon || 0) / 100).toFixed(2));
+  var bon = idx === 3 ? CW.upgBonus3(_ext.multikillTotal) : CW.upgBonus(idx);
+  if (idx === 0) return 'Pearls are worth ' + fmtNum(CW.pearlValue(_ext)) + ' each instead of 1.';
+  if (idx === 1) return 'Increases the total number of clams on the map to ' + CW.clamCount() + '.';
+  if (idx === 2) return 'Pearls have a ' + (CW.pearl10xChance() * 100).toFixed(2) + '% chance to be worth 10x when picked up.';
+  if (idx === 3) return 'Multikill boosts pearl value by ' + (1 + bon / 100).toFixed(2) + 'x.';
+  if (idx === 4) return 'Divides all upgrade costs by ' + (1 + bon / 100).toFixed(2) + 'x.';
+  if (idx === 5) return 'Pure Pearls are worth ' + fmtNum(CW.blackPearlValue()) + 'x normal pearls.';
+  if (idx === 6) return 'Boosts the drop rate of pearls by ' + (1 + bon / 100).toFixed(2) + 'x.';
+  if (idx === 7) return 'Increases the value of all pearls found by ' + (1 + bon / 100).toFixed(2) + 'x.';
+  if (idx === 8) return 'Divides all upgrade costs by ' + (1 + bon / 100).toFixed(2) + 'x.';
+  return CW.upgDescription(idx);
 }
 
 var _ext = { multikillTotal: 0 };
@@ -95,7 +101,7 @@ function render() {
   // MK input
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">';
   html += '<label style="font-size:.85em;color:var(--text2)">Multikill %: <input type="number" id="mk-input" value="' + _ext.multikillTotal + '" style="width:100px;background:var(--bg3);color:var(--text);border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:1em;"></label>';
-  html += '<span style="font-size:.75em;color:var(--text2)">(Check in-game — affects Upgrade 3 pearl multi)</span>';
+  html += '<span style="font-size:.75em;color:var(--text2)">(Check in-game — affects MULTI-SCALPING)</span>';
   html += '</div>';
   html += '<div class="tabs" style="margin-bottom:12px">';
   html += '<div class="tab active" data-tab="overview">Overview</div>';
@@ -122,9 +128,9 @@ function render() {
     var b3 = CW.upgBonus3(_ext.multikillTotal);
     var b7 = CW.upgBonus(7);
     var pvChildren = [
-      _bNode('Base + Upg 0', 1 + b0, null, { fmt: 'x', note: 'Pearl base: 1 + ' + b0 }),
-      _bNode('Upg 3: MK multi', 1 + b3 / 100, null, { fmt: 'x', note: 'MK-based: ' + b3.toFixed(1) + '%' }),
-      _bNode('Upg 7: Value multi', 1 + b7 / 100, null, { fmt: 'x', note: '+' + b7 + '%' }),
+      _bNode(CW.upgName(0), 1 + b0, null, { fmt: 'x', note: 'Pearl base: 1 + ' + b0 }),
+      _bNode(CW.upgName(3), 1 + b3 / 100, null, { fmt: 'x', note: 'Multikill-based: ' + b3.toFixed(1) + '%' }),
+      _bNode(CW.upgName(7), 1 + b7 / 100, null, { fmt: 'x', note: '+' + b7 + '%' }),
     ];
     var pvRoot = _bNode('Pearl Value', CW.pearlValue(_ext), pvChildren, { fmt: 'x' });
     renderBreakdownTree(pvRoot, pvTree, { tooltipId: 'bt-tooltip' });
@@ -166,15 +172,15 @@ function _renderOverview() {
 
   html += '<div class="card-grid cols-4" style="margin-top:10px">';
   html += _card('Pearl Drop Rate', (CW.pearlDropRate() * 100).toFixed(3) + '%', 'Promo penalty: ×' + CW.promoPenalty().toFixed(3));
-  html += _card('Black Pearl Rate', (CW.blackPearlDropRate() * 100).toFixed(6) + '%', 'Value: ' + fmtNum(CW.blackPearlValue()) + ' per drop');
-  html += _card('Pearls/Kill', (CW.pearlsPerKill(_ext) || 0).toFixed(4), 'Regular + black pearl combined');
+  html += _card('Pure Pearl Rate', (CW.blackPearlDropRate() * 100).toFixed(6) + '%', 'Value: ' + fmtNum(CW.blackPearlValue()) + ' per drop');
+  html += _card('Pearls/Kill', (CW.pearlsPerKill(_ext) || 0).toFixed(4), 'Regular + Pure Pearl combined');
   html += _card('Clam Count', CW.clamCount().toString(), 'Max 25');
   html += '</div>';
 
   html += '<div class="card-grid cols-3" style="margin-top:10px">';
   html += _card('Promotion Level', CW.promotionLevel().toString(), '');
   html += _card('Promo Chance', (CW.promotionChance() * 100).toFixed(1) + '%', 'Cost: ' + fmtNum(Math.round(CW.promotionCost())));
-  html += _card('Cost Reduction', ((1 - CW.costReduction()) * 100).toFixed(1) + '%', 'From upgrades 4 + 8');
+  html += _card('Cost Reduction', ((1 - CW.costReduction()) * 100).toFixed(1) + '%', 'From FRUGALITY + ANTI INFLATION');
   html += '</div>';
 
   html += '<h3>Pearl Value Breakdown</h3>';
@@ -189,7 +195,7 @@ function _renderUpgrades() {
   var html = '<div id="tab-upgrades" class="tab-content">';
   html += '<div class="section"><h2>All Upgrades</h2>';
   html += '<table class="data-table"><thead><tr>';
-  html += '<th>#</th><th>Effect</th><th class="num">Lv</th><th class="num">Bonus</th>';
+  html += '<th>Upgrade</th><th>Effect</th><th class="num">Lv</th><th class="num">Bonus</th>';
   html += '<th class="num">Per Lv</th><th class="num">Next Cost</th>';
   html += '</tr></thead><tbody>';
 
@@ -198,7 +204,7 @@ function _renderUpgrades() {
     var bon = i === 3 ? CW.upgBonus3(_ext.multikillTotal) : CW.upgBonus(i);
     var cost = CW.upgNextCost(i);
     html += '<tr>';
-    html += '<td>' + i + '</td>';
+    html += '<td>' + CW.upgName(i) + '</td>';
     html += '<td>' + _fmtDesc(i) + '</td>';
     html += '<td class="num">' + lv + '</td>';
     html += '<td class="num">' + fmtNum(Math.round(bon)) + '</td>';
@@ -223,7 +229,7 @@ function _renderOptimizer() {
 
   html += '<table class="data-table"><thead><tr>';
   html += '<th>#</th><th>Upgrade</th><th class="num">Lv</th>';
-  html += '<th class="num">Next Cost</th><th class="num">PPK Gain</th><th class="num">PPK/Cost</th>';
+  html += '<th class="num">Next Cost</th><th class="num">Pearls/Kill Gain</th><th class="num">Pearls/Kill per Cost</th>';
   html += '</tr></thead><tbody>';
 
   for (var i = 0; i < pearlRows.length; i++) {
@@ -247,7 +253,7 @@ function _renderOptimizer() {
       var r = otherRows[i];
       var catBadge = r.cat === 'cost' ? '<span class="badge badge-cyan">Cost</span>'
         : r.cat === 'clams' ? '<span class="badge badge-blue">Clams</span>'
-        : '<span class="badge badge-purple">Black</span>';
+        : '<span class="badge badge-purple">Pure Pearl</span>';
       html += '<tr style="opacity:.7">';
       html += '<td></td>';
       html += '<td>' + _fmtDesc(r.idx) + ' ' + catBadge + '</td>';
@@ -281,7 +287,7 @@ function _renderPromotion() {
   var balance = CW.pearlBalance();
 
   html += '<div class="card-grid cols-3">';
-  html += _card('Current Level', promoLv.toString(), 'Unlocks ClamWorkBonus tiers');
+  html += _card('Worker Class Level', promoLv.toString(), 'Unlocks permanent worker-class rewards');
   html += _card('Next Promo Chance', (chance * 100).toFixed(1) + '%', '0.5 / (2 + ' + promoLv + ')');
   html += _card('Next Promo Cost', fmtNum(Math.round(cost)), balance >= cost ? '<span style="color:var(--green)">Can afford</span>' : '<span style="color:var(--red)">Need ' + fmtNum(Math.round(cost - balance)) + ' more</span>');
   html += '</div>';
@@ -293,9 +299,8 @@ function _renderPromotion() {
   html += '</div>';
 
   // Promotion bonus history
-  html += '<h3>Promotion Bonuses Unlocked</h3>';
-  html += '<table class="data-table"><thead><tr><th>Promo #</th><th>Name</th><th>Bonus</th><th class="num">Status</th></tr></thead><tbody>';
-  var promoNames = 'PEARL VALUE,CLAM COMRADES,LUCKY DAY,MULTI-SCALPING,FRUGALITY,PURE PEARLS,ENCYSTATION UP,SHINIER PEARLS,ANTI INFLATION'.split(',');
+  html += '<h3>Worker Class Rewards</h3>';
+  html += '<table class="data-table"><thead><tr><th>Worker Class Level</th><th>Reward</th><th class="num">Status</th></tr></thead><tbody>';
   for (var i = 0; i < CW.PROMO_BONUS_DESCS.length; i++) {
     var unlocked = CW.clamWorkBonus(i);
     var desc = CW.PROMO_BONUS_DESCS[i];
@@ -303,7 +308,6 @@ function _renderPromotion() {
     if (i === 8) desc = desc.replace(/\}/g, '' + (1 + 5 * Math.max(0, promoLv - 8) / 100).toFixed(2));
     html += '<tr' + (!unlocked ? ' style="opacity:.4"' : '') + '>';
     html += '<td>' + (i + 1) + '</td>';
-    html += '<td>' + (promoNames[i] || '') + '</td>';
     html += '<td>' + desc + '</td>';
     html += '<td class="num">' + (unlocked ? '<span class="badge badge-green">Unlocked</span>' : '<span class="badge badge-red">Locked</span>') + '</td>';
     html += '</tr>';

@@ -42,12 +42,12 @@ export var meritoc = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
     var p = _meritocParts(id, saveData);
-    if (p.inactive) return node(label('Meritoc', id), 0, [node('Not active vote', 0)], { note: 'meritoc ' + id });
-    if (p.noBase) return node(label('Meritoc', id), 0, null, { note: 'meritoc ' + id });
+    if (p.inactive) return node(label('Meritoc', id), 0, [node('Not active vote', 0)]);
+    if (p.noBase) return node(label('Meritoc', id), 0);
     var multiCh = [];
     if (p.clamWork3) multiCh.push(node(label('ClamWork', 3), 5 * p.clamWork3, null, { fmt: 'raw' }));
-    if (p.comp39 > 0) multiCh.push(node(label('Companion', 39), p.comp39, null, { fmt: 'raw', note: 'companion 39' }));
-    if (p.legend24 > 0) multiCh.push(node(label('Legend', 24), p.legend24, null, { fmt: 'raw', note: 'legend 24' }));
+    if (p.comp39 > 0) multiCh.push(node(label('Companion', 39), p.comp39, null, { fmt: 'raw' }));
+    if (p.legend24 > 0) multiCh.push(node(label('Legend', 24), p.legend24, null, { fmt: 'raw' }));
     if (p.arcade59 > 0) multiCh.push(node(label('Arcade', 59), p.arcade59, null, { fmt: 'raw' }));
     if (p.eventShop23 > 0) multiCh.push(node(label('Event', 23), 20 * p.eventShop23, null, { fmt: 'raw' }));
     if (p.rog51 > 0) multiCh.push(node(label('RoG', 51), p.rog51, null, { fmt: 'raw' }));
@@ -56,6 +56,6 @@ export var meritoc = {
       node(p.canVote ? 'Can Vote' : 'Cannot Vote', p.multi, multiCh, { fmt: 'x' }),
     ];
     if (p.comp161 > 0) ch.push(node(label('Companion', 161, ' \u00d7'), 1 + p.comp161 / 100, null, { fmt: 'x' }));
-    return node(label('Meritoc', id), p.val, ch, { fmt: '+', note: 'meritoc ' + id });
+    return node(label('Meritoc', id), p.val, ch, { fmt: '+' });
   },
 };

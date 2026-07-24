@@ -7,6 +7,7 @@ import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { talent } from '../systems/common/talent.js';
 import { shrine } from '../systems/w3/construction.js';
 import { eventShopOwned } from '../../game-helpers.js';
+import { label } from '../entity-names.js';
 import { safe, rval, safeTree, createDescriptor } from './helpers.js';
 
 export default createDescriptor({
@@ -47,13 +48,13 @@ export default createDescriptor({
 
     var children = [
       { name: 'Raw Numerator', val: raw, fmt: 'raw', children: [
-        { name: 'EventShop 42 (×5)', val: evShop42, fmt: 'raw' },
-        { name: 'Talent 26', val: talent26, fmt: 'raw' },
-        { name: 'Talent 619', val: talent619, fmt: 'raw' },
-        { name: 'Box CrystalSpawn', val: boxCrystal, fmt: 'raw' },
-        { name: 'Shrine 6', val: shrine6, fmt: 'raw' },
-        { name: 'Stamp CrySpawn', val: stampCry, fmt: 'raw', children: _stampCryT.children },
-        { name: 'Card Bonus 14', val: cardBonus14, fmt: 'raw', children: _cardBonus14T.children },
+        { name: 'Event Shop: Crystal Mob Spawn Chance', val: evShop42, fmt: 'raw', note: '5 per purchase' },
+        { name: label('Talent', 26), val: talent26, fmt: 'raw' },
+        { name: label('Talent', 619), val: talent619, fmt: 'raw' },
+        { name: 'Box Rewards: Crystal Mob Spawn Chance', val: boxCrystal, fmt: 'raw' },
+        { name: label('Shrine', 6), val: shrine6, fmt: 'raw' },
+        { name: 'Stamps: Crystal Mob Spawn Chance', val: stampCry, fmt: 'raw', children: _stampCryT.children },
+        { name: 'Cards: Crystal Mob Spawn Chance', val: cardBonus14, fmt: 'raw', children: _cardBonus14T.children },
       ]},
       { name: '÷ 2000', val: crystalSpawn, fmt: 'raw' },
       { name: 'Cap (10%)', val: cap, fmt: 'raw' },

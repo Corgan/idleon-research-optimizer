@@ -9,6 +9,7 @@ import {
 } from '../systems/w3/construction.js';
 import { computeCardLv } from '../systems/common/cards.js';
 import { safe, createDescriptor, gridBonusFinal } from './helpers.js';
+import { label } from '../entity-names.js';
 
 export default createDescriptor({
   id: 'flaggy-speed',
@@ -30,10 +31,10 @@ export default createDescriptor({
     return {
       val: total,
       children: [
-        { name: 'Small Cog Flaggy', val: 1 + smallCogFlaggy / 100, fmt: 'x', note: 'total=' + smallCogFlaggy },
-        { name: 'Grid 89', val: 1 + grid89 / 100, fmt: 'x', note: 'raw=' + grid89.toFixed(1) },
-        { name: 'Card w7b3', val: 1 + 10 * cardW7b3 / 100, fmt: 'x', note: 'lv=' + cardW7b3 + ' → 10×' + cardW7b3 + '%' },
-        { name: 'Cog Board Flat Flaggy/HR', val: cogTotals.flatFlaggy, note: 'from big cogs' },
+        { name: 'Small Cog Flaggy Rate', val: 1 + smallCogFlaggy / 100, fmt: 'x', note: '+' + smallCogFlaggy + '%' },
+        { name: label('Grid', 89), val: 1 + grid89 / 100, fmt: 'x', note: '+' + grid89.toFixed(1) + '%' },
+        { name: 'Card: Pirate Underling', val: 1 + 10 * cardW7b3 / 100, fmt: 'x', note: 'Level ' + cardW7b3 + ', 10% per level' },
+        { name: 'Cog Board Flat Flaggy Rate/hr', val: cogTotals.flatFlaggy, note: 'from big cogs' },
         { name: 'Cog Board % Flaggy Rate', val: cogTotals.pctFlaggyRate, note: 'from big cogs' },
       ],
       _debug: {

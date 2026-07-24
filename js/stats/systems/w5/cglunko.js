@@ -9,6 +9,7 @@ import { RandoListo2 } from '../../data/game/customlists.js';
 import { optionsListData } from '../../../save/data.js';
 
 var _descs = RandoListo2[12];   // 24 description strings
+var _names = RandoListo2[11];   // 24 upgrade names
 var _perLv = RandoListo2[13];   // 24 per-level bonus values
 var _costB = RandoListo2[14];   // 24 cost bases
 
@@ -23,6 +24,10 @@ function _ola(idx) {
 // ========== UPGRADE DATA ==========
 export function upgLevel(saveData, idx) {
   return _ola(630 + idx);
+}
+
+export function upgName(idx) {
+  return String(_names[idx] || ('Upgrade ' + (idx + 1))).replace(/_/g, ' ');
 }
 
 export function upgPerLvVal(idx) {

@@ -660,7 +660,7 @@ export default createDescriptor({
     // SummUpgBonus(79): Summon[0][79] * SummonUPG[79][6] * gilded multiplier
     var vaultUpg79 = safe(computeSummUpgBonus, 79, s);
     ddl2 *= (1 + vaultUpg79 / 100);
-    _ddl2Steps.push(['after_indivMults', ddl2]);
+    _ddl2Steps.push(['Individual Multipliers', ddl2]);
 
     // Buff+Friend+StarSigns+Divinity
     var starSignPctDmg = safe(computeStarSignBonus, 'PctDmg', ci, s);
@@ -677,7 +677,7 @@ export default createDescriptor({
     // GetBuffBonuses(108,2) — buff bonus, approximated as 0 (runtime state)
     var _grp1Sum = friendDmg + starSignPctDmg + divLvBonus + lvlBonus;
     ddl2 *= (1 + _grp1Sum / 100);
-    _ddl2Steps.push(['friend/star/div', _grp1Sum, ddl2]);
+    _ddl2Steps.push(['Friends, Star Signs & Divinity', _grp1Sum, ddl2]);
 
     // Grimoire+Set+Shrine+Monument+Box+Art+Atom+Shiny+MSA+Shimmer+Crop+Vault41
     var grimoireUpg35 = safe(grimoireUpgBonus, 35, GrimoireUpg, s);
@@ -715,7 +715,7 @@ export default createDescriptor({
       + artifact25 + atom9 + shiny5 + msa0
       + ola178 * shimmerBonus + cropSC0 + v41Log;
     ddl2 *= (1 + _grp2Sum / 100);
-    _ddl2Steps.push(['grim/lust/etc', _grp2Sum, ddl2]);
+    _ddl2Steps.push(['Grimoire, Lustre Set & Account Bonuses', _grp2Sum, ddl2]);
 
     // RiftSkillETC + Bubbles(pctDmg1,2,3) + Artifacts(2,8) + Stat bubbles + Const + Tome + Compass + Exotic + OLA[419]
     var riftETC0 = safe(computeRiftSkillETC, 0, s);
@@ -769,7 +769,7 @@ export default createDescriptor({
       + artifact2 + artifact8 + statBubbles
       + constMastery1 + tomeBonus0 + compassBonus48 + exotic41 + ola419;
     ddl2 *= (1 + _grp3Sum / 100);
-    _ddl2Steps.push(['rift/pctDmg/stat', _grp3Sum, ddl2]);
+    _ddl2Steps.push(['Rift, Damage & Main Stats', _grp3Sum, ddl2]);
 
     // Talent6 + SaltLick(9) + EtcBonuses(45) + Prayer(15) + Mainframe(0,11,110) + Artifacts(27,29) + B_UPG(84) + Arcade(46) + OLA[435]
     var talent6 = rval(talent, 6, ctx);
@@ -791,7 +791,7 @@ export default createDescriptor({
       + mf0 + mf11 + mf110
       + artifact27 + artifact29 + bUpg84 + arcade46 + ola435;
     ddl2 *= (1 + _grp4Sum / 100);
-    _ddl2Steps.push(['tal6/salt/mf', _grp4Sum, ddl2]);
+    _ddl2Steps.push(['Talents, Salt Lick & Mainframe', _grp4Sum, ddl2]);
 
     // Companions(10,156) + CardBonusREAL(42) + CardSetBonuses(0,"5")
     var comp10 = rval(companion, 10, ctx);
@@ -801,7 +801,7 @@ export default createDescriptor({
     var cardSet5 = safe(computeCardSetBonus, ci, '5');
     var _grp5Sum = comp10 + comp156 + card42 + cardSet5;
     ddl2 *= (1 + _grp5Sum / 100);
-    _ddl2Steps.push(['comp/card42', _grp5Sum, ddl2]);
+    _ddl2Steps.push(['Companions & Cards', _grp5Sum, ddl2]);
 
     // PetArena + Chips + Meal + Achievements + Divinity bless
     var petArena2 = safe(computePetArenaBonus, 2);
@@ -821,7 +821,7 @@ export default createDescriptor({
     var _grp6Sum = 20 * petArena2 + 40 * petArena15
       + chipDmg + mealTotDmg + achSum + divBless7 + divBless8;
     ddl2 *= (1 + _grp6Sum / 100);
-    _ddl2Steps.push(['pet/meal/ach/div', _grp6Sum, ddl2]);
+    _ddl2Steps.push(['Pets, Meals, Achievements & Divinity', _grp6Sum, ddl2]);
 
     // Penalty multiplier: max((1 - T24/100) * (1 - BuffBonuses(124,2)/100) * max(.01, 1 - (prayer6 + prayer13)/100), .05)
     var talent24 = rval(talent, 24, ctx);
@@ -959,7 +959,7 @@ export default createDescriptor({
                 _chipWP: _chipWP, _bubW1: _bubW1, _bubA1: _bubA1, _bubM1: _bubM1,
                 _tc616: _tc616, _vialWP: _vialWP, _fam16: _fam16, _starWP: _starWP, _arc17: _arc17,
                 _t530: _t530, _t140: _t140, _t170: _t170, _t320: _t320, _t500: _t500, _t365: _t365 } });
-    children.push({ name: 'Percent Multiplier DDL[1]', val: pctMult, fmt: 'x', note: 'after softcaps',
+    children.push({ name: 'Percentage Damage Multiplier', val: pctMult, fmt: 'x', note: 'after softcaps',
       _debug: { preSoftcap: _preSoftcapDDL1, postSoftcap: pctMult,
                 addBase: addBase, pctMultBase: pctMultBase,
                 smithMult: smithMult, winMult: winMult, winBonus0: winBonus0,
@@ -977,7 +977,7 @@ export default createDescriptor({
                 quests658: Math.min(totalQuests, talent658),
                 owlBonus2: owlBonus2, rooBonus4: rooBonus4, bubbaRoG4: bubbaRoG4,
                 talent463: talent463, minigameHS: minigameHS } });
-    children.push({ name: 'Big Multiplier DDL[2]', val: ddl2, fmt: 'x', note: 'after softcaps',
+    children.push({ name: 'Multiplicative Damage Bonuses', val: ddl2, fmt: 'x', note: 'after softcaps',
       _debug: { preSoftcap: _ddl2PreSoftcap, postSoftcap: _ddl2PostSoftcap, final: ddl2,
                 penaltyMult: penaltyMult, compMult: compMult,
                 etc72: etc72, etc75: etc75, etc104: etc104, votingDmg: votingDmg,

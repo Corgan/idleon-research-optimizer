@@ -13,7 +13,7 @@ var PRAYER_DATA = {
 export var prayer = {
   resolve: function(id, ctx) {
     var data = PRAYER_DATA[id];
-    if (!data) return node(label('Prayer', id), 0, null, { note: 'prayer ' + id });
+    if (!data) return node(label('Prayer', id), 0);
     var name = label('Prayer', id);
     var prayerLv = Number((ctx.saveData.prayOwnedData && ctx.saveData.prayOwnedData[id]) || 0);
     var equipped = prayersPerCharData[ctx.charIdx] || [];
@@ -21,7 +21,7 @@ export var prayer = {
     if (prayerLv <= 0 || !isEquipped) return node(name, 0, [
       node('Prayer Level', prayerLv, null, { fmt: 'raw' }),
       node(isEquipped ? 'Equipped' : 'NOT Equipped', 0, null, { fmt: 'raw' }),
-    ], { note: 'prayer ' + id });
+    ]);
     var scaling = Math.max(1, 1 + (prayerLv - 1) / 10);
     var val = Math.round(data.baseBonus * scaling);
     return node(name, val, [
@@ -29,7 +29,7 @@ export var prayer = {
       node('Equipped', 1, null, { fmt: 'raw' }),
       node('Base Bonus', data.baseBonus, null, { fmt: 'raw' }),
       node('Level Scaling', scaling, null, { fmt: 'x' }),
-    ], { fmt: '+', note: 'prayer ' + id });
+    ], { fmt: '+' });
   },
 };
 

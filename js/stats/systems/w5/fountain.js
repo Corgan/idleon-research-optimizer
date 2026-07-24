@@ -162,7 +162,7 @@ export function activeCurrencyTypes(saveData, uLvs, mLvs) {
     if (!currencyUnlocked(uLvs, mLvs, t)) continue;
     if (!currencyIgnored(saveData, t)) out.push(t);
   }
-  return out;
+  return out.length ? out : [0];
 }
 
 export function fountCurrencyAvail(saveData, typeIdx) {
@@ -201,7 +201,7 @@ export function _sizeMatterBonus(saveData) {
 export function stackRedeemValue(saveData, uLvs, mLvs, stack) {
   var desired = desiredCurrency(saveData);
   var sizeBon = _sizeMatterBonus(saveData);
-  var rm = royalMulti(uLvs, mLvs);
+  var rm = effectiveRoyalMulti(uLvs, mLvs);
   var total = 0;
   for (var i = 0; i < stack.coins.length; i++) {
     var t = stack.coins[i];
@@ -265,6 +265,21 @@ export function upgUnlocked(uLvs, w, u) {
   var prereqLv = uLvs[w][prereqIdx] || 0;
   if (w === 0 && (u === 2 || u === 14)) return prereqLv >= 1;
   return prereqLv >= 10;
+}
+
+export function highestWaterIndex(uLvs) {
+  return Math.min(2,
+    Math.min(1, uLvs[0][0] || 0)
+    + Math.min(1, uLvs[1][0] || 0)
+    + Math.min(1, uLvs[2][0] || 0));
+}
+
+export function waterAccessible(uLvs, w) {
+  return w >= 0 && w <= highestWaterIndex(uLvs);
+}
+
+export function upgradeAccessible(uLvs, w, u) {
+  return waterAccessible(uLvs, w) && upgUnlocked(uLvs, w, u);
 }
 
 // ========== EXTERNAL BONUS HELPERS ==========
@@ -377,7 +392,7 @@ function _bolaiaBonus(saveData, idx) {
   return (Number(_h(saveData, 26)?.[idx]) || 0) * holesBolaiaPerLv(idx);
 }
 
-function _motherlodeLv3(saveData) {
+function _trenchDepth(saveData) {
   return Number(_h(saveData, 11)?.[7]) || 0;
 }
 
@@ -426,11 +441,17 @@ export function currencyKeep(uLvs, mLvs) {
 }
 
 export function royalChance(uLvs, mLvs) {
-  return (1 / 300) * (1 + bonTOT(uLvs, mLvs, 1, 8) / 100);
+  var bonus = bonTOT(uLvs, mLvs, 1, 8);
+  if (bonus <= 0) return 0;
+  return Math.min(1, (1 / 300) * (1 + bonus / 100));
 }
 
 export function royalMulti(uLvs, mLvs) {
   return 5 + bonTOT(uLvs, mLvs, 1, 9) / 100;
+}
+
+export function effectiveRoyalMulti(uLvs, mLvs) {
+  return royalChance(uLvs, mLvs) > 0 ? royalMulti(uLvs, mLvs) : 1;
 }
 
 export function desireMulti(uLvs, mLvs) {
@@ -451,7 +472,7 @@ export function luckyCoinChance(saveData, uLvs, mLvs, t) {
   if (base === 0) return 0;
   var boost = bonTOT(uLvs, mLvs, 2, 10); // Lucky Ducky
   var count = luckyCoinCount(saveData, t);
-  return 0.001 * (1 + (base + boost) / 100) * Math.pow(0.25, count);
+  return Math.min(1, 0.001 * (1 + (base + boost) / 100) * Math.pow(0.25, count));
 }
 
 // Base lucky coin chance (ignoring per-currency coin count).
@@ -460,7 +481,7 @@ export function luckyCoinBaseChance(uLvs, mLvs) {
   var base = bonTOT(uLvs, mLvs, 2, 8);
   if (base === 0) return 0;
   var boost = bonTOT(uLvs, mLvs, 2, 10);
-  return 0.001 * (1 + (base + boost) / 100);
+  return Math.min(1, 0.001 * (1 + (base + boost) / 100));
 }
 
 // Per-lucky-coin value bonus (%).
@@ -485,9 +506,10 @@ export function duckCount(saveData) {
 // 0.333 base, boosted by Rubber Ducky (W2U12) + Lucky Ducky (W2U10).
 // Each existing duck makes next 5x rarer.
 export function duckChance(saveData, uLvs, mLvs) {
+  if (!duckBarUnlocked(uLvs, mLvs)) return 0;
   var boost = bonTOT(uLvs, mLvs, 2, 12) + bonTOT(uLvs, mLvs, 2, 10);
   var count = duckCount(saveData);
-  return (1 / 3) * (1 + boost / 100) * Math.pow(0.2, count);
+  return Math.min(1, (1 / 3) * (1 + boost / 100) * Math.pow(0.2, count));
 }
 
 // Format duck odds as "1 in X (Y%)" with appropriate precision.
@@ -530,7 +552,7 @@ export function currencyFountainMulti(uLvs, mLvs) {
 
 export function currencyExternalMulti(saveData, ext) {
   var cglunko14 = _cglunkoUpgBon(saveData, 14) || (ext && ext.cglunko14) || 0;
-  return Math.max(1, _bUpg(saveData, 94, 1) * Math.pow(1.1, _motherlodeLv3(saveData)))
+  return Math.max(1, _bUpg(saveData, 94, 1) * Math.pow(1.1, _trenchDepth(saveData)))
     * (1 + cglunko14 / 100)
     * (1 + 25 * _cosmoBonus(saveData, 0, 4) / 100)
     * (1 + _lampBonus99(saveData) / 400)
@@ -554,7 +576,7 @@ export function multiBreakdown(saveData, uLvs, mLvs) {
   var boosters = b01 + b11 + b21 + b112;
 
   var bUpg94 = _bUpg(saveData, 94, 1);
-  var ml3 = _motherlodeLv3(saveData);
+  var trenchDepth = _trenchDepth(saveData);
   var cosmo04 = _cosmoBonus(saveData, 0, 4);
   var lamp99 = _lampBonus99(saveData);
   var meas16 = _measBonus(saveData, 16);
@@ -572,16 +594,16 @@ export function multiBreakdown(saveData, uLvs, mLvs) {
     },
     external: {
       total: currencyExternalMulti(saveData),
-      bUpg94: bUpg94, ml3: ml3,
-      motherlode: Math.max(1, bUpg94 * Math.pow(1.1, ml3)),
-      cosmo: 1 + 25 * cosmo04 / 100, cosmo04: cosmo04,
-      lamp: 1 + lamp99 / 400, lamp99: lamp99,
+      trenchUnlocked: bUpg94, trenchDepth: trenchDepth,
+      trench: Math.max(1, bUpg94 * Math.pow(1.1, trenchDepth)),
+      cosmo: 1 + 25 * cosmo04 / 100, cosmo04: cosmo04, cosmoPct: 25 * cosmo04,
+      lamp: 1 + lamp99 / 400, lamp99: lamp99, lampPct: lamp99 / 4,
       meas: 1 + meas16 / 100, meas16: meas16,
       bell: 1 + bell6 / 100, bell6: bell6,
       cglunko: 1 + cglunko14 / 100, cglunko14: cglunko14,
     },
     allMulti: currencyAllMulti(saveData, uLvs, mLvs),
-    royal: { total: royalMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 9) },
+    royal: { total: effectiveRoyalMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 9) },
     desire: { total: desireMulti(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 11) },
     royalChance: { total: royalChance(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 1, 8) },
     keep: { total: currencyKeep(uLvs, mLvs), raw: bonTOT(uLvs, mLvs, 0, 8) },
@@ -652,11 +674,11 @@ export function marblePerFill(saveData, uLvs, mLvs) {
 }
 
 export function watersOwned(uLvs, mLvs) {
-  var n = 0;
-  if (bonTOT(uLvs, mLvs, 0, 0) >= 1) n++;
-  if (bonTOT(uLvs, mLvs, 1, 0) >= 1) n++;
-  if (bonTOT(uLvs, mLvs, 2, 0) >= 1) n++;
-  return Math.min(n, WATERS_IMPLEMENTED);
+  return highestWaterIndex(uLvs) + 1;
+}
+
+export function marbleBarUnlocked(uLvs, mLvs) {
+  return bonTOT(uLvs, mLvs, 1, 10) >= 1;
 }
 
 export function duckBarUnlocked(uLvs, mLvs) {
@@ -671,31 +693,36 @@ export function optimalStacksPerHr(saveData, uLvs, mLvs) {
   var _rc = royalChance(uLvs, mLvs);
   var _ms = maxStackSize(saveData, uLvs, mLvs);
   var _fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
+  if (_rc <= 0) return _fph / _ms;
   var _rdf = 1 - Math.pow(1 - _rc, _ms);
   var _wf = _rdf < 1 ? (1 - _rdf) / _rc : 0;
   var _fps = _ms + _wf;
   return _fph / _fps;
 }
 
-export function optimalStackValue(saveData, uLvs, mLvs, desired) {
-  var _rm = royalMulti(uLvs, mLvs);
+export function optimalStackValueForCurrency(saveData, uLvs, mLvs, typeIdx, desired) {
+  var _rm = effectiveRoyalMulti(uLvs, mLvs);
   var _sb = _sizeMatterBonus(saveData);
   var _ms = maxStackSize(saveData, uLvs, mLvs);
   var _fsm = 1 + _ms * _sb / 100;
-  var _cv = currencyTotalValue(saveData, uLvs, mLvs, desired, desired);
+  var _cv = currencyTotalValue(saveData, uLvs, mLvs, typeIdx, desired);
   return _ms * _cv * _rm * _fsm;
+}
+
+export function optimalStackValue(saveData, uLvs, mLvs, desired) {
+  return optimalStackValueForCurrency(saveData, uLvs, mLvs, desired, desired);
 }
 
 export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
   switch (goal) {
-    case 'currency': return currencyAllMulti(saveData, uLvs, mLvs) * royalMulti(uLvs, mLvs) * desireMulti(uLvs, mLvs);
+    case 'currency': return currencyAllMulti(saveData, uLvs, mLvs) * effectiveRoyalMulti(uLvs, mLvs) * desireMulti(uLvs, mLvs);
     case 'fill': return activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
-    case 'bronze': return currencyTotalValue(saveData, uLvs, mLvs, 0, 0) * royalMulti(uLvs, mLvs);
-    case 'silver': return currencyTotalValue(saveData, uLvs, mLvs, 1, 1) * royalMulti(uLvs, mLvs);
-    case 'golden': return currencyTotalValue(saveData, uLvs, mLvs, 2, 2) * royalMulti(uLvs, mLvs);
-    case 'dollar': return currencyTotalValue(saveData, uLvs, mLvs, 3, 3) * royalMulti(uLvs, mLvs);
-    case 'credit': return currencyTotalValue(saveData, uLvs, mLvs, 4, 4) * royalMulti(uLvs, mLvs);
-    case 'treasury': return currencyTotalValue(saveData, uLvs, mLvs, 5, 5) * royalMulti(uLvs, mLvs);
+    case 'bronze': return currencyTotalValue(saveData, uLvs, mLvs, 0, 0) * effectiveRoyalMulti(uLvs, mLvs);
+    case 'silver': return currencyTotalValue(saveData, uLvs, mLvs, 1, 1) * effectiveRoyalMulti(uLvs, mLvs);
+    case 'golden': return currencyTotalValue(saveData, uLvs, mLvs, 2, 2) * effectiveRoyalMulti(uLvs, mLvs);
+    case 'dollar': return currencyTotalValue(saveData, uLvs, mLvs, 3, 3) * effectiveRoyalMulti(uLvs, mLvs);
+    case 'credit': return currencyTotalValue(saveData, uLvs, mLvs, 4, 4) * effectiveRoyalMulti(uLvs, mLvs);
+    case 'treasury': return currencyTotalValue(saveData, uLvs, mLvs, 5, 5) * effectiveRoyalMulti(uLvs, mLvs);
     case 'royal': return royalChance(uLvs, mLvs);
     case 'duck': return duckChance(saveData, uLvs, mLvs);
     case 'lucky': return luckyCoinBaseChance(uLvs, mLvs);
@@ -705,21 +732,7 @@ export function measureGoal(saveData, goal, uLvs, mLvs, desired) {
     case 'class-exp': return bonTOT(uLvs, mLvs, 0, 16);
     case 'damage': return bonTOT(uLvs, mLvs, 1, 16);
     case 'marble-per-fill': return marblePerFill(saveData, uLvs, mLvs);
-    case 'marble-rate': {
-      var _mhr = marblePerFill(saveData, uLvs, mLvs) * activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
-      // Asymptotic Bolaia study contribution: upgrading Skim Reading (W1U14) increases
-      // study rate, which gives a permanent Bolaia level advantage of
-      // ln(R'/R) / ln(1.25) levels. Each level = +5% marble per fill.
-      // Only the fountain factor (1 + bonTOT(1,14)/100) matters; external factors cancel in deltas.
-      var _skimBon = bonTOT(uLvs, mLvs, 1, 14);
-      if (_skimBon > 0) {
-        var _bolaiaFactor = 1 + _bolaiaBonus(saveData, 15) / 100;
-        var _mpfNoBolaia = _bolaiaFactor > 0 ? marblePerFill(saveData, uLvs, mLvs) / _bolaiaFactor : marblePerFill(saveData, uLvs, mLvs);
-        var _mFillsPerHr = activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
-        _mhr += _mpfNoBolaia * _mFillsPerHr * 0.05 * Math.log(1 + _skimBon / 100) / Math.log(1.25);
-      }
-      return _mhr;
-    }
+    case 'marble-rate': return marblePerHr(saveData, uLvs, mLvs);
     case 'mbg': return currencyKeep(uLvs, mLvs);
     case 'optimal': return optimalStacksPerHr(saveData, uLvs, mLvs) * optimalStackValue(saveData, uLvs, mLvs, desired);
     default: return 0;
@@ -742,19 +755,34 @@ export function marbleBarProgress(saveData) {
 // Compute earn rate per hour for each currency type (as if that type is desired)
 // Returns array[9] of values per hour under active play.
 export function earnRatesPerHr(saveData, uLvs, mLvs) {
-  var rc = royalChance(uLvs, mLvs);
-  var rm = royalMulti(uLvs, mLvs);
-  var sizeBon = _sizeMatterBonus(saveData);
-  var ms = maxStackSize(saveData, uLvs, mLvs);
-  var fsm = 1 + ms * sizeBon / 100;
-  var rdf = 1 - Math.pow(1 - rc, ms);
-  var wf = rdf < 1 ? (1 - rdf) / rc : 0;
-  var fps = ms + wf;
-  var fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
+  var canFocus = ignoreUnlocked(uLvs, mLvs);
   var rates = [];
   for (var t = 0; t < 9; t++) {
-    var cv = currencyTotalValue(saveData, uLvs, mLvs, t, t);
-    rates[t] = (fph / fps) * ms * cv * rm * fsm;
+    if (!currencyUnlocked(uLvs, mLvs, t)) {
+      rates[t] = 0;
+      continue;
+    }
+    var targetRates = activeEarnRatesPerHr(saveData, uLvs, mLvs, t, canFocus ? t : -1);
+    rates[t] = targetRates[t];
+  }
+  return rates;
+}
+
+// Actual simultaneous rates for the current desired currency and generation focus.
+// focusType >= 0 assumes Turn and Push is used to ignore every other currency.
+export function activeEarnRatesPerHr(saveData, uLvs, mLvs, desired, focusType) {
+  var activeTypes;
+  if (ignoreUnlocked(uLvs, mLvs) && currencyUnlocked(uLvs, mLvs, focusType)) {
+    activeTypes = [focusType];
+  } else {
+    activeTypes = activeCurrencyTypes(saveData, uLvs, mLvs);
+  }
+  var rates = Array(9).fill(0);
+  var share = 1 / activeTypes.length;
+  var stacksPerHr = optimalStacksPerHr(saveData, uLvs, mLvs);
+  for (var i = 0; i < activeTypes.length; i++) {
+    var t = activeTypes[i];
+    rates[t] = stacksPerHr * optimalStackValueForCurrency(saveData, uLvs, mLvs, t, desired) * share;
   }
   return rates;
 }
@@ -763,12 +791,12 @@ export function earnRatesPerHr(saveData, uLvs, mLvs) {
 // Multiply by currencyBaseValue(t) to get per-currency rate.
 export function baseCurrencyPerHr(saveData, uLvs, mLvs) {
   var rc = royalChance(uLvs, mLvs);
-  var rm = royalMulti(uLvs, mLvs);
+  var rm = effectiveRoyalMulti(uLvs, mLvs);
   var sizeBon = _sizeMatterBonus(saveData);
   var ms = maxStackSize(saveData, uLvs, mLvs);
   var fsm = 1 + ms * sizeBon / 100;
-  var rdf = 1 - Math.pow(1 - rc, ms);
-  var wf = rdf < 1 ? (1 - rdf) / rc : 0;
+  var rdf = rc > 0 ? 1 - Math.pow(1 - rc, ms) : 0;
+  var wf = rc > 0 && rdf < 1 ? (1 - rdf) / rc : 0;
   var fps = ms + wf;
   var fph = 3600 * activeSpeedMulti(uLvs, mLvs) / barFillTime(saveData, uLvs, mLvs);
   var cam = currencyAllMulti(saveData, uLvs, mLvs);
@@ -778,6 +806,7 @@ export function baseCurrencyPerHr(saveData, uLvs, mLvs) {
 
 // Marble earn rate: marbles per hour under active play
 export function marblePerHr(saveData, uLvs, mLvs) {
+  if (!marbleBarUnlocked(uLvs, mLvs)) return 0;
   return marblePerFill(saveData, uLvs, mLvs) * 3600 * activeSpeedMulti(uLvs, mLvs) / marbleBarFillTime();
 }
 

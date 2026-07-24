@@ -16,13 +16,13 @@ var SHRINE_DATA = {
 export var shrine = {
   resolve: function(id, ctx) {
     var data = SHRINE_DATA[id];
-    if (!data) return node(label('Shrine', id), 0, null, { note: 'shrine ' + id });
+    if (!data) return node(label('Shrine', id), 0);
     var name = label('Shrine', id);
     var saveData = ctx.saveData;
     var shrineArr = saveData.shrineData && saveData.shrineData[id];
-    if (!shrineArr) return node(name, 0, null, { note: 'shrine ' + id });
+    if (!shrineArr) return node(name, 0);
     var shrineLv = Number(shrineArr[3]) || 0;
-    if (shrineLv <= 0) return node(name, 0, null, { note: 'shrine ' + id });
+    if (shrineLv <= 0) return node(name, 0);
 
     var cd = computeCardLvDetail('Boss3B', saveData);
     var boss3bLv = cd.lv;
@@ -39,7 +39,7 @@ export var shrine = {
     return node(name, val, [
       node('Shrine Level ' + shrineLv, baseBonus, null, { fmt: '+', note: data.base + ' base + ' + data.perLevel + '/level' }),
       node('Boss3B Card Bonus', cardMulti, cardChildren, { fmt: 'x', note: BOSS3B_CARD_PCT + '% per level' }),
-    ], { fmt: '+', note: 'shrine ' + id });
+    ], { fmt: '+' });
   },
 };
 

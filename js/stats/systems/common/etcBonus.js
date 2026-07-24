@@ -5,6 +5,7 @@
 // multiply them together.
 
 import { node } from '../../node.js';
+import { label } from '../../entity-names.js';
 import { equipment } from './equipment.js';
 import { obol } from '../w2/obols.js';
 import { nametag, trophy, premhat } from '../../systems/w7/gallery.js';
@@ -23,6 +24,6 @@ export var etcBonus = {
     if (ntNode.val) children.push(ntNode);
     if (trNode.val) children.push(trNode);
     if (phNode.val) children.push(phNode);
-    return node('EtcBonuses(' + id + ')', total, children, { fmt: '+', note: 'etcBonus ' + id });
+    return node(label('EtcBonus', id), total, children, { fmt: '+' });
   },
 };
