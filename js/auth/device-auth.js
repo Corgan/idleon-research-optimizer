@@ -12,7 +12,7 @@
 
 // ── Config ─────────────────────────────────────────────────────────────
 var CLIENT_ID     = '267901585099-u6fjd75v6k9gefq7bcokcndv99riir5j';
-var CLIENT_SECRET = 'HzoZF-UKUNfFwBuz4vafwsaR';
+var CLIENT_SECRET = '';
 
 var FIREBASE_API_KEY = 'AIzaSyAU62kOE6xhSrFqoXQPv6_WHxYilmoUxDk';
 
