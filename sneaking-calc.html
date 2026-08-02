@@ -115,6 +115,38 @@ h1 span { color: var(--accent); }
 .decision-sub { color:var(--text2); font-size:.7em; line-height:1.4; margin-top:3px; }
 .move-list { display:grid; gap:3px; margin-top:6px; }
 .move-row { display:flex; gap:6px; justify-content:space-between; border-top:1px solid rgba(255,255,255,.05); padding-top:3px; color:var(--text2); font-size:.68em; }
+.recommendation-card { grid-column:1 / -1; }
+.gear-plan { margin-top:9px; border-top:1px solid #46516f; padding-top:8px; }
+.gear-plan-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px; }
+.gear-plan-title { color:var(--cyan); font-size:.76em; font-weight:700; }
+.gear-plan-count { color:var(--text2); font-size:.68em; }
+.gear-role-list { display:grid; gap:3px; }
+.gear-role { min-width:0; display:grid; grid-template-columns:minmax(112px,.7fr) repeat(3,minmax(145px,1fr)); align-items:center; gap:5px; border-top:1px solid rgba(255,255,255,.06); padding:5px 2px; }
+.gear-role:first-child { border-top:0; }
+.gear-role-head { min-width:0; color:var(--gold); font-size:.7em; font-weight:700; }
+.gear-role-members { display:inline; margin-left:4px; color:var(--text2); font-weight:400; }
+.gear-role-members > summary { display:inline; cursor:pointer; color:var(--text2); font-size:.92em; }
+.gear-role-names { margin:4px 0 0; padding:4px 6px; border-left:2px solid #46516f; color:#9aa7c4; font-size:.9em; line-height:1.35; overflow-wrap:anywhere; }
+.gear-role-item { min-width:0; color:var(--text); font-size:.65em; overflow-wrap:anywhere; }
+.gear-role-item strong { color:var(--cyan); }
+.gear-exact { margin-top:7px; }
+.gear-exact > summary { cursor:pointer; color:var(--text2); font-size:.69em; font-weight:600; }
+.recommendation-why { margin-top:5px; }
+.recommendation-why > summary { cursor:pointer; color:var(--text2); font-size:.67em; }
+.recommendation-why-body { margin-top:4px; color:#9aa7c4; font-size:.66em; line-height:1.35; }
+.gear-plan-note { margin:6px 0; padding:5px 7px; border-left:3px solid var(--gold); background:rgba(255,215,0,.06); color:var(--text2); font-size:.67em; line-height:1.35; }
+.gear-plan-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:7px; }
+.gear-char { min-width:0; border:1px solid #46516f; border-radius:5px; background:rgba(0,0,0,.12); }
+.gear-char-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); color:var(--gold); font-size:.74em; font-weight:700; }
+.gear-char-count { color:var(--text2); font-size:.85em; font-weight:400; }
+.gear-change { display:grid; grid-template-columns:58px minmax(0,1fr) 14px minmax(0,1fr); align-items:center; gap:5px; padding:6px 8px; border-top:1px solid rgba(255,255,255,.04); font-size:.68em; }
+.gear-change:first-child { border-top:0; }
+.gear-slot { color:var(--cyan); font-weight:700; }
+.gear-before { min-width:0; color:var(--text2); text-decoration:line-through; opacity:.75; overflow-wrap:anywhere; }
+.gear-arrow { color:var(--text2); text-align:center; }
+.gear-after { min-width:0; color:var(--text); font-weight:600; overflow-wrap:anywhere; }
+.gear-source { display:block; margin-top:1px; color:#9aa7c4; font-size:.86em; font-weight:400; }
+.gear-empty { color:#8992aa; font-style:italic; }
 .mobile-floor-list { display:none; gap:8px; }
 .mobile-floor-card { background:var(--bg3); border:1px solid #46516f; border-radius:6px; padding:9px; }
 .mobile-floor-head { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:6px; }
@@ -129,6 +161,10 @@ h1 span { color: var(--accent); }
   .mobile-floor-list { display:grid; }
   .decision-grid { grid-template-columns:1fr; }
   .move-row { flex-wrap:wrap; justify-content:flex-start; font-size:.72em; }
+  .gear-role { grid-template-columns:1fr; gap:2px; padding:6px 2px; }
+  .gear-role-item { padding-left:7px; }
+  .gear-plan-grid { grid-template-columns:1fr; }
+  .gear-change { grid-template-columns:54px minmax(0,1fr) 12px minmax(0,1fr); }
 }
 
 /* Shared formula breakdown tree */
@@ -2199,10 +2235,120 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
     }
     return item.source === 'all' ? 'Future gear sandbox' : 'Generated';
   }
-  function _destinationLabel(slot) {
-    var twinIdx = Math.floor((slot - 12) / 4);
-    var part = (slot - 12) % 4;
-    return _charName(twinIdx) + ' ' + ['hat','weapon','charm 1','charm 2'][part];
+  function _gearItemHtml(itemKey, itemLevel, extraClass) {
+    var key = String(itemKey || 'Blank');
+    if (key === 'Blank') return '<span class="gear-empty">Empty</span>';
+    var data = NjEQ[key];
+    var name = data ? String(data[2] || key).replace(/_/g, ' ') : key;
+    return '<span class="' + (extraClass || '') + '">' + name + ' <strong>+' + _fmt(Number(itemLevel) || 0) + '</strong></span>';
+  }
+  function _gearItemName(itemKey) {
+    var key = String(itemKey || 'Blank');
+    if (key === 'Blank') return 'Empty';
+    var data = NjEQ[key];
+    return data ? String(data[2] || key).replace(/_/g, ' ') : key;
+  }
+  function _gearLevelRange(values) {
+    if (!values.length) return '';
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    return min === max ? '+' + _fmt(min) : '+' + _fmt(min) + '–' + _fmt(max);
+  }
+  function _gearPlanHtml(assignments) {
+    var groups = {};
+    var targets = {};
+    var changedSlots = 0;
+    for (var activeTwinIdx = 0; activeTwinIdx < twins.length; activeTwinIdx++) {
+      var targetTwinIdx = twins[activeTwinIdx].idx;
+      targets[targetTwinIdx] = [];
+      for (var targetPart = 1; targetPart <= 3; targetPart++) {
+        var targetCurrent = nd[12 + 4 * targetTwinIdx + targetPart] || ['Blank', 0];
+        targets[targetTwinIdx][targetPart] = {
+          key: String(targetCurrent[0] || 'Blank'),
+          level: Number(targetCurrent[1]) || 0,
+        };
+      }
+    }
+    for (var assignmentIdx = 0; assignmentIdx < assignments.length; assignmentIdx++) {
+      var assignment = assignments[assignmentIdx];
+      if (!assignment || assignment.destination == null) continue;
+      var destination = Number(assignment.destination);
+      var part = (destination - 12) % 4;
+      if (part < 1 || part > 3) continue;
+      var current = nd[destination] || ['Blank', 0];
+      var nextKey = assignment._empty ? 'Blank' : String(assignment.key || 'Blank');
+      var nextLevel = assignment._empty ? 0 : Number(assignment.level) || 0;
+      var twinIdx = Math.floor((destination - 12) / 4);
+      if (targets[twinIdx]) targets[twinIdx][part] = { key: nextKey, level: nextLevel };
+      if (String(current[0] || 'Blank') === nextKey && (Number(current[1]) || 0) === nextLevel) continue;
+      if (!groups[twinIdx]) groups[twinIdx] = [];
+      groups[twinIdx].push({
+        slotOrder: part,
+        slot: ['Hat','Weapon','Charm 1','Charm 2'][part],
+        currentKey: String(current[0] || 'Blank'),
+        currentLevel: Number(current[1]) || 0,
+        nextKey: nextKey,
+        nextLevel: nextLevel,
+        source: assignment._empty ? '' : _sourceLabel(assignment),
+      });
+      changedSlots++;
+    }
+    var twinIds = Object.keys(groups).map(Number).sort(function(a, b) { return a - b; });
+    if (!changedSlots) return '';
+    var roles = {};
+    for (var targetIdx = 0; targetIdx < twinIds.length; targetIdx++) {
+      var roleTwinIdx = twinIds[targetIdx];
+      var target = targets[roleTwinIdx];
+      var signature = [target[1].key, target[2].key, target[3].key].join('|');
+      if (!roles[signature]) roles[signature] = {
+        twins: [],
+        keys: [target[1].key, target[2].key, target[3].key],
+        levels: [[], [], []],
+      };
+      roles[signature].twins.push(roleTwinIdx);
+      for (var rolePart = 1; rolePart <= 3; rolePart++) roles[signature].levels[rolePart - 1].push(target[rolePart].level);
+    }
+    var roleRows = Object.keys(roles).map(function(signature) { return roles[signature]; });
+    roleRows.sort(function(a, b) { return b.twins.length - a.twins.length || a.twins[0] - b.twins[0]; });
+
+    var html = '<div class="gear-plan"><div class="gear-plan-head"><span class="gear-plan-title">Recommended loadout</span><span class="gear-plan-count">' + roleRows.length + ' target role' + (roleRows.length === 1 ? '' : 's') + ' · ' + twinIds.length + ' characters</span></div>';
+    html += '<div class="gear-role-list">';
+    var roleSlotNames = ['Weapon', 'Charm 1', 'Charm 2'];
+    for (var roleIdx = 0; roleIdx < roleRows.length; roleIdx++) {
+      var role = roleRows[roleIdx];
+      var allEmpty = role.keys.every(function(key) { return key === 'Blank'; });
+      var roleLabel = roleIdx === 0 && role.twins.length > 1 ? 'Main setup'
+        : allEmpty ? 'Unequip'
+        : role.twins.length === 1 ? _charName(role.twins[0])
+        : 'Setup ' + (roleIdx + 1);
+      html += '<section class="gear-role"><div class="gear-role-head"><span>' + roleLabel + '</span>';
+      if (role.twins.length > 1) {
+        html += '<details class="gear-role-members"><summary>' + role.twins.length + ' characters</summary><div class="gear-role-names">'
+          + role.twins.map(_charName).join(', ') + '</div></details>';
+      }
+      html += '</div>';
+      for (var roleItemIdx = 0; roleItemIdx < 3; roleItemIdx++) {
+        html += '<span class="gear-role-item"><strong>' + roleSlotNames[roleItemIdx] + ':</strong> ' + _gearItemName(role.keys[roleItemIdx]) + ' ' + _gearLevelRange(role.levels[roleItemIdx]) + '</span>';
+      }
+      html += '</section>';
+    }
+    html += '</div><details class="gear-exact"><summary>Exact assignments · ' + changedSlots + ' slot changes</summary>';
+    html += '<div class="gear-plan-note"><strong>Apply safely:</strong> unequip every changed Weapon and Charm slot first, then equip the recommendations below character by character. This avoids copy-swap conflicts.</div>';
+    html += '<div class="gear-plan-grid">';
+    for (var twinOrder = 0; twinOrder < twinIds.length; twinOrder++) {
+      var twinIdx = twinIds[twinOrder];
+      var rows = groups[twinIdx].sort(function(a, b) { return a.slotOrder - b.slotOrder; });
+      html += '<section class="gear-char"><div class="gear-char-head"><span>' + _charName(twinIdx) + '</span><span class="gear-char-count">' + rows.length + ' change' + (rows.length === 1 ? '' : 's') + '</span></div>';
+      for (var rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+        var row = rows[rowIdx];
+        html += '<div class="gear-change"><span class="gear-slot">' + row.slot + '</span>';
+        html += '<span class="gear-before">' + _gearItemHtml(row.currentKey, row.currentLevel) + '</span><span class="gear-arrow">→</span>';
+        html += '<span class="gear-after">' + _gearItemHtml(row.nextKey, row.nextLevel)
+          + (row.source ? '<small class="gear-source">from ' + row.source + '</small>' : '') + '</span></div>';
+      }
+      html += '</section>';
+    }
+    return html + '</div></details></div>';
   }
   function _recommendationHtml() {
     function _savedPlacement() {
@@ -2340,10 +2486,8 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
           : savedPlacementBaseline > 0 ? 100 * (bestRec.value / savedPlacementBaseline - 1)
             : bestRec.value > 0 ? Infinity : 0;
         var assignments = bestRec.candidate._set && bestRec.candidate._set.twins._assignments || [];
-        var moves = assignments.filter(function(item) {
-          return item && (item._empty || item.source !== 'equip' || item.slot !== item.destination);
-        });
-        recommendationHtml = '<div class="decision-card"><h3>Recommended ' + OPT_MODES[curMode].label + '</h3>';
+        var gearPlanHtml = _gearPlanHtml(assignments);
+        recommendationHtml = '<div class="decision-card recommendation-card"><h3>Recommended ' + OPT_MODES[curMode].label + '</h3>';
         var totalGainText = totalGain === Infinity ? (curMode === 'untie' ? 'new finite ETA vs saved' : 'new output vs saved')
           : curMode === 'untie' ? totalGain.toFixed(2) + '% shorter ETA vs saved'
             : (totalGain >= 0 ? '+' : '') + totalGain.toFixed(2) + '% vs saved';
@@ -2353,15 +2497,8 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
         recommendationHtml += '<div class="decision-value">Floor ' + bestRec.floor
           + (curMode === 'untie' ? ' · ETA ' + _timeStr(candidateUntieEta) : '')
           + ' · ' + totalGainText + '</div>';
-        recommendationHtml += '<div class="decision-sub">Equipment gain on this floor: ' + floorGainText + '. Bounded search across the top pair families, every lead twin, and both symbol-slot orders. ' + bestRec.candidate.configLabel + '</div>';
-        if (moves.length) {
-          recommendationHtml += '<details><summary style="cursor:pointer;color:var(--cyan);font-size:.72em;margin-top:6px;">Show complete move plan (' + moves.length + ' changes)</summary><div class="move-list">';
-          for (var moveIdx = 0; moveIdx < moves.length; moveIdx++) {
-            var move = moves[moveIdx];
-            recommendationHtml += '<div class="move-row"><span>' + (move._empty ? 'Clear slot' : _sourceLabel(move)) + '</span><span>' + (move._empty ? 'Empty' : (NjEQ[move.key]?.[2] || move.key).replace(/_/g,' ') + ' +' + _fmt(move.level)) + '</span><span>→ ' + _destinationLabel(move.destination) + '</span></div>';
-          }
-          recommendationHtml += '</div></details>';
-        }
+        recommendationHtml += gearPlanHtml;
+        recommendationHtml += '<details class="recommendation-why"><summary>Why this result</summary><div class="recommendation-why-body">Equipment-only gain on floor ' + bestRec.floor + ': ' + floorGainText + '. Bounded search across the top pair families, every lead twin, and both symbol-slot orders. ' + bestRec.candidate.configLabel + '</div></details>';
         recommendationHtml += '</div>';
         _recommendationCache[curMode] = {
           floor: bestRec.floor,
