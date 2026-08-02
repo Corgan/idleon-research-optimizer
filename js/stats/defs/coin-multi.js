@@ -20,11 +20,11 @@ import { computeStatueBonusGiven, computeMealBonus, computeCardBonusByType, comp
 import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
 import { MealINFO, DungPassiveStats2, GodsInfo,
   StatueInfo, ArtifactInfo, HolesInfo, ZenithMarket } from '../data/game/customlists.js';
-import { cauldronInfoData, optionsListData, prayersPerCharData,
+import { cauldronInfoData, optionsListData,
   numCharacters, klaData, divinityData, charClassData,
   cauldronBubblesData, currentMapData } from '../../save/data.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
-import { prayerBaseBonus } from '../data/w3/prayer.js';
+import { computePrayerReal } from '../systems/w3/prayer.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
@@ -73,7 +73,7 @@ function computeArtifactBonus1(saveData) {
 export default createDescriptor({
   id: 'coin-multi',
   name: 'Coin Multiplier',
-  scope: 'character',
+  scope: 'character+map',
   category: 'multiplier',
 
   combine: function(pools, ctx) {
@@ -135,7 +135,7 @@ export default createDescriptor({
     var g11 = 1 + etc100 / 100;
 
     // ===== GROUP 12: GOLD_SET set bonus =====
-    var goldSet = safe(getSetBonus, 'GOLD_SET');
+    var goldSet = safe(getSetBonus, 'GOLD_SET', ci);
     var g12 = 1 + goldSet / 100;
 
     // ===== GROUP 13: Gambit bonus 7 =====
@@ -156,7 +156,7 @@ export default createDescriptor({
     var votingMulti = 1;
     try { var vmResult = ctx.resolve('voting-multi'); votingMulti = vmResult.val || 1; } catch(e) {}
     var voting34 = safe(votingBonusz, 34, votingMulti, s);
-    var mealCash = safe(computeMealBonus, 'Cash', s);
+    var mealCash = safe(computeMealBonus, 'Cash', s, ci);
     var artifactBonus1 = safe(computeArtifactBonus1, s);
     var rooBonus6 = safe(computeRooBonus, 6, s);
     var g16sum = mealCash + artifactBonus1 + rooBonus6 + voting34;
@@ -184,19 +184,12 @@ export default createDescriptor({
     var g19 = 1 + pristine16 / 100;
 
     // ===== GROUP 20: Prayer(8) =====
-    var prayerLv8 = Number(s.prayOwnedData && s.prayOwnedData[8]) || 0;
-    var prayEquipped8 = false;
-    try { prayEquipped8 = (prayersPerCharData[ci] || []).includes(8); } catch(e) {}
-    var prayer8val = 0;
-    var pBase8 = safe(prayerBaseBonus, 8);
-    if (prayerLv8 > 0 && prayEquipped8) {
-      var pScale8 = Math.max(1, 1 + (prayerLv8 - 1) / 10);
-      prayer8val = Math.round(pBase8 * pScale8);
-    }
+    var prayer8 = computePrayerReal(8, 0, ci, s);
+    var prayer8val = Number(prayer8) || 0;
     var g20 = 1 + prayer8val / 100;
 
     // ===== GROUP 21: Divinity Minor + CropSC(4) =====
-    var divMinor = safe(computeDivinityMinor, -1, 3, s);
+    var divMinor = safe(computeDivinityMinor, -1, 3, s, ci);
     var cropSC4 = safe(computeCropSC, 4, s);
     var g21 = 1 + (divMinor + cropSC4) / 100;
 
@@ -206,7 +199,7 @@ export default createDescriptor({
     // TC(643) = OverkillStuffs("2") = raw overkill tier (1-50). Requires MaxDamage + MonsterHP.
     // TC(644) = Lv0[10] / 10 = charLevel / 10 (NOT GTN * Lv0 / 10)
     var talent657 = rval(talent, 657, ctx);
-    var vialMC = safe(computeVialByKey, 'MonsterCash', s);
+    var vialMC = safe(computeVialByKey, 'MonsterCash', s, ci);
     var etc3 = rval(etcBonus, '3', ctx);
     var _cb11 = safe(computeCardBonusByType, 11, ci, s);
     var cardBonus11 = (typeof _cb11 === 'object' && _cb11) ? (_cb11.val || 0) : Number(_cb11) || 0;
@@ -241,7 +234,11 @@ export default createDescriptor({
     var killz7 = safe(computeVaultKillzTotal, 7, s);
     var ola420 = Number(optionsListData[420]) || 0;
     var vault70 = rval(vault, 70, ctx);
-    var cardsCollected = (s.cards1Data && s.cards1Data.length) || 0;
+    var cardsCollected = 0;
+    var cardLevels = s.cards0Data || {};
+    for (var cardKey in cardLevels) {
+      if ((Number(cardLevels[cardKey]) || 0) >= 1) cardsCollected++;
+    }
 
     var g22sum = talent657 + vialMC + etc3 + cardBonus11 + cardW5b1
       + talent22 + flurboShop4 + arcade10 + arcade11
@@ -357,10 +354,7 @@ export default createDescriptor({
 
     // G20: Prayer
     children.push({ name: label('Prayer', 8), val: groups[20],
-      children: prayer8val > 0 ? [
-        { name: 'Prayer Level', val: prayerLv8, fmt: 'raw' },
-        { name: 'Base Bonus', val: pBase8, fmt: 'raw' },
-      ] : null, fmt: 'x', note: !prayEquipped8 ? 'Not equipped' : '' });
+      children: prayer8.children, fmt: 'x' });
 
     // G21: Divinity + CropSC
     var g21ch = [];
@@ -404,6 +398,16 @@ export default createDescriptor({
       fmt: 'raw', note: cardsCollected + ' cards' });
     children.push({ name: 'Other Additive Sources', val: groups[22], children: g22ch.length ? g22ch : null, fmt: 'x' });
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   },
 });

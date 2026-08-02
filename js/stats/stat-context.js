@@ -13,6 +13,7 @@
 
 import { getDescriptor, getCatalog } from './registry.js';
 import { buildTree } from './tree-builder.js';
+import { currentMapData, mapBonData } from '../save/data.js';
 
 /**
  * @param {object} opts
@@ -27,8 +28,8 @@ import { buildTree } from './tree-builder.js';
 export function createStatContext(opts) {
   var charIdx = opts.charIdx || 0;
   var saveData = opts.saveData;
-  var mapIdx  = opts.mapIdx;
-  var mapBon  = opts.mapBon;
+  var mapIdx  = opts.mapIdx != null ? opts.mapIdx : Number(currentMapData[charIdx]) || 0;
+  var mapBon  = opts.mapBon || mapBonData;
   var layer1  = opts.layer1 || {};
   var layer2  = opts.layer2 || {};
 

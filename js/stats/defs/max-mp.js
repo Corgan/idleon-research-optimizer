@@ -24,7 +24,7 @@ export default createDescriptor({
     // LIST[0] — Base MP
     var _cardBonus3T = safeTree(computeCardBonusByType, 3, ci, s);
     var cardBonus3 = _cardBonus3T.val;
-    var _bubbleBaseMPT = safeTree(bubbleValByKey, 'BaseMP', ci, s);
+    var _bubbleBaseMPT = safeTree(bubbleValByKey, 'BaseMP', ci, s, ctx.dnsmCache);
     var bubbleBaseMP = _bubbleBaseMPT.val;
     var _stampBaseMPT = safeTree(computeStampBonusOfTypeX, 'BaseMP', s);
     var stampBaseMP = _stampBaseMPT.val;

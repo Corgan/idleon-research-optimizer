@@ -44,7 +44,14 @@ export function buildTree(desc, catalog, ctx) {
   }
 
   var result = desc.combine(pools, ctx);
-  return { name: desc.name, val: result.val, children: result.children };
+  return {
+    name: desc.name,
+    val: result.val,
+    children: result.children,
+    unavailable: !!result.unavailable,
+    partial: !!result.partial,
+    reason: result.reason || '',
+  };
 }
 
 /**

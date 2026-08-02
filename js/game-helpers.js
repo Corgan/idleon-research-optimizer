@@ -43,11 +43,13 @@ export function buildEmporiumArray(ninjaData102_9) {
   return arr;
 }
 
-export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData) {
+export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData, activeEmperorSetBonus) {
   const t = ribbonData[index] || 0;
   if (t <= 0) return 1;
-  const hasEmperorSet = String(olaStr379 || '').includes('EMPEROR_SET');
-  const empTerm = hasEmperorSet ? Math.floor(t / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
+  const emperorSetBonus = activeEmperorSetBonus == null
+    ? (String(olaStr379 || '').includes('EMPEROR_SET') ? EMPEROR_SET_BONUS_VAL : 0)
+    : Number(activeEmperorSetBonus) || 0;
+  const empTerm = Math.floor(t / 4) * (emperorSetBonus / 4);
   const cb73 = weeklyBossData ? Math.floor(t / 10) * cloudBonus(73, weeklyBossData) : 0;
   return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm + cb73) / 100;
 }

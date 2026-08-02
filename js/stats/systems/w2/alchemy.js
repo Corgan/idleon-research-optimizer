@@ -3,8 +3,8 @@
 
 import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { cauldronInfoData, optionsListData, charClassData } from '../../../save/data.js';
-import { formulaEval } from '../../../formulas.js';
+import { cauldronInfoData, optionsListData, charClassData, klaData } from '../../../save/data.js';
+import { formulaEval, getLOG } from '../../../formulas.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
@@ -15,8 +15,11 @@ import { exoticParams } from '../../data/w5/farming.js';
 import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 
-export function sigilBonus(sigilIdx, saveData) {
-  var level = Number((saveData.cauldronP2WData && saveData.cauldronP2WData[4] || [])[1 + 2 * sigilIdx]) || 0;
+export function sigilBonus(sigilIdx, saveData, charIdx) {
+  var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
+  if (!sigilData || sigilData[1 + 2 * sigilIdx] == null) return 0;
+  var level = Number(sigilData[1 + 2 * sigilIdx]);
+  if (!Number.isFinite(level)) return 0;
   if (level < -0.1) return 0;
   var tiers = sigilTiers(sigilIdx);
   if (!tiers) return 0;
@@ -28,7 +31,7 @@ export function sigilBonus(sigilIdx, saveData) {
   else base = tiers[4] || tiers[3];
   var tier16 = Number((saveData.sailingData && saveData.sailingData[3] || [])[16]) || 0;
   var artifactMulti = 1 + (tier16 === 0 ? 0 : Math.max(1, tier16));
-  var meritocMulti = 1 + computeMeritocBonusz(21, saveData) / 100;
+  var meritocMulti = 1 + computeMeritocBonusz(21, saveData, charIdx) / 100;
   return base * artifactMulti * meritocMulti;
 }
 import { bubbleParams } from '../../data/w2/alchemy.js';
@@ -41,6 +44,12 @@ import { N2L } from '../../data/common/encoding.js';
 var BUBBLE_KEYS = {
   DROPPIN_LOADS: { cauldron: 3, index: 1 },
 };
+
+var BIG_BUBBLE_MULTIPLIERS = [
+  { key: 'MultiOr', indices: [0, 2, 4, 7, 14] },
+  { key: 'MultiGr', indices: [0, 6, 9, 12, 14] },
+  { key: 'MultiPu', indices: [0, 2, 6, 12, 14] },
+];
 
 // Game: OptionsListAccount[384] encodes prisma'd bubbles as e.g. "d1,d5,a3,"
 // Check: does the string contain letter + bubbleIndex + ","
@@ -127,6 +136,7 @@ export var alchemy = {
       // Build prisma sub-breakdown
       var arcane45 = arcaneUpgBonus(45, saveData);
       var arcade54val = arcadeBonus(54, saveData);
+      var sushiRoG23 = rogBonusQTY(23, saveData.cachedUniqueSushi || 0);
       var cards1 = saveData.cards1Data || [];
       var hasW6Trophy = (Array.isArray(cards1) ? cards1.indexOf('Trophy23') >= 0
         : JSON.stringify(cards1).indexOf('Trophy23') >= 0) ? 10 : 0;
@@ -149,6 +159,7 @@ export var alchemy = {
       children.push(node('Prisma Bonus', prismaMult, [
         node(label('Arcane', 45), arcane45, null, { fmt: 'raw' }),
         node(label('Arcade', 54), arcade54val, null, { fmt: 'raw' }),
+        node(label('RoG', 23), sushiRoG23, null, { fmt: 'raw' }),
         node('W6 Trophy', hasW6Trophy, null, { fmt: 'raw' }),
         node(label('Palette', 28), palette28, palLv > 0 ? [
           node('Palette Lv', palLv, null, { fmt: 'raw' }),
@@ -169,7 +180,10 @@ export var sigil = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
     var name = label('Sigil', id);
-    var level = Number((saveData.cauldronP2WData && saveData.cauldronP2WData[4] || [])[1 + 2 * id]) || 0;
+    var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
+    if (!sigilData || sigilData[1 + 2 * id] == null) return node(name, 0, [node('No sigil save data', 0, null, { fmt: 'raw' })]);
+    var level = Number(sigilData[1 + 2 * id]);
+    if (!Number.isFinite(level)) return node(name, 0);
     if (level < -0.1) return node(name, 0, null, { note: 'sigil ' + id });
     var tiers = sigilTiers(id);
     if (!tiers) return node(name, 0, null, { note: 'sigil ' + id });
@@ -180,7 +194,7 @@ export var sigil = {
     else if (level < 3.5) base = tiers[3];
     else base = tiers[4] || tiers[3];
     var artifactMulti = 1 + (Number((saveData.sailingData && saveData.sailingData[3] || [])[16]) || 0 ? Math.max(1, Number((saveData.sailingData && saveData.sailingData[3] || [])[16])) : 0);
-    var meritocMulti = 1 + (computeMeritocBonusz(21, saveData) || 0) / 100;
+    var meritocMulti = 1 + (computeMeritocBonusz(21, saveData, ctx.charIdx) || 0) / 100;
     var val = base * artifactMulti * meritocMulti;
     return node(name, val, [
       node('Sigil Level', level, null, { fmt: 'raw' }),
@@ -194,7 +208,15 @@ export var sigil = {
 // ==================== BUBBLE BY KEY ====================
 // Look up a bubble by its effect key (e.g. 'expACTIVE', 'kpkACTIVE') and return its value.
 
-export function bubbleValByKey(key, charIdx, saveData) {
+export function bubbleValByKey(key, charIdx, saveData, cacheInputs) {
+  var cachedBubbles = cacheInputs && cacheInputs.alchBubbles;
+  if (cachedBubbles) {
+    var cachedValue = Object.prototype.hasOwnProperty.call(cachedBubbles, key)
+      ? Number(cachedBubbles[key]) || 0 : 0;
+    return treeResult(cachedValue, [
+      node('TalentCalc cache', cachedValue, null, { fmt: 'raw' }),
+    ]);
+  }
   for (var c2 = 0; c2 < 4; c2++) {
     var arr = AlchemyDescription[c2];
     if (!arr) continue;
@@ -208,8 +230,18 @@ export function bubbleValByKey(key, charIdx, saveData) {
         var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
         var val = baseVal * prismaMult;
         if (isPrisma) children.push(node('Prisma', prismaMult, null, { fmt: 'x' }));
+        var hasDynamicInput = key === 'MinEff'
+          ? cacheInputs && cacheInputs.playerHPmax != null
+          : key === 'ChopEff' ? cacheInputs && cacheInputs.playerMPmax != null : false;
+        var dynamicMult = key === 'MinEff' ? getLOG(Number(cacheInputs && cacheInputs.playerHPmax) || 0)
+          : key === 'ChopEff' ? getLOG(Number(cacheInputs && cacheInputs.playerMPmax) || 0)
+          : 1;
+        if (hasDynamicInput) {
+          val *= dynamicMult;
+          children.push(node(key === 'MinEff' ? 'Max HP scaling' : 'Max MP scaling', dynamicMult, null, { fmt: 'x' }));
+        }
         var cls = Number(charClassData && charClassData[charIdx]) || 0;
-        if (cls > 6 && i !== 16 && i < 30 && i > 0 &&
+        if (!(cacheInputs && cacheInputs.skipClassPass) && cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c2 === 0 && cls < 18 && key !== 'Construction') {
             var _pm = Math.max(1, bubbleValByKey('Opassz', charIdx, saveData));
@@ -225,6 +257,13 @@ export function bubbleValByKey(key, charIdx, saveData) {
             if (_pm > 1) children.push(node('Ppassz', _pm, null, { fmt: 'x' }));
           }
         }
+        var bigBubble = BIG_BUBBLE_MULTIPLIERS[c2];
+        if (!(cacheInputs && cacheInputs.skipBigBubble) && bigBubble
+          && bigBubble.indices.indexOf(i) !== -1 && key !== bigBubble.key) {
+          var bigMult = Math.max(1, bubbleValByKey(bigBubble.key, charIdx, saveData));
+          val *= bigMult;
+          if (bigMult > 1) children.push(node(bigBubble.key, bigMult, null, { fmt: 'x' }));
+        }
         return treeResult(val, children);
       }
     }
@@ -232,10 +271,48 @@ export function bubbleValByKey(key, charIdx, saveData) {
   return treeResult(0, null);
 }
 
+function _numericRowValues(row) {
+  if (!row) return [];
+  if (Array.isArray(row)) return row;
+  var keys = Object.keys(row).filter(function(key) { return /^\d+$/.test(key); });
+  keys.sort(function(a, b) { return Number(a) - Number(b); });
+  return keys.map(function(key) { return row[key]; });
+}
+
+export function countMaxLevelVials() {
+  var values = _numericRowValues(cauldronInfoData && cauldronInfoData[4]);
+  var count = 0;
+  for (var i = 0; i < values.length; i++) {
+    if ((Number(values[i]) || 0) >= 13) count++;
+  }
+  return count;
+}
+
+function _clearedW6Maps() {
+  var count = 0;
+  for (var charIdx = 0; charIdx < klaData.length; charIdx++) {
+    var maps = klaData[charIdx] || [];
+    for (var mapIdx = 251; mapIdx < 264; mapIdx++) {
+      var entry = maps[mapIdx];
+      if (entry != null && (Number(Array.isArray(entry) ? entry[0] : entry) || 0) < 1) count++;
+    }
+  }
+  return count;
+}
+
+export function finalBubbleValByKey(key, charIdx, saveData, cacheInputs) {
+  var base = Number(bubbleValByKey(key, charIdx, saveData, cacheInputs)) || 0;
+  if (key === 'W10AllCharz') {
+    return base * Math.floor(Math.max(0, ((Number(saveData.totalTomePoints) || 0) - 5000) / 2000));
+  }
+  if (key === 'Y6') return base * _clearedW6Maps();
+  return base;
+}
+
 // ==================== VIAL BY KEY ====================
 // Sum of all vials matching effect key, with lab/rift/vault/meritoc multipliers.
 
-export function computeVialByKey(effectKey, saveData) {
+export function computeVialByKey(effectKey, saveData, charIdx) {
   var vials = AlchemyDescription[4];
   if (!vials) return treeResult(0);
   var total = 0;
@@ -247,15 +324,9 @@ export function computeVialByKey(effectKey, saveData) {
     var rawVal = formulaEval(vials[vi][3], Number(vials[vi][1]) || 0, Number(vials[vi][2]) || 0, vialLv);
     var labMult = mainframeBonus(10, saveData) === 2 ? 2 : 1;
     var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
-    var maxLvVials = 0;
-    if (riftActive) {
-      var ci4 = cauldronInfoData && cauldronInfoData[4];
-      for (var rvi = 0; ci4 && rvi < ci4.length; rvi++) {
-        if ((Number(ci4[rvi]) || 0) >= 13) maxLvVials++;
-      }
-    }
+    var maxLvVials = riftActive ? countMaxLevelVials() : 0;
     var dNzz = (riftActive ? 2 * maxLvVials : 0) + (vaultUpgBonus(42, saveData) || 0);
-    var meritoc20 = computeMeritocBonusz(20, saveData) || 0;
+    var meritoc20 = computeMeritocBonusz(20, saveData, charIdx) || 0;
     var contrib = labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
     total += contrib;
     children.push({
@@ -270,3 +341,12 @@ export function computeVialByKey(effectKey, saveData) {
   }
   return treeResult(total, children);
 }
+
+export var vial = {
+  resolve: function(effectKey, ctx) {
+    var result = computeVialByKey(effectKey, ctx.saveData, ctx.charIdx);
+    var val = Number(result) || 0;
+    var name = effectKey === '7drMulto' ? 'Vial: Ship in a Bottle' : 'Vial: ' + effectKey;
+    return node(name, val, result.children || null, { fmt: '+' });
+  },
+};

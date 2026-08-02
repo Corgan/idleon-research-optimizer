@@ -15,8 +15,8 @@ import { computeCardSetBonus, computeCardLv } from '../systems/common/cards.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
-import { computeSummUpgBonus } from '../systems/w6/summoning.js';
-import { winBonus } from '../systems/w6/summoning.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { companion } from '../systems/common/companions.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
@@ -49,18 +49,16 @@ export default createDescriptor({
     var totalStatsDN = equipDef + galleryDef + obolDef;
 
     // ---- Equipment % multiplier (FMJ bubble + cards + companions) ----
-    var charLevel = Number(charClassData && charClassData[ci + '_lv']) || 0;
-    // TryFallback: character level might be stored differently
-    if (!charLevel && s.charLvData) charLevel = Number(s.charLvData[ci]) || 0;
+    var charLevel = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][0]) || 0;
 
     var _fmjBubbleT = safeTree(bubbleValByKey, 'DefPct', ci, s);
     var fmjBubble = _fmjBubbleT.val;
-    var _summVault46T = safeTree(computeSummUpgBonus, 46, s);
+    var _summVault46T = safeTree(vaultUpgBonus, 46, s);
     var summVault46 = _summVault46T.val;
     var _cardBonus15T = safeTree(computeCardBonusByType, 15, ci, s);
     var cardBonus15 = _cardBonus15T.val;
     var comp21 = rval(companion, 21, ctx);
-    var w6a2lv = safe(computeCardLv, 'w6a2', ci, s);
+    var w6a2lv = safe(computeCardLv, 'w6a2', s);
     var w6a2bonus = 3 * (Number(w6a2lv) || 0);
 
     var equipPctMult = 1 + (fmjBubble + summVault46 + cardBonus15 + comp21 + w6a2bonus) / 100;
@@ -76,10 +74,10 @@ export default createDescriptor({
     var arcade1 = rval(arcade, 1, ctx);
     var _statue7T = safeTree(computeStatueBonusGiven, 7, ci, s);
     var statue7 = _statue7T.val;
-    var _mealDefT = safeTree(computeMealBonus, 'Def', s);
+    var _mealDefT = safeTree(computeMealBonus, 'Def', s, ci);
     var mealDef = _mealDefT.val;
-    var talent122 = rval(talent, 122, ctx);
-    var _summVault5T = safeTree(computeSummUpgBonus, 5, s);
+    var talent122 = rval(talent, 122, ctx, { tab: 2 });
+    var _summVault5T = safeTree(vaultUpgBonus, 5, s);
     var summVault5 = _summVault5T.val;
     var _rooBonus1T = safeTree(computeRooBonus, 1, s);
     var rooBonus1 = _rooBonus1T.val;
@@ -88,7 +86,7 @@ export default createDescriptor({
       + arcade1 + statue7 + mealDef + talent122;
 
     // ---- Main base ----
-    var baseVal = totalStatsDN * equipPctMult + flatSum;
+    var baseVal = Math.floor(totalStatsDN * equipPctMult + flatSum);
 
     // ---- Multiplicative bonuses ----
     var shrine1 = rval(shrine, 1, ctx);
@@ -112,9 +110,9 @@ export default createDescriptor({
     var cardSet4 = _cardSet4T.val;
     var _flurbo6T = safeTree(computeFlurboShop, 6, s);
     var flurbo6 = _flurbo6T.val;
-    var _chipDefT = safeTree(computeChipBonus, 'def');
+    var _chipDefT = safeTree(computeChipBonus, 'def', ci);
     var chipDef = _chipDefT.val;
-    var _amarokSetT = safeTree(getSetBonus, 'AMAROK_SET');
+    var _amarokSetT = safeTree(getSetBonus, 'AMAROK_SET', ci);
     var amarokSet = _amarokSetT.val;
     var buff124 = getBuffBonus(124, 1, ci, ctx);
 
@@ -123,12 +121,11 @@ export default createDescriptor({
 
     var _divinityMinorT = safeTree(computeDivinityMinor, ci, 0, s);
     var divinityMinor = _divinityMinorT.val;
-    var _wb3 = rval(winBonus, 3, ctx);
-    var votingBonus3 = (typeof _wb3 === 'object') ? (_wb3.val || 0) : Number(_wb3) || 0;
+    var votingBonus3 = safe(votingBonusz, 3, ctx.resolve ? ctx.resolve('voting-multi').val : 1, s);
     var divMult = 1 + (divinityMinor + votingBonus3) / 100;
 
-    var val = Math.floor(baseVal * shrineMult * prayerMult * pctMult * divMult
-      + rooBonus1 + summVault5);
+    var val = baseVal * shrineMult * prayerMult * pctMult * divMult
+      + rooBonus1 + summVault5;
 
     var children = [
       { name: 'Equipment Defence', val: totalStatsDN, fmt: 'raw', children: [

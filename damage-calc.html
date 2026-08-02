@@ -4,147 +4,182 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdleOn Damage Breakdown</title>
-<link rel="stylesheet" href="css/breakdown.css">
 <style>
-/* Page-specific */
-:root { --blue: #66f; }
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text1: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --border: #444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
 
-/* Summary cards */
-.summary-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-.dmg-card { flex: 1; min-width: 200px; background: var(--bg2); border-radius: 10px; padding: 18px; text-align: center; }
-.dmg-card .dmg-label { color: var(--text2); font-size: .85em; margin-bottom: 4px; }
-.dmg-card .dmg-val { font-size: 2em; font-weight: 800; }
-.dmg-card .dmg-sub { color: var(--text2); font-size: .82em; margin-top: 4px; }
-.mastery-card { background: var(--bg2); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
-.mastery-card .mastery-bar-wrap { height: 24px; background: #1a1a2e; border-radius: 12px; overflow: hidden; border: 1px solid #333; position: relative; margin-top: 6px; }
-.mastery-card .mastery-bar { height: 100%; border-radius: 12px; transition: width .3s; }
-.mastery-card .mastery-pct { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9em; text-shadow: 0 1px 3px #000; }
-
-/* Layer tabs */
-.layer-tabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
-.layer-tab { padding: 7px 16px; cursor: pointer; color: var(--text2); border-radius: 6px; font-size: .85em; font-weight: 600; transition: all .15s; user-select: none; }
-.layer-tab:hover { color: var(--text); background: rgba(255,255,255,.06); }
-.layer-tab.active { color: var(--accent); background: var(--bg2); }
-.layer-panel { display: none; }
-.layer-panel.active { display: block; }
-
-/* Debug terms table */
-.dbg-table { width: 100%; border-collapse: collapse; font-size: .85em; }
-.dbg-table th { text-align: left; padding: 6px 8px; color: var(--text2); border-bottom: 1px solid #333; }
-.dbg-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
-.dbg-table tr:hover td { background: rgba(255,255,255,.03); }
-.dbg-table .val-col { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dbg-table .zero { color: #555; }
-.dbg-table .nonzero { color: var(--green); }
+.context-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.context-controls label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .82em; font-weight: 600; }
+.context-controls select { background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; padding: 6px 8px; font-size: .95em; max-width: min(440px, calc(100vw - 64px)); }
+.context-controls select:disabled { opacity: .55; }
+.status { margin-top: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text2); font-size: .84em; background: rgba(0,0,0,.12); }
+.status.ready { border-color: var(--green); color: var(--text); }
+.status.partial { border-color: var(--gold); color: var(--gold); }
+.status.unavailable { border-color: var(--red); color: var(--red); }
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); min-width: 0; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 3px; }
+.card .card-val { font-weight: 800; font-size: 1.8em; color: var(--gold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card .card-sub { color: var(--text2); font-size: .78em; margin-top: 3px; }
+.mastery-bar-wrap { height: 14px; background: var(--bg); border-radius: 7px; overflow: hidden; border: 1px solid #333; margin-top: 8px; }
+.mastery-bar { height: 100%; background: var(--purple); transition: width .2s; }
+.tabs { display: flex; background: rgba(0,0,0,.2); border-bottom: 1px solid #333; flex-wrap: wrap; margin-bottom: 12px; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); background: transparent; border: 0; border-bottom: 2px solid transparent; font: inherit; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-tooltip { position: fixed; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
+[hidden] { display: none !important; }
+@media (max-width: 600px) {
+  h1 { font-size: 1.1em; }
+  .main { padding: 10px; }
+  .section { padding: 12px; }
+  .context-controls { align-items: stretch; }
+  .context-controls label { width: 100%; }
+  .context-controls select { width: 100%; max-width: none; }
+  .card-grid.cols-3, .card-grid.cols-4 { grid-template-columns: 1fr; }
+  .card .card-val { font-size: 1.55em; }
+  .tab { flex: 1; padding: 9px 12px; }
+  .bt-tree { font-size: .8em; }
+}
 </style>
 </head>
 <body>
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:#c0c0d4;text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x2694; IdleOn Damage Breakdown</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:#c0c0d4;text-decoration:none;" title="GitHub">GitHub</a></h1>
-<p class="subtitle">Max Damage = Base Damage &times; Percentage Damage Multiplier &times; Multiplicative Damage Bonuses &nbsp;|&nbsp; Min Damage = Max Damage &times; Mastery</p>
-<div class="container">
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x2694; <span>IdleOn</span> Damage Breakdown</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
 
-<!-- Import -->
-<details class="import-box" open>
-  <summary>&#x1F4CB; Import Save JSON</summary>
-  <div style="margin-top:8px;">
-    <label style="font-size:.85em;color:var(--text2)">Load save (it.json or save.json):</label>
-    <input type="file" id="file-input" accept=".json" style="margin-left:6px;">
-  </div>
-  <textarea id="json-in" placeholder="...or paste your it.json / save.json contents here..." style="margin-top:6px;"></textarea>
-  <div class="top-bar">
-    <button class="btn" onclick="doImport()">Load Pasted JSON</button>
-    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
-      <option value="-1">-- load save first --</option>
-    </select>
-  </div>
-  <div id="import-msg" class="import-msg"></div>
-</details>
+<div id="save-area"></div>
 
-<!-- Summary -->
-<div class="summary-row">
-  <div class="dmg-card" style="flex:1 1 100%;text-align:center">
-    <div class="dmg-label">Damage (as shown in-game)</div>
-    <div class="dmg-val" id="dmg-game" style="color:var(--gold);font-size:1.5em">—</div>
-  </div>
-</div>
-<div class="summary-row">
-  <div class="dmg-card">
-    <div class="dmg-label">Min Damage</div>
-    <div class="dmg-val" id="min-dmg" style="color:var(--cyan)">—</div>
-    <div class="dmg-sub" id="min-dmg-exact"></div>
-  </div>
-  <div class="dmg-card">
-    <div class="dmg-label">Max Damage</div>
-    <div class="dmg-val" id="max-dmg" style="color:var(--gold)">—</div>
-    <div class="dmg-sub" id="max-dmg-exact"></div>
-  </div>
-</div>
-
-<!-- Mastery -->
-<div class="mastery-card" id="mastery-card" style="display:none">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <span style="font-weight:700;color:var(--purple)">Mastery</span>
-    <span id="mastery-val" style="font-size:1.2em;font-weight:800;color:var(--purple)"></span>
-    <span id="mastery-sub" style="color:var(--text2);font-size:.82em"></span>
-  </div>
-  <div class="mastery-bar-wrap">
-    <div class="mastery-bar" id="mastery-bar" style="width:0;background:linear-gradient(90deg,var(--purple),#e040fb)"></div>
-    <div class="mastery-pct" id="mastery-pct"></div>
-  </div>
-</div>
-
-<!-- DDL layers -->
-<div id="ddl-section" style="display:none">
-  <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
-    <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">Base Damage</div>
-      <div class="dmg-val" id="ddl0-val" style="font-size:1.3em;color:var(--text)">—</div>
-      <div class="dmg-sub" id="ddl0-note"></div>
+<div class="main">
+  <div class="section">
+    <h2>Calculation Context</h2>
+    <div class="context-controls">
+      <label>Character
+        <select id="char-sel" disabled>
+          <option value="-1">Load a save first</option>
+        </select>
+      </label>
+      <label>Map
+        <select id="map-sel" disabled>
+          <option value="0">Load a save first</option>
+        </select>
+      </label>
     </div>
-    <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">Percentage Damage Multiplier</div>
-      <div class="dmg-val" id="ddl1-val" style="font-size:1.3em;color:var(--cyan)">—</div>
-      <div class="dmg-sub" id="ddl1-note"></div>
-    </div>
-    <div class="dmg-card" style="flex:1;min-width:140px">
-      <div class="dmg-label">Multiplicative Damage Bonuses</div>
-      <div class="dmg-val" id="ddl2-val" style="font-size:1.3em;color:var(--green)">—</div>
-      <div class="dmg-sub" id="ddl2-note"></div>
+    <div id="result-status" class="status">Load a save to calculate damage.</div>
+  </div>
+
+  <div class="section" id="summary-section" hidden>
+    <h2>Damage Summary</h2>
+    <div class="card-grid cols-4">
+      <div class="card">
+        <div class="card-title">Character Sheet Range</div>
+        <div class="card-val" id="dmg-game">-</div>
+        <div class="card-sub" id="dmg-game-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Minimum Damage</div>
+        <div class="card-val" id="min-dmg">-</div>
+        <div class="card-sub" id="min-dmg-exact"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Maximum Damage</div>
+        <div class="card-val" id="max-dmg">-</div>
+        <div class="card-sub" id="max-dmg-exact"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Mastery</div>
+        <div class="card-val" id="mastery-val">-</div>
+        <div class="card-sub" id="mastery-sub"></div>
+        <div class="mastery-bar-wrap" aria-hidden="true"><div class="mastery-bar" id="mastery-bar" style="width:0"></div></div>
+      </div>
     </div>
   </div>
 
-  <!-- Tabbed detail view -->
-  <div class="layer-tabs" id="layer-tabs">
-    <div class="layer-tab active" data-tab="mastery">Mastery</div>
-    <div class="layer-tab" data-tab="damage">Damage</div>
+  <div class="section" id="ddl-section" hidden>
+    <h2>Damage Layers</h2>
+    <div class="card-grid cols-3">
+      <div class="card">
+        <div class="card-title">DDL0: Base Damage</div>
+        <div class="card-val" id="ddl0-val">-</div>
+        <div class="card-sub" id="ddl0-note"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">DDL1: Percentage Damage Multiplier</div>
+        <div class="card-val" id="ddl1-val">-</div>
+        <div class="card-sub" id="ddl1-note"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">DDL2: Multiplicative Damage Bonuses</div>
+        <div class="card-val" id="ddl2-val">-</div>
+        <div class="card-sub" id="ddl2-note"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="layer-panel active" id="panel-mastery">
-    <div class="tree"><h2>Mastery Breakdown</h2><div id="tree-mastery"></div></div>
+  <div class="section" id="breakdown-section" hidden>
+    <h2>Formula Breakdown</h2>
+    <div class="tabs" id="layer-tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="mastery" role="tab" aria-selected="true">Mastery</button>
+      <button type="button" class="tab" data-tab="damage" role="tab" aria-selected="false">Damage</button>
+    </div>
+    <div class="tab-content active" id="panel-mastery" role="tabpanel">
+      <h3>Mastery Breakdown</h3>
+      <div id="tree-mastery"></div>
+    </div>
+    <div class="tab-content" id="panel-damage" role="tabpanel">
+      <h3>Damage Breakdown</h3>
+      <div id="tree-damage"></div>
+    </div>
   </div>
-  <div class="layer-panel" id="panel-damage">
-    <div class="tree"><h2>Damage Breakdown</h2><div id="tree-damage"></div></div>
-  </div>
-</div>
-
 </div>
 <div class="bt-tooltip" id="bt-tooltip"></div>
 <script type="module">
 'use strict';
 
 import { saveData } from './js/state.js';
+import { currentMapData } from './js/save/data.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { createStatContext } from './js/stats/stat-context.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { _bNode } from './js/stats/node-helpers.js';
 import { fmtVal, fmtExact, fmtDmgRange } from './js/renderers/format.js';
-import damageDesc from './js/stats/defs/damage.js';
-import { buildTree } from './js/stats/tree-builder.js';
-import { getCatalog } from './js/stats/registry.js';
-import { doImport as _doImport, wireFileInput } from './js/ui/save-import.js';
+import { ClassNames, MapDispName } from './js/stats/data/game/customlists.js';
+import { isDungeonMap } from './js/stats/systems/w2/dungeon.js';
 import { entityName, label } from './js/stats/entity-names.js';
 
 var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
+var CUR_MAP = 0;
+var LAST_DAMAGE = null;
+var LAST_TREE = null;
 
 // Friendly names for _debug keys
 var DDL0_LABELS = {
@@ -163,6 +198,8 @@ var DDL0_LABELS = {
   playerSpeed: ['Player Speed', 'raw'],
   boxBaseDmg: ['Box Reward: Base Damage', '+'],
   preSoftcap: ['Base Damage Before Softcap', 'raw'],
+  preSoftcapRaw: ['Base Damage Before Softcaps and Food', 'raw'],
+  baseDmgFood: ['Food: Base Damage', '+'],
   owlBonus1: ['Owl Bonus (1)', '+'],
   card4: ['Cards: Base Damage', '+'],
   vault0: [entityName('Vault', 0), '+'],
@@ -208,6 +245,7 @@ var DDL1_LABELS = {
   talentChainMult: ['Talent Chain Multi', 'x'],
   gfDamage: ['Golden Food: Damage%', '%'],
   statPow: ['Stat^0.7 term', '+'],
+  stampPctDmg: ['Stamps: Total Damage', '%'],
   vault27: [entityName('Vault', 27), '%'],
   vault15: [entityName('Vault', 15), '%'],
   ola338: ['Knockout! Sequence Progress', '%'],
@@ -254,6 +292,12 @@ var DDL2_LABELS = {
   comp12: [entityName('Companion', 12), '%'],
   comp33: [entityName('Companion', 33), '%'],
   comp160: [entityName('Companion', 160), '%'],
+  comp168: [entityName('Companion', 168), '%'],
+  cglunkoDmg: ['Cglunko: Total Damage', '%'],
+  buff108: ['Active Buff: Total Damage I', '%'],
+  buff124: ['Active Buff: Total Damage II', '%'],
+  fountainDmg: ['Fountain: Total Damage', '%'],
+  stickerDmg: ['Farming Sticker: Total Damage', '%'],
   ola232: ['Highest Sneaking Mastery', 'raw'],
   ola232Bonus: ['Highest Sneaking Mastery Bonus', '%'],
   card96: ['Cards: Total Damage Multiplier', '%'],
@@ -294,18 +338,44 @@ function buildDebugTree(debug, labels) {
 function recalc() {
   if (!SAVE_RAW) return;
 
-  var ctx = { charIdx: CUR_CHAR, saveData: saveData };
+  var status = document.getElementById('result-status');
+  var summarySection = document.getElementById('summary-section');
+  var ddlSection = document.getElementById('ddl-section');
+  var breakdownSection = document.getElementById('breakdown-section');
+  var charName = CHARS[CUR_CHAR] || ('Character ' + (CUR_CHAR + 1));
+  var mapName = _mapName(CUR_MAP);
+
+  if (isDungeonMap(CUR_MAP)) {
+    var dungeonReason = 'Unavailable: current-run Dungeon DMG and Mastery are not stored in save JSON.';
+    status.className = 'status unavailable';
+    status.textContent = dungeonReason + ' Character: ' + charName + ' · Map: ' + mapName + '.';
+    summarySection.hidden = true;
+    ddlSection.hidden = true;
+    breakdownSection.hidden = true;
+    _clearTrees();
+    LAST_TREE = null;
+    LAST_DAMAGE = _emptyDamageState(charName, mapName, dungeonReason);
+    return;
+  }
+
+  var ctx = createStatContext({ charIdx: CUR_CHAR, mapIdx: CUR_MAP, saveData: saveData });
   var result;
   try {
-    result = buildTree(damageDesc, getCatalog(), ctx);
+    result = ctx.resolve('damage');
   } catch (err) {
-    document.getElementById('max-dmg').textContent = 'Error';
-    document.getElementById('min-dmg').textContent = err.message;
+    status.className = 'status unavailable';
+    status.textContent = 'Damage calculation failed: ' + err.message;
+    summarySection.hidden = true;
+    ddlSection.hidden = true;
+    breakdownSection.hidden = true;
+    _clearTrees();
+    LAST_TREE = null;
+    LAST_DAMAGE = _emptyDamageState(charName, mapName, err.message);
     console.error(err);
     return;
   }
 
-  var maxDmg = result.val || 0;
+  var maxDmg = Number(result.val) || 0;
   var minDmg = 0, mastery = 0, statType = 0, baseDmg = 0, pctMult = 0, bigMult = 0;
   var masteryChildren = null;
   var ddl0Debug = null, ddl1Debug = null, ddl2Debug = null;
@@ -313,50 +383,58 @@ function recalc() {
 
   if (result.children) {
     for (var ch of result.children) {
-      if (ch.name === 'Max Damage') maxDmg = ch.val;
-      if (ch.name === 'Min Damage') minDmg = ch.val;
+      if (ch.name === 'Max Damage') maxDmg = Number(ch.val) || 0;
+      if (ch.name === 'Min Damage') minDmg = Number(ch.val) || 0;
       if (ch.name && ch.name.indexOf('Mastery') === 0) {
-        mastery = ch.val;
+        mastery = Number(ch.val) || 0;
         masteryChildren = ch.children;
       }
-      if (ch.name && ch.name.indexOf('Primary Stat') === 0) statType = ch.val;
+      if (ch.name && ch.name.indexOf('Primary Stat') === 0) statType = Number(ch.val) || 0;
       if (ch.name && ch.name.indexOf('Base Damage') === 0) {
-        baseDmg = ch.val;
+        baseDmg = Number(ch.val) || 0;
         ddl0Debug = ch._debug;
         ddl0Note = ch.note || '';
       }
-      if (ch.name && ch.name.indexOf('Percent Multiplier') === 0) {
-        pctMult = ch.val;
+      if (ch.name === 'Percentage Damage Multiplier') {
+        pctMult = Number(ch.val) || 0;
         ddl1Debug = ch._debug;
         ddl1Note = ch.note || '';
       }
-      if (ch.name && ch.name.indexOf('Big Multiplier') === 0) {
-        bigMult = ch.val;
+      if (ch.name === 'Multiplicative Damage Bonuses') {
+        bigMult = Number(ch.val) || 0;
         ddl2Debug = ch._debug;
         ddl2Note = ch.note || '';
       }
     }
   }
 
-  // Summary
-  document.getElementById('dmg-game').textContent = maxDmg > 0 ? fmtDmgRange(minDmg, maxDmg) : '—';
-  document.getElementById('max-dmg').textContent = fmtVal(maxDmg);
-  document.getElementById('max-dmg-exact').textContent = maxDmg > 0 ? fmtExact(maxDmg) : '';
-  document.getElementById('min-dmg').textContent = fmtVal(minDmg);
-  document.getElementById('min-dmg-exact').textContent = minDmg > 0 ? fmtExact(minDmg) : '';
+  var missingMetadata = [];
+  if (saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
+  if (saveData.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+  var partial = Boolean(result.partial) || missingMetadata.length > 0;
+  var reasons = [];
+  if (result.reason) reasons.push(result.reason);
+  if (missingMetadata.length) reasons.push('missing ' + missingMetadata.join(' and ') + ' metadata');
+  var reason = reasons.join('; ');
+  status.className = 'status ' + (partial ? 'partial' : 'ready');
+  status.textContent = (partial ? 'Partial: ' + reason + '.' : 'Save metadata is complete for this calculation.')
+    + ' Character: ' + charName + ' · Map: ' + mapName + '.';
+  summarySection.hidden = false;
+  ddlSection.hidden = false;
+  breakdownSection.hidden = false;
 
-  // Mastery bar
-  var mc = document.getElementById('mastery-card');
-  mc.style.display = '';
+  document.getElementById('dmg-game').textContent = fmtDmgRange(minDmg, maxDmg);
+  document.getElementById('dmg-game-sub').textContent = partial ? 'Partial result' : 'As shown on the character sheet';
+  document.getElementById('max-dmg').textContent = fmtVal(maxDmg);
+  document.getElementById('max-dmg-exact').textContent = 'Exact: ' + fmtExact(maxDmg);
+  document.getElementById('min-dmg').textContent = fmtVal(minDmg);
+  document.getElementById('min-dmg-exact').textContent = 'Exact: ' + fmtExact(minDmg);
+
   var pct = Math.min(100, mastery / 0.8 * 100);
   document.getElementById('mastery-val').textContent = (mastery * 100).toFixed(1) + '%';
-  document.getElementById('mastery-pct').textContent = (mastery * 100).toFixed(1) + '% / 80%';
   document.getElementById('mastery-bar').style.width = pct + '%';
-  var sub = 'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
-  document.getElementById('mastery-sub').textContent = sub;
+  document.getElementById('mastery-sub').textContent = 'Minimum / maximum ratio; capped at 80%';
 
-  // DDL summary
-  document.getElementById('ddl-section').style.display = '';
   document.getElementById('ddl0-val').textContent = fmtVal(baseDmg);
   document.getElementById('ddl0-note').textContent = ddl0Debug ? 'pre-softcap: ' + fmtVal(ddl0Debug.preSoftcap || 0) : '';
   document.getElementById('ddl1-val').textContent = '\u00d7' + fmtVal(pctMult);
@@ -387,8 +465,8 @@ function recalc() {
     var stepsChildren = [];
     for (var si = 0; si < ddl2Debug.steps.length; si++) {
       var step = ddl2Debug.steps[si];
-      var sLabel = step[0] || 'step ' + si;
-      var sGroupVal = step.length > 2 ? step[1] : step[1];
+      var sLabel = step[0] === 'wbDmg' ? 'Starting Multiplicative Damage' : (step[0] || 'Step ' + (si + 1));
+      var sGroupVal = step[1];
       var sRunning = step.length > 2 ? step[2] : step[1];
       stepsChildren.push(_bNode(sLabel, sRunning, null, { fmt: 'raw', note: 'Group contribution: ' + (typeof sGroupVal === 'number' ? sGroupVal.toFixed(4) : sGroupVal) }));
     }
@@ -398,37 +476,226 @@ function recalc() {
 
   var damageRoot = _bNode('Max Damage', maxDmg, [ddl0Root, ddl1Root, ddl2Root], { fmt: 'raw', note: 'Base Damage × Percentage Damage Multiplier × Multiplicative Damage Bonuses' });
   renderBreakdownTree(damageRoot, document.getElementById('tree-damage'), { tooltipId: 'bt-tooltip' });
+
+  LAST_TREE = result;
+  LAST_DAMAGE = {
+    unavailable: false,
+    partial: partial,
+    reason: reason,
+    characterIndex: CUR_CHAR,
+    character: charName,
+    mapIndex: CUR_MAP,
+    map: mapName,
+    total: maxDmg,
+    min: minDmg,
+    max: maxDmg,
+    mastery: mastery,
+    primaryStat: statType,
+    ddl0: { value: baseDmg, note: ddl0Note, debug: ddl0Debug || {} },
+    ddl1: { value: pctMult, note: ddl1Note, debug: ddl1Debug || {} },
+    ddl2: { value: bigMult, note: ddl2Note, debug: ddl2Debug || {} },
+  };
 }
 
-// Tab switching
-document.getElementById('layer-tabs').onclick = function(e) {
-  var tab = e.target.closest('.layer-tab');
+function _mapName(idx) {
+  return String(MapDispName[idx] || ('Map ' + idx)).replace(/_/g, ' ');
+}
+
+function _clearTrees() {
+  document.getElementById('tree-mastery').replaceChildren();
+  document.getElementById('tree-damage').replaceChildren();
+}
+
+function _emptyDamageState(charName, mapName, reason) {
+  return {
+    unavailable: true,
+    partial: false,
+    reason: reason,
+    characterIndex: CUR_CHAR,
+    character: charName,
+    mapIndex: CUR_MAP,
+    map: mapName,
+    total: null,
+    min: null,
+    max: null,
+    mastery: null,
+    primaryStat: null,
+    ddl0: null,
+    ddl1: null,
+    ddl2: null,
+  };
+}
+
+function populateMapSel(currentMap) {
+  var mapSel = document.getElementById('map-sel');
+  mapSel.innerHTML = '';
+  var added = new Set();
+  for (var i = 0; i < MapDispName.length; i++) {
+    if (!MapDispName[i]) continue;
+    var option = document.createElement('option');
+    option.value = i;
+    option.textContent = _mapName(i)
+      + (isDungeonMap(i) ? ' (dungeon)' : '')
+      + (i === currentMap ? ' (current)' : '');
+    mapSel.appendChild(option);
+    added.add(i);
+  }
+  if (!added.has(currentMap)) {
+    var currentOption = document.createElement('option');
+    currentOption.value = currentMap;
+    currentOption.textContent = _mapName(currentMap) + ' (current)';
+    mapSel.insertBefore(currentOption, mapSel.firstChild);
+  }
+  mapSel.value = String(currentMap);
+}
+
+document.getElementById('layer-tabs').addEventListener('click', function(e) {
+  var tab = e.target.closest('.tab');
   if (!tab) return;
   var name = tab.dataset.tab;
-  document.querySelectorAll('.layer-tab').forEach(function(t) { t.classList.toggle('active', t === tab); });
-  document.querySelectorAll('.layer-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + name); });
-};
-
-function doImport() {
-  _doImport({
-    textareaId: 'json-in',
-    charSelId: 'char-sel',
-    msgId: 'import-msg',
-    onLoaded: function(raw, chars) {
-      SAVE_RAW = raw;
-      CHARS = chars;
-      CUR_CHAR = 0;
-      recalc();
-    },
+  document.querySelectorAll('#layer-tabs .tab').forEach(function(item) {
+    var active = item === tab;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-selected', String(active));
   });
+  document.querySelectorAll('#breakdown-section .tab-content').forEach(function(panel) {
+    panel.classList.toggle('active', panel.id === 'panel-' + name);
+  });
+});
+
+function onSaveLoaded(_loadedSaveData, raw) {
+  SAVE_RAW = raw;
+  var data = raw.data || raw;
+  CHARS = Array.isArray(raw.charNames) ? raw.charNames : (saveData.charNames || []);
+  var charCount = Math.max(CHARS.length, saveData.lv0AllData?.length || 0, currentMapData.length || 0);
+  var charSel = document.getElementById('char-sel');
+  charSel.innerHTML = '';
+  for (var i = 0; i < charCount; i++) {
+    var classId = data['CharacterClass_' + i];
+    var className = String(ClassNames[classId] || 'Unknown Class').replace(/_/g, ' ');
+    var option = document.createElement('option');
+    option.value = i;
+    option.textContent = (CHARS[i] || ('Character ' + (i + 1))) + ' (' + className + ')';
+    charSel.appendChild(option);
+  }
+  charSel.disabled = charCount === 0;
+  CUR_CHAR = 0;
+  CUR_MAP = Number(currentMapData[CUR_CHAR]) || 0;
+  populateMapSel(CUR_MAP);
+  document.getElementById('map-sel').disabled = false;
+  recalc();
 }
 
-function switchChar(idx) { CUR_CHAR = idx; recalc(); }
+initSaveLoader({
+  target: '#save-area',
+  onLoad: onSaveLoaded,
+  statusText: function(sd) {
+    var count = Math.max(sd.charNames?.length || 0, sd.lv0AllData?.length || 0, currentMapData.length || 0);
+    return count + (count === 1 ? ' character' : ' characters');
+  },
+  auth: true,
+});
 
-window.doImport = doImport;
+function switchChar(idx) {
+  CUR_CHAR = idx;
+  CUR_MAP = Number(currentMapData[idx]) || 0;
+  populateMapSel(CUR_MAP);
+  recalc();
+}
+
+function switchMap(idx) {
+  CUR_MAP = idx;
+  recalc();
+}
+
+function _debugRows(root) {
+  var rows = [];
+  function visit(node, path, depth) {
+    if (!node) return;
+    var nodePath = path ? path + ' > ' + node.name : node.name;
+    rows.push({
+      depth: depth,
+      path: nodePath,
+      name: node.name,
+      value: node.val,
+      format: node.fmt || '',
+      note: node.note || '',
+    });
+    var children = node.children || [];
+    for (var i = 0; i < children.length; i++) visit(children[i], nodePath, depth + 1);
+  }
+  visit(root, '', 0);
+  return rows;
+}
+
+window.damageDebug = function(target) {
+  if (!LAST_DAMAGE) {
+    console.warn('Load a save first.');
+    return null;
+  }
+  var targetValue = Number(target);
+  var hasTarget = target !== undefined && target !== null && target !== '' && Number.isFinite(targetValue);
+  var result = {
+    unavailable: LAST_DAMAGE.unavailable,
+    partial: LAST_DAMAGE.partial,
+    reason: LAST_DAMAGE.reason,
+    characterIndex: LAST_DAMAGE.characterIndex,
+    character: LAST_DAMAGE.character,
+    mapIndex: LAST_DAMAGE.mapIndex,
+    map: LAST_DAMAGE.map,
+    total: LAST_DAMAGE.total,
+    target: hasTarget ? targetValue : null,
+    gap: null,
+    min: LAST_DAMAGE.min,
+    max: LAST_DAMAGE.max,
+    mastery: LAST_DAMAGE.mastery,
+    primaryStat: LAST_DAMAGE.primaryStat,
+    ddl0: LAST_DAMAGE.ddl0,
+    ddl1: LAST_DAMAGE.ddl1,
+    ddl2: LAST_DAMAGE.ddl2,
+    fullTree: LAST_TREE ? _debugRows(LAST_TREE) : [],
+  };
+  if (hasTarget && Number.isFinite(result.total)) {
+    result.gap = {
+      difference: targetValue - result.total,
+      ratio: result.total !== 0 ? targetValue / result.total : null,
+      percent: result.total !== 0 ? 100 * (targetValue / result.total - 1) : null,
+    };
+  }
+  console.group('Damage Debug: ' + result.character + ' @ ' + result.map);
+  console.log('Summary', {
+    total: result.total,
+    target: result.target,
+    gap: result.gap,
+    min: result.min,
+    max: result.max,
+    mastery: result.mastery,
+    unavailable: result.unavailable,
+    partial: result.partial,
+    reason: result.reason,
+  });
+  if (result.ddl0) console.log('DDL0: Base Damage', result.ddl0);
+  if (result.ddl1) console.log('DDL1: Percentage Damage Multiplier', result.ddl1);
+  if (result.ddl2) console.log('DDL2: Multiplicative Damage Bonuses', result.ddl2);
+  if (result.fullTree.length) console.table(result.fullTree);
+  console.groupEnd();
+  return result;
+};
+
+window.copyDamageDebug = function(target) {
+  var result = window.damageDebug(target);
+  if (!result) return Promise.resolve(false);
+  return navigator.clipboard.writeText(JSON.stringify(result, null, 2)).then(function() {
+    console.log('Damage diagnostics copied to clipboard.');
+    return true;
+  });
+};
+
 window.switchChar = switchChar;
+window.switchMap = switchMap;
 
-wireFileInput('file-input', 'json-in', doImport);
+document.getElementById('char-sel').addEventListener('change', function() { switchChar(+this.value); });
+document.getElementById('map-sel').addEventListener('change', function() { switchMap(+this.value); });
 </script>
 </body>
 </html>

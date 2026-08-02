@@ -91,6 +91,11 @@ function genericLookup(system, id) {
 
 // ===== Custom lookups for systems with non-standard data shapes =====
 var CUSTOM = {
+  Dream: function(id) {
+    var dataIdx = Number(id) === 10 ? 8 : Number(id);
+    var d = DreamUpg[dataIdx];
+    return d ? clean(d[0]) : '';
+  },
   'Minehead Floor': function(id) { return String(Number(id) + 1); },
   Pristine:    function(id) { var d = NjEQ['NjTrP' + id]; return d ? clean(d[2]) : ''; },
   Companion:   function(id) { var d = CompanionDB[id]; if (!d) return ''; var m = MONSTERS[d[0]]; return m ? clean(m.Name) : ''; },

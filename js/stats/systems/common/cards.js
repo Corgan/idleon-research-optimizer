@@ -4,8 +4,8 @@
 import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { cardEquipData, csetEqData } from '../../../save/data.js';
-import { CARD_BASE_REQ, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
-import { IDforCardSETbonus } from '../../data/game/custommaps.js';
+import { CARD_BASE_REQ, CARD_BONUS, CARD_DR_BONUS, CARD_DR_MULTI } from '../../data/common/cards.js';
+import { IDforCardBonus, IDforCardSETbonus } from '../../data/game/custommaps.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { charHasChip } from '../w4/lab.js';
 import { RANDOlist } from '../../data/game/customlists.js';
@@ -31,11 +31,33 @@ export function computeCardLv(cardKey, saveData) {
   }
   var ola155 = String(saveData.olaData[155] || '');
   if (ola155.split(',').includes(cardKey) && lv < 6) lv = 6;
+  var ola603 = String(saveData.olaData[603] || '');
+  if (ola603.split(',').includes(cardKey) && lv < 7) lv = 7;
   return lv;
 }
 
 export function cardLv(cardId, saveData) {
   return computeCardLv(cardId, saveData);
+}
+
+export function computePassiveCardBonusByType(typeId, saveData) {
+  var targetDesc = IDforCardBonus[String(typeId)];
+  if (!targetDesc) return treeResult(0, null);
+  var total = 0;
+  var children = [];
+  for (var cardKey in CARD_BONUS) {
+    var cardBonus = CARD_BONUS[cardKey];
+    if (!cardBonus || cardBonus.desc !== targetDesc) continue;
+    if ((Number(saveData.cards0Data && saveData.cards0Data[cardKey]) || 0) < 1) continue;
+    var cardLevel = computeCardLv(cardKey, saveData);
+    var contribution = cardLevel * cardBonus.val;
+    total += contribution;
+    children.push(node(label('Card', cardKey), contribution, [
+      node('Card Level', cardLevel, null, { fmt: 'raw' }),
+      node('Bonus per Level', cardBonus.val, null, { fmt: '+' }),
+    ], { fmt: '+' }));
+  }
+  return treeResult(total, children);
 }
 
 export function computeCardLvDetail(cardKey, saveData) {
@@ -58,6 +80,8 @@ export function computeCardLvDetail(cardKey, saveData) {
   }
   var ola155 = String(saveData.olaData[155] || '');
   if (ola155.split(',').includes(cardKey) && lv < 6) lv = 6;
+  var ola603 = String(saveData.olaData[603] || '');
+  if (ola603.split(',').includes(cardKey) && lv < 7) lv = 7;
   return { lv: lv, qty: qty, maxStars: maxStars, rift5: !!rift5star, spelunk6: !!spelunk6star };
 }
 
@@ -87,7 +111,7 @@ export var card = {
     var total = 0;
     var children = [];
 
-    for (var i = 0; i < equipped.length; i++) {
+    for (var i = 0; i < Math.min(10, equipped.length); i++) {
       var cardKey = equipped[i];
       if (!cardKey || cardKey === 'B') continue;
       var bonusVal = table[cardKey];
@@ -157,6 +181,28 @@ export var cardSingle = {
   },
 };
 
+export var cardPassiveDropRate = {
+  resolve: function(id, ctx) {
+    var saveData = ctx.saveData;
+    var caveCLv = computeCardLv('caveC', saveData);
+    var caveDLv = computeCardLv('caveD', saveData);
+    var caveC = 4 * caveCLv;
+    var caveD = 6 * caveDLv;
+    var val = Math.min(100, caveC + caveD);
+    return node('Passive Cave Cards', val, [
+      node(label('Card', 'caveC'), caveC, [
+        node('Card Level', caveCLv, null, { fmt: 'raw' }),
+        node('Bonus per Level', 4, null, { fmt: '+' }),
+      ], { fmt: '+' }),
+      node(label('Card', 'caveD'), caveD, [
+        node('Card Level', caveDLv, null, { fmt: 'raw' }),
+        node('Bonus per Level', 6, null, { fmt: '+' }),
+      ], { fmt: '+' }),
+      node('Shared Cap', 100, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'min(4 × CaveC level + 6 × CaveD level, 100)' });
+  },
+};
+
 // ==================== CARD SET BONUS ====================
 
 export function computeCardSetBonus(charIdx, setKey) {
@@ -179,14 +225,13 @@ export function computeCardSetBonusRaw(setId, saveData) {
 
 // Count discovered cards across RANDOlist sets 82-86
 export function countDiscoveredCards(saveData) {
-  var cards1 = saveData.cardsData && saveData.cardsData[1];
-  if (!cards1) return 0;
+  var slabItems = new Set(saveData.cards1Data || []);
   var count = 0;
   for (var setIdx = 82; setIdx <= 86; setIdx++) {
     var set = RANDOlist[setIdx];
     if (!set) continue;
     for (var j = 0; j < set.length; j++) {
-      if (cards1[set[j]] !== undefined) count++;
+      if (slabItems.has(set[j])) count++;
     }
   }
   return count;

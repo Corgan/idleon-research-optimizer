@@ -34,16 +34,11 @@ export var friend = {
       var type = parseInt(parts[0]);
       var count = parseInt(parts[1]);
       if (type !== id || !(type < 18)) continue;
-      if (count > 0) {
-        var c = Math.min(FRIEND_DR.cap, Math.max(0, count));
-        lastContrib = scale * Math.min(FRIEND_DR.max, FRIEND_DR.base + c / (c + FRIEND_DR.half) * FRIEND_DR.max);
-        lastChild = node(parts[2] || '?', lastContrib, [
-          node('Score', count, null, { fmt: 'raw' }),
-        ], { fmt: '+' });
-      } else {
-        lastContrib = 0;
-        lastChild = null;
-      }
+      var c = Math.min(FRIEND_DR.cap, Math.max(0, count));
+      lastContrib = scale * Math.min(FRIEND_DR.max, FRIEND_DR.base + c / (c + FRIEND_DR.half) * FRIEND_DR.max);
+      lastChild = node(parts[2] || '?', lastContrib, [
+        node('Score', count, null, { fmt: 'raw' }),
+      ], { fmt: '+' });
     }
     if (lastContrib <= 0) return node('Friend Bonus', 0, null, { note: 'friend ' + id });
     var total = lastContrib;

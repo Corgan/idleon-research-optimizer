@@ -14,6 +14,7 @@ import {
 import { achieveStatus } from '../common/achievement.js';
 import { computeEmperorBon } from './emperor.js';
 import { maxTalentBonus } from '../common/talent.js';
+import { getSetBonus } from '../w3/setBonus.js';
 
 export function computeSummWinBonus(saveData) {
   var bonus = new Array(32).fill(0);
@@ -36,7 +37,7 @@ export function computeSummWinBonus(saveData) {
   return bonus;
 }
 
-function _winBonusParts(idx, swb, saveData) {
+function _winBonusParts(idx, swb, saveData, charIdx) {
   var raw = swb[idx] || 0;
   if (raw <= 0) return { val: 0, raw: 0 };
   if (idx === 20 || idx === 22 || idx === 24 || idx === 31) return { val: raw, raw: raw, simple: true };
@@ -47,7 +48,7 @@ function _winBonusParts(idx, swb, saveData) {
   var taskVal = Math.min(10, Number(saveData.tasksGlobalData && saveData.tasksGlobalData[2] && saveData.tasksGlobalData[2][5] && saveData.tasksGlobalData[2][5][4]) || 0);
   var wb31 = swb[31] || 0;
   var empBon8 = computeEmperorBon(8, saveData);
-  var godshardSet = String(saveData.olaData && saveData.olaData[379] || '').includes('GODSHARD_SET') ? equipSetBonus('GODSHARD_SET') : 0;
+  var godshardSet = Number(getSetBonus('GODSHARD_SET', charIdx));
   var ach379 = achieveStatus(379, saveData);
   var ach373 = achieveStatus(373, saveData);
   var baseMult = (idx >= 20 && idx <= 33) ? 1 : 3.5;
@@ -67,7 +68,7 @@ function _winBonusParts(idx, swb, saveData) {
 
 export function computeWinBonus(idx, opts, saveData) {
   var swb = computeSummWinBonus(saveData);
-  var p = _winBonusParts(idx, swb, saveData);
+  var p = _winBonusParts(idx, swb, saveData, opts && opts.charIdx);
   if (opts && opts.noArt32 && p.artBonus32 > 0) {
     var ws = p.winnerSum - p.artBonus32;
     return p.baseMult * p.raw * p.pristineMult * p.gemMult * (1 + ws / 100);
@@ -124,7 +125,7 @@ export var winBonus = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
     var swb = computeSummWinBonus(saveData);
-    var p = _winBonusParts(id, swb, saveData);
+    var p = _winBonusParts(id, swb, saveData, ctx.charIdx);
     if (p.val <= 0) return node(label('Summoning', id), 0, null, { note: 'summoning win ' + id });
 
     if (p.simple) {

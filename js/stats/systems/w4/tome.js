@@ -6,6 +6,7 @@ import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
 import { eventShopOwned } from '../../../game-helpers.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
+import { getSetBonus } from '../w3/setBonus.js';
 import { TOME_DATA } from '../../data/game-constants.js';
 
 export var tome = {
@@ -32,7 +33,7 @@ export var tome = {
     var base = data.base * Math.pow(scaled, data.exp);
 
     var grim17 = Number((saveData.grimoireData && saveData.grimoireData[17]) || 0);
-    var trollSet = String((optionsListData && optionsListData[379]) || '').includes('TROLL_SET') ? equipSetBonus('TROLL_SET') : 0;
+    var trollSet = Number(getSetBonus('TROLL_SET', ctx.charIdx));
     var multi = 1 + (grim17 + trollSet) / 100;
 
     var val = base <= 0 ? 0 : base * multi;

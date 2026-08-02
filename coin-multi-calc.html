@@ -4,172 +4,384 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdleOn Coin Multiplier Calculator</title>
-<link rel="stylesheet" href="css/breakdown.css">
 <style>
-/* Page-specific */
-.dr-card { background: var(--bg2); border-radius: 10px; padding: 18px; margin-bottom: 18px; text-align: center; }
-.dr-total { font-size: 2.6em; font-weight: 800; color: var(--gold); }
-.dr-sub { color: var(--text2); font-size: .85em; margin-top: 4px; }
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --border: #444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 .page-title { flex: 1; min-width: 0; color: var(--text); }
+h1 .page-title span { color: var(--accent); }
+.header-link { flex-shrink: 0; color: var(--text2); text-decoration: none; font-size: .5em; font-weight: 400; }
+.header-link:first-child { margin-right: 12px; }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.context-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.context-controls label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .82em; font-weight: 600; }
+.context-controls select { min-width: 260px; max-width: min(440px, calc(100vw - 64px)); background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; padding: 6px 8px; font-size: .95em; }
+.context-controls select:disabled { opacity: .55; }
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.card { min-width: 0; background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 3px; }
+.card .card-val { overflow-wrap: anywhere; color: var(--gold); font-size: 1.45em; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.card .card-sub { color: var(--text2); font-size: .75em; line-height: 1.35; margin-top: 4px; }
+.card.total-card { border-color: rgba(255, 215, 0, .45); }
+.card.total-card.partial { border-color: var(--gold); }
+.card.total-card.partial .card-sub { color: var(--gold); }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; vertical-align: 1px; }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+.bt-arrow { width: 14px; flex-shrink: 0; color: var(--text2); cursor: pointer; font-size: 1em; text-align: center; user-select: none; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-val { flex-shrink: 0; margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.bt-tooltip { position: fixed; z-index: 999; display: none; max-width: 350px; padding: 8px 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: .82em; pointer-events: none; }
+@media (max-width: 600px) {
+  h1 { padding: 10px 8px; font-size: 1.08em; }
+  .header-link { font-size: .58em; }
+  .header-link:first-child { margin-right: 8px; }
+  .main { padding: 10px; }
+  .section { padding: 12px; }
+  .context-controls, .context-controls label { width: 100%; }
+  .context-controls select { width: 100%; min-width: 0; max-width: none; }
+  .card-grid.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card .card-val { font-size: 1.2em; }
+}
+@media (max-width: 390px) {
+  .card-grid.cols-3 { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:#c0c0d4;text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F4B0; IdleOn Coin Multiplier Calculator</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:#c0c0d4;text-decoration:none;" title="GitHub">GitHub</a></h1>
-<p class="subtitle">Coins from Monsters formula breakdown. Select a character to see their multiplier.</p>
-<div class="container">
+<h1 style="display:flex;align-items:baseline;"><a class="header-link" href="index.html" title="Home">Home</a><span class="page-title">&#x1F4B0; <span>IdleOn</span> Coin Multiplier Calculator</span><a class="header-link" href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" title="GitHub">GitHub</a></h1>
 
-<!-- Import -->
-<details class="import-box" open>
-  <summary>&#x1F4CB; Import Save JSON</summary>
-  <textarea id="json-in" placeholder="Paste your it.json or save.json contents here..."></textarea>
-  <div class="top-bar">
-    <button class="btn" onclick="doImport()">Load Save</button>
-    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
-      <option value="-1">-- load save first --</option>
-    </select>
-    <label style="margin-left:12px;font-size:.85em;color:var(--text2)">Overkill Tier
-      <input id="overkill-tier" type="number" min="0" max="50" value="0"
-             style="width:50px;margin-left:4px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 4px"
-             onchange="setOverkillTier(+this.value)"
-             title="0 = auto-compute from damage calc">
-    </label>
+<div id="save-area"></div>
+
+<div class="main">
+  <div class="section">
+    <h2>Calculation Context</h2>
+    <div class="context-controls">
+      <label>Character
+        <select id="char-sel" disabled>
+          <option value="-1">No save loaded</option>
+        </select>
+      </label>
+    </div>
   </div>
-  <div id="import-msg" class="import-msg"></div>
-</details>
 
-<!-- Total -->
-<div class="dr-card">
-  <div class="dr-sub">Total Coins from Monsters Multiplier</div>
-  <div class="dr-total" id="dr-total">1.00x</div>
-  <div class="dr-sub" id="dr-sub"></div>
-  <div class="dr-sub" id="dr-damage" style="margin-top:4px;font-size:.85em;color:var(--text2)"></div>
-  <div class="dr-sub" id="dr-multikill" style="margin-top:2px;font-size:.85em;color:var(--text2)"></div>
-</div>
+  <div class="section">
+    <h2>Current Calculation</h2>
+    <div class="card-grid cols-3">
+      <div class="card">
+        <div class="card-title">Current Map</div>
+        <div class="card-val" id="map-value">Unavailable</div>
+        <div class="card-sub" id="map-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Saved AFK Target</div>
+        <div class="card-val" id="target-value">Unavailable</div>
+        <div class="card-sub" id="target-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monster HP</div>
+        <div class="card-val" id="hp-value">Unavailable</div>
+        <div class="card-sub" id="hp-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Computed Damage</div>
+        <div class="card-val" id="damage-value">Unavailable</div>
+        <div class="card-sub" id="damage-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Overkill Tier</div>
+        <div class="card-val" id="overkill-value">Unavailable</div>
+        <div class="card-sub" id="overkill-sub"></div>
+      </div>
+      <div class="card total-card" id="total-card">
+        <div class="card-title">Total Coin Multiplier <span class="badge badge-gold" id="partial-badge" hidden>Partial</span></div>
+        <div class="card-val" id="total-value">Unavailable</div>
+        <div class="card-sub" id="total-sub"></div>
+      </div>
+    </div>
+  </div>
 
-<!-- Breakdown tree -->
-<div class="tree">
-  <h2>Formula Breakdown (23 multiplicative factors)</h2>
-  <div id="tree"></div>
-</div>
-
+  <div class="section">
+    <h2>Formula Breakdown</h2>
+    <div id="tree"></div>
+  </div>
 </div>
 <div class="bt-tooltip" id="bt-tooltip"></div>
 <script type="module">
 'use strict';
 
 import { saveData } from './js/state.js';
-import { toRenderNode, buildTree } from './js/stats/tree-builder.js';
-import { getCatalog } from './js/stats/registry.js';
-import coinMultiDesc from './js/stats/defs/coin-multi.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+import { createStatContext } from './js/stats/stat-context.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { fmtVal, fmtMonsterCash } from './js/renderers/format.js';
 import { computeOverkillTier } from './js/stats/systems/common/overkill.js';
-import damageDesc from './js/stats/defs/damage.js';
-import killPerKillDesc from './js/stats/defs/kill-per-kill.js';
-import { doImport as _doImport } from './js/ui/save-import.js';
+import { ClassNames, MapDispName } from './js/stats/data/game/customlists.js';
+import { MONSTERS } from './js/stats/data/game/monsters.js';
+import { afkTargetData, charClassData, currentMapData } from './js/save/data.js';
 
-var SAVE_RAW = null;
+var SAVE_LOADED = false;
 var CHARS = [];
 var CUR_CHAR = 0;
-var OVERKILL_TIER = 0; // 0 = auto-compute
+var LAST_TREE = null;
+var LAST_DAMAGE = 0;
+var LAST_OVERKILL = null;
+var LAST_PARTIAL = false;
+var LAST_MISSING_METADATA = [];
+
+function _displayName(value) {
+  return String(value || '').replace(/_/g, ' ').trim();
+}
+
+function _mapName(mapIdx) {
+  var name = _displayName(MapDispName[mapIdx]);
+  if (name) return name;
+  return mapIdx === 0 ? 'Town' : 'Unknown map';
+}
+
+function _targetName(targetKey) {
+  if (targetKey === 'Nothing') return 'Nothing';
+  var monster = targetKey && MONSTERS[targetKey];
+  var name = monster && _displayName(monster.Name);
+  return name && name !== 'Nothing' ? name : 'Unavailable';
+}
+
+function _characterName(charIdx) {
+  return CHARS[charIdx] || ('Character ' + (charIdx + 1));
+}
+
+function _setText(id, value) {
+  document.getElementById(id).textContent = value;
+}
+
+function _metadataGaps() {
+  var missing = [];
+  if (saveData.companionDataAvailable === false) missing.push('companion ownership');
+  if (saveData.activeVoteDataAvailable === false) missing.push('current server vote');
+  return missing;
+}
+
+function _renderSummary(tree, damage, overkill, savedTarget) {
+  var targetName = _targetName(savedTarget);
+  var missingMetadata = _metadataGaps();
+  var partial = missingMetadata.length > 0 || Boolean(overkill.partial);
+  var totalCard = document.getElementById('total-card');
+
+  _setText('map-value', _mapName(overkill.mapIdx));
+  _setText('map-sub', 'Saved location for ' + _characterName(CUR_CHAR));
+  _setText('target-value', targetName);
+  _setText('target-sub', savedTarget ? 'Saved AFK target' : 'No saved AFK target');
+  _setText('hp-value', overkill.monsterHP > 0 ? fmtVal(Number(overkill.monsterHP)) : 'Unavailable');
+  _setText('hp-sub', overkill.monsterHP > 0 ? 'Target: ' + targetName : 'Monster data unavailable');
+  _setText('damage-value', fmtVal(Number(damage) || 0));
+  _setText('damage-sub', 'Maximum damage');
+  _setText('overkill-value', overkill.partial ? 'Unavailable' : String(overkill.tier));
+  _setText('overkill-sub', overkill.partial ? 'Saved target data unavailable' : overkill.exponent + 'x threshold progression');
+  _setText('total-value', fmtMonsterCash(Number(tree.val) || 0) + 'x');
+
+  var partialMessages = [];
+  if (missingMetadata.length) partialMessages.push('Missing metadata: ' + missingMetadata.join(', ') + '.');
+  if (overkill.partial) partialMessages.push('Saved AFK target or monster data is unavailable.');
+  _setText('total-sub', partial ? partialMessages.join(' ') : _characterName(CUR_CHAR));
+  totalCard.classList.toggle('partial', partial);
+  document.getElementById('partial-badge').hidden = !partial;
+
+  LAST_PARTIAL = partial;
+  LAST_MISSING_METADATA = missingMetadata;
+}
 
 function recalc() {
-  if (!SAVE_RAW) return;
+  if (!SAVE_LOADED) return;
 
-  var okTier = OVERKILL_TIER;
-  var okInfo = null;
-  var dmgResult = null;
+  var mapIdx = Number(currentMapData[CUR_CHAR]) || 0;
+  var savedTarget = String(afkTargetData[CUR_CHAR] || '');
+  var savedMonster = savedTarget && MONSTERS[savedTarget];
+  var monsterHP = savedMonster ? Number(savedMonster.MonsterHPTotal) || 0 : 0;
   try {
-    dmgResult = buildTree(damageDesc, getCatalog(), { charIdx: CUR_CHAR, saveData: saveData });
-  } catch(e) {}
-  if (okTier <= 0) {
-    try {
-      var maxDmg = dmgResult ? dmgResult.val : 0;
-      okInfo = computeOverkillTier(CUR_CHAR, { saveData: saveData }, { maxDmg: maxDmg });
-      okTier = okInfo.tier;
-    } catch(e) { okTier = 1; }
-  }
+    var ctx = createStatContext({ charIdx: CUR_CHAR, mapIdx: mapIdx, saveData: saveData });
+    var overkill = computeOverkillTier(CUR_CHAR, ctx, {
+      mapIdx: mapIdx,
+      afkTarget: savedTarget || '__missing_saved_target__',
+      monsterHP: monsterHP,
+    });
+    var damageTree = ctx.resolve('damage');
+    var damage = Number(damageTree.val) || 0;
+    overkill = Object.assign({}, overkill, { afkTarget: savedTarget, maxDmg: damage });
+    overkill.tier = Math.max(1, Math.min(51, Number(overkill.tier) || 1));
+    ctx.overkillTier = overkill.tier;
 
-  var ctx = { charIdx: CUR_CHAR, saveData: saveData, overkillTier: okTier };
-  var result;
-  try {
-    result = buildTree(coinMultiDesc, getCatalog(), ctx);
+    var tree = ctx.resolve('coin-multi');
+    LAST_TREE = tree;
+    LAST_DAMAGE = damage;
+    LAST_OVERKILL = overkill;
+    _renderSummary(tree, damage, overkill, savedTarget);
+
+    renderBreakdownTree(toRenderNode(tree), document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
   } catch (err) {
-    document.getElementById('dr-total').textContent = 'Error';
-    document.getElementById('dr-sub').textContent = err.message;
+    LAST_TREE = null;
+    LAST_OVERKILL = null;
+    _setText('total-value', 'Unavailable');
+    _setText('total-sub', 'Calculation failed.');
+    document.getElementById('total-card').classList.remove('partial');
+    document.getElementById('partial-badge').hidden = true;
+    document.getElementById('tree').replaceChildren();
     console.error(err);
-    return;
   }
-
-  document.getElementById('dr-total').textContent = fmtMonsterCash(result.val || 0) + 'x';
-  var subText = 'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR);
-  if (okInfo) subText += ' | OverkillTier: ' + okInfo.tier + ' (auto, map ' + okInfo.mapIdx + ')';
-  else subText += ' | OverkillTier: ' + okTier + ' (manual)';
-  document.getElementById('dr-sub').textContent = subText;
-
-  // Damage range display
-  var dmgEl = document.getElementById('dr-damage');
-  if (dmgEl) {
-    if (dmgResult && dmgResult.val) {
-      var maxD = dmgResult.val;
-      var mastery = 0;
-      var minD = 0;
-      if (dmgResult.children) {
-        for (var ch of dmgResult.children) {
-          if (ch.name === 'Min Damage') minD = ch.val;
-          if (ch.name && ch.name.indexOf('Mastery') === 0) mastery = ch.val;
-        }
-      }
-      dmgEl.textContent = 'Damage: ' + fmtVal(minD) + ' – ' + fmtVal(maxD)
-        + ' (mastery: ' + (mastery * 100).toFixed(1) + '%)';
-    } else {
-      dmgEl.textContent = '';
-    }
-  }
-
-  // Multikill display
-  var mkEl = document.getElementById('dr-multikill');
-  if (mkEl) {
-    try {
-      var mkCtx = { charIdx: CUR_CHAR, saveData: saveData, mapIdx: okInfo ? okInfo.mapIdx : undefined };
-      var mkResult = buildTree(killPerKillDesc, getCatalog(), mkCtx);
-      var mkVal = mkResult.val || 1;
-      var monHP = okInfo ? okInfo.monsterHP : 0;
-      mkEl.textContent = 'Multikill: ' + fmtVal(mkVal) + ' kills/kill'
-        + (monHP > 0 ? ' | Monster HP: ' + fmtVal(monHP) : '');
-    } catch(e) {
-      mkEl.textContent = '';
-    }
-  }
-
-  var renderRoot = toRenderNode({
-    name: 'Coin Multiplier',
-    val: result.val,
-    children: result.children,
-    fmt: 'x',
-  });
-  renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
 }
 
-function doImport() {
-  _doImport({
-    textareaId: 'json-in',
-    charSelId: 'char-sel',
-    msgId: 'import-msg',
-    onLoaded: function(raw, chars) {
-      SAVE_RAW = raw;
-      CHARS = chars;
-      CUR_CHAR = 0;
-      recalc();
-    },
-  });
+function onLoad(_loadedSaveData, raw) {
+  CHARS = Array.isArray(raw && raw.charNames) ? raw.charNames : (saveData.charNames || []);
+  var charCount = Math.max(
+    CHARS.length,
+    saveData.lv0AllData?.length || 0,
+    currentMapData.length,
+    afkTargetData.length,
+    charClassData.length
+  );
+  var charSel = document.getElementById('char-sel');
+  charSel.innerHTML = '';
+
+  for (var i = 0; i < charCount; i++) {
+    var className = _displayName(ClassNames[Number(charClassData[i])]) || 'Unknown Class';
+    var option = document.createElement('option');
+    option.value = i;
+    option.textContent = _characterName(i) + ' (' + className + ')';
+    charSel.appendChild(option);
+  }
+
+  if (charCount === 0) {
+    var emptyOption = document.createElement('option');
+    emptyOption.value = -1;
+    emptyOption.textContent = 'No characters found';
+    charSel.appendChild(emptyOption);
+  }
+
+  SAVE_LOADED = true;
+  CUR_CHAR = 0;
+  charSel.disabled = charCount === 0;
+  charSel.value = charCount > 0 ? '0' : '-1';
+  recalc();
 }
 
-function switchChar(idx) { CUR_CHAR = idx; recalc(); }
-function setOverkillTier(t) { OVERKILL_TIER = Math.max(0, Math.min(50, t || 0)); recalc(); }
+function switchChar(idx) {
+  var charSel = document.getElementById('char-sel');
+  if (!Number.isInteger(idx) || idx < 0 || idx >= charSel.options.length) return;
+  CUR_CHAR = idx;
+  charSel.value = String(idx);
+  recalc();
+}
 
-window.doImport = doImport;
+function _factorRows(root) {
+  var rows = [];
+  function visit(node, path, depth) {
+    if (!node) return;
+    var nodePath = path ? path + ' > ' + node.name : node.name;
+    if (depth > 0) {
+      rows.push({
+        order: rows.length + 1,
+        depth: depth - 1,
+        path: nodePath,
+        source: node.name,
+        value: Number(node.val) || 0,
+        format: node.fmt || '',
+        note: node.note || '',
+      });
+    }
+    var children = node.children || [];
+    for (var i = 0; i < children.length; i++) visit(children[i], nodePath, depth + 1);
+  }
+  visit(root, '', 0);
+  return rows;
+}
+
+window.coinMultiDebug = function(target) {
+  if (!LAST_TREE || !LAST_OVERKILL) {
+    console.warn('Coin multiplier diagnostics are unavailable until a save is loaded.');
+    return null;
+  }
+
+  var targetValue = target == null || target === '' ? null : Number(target);
+  if (!Number.isFinite(targetValue)) targetValue = null;
+  var total = Number(LAST_TREE.val) || 0;
+  var result = {
+    characterIndex: CUR_CHAR,
+    character: _characterName(CUR_CHAR),
+    mapIndex: LAST_OVERKILL.mapIdx,
+    map: _mapName(LAST_OVERKILL.mapIdx),
+    savedAfkTarget: _targetName(LAST_OVERKILL.afkTarget),
+    total: total,
+    target: targetValue,
+    partial: LAST_PARTIAL,
+    missingMetadata: LAST_MISSING_METADATA.slice(),
+    damage: LAST_DAMAGE,
+    overkill: Object.assign({}, LAST_OVERKILL),
+    factorRows: _factorRows(LAST_TREE),
+  };
+
+  if (targetValue != null) {
+    var ratio = total > 0 ? targetValue / total : null;
+    result.gap = {
+      difference: targetValue - total,
+      ratio: ratio,
+      missingMultiplierPercent: ratio == null ? null : (ratio - 1) * 100,
+    };
+  }
+
+  console.group('Coin Multiplier Debug: ' + result.character + ' @ ' + result.map);
+  console.log('Summary', {
+    total: result.total,
+    target: result.target,
+    gap: result.gap || null,
+    damage: result.damage,
+    overkill: result.overkill,
+    partial: result.partial,
+    missingMetadata: result.missingMetadata,
+  });
+  console.table(result.factorRows);
+  console.groupEnd();
+  return result;
+};
+
+window.copyCoinMultiDebug = function(target) {
+  var result = window.coinMultiDebug(target);
+  if (!result) return Promise.resolve(false);
+  return navigator.clipboard.writeText(JSON.stringify(result, null, 2)).then(function() {
+    console.log('Coin multiplier diagnostics copied to clipboard.');
+    return true;
+  });
+};
+
+initSaveLoader({
+  target: '#save-area',
+  onLoad: onLoad,
+  auth: true,
+});
+
+document.getElementById('char-sel').addEventListener('change', function() {
+  switchChar(Number(this.value));
+});
+
 window.switchChar = switchChar;
-window.setOverkillTier = setOverkillTier;
 </script>
 </body>
 </html>

@@ -20,6 +20,15 @@ var SIGN_TABLES = {
 // Silkrode Nanochip = chip ID 15, key "star", value 1
 var STAR_CHIP_ID = 15;
 
+function hasStarChip(charIdx) {
+  var chipSlots = labData && labData[1 + charIdx];
+  if (!chipSlots) return false;
+  for (var slot = 0; slot < 7; slot++) {
+    if (Number(chipSlots[slot]) === STAR_CHIP_ID) return true;
+  }
+  return false;
+}
+
 /**
  * Compute the Seraph_Cosmos multiplier for all star sign bonuses.
  * Game: chipMulti × meritocMulti × min(5, pow(1.1 + min(Arcane[40],10)/100, ceil((summonLv+1)/20)))
@@ -39,21 +48,15 @@ export function computeSeraphMulti(charIdx, saveData) {
   var seraphMulti = Math.min(5, Math.pow(seraphBase, seraphExp));
 
   // chipBonuses("star"): Silkrode Nanochip (chip 15) equipped on this char?
-  var hasStarChip = false;
-  var chipSlots = labData && labData[1 + charIdx];
-  if (chipSlots) {
-    for (var c = 0; c < 7; c++) {
-      if (Number(chipSlots[c]) === STAR_CHIP_ID) { hasStarChip = true; break; }
-    }
-  }
+  var starChip = hasStarChip(charIdx);
   // enabledStarSigns: rift[0]>=10 → at least 5; else 0
   // chipMulti = max(1, min(2, 1 + chipBon * floor((999+enabled)/1000)))
   var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
   var enabledSS = riftLv >= 10 ? 5 : 0; // base 5; ShinyBonusS(3) adds more but floor((999+5)/1000)=1 already
-  var chipMulti = (hasStarChip && enabledSS >= 1) ? Math.max(1, Math.min(2, 2)) : 1;
+  var chipMulti = (starChip && enabledSS >= 1) ? 2 : 1;
 
   // MeritocBonusz(22): star sign multi from voting
-  var meritoc22 = computeMeritocBonusz(22, saveData);
+  var meritoc22 = computeMeritocBonusz(22, saveData, charIdx);
   var meritocMulti = 1 + meritoc22 / 100;
 
   return chipMulti * meritocMulti * seraphMulti;
@@ -62,59 +65,9 @@ export function computeSeraphMulti(charIdx, saveData) {
 export var starSign = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
-    // id = bonus type like 'drop'
-    var table = SIGN_TABLES[id];
-    if (!table) return node('Star Signs', 0, null, { note: 'starSign:' + id });
-    // All star signs are active — sum every sign in the table.
-    var baseTotal = 0;
-    var signChildren = [];
-    var indices = table.indices;
-    for (var i = 0; i < indices.length; i++) {
-      var idx = indices[i];
-      var bonus = table.val(idx);
-      var name = label('Star Sign', idx);
-      signChildren.push(node(name, bonus, null, { fmt: '+' }));
-      baseTotal += bonus;
-    }
-    if (baseTotal <= 0) return node('Star Signs', 0, signChildren, { fmt: '+', note: 'starSign:' + id });
-
-    // === Seraph_Cosmos multiplier ===
-    var totalMulti = computeSeraphMulti(ctx.charIdx, saveData);
-
-    // Extract components for display
-    var arcane40 = Number(saveData.arcaneData && saveData.arcaneData[40]) || 0;
-    var lv0 = saveData.lv0AllData && saveData.lv0AllData[ctx.charIdx];
-    var summonLv = Number(lv0 && lv0[18]) || 0;
-    var seraphBase = 1.1 + Math.min(arcane40, 10) / 100;
-    var seraphPow = Math.ceil((summonLv + 1) / 20);
-    var seraphMulti = Math.min(5, Math.pow(seraphBase, seraphPow));
-
-    var total = baseTotal * totalMulti;
-
-    var children = [node('Base Sum', baseTotal, signChildren, { fmt: 'raw' })];
-
-    // Display chip/meritoc breakdown
-    var hasStarChip = false;
-    var chipSlots = labData && labData[1 + ctx.charIdx];
-    if (chipSlots) { for (var c = 0; c < 7; c++) { if (Number(chipSlots[c]) === STAR_CHIP_ID) { hasStarChip = true; break; } } }
-    var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
-    var chipMulti = (hasStarChip && riftLv >= 10) ? 2 : 1;
-    var meritoc22 = computeMeritocBonusz(22, saveData);
-    var meritocMulti = 1 + meritoc22 / 100;
-
-    var multiCh = [
-      node('Seraph Cosmos', seraphMulti, [
-        node('Astrology Cultism', arcane40, null, { fmt: 'raw', note: 'Arcane[40]' }),
-        node('Summoning Level', summonLv, null, { fmt: 'raw' }),
-        node('Base', seraphBase, null, { fmt: 'x' }),
-        node('Power', seraphPow, null, { fmt: 'raw' }),
-      ], { fmt: 'x' }),
-    ];
-    if (chipMulti > 1) multiCh.push(node('Silkrode Nanochip', chipMulti, null, { fmt: 'x', note: 'chip 15' }));
-    if (meritoc22 > 0) multiCh.push(node('Meritoc Bonus', meritocMulti, null, { fmt: 'x', note: 'meritoc 22' }));
-    children.push(node('Seraph Multiplier', totalMulti, multiCh, { fmt: 'x' }));
-
-    return node('Star Signs', total, children, { fmt: '+', note: 'starSign:' + id });
+    var effectKey = id === 'drop' ? 'Drop' : id;
+    var result = computeStarSignBonus(effectKey, ctx.charIdx, saveData);
+    return node('Active Star Signs: Drop Rate', Number(result) || 0, result.children || null, { fmt: '+' });
   },
 };
 
@@ -133,29 +86,47 @@ var SIGN_BONUSES = {
   Drop:     { 14: 5, 76: 12 },
   PctDmg:   { 0: 1, 32: 2, 51: 20, 53: 6, 54: 15, 70: 25 },
   WepPow:   { 12: 2 },
+  AccPct:   { 13: 4, 35: 10 },
+  CritChance: { 27: 4 },
+  DivExp:   { 62: 30 },
   MoveSpd:  { 1: 2, 8: 4, 13: 2, 32: -3, 51: -12 },
   TotalHP:  { 28: -80 },
+  DefPct:   { 12: 6, 28: -50, 32: 5, 36: 10 },
   FoodEffect: { 22: 15 },
+  GFood: { 69: 20 },
   Jade:     { 75: 10 },
+  Stealth:  { 73: 12 },
   ArtifactFind: { 61: 15 },
   SailingSpd: { 63: 20 },
+  CropEvoPerFarmLv: { 65: 3 },
+  FarmingEXP: { 66: 20 },
+  OGChance: { 67: 15 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)
 // AND equipped signs, then multiplies by the seraph multi for the current char.
 // Infinite Star Signs (Rift): if signIndex < enabledStarSigns, negative bonuses are removed.
-function getEnabledStarSigns(saveData) {
+export function getEnabledStarSigns(saveData) {
   var riftLv = Number(saveData.riftData && saveData.riftData[0]) || 0;
   return riftLv >= 10 ? 5 + computeShinyBonusS(3, saveData) : 0;
 }
 
-function isStarSignActive(signIdx, charIdx, enabled, saveData) {
+export function isStarSignActive(signIdx, charIdx, enabled, saveData) {
   var equipped = String(starSignCharData[charIdx] || '').split(',');
   if (equipped.indexOf(String(signIdx)) !== -1) return true;
   if (signIdx >= enabled) return false;
   var signName = StarSigns[signIdx] && StarSigns[signIdx][0];
   return !!(signName && saveData.starSignsUnlocked
     && Object.prototype.hasOwnProperty.call(saveData.starSignsUnlocked, signName));
+}
+
+// Positive equipped signs are processed a second time by Silkrode Nanochip when
+// infinite signs are unavailable. With infinite signs, the chip multiplier is
+// applied in Seraph Cosmos instead.
+export function computePositiveStarSignMultiplier(charIdx, saveData) {
+  var enabled = getEnabledStarSigns(saveData);
+  var equippedPass = hasStarChip(charIdx) && enabled < 1 ? 2 : 1;
+  return equippedPass * computeSeraphMulti(charIdx, saveData);
 }
 
 export function computeStarSignBonus(key, ci, saveData) {
@@ -169,12 +140,13 @@ export function computeStarSignBonus(key, ci, saveData) {
     var sigIdx = Number(signIndices[i]);
     var val = bonusMap[sigIdx];
     if (!isStarSignActive(sigIdx, ci, enabled, saveData)) continue;
+    if (val < 0 && sigIdx < enabled) continue;
     total += val;
     children.push(node('Sign ' + sigIdx, val, null, { fmt: 'raw' }));
   }
   var seraphMulti = 1;
   if (total > 0) {
-    seraphMulti = computeSeraphMulti(ci, saveData);
+    seraphMulti = computePositiveStarSignMultiplier(ci, saveData);
     total *= seraphMulti;
   }
   if (seraphMulti !== 1 && children.length) children.push(node('Seraph Multi', seraphMulti, null, { fmt: 'x' }));

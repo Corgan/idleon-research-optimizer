@@ -1,12 +1,13 @@
 // ===== TRAPPING SYSTEM (W3) =====
 // Trap minigame bonuses.
 
+import { optionsListData } from '../../../save/data.js';
+import { RANDOlist } from '../../data/game/customlists.js';
+
 // ==================== TRAP MG BONUS ====================
 
 export function computeTrapMGBonus(idx, saveData) {
-  var s = saveData;
-  var traps = s.trappingData;
-  if (!traps) return 0;
-  var val = Number(traps[idx]) || 0;
-  return val;
+  var highScore = Number(optionsListData[99]) || 0;
+  if (highScore < 25 * (idx + 1)) return 0;
+  return Number(RANDOlist[59] && RANDOlist[59][idx]) || 0;
 }

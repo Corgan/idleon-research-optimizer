@@ -5,6 +5,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import {
   charClassData,
+  afkTargetData,
   dreamData,
   klaData,
   labData,
@@ -24,13 +25,14 @@ import { computeCardLv } from '../common/cards.js';
 import { computeShinyBonusS } from './breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { hasBonusMajor } from '../w5/divinity.js';
-import { computeAllTalentLVz } from '../common/talent.js';
+import { computeAllTalentLVz, maxTalentBonus } from '../common/talent.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { chipBonusValue } from '../../data/w4/chips.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { gridBonusPerLv } from '../../data/w7/research.js';
 import { talentParams } from '../../data/common/talent.js';
 import { formulaEval } from '../../../formulas.js';
+import { rogBonusQTY } from '../w7/sushi.js';
 
 // Total green mushroom kills across all characters (for mainframeBonus 9)
 function _totalMushGKills() {
@@ -49,6 +51,9 @@ function _totalMushGKills() {
 
 // Count unique green stacks (>=10M items) in bank (for mainframeBonus 11)
 function _greenStackCount(saveData) {
+  if (Array.isArray(saveData.greenStacksData) && saveData.greenStacksData.length > 0) {
+    return saveData.greenStacksData.length;
+  }
   var order = saveData.chestOrderData;
   var qty = saveData.chestQuantityData;
   if (!order || !qty) return 0;
@@ -63,13 +68,15 @@ function _greenStackCount(saveData) {
 
 function gridAllMulti(saveData) {
   var comp55 = saveData.companionIds && saveData.companionIds.has(55) ? companionBonus(55) : 0;
-  var comp0 = saveData.companionIds && saveData.companionIds.has(0) ? companionBonus(0) : 0;
+  var divinityLv = Number(saveData.lv0AllData && saveData.lv0AllData[0] && saveData.lv0AllData[0][14]) || 0;
+  var comp0 = saveData.companionIds && saveData.companionIds.has(0) && divinityLv >= 2 ? companionBonus(0) : 0;
   var grid173Lv = (saveData.gridLevels && saveData.gridLevels[173]) || 0;
   var cb71 = cloudBonus(71, saveData.weeklyBossData);
   var cb72 = cloudBonus(72, saveData.weeklyBossData);
   var cb76 = cloudBonus(76, saveData.weeklyBossData);
-  var sum = comp55 + 5 * Math.min(1, grid173Lv * comp0) + cb71 + cb72 + cb76;
-  return { val: 1 + sum / 100, comp55: comp55, comp0: comp0, grid173Lv: grid173Lv, cb71: cb71, cb72: cb72, cb76: cb76 };
+  var rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi || 0);
+  var sum = comp55 + 5 * Math.min(1, grid173Lv * comp0) + cb71 + cb72 + cb76 + rog53;
+  return { val: 1 + sum / 100, comp55: comp55, comp0: comp0, grid173Lv: grid173Lv, cb71: cb71, cb72: cb72, cb76: cb76, rog53: rog53 };
 }
 
 export var grid = {
@@ -95,6 +102,8 @@ export var grid = {
     if (am.comp0 > 0) allMultiChildren.push(node(label('Companion', 0), 5 * Math.min(1, am.grid173Lv * am.comp0), [
       node(label('Grid', 173, ' Lv'), am.grid173Lv, null, { fmt: 'raw' }),
     ], { fmt: 'raw' }));
+    if (am.cb71 + am.cb72 + am.cb76 > 0) allMultiChildren.push(node('Cloud Bonuses 71, 72, and 76', am.cb71 + am.cb72 + am.cb76, null, { fmt: '+' }));
+    if (am.rog53 > 0) allMultiChildren.push(node(label('RoG', 53), am.rog53, null, { fmt: '+' }));
 
     // Grid 168 has special Glimbo trade logic
     if (id === 168) {
@@ -124,7 +133,7 @@ export var chip = {
   resolve: function(id, ctx) {
     // id = chip bonus type (e.g., 'dr')
     var chipSlots = labData[1 + ctx.charIdx];
-    if (!chipSlots) return node('Lab Chip DR', 0, null, { note: 'chip ' + id });
+    if (!chipSlots) return node('Grounded Processor', 0, null, { note: 'chip ' + id });
     var total = 0;
     var children = [];
     for (var i = 0; i < 7; i++) {
@@ -135,7 +144,7 @@ export var chip = {
         children.push(node('Slot ' + i + ' Grounded Processor', _chipVal, null, { fmt: '+', note: 'chip 3' }));
       }
     }
-    return node('Lab Chip DR', total, children, { fmt: '+', note: 'chip ' + id });
+    return node('Grounded Processor', total, children, { fmt: '+', note: 'chip ' + id });
   },
 };
 
@@ -156,10 +165,15 @@ export function computePetArenaBonus(idx) {
   return tier > idx ? 1 : 0;
 }
 
-function computeBonusLineWidth(playerIdx, saveData) {
+export function computeBonusLineWidth(playerIdx, saveData) {
   var gemSlots = 2 * ((saveData.gemItemsData && saveData.gemItemsData[123]) || 0);
-  if (playerIdx >= gemSlots) return 0;
-  return hasBonusMajor(playerIdx, 2, saveData) ? 30 : 0;
+  var labCharacters = [];
+  for (var charIdx = 0; charIdx < numCharacters; charIdx++) {
+    if (afkTargetData[charIdx] === 'Laboratory') labCharacters.push(charIdx);
+  }
+  var labOrder = labCharacters.indexOf(playerIdx);
+  if (labOrder >= 0) return labOrder < gemSlots ? 30 : 0;
+  return playerIdx < gemSlots && hasBonusMajor(playerIdx, 2, saveData) ? 30 : 0;
 }
 
 function computeChip6Count(playerIdx) {
@@ -207,6 +221,18 @@ function computeBubonicPurple(playerIdx, saveData) {
   var effectiveLv = bestLv + allTalent;
   var _t535 = talentParams(535);
   return formulaEval(_t535.formula, _t535.x1, _t535.x2, effectiveLv);
+}
+
+export function computeBubonicGreen(playerIdx, saveData) {
+  var ownerIdx = -1;
+  for (var charIdx = 0; charIdx < numCharacters; charIdx++) {
+    if ((Number(skillLvData[charIdx] && skillLvData[charIdx][535]) || 0) > 0) ownerIdx = charIdx;
+  }
+  if (ownerIdx < 0) return 0;
+  var playerX = Number(labData && labData[0] && labData[0][2 * playerIdx]) || 0;
+  var ownerX = Number(labData && labData[0] && labData[0][2 * ownerIdx]) || 0;
+  if (playerX > ownerX) return 0;
+  return maxTalentBonus(536, -1, saveData);
 }
 
 function computePlayerDist(playerIdx, saveData) {
@@ -397,20 +423,18 @@ export function mainframeBonus(e, saveData) {
 
 import { ChipDesc } from '../../data/game/customlists.js';
 
-export function computeChipBonus(effectKey) {
+export function computeChipBonus(effectKey, charIdx) {
   if (!labData) return 0;
   var total = 0;
-  for (var ci = 0; ci < numCharacters; ci++) {
-    var chips = labData[1 + ci];
-    if (!chips) continue;
-    for (var slot = 0; slot < chips.length; slot++) {
-      var chipType = Number(chips[slot]) || 0;
-      if (chipType <= 0) continue;
-      if (!ChipDesc[chipType]) continue;
-      var chipKey = ChipDesc[chipType][10];
-      if (chipKey !== effectKey) continue;
-      total += Number(ChipDesc[chipType][11]) || 0;
-    }
+  var chips = labData[1 + (charIdx == null ? 0 : charIdx)];
+  if (!chips) return 0;
+  for (var slot = 0; slot < chips.length; slot++) {
+    var chipType = Number(chips[slot]) || 0;
+    if (chipType <= 0) continue;
+    if (!ChipDesc[chipType]) continue;
+    var chipKey = ChipDesc[chipType][10];
+    if (chipKey !== effectKey) continue;
+    total += Number(ChipDesc[chipType][11]) || 0;
   }
   return total;
 }

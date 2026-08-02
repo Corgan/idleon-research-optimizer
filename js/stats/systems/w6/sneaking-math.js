@@ -4,6 +4,7 @@
 import { NinjaUpg, NinjaInfo, JadeUpg } from '../../data/game/customlists.js';
 import { NjEQ } from '../../data/game/custommaps.js';
 import { pristineCharmBonus } from '../../data/common/sigils.js';
+import { charClassData } from '../../../save/data.js';
 
 // ----- NinjaUpg data accessors -----
 export const NK_COUNT = NinjaUpg.length; // 29
@@ -31,30 +32,77 @@ var _JADE_SCALE = Number(NinjaInfo[10]?.[11]) || 1;
 
 export function doorHP(floor, mastery) {
   var raw = Number(NinjaInfo[3]?.[floor]) || 0;
+  var masteryLevel = Number(mastery) || 0;
+  if (masteryLevel <= 0) return raw;
   if (floor === 0) return 1; // game override
-  return 0.01 * raw * Math.pow(_HP_SCALE, mastery || 0);
+  var scale = _HP_SCALE;
+  if (floor > 10) scale = 0.01 * _HP_SCALE * Math.pow(_HP_SCALE, masteryLevel);
+  return 0.01 * raw * Math.pow(scale, masteryLevel);
 }
 export function floorLayout(floor) { return Number(NinjaInfo[6]?.[floor]) || 0; }
 export function floorActions(floor) { return Number(NinjaInfo[7]?.[floor]) || 0; }
 export function untieReq(twin) { return Number(NinjaInfo[8]?.[twin]) || 0; }
 export function floorDetectionBase(floor, mastery) {
   var raw = Number(NinjaInfo[9]?.[floor]) || 0;
+  var masteryLevel = Number(mastery) || 0;
+  if (masteryLevel <= 0) return raw;
   if (floor === 0) return 0.01; // game override
-  return 0.1 * raw * Math.pow(_DET_SCALE, mastery || 0);
+  return 0.1 * raw * Math.pow(_DET_SCALE, masteryLevel);
 }
 export function floorJadeBase(floor, mastery) {
   var raw = Number(NinjaInfo[10]?.[floor]) || 0;
-  return 0.1 * raw * Math.pow(_JADE_SCALE, mastery || 0);
+  var masteryLevel = Number(mastery) || 0;
+  if (masteryLevel <= 0) return raw;
+  return 0.1 * raw * Math.pow(_JADE_SCALE, masteryLevel);
 }
-export function floorExpMult(floor) { return Number(NinjaInfo[11]?.[floor]) || 0; }
+export function floorExpMult(floor, mastery) {
+  var raw = Number(NinjaInfo[11]?.[floor]) || 0;
+  var masteryLevel = Number(mastery) || 0;
+  if (masteryLevel <= 0) return raw;
+  var scale = Number(NinjaInfo[11]?.[11]) || 1;
+  return 0.1 * raw * Math.pow(scale, masteryLevel);
+}
 
 // Drop table for a floor: array of {key, chance} pairs
-export function floorDropTable(floor) {
+function _insertBeforeLastPair(row, itemKey, chance) {
+  if (row.some(function(value) { return value === itemKey; })) return;
+  var index = Math.max(0, row.length - 2);
+  row.splice(index, 0, itemKey, String(chance));
+}
+
+export function floorDropTable(floor, mastery, saveData) {
   var raw = NinjaInfo[12 + floor];
   if (!raw) return [];
+  raw = raw.slice();
+  var masteryLevel = Number(mastery) || 0;
+  if (masteryLevel >= 1) {
+    var masteryOne = { 1: ['NjGem0', 0.08], 3: ['NjGem1', 0.07], 5: ['NjGem2', 0.06], 8: ['NjGem3', 0.05] };
+    if (masteryOne[floor]) _insertBeforeLastPair(raw, masteryOne[floor][0], masteryOne[floor][1]);
+    if (charClassData.indexOf(29) !== -1) {
+      if (floor === 4) _insertBeforeLastPair(raw, 'NjGem6', 0.08);
+      if (floor === 9) _insertBeforeLastPair(raw, 'NjGem7', 0.08);
+    }
+  }
+  if (masteryLevel >= 2) {
+    var masteryTwo = {
+      2: [['NjTr20', 0.15], ['NjGem4', 0.05]],
+      3: [['NjTr24', 0.14]],
+      4: [['NjTr21', 0.14]],
+      6: [['NjTr22', 0.13], ['NjGem5', 0.05]],
+      9: [['NjTr23', 0.12]],
+    };
+    var additions = masteryTwo[floor] || [];
+    for (var addIdx = 0; addIdx < additions.length; addIdx++) {
+      _insertBeforeLastPair(raw, additions[addIdx][0], additions[addIdx][1]);
+    }
+  }
   var items = [];
+  var missProduct = 1;
   for (var i = 0; i + 1 < raw.length; i += 2) {
-    items.push({ key: raw[i], chance: Number(raw[i + 1]) || 0 });
+    var conditionalChance = i + 2 >= raw.length ? 1 : Number(raw[i + 1]) || 0;
+    var actualChance = missProduct * conditionalChance;
+    items.push({ key: raw[i], chance: actualChance, conditionalChance: conditionalChance });
+    missProduct *= 1 - conditionalChance;
   }
   return items;
 }
@@ -226,15 +274,6 @@ export function pristineDesc(idx) {
   return descs[idx] || '';
 }
 
-// ----- Door Damage -----
-// NLbonuses(5) = Mahjong Boosters
-// NLbonuses(27) = True Battering
-export function doorDamage(nkLevels, equipDmg) {
-  var mahjong = 1 + nkBonus(5, nkLevels) / 100;
-  var battering = 1 + nkBonus(27, nkLevels) / 100;
-  return mahjong * battering * (1 + (equipDmg || 0) / 100);
-}
-
 // ----- Twin data parsing -----
 export function parseTwinData(ninjaData) {
   var twins = [];
@@ -249,6 +288,12 @@ export function parseTwinData(ninjaData) {
     });
   }
   return twins;
+}
+
+export function isTwinUntied(twinIdx, ninjaData) {
+  var progress = Number(ninjaData?.[twinIdx]?.[3]) || 0;
+  var required = Number(NinjaInfo[8]?.[twinIdx]) || 0;
+  return progress >= required;
 }
 
 // ----- Parse equipment per twin -----
@@ -358,12 +403,10 @@ export function nkBonusFull(idx, nkLevels, masteryLevel, extras) {
   var masteryLoot = nkBonus(3, nkLevels);
   if (idx === 11) {
     var ex = extras || {};
-    return base + masteryLoot * (masteryLevel || 0)
+    return Math.round(base + masteryLoot * (masteryLevel || 0)
       + (ex.ninjaBonus21 || 0)
-      + (ex.gemstone7 || 0)
-      + (ex.palette30 || 0)
-      + (ex.vault88 || 0)
-      + 100 * (ex.cloud53 || 0);
+      + Math.ceil(ex.gemstone7 || 0)
+      + Math.floor((ex.palette30 || 0) + (ex.vault88 || 0) + 100 * (ex.cloud53 || 0)));
   }
   if (idx === 6 || idx === 7 || idx === 10 || idx === 12) {
     return base + masteryLoot * (masteryLevel || 0);
@@ -399,10 +442,10 @@ export function stealthForDetection(floor, targetDet, mastery) {
   return (1 - d) * base / (0.1 + d);
 }
 
-// ----- Parse inventory charms (Ninja[60..99]) -----
+// ----- Parse inventory charms (Ninja[60..98]; native InvSpace = 39) -----
 export function parseInventoryCharms(ninjaData) {
   var inv = [];
-  for (var e = 0; e < 40; e++) {
+  for (var e = 0; e < 39; e++) {
     var slot = ninjaData?.[60 + e];
     if (!slot || !slot[0] || slot[0] === 'Blank') continue;
     var key = String(slot[0]);
@@ -457,13 +500,30 @@ export function allEquippableCharms() {
   return charms;
 }
 
-// ----- Flower generation rate (expected flowers per hour) -----
-// Actions per hour = ActionSpd (since ActionREQ = 3600, gain = ActionSpd/sec)
-// P(KO per action) = detectionChance * (1 - min(0.9, dodgePct/100))
-// Flowers/hr = actionsPerHour * P(KO)
-export function flowerRate(actionsPerHour, detChance, dodgePct) {
-  var koProb = detChance * (1 - Math.min(0.9, (dodgePct || 0) / 100));
-  return actionsPerHour * koProb;
+export function expectedAtLeastOne(successRatePerHour, hours) {
+  var expected = Math.max(0, Number(successRatePerHour) || 0) * Math.max(0, Number(hours) || 0);
+  return 1 - Math.exp(-expected);
+}
+
+export function captiveTargetForFloor(floor, ninjaData, playerCount) {
+  var count = Math.max(0, Math.min(12, Number(playerCount) || 12));
+  for (var twinIdx = 0; twinIdx < count; twinIdx++) {
+    if (isTwinUntied(twinIdx, ninjaData)) continue;
+    if ((Number(NinjaInfo[7]?.[twinIdx]) || 0) === Number(floor)) return twinIdx;
+  }
+  return -1;
+}
+
+export function sneakingActionMode(twinIdx, floor, ninjaData, options) {
+  options = options || {};
+  if (!isTwinUntied(twinIdx, ninjaData)) return 'captive';
+  if (Number(floor) <= 0) return 'training';
+  var weapon = ninjaData?.[13 + 4 * twinIdx] || [];
+  var data = NjEQ[String(weapon[0] || 'Blank')];
+  var subtype = options.weaponSubtype != null ? Number(options.weaponSubtype) || 0 : Number(data?.[1]) || 0;
+  if (subtype === 1 && options.doorActive) return 'door';
+  if (subtype === 2 && captiveTargetForFloor(floor, ninjaData, options.playerCount) >= 0) return 'untie';
+  return 'normal';
 }
 
 // ----- Charm bonus description by type -----
@@ -486,13 +546,63 @@ export var CHARM_BONUS_TYPES = {
 // bubbleY9Val = raw decayMulti value from Y9ACTIVE bubble (1 + 0.3*lv/(lv+60))
 // We approximate with high action count (steady-state) → 3*a/(a+50) ≈ 3 for a >> 50
 // Pass actual accumulated actions if known, otherwise defaults to steady-state
-export function itemFindChance(nkLevels, equipItemFind, accumActions, bubbleY9Val) {
-  var a = accumActions || 1000; // default high
-  var baseChance = 3 * a / (a + 50);
+export function itemFindExpected(nkLevels, equipItemFind, successfulActions, bubbleY9Val, phase) {
+  var actionCount = Math.max(0, Number(successfulActions) || 0);
+  var itemFindPhase = phase == null ? 2 : Number(phase) || 0;
+  if (itemFindPhase === 0) return actionCount > 0 ? 1 : 0;
+  if (itemFindPhase === 1) return actionCount > 0 ? 0.4 : 0;
+  if (actionCount <= 0) return 0;
+  var baseChance = 3 * actionCount / (actionCount + 50);
   var nk14 = nkBonus(14, nkLevels);
   var bonus = 1 + (nk14 + (equipItemFind || 0)) / 100;
   var y9 = 1 + Math.max(0, Math.min(100, 100 * ((bubbleY9Val || 1) - 1))) / 100;
-  return Math.min(1, baseChance * bonus * y9);
+  return baseChance * bonus * y9;
+}
+
+export function itemFindExpectedFromRate(nkLevels, equipItemFind, successRatePerHour, hours, bubbleY9Val, phase, batchStats) {
+  var batchHours = Math.max(0.01, Number(hours) || 1);
+  var rateMean = Math.max(0, Number(successRatePerHour) || 0) * batchHours;
+  var expectedSuccesses = batchStats ? Math.max(0, Number(batchStats.mean) || 0) : rateMean;
+  var probabilityZero = batchStats
+    ? Math.max(0, Math.min(1, Number(batchStats.probabilityZero) || 0))
+    : Math.exp(-rateMean);
+  var itemFindPhase = phase == null ? 2 : Number(phase) || 0;
+  if (itemFindPhase === 0) return 1 - probabilityZero;
+  if (itemFindPhase === 1) return 0.4 * (1 - probabilityZero);
+  if (expectedSuccesses <= 0) return 0;
+  var expectedFraction = 0;
+  if (batchStats && Array.isArray(batchStats.pmf)) {
+    expectedFraction = batchStats.pmf.reduce(function(sum, row) {
+      var count = Math.max(0, Number(row.count) || 0);
+      return sum + (Number(row.probability) || 0) * count / (count + 50);
+    }, 0);
+  } else if (batchStats) {
+    var variance = Math.max(0, Number(batchStats.variance) || 0);
+    var statsDenom = expectedSuccesses + 50;
+    expectedFraction = expectedSuccesses / statsDenom - 50 * variance / Math.pow(statsDenom, 3);
+  } else if (expectedSuccesses > 100) {
+    var denom = expectedSuccesses + 50;
+    expectedFraction = expectedSuccesses / denom - 50 * expectedSuccesses / Math.pow(denom, 3);
+  } else {
+    var probability = Math.exp(-expectedSuccesses);
+    var probabilitySum = probability;
+    var weightedSum = 0;
+    var maxCount = Math.ceil(expectedSuccesses + 12 * Math.sqrt(expectedSuccesses) + 100);
+    for (var count = 1; count <= maxCount; count++) {
+      probability *= expectedSuccesses / count;
+      probabilitySum += probability;
+      weightedSum += probability * count / (count + 50);
+    }
+    expectedFraction = probabilitySum > 0 ? weightedSum / probabilitySum : 0;
+  }
+  var nk14 = nkBonus(14, nkLevels);
+  var bonus = 1 + (nk14 + (equipItemFind || 0)) / 100;
+  var y9 = 1 + Math.max(0, Math.min(100, 100 * ((bubbleY9Val || 1) - 1))) / 100;
+  return 3 * Math.max(0, Math.min(1, expectedFraction)) * bonus * y9;
+}
+
+export function itemFindChance(nkLevels, equipItemFind, accumActions, bubbleY9Val) {
+  return itemFindExpected(nkLevels, equipItemFind, accumActions == null ? 1 : accumActions, bubbleY9Val, 2);
 }
 
 // ----- Door effective HP at a given mastery -----
@@ -501,4 +611,43 @@ export function itemFindChance(nkLevels, equipItemFind, accumActions, bubbleY9Va
 export function doorEffectiveHP(floor, masteryLevel, masteryMax) {
   if (masteryLevel < masteryMax) return 0;
   return doorHP(floor, masteryLevel);
+}
+
+// Current mastery uses saved door progress and only the first uncleared door is
+// actionable. Other mastery columns are what-if scenarios with a fresh door.
+export function doorState(floor, masteryLevel, masteryMax, currentMastery, ninjaData) {
+  if (floor <= 0) {
+    return { active: false, floor: floor, maxHP: 0, progress: 0, remainingHP: 0 };
+  }
+  var maxHP = doorEffectiveHP(floor, masteryLevel, masteryMax);
+  if (!(maxHP > 0)) {
+    return { active: false, floor: floor, maxHP: 0, progress: 0, remainingHP: 0 };
+  }
+
+  if (masteryLevel !== currentMastery) {
+    return { active: true, hypothetical: true, floor: floor, maxHP: maxHP, progress: 0, remainingHP: maxHP };
+  }
+
+  var progressRows = ninjaData && ninjaData[100] || [];
+  var activeFloor = -1;
+  for (var candidate = 1; candidate < FLOOR_COUNT; candidate++) {
+    var candidateMax = doorHP(candidate, masteryLevel);
+    var candidateProgress = Number(progressRows[candidate]) || 0;
+    if (candidateMax > candidateProgress) {
+      activeFloor = candidate;
+      break;
+    }
+  }
+
+  var progress = Number(progressRows[floor]) || 0;
+  var remaining = Math.max(0, maxHP - progress);
+  return {
+    active: floor === activeFloor && remaining > 0,
+    hypothetical: false,
+    floor: floor,
+    activeFloor: activeFloor,
+    maxHP: maxHP,
+    progress: progress,
+    remainingHP: floor === activeFloor ? remaining : 0,
+  };
 }

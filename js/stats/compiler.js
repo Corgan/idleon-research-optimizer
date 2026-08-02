@@ -9,6 +9,7 @@
 
 import { saveData } from '../state.js';
 import { createStatContext } from './stat-context.js';
+import { currentMapData, mapBonData } from '../save/data.js';
 import {
   buildSaveContext,
   makeSimCtx,
@@ -39,12 +40,13 @@ export function compileSave() {
 export function compileContext(opts) {
   opts = opts || {};
   var saveCtx = opts.saveCtx || compileSave();
+  var charIdx = opts.charIdx || 0;
 
   return createStatContext({
-    charIdx: opts.charIdx || 0,
-    mapIdx:  opts.mapIdx,
+    charIdx: charIdx,
+    mapIdx:  opts.mapIdx != null ? opts.mapIdx : currentMapData[charIdx],
     saveData: saveData,
-    mapBon:  opts.mapBon,
+    mapBon:  opts.mapBon || mapBonData,
     layer1:  saveCtx,
     layer2:  opts.layer2 || {},
     dnsmCache: opts.dnsmCache,
@@ -65,15 +67,16 @@ export function compileSimCtx(gl, saveCtx, opts) {
   opts = opts || {};
   var sc   = saveCtx || compileSave();
   var flat = makeSimCtx(gl);
+  var charIdx = opts.charIdx || 0;
 
   // Merge flat sim-math properties into a stat context.
   // The stat context gets Layer 1 from saveCtx and Layer 2 from the flat
   // sim-math ctx, so resolve() has access to everything.
   return createStatContext({
-    charIdx: opts.charIdx || 0,
-    mapIdx:  opts.mapIdx,
+    charIdx: charIdx,
+    mapIdx:  opts.mapIdx != null ? opts.mapIdx : currentMapData[charIdx],
     saveData: saveData,
-    mapBon:  opts.mapBon,
+    mapBon:  opts.mapBon || mapBonData,
     layer1:  sc,
     layer2:  flat,
   });

@@ -9,11 +9,10 @@ import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { optionsListData } from '../../save/data.js';
 import { computeCropSC, computeStickerBonus, computeExoticBonus } from '../systems/w6/farming.js';
 import { computeMealBonus } from '../systems/common/stats.js';
-import { computePaletteBonus, shopUpgBonus, chapterBonus } from '../systems/w7/spelunking.js';
+import { computePaletteBonus, shopUpgBonus, chapterBonus, computeDancingCoralBonus } from '../systems/w7/spelunking.js';
 import { cardLv } from '../systems/common/cards.js';
 import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeMSABonus, computeSlabboBonus } from '../systems/w4/gaming.js';
-import { dancingCoralBase } from '../data/w7/research.js';
 
 export default createDescriptor({
   id: 'spelunking-pow',
@@ -42,19 +41,19 @@ export default createDescriptor({
     var chapter4_2 = Math.max(1, chapterBonus(4, 2, s));
     var comp143 = Math.max(1, rval(companion, 143, ctx));
 
-    // GenINFO[107][10] / (1 + min(99, 99*GenINFO[107][9])) — server state
-    var genRatio = 1; // Default when server state unavailable
+    // Outside a delve, GenINFO[107][9] and [10] are both 0, so this ratio is exactly 1.
+    var genRatio = 1;
 
     var chapterComps = chapter1_2 * chapter5_0 * chapter4_2 * comp143 * genRatio;
 
     var shop1 = shopUpgBonus(1, s);
-    var dancingCoral1 = dancingCoralBase(1);
+    var dancingCoral1 = computeDancingCoralBonus(1, s);
 
     // CropSCbonus(8) + SlabboBonus(6) + MSA_Bonus(9) + MealBonuses.SplkPOW
     var cropSC8 = safe(computeCropSC, 8, s);
     var slabbo6 = safe(computeSlabboBonus, 6, s);
     var msaBonus9 = safe(computeMSABonus, 9, s);
-    var mealSplkPOW = safe(computeMealBonus, 'SplkPOW', s);
+    var mealSplkPOW = safe(computeMealBonus, 'SplkPOW', s, ctx.charIdx);
     var addGroup1 = cropSC8 + slabbo6 + msaBonus9 + mealSplkPOW;
 
     var shop2 = shopUpgBonus(2, s);
@@ -72,9 +71,8 @@ export default createDescriptor({
       * (1 + (safe(computeExoticBonus, 42, s) + Math.min(4 * safe(cardLv, 'w7a5', s), 30)) / 100)
       * (1 + (shopUpgBonus(14, s) + shopUpgBonus(15, s) + shopUpgBonus(16, s) + shopUpgBonus(17, s)) / 100);
 
-    // Elixir modifier (SpelunkyDNpow)
-    // If GenINFO[107][4] > 0.5: 5 / pow(1 + ElixirEffectQTY(4)/100, GenINFO[107][4]-1)
-    var elixirMod = 1; // Default when no elixir data
+    // Outside a delve, GenINFO[107][4] is 0 and SpelunkyDNpow remains exactly 1.
+    var elixirMod = 1;
 
     // OLA[478] < 8 → just returns 2 (haven't unlocked spelunking fully)
     var ola478 = Number(optionsListData[478]) || 0;
@@ -97,6 +95,14 @@ export default createDescriptor({
       children.push({ name: 'Spelunking Not Fully Unlocked', val: 2, fmt: 'raw', note: 'Unlock progress ' + ola478 + ' / 8' });
     }
 
-    return { val: val, children: children };
+    var missingCompanions = s.companionDataAvailable === false;
+    return {
+      val: val,
+      children: children,
+      partial: missingCompanions,
+      reason: missingCompanions
+        ? 'Partial total: the imported JSON does not include companion ownership metadata.'
+        : '',
+    };
   }
 });

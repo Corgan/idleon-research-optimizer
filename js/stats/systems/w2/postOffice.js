@@ -16,7 +16,7 @@ export var postOffice = {
     var data = postOfficeSlotParams(boxIdx, slotIdx);
     var name = label('Post Office', boxIdx);
     if (!data) return node(name, 0, null, { note: 'post office ' + key });
-    var points = Number((postOfficeData && postOfficeData[ctx.charIdx] && postOfficeData[ctx.charIdx][boxIdx]) || 0);
+    var points = Math.round(Number((postOfficeData && postOfficeData[ctx.charIdx] && postOfficeData[ctx.charIdx][boxIdx]) || 0));
     if (points <= 0) return node(name, 0, null, { note: 'post office ' + key });
     var val = formulaEval(data.formula, data.x1, data.x2, points);
     return node(name, val, [

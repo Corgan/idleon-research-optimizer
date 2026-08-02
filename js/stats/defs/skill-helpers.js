@@ -7,12 +7,9 @@
 
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
 import { companion } from '../systems/common/companions.js';
-import { vault } from '../systems/common/vault.js';
 import { cardLv } from '../systems/common/cards.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
-import { votingBonusz } from '../systems/w2/voting.js';
-import { label } from '../entity-names.js';
-import { mainframeBonus } from '../systems/w4/lab.js';
+import { computeBubonicGreen, computeChipBonus, mainframeBonus } from '../systems/w4/lab.js';
 import { tome } from '../systems/w4/tome.js';
 import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
@@ -24,25 +21,28 @@ import { computeShinyBonusS } from '../systems/w4/breeding.js';
 import { winBonus } from '../systems/w6/summoning.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
-import { talent } from '../systems/common/talent.js';
-import { prayersPerCharData, optionsListData } from '../../save/data.js';
-import { prayerBaseBonus } from '../data/w3/prayer.js';
-import { holes } from '../systems/w5/hole.js';
-import { computeFamBonusQTY, computeStatueBonusGiven, computeMealBonus } from '../systems/common/stats.js';
+import { maxTalentBonus, talent } from '../systems/common/talent.js';
+import { optionsListData } from '../../save/data.js';
+import { AlchemyDescription } from '../data/game/customlists.js';
+import { computeBUpg } from '../systems/w5/hole.js';
+import { computeFamBonusQTYs, computeStatueBonusGiven, computeMealBonus } from '../systems/common/stats.js';
 import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
 import { computeArtifactBonus } from '../systems/w5/sailing.js';
 import { computeMSABonus } from '../systems/w4/gaming.js';
-import { computeChipBonus } from '../systems/w4/lab.js';
 import { computePaletteBonus } from '../systems/w7/spelunking.js';
 import { computeRiftSkillETC } from '../systems/w4/rift.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
 import { shrine, computeSaltLick } from '../systems/w3/construction.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeDivinityMinor, computeDivinityBless } from '../systems/w5/divinity.js';
-import { computeOwlBonus } from '../systems/w1/owl.js';
+import { owl } from '../systems/w1/owl.js';
 import { computeStarSignBonus } from '../systems/common/starSign.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { computeAllShimmerBonuses } from '../systems/w3/equinox.js';
+import { computePrayerReal as computePrayerRealSystem } from '../systems/w3/prayer.js';
+import { getBuffBonus } from './helpers.js';
+import maxHPDescriptor from './max-hp.js';
+import maxMPDescriptor from './max-mp.js';
 
 export function rval(resolver, id, ctx, args) {
   try { return resolver.resolve(id, ctx, args).val || 0; }
@@ -58,78 +58,151 @@ export function safe(fn) {
   } catch(e) { return 0; }
 }
 
+function num(value) {
+  if (value && typeof value === 'object' && value.val != null) return Number(value.val) || 0;
+  return Number(value) || 0;
+}
+
+export function computeCachedSkillBubble(key, ci, ctx) {
+  var cache = computeFreshTalentCalcBubbleCache(ci, ctx);
+  return num(bubbleValByKey(key, ci, ctx.saveData, {
+    playerHPmax: cache.playerHPmax,
+    playerMPmax: cache.playerMPmax,
+  }));
+}
+
+function _stageContext(ctx, alchBubbles) {
+  var staged = Object.create(ctx);
+  staged.dnsmCache = {
+    alchBubbles: alchBubbles,
+    alchBubblesGFoodz: Object.prototype.hasOwnProperty.call(alchBubbles, 'GFoodz')
+      ? Number(alchBubbles.GFoodz) || 0 : 0,
+  };
+  return staged;
+}
+
+function _firstPassBubble(key, ci, saveData, extra) {
+  var options = Object.assign({ skipBigBubble: true }, extra || {});
+  return num(bubbleValByKey(key, ci, saveData, options));
+}
+
+export function computeFreshTalentCalcBubbleCache(ci, ctx) {
+  if (ctx._freshTalentCalcBubbleCache) return ctx._freshTalentCalcBubbleCache;
+  var saveData = ctx.saveData;
+  var hpBubbles = {
+    TotalSTR: _firstPassBubble('TotalSTR', ci, saveData),
+    Opassz: _firstPassBubble('Opassz', ci, saveData),
+    MinEff: _firstPassBubble('MinEff', ci, saveData, { skipClassPass: true }),
+  };
+  var hpStage = maxHPDescriptor.combine({}, _stageContext(ctx, hpBubbles));
+  var playerHPmax = Number(hpStage.val) || 0;
+
+  var mpBubbles = {};
+  for (var cauldron = 0; cauldron < 2; cauldron++) {
+    var rows = AlchemyDescription[cauldron] || [];
+    for (var index = 0; index < rows.length; index++) {
+      var bubbleKey = rows[index] && rows[index][15];
+      if (!bubbleKey) continue;
+      var dynamic = bubbleKey === 'MinEff' ? { playerHPmax: playerHPmax } : null;
+      mpBubbles[bubbleKey] = _firstPassBubble(bubbleKey, ci, saveData, dynamic);
+    }
+  }
+  var purpleRows = AlchemyDescription[2] || [];
+  for (var purpleIndex = 0; purpleIndex <= 2; purpleIndex++) {
+    var purpleKey = purpleRows[purpleIndex] && purpleRows[purpleIndex][15];
+    if (!purpleKey) continue;
+    mpBubbles[purpleKey] = _firstPassBubble(purpleKey, ci, saveData,
+      purpleIndex === 2 ? { skipClassPass: true } : null);
+  }
+  var mpStage = maxMPDescriptor.combine({}, _stageContext(ctx, mpBubbles));
+  var playerMPmax = Number(mpStage.val) || 0;
+
+  ctx._freshTalentCalcBubbleCache = {
+    playerHPmax: playerHPmax,
+    playerMPmax: playerMPmax,
+    hpBubbles: hpBubbles,
+    mpBubbles: mpBubbles,
+  };
+  return ctx._freshTalentCalcBubbleCache;
+}
+
 export function computePrayerReal(prayerIdx, costIdx, ci, saveData) {
-  var s = saveData;
-  var prayerLv = Number(s.prayOwnedData && s.prayOwnedData[prayerIdx]) || 0;
-  if (prayerLv <= 0) return 0;
-  var equipped = false;
-  try { equipped = (prayersPerCharData[ci] || []).includes(prayerIdx); } catch(e) {}
-  if (!equipped) return 0;
-  var base = safe(prayerBaseBonus, prayerIdx, costIdx);
-  var scale = Math.max(1, 1 + (prayerLv - 1) / 10);
-  return Math.round(base * scale);
+  return num(computePrayerRealSystem(prayerIdx, costIdx, ci, saveData));
 }
 
 // AllEfficiencies: shared multiplier for ALL skill efficiencies
 // 6 multiplicative groups
 export function computeAllEfficiencies(ci, ctx) {
-  var famBonus42 = safe(computeFamBonusQTY, 42, ctx.saveData);
+  var saveData = ctx.saveData;
+  var familyBonuses = safe(computeFamBonusQTYs, ci, saveData);
+  var famBonus42 = Number(familyBonuses && familyBonuses[42]) || 0;
   var etc48 = rval(etcBonus, '48', ctx);
-  var vial6SkillEff = safe(computeVialByKey, '6SkillEff', ctx.saveData);
+  var vial6SkillEff = num(safe(computeVialByKey, '6SkillEff', saveData, ci));
   var artifactBonus15 = safe(computeArtifactBonus, 15, ci, ctx);
   var talent617 = rval(talent, 617, ctx);
-  var questEff = Math.min(0.1 * (ctx.saveData ? ctx.saveData.totalQuestsComplete || 0 : 0), talent617);
+  var questEff = Math.min(0.1 * (Number(saveData.totalQuestsComplete) || 0), talent617);
+  var group1 = 1 + (famBonus42 + etc48 + vial6SkillEff + artifactBonus15 + questEff) / 100;
 
-  var g1 = 1 + (famBonus42 + etc48 + vial6SkillEff + artifactBonus15 + Math.min(questEff, talent617)) / 100;
-
-  var mealSeff = safe(computeMealBonus, 'Seff', ctx.saveData);
+  var mealSeff = num(safe(computeMealBonus, 'Seff', saveData, ci));
   var talent646 = rval(talent, 646, ctx);
   var tomeBonus1 = rval(tome, 1, ctx);
-  var paletteBonus10 = safe(computePaletteBonus, 10, ctx.saveData);
-  var chipToteff = safe(computeChipBonus, 'toteff');
-  var cardCrystal4 = 3 * safe(cardLv, 'Crystal4', ctx.saveData);
+  var paletteBonus10 = safe(computePaletteBonus, 10, saveData);
+  var chipToteff = safe(computeChipBonus, 'toteff', ci);
+  var cardCrystal4 = 3 * safe(cardLv, 'Crystal4', saveData);
   var friendStatz2 = rval(friend, 2, ctx);
-  var riftSkillETC2 = safe(computeRiftSkillETC, 2, ctx.saveData);
-  var holesB49_15 = rval(holes, 49, ctx);
+  var riftSkillETC2 = safe(computeRiftSkillETC, 2, saveData);
+  var holesB49_15 = computeBUpg(49, 15, saveData);
   var ola422 = Number(optionsListData[422]) || 0;
   var shimmerOla180 = Number(optionsListData[180]) || 0;
-  var shimmerBonus = safe(computeAllShimmerBonuses, ctx.saveData);
+  var shimmerBonus = safe(computeAllShimmerBonuses, saveData);
 
-  var g2 = 1 + (mealSeff + talent646 + tomeBonus1 + paletteBonus10 + chipToteff
+  var group2 = 1 + (mealSeff + talent646 + tomeBonus1 + paletteBonus10 + chipToteff
     + cardCrystal4 + friendStatz2 + riftSkillETC2 + holesB49_15
     + ola422 + shimmerOla180 * shimmerBonus) / 100;
 
-  var _cb84 = safe(computeCardBonusByType, 84, ci, ctx.saveData);
-  var card84 = (typeof _cb84 === 'object' && _cb84) ? (_cb84.val || 0) : Number(_cb84) || 0;
+  var card84 = num(safe(computeCardBonusByType, 84, ci, saveData));
   var comp5 = rval(companion, 5, ctx);
-  var g3 = 1 + (card84 + comp5) / 100;
+  var group3 = 1 + (card84 + comp5) / 100;
 
   var winBonus14 = rval(winBonus, 14, ctx);
-  var g4 = 1 + winBonus14 / 100;
+  var group4 = 1 + winBonus14 / 100;
 
   var guild6 = rval(guild, 6, ctx);
-  var cardSet2 = safe(computeCardSetBonus, ci, '2');
-  var prayer1 = computePrayerReal(1, 0, ci, ctx.saveData);
-  var g5 = 1 + (guild6 + cardSet2 + prayer1) / 100;
+  var cardSet2 = num(safe(computeCardSetBonus, ci, '2'));
+  var prayer1 = computePrayerReal(1, 0, ci, saveData);
+  var group5 = 1 + (guild6 + cardSet2 + prayer1) / 100;
 
-  // Negative group: max(1 - (BuffBonus(40,2) + prayer17curse)/100, 0.01)
-  var buffBonus40_2 = 0; // GetBuffBonuses(40, 2) [NOT COMPUTED]
-  var prayer17curse = computePrayerReal(17, 1, ci, ctx.saveData);
-  var g6 = Math.max(1 - (buffBonus40_2 + prayer17curse) / 100, 0.01);
+  var buffBonus40_2 = getBuffBonus(40, 2, ci, ctx);
+  var prayer17curse = computePrayerReal(17, 1, ci, saveData);
+  var group6 = Math.max(1 - (buffBonus40_2 + prayer17curse) / 100, 0.01);
 
-  return g1 * g2 * g3 * g4 * g5 * g6;
+  return group1 * group2 * group3 * group4 * group5 * group6;
 }
 
 // AllBaseSkillEff: flat base efficiency shared across skills
 export function computeAllBaseSkillEff(ci, ctx) {
-  var shiny22 = safe(computeShinyBonusS, 22, ctx.saveData);
-  var stampBaseAllEff = safe(computeStampBonusOfTypeX, 'BaseAllEff', ctx.saveData);
-  var divBless2 = safe(computeDivinityBless, 2, ctx.saveData);
+  var saveData = ctx.saveData;
+  var shiny22 = safe(computeShinyBonusS, 22, saveData);
+  var stampBaseAllEff = num(safe(computeStampBonusOfTypeX, 'BaseAllEff', saveData, ci));
+  var allEfficiencies = computeAllEfficiencies(ci, ctx);
+  var minEff = computeCachedSkillBubble('MinEff', ci, ctx);
+  var chopEff = computeCachedSkillBubble('ChopEff', ci, ctx);
+  var str = safe(computeTotalStat, 'STR', ci, ctx).computed || 0;
+  var agi = safe(computeTotalStat, 'AGI', ci, ctx).computed || 0;
+  var wis = safe(computeTotalStat, 'WIS', ci, ctx).computed || 0;
+  var divBless2 = safe(computeDivinityBless, 2, saveData, {
+    allEfficiencies: allEfficiencies,
+    minEff: minEff,
+    chopEff: chopEff,
+    str: str,
+    agi: agi,
+    wis: wis,
+  });
   var _br20b = safe(computeBoxReward, ci, '20b');
-  var boxReward20b = (typeof _br20b === 'object' && _br20b) ? (_br20b.val || 0) : Number(_br20b) || 0;
-  var chipEff = safe(computeChipBonus, 'eff');
+  var boxReward20b = num(_br20b);
+  var chipEff = safe(computeChipBonus, 'eff', ci);
   var talent636 = rval(talent, 636, ctx);
-  var mf112 = safe(mainframeBonus, 112, ctx.saveData);
+  var mf112 = safe(mainframeBonus, 112, saveData);
 
   return shiny22 + stampBaseAllEff + divBless2 + boxReward20b + chipEff + talent636 + mf112;
 }
@@ -144,48 +217,59 @@ export function computeAllBaseSkillEff(ci, ctx) {
 //   + RiftSkillETC(1) + RiftSkillETC(4) + ShinyBonusS(2) + MSA_Bonus(5) + Companions(9)
 //   + WinBonus(12) + GuildBonuses(14) + OwlBonuses(3) + B_UPG(49,10) + CHIZOAR_SET + FriendBonusStatz(4)
 export function computeAllSkillxpz(ci, ctx) {
-  var starSignSkillEXP = safe(computeStarSignBonus, 'SkillEXP', ci, ctx.saveData);
-  var cardSpringEvent2 = 2 * safe(cardLv, 'springEvent2', ctx.saveData);
-  var _cb50 = safe(computeCardBonusByType, 50, ci, ctx.saveData);
-  var card50 = (typeof _cb50 === 'object' && _cb50) ? (_cb50.val || 0) : Number(_cb50) || 0;
+  var saveData = ctx.saveData;
+  var starSignSkillEXP = num(safe(computeStarSignBonus, 'SkillEXP', ci, saveData));
+  var cardSpringEvent2 = 2 * safe(cardLv, 'springEvent2', saveData);
+  var card50 = num(safe(computeCardBonusByType, 50, ci, saveData));
   var arcade18 = rval(arcade, 18, ctx);
   var gfoodSkillExp = 0;
   try {
-    var gf = goldFoodBonuses('SkillExp', ci, undefined, ctx.saveData);
+    var gf = goldFoodBonuses('SkillExp', ci, undefined, saveData);
     gfoodSkillExp = (gf && typeof gf === 'object') ? (Number(gf.total) || 0) : (Number(gf) || 0);
   } catch(e) {}
 
-  var bubonicGreen = 0; // lab bonus — runtime context-dependent, not available from save
-  var cardSet3 = safe(computeCardSetBonus, ci, '3');
-  var cardW5a4 = 5 * safe(cardLv, 'w5a4', ctx.saveData);
-  var talent35capped = Math.min(150, rval(talent, 35, ctx));
+  var enhancementTalent = maxTalentBonus(49, ci, saveData);
+  var talentEnh536 = enhancementTalent >= 200 ? maxTalentBonus(536, -1, saveData) : 0;
+  var bubonicGreen = computeBubonicGreen(ci, saveData) * Math.min(1, talentEnh536);
+  var cardSet3 = num(safe(computeCardSetBonus, ci, '3'));
+  var cardW5a4 = 5 * safe(cardLv, 'w5a4', saveData);
+  var talent35 = rval(talent, 35, ctx);
+  var talentEnh35 = 0;
+  if (enhancementTalent >= 250 && talent35 > 0) {
+    var totalLuk = safe(computeTotalStat, 'LUK', ci, ctx).computed || 0;
+    var expGainLuk = totalLuk < 1000
+      ? (Math.pow(totalLuk + 1, 0.37) - 1) / 30
+      : (totalLuk - 1000) / (totalLuk + 2500) * 0.8 + 0.3963;
+    talentEnh35 = expGainLuk * (1 + talent35 / 100) / 1.8;
+  }
+  var talent35capped = Math.min(150, 100 * talentEnh35);
   var shrine5 = rval(shrine, 5, ctx);
-  var statue17 = safe(computeStatueBonusGiven, 17, ci, ctx.saveData);
-  var prayer2 = computePrayerReal(2, 0, ci, ctx.saveData);
-  var prayer17 = computePrayerReal(17, 0, ci, ctx.saveData);
-  var prayer1curse = computePrayerReal(1, 1, ci, ctx.saveData);
-  var prayer9curse = computePrayerReal(9, 1, ci, ctx.saveData);
+  var statue17 = num(safe(computeStatueBonusGiven, 17, ci, saveData));
+  var prayer2 = computePrayerReal(2, 0, ci, saveData);
+  var prayer17 = computePrayerReal(17, 0, ci, saveData);
+  var prayer1curse = computePrayerReal(1, 1, ci, saveData);
+  var prayer9curse = computePrayerReal(9, 1, ci, saveData);
   var etc27 = rval(etcBonus, '27', ctx);
-  var buffBonus40_1 = 0; // GetBuffBonuses(40, 1) — session-only state
-  var saltLick3 = safe(computeSaltLick, 3, ctx.saveData);
-  var flurbo2 = safe(computeFlurboShop, 2, ctx.saveData);
+  var buffBonus40_1 = getBuffBonus(40, 1, ci, ctx);
+  var saltLick3 = safe(computeSaltLick, 3, saveData);
+  var flurbo2 = safe(computeFlurboShop, 2, saveData);
   var _br20c = safe(computeBoxReward, ci, '20c');
-  var boxReward20c = (typeof _br20c === 'object' && _br20c) ? (_br20c.val || 0) : Number(_br20c) || 0;
-  var divMinor1 = safe(computeDivinityMinor, ci, 1, ctx.saveData);
-  var ach283 = 10 * safe(achieveStatus, 283, ctx.saveData);
-  var ach284 = 25 * safe(achieveStatus, 284, ctx.saveData);
-  var ach294 = 10 * safe(achieveStatus, 294, ctx.saveData);
-  var ach359 = 15 * safe(achieveStatus, 359, ctx.saveData);
-  var riftSkillETC1 = safe(computeRiftSkillETC, 1, ctx.saveData);
-  var riftSkillETC4 = safe(computeRiftSkillETC, 4, ctx.saveData);
-  var shiny2 = safe(computeShinyBonusS, 2, ctx.saveData);
-  var gamingMSA5 = safe(computeMSABonus, 5, ctx.saveData);
+  var boxReward20c = num(_br20c);
+  var divMinor1 = num(safe(computeDivinityMinor, ci, 1, saveData));
+  var ach283 = 10 * safe(achieveStatus, 283, saveData);
+  var ach284 = 25 * safe(achieveStatus, 284, saveData);
+  var ach294 = 10 * safe(achieveStatus, 294, saveData);
+  var ach359 = 15 * safe(achieveStatus, 359, saveData);
+  var riftSkillETC1 = safe(computeRiftSkillETC, 1, saveData);
+  var riftSkillETC4 = safe(computeRiftSkillETC, 4, saveData);
+  var shiny2 = safe(computeShinyBonusS, 2, saveData);
+  var gamingMSA5 = safe(computeMSABonus, 5, saveData);
   var comp9 = rval(companion, 9, ctx);
   var winBonus12 = rval(winBonus, 12, ctx);
   var guild14 = rval(guild, 14, ctx);
-  var owlBonus3 = safe(computeOwlBonus, 3, ctx.saveData);
-  var holesB49_10 = rval(holes, 49, ctx);
-  var chizoarSet = safe(getSetBonus, 'CHIZOAR_SET');
+  var owlBonus3 = rval(owl, 3, ctx);
+  var holesB49_10 = computeBUpg(49, 10, saveData);
+  var chizoarSet = safe(getSetBonus, 'CHIZOAR_SET', ci);
   var friendStatz4 = rval(friend, 4, ctx);
 
   return starSignSkillEXP + cardSpringEvent2 + card50 + arcade18 + gfoodSkillExp
@@ -202,7 +286,7 @@ export function computeAllSkillxpz(ci, ctx) {
 // Game: (1 + MeritocBonusz(10)/100) * (1 + LegendPTS_bonus(20)/100) * (1 + Companions(32))
 export function computeAllSkillxpMULTI(ctx) {
   var s = ctx.saveData;
-  var meritoc10 = safe(computeMeritocBonusz, 10, s);
+  var meritoc10 = safe(computeMeritocBonusz, 10, s, ctx.charIdx);
   var legend20 = safe(legendPTSbonus, 20, s);
   var comp32 = rval(companion, 32, ctx);
   return (1 + meritoc10 / 100) * (1 + legend20 / 100) * (1 + comp32);

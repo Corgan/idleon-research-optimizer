@@ -75,7 +75,7 @@ export default createDescriptor({
     var grid147 = gridBonusFinal(saveData, 147);
     var grid166 = gridBonusFinal(saveData, 166);
     var mealMineCurr = 0;
-    try { mealMineCurr = computeMealBonus('MineCurr', ctx.saveData) || 0; } catch(e) {}
+    try { mealMineCurr = computeMealBonus('MineCurr', ctx.saveData, ctx.charIdx) || 0; } catch(e) {}
     children.push({ name: 'Research Grid and Meals', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
       children: [
         { name: label('Grid', 147), val: grid147, fmt: 'raw' },

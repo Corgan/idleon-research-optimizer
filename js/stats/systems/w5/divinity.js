@@ -101,18 +101,7 @@ export function computeDivinityMinor(ci, style, saveData) {
 // ==================== DIVINITY MAJOR ====================
 
 export function computeDivinityMajor(ci, style, saveData) {
-  var s = saveData;
-  var targetGod = -1;
-  for (var g = 0; g < GodsInfo.length; g++) {
-    if (GodsInfo[g] && Number(GodsInfo[g][13]) === style) { targetGod = g; break; }
-  }
-  if (targetGod < 0) return 0;
-  var _lgRaw = divinityData && divinityData[ci + 12];
-  var linkedGod = _lgRaw != null ? Number(_lgRaw) : -1;
-  var hasMajor = (linkedGod === targetGod);
-  if (s.companionIds && s.companionIds.has(0)) hasMajor = true;
-  if (!hasMajor) return 0;
-  return Number(GodsInfo[targetGod][12]) || 0;
+  return hasBonusMajor(ci, style, saveData) ? 1 : 0;
 }
 
 // ==================== DIVINITY BLESS ====================
@@ -120,11 +109,31 @@ export function computeDivinityMajor(ci, style, saveData) {
 // Game's Number2Letter alphabet for EmporiumBonus checks
 var N2L = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
 
-export function computeDivinityBless(blessIdx, saveData) {
+export function computeDivinityBless(blessIdx, saveData, inputs) {
   var blessLv = Number(divinityData && divinityData[28 + blessIdx]) || 0;
   if (blessLv <= 0) return 0;
   var basePerLv = Number(GodsInfo[blessIdx] && GodsInfo[blessIdx][14]) || 0;
   if (basePerLv <= 0) basePerLv = 1;
+  if (blessIdx === 2) {
+    inputs = inputs || {};
+    var allEfficiencies = Number(inputs.allEfficiencies) || 0;
+    var minEff = Number(inputs.minEff) || 0;
+    var chopEff = Number(inputs.chopEff) || 0;
+    var str = Number(inputs.str) || 0;
+    var agi = Number(inputs.agi) || 0;
+    var wis = Number(inputs.wis) || 0;
+    var scaleInput = Math.max(
+      1,
+      allEfficiencies
+        + Math.pow((minEff + chopEff) / 100, 2)
+        + Math.pow((str + agi + wis) / 3, 0.5) / 7
+    );
+    var blessScale = Math.min(
+      1.8,
+      Math.max(0.1, 4 * Math.pow((scaleInput + 1e4) / Math.max(10 * scaleInput + 10, 1) * 0.01, 2))
+    );
+    return blessLv * basePerLv * blessScale;
+  }
   // Emporium scaling: 1 + 0.05 * EmporiumBonus(33) * max(0, Divinity[25] - 10)
   // Game: EmporiumBonus(t) = Ninja[102][9].indexOf(Number2Letter[t]) != -1 ? 1 : 0
   var div25 = Number(divinityData && divinityData[25]) || 0;

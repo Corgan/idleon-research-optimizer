@@ -10,6 +10,7 @@
   --accent: #e94560; --text: #eee; --text2: #c0c0d4;
   --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
   --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --border: #444; --text1: #eee;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -94,6 +95,65 @@ h1 span { color: var(--accent); }
 .mg-detail .data-table th { padding: 2px 4px; }
 .mg-detail .data-table td { padding: 1px 4px; }
 
+/* Primary calculator views */
+.workspace-tabs { display:flex; gap:2px; margin-bottom:12px; background:var(--bg2); border-bottom:1px solid #333; overflow-x:auto; }
+.workspace-tab { flex:0 0 auto; padding:10px 18px; cursor:pointer; color:var(--text2); background:transparent; border:0; border-bottom:2px solid transparent; font:inherit; font-size:.88em; font-weight:600; }
+.workspace-tab:hover { color:var(--text); background:rgba(255,255,255,.05); }
+.workspace-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.workspace-panel { display:none; }
+.workspace-panel.active { display:block; }
+.mode-selector { flex-wrap:wrap; }
+.scenario-strip { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.scenario-chip { padding:3px 7px; border:1px solid #45506a; border-radius:4px; background:rgba(0,0,0,.16); color:var(--text2); font-size:.7em; }
+.scenario-chip strong { color:var(--cyan); }
+.scenario-chip.expected { border-color:#9b7b30; color:var(--gold); }
+.scenario-chip.partial { border-color:var(--red); color:#ff9b9b; }
+.decision-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; margin:8px 0; }
+.decision-card { background:var(--bg3); border:1px solid #46516f; border-radius:6px; padding:9px 11px; min-width:0; }
+.decision-card h3 { margin:0 0 5px; font-size:.8em; color:var(--cyan); }
+.decision-value { color:var(--gold); font-size:1.15em; font-weight:700; overflow-wrap:anywhere; }
+.decision-sub { color:var(--text2); font-size:.7em; line-height:1.4; margin-top:3px; }
+.move-list { display:grid; gap:3px; margin-top:6px; }
+.move-row { display:flex; gap:6px; justify-content:space-between; border-top:1px solid rgba(255,255,255,.05); padding-top:3px; color:var(--text2); font-size:.68em; }
+.mobile-floor-list { display:none; gap:8px; }
+.mobile-floor-card { background:var(--bg3); border:1px solid #46516f; border-radius:6px; padding:9px; }
+.mobile-floor-head { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:6px; }
+.mobile-floor-head strong { color:var(--gold); }
+.mobile-floor-mastery { color:var(--cyan); font-size:.74em; }
+.mobile-floor-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+.mobile-stat { min-width:0; padding:4px 5px; background:rgba(0,0,0,.14); border-radius:4px; }
+.mobile-stat span { display:block; color:var(--text2); font-size:.66em; }
+.mobile-stat strong { display:block; margin-top:1px; color:var(--text); font-size:.82em; overflow-wrap:anywhere; }
+@media (max-width:700px) {
+  .desktop-mastery-wrap { display:none; }
+  .mobile-floor-list { display:grid; }
+  .decision-grid { grid-template-columns:1fr; }
+  .move-row { flex-wrap:wrap; justify-content:flex-start; font-size:.72em; }
+}
+
+/* Shared formula breakdown tree */
+.formula-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82em; color:var(--text2); }
+.formula-controls select { background:var(--bg3); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 7px; }
+.formula-tabs { display:flex; background:rgba(0,0,0,.2); border-bottom:1px solid #333; margin-bottom:12px; }
+.formula-tab { padding:8px 18px; cursor:pointer; color:var(--text2); background:transparent; border:0; border-bottom:2px solid transparent; font:inherit; font-weight:600; }
+.formula-tab:hover { color:var(--text); background:rgba(255,255,255,.05); }
+.formula-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.formula-panel { display:none; }
+.formula-panel.active { display:block; }
+.bt-controls { margin-bottom:8px; display:flex; gap:6px; }
+.bt-controls .btn-sm { padding:4px 10px; background:var(--bg3); color:var(--text2); border:1px solid var(--border); border-radius:4px; cursor:pointer; font-size:.8em; }
+.bt-controls .btn-sm:hover { color:var(--cyan); border-color:var(--cyan); }
+.bt-tree { font-size:.85em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-bottom:1px solid rgba(255,255,255,.04); min-height:26px; cursor:pointer; }
+.bt-row:hover { background:rgba(255,255,255,.07); }
+.bt-children { background:rgba(0,0,0,.12); border-left:2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight:700; font-size:1.05em; padding-top:6px; padding-bottom:6px; border-bottom:2px solid var(--border); }
+.bt-arrow { cursor:pointer; color:var(--text2); width:14px; text-align:center; user-select:none; flex-shrink:0; }
+.bt-arrow:hover { color:var(--cyan); }
+.bt-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bt-val { font-weight:600; text-align:right; flex-shrink:0; white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums; }
+.bt-tooltip { position:fixed; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px 12px; font-size:.82em; max-width:350px; pointer-events:none; z-index:9999; display:none; }
+
 /* Charm pills */
 .charm-pills { display: flex; flex-wrap: wrap; gap: 5px; }
 .charm-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--bg3); border: 1px solid #444; border-radius: 14px; padding: 3px 10px 3px 8px; font-size: .78em; white-space: nowrap; }
@@ -107,7 +167,8 @@ h1 span { color: var(--accent); }
 /* Shared slot size */
 :root { --slot-size: 52px; }
 /* Inventory grid */
-.inv-grid { display: grid; grid-template-columns: repeat(13, var(--slot-size)); gap: 3px; justify-content: center; }
+.inv-grid-wrap { width:100%; overflow-x:auto; padding-bottom:4px; }
+.inv-grid { display:grid; width:max-content; grid-template-columns:repeat(13, var(--slot-size)); gap:3px; margin:0 auto; }
 .inv-slot { background: #1a1510; border: 2px solid transparent; border-radius: 3px; width: var(--slot-size); height: var(--slot-size); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px 1px; min-width: 0; position: relative; cursor: default; }
 .inv-slot.gold { background: rgba(255,215,0,.08); }
 .inv-slot.best { border-color: var(--green) !important; }
@@ -115,7 +176,7 @@ h1 span { color: var(--accent); }
 .inv-slot .is-name { font-size: .45em; font-weight: 600; color: var(--text2); text-align: center; line-height: 1.05; overflow: hidden; max-height: 2em; word-break: break-word; }
 .inv-slot .is-lv { font-size: .58em; color: #7f7; font-weight: 700; position: absolute; top: 1px; left: 2px; text-shadow: 1px 1px 0 #000; }
 .inv-slot .is-best { position: absolute; top: 1px; right: 2px; font-size: .45em; color: var(--green); font-weight: 700; }
-.inv-slot:hover .is-tip { display: block; }
+.inv-slot:hover .is-tip, .inv-slot:focus .is-tip, .inv-slot.tip-open .is-tip { display:block; }
 .inv-slot .is-tip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid #666; border-radius: 4px; padding: 3px 6px; white-space: nowrap; z-index: 20; font-size: .68em; pointer-events: none; text-align: center; line-height: 1.4; }
 .inv-section { background: #1c1810; border: none; padding: 8px !important; flex: 1.3; min-width: 0; }
 .inv-section .loadout-title { border-bottom-color: #5a4a38; color: var(--gold); }
@@ -161,7 +222,8 @@ h1 span { color: var(--accent); }
 </style>
 </head>
 <body>
-<div id="js-tip"></div>
+<div id="js-tip" role="tooltip" aria-hidden="true"></div>
+<div class="bt-tooltip" id="bt-tooltip"></div>
 
 <h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F977; <span>Idleon</span> Sneaking Optimizer</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
 
@@ -180,23 +242,31 @@ import { NjEQ } from './js/stats/data/game/custommaps.js';
 import {
   NK_COUNT, FLOOR_COUNT,
   nkName, nkBonus,
-  floorDetectionBase, floorJadeBase, floorExpMult, doorHP,
-  detectionChance, actionSpeed, koDuration, doorDamage,
+  floorDetectionBase, floorJadeBase, floorExpMult, floorActions, doorHP,
+  detectionChance, actionSpeed, koDuration,
   stealthValue,
   parseTwinData, parseTwinEquip,
+  isTwinUntied,
+  captiveTargetForFloor, untieReq,
+  sneakingActionMode,
   fmtJade,
   charmStat, charmBonusType, charmDisplayName, isGoldCharm, equipInfo,
   funeralStealthBonus, nkBonusFull,
   stealthForDetection, maxCharmDropLevel, maxDropLevel,
   parseInventoryCharms, bestInventoryBonuses,
-  flowerRate, floorDropTable, CHARM_BONUS_TYPES,
-  itemFindChance, doorEffectiveHP,
+  floorDropTable, CHARM_BONUS_TYPES,
+  doorEffectiveHP,
+  doorState,
   allyStealthMulti, simStealth,
 } from './js/stats/systems/w6/sneaking-math.js';
-import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras } from './js/stats/systems/w6/sneaking-stealth.js';
-import { computeJadeRate } from './js/stats/systems/w6/sneaking-jade.js';
+import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras, computeDoorDamageDetailed, computeUntieProgressDetailed, buildStealthBreakdown, weaponItemStat, soloMultiplier } from './js/stats/systems/w6/sneaking-stealth.js';
+import { computeDoorClearEstimate, computeJadeRate, computeTeamDoorRates, computeSneakingTeamScenario, buildJadeBreakdown, buildDoorRateBreakdown } from './js/stats/systems/w6/sneaking-jade.js';
+import { bestItemByScore, canEquipCharmPair, charmPairOrders } from './js/stats/systems/w6/sneaking-optimizer.js';
 import { bubbleValByKey } from './js/stats/systems/w2/alchemy.js';
 import { emporiumBonus } from './js/game-helpers.js';
+import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+import { node } from './js/stats/node.js';
 
 // ===== SAVE LOADING =====
 initSaveLoader({
@@ -211,11 +281,28 @@ initSaveLoader({
 // ===== JS TOOLTIP =====
 (function() {
   var tip = document.getElementById('js-tip');
-  document.addEventListener('mouseover', function(e) {
-    var el = e.target.closest('[data-tip]');
-    if (!el) { tip.style.display = 'none'; return; }
+  function showTip(el, x, y) {
     tip.textContent = el.getAttribute('data-tip');
     tip.style.display = 'block';
+    tip.setAttribute('aria-hidden', 'false');
+    if (x == null || y == null) {
+      var rect = el.getBoundingClientRect();
+      x = rect.left;
+      y = rect.bottom + 6;
+    }
+    if (x + tip.offsetWidth > window.innerWidth - 8) x = Math.max(8, window.innerWidth - tip.offsetWidth - 8);
+    if (y + tip.offsetHeight > window.innerHeight - 8) y = Math.max(8, y - tip.offsetHeight - 12);
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hideTip() {
+    tip.style.display = 'none';
+    tip.setAttribute('aria-hidden', 'true');
+  }
+  document.addEventListener('mouseover', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (!el) { hideTip(); return; }
+    showTip(el, e.clientX + 12, e.clientY + 12);
   });
   document.addEventListener('mousemove', function(e) {
     if (tip.style.display !== 'block') return;
@@ -225,9 +312,27 @@ initSaveLoader({
     tip.style.left = x + 'px'; tip.style.top = y + 'px';
   });
   document.addEventListener('mouseout', function(e) {
-    if (e.target.closest('[data-tip]')) tip.style.display = 'none';
+    if (e.target.closest('[data-tip]')) hideTip();
+  });
+  document.addEventListener('focusin', function(e) {
+    var el = e.target.closest('[data-tip]');
+    if (el) showTip(el);
+  });
+  document.addEventListener('focusout', function(e) {
+    if (e.target.closest('[data-tip]')) hideTip();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') hideTip();
   });
 })();
+
+function _prepareAccessibleTooltips(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-tip]').forEach(function(el) {
+    if (!el.matches('a[href],button,input,select,textarea,[tabindex]')) el.tabIndex = 0;
+    el.setAttribute('aria-describedby', 'js-tip');
+  });
+}
 
 // ===== HELPERS =====
 function _nd() { return saveData.ninjaData || []; }
@@ -235,6 +340,11 @@ function _nkLvs() { return _nd()[103] || []; }
 function _nkLv(idx) { return Number(_nkLvs()[idx]) || 0; }
 function _mastery() { return Number(saveData.olaData?.[231]) || 0; }
 function _masteryMax() { return Number(saveData.olaData?.[232]) || 0; }
+function _playerCount() {
+  return Math.min(TWIN_COUNT, (saveData.charNames || []).length
+    || (saveData.lv0AllData || []).length
+    || TWIN_COUNT);
+}
 function _flowers() { return saveData.spelunkData?.[15] || []; }
 function _symLevels() { return saveData.spelunkData?.[14] || []; }
 var SYM_COLORS = ['','#8B6914','#9a9a9a','#d4a017','#4a90d9','#b060d0','#c0c8d0','#3ddc84'];
@@ -278,6 +388,19 @@ function _fmt(n) {
   return '0';
 }
 function _pct(n) { if (n >= 0.99995) return '100%'; if (n >= 0.999) return (n * 100).toFixed(2) + '%'; return (n * 100).toFixed(1) + '%'; }
+function _chance(n) {
+  if (!(n > 0)) return '0%';
+  if (n >= 1) return '100%';
+  if (n >= 0.001) return (100 * n).toFixed(n >= 0.1 ? 1 : 3) + '%';
+  return '1 in ' + _fmt(Math.round(1 / n));
+}
+function _perHour(n) {
+  if (!Number.isFinite(Number(n)) || Number(n) === 0) return '0';
+  var magnitude = Math.abs(Number(n));
+  if (magnitude < 0.001) return Number(n).toExponential(2);
+  if (magnitude < 10) return Number(n).toFixed(4);
+  return _fmt(n);
+}
 function _detClass(ch) { return ch <= 0.05 ? 'safe' : ch <= 0.30 ? 'warn' : 'danger'; }
 function _detColor(ch) { var c = _detClass(ch); return c === 'safe' ? 'var(--green)' : c === 'warn' ? 'orange' : 'var(--red)'; }
 function _card(title, val, sub) {
@@ -285,9 +408,28 @@ function _card(title, val, sub) {
 }
 function _timeStr(hours) {
   if (!hours || !isFinite(hours)) return '\u221e';
+  if (hours < 1 / 3600) return '<1s';
+  if (hours < 1 / 60) return Math.max(1, Math.round(hours * 3600)) + 's';
   if (hours < 1) return Math.round(hours * 60) + 'm';
   if (hours < 24) return hours.toFixed(1) + 'h';
   return (hours / 24).toFixed(1) + 'd';
+}
+function _itemBatchHours() {
+  var value = Number(window._sneakItemBatchHours);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+function _projectionFlowers() {
+  return window._sneakProjectionFlowers === 'rebuilt' ? 'rebuilt' : 'fresh';
+}
+function _sandboxCopies() {
+  var value = Math.floor(Number(window._sneakSandboxCopies));
+  return Number.isFinite(value) && value >= 1 ? Math.min(24, value) : 24;
+}
+function _deepRefinement() { return !!window._sneakDeepRefinement; }
+function _flowerMode() { return window._sneakFlowerMode === 'offline' ? 'offline' : 'online'; }
+function _flowerBatchHours() {
+  var value = Number(window._sneakFlowerBatchHours);
+  return Number.isFinite(value) && value > 0 ? value : 8;
 }
 function _detBar(det) {
   return '<div class="det-bar"><div class="det-fill ' + _detClass(det) + '" style="width:' + Math.max(2, det * 100) + '%;"></div></div>';
@@ -300,14 +442,15 @@ function _fmtMulti(mult) {
 }
 
 // ===== TWIN DATA =====
-var TWIN_COUNT = 11; // 0-10 (11 characters)
+var TWIN_COUNT = 12;
 
 function _getActiveTwins() {
   var nd = _nd();
   var twins = parseTwinData(nd);
   var result = [];
-  for (var t = 0; t < TWIN_COUNT; t++) {
+  for (var t = 0; t < _playerCount(); t++) {
     if (!twins[t]) continue;
+    if (!isTwinUntied(t, nd)) continue;
     var equip = parseTwinEquip(nd, t);
     var charms = [];
     for (var s = 0; s < 4; s++) {
@@ -332,6 +475,7 @@ function _getActiveTwins() {
       idx: t,
       name: _charName(t),
       floor: twins[t].floor,
+      actionProgress: twins[t].stealth,
       sneakLv: sneakLv,
       equip: equip,
       charms: charms,
@@ -350,19 +494,27 @@ function _getActiveTwins() {
   // Use the best active character for ATL context
   var bestChar = findBestActiveChar(saveData);
   var aci = _loginContextIdx(bestChar.charIdx);
-  var allTwinFloors = result.map(function(tw2) { return tw2.floor; });
+  var allTwinFloors = [];
+  for (var floorTwin = 0; floorTwin < _playerCount(); floorTwin++) {
+    allTwinFloors[floorTwin] = Number(nd[floorTwin] && nd[floorTwin][0]) || 0;
+  }
   for (var r = 0; r < result.length; r++) {
-    var detailed = computeCoreStealthDetailed(r, saveData, aci);
+    var twinIdx = result[r].idx;
+    var detailed = computeCoreStealthDetailed(twinIdx, saveData, aci);
     result[r].coreStealth = detailed.baseStealth * detailed.coreMulti;
-    var stResult = computeTwinStealth(r, result[r].floor, allTwinFloors, saveData, aci);
+    var stResult = computeTwinStealth(twinIdx, result[r].floor, allTwinFloors, saveData, aci);
     result[r].stealth = stResult.stealth;
     result[r].actionSpd = computeActionSpeed(result[r].idx, saveData, aci);
+    result[r].actionSpdTogether = computeActionSpeed(result[r].idx, saveData, aci, { isSolo: false });
     // Use properly-multiplied charm bonuses (includes gold inv type 12 + symbol bonuses)
     var cm = detailed.charmMap;
     result[r].dodgePct = cm[0] || 0;
     result[r].koPct = cm[1] || 0;
     result[r].itemFindPct = cm[5] || 0;
     result[r].charmMap = cm;
+    result[r].door = computeDoorDamageDetailed(result[r].idx, saveData, aci);
+    result[r].untie = computeUntieProgressDetailed(result[r].idx, saveData, aci);
+    result[r].weaponSubtype = Number(NjEQ[result[r].equip[1]?.name]?.[1]) || 0;
   }
   result.bestActiveChar = bestChar;
   result.activeCharIdx = aci;
@@ -376,7 +528,8 @@ function _buildCharmPool() {
   var nd = _nd();
   var pool = []; // { key, name, level, slot, source:'equip'|'inv', type, bonusType }
   // Equipped charms (4 slots per twin × 10 twins)
-  for (var t = 0; t < TWIN_COUNT; t++) {
+  for (var t = 0; t < _playerCount(); t++) {
+    if (!isTwinUntied(t, nd)) continue;
     for (var s = 0; s < 4; s++) {
       var slotIdx = 12 + 4 * t + s;
       var slot = nd[slotIdx];
@@ -390,7 +543,7 @@ function _buildCharmPool() {
     }
   }
   // Inventory charms
-  for (var i = 0; i < 40; i++) {
+  for (var i = 0; i < 39; i++) {
     var invSlot = 60 + i;
     var islot = nd[invSlot];
     if (!islot || !islot[0] || islot[0] === 'Blank') continue;
@@ -438,11 +591,12 @@ function _bestWeapon(pool, subtype) {
 
 // Mode definitions
 var OPT_MODES = {
-  current: { label: 'Current', desc: 'Current loadout as-is' },
-  jade:    { label: 'Jade/hr', desc: 'Maximize jade per hour' },
-  flower:  { label: 'Flower/hr', desc: 'Maximize flower per hour' },
-  itemfind:{ label: 'Item Find', desc: 'Maximize item find chance' },
-  door:    { label: 'Door/hr', desc: 'Maximize door damage per hour' },
+  current: { label: 'Saved loadout', desc: 'Saved equipment, simulated with all active twins on each row floor' },
+  jade:    { label: 'Jade/hr', desc: 'Maximize expected runtime Jade per hour from normal actions' },
+  flower:  { label: 'Flowers/hr', desc: 'Maximize KO-aware expected flowers per hour' },
+  itemfind:{ label: 'Items/hr', desc: 'Maximize expected item finds for the selected processing batch' },
+  door:    { label: 'Door ETA', desc: 'Minimize active or hypothetical door finish time' },
+  untie:   { label: 'Untie ETA', desc: 'Minimize time to free the next captive assigned to this floor' },
 };
 
 // Sentinel value to clear a charm/weapon slot to Blank
@@ -457,15 +611,26 @@ var EMPTY_SLOT = { key: 'Blank', level: 0, _empty: true };
 // remaining inventory. Tiers are tried in order (best first); each consumes charm copies.
 // Charm/weapon entries can be EMPTY_SLOT to clear the slot, or null/undefined to keep original.
 // Returns array like _getActiveTwins() but with recomputed stats
-function _simulateLoadout(loadout, pool) {
+function _simulateLoadout(loadout, pool, masteryLevel) {
   var nd = _nd();
   var aci = _loginContextIdx(findBestActiveChar(saveData).charIdx);
+  var hasCharmedPerk = emporiumBonus(3, nd[102] && nd[102][9]) === 1;
 
   // Save original slots
   var saved = {};
-  function _save(idx) { saved[idx] = nd[idx] ? nd[idx].slice() : null; }
+  var slotCopyIds = {};
+  var assignments = {};
+  function _save(idx) {
+    if (!Object.prototype.hasOwnProperty.call(saved, idx)) saved[idx] = nd[idx] ? nd[idx].slice() : null;
+  }
   function _set(idx, key, level) { _save(idx); nd[idx] = [key, level]; }
-  function _apply(idx, item) { if (item) _set(idx, item.key, item.level); }
+  function _apply(idx, item) {
+    if (!item) return;
+    _set(idx, item.key, item.level);
+    if (idx >= 13 && idx < 60) assignments[idx] = Object.assign({}, item, { destination: idx });
+    if (item._copyId != null) slotCopyIds[idx] = item._copyId;
+    else delete slotCopyIds[idx];
+  }
   function _restore() { for (var k in saved) nd[k] = saved[k]; }
 
   // Optimally order two charms for a twin's slots based on symbol bonus levels.
@@ -474,12 +639,16 @@ function _simulateLoadout(loadout, pool) {
   function _symLVID(slotIdx) {
     return slotIdx < 60 ? Math.round(slotIdx - 14) - 2 * Math.floor((slotIdx - 14) / 4) : Math.round(slotIdx - 36);
   }
-  function _applyCharmPair(twinIdx, c0, c1) {
+  function _applyCharmPair(twinIdx, c0, c1, preserveOrder) {
     var s0 = 14 + 4 * twinIdx, s1 = 15 + 4 * twinIdx;
     if (!c0 && !c1) return;
-    if (!c0 || !c1 || c0._empty || c1._empty || c0.key === c1.key) {
+    if (c0 && c1 && !c0._empty && !c1._empty && c0.key === c1.key) {
+      _apply(s0, c0); _apply(s1, hasCharmedPerk ? c1 : EMPTY_SLOT); return;
+    }
+    if (!c0 || !c1 || c0._empty || c1._empty) {
       _apply(s0, c0); _apply(s1, c1); return;
     }
+    if (preserveOrder) { _apply(s0, c0); _apply(s1, c1); return; }
     // Compare symbol levels: put higher-stat charm in higher-symbol slot
     var sym0 = Number(symLevels[_symLVID(s0)]) || 0;
     var sym1 = Number(symLevels[_symLVID(s1)]) || 0;
@@ -495,66 +664,132 @@ function _simulateLoadout(loadout, pool) {
   }
 
   try {
-    // Track remaining copies of each charm/weapon by key
+    // Track exact remaining copies by key so differing item levels stay distinct.
     var remaining = {};
     for (var pi = 0; pi < pool.length; pi++) {
-      remaining[pool[pi].key] = (remaining[pool[pi].key] || 0) + 1;
+      var poolItem = Object.assign({}, pool[pi]);
+      if (poolItem.source === 'all' && masteryLevel != null) {
+        poolItem.level = Math.floor(maxDropLevel(poolItem.key, _nkLvs(), masteryLevel, computeNK11Extras(saveData, aci)));
+      }
+      poolItem._copyId = pi;
+      if (!remaining[poolItem.key]) remaining[poolItem.key] = [];
+      remaining[poolItem.key].push(poolItem);
+      if (poolItem.source === 'equip' && poolItem.slot >= 12 && poolItem.slot < 60) {
+        slotCopyIds[poolItem.slot] = poolItem._copyId;
+      }
+    }
+    for (var remainingKey in remaining) {
+      remaining[remainingKey].sort(function(a, b) { return b.level - a.level; });
+    }
+    function _remainingCount(item) {
+      if (!item || item._empty) return Infinity;
+      return (remaining[item.key] || []).length;
+    }
+    function _take(item) {
+      if (!item || item._empty) return item;
+      var copies = remaining[item.key] || [];
+      if (copies.length === 0) return null;
+      var copyIdx = 0;
+      if (item._copyId != null) {
+        copyIdx = -1;
+        for (var idSearch = 0; idSearch < copies.length; idSearch++) {
+          if (copies[idSearch]._copyId === item._copyId) { copyIdx = idSearch; break; }
+        }
+        if (copyIdx < 0) return null;
+      } else if (item.slot != null && item.slot >= 0) {
+        for (var copySearch = 0; copySearch < copies.length; copySearch++) {
+          if (copies[copySearch].slot === item.slot) { copyIdx = copySearch; break; }
+        }
+      } else if (item.level != null) {
+        for (var levelSearch = 0; levelSearch < copies.length; levelSearch++) {
+          if (Number(copies[levelSearch].level) === Number(item.level)) { copyIdx = levelSearch; break; }
+        }
+      }
+      var actual = copies.splice(copyIdx, 1)[0];
+      if (actual.source === 'equip' && actual.slot >= 12 && actual.slot < 60) {
+        if (slotCopyIds[actual.slot] === actual._copyId) {
+          _apply(actual.slot, EMPTY_SLOT);
+        }
+      }
+      return actual;
+    }
+    function _takeBestWeapon(subtype) {
+      var candidates = [];
+      for (var weaponKey in remaining) {
+        var copies = remaining[weaponKey];
+        if (!copies || copies.length === 0) continue;
+        var candidate = copies[0];
+        if (candidate.type !== 1 || candidate.bonusType !== subtype) continue;
+        candidates.push(candidate);
+      }
+      var best = bestItemByScore(candidates, function(candidate) { return weaponItemStat(candidate.key, candidate.level); });
+      return best ? _take(best) : null;
     }
 
-    // Game rule: without "Charmed, I'm Sure" perk, each charm (type 2) can only
-    // be equipped by one twin at a time. NjTr7 (Scroll of Power) is always
-    // limited to 1 equipped twin regardless of perk.
-    var nd102_9 = nd[102] && nd[102][9];
-    var hasCharmedPerk = emporiumBonus(3, nd102_9) === 1;
-    var equippedCharmKeys = {}; // key → true if a twin already has it equipped
+    // Physical copies may be distributed across twins. Charmed allows a same-key
+    // sibling pair; Scroll of Power remains globally unique.
+    var scrollEquipped = false;
 
     // Helper: check if a charm can be equipped by this twin
     function _canEquipCharm(ch) {
       if (!ch || ch._empty) return true;
       // NjTr7 always limited to 1 twin
-      if (ch.key === 'NjTr7' && equippedCharmKeys[ch.key]) return false;
-      // Without perk, each type-2 charm limited to 1 twin
-      if (!hasCharmedPerk) {
-        var eq = NjEQ[ch.key];
-        if (eq && Number(eq[0]) === 2 && equippedCharmKeys[ch.key]) return false;
-      }
+      if (ch.key === 'NjTr7' && scrollEquipped) return false;
       return true;
     }
     function _markEquipped(ch) {
-      if (ch && !ch._empty) equippedCharmKeys[ch.key] = true;
+      if (ch && ch.key === 'NjTr7') scrollEquipped = true;
     }
 
+    if (loadout.perTwinAssignments) {
+      var explicitOrder = loadout.assignmentOrder || Object.keys(loadout.perTwinAssignments).map(Number);
+      for (var explicitIdx = 0; explicitIdx < explicitOrder.length; explicitIdx++) {
+        var explicitTwin = Number(explicitOrder[explicitIdx]);
+        var explicit = loadout.perTwinAssignments[explicitTwin];
+        if (!explicit || !isTwinUntied(explicitTwin, nd)) continue;
+        var explicitWeapon = explicit.weapon && !explicit.weapon._empty ? _take(explicit.weapon) : explicit.weapon;
+        _apply(13 + 4 * explicitTwin, explicitWeapon || EMPTY_SLOT);
+        var explicitCharms = explicit.charms || [EMPTY_SLOT, EMPTY_SLOT];
+        var requested0 = explicitCharms[0] || EMPTY_SLOT;
+        var requested1 = explicitCharms[1] || EMPTY_SLOT;
+        if (requested0.key === requested1.key && requested0.key === 'NjTr7') requested1 = EMPTY_SLOT;
+        if (requested0.key === requested1.key && !requested0._empty && !hasCharmedPerk) requested1 = EMPTY_SLOT;
+        var actual0 = requested0._empty ? requested0 : !_canEquipCharm(requested0) ? EMPTY_SLOT : _take(requested0);
+        _markEquipped(actual0);
+        var actual1 = requested1._empty ? requested1 : !_canEquipCharm(requested1) ? EMPTY_SLOT : _take(requested1);
+        _markEquipped(actual1);
+        _applyCharmPair(explicitTwin, actual0 || EMPTY_SLOT, actual1 || EMPTY_SLOT, true);
+      }
+    } else {
     // Assign main twin — respecting remaining inventory + equip rules
     var mi = loadout.main;
-    if (loadout.mainWeapon && !loadout.mainWeapon._empty) {
-      if ((remaining[loadout.mainWeapon.key] || 0) > 0) {
-        remaining[loadout.mainWeapon.key]--;
-        _apply(13 + 4 * mi, loadout.mainWeapon);
-      }
-    }
+    var mainWeapon = loadout.mainWeaponType != null
+      ? _takeBestWeapon(loadout.mainWeaponType)
+      : _take(loadout.mainWeapon);
+    if (mainWeapon && !mainWeapon._empty) _apply(13 + 4 * mi, mainWeapon);
     if (loadout.mainCharms) {
       var mc0 = loadout.mainCharms[0], mc1 = loadout.mainCharms[1];
       // Check availability + equip rules sequentially
-      if (mc0 && !mc0._empty && (remaining[mc0.key] || 0) > 0 && _canEquipCharm(mc0)) {
-        remaining[mc0.key]--;
+      if (mc0 && !mc0._empty && _remainingCount(mc0) > 0 && _canEquipCharm(mc0)) {
+        mc0 = _take(mc0);
         _markEquipped(mc0);
       } else {
         mc0 = EMPTY_SLOT;
       }
-      if (mc1 && !mc1._empty && (remaining[mc1.key] || 0) > 0 && _canEquipCharm(mc1)) {
-        remaining[mc1.key]--;
+      if (mc1 && !mc1._empty && _remainingCount(mc1) > 0 && _canEquipCharm(mc1)) {
+        mc1 = _take(mc1);
         _markEquipped(mc1);
       } else {
         mc1 = EMPTY_SLOT;
       }
-      _applyCharmPair(mi, mc0, mc1);
+      _applyCharmPair(mi, mc0, mc1, loadout.mainOrder === 'fixed');
     }
 
     // Build sorted support twin list: best symbol levels + sneak level first.
     // Higher-priority twins get better charms.
     var supportList = [];
-    for (var sp = 0; sp < TWIN_COUNT; sp++) {
-      if (sp === mi || !nd[sp]) continue;
+    for (var sp = 0; sp < _playerCount(); sp++) {
+      if (sp === mi || !nd[sp] || !isTwinUntied(sp, nd)) continue;
       var sym0p = Number(symLevels[_symLVID(14 + 4 * sp)]) || 0;
       var sym1p = Number(symLevels[_symLVID(15 + 4 * sp)]) || 0;
       var sneakLvP = Number((saveData.lv0AllData || [])[sp] && saveData.lv0AllData[sp][17]) || 0;
@@ -571,11 +806,10 @@ function _simulateLoadout(loadout, pool) {
       for (var si = 0; si < supportList.length; si++) {
         var st = supportList[si].idx;
         // Assign weapon if available
-        var supWpn = loadout.supportTiers[0].weapon || loadout.supportWeapon;
-        if (supWpn && !supWpn._empty && (remaining[supWpn.key] || 0) > 0) {
-          remaining[supWpn.key]--;
-          _apply(13 + 4 * st, supWpn);
-        }
+        var supWpn = loadout.supportWeaponType != null
+          ? _takeBestWeapon(loadout.supportWeaponType)
+          : _take(loadout.supportTiers[0].weapon || loadout.supportWeapon);
+        if (supWpn && !supWpn._empty) _apply(13 + 4 * st, supWpn);
         var assigned = false;
         for (var ti = 0; ti < loadout.supportTiers.length; ti++) {
           var tier = loadout.supportTiers[ti];
@@ -590,15 +824,20 @@ function _simulateLoadout(loadout, pool) {
             if (ch && !ch._empty) {
               if (!_canEquipCharm(ch)) { canUse = false; break; }
               need[ch.key] = (need[ch.key] || 0) + 1;
-              if ((remaining[ch.key] || 0) < need[ch.key]) { canUse = false; break; }
+              if (ch.key === 'NjTr7' && need[ch.key] > 1) { canUse = false; break; }
+              if ((remaining[ch.key] || []).length < need[ch.key]) { canUse = false; break; }
             }
           }
           if (canUse) {
-            // Consume copies, mark equipped, and assign
-            for (var ck in need) remaining[ck] -= need[ck];
-            for (var ci2 = 0; ci2 < tier.charms.length; ci2++) _markEquipped(tier.charms[ci2]);
-            _applyCharmPair(st, tier.charms[0], tier.charms[1]);
-            if (tier.weapon) _apply(13 + 4 * st, tier.weapon);
+            // Consume exact copies, mark equipped, and assign.
+            var actualCharms = [];
+            for (var ci2 = 0; ci2 < tier.charms.length; ci2++) {
+              var requestedCharm = tier.charms[ci2];
+              var actualCharm = requestedCharm && !requestedCharm._empty ? _take(requestedCharm) : requestedCharm;
+              actualCharms.push(actualCharm || EMPTY_SLOT);
+              _markEquipped(actualCharm);
+            }
+            _applyCharmPair(st, actualCharms[0], actualCharms[1], tier.preserveOrder);
             tierUsed[ti]++;
             assigned = true;
             break;
@@ -618,34 +857,35 @@ function _simulateLoadout(loadout, pool) {
         var st = supportList[si].idx;
         if (equipped < maxSupport) {
           // Weapon — check remaining
-          var uWpn = loadout.supportWeapon;
-          if (uWpn && !uWpn._empty && (remaining[uWpn.key] || 0) > 0) {
-            remaining[uWpn.key]--;
-            _apply(13 + 4 * st, uWpn);
-          }
+          var uWpn = loadout.supportWeaponType != null
+            ? _takeBestWeapon(loadout.supportWeaponType)
+            : _take(loadout.supportWeapon);
+          if (uWpn && !uWpn._empty) _apply(13 + 4 * st, uWpn);
           // Charms — check remaining + equip rules for each
           if (loadout.supportCharms) {
             var uc0 = loadout.supportCharms[0], uc1 = loadout.supportCharms[1];
-            if (uc0 && !uc0._empty && (remaining[uc0.key] || 0) > 0 && _canEquipCharm(uc0)) {
-              remaining[uc0.key]--;
+            if (uc0 && !uc0._empty && _remainingCount(uc0) > 0 && _canEquipCharm(uc0)) {
+              uc0 = _take(uc0);
               _markEquipped(uc0);
             } else { uc0 = EMPTY_SLOT; }
-            if (uc1 && !uc1._empty && (remaining[uc1.key] || 0) > 0 && _canEquipCharm(uc1)) {
-              remaining[uc1.key]--;
+            if (uc1 && !uc1._empty && _remainingCount(uc1) > 0 && _canEquipCharm(uc1)) {
+              uc1 = _take(uc1);
               _markEquipped(uc1);
             } else { uc1 = EMPTY_SLOT; }
-            _applyCharmPair(st, uc0, uc1);
+            _applyCharmPair(st, uc0, uc1, loadout.supportOrder === 'fixed');
           }
           equipped++;
         }
       }
     }
+    }
 
     // Recompute twin stats with modified ninjaData
     var result = [];
     var twinData = parseTwinData(nd);
-    for (var t = 0; t < TWIN_COUNT; t++) {
+    for (var t = 0; t < _playerCount(); t++) {
       if (!twinData[t]) continue;
+      if (!isTwinUntied(t, nd)) continue;
       var equip = parseTwinEquip(nd, t);
       var detailed = computeCoreStealthDetailed(t, saveData, aci);
       var cm = detailed.charmMap;
@@ -653,19 +893,24 @@ function _simulateLoadout(loadout, pool) {
         idx: t,
         name: _charName(t),
         floor: twinData[t].floor,
+        actionProgress: twinData[t].stealth,
         sneakLv: Number((saveData.lv0AllData || [])[t] && saveData.lv0AllData[t][17]) || 0,
         equip: equip,
         coreStealth: detailed.baseStealth * detailed.coreMulti,
         actionSpd: computeActionSpeed(t, saveData, aci),
+        actionSpdTogether: computeActionSpeed(t, saveData, aci, { isSolo: false }),
         dodgePct: cm[0] || 0,
         koPct: cm[1] || 0,
         itemFindPct: cm[5] || 0,
         charmMap: cm,
-        dmgPct: 0,
+        door: computeDoorDamageDetailed(t, saveData, aci),
+        untie: computeUntieProgressDetailed(t, saveData, aci),
+        weaponSubtype: Number(NjEQ[equip[1]?.name]?.[1]) || 0,
       });
     }
     result.bestActiveChar = { charIdx: aci };
     result.activeCharIdx = aci;
+    result._assignments = Object.keys(assignments).map(function(key) { return assignments[key]; });
 
     // Compute ally contributions with modified equipment
     var allyContribs = getTwinAllyContributions(saveData, aci);
@@ -683,20 +928,19 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
   if (mode === 'current') return [];
 
   var configs = [];
-  var thundergloves = _bestWeapon(pool, 0);
-  var nunchaku = _bestWeapon(pool, 1);
-  var mainWeapon = (mode === 'door' && nunchaku) ? nunchaku : thundergloves;
-  var supportWeapon = thundergloves;
+  var weaponType = mode === 'door' ? 1 : mode === 'untie' ? 2 : 0;
+  var hasCharmedPerk = emporiumBonus(3, _nd()[102] && _nd()[102][9]) === 1;
 
   // Collect distinct charm types: best level of each bonusType
   var typeMap = {};
   if (useAllItems) {
     // Only test bonusTypes relevant to the current mode (avoids combinatorial explosion)
     var RELEVANT = {
-      jade:     {2:1, 4:1, 6:1, 7:1, 8:1, 14:1, 15:1, 16:1, 17:1},
+      jade:     {0:1, 1:1, 2:1, 4:1, 6:1, 7:1, 8:1, 14:1, 15:1, 16:1, 17:1, 19:1},
       flower:   {0:1, 1:1, 2:1, 4:1, 7:1, 8:1, 16:1, 17:1},
-      itemfind: {2:1, 4:1, 5:1, 7:1, 8:1, 16:1, 17:1},
-      door:     {2:1, 4:1, 7:1, 8:1, 16:1, 17:1},
+      itemfind: {0:1, 1:1, 2:1, 4:1, 5:1, 7:1, 8:1, 16:1, 17:1},
+      door:     {0:1, 1:1, 2:1, 4:1, 7:1, 8:1, 16:1, 17:1},
+      untie:    {0:1, 1:1, 2:1, 4:1, 7:1, 8:1, 16:1, 17:1},
     };
     var rel = RELEVANT[mode] || {};
     // All charm types at max obtainable level
@@ -707,14 +951,14 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
       if (nm.indexOf('Gold ') !== -1) continue;
       var bt = Number(eq[1]) || 0;
       if (!rel[bt]) continue; // skip types irrelevant to this mode
-      if (!typeMap[bt] || (maxCharmLv || 0) > (typeMap[bt].level || 0))
-        typeMap[bt] = { key: key, name: nm, level: Math.round(maxCharmLv) || 1, type: 2, bonusType: bt };
+      var synthetic = { key: key, name: nm, level: Math.round(maxCharmLv) || 1, type: 2, bonusType: bt };
+      if (!typeMap[bt] || charmStat(synthetic.key, synthetic.level) > charmStat(typeMap[bt].key, typeMap[bt].level)) typeMap[bt] = synthetic;
     }
   } else {
     for (var p = 0; p < pool.length; p++) {
       if (pool[p].type !== 2) continue;
       var bt2 = pool[p].bonusType;
-      if (!typeMap[bt2] || pool[p].level > typeMap[bt2].level) typeMap[bt2] = pool[p];
+      if (!typeMap[bt2] || charmStat(pool[p].key, pool[p].level) > charmStat(typeMap[bt2].key, typeMap[bt2].level)) typeMap[bt2] = pool[p];
     }
   }
 
@@ -731,10 +975,12 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
   var n = options.length;
   for (var mi = 0; mi < n; mi++) {
     for (var mj = mi; mj < n; mj++) {
+      if (!canEquipCharmPair(options[mi].item, options[mj].item, hasCharmedPerk)) continue;
       var mc0 = options[mi].item, mc1 = options[mj].item;
       var mLabel = _ab(mi) + '+' + _ab(mj);
       for (var si = 0; si < n; si++) {
         for (var sj = si; sj < n; sj++) {
+          if (!canEquipCharmPair(options[si].item, options[sj].item, hasCharmedPerk)) continue;
           var sc0 = options[si].item, sc1 = options[sj].item;
           var sLabel = _ab(si) + '+' + _ab(sj);
 
@@ -755,10 +1001,11 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
           tiers.push({ charms: [EMPTY_SLOT, EMPTY_SLOT] });
 
           configs.push({
+            id: configs.length,
             label: mLabel + ' / ' + sLabel,
             loadout: {
-              main: mainIdx, mainWeapon: mainWeapon, mainCharms: [mc0, mc1],
-              supportWeapon: supportWeapon, supportTiers: tiers,
+              main: mainIdx, mainWeaponType: weaponType, mainCharms: [mc0, mc1],
+              supportWeaponType: weaponType, supportTiers: tiers,
             }
           });
         }
@@ -787,9 +1034,24 @@ function _renderAllInner() {
   var invCharms = parseInventoryCharms(nd);
   var bestInv = bestInventoryBonuses(nd);
   var h = '';
+  var workspaceTab = window._sneakWorkspaceTab || 'loadout';
+  var workspaceTabs = [['loadout','Loadout'],['breakdowns','Breakdowns'],['optimizer','Optimizer']];
+  if (!workspaceTabs.some(function(tab) { return tab[0] === workspaceTab; })) workspaceTab = 'loadout';
+  window._sneakWorkspaceTab = workspaceTab;
 
-  // ==================== SECTION 1+2: LOADOUT + INVENTORY side by side ====================
-  h += '<div class="sneak-top">';
+  h += '<div class="workspace-tabs" role="tablist" aria-label="Sneaking views">';
+  for (var workspaceIdx = 0; workspaceIdx < workspaceTabs.length; workspaceIdx++) {
+    var workspace = workspaceTabs[workspaceIdx];
+    var workspaceActive = workspace[0] === workspaceTab;
+    h += '<button type="button" id="workspace-tab-' + workspace[0] + '" class="workspace-tab' + (workspaceActive ? ' active' : '')
+      + '" data-workspace-tab="' + workspace[0] + '" role="tab" aria-selected="' + workspaceActive
+      + '" tabindex="' + (workspaceActive ? '0' : '-1') + '" aria-controls="workspace-panel-' + workspace[0] + '">' + workspace[1] + '</button>';
+  }
+  h += '</div>';
+
+  // ==================== LOADOUT VIEW ====================
+  h += '<div id="workspace-panel-loadout" class="workspace-panel' + (workspaceTab === 'loadout' ? ' active' : '')
+    + '" data-workspace-panel="loadout" role="tabpanel" aria-labelledby="workspace-tab-loadout">';
 
   // --- level-based background color ---
   function _lvBg(level) {
@@ -912,7 +1174,7 @@ function _renderAllInner() {
 
   h += '</div>';
 
-  // ==================== SECTION 2: INVENTORY ====================
+  // ==================== INVENTORY (LOADOUT VIEW) ====================
   h += '<div class="section inv-section">';
   h += '<h2 class="loadout-title">&laquo; INVENTORY &raquo;</h2>';
 
@@ -928,7 +1190,7 @@ function _renderAllInner() {
       : item.type === 0 ? 'Hat' : item.type === 1 ? 'Weapon' : 'Unknown equipment type';
     var statStr = item.stat != null ? item.stat.toFixed(1) : '';
     var bgStyle = symLv ? '' : _lvBg(item.level);
-    var s = '<div class="' + cls + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + '>';
+    var s = '<button type="button" class="' + cls + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + ' aria-label="' + item.name + ', level ' + item.level + ', ' + typeLabel + '">';
     s += '<span class="is-tip">' + item.name + '<br>Lv ' + _fmt(item.level);
     if (statStr) s += ' &bull; <span style="color:var(--cyan);">' + statStr + '</span>';
     if (symLv > 0) s += '<br><span style="color:' + SYM_COLORS[symLv] + ';">Slot Lv ' + symLv + '</span>';
@@ -937,12 +1199,12 @@ function _renderAllInner() {
     s += '<span class="is-lv">+' + _fmt(item.level) + '</span>';
     s += '<span class="is-name">' + item.name + '</span>';
     s += _symDots(symLv, SYM_COLORS[symLv]);
-    s += '</div>';
+    s += '</button>';
     return s;
   }
 
   // Build a 40-slot grid (matching game inventory), filling empty slots
-  h += '<div class="inv-grid">';
+  h += '<div class="inv-grid-wrap"><div class="inv-grid">';
   var invBySlot = {};
   for (var ii = 0; ii < allInvItems.length; ii++) invBySlot[allInvItems[ii].slot] = allInvItems[ii];
   for (var sl = 0; sl < 39; sl++) {
@@ -956,18 +1218,62 @@ function _renderAllInner() {
       h += '<div class="' + ecls + '">' + _symDots(eslv, SYM_COLORS[eslv]) + '</div>';
     }
   }
-  h += '</div>';
+  h += '</div></div>';
 
   h += '</div>';
-  h += '</div>'; // close sneak-top
+  h += '</div>'; // close combined loadout workspace panel
 
-  // ==================== SECTION 3: MASTERY COMPARISON GRID ====================
+  // ==================== BREAKDOWNS VIEW ====================
+  h += '<div id="workspace-panel-breakdowns" class="workspace-panel' + (workspaceTab === 'breakdowns' ? ' active' : '')
+    + '" data-workspace-panel="breakdowns" role="tabpanel" aria-labelledby="workspace-tab-breakdowns">';
+  var breakdownTwin = Number(window._sneakBreakdownTwin);
+  if (!twins.some(function(candidate) { return candidate.idx === breakdownTwin; })) breakdownTwin = twins.length ? twins[0].idx : 0;
+  window._sneakBreakdownTwin = breakdownTwin;
+  var breakdownTab = window._sneakBreakdownTab || 'stealth';
+  h += '<div class="section" id="formula-breakdowns"><h2>Formula Breakdown</h2>';
+  h += '<div class="formula-controls"><label for="sneak-breakdown-twin">Twin</label><select id="sneak-breakdown-twin">';
+  for (var breakdownIdx = 0; breakdownIdx < twins.length; breakdownIdx++) {
+    var breakdownCandidate = twins[breakdownIdx];
+    h += '<option value="' + breakdownCandidate.idx + '"' + (breakdownCandidate.idx === breakdownTwin ? ' selected' : '') + '>'
+      + breakdownCandidate.name + ' (F' + breakdownCandidate.floor + ')</option>';
+  }
+  h += '</select><span>Uses the selected login context and current loadout.</span></div>';
+  h += '<div class="formula-tabs" role="tablist" aria-label="Formula breakdowns">';
+  var formulaTabs = [['stealth','Stealth'],['jade','Jade'],['door','Door'],['runtime','Runtime']];
+  for (var formulaTabIdx = 0; formulaTabIdx < formulaTabs.length; formulaTabIdx++) {
+    var formulaTab = formulaTabs[formulaTabIdx];
+    h += '<button type="button" id="formula-tab-' + formulaTab[0] + '" role="tab" aria-selected="' + (breakdownTab === formulaTab[0])
+      + '" aria-controls="formula-panel-' + formulaTab[0] + '" tabindex="' + (breakdownTab === formulaTab[0] ? '0' : '-1')
+      + '" class="formula-tab' + (breakdownTab === formulaTab[0] ? ' active' : '') + '" data-formula-tab="' + formulaTab[0] + '">' + formulaTab[1] + '</button>';
+  }
+  h += '</div>';
+  h += '<div id="formula-panel-stealth" role="tabpanel" aria-labelledby="formula-tab-stealth" class="formula-panel' + (breakdownTab === 'stealth' ? ' active' : '') + '" data-formula-panel="stealth"><div id="sneak-stealth-tree"></div></div>';
+  h += '<div id="formula-panel-jade" role="tabpanel" aria-labelledby="formula-tab-jade" class="formula-panel' + (breakdownTab === 'jade' ? ' active' : '') + '" data-formula-panel="jade"><div id="sneak-jade-tree"></div></div>';
+  h += '<div id="formula-panel-door" role="tabpanel" aria-labelledby="formula-tab-door" class="formula-panel' + (breakdownTab === 'door' ? ' active' : '') + '" data-formula-panel="door"><div id="sneak-door-tree"></div></div>';
+  h += '<div id="formula-panel-runtime" role="tabpanel" aria-labelledby="formula-tab-runtime" class="formula-panel' + (breakdownTab === 'runtime' ? ' active' : '') + '" data-formula-panel="runtime"><div id="sneak-runtime-tree"></div></div>';
+  h += '</div>';
+  h += '</div>'; // close breakdowns workspace panel
+
+  // ==================== OPTIMIZER VIEW ====================
+  h += '<div id="workspace-panel-optimizer" class="workspace-panel' + (workspaceTab === 'optimizer' ? ' active' : '')
+    + '" data-workspace-panel="optimizer" role="tabpanel" aria-labelledby="workspace-tab-optimizer">';
   h += '<div class="section"><h2>Floor &times; Mastery</h2>';
 
   // Mode selector (static — stays across grid rebuilds)
   var curMode = window._sneakMode || 'current';
+  h += '<div class="scenario-strip">';
+  h += '<span class="scenario-chip">Login context: <strong>' + _charName(twins.activeCharIdx) + '</strong></span>';
+  h += '<span class="scenario-chip">Placement: <strong>all active twins on row floor</strong></span>';
+  h += '<span class="scenario-chip">Future mastery: <strong>' + (_projectionFlowers() === 'fresh' ? 'fresh reset' : 'rebuilt flowers') + '</strong></span>';
+  h += '<span class="scenario-chip">Item batch: <strong>' + _itemBatchHours() + 'h</strong></span>';
+  h += '<span class="scenario-chip">Flowers: <strong>' + (_flowerMode() === 'online' ? 'online runtime' : _flowerBatchHours() + 'h offline batches') + '</strong></span>';
+  h += '<span class="scenario-chip expected">Taunting Mark: expected model</span>';
+  if (saveData.companionDataAvailable === false || saveData.activeVoteDataAvailable === false) {
+    h += '<span class="scenario-chip partial">Partial save metadata</span>';
+  } else h += '<span class="scenario-chip">Save metadata: complete</span>';
+  h += '</div>';
   h += '<div class="mode-selector" style="display:flex;gap:4px;margin-bottom:6px;">';
-  var modeKeys = ['current', 'jade', 'flower', 'itemfind', 'door'];
+  var modeKeys = ['current', 'jade', 'flower', 'itemfind', 'door', 'untie'];
   for (var mk = 0; mk < modeKeys.length; mk++) {
     var mkey = modeKeys[mk];
     var md = OPT_MODES[mkey];
@@ -979,15 +1285,33 @@ function _renderAllInner() {
   // "All items" checkbox (visibility toggled by JS when mode changes)
   var allItemsChecked = !!(window._sneakAllItems && curMode !== 'current');
   h += '<label id="all-items-label" style="display:' + (curMode !== 'current' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin-bottom:6px;cursor:pointer;">';
-  h += '<input type="checkbox" id="all-items-chk"' + (allItemsChecked ? ' checked' : '') + ' style="cursor:pointer;"> Test all charm types at max level';
+  h += '<input type="checkbox" id="all-items-chk"' + (allItemsChecked ? ' checked' : '') + ' style="cursor:pointer;"> Future gear sandbox';
   h += '</label>';
+  h += '<label id="sandbox-copies-label" style="display:' + (allItemsChecked ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 6px;">Synthetic copies/item';
+  h += '<input id="sandbox-copies" type="number" min="1" max="24" value="' + _sandboxCopies() + '" style="width:48px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"></label>';
+  h += '<label id="deep-refine-label" style="display:' + (curMode !== 'current' && !allItemsChecked ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 8px;cursor:pointer;" data-tip="Slow copy-conserving coordinate descent that allows different charm pairs on every twin">';
+  h += '<input type="checkbox" id="deep-refine-chk"' + (_deepRefinement() ? ' checked' : '') + '> Deep heterogeneous refinement</label>';
+  var currentMasteryOnly = !!window._sneakCurrentMasteryOnly;
+  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;cursor:pointer;">';
+  h += '<input type="checkbox" id="current-mastery-only-chk"' + (currentMasteryOnly ? ' checked' : '') + ' style="cursor:pointer;"> Current mastery only';
+  h += '</label>';
+  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Future mastery flowers';
+  h += '<select id="projection-flowers" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;">';
+  h += '<option value="fresh"' + (_projectionFlowers() === 'fresh' ? ' selected' : '') + '>Fresh reset (0)</option>';
+  h += '<option value="rebuilt"' + (_projectionFlowers() === 'rebuilt' ? ' selected' : '') + '>Rebuild current stack</option></select></label>';
+  h += '<label id="item-batch-label" style="display:' + (curMode === 'itemfind' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Item claim batch';
+  h += '<input id="item-batch-hours" type="number" min="0.01" step="0.25" value="' + _itemBatchHours() + '" style="width:64px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"> hours</label>';
+  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Flower model<select id="flower-mode" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"><option value="online"' + (_flowerMode() === 'online' ? ' selected' : '') + '>Online runtime</option><option value="offline"' + (_flowerMode() === 'offline' ? ' selected' : '') + '>Offline batches</option></select></label>';
+  h += '<label id="flower-batch-label" style="display:' + (_flowerMode() === 'offline' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 6px;">Offline claim<input id="flower-batch-hours" type="number" min="0.01" step="1" value="' + _flowerBatchHours() + '" style="width:58px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"> hours</label>';
 
   // Grid table container — only this part is rebuilt by _renderGrid()
   h += '<div id="grid-content"></div>';
   h += '</div>'; // close section
+  h += '</div>'; // close optimizer workspace panel
 
   var _prevScroll = window.scrollY;
   el.innerHTML = h;
+  _prepareAccessibleTooltips(el);
   window.scrollTo(0, _prevScroll);
 
   // Wire up event listeners only once (avoid duplicates on re-render)
@@ -995,7 +1319,38 @@ function _renderAllInner() {
     el._eventsWired = true;
 
     el.addEventListener('click', function(e) {
-      // Mode selector click
+      var workspaceBtn = e.target.closest('.workspace-tab');
+      if (workspaceBtn) {
+        var workspaceName = workspaceBtn.getAttribute('data-workspace-tab');
+        window._sneakWorkspaceTab = workspaceName;
+        el.querySelectorAll('.workspace-tab').forEach(function(tabButton) {
+          var active = tabButton.getAttribute('data-workspace-tab') === workspaceName;
+          tabButton.classList.toggle('active', active);
+          tabButton.setAttribute('aria-selected', String(active));
+          tabButton.tabIndex = active ? 0 : -1;
+        });
+        el.querySelectorAll('.workspace-panel').forEach(function(panel) {
+          panel.classList.toggle('active', panel.getAttribute('data-workspace-panel') === workspaceName);
+        });
+        return;
+      }
+
+      var formulaBtn = e.target.closest('.formula-tab');
+      if (formulaBtn) {
+        var formulaName = formulaBtn.getAttribute('data-formula-tab');
+        window._sneakBreakdownTab = formulaName;
+        el.querySelectorAll('.formula-tab').forEach(function(tabButton) {
+          var active = tabButton.getAttribute('data-formula-tab') === formulaName;
+          tabButton.classList.toggle('active', active);
+          tabButton.setAttribute('aria-selected', String(active));
+          tabButton.tabIndex = active ? 0 : -1;
+        });
+        el.querySelectorAll('.formula-panel').forEach(function(panel) {
+          panel.classList.toggle('active', panel.getAttribute('data-formula-panel') === formulaName);
+        });
+        return;
+      }
+
       var btn = e.target.closest('.mode-btn');
       if (btn) {
         var newMode = btn.getAttribute('data-mode');
@@ -1013,6 +1368,10 @@ function _renderAllInner() {
           // Toggle all-items label visibility
           var lbl = document.getElementById('all-items-label');
           if (lbl) lbl.style.display = newMode !== 'current' ? 'inline-flex' : 'none';
+          var batchLabel = document.getElementById('item-batch-label');
+          if (batchLabel) batchLabel.style.display = newMode === 'itemfind' ? 'inline-flex' : 'none';
+          var deepLabel = document.getElementById('deep-refine-label');
+          if (deepLabel) deepLabel.style.display = newMode !== 'current' && !window._sneakAllItems ? 'inline-flex' : 'none';
           _renderGrid();
         }
         return;
@@ -1021,6 +1380,16 @@ function _renderAllInner() {
       // "All items" checkbox
       if (e.target.id === 'all-items-chk') {
         window._sneakAllItems = e.target.checked;
+        var copiesLabel = document.getElementById('sandbox-copies-label');
+        if (copiesLabel) copiesLabel.style.display = e.target.checked ? 'inline-flex' : 'none';
+        var deepLabel = document.getElementById('deep-refine-label');
+        if (deepLabel) deepLabel.style.display = e.target.checked ? 'none' : 'inline-flex';
+        _renderGrid();
+        return;
+      }
+
+      if (e.target.id === 'current-mastery-only-chk') {
+        window._sneakCurrentMasteryOnly = e.target.checked;
         _renderGrid();
         return;
       }
@@ -1031,21 +1400,95 @@ function _renderAllInner() {
       var detail = document.getElementById('detail-' + id);
       if (!detail) return;
       document.querySelectorAll('.mg-detail.open').forEach(function(d) {
-        if (d !== detail) d.classList.remove('open');
+        if (d !== detail) {
+          d.classList.remove('open');
+          var previousRow = d.previousElementSibling;
+          if (previousRow && previousRow.classList.contains('mg-row')) previousRow.setAttribute('aria-expanded', 'false');
+        }
       });
       detail.classList.toggle('open');
+      row.setAttribute('aria-expanded', String(detail.classList.contains('open')));
     });
 
     el.addEventListener('change', function(e) {
-      if (e.target.id !== 'sneak-login-char') return;
-      window._sneakLoginChar = Number(e.target.value);
-      _invalidateGridCache();
-      _renderAll();
+      if (e.target.id === 'sneak-login-char') {
+        window._sneakLoginChar = Number(e.target.value);
+        _invalidateGridCache();
+        _renderAll();
+        return;
+      }
+      if (e.target.id === 'sneak-breakdown-twin') {
+        window._sneakBreakdownTwin = Number(e.target.value);
+        _renderFormulaBreakdowns(_getActiveTwins());
+        return;
+      }
+      if (e.target.id === 'projection-flowers') {
+        window._sneakProjectionFlowers = e.target.value;
+        _invalidateGridCache();
+        _renderGrid();
+        return;
+      }
+      if (e.target.id === 'item-batch-hours') {
+        window._sneakItemBatchHours = Math.max(0.01, Number(e.target.value) || 1);
+        _invalidateGridCache();
+        _renderGrid();
+        return;
+      }
+      if (e.target.id === 'sandbox-copies') {
+        window._sneakSandboxCopies = Math.max(1, Math.min(24, Math.floor(Number(e.target.value) || 24)));
+        _invalidateGridCache();
+        _renderGrid();
+        return;
+      }
+      if (e.target.id === 'deep-refine-chk') {
+        window._sneakDeepRefinement = e.target.checked;
+        _invalidateGridCache();
+        _renderGrid();
+        return;
+      }
+      if (e.target.id === 'flower-mode') {
+        window._sneakFlowerMode = e.target.value;
+        var flowerBatch = document.getElementById('flower-batch-label');
+        if (flowerBatch) flowerBatch.style.display = e.target.value === 'offline' ? 'inline-flex' : 'none';
+        _invalidateGridCache();
+        _renderGrid();
+        return;
+      }
+      if (e.target.id === 'flower-batch-hours') {
+        window._sneakFlowerBatchHours = Math.max(0.01, Number(e.target.value) || 8);
+        _invalidateGridCache();
+        _renderGrid();
+      }
+    });
+
+    el.addEventListener('keydown', function(e) {
+      var tab = e.target.closest('.workspace-tab, .formula-tab');
+      if (!tab || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')) return;
+      var selector = tab.classList.contains('workspace-tab') ? '.workspace-tab' : '.formula-tab';
+      var tabs = Array.from(el.querySelectorAll(selector));
+      var index = tabs.indexOf(tab);
+      var nextIndex = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+        : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      e.preventDefault();
+      tabs[nextIndex].focus();
+      tabs[nextIndex].click();
+    });
+
+    el.addEventListener('keydown', function(e) {
+      var row = e.target.closest('.mg-row');
+      if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      row.click();
+    });
+
+    el.addEventListener('click', function(e) {
+      var slot = e.target.closest('.inv-slot');
+      if (!slot || slot.classList.contains('empty')) return;
+      slot.classList.toggle('tip-open');
     });
 
     // Position fixed tooltips on hover, hide on mouseout
-    el.addEventListener('mouseover', function(e) {
-      var cell = e.target.closest('.col-0pct');
+    function showThresholdTooltip(cell) {
       if (!cell) return;
       var tt = cell.querySelector('.tt');
       if (!tt) return;
@@ -1058,23 +1501,199 @@ function _renderAllInner() {
       if (top < 0) top = rect.bottom + 4;
       tt.style.left = Math.min(rect.left, window.innerWidth - tt.offsetWidth - 8) + 'px';
       tt.style.top = top + 'px';
+    }
+    function hideThresholdTooltip(cell) {
+      if (!cell) return;
+      var tt = cell.querySelector('.tt');
+      if (tt) tt.style.display = 'none';
+    }
+    el.addEventListener('mouseover', function(e) {
+      showThresholdTooltip(e.target.closest('.col-0pct'));
     });
     el.addEventListener('mouseout', function(e) {
       var cell = e.target.closest('.col-0pct');
       if (!cell) return;
       if (cell.contains(e.relatedTarget)) return;
-      var tt = cell.querySelector('.tt');
-      if (tt) tt.style.display = 'none';
+      hideThresholdTooltip(cell);
+    });
+    el.addEventListener('focusin', function(e) {
+      showThresholdTooltip(e.target.closest('.col-0pct'));
+    });
+    el.addEventListener('focusout', function(e) {
+      hideThresholdTooltip(e.target.closest('.col-0pct'));
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') hideThresholdTooltip(e.target.closest('.col-0pct'));
     });
   }
 
   // Initial grid render
+  _renderFormulaBreakdowns(twins);
   _renderGrid();
+}
+
+function _renderFormulaBreakdowns(twins) {
+  if (!twins || twins.length === 0) return;
+  var selectedIdx = Number(window._sneakBreakdownTwin);
+  var selected = null;
+  for (var i = 0; i < twins.length; i++) {
+    if (twins[i].idx === selectedIdx) { selected = twins[i]; break; }
+  }
+  if (!selected) selected = twins[0];
+  window._sneakBreakdownTwin = selected.idx;
+
+  var floors = [];
+  for (var floorIdx = 0; floorIdx < _playerCount(); floorIdx++) {
+    floors[floorIdx] = Number(_nd()[floorIdx] && _nd()[floorIdx][0]) || 0;
+  }
+  var activeCharIdx = twins.activeCharIdx != null ? twins.activeCharIdx : _loginContextIdx(0);
+  var koTime = koDuration(_nkLvs(), selected.koPct);
+  var selectedDoor = doorState(selected.floor, _mastery(), _masteryMax(), _mastery(), _nd());
+  var jadeOptions = {
+    activeCharIdx: activeCharIdx,
+    floor: selected.floor,
+    mastery: _mastery(),
+    twinFloors: floors,
+    detection: detectionChance(selected.stealth, selected.floor, _mastery()),
+    actionSpeed: selected.actionSpd,
+    koTime: koTime,
+    dodgePct: selected.dodgePct,
+    charmBonuses: selected.charmMap,
+  };
+  var floorTwins = twins.filter(function(twin) { return twin.floor === selected.floor; });
+  var floorRates = computeTeamDoorRates(floorTwins.map(function(twin) {
+    return {
+      actionSpeed: twin.actionSpd,
+      detection: detectionChance(twin.stealth, twin.floor, _mastery()),
+      koTime: koDuration(_nkLvs(), twin.koPct),
+      dodgePct: twin.dodgePct,
+      taunting: (twin.charmMap[1] || 0) > 0,
+    };
+  }));
+  var selectedTeamRate = null;
+  for (var rateIdx = 0; rateIdx < floorTwins.length; rateIdx++) {
+    if (floorTwins[rateIdx].idx === selected.idx) selectedTeamRate = floorRates[rateIdx];
+  }
+
+  resetTreeCounter();
+  renderBreakdownTree(toRenderNode(buildStealthBreakdown(selected.idx, selected.floor, floors, saveData, activeCharIdx)), document.getElementById('sneak-stealth-tree'), { tooltipId: 'bt-tooltip' });
+  renderBreakdownTree(toRenderNode(buildJadeBreakdown(selected.idx, saveData, jadeOptions)), document.getElementById('sneak-jade-tree'), { tooltipId: 'bt-tooltip' });
+  renderBreakdownTree(toRenderNode(buildDoorRateBreakdown(selected.idx, saveData, {
+    activeCharIdx: activeCharIdx,
+    actionSpeed: selected.actionSpd,
+    detection: jadeOptions.detection,
+    koTime: koTime,
+    dodgePct: selected.dodgePct,
+    doorActive: selectedDoor.active,
+    teamRate: selectedTeamRate,
+  })), document.getElementById('sneak-door-tree'), { tooltipId: 'bt-tooltip' });
+  var runtimeScenario = computeSneakingTeamScenario(floorTwins.map(function(twin) {
+    return {
+      idx: twin.idx,
+      actionSpeed: twin.actionSpd,
+      detection: detectionChance(twin.stealth, twin.floor, _mastery()),
+      koTime: koDuration(_nkLvs(), twin.koPct),
+      dodgePct: twin.dodgePct,
+      taunting: (twin.charmMap[1] || 0) > 0,
+      actionProgress: twin.actionProgress,
+      stealth: twin.stealth,
+      itemFindPct: twin.itemFindPct,
+      charmBonuses: twin.charmMap,
+      weaponSubtype: twin.weaponSubtype,
+      doorDamage: twin.door,
+      untieProgress: twin.untie,
+      isSolo: soloMultiplier(14, twin.idx, _nd(), _playerCount()) > 1,
+    };
+  }), saveData, {
+    activeCharIdx: activeCharIdx,
+    floor: selected.floor,
+    mastery: _mastery(),
+    doorActive: selectedDoor.active,
+    ninjaData: _nd(),
+    twinFloors: floors,
+    itemBatchHours: _itemBatchHours(),
+    bubbleY9Val: Number(bubbleValByKey('Y9ACTIVE', activeCharIdx, saveData)) || 1,
+    flowerMode: _flowerMode(),
+    flowerBatchHours: _flowerBatchHours(),
+    initialFlowers: Number(_flowers()[selected.floor]) || 0,
+    playerCount: _playerCount(),
+    doorMaxHP: selectedDoor.maxHP,
+    doorProgress: selectedDoor.progress,
+  });
+  var runtimeRowIdx = floorTwins.findIndex(function(twin) { return twin.idx === selected.idx; });
+  var runtimeRow = runtimeScenario.twins[runtimeRowIdx];
+  var runtimeTree = node(selected.name + ' Runtime', 0, [
+    node('Action Mode', 0, null, { fmt: 'raw', note: runtimeRow.mode }),
+    node('Runtime Attempts per Hour', runtimeRow.attemptsPerHour, null, { fmt: 'rate' }),
+    node('Successful Actions per Hour', runtimeRow.successfulActionsPerHour, null, { fmt: 'rate' }),
+    node(_flowerMode() === 'offline' ? 'Net Flowers per Hour' : 'Flowers per Hour', runtimeRow.flowersPerHour, null, {
+      fmt: 'rate',
+      note: runtimeScenario.offlineFlowerApproximate ? 'Bounded probability-state approximation' : 'Native-order probability states',
+    }),
+    node('Jade per Hour', runtimeRow.jadePerHour, [
+      node('Jade per Successful Action', runtimeRow.jadePerAction, null, { fmt: 'raw' }),
+      node('Game Display Jade per Hour', runtimeRow.gameDisplayJadePerHour, null, { fmt: 'raw', note: 'Native panel estimate; runtime value is the parent node' }),
+    ], { fmt: 'raw' }),
+    node('Expected Items per Hour', runtimeRow.itemsPerHour, null, {
+      fmt: 'rate',
+      note: _itemBatchHours() + ' hour successful-action batch'
+        + (runtimeScenario.itemBatchApproximate ? '; bounded probability-state approximation' : ''),
+    }),
+    node('Door Damage per Hour', runtimeRow.doorDamagePerHour, [
+      node('Damage per Hit', runtimeRow.doorDamagePerHit, null, { fmt: 'raw' }),
+      node('Door Hits per Hour', runtimeRow.doorHitsPerHour, null, { fmt: 'rate' }),
+    ], { fmt: 'raw' }),
+    node('Untie Progress per Hour', runtimeRow.untieProgressPerHour, [
+      node('Progress per Hit', runtimeRow.untieProgressPerHit, null, { fmt: 'raw' }),
+    ], { fmt: 'raw' }),
+    node('Taunting Mark Coupling', runtimeRow.coupled ? 1 : 0, null, { fmt: 'raw', note: runtimeRow.coupled ? 'Expected team-progress model' : 'Exact independent runtime formula' }),
+  ], { fmt: 'raw', note: 'Diagnostic root; child nodes use their own units under the saved floor and loadout' });
+  renderBreakdownTree(toRenderNode(runtimeTree), document.getElementById('sneak-runtime-tree'), { tooltipId: 'bt-tooltip' });
 }
 
 // ==================== GRID RENDERING (cached per mode) ====================
 var _gridCache = {}; // key: mode+':'+allItems → HTML string
-function _invalidateGridCache() { _gridCache = {}; }
+var _recommendationCache = {};
+var _gridRunToken = 0;
+function _invalidateGridCache() { _gridCache = {}; _recommendationCache = {}; _gridRunToken++; }
+function _yieldBrowser() { return new Promise(function(resolve) { setTimeout(resolve, 0); }); }
+
+function _objectiveComparisonHtml(useAllItems) {
+  var compareRows = [];
+  var comparable = [];
+  ['jade','flower','itemfind','door','untie'].forEach(function(mode) {
+    var cached = _recommendationCache[mode];
+    if (!cached || cached.mastery !== _mastery()
+      || cached.batchHours !== _itemBatchHours() || cached.projectionFlowers !== _projectionFlowers()
+      || cached.useAllItems !== useAllItems || cached.sandboxCopies !== _sandboxCopies()
+      || cached.deepRefinement !== _deepRefinement() || cached.flowerMode !== _flowerMode()
+      || cached.flowerBatchHours !== _flowerBatchHours()
+      || cached.currentMasteryOnly !== !!window._sneakCurrentMasteryOnly) return;
+    comparable.push({ mode: mode, cached: cached });
+    compareRows.push('<div class="move-row"><span>' + OPT_MODES[mode].label + '</span><span>Floor ' + cached.floor + '</span><span>'
+      + (cached.comparisonText || (cached.totalGain === Infinity ? 'new output vs saved' : (cached.totalGain >= 0 ? '+' : '') + cached.totalGain.toFixed(2) + '% vs saved')) + '</span></div>');
+  });
+  var frontier = comparable.filter(function(candidate) {
+    return !comparable.some(function(other) {
+      if (other === candidate) return false;
+      var atLeast = true;
+      var greater = false;
+      ['jade','flower','itemfind','door','untie'].forEach(function(metric) {
+        if (other.cached.outcomes[metric] < candidate.cached.outcomes[metric]) atLeast = false;
+        if (other.cached.outcomes[metric] > candidate.cached.outcomes[metric]) greater = true;
+      });
+      return atLeast && greater;
+    });
+  });
+  var frontierNames = frontier.map(function(row) { return OPT_MODES[row.mode].label; }).join(', ');
+  return compareRows.length ? '<div class="decision-card"><h3>Objective Comparison</h3><div class="decision-sub">Completed searches under the current assumptions. Nondominated frontier: '
+    + (frontierNames || 'none yet') + '.</div><div class="move-list">' + compareRows.join('') + '</div></div>' : '';
+}
+
+function _refreshObjectiveComparison(root, useAllItems) {
+  var slot = root && root.querySelector('[data-objective-comparison]');
+  if (slot) slot.innerHTML = _objectiveComparisonHtml(useAllItems);
+}
 
 function _renderGrid() {
   var gridEl = document.getElementById('grid-content');
@@ -1082,23 +1701,30 @@ function _renderGrid() {
 
   var curMode = window._sneakMode || 'current';
   var useAllItems = !!(window._sneakAllItems && curMode !== 'current');
-  var cacheKey = curMode + ':' + (useAllItems ? '1' : '0');
+  var currentMasteryOnly = !!window._sneakCurrentMasteryOnly;
+  var cacheKey = curMode + ':' + (useAllItems ? '1' : '0') + ':' + (currentMasteryOnly ? 'cur' : 'range')
+    + ':' + _projectionFlowers() + ':' + _itemBatchHours() + ':' + _sandboxCopies() + ':' + (_deepRefinement() ? 'deep' : 'fast')
+    + ':' + _flowerMode() + ':' + _flowerBatchHours();
 
+  var token = ++_gridRunToken;
   // Check cache first
   if (_gridCache[cacheKey]) {
     gridEl.innerHTML = _gridCache[cacheKey];
+    _refreshObjectiveComparison(gridEl, useAllItems);
+    _prepareAccessibleTooltips(gridEl);
     return;
   }
 
   // Show loading
-  gridEl.innerHTML = '<div style="padding:12px;color:var(--text2);font-size:.85em;">Simulating…</div>';
+  gridEl.innerHTML = '<div class="loading" style="padding:12px;color:var(--text2);font-size:.85em;">Preparing scenario…</div>';
 
   // Defer heavy work so loading message renders
-  setTimeout(function() { _renderGridInner(gridEl, curMode, useAllItems, cacheKey); }, 20);
+  setTimeout(function() { _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token); }, 20);
 }
 
-function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
+async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
   var h = '';
+  var currentMasteryOnly = !!window._sneakCurrentMasteryOnly;
 
   // Rebuild required data from saveData (cheap)
   var nd = _nd();
@@ -1107,17 +1733,25 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   var m1 = _mastery();
   var m2 = _masteryMax();
   var flowers = _flowers();
+  var hasCharmedPerk = emporiumBonus(3, nd[102] && nd[102][9]) === 1;
 
   // Build pool
   var pool = _buildCharmPool();
   var simPool = pool;
+  var _tmpNK11 = computeNK11Extras(saveData, twins.activeCharIdx);
+  var maxCharmLv = maxCharmDropLevel(_nkLvs(), m1, _tmpNK11);
   if (useAllItems) {
     simPool = [];
     for (var akey in NjEQ) {
       var aeq = NjEQ[akey];
       var anm = (aeq[2] || '').replace(/_/g, ' ');
       if (anm.indexOf('Gold ') !== -1) continue;
-      for (var ac = 0; ac < 20; ac++) simPool.push({ key: akey, name: anm, level: 99999, slot: -1, source: 'all', type: Number(aeq[0]) || 0, bonusType: Number(aeq[1]) || 0 });
+      var atype = Number(aeq[0]) || 0;
+      if (atype !== 1 && atype !== 2) continue;
+      var maxProjectedMastery = currentMasteryOnly ? m1 : m1 + 1;
+      var attainableLv = Math.floor(maxDropLevel(akey, nkLvs, maxProjectedMastery, _tmpNK11));
+      if (!(attainableLv >= 0) || !isFinite(attainableLv)) continue;
+      for (var ac = 0; ac < _sandboxCopies(); ac++) simPool.push({ key: akey, name: anm, level: attainableLv, slot: -1, source: 'all', type: atype, bonusType: Number(aeq[1]) || 0 });
     }
   }
   // Find main twin (highest core stealth)
@@ -1130,30 +1764,40 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   // Pre-simulate all configs and their ally data
   var modeConfigs = [];
   var simSets = []; // { twins, allyContribs, allTogetherAlly, label, loadout }
+  var refinedSetCache = {};
   var simStartT = performance.now();
+  function _makeSimSet(config, loadout, label, masteryLevel) {
+    var simTwins = _simulateLoadout(loadout, simPool, useAllItems ? masteryLevel : null);
+    var simAlly = simTwins._allyContribs || getTwinAllyContributions(saveData, simTwins.activeCharIdx);
+    var simATA = [];
+    for (var sai = 0; sai < simTwins.length; sai++) {
+      var sop = [];
+      for (var saj = 0; saj < simTwins.length; saj++) {
+        if (saj !== sai) sop.push(simAlly[simTwins[saj].idx]);
+      }
+      simATA.push(allyStealthMulti(sop));
+    }
+    return { twins: simTwins, allyContribs: simAlly, allTogetherAlly: simATA,
+      activeCharIdx: simTwins.activeCharIdx,
+      configId: config.id,
+      label: label || config.label, loadout: loadout };
+  }
   if (curMode !== 'current') {
-    // Compute max charm level for all-items mode (uses NK11 extras computed later, approximate here)
-    var _tmpNK11 = computeNK11Extras(saveData, twins.bestActiveChar ? twins.bestActiveChar.charIdx : -1);
-    var maxCharmLv = maxCharmDropLevel(_nkLvs(), m1, _tmpNK11);
+    gridEl.innerHTML = '<div class="loading" style="padding:12px;color:var(--text2);font-size:.85em;">Building pair families…</div>';
+    await _yieldBrowser();
+    if (token !== _gridRunToken) return;
     modeConfigs = _modeConfigs(curMode, useAllItems ? simPool : pool, mainIdx, useAllItems, maxCharmLv);
     for (var mc = 0; mc < modeConfigs.length; mc++) {
-      var simTwins = _simulateLoadout(modeConfigs[mc].loadout, simPool);
-      var simAlly = simTwins._allyContribs || getTwinAllyContributions(saveData, simTwins.bestActiveChar ? simTwins.bestActiveChar.charIdx : -1);
-      var simATA = [];
-      for (var sai = 0; sai < simTwins.length; sai++) {
-        var sop = [];
-        for (var saj = 0; saj < simTwins.length; saj++) {
-          if (saj !== sai) sop.push(simAlly[simTwins[saj].idx]);
-        }
-        simATA.push(allyStealthMulti(sop));
+      simSets.push(_makeSimSet(modeConfigs[mc], modeConfigs[mc].loadout, null, m1));
+      if (mc > 0 && mc % 100 === 0) {
+        gridEl.innerHTML = '<div class="loading" style="padding:12px;color:var(--text2);font-size:.85em;">Building pair families ' + mc + ' / ' + modeConfigs.length + '…</div>';
+        await _yieldBrowser();
+        if (token !== _gridRunToken) return;
       }
-      simSets.push({ twins: simTwins, allyContribs: simAlly, allTogetherAlly: simATA,
-        activeCharIdx: simTwins.activeCharIdx,
-        label: modeConfigs[mc].label, loadout: modeConfigs[mc].loadout });
     }
   }
   // Default set (current loadout)
-  var defaultAlly = getTwinAllyContributions(saveData, twins.bestActiveChar ? twins.bestActiveChar.charIdx : -1);
+  var defaultAlly = getTwinAllyContributions(saveData, twins.activeCharIdx);
   var defaultATA = [];
   for (var dai = 0; dai < twins.length; dai++) {
     var dop = [];
@@ -1165,12 +1809,34 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   var defaultSet = { twins: twins, allyContribs: defaultAlly, allTogetherAlly: defaultATA,
     activeCharIdx: twins.activeCharIdx,
     label: 'Current', loadout: null };
+
+  function _allTogetherAllyAtFloor(set, floor) {
+    var multipliers = set.allTogetherAlly.slice();
+    for (var tiedIdx = 0; tiedIdx < _playerCount(); tiedIdx++) {
+      if (isTwinUntied(tiedIdx, nd) || (Number(nd[tiedIdx] && nd[tiedIdx][0]) || 0) !== floor) continue;
+      var contribution = set.allyContribs[tiedIdx];
+      if (!contribution) continue;
+      var extra = (Number(contribution.type8) || 0) / 100 + (Number(contribution.type16) || 0) / 100;
+      for (var activeIdx = 0; activeIdx < multipliers.length; activeIdx++) multipliers[activeIdx] += extra;
+    }
+    return multipliers;
+  }
+
+  function _projectedSoloAtFloor(set, floor) {
+    if (set.twins.length !== 1) return false;
+    var twinIdx = set.twins[0].idx;
+    for (var otherIdx = 0; otherIdx < _playerCount(); otherIdx++) {
+      if (otherIdx === twinIdx || isTwinUntied(otherIdx, nd)) continue;
+      if ((Number(nd[otherIdx] && nd[otherIdx][0]) || 0) === floor) return false;
+    }
+    return true;
+  }
   var simElapsed = performance.now() - simStartT;
 
   if (curMode !== 'current' && modeConfigs.length > 0) {
     h += '<p style="color:var(--text2);font-size:.72em;margin-bottom:4px;">Mode: <span style="color:var(--cyan);font-weight:600;">' + OPT_MODES[curMode].label + '</span>';
     h += ' &bull; Main: <span style="color:var(--gold);">' + _charName(mainIdx) + '</span>';
-    h += ' &bull; ' + simSets.length + ' combos in ' + (simElapsed / 1000).toFixed(1) + 's';
+    h += ' &bull; ' + simSets.length + ' pair families in ' + (simElapsed / 1000).toFixed(1) + 's';
     if (useAllItems) h += ' <span style="color:var(--gold);">(all items Lv' + Math.round(maxCharmLv) + ')</span>';
     h += '</p>';
   } else if (curMode !== 'current') {
@@ -1184,88 +1850,551 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     if (floorDetectionBase(f, m1) > 0 || doorHP(f, m1) > 0) validFloors.push(f);
   }
 
-  var masteryLevels = [Math.max(0, m1 - 1), m1, m1 + 1];
-  var mLabels = ['M' + masteryLevels[0], 'M' + masteryLevels[1] + ' (cur)', 'M' + masteryLevels[2]];
-  var mIsCur = [false, true, false];
-  var mCount = 3;
+  var masteryLevels = currentMasteryOnly ? [m1] : [Math.max(0, m1 - 1), m1, m1 + 1];
+  var mLabels = currentMasteryOnly
+    ? ['M' + m1 + ' (cur)']
+    : ['M' + masteryLevels[0], 'M' + masteryLevels[1] + ' (cur)', 'M' + masteryLevels[2]];
+  var mIsCur = currentMasteryOnly ? [true] : [false, true, false];
+  var mCount = masteryLevels.length;
 
   // Compute NK11 extras once (goldInv, gemstone, palette, vault, cloud bonuses)
-  var nk11Extras = computeNK11Extras(saveData, twins.bestActiveChar ? twins.bestActiveChar.charIdx : -1);
+  var nk11Extras = computeNK11Extras(saveData, twins.activeCharIdx);
 
   // Y9ACTIVE bubble (NINJA_LOOTER): decayMulti(0.3, 60, lv) = 1 + 0.3*lv/(lv+60)
-  var y9Result = bubbleValByKey('Y9ACTIVE', twins.bestActiveChar ? twins.bestActiveChar.charIdx : 0, saveData);
+  var y9Result = bubbleValByKey('Y9ACTIVE', twins.activeCharIdx, saveData);
   var bubbleY9Val = y9Result && y9Result.val ? y9Result.val : 1;
 
   // _cellData now accepts a simSet to support per-floor config comparison
-  function _cellData(fl, mLv, set) {
+  function _cellData(fl, mLv, set, fastBatchApprox) {
     var st = set || defaultSet;
     var tw = st.twins;
-    var ata = st.allTogetherAlly;
-    var flCount = Number(flowers[fl]) || 0;
+    var ata = _allTogetherAllyAtFloor(st, fl);
+    var projectedSolo = _projectedSoloAtFloor(st, fl);
+    var isCurrentMastery = mLv === m1;
+    var flCount = isCurrentMastery || _projectionFlowers() === 'rebuilt' ? Number(flowers[fl]) || 0 : 0;
     var funeralF = funeralStealthBonus(flCount, nkLvs);
     var jBase = floorJadeBase(fl, mLv);
-    var hp = doorEffectiveHP(fl, mLv, m2);
+    var door = doorState(fl, mLv, m2, m1, nd);
+    var hp = door.remainingHP;
     var charmLv = maxCharmDropLevel(nkLvs, mLv, nk11Extras);
-    var dropTable = floorDropTable(fl);
+    var dropTable = floorDropTable(fl, mLv, saveData);
     var bestDet = 1, worstDet = 0;
-    var totalFlHr = 0, totalJadeHr = 0, totalItemsHr = 0, totalDoorDmgHr = 0, totalJadePA = 0;
+    var totalFlHr = 0, totalJadeHr = 0, totalItemsHr = 0, totalDoorDmgHr = 0, totalDoorHitsHr = 0, totalUntieHr = 0, totalJadePA = 0;
     var perTwin = [];
     var scenarioFloors = [];
     for (var scenarioIdx = 0; scenarioIdx < tw.length; scenarioIdx++) {
       scenarioFloors[tw[scenarioIdx].idx] = fl;
     }
+    var scenarioTwins = [];
+    for (var doorIdx = 0; doorIdx < tw.length; doorIdx++) {
+      var doorTwin = tw[doorIdx];
+      var doorStealth = simStealth(doorTwin.coreStealth, ata[doorIdx], funeralF);
+      scenarioTwins.push({
+        idx: doorTwin.idx,
+        actionSpeed: (doorTwin.actionSpdTogether != null ? doorTwin.actionSpdTogether : doorTwin.actionSpd)
+          + (projectedSolo ? (Number(doorTwin.charmMap[2]) || 0) / 100 : 0),
+        detection: detectionChance(doorStealth, fl, mLv),
+        koTime: koDuration(nkLvs, doorTwin.koPct),
+        dodgePct: doorTwin.dodgePct,
+        taunting: (doorTwin.charmMap[1] || 0) > 0,
+        actionProgress: doorTwin.actionProgress,
+        stealth: doorStealth,
+        itemFindPct: doorTwin.itemFindPct,
+        charmBonuses: doorTwin.charmMap,
+        weaponSubtype: doorTwin.weaponSubtype,
+        doorDamage: doorTwin.door,
+        untieProgress: doorTwin.untie,
+        isSolo: projectedSolo,
+      });
+    }
+    var teamScenario = computeSneakingTeamScenario(scenarioTwins, saveData, {
+      activeCharIdx: st.activeCharIdx,
+      floor: fl,
+      mastery: mLv,
+      doorActive: door.active,
+      ninjaData: nd,
+      twinFloors: scenarioFloors,
+      isSolo: projectedSolo,
+      itemBatchHours: _itemBatchHours(),
+      bubbleY9Val: bubbleY9Val,
+      flowerMode: _flowerMode(),
+      flowerBatchHours: _flowerBatchHours(),
+      initialFlowers: flCount,
+      playerCount: _playerCount(),
+      doorMaxHP: door.maxHP,
+      doorProgress: door.progress,
+      fastBatchApprox: !!fastBatchApprox,
+    });
+    var captiveIdx = captiveTargetForFloor(fl, nd, _playerCount());
+    var untieRemaining = captiveIdx >= 0 ? Math.max(0, untieReq(captiveIdx) - (Number(nd[captiveIdx]?.[3]) || 0)) : 0;
     for (var ti4 = 0; ti4 < tw.length; ti4++) {
       var tw4 = tw[ti4];
-      var simSt = simStealth(tw4.coreStealth, ata[ti4], funeralF);
-      var det4 = detectionChance(simSt, fl, mLv);
-      var spd4 = tw4.actionSpd;
-      var fr4 = flowerRate(spd4, det4, tw4.dodgePct);
-      var koInternal = koDuration(nkLvs, tw4.koPct);
-      var jadeResult = computeJadeRate(tw4.idx, saveData, {
-        activeCharIdx: st.activeCharIdx,
-        floor: fl,
-        mastery: mLv,
-        twinFloors: scenarioFloors,
-        isSolo: tw.length === 1,
-        detection: det4,
-        actionSpeed: spd4,
-        koTime: koInternal,
-        dodgePct: tw4.dodgePct,
-        charmBonuses: tw4.charmMap,
-      });
-      var successPerHr = jadeResult.actionsPerHour;
-      var jhr = jadeResult.jadePerHour;
-      var jpa = jhr;
-      var ifc = itemFindChance(nkLvs, tw4.itemFindPct, null, bubbleY9Val);
-      var ihr = ifc * successPerHr;
-      var dmg = doorDamage(nkLvs, tw4.dmgPct);
-      var dmgHr = dmg * successPerHr;
+      var doorContext = scenarioTwins[ti4];
+      var det4 = doorContext.detection;
+      var spd4 = doorContext.actionSpeed;
+      var koInternal = doorContext.koTime;
+      var scenarioRow = teamScenario.twins[ti4];
+      var actionMode = scenarioRow.mode;
+      var jhr = scenarioRow.jadePerHour;
+      var jpa = scenarioRow.gameDisplayJadePerHour;
+      var ihr = scenarioRow.itemsPerHour;
+      var fr4 = scenarioRow.flowersPerHour;
+      var damagePerHit = scenarioRow.doorDamagePerHit;
+      var hitChance = scenarioRow.doorHitsPerHour > 0 ? scenarioRow.hitChance : 0;
+      var hitsHr = scenarioRow.doorHitsPerHour;
+      var dmgHr = scenarioRow.doorDamagePerHour;
+      var untieHr = scenarioRow.untieProgressPerHour;
+      var canHitDoor = actionMode === 'door';
       var dodgeFrac = Math.min(0.9, (tw4.dodgePct || 0) / 100);
       var koProb = det4 * (1 - dodgeFrac);
       if (det4 < bestDet) bestDet = det4;
       if (det4 > worstDet) worstDet = det4;
-      totalFlHr += fr4; totalJadeHr += jhr; totalItemsHr += ihr; totalDoorDmgHr += dmgHr; totalJadePA += jpa;
-      perTwin.push({ name: tw4.name, idx: tw4.idx, det: det4, spd: spd4, flHr: fr4,
-        jHr: jhr, jPA: jpa, jadeCoin: jadeResult.coin, jadeActionsHr: jadeResult.actionsPerHour,
+      totalFlHr += fr4; totalJadeHr += jhr; totalItemsHr += ihr; totalDoorDmgHr += dmgHr; totalDoorHitsHr += hitsHr; totalUntieHr += untieHr; totalJadePA += jpa;
+      perTwin.push({ name: tw4.name, idx: tw4.idx, det: det4, spd: spd4, flHr: fr4, actionMode: actionMode,
+        jHr: jhr, jPA: jpa, jadeCoin: scenarioRow.jadePerAction, jadeActionsHr: scenarioRow.successfulActionsPerHour,
         jadeContext: _charName(st.activeCharIdx),
-        iHr: ihr, dmgHr: dmgHr, onFloor: tw4.floor === fl, curFloor: tw4.floor,
+        iHr: ihr, dmgHr: dmgHr, damagePerHit: damagePerHit, hitChance: hitChance, hitsHr: hitsHr, canHitDoor: canHitDoor,
+        untieHr: untieHr, untiePerHit: scenarioRow.untieProgressPerHit,
+        onFloor: tw4.floor === fl, curFloor: tw4.floor,
         koSec: koInternal, koProb: koProb, equip: tw4.equip });
     }
-    return { bestDet, worstDet, totalFlHr, totalJadeHr, totalJadePA, totalItemsHr, totalDoorDmgHr, hp, charmLv, flCount, funeralF, jBase, dropTable, perTwin, loginContext: _charName(st.activeCharIdx), configLabel: st.label };
+    var doorEstimate = computeDoorClearEstimate(hp, totalDoorDmgHr, totalDoorHitsHr);
+    var doorEta = doorEstimate.hours;
+    var untieEta = untieRemaining > 0 && totalUntieHr > 0 ? untieRemaining / totalUntieHr : Infinity;
+    var doorStateLabel = door.active ? (door.hypothetical ? 'Fresh hypothetical' : 'Active')
+      : door.maxHP <= 0 ? (fl <= 0 ? 'No door' : 'Unavailable')
+      : door.progress >= door.maxHP ? 'Cleared'
+      : door.activeFloor != null && door.activeFloor >= 0 ? 'Locked by F' + door.activeFloor : 'Inactive';
+    return { bestDet, worstDet, totalFlHr, totalJadeHr, totalJadePA, totalItemsHr, totalDoorDmgHr, totalDoorHitsHr, totalUntieHr, doorEta, doorRequiredHits: doorEstimate.requiredHits, doorAverageDamagePerHit: doorEstimate.averageDamagePerHit, doorFluidEta: doorEstimate.fluidHours, untieEta, untieRemaining, captiveIdx, doorStateLabel, hp, doorMaxHP: door.maxHP, doorProgress: door.progress, doorActiveFloor: door.activeFloor, charmLv, flCount, funeralF, jBase, dropTable, perTwin, loginContext: _charName(st.activeCharIdx), configLabel: st.label, batchApproximate: teamScenario.offlineFlowerApproximate || teamScenario.itemBatchApproximate };
   }
 
   // Pick the best config for a floor×mastery based on mode target metric
-  var MODE_METRIC = { jade: 'totalJadeHr', flower: 'totalFlHr', itemfind: 'totalItemsHr', door: 'totalDoorDmgHr' };
-  function _bestCellData(fl, mLv) {
-    if (curMode === 'current' || simSets.length === 0) { var cd0 = _cellData(fl, mLv, defaultSet); cd0._set = defaultSet; return cd0; }
+  var MODE_METRIC = { jade: 'totalJadeHr', flower: 'totalFlHr', itemfind: 'totalItemsHr', door: 'totalDoorDmgHr', untie: 'totalUntieHr' };
+  var cellCache = {};
+  var shortlistedSets = null;
+  async function _shortlistSets() {
+    if (shortlistedSets) return shortlistedSets;
+    if (simSets.length <= 40) { shortlistedSets = simSets; return shortlistedSets; }
+    var metric = MODE_METRIC[curMode] || 'totalJadeHr';
+    var anchors;
+    if (curMode === 'flower') anchors = [validFloors[0]];
+    else if (curMode === 'untie') {
+      var nextCaptive = -1;
+      for (var captiveIdx = 0; captiveIdx < _playerCount(); captiveIdx++) {
+        if (!isTwinUntied(captiveIdx, nd)) { nextCaptive = captiveIdx; break; }
+      }
+      anchors = [nextCaptive >= 0 ? floorActions(nextCaptive) : validFloors[0]];
+    } else if (curMode === 'door') {
+      var activeDoorFloor = 2;
+      for (var doorFloor = 1; doorFloor < FLOOR_COUNT; doorFloor++) {
+        if (doorState(doorFloor, m1, m2, m1, nd).active) { activeDoorFloor = doorFloor; break; }
+      }
+      anchors = [activeDoorFloor, 6, 11];
+    } else anchors = [1, 6, 11];
+
+    var selected = {};
+    for (var anchorIdx = 0; anchorIdx < anchors.length; anchorIdx++) {
+      var anchorFloor = Math.max(0, Math.min(FLOOR_COUNT - 1, Number(anchors[anchorIdx]) || 0));
+      var ranked = [];
+      for (var setIdx = 0; setIdx < simSets.length; setIdx++) {
+        ranked.push({ set: simSets[setIdx], score: _cellData(anchorFloor, m1, simSets[setIdx], true)[metric] });
+        if (setIdx > 0 && setIdx % 100 === 0) {
+          await _yieldBrowser();
+          if (token !== _gridRunToken) return [];
+        }
+      }
+      ranked.sort(function(a, b) { return b.score - a.score; });
+      for (var keepIdx = 0; keepIdx < Math.min(10, ranked.length); keepIdx++) {
+        selected[ranked[keepIdx].set.configId] = ranked[keepIdx].set;
+      }
+    }
+    shortlistedSets = Object.keys(selected).map(function(key) { return selected[key]; });
+    return shortlistedSets;
+  }
+  function _orderedLoadout(config, leadTwin, mainSwap, supportSwap) {
+    var source = config.loadout;
+    var mainCharms = source.mainCharms.slice();
+    if (mainSwap) mainCharms.reverse();
+    var tiers = source.supportTiers.map(function(tier) {
+      var charms = tier.charms.slice();
+      if (supportSwap) charms.reverse();
+      return Object.assign({}, tier, { charms: charms, preserveOrder: true });
+    });
+    return Object.assign({}, source, {
+      main: leadTwin,
+      mainCharms: mainCharms,
+      mainOrder: 'fixed',
+      supportTiers: tiers,
+    });
+  }
+  function _refinedSet(config, leadTwin, mainSwap, supportSwap, masteryLevel) {
+    var key = config.id + ':' + leadTwin + ':' + (mainSwap ? 1 : 0) + ':' + (supportSwap ? 1 : 0) + ':' + masteryLevel;
+    if (refinedSetCache[key]) return refinedSetCache[key];
+    var loadout = _orderedLoadout(config, leadTwin, mainSwap, supportSwap);
+    var label = config.label + ' | lead ' + _charName(leadTwin)
+      + (mainSwap ? ' | lead slots swapped' : '') + (supportSwap ? ' | support slots swapped' : '');
+    refinedSetCache[key] = _makeSimSet(config, loadout, label, masteryLevel);
+    return refinedSetCache[key];
+  }
+  async function _bestCellDataAsync(fl, mLv) {
+    var cellKey = fl + ':' + mLv;
+    if (cellCache[cellKey]) return cellCache[cellKey];
+    if (curMode === 'current' || simSets.length === 0) { var cd0 = _cellData(fl, mLv, defaultSet); cd0._set = defaultSet; cellCache[cellKey] = cd0; return cd0; }
     var metric = MODE_METRIC[curMode] || 'totalJadeHr';
     var bestCD = null; var bestSet = null;
-    for (var sc = 0; sc < simSets.length; sc++) {
-      var cd = _cellData(fl, mLv, simSets[sc]);
-      if (!bestCD || cd[metric] > bestCD[metric]) { bestCD = cd; bestSet = simSets[sc]; }
+    var leaders = [];
+    var candidates = await _shortlistSets();
+    if (token !== _gridRunToken) return null;
+    for (var sc = 0; sc < candidates.length; sc++) {
+      var candidateSet = useAllItems
+        ? _refinedSet(modeConfigs[candidates[sc].configId], candidates[sc].loadout.main, false, false, mLv)
+        : candidates[sc];
+      var cd = _cellData(fl, mLv, candidateSet, true);
+      leaders.push({ config: modeConfigs[candidates[sc].configId], score: cd[metric] });
+      if (!bestCD || cd[metric] > bestCD[metric]) { bestCD = cd; bestSet = candidateSet; }
     }
+    leaders.sort(function(a, b) { return b.score - a.score; });
+    leaders = leaders.slice(0, Math.min(2, leaders.length));
+    for (var leaderIdx = 0; leaderIdx < leaders.length; leaderIdx++) {
+      var config = leaders[leaderIdx].config;
+      for (var leadIdx = 0; leadIdx < twins.length; leadIdx++) {
+        var mainOrders = charmPairOrders(config.loadout.mainCharms[0], config.loadout.mainCharms[1], hasCharmedPerk);
+        var supportPair = config.loadout.supportTiers[0].charms;
+        var supportOrders = charmPairOrders(supportPair[0], supportPair[1], hasCharmedPerk);
+        for (var mainOrderIdx = 0; mainOrderIdx < mainOrders.length; mainOrderIdx++) {
+          for (var supportOrderIdx = 0; supportOrderIdx < supportOrders.length; supportOrderIdx++) {
+            var refined = _refinedSet(config, twins[leadIdx].idx, mainOrderIdx > 0, supportOrderIdx > 0, mLv);
+            var refinedCD = _cellData(fl, mLv, refined, true);
+            if (refinedCD[metric] > bestCD[metric]) { bestCD = refinedCD; bestSet = refined; }
+          }
+        }
+        await _yieldBrowser();
+        if (token !== _gridRunToken) return null;
+      }
+    }
+    if (_deepRefinement() && !useAllItems && bestSet && bestSet.twins.length) {
+      var assignmentMap = {};
+      var usedCopies = {};
+      function _copyForEquip(equipItem) {
+        if (!equipItem || equipItem.name === 'Blank') return EMPTY_SLOT;
+        var found = null;
+        for (var poolIdx = 0; poolIdx < simPool.length; poolIdx++) {
+          var poolItem = simPool[poolIdx];
+          var copyKey = poolItem.source + ':' + poolItem.slot + ':' + poolItem.key + ':' + poolItem.level;
+          if (usedCopies[copyKey]) continue;
+          if (poolItem.key === equipItem.name && Number(poolItem.level) === Number(equipItem.level)) {
+            found = Object.assign({}, poolItem, { _copyId: poolIdx });
+            usedCopies[copyKey] = true;
+            break;
+          }
+        }
+        return found || EMPTY_SLOT;
+      }
+      for (var assignedTwinIdx = 0; assignedTwinIdx < bestSet.twins.length; assignedTwinIdx++) {
+        var assignedTwin = bestSet.twins[assignedTwinIdx];
+        assignmentMap[assignedTwin.idx] = {
+          weapon: _copyForEquip(assignedTwin.equip[1]),
+          charms: [_copyForEquip(assignedTwin.equip[2]), _copyForEquip(assignedTwin.equip[3])],
+        };
+      }
+      function _explicitSet(assignments, label) {
+        var explicitConfig = { id: 'explicit-' + fl + '-' + mLv, label: label, loadout: {} };
+        var explicitLoadout = { perTwinAssignments: assignments, assignmentOrder: bestSet.twins.map(function(twin) { return twin.idx; }) };
+        return _makeSimSet(explicitConfig, explicitLoadout, label, mLv);
+      }
+      function _cloneAssignments(assignments) {
+        var clone = {};
+        Object.keys(assignments).forEach(function(twinKey) {
+          var assignment = assignments[twinKey];
+          clone[twinKey] = {
+            weapon: assignment.weapon,
+            charms: assignment.charms.slice(),
+          };
+        });
+        return clone;
+      }
+      function _swapCandidate(assignments, targetTwinIdx, targetSlot, candidate) {
+        var trial = _cloneAssignments(assignments);
+        var displaced = trial[targetTwinIdx].charms[targetSlot];
+        if (candidate && candidate._copyId != null) {
+          Object.keys(trial).some(function(ownerKey) {
+            var owner = trial[ownerKey];
+            for (var ownerSlot = 0; ownerSlot < owner.charms.length; ownerSlot++) {
+              if (Number(ownerKey) === Number(targetTwinIdx) && ownerSlot === targetSlot) continue;
+              if (owner.charms[ownerSlot] && owner.charms[ownerSlot]._copyId === candidate._copyId) {
+                owner.charms[ownerSlot] = displaced || EMPTY_SLOT;
+                return true;
+              }
+            }
+            return false;
+          });
+        }
+        trial[targetTwinIdx].charms[targetSlot] = candidate;
+        return trial;
+      }
+      var heterogeneousLabel = bestSet.label.replace(/ \| heterogeneous refinement/g, '') + ' | heterogeneous refinement';
+      var heterogeneousSet = _explicitSet(assignmentMap, heterogeneousLabel);
+      var heterogeneousCD = _cellData(fl, mLv, heterogeneousSet, true);
+      if (heterogeneousCD[metric] >= bestCD[metric]) { bestCD = heterogeneousCD; bestSet = heterogeneousSet; }
+      for (var pass = 0; pass < 2; pass++) {
+        var improved = false;
+        var localCandidates = {};
+        for (var localPoolIdx = 0; localPoolIdx < simPool.length; localPoolIdx++) {
+          var localPoolItem = simPool[localPoolIdx];
+          if (localPoolItem.type !== 2) continue;
+          var localType = localPoolItem.bonusType;
+          if (!localCandidates[localType] || charmStat(localPoolItem.key, localPoolItem.level) > charmStat(localCandidates[localType].key, localCandidates[localType].level)) {
+            localCandidates[localType] = Object.assign({}, localPoolItem, { _copyId: localPoolIdx });
+          }
+        }
+        for (var targetIdx = 0; targetIdx < bestSet.twins.length; targetIdx++) {
+          var targetTwin = bestSet.twins[targetIdx];
+          for (var targetSlot = 0; targetSlot < 2; targetSlot++) {
+            var currentAssignment = assignmentMap[targetTwin.idx].charms[targetSlot];
+            var candidatesForSlot = [EMPTY_SLOT, currentAssignment];
+            Object.keys(localCandidates).forEach(function(type) { candidatesForSlot.push(localCandidates[type]); });
+            var localBest = bestCD;
+            var localBestSet = bestSet;
+            var localBestAssignments = assignmentMap;
+            for (var slotCandidateIdx = 0; slotCandidateIdx < candidatesForSlot.length; slotCandidateIdx++) {
+              var slotCandidate = candidatesForSlot[slotCandidateIdx];
+              var trialAssignments = _swapCandidate(assignmentMap, targetTwin.idx, targetSlot, slotCandidate);
+              var trialSet = _explicitSet(trialAssignments, heterogeneousLabel);
+              var trialCD = _cellData(fl, mLv, trialSet, true);
+              if (trialCD[metric] > localBest[metric]) {
+                localBest = trialCD; localBestSet = trialSet; localBestAssignments = trialAssignments;
+              }
+            }
+            if (localBest[metric] > bestCD[metric]) {
+              assignmentMap = localBestAssignments;
+              bestCD = localBest; bestSet = localBestSet; improved = true;
+            }
+            await _yieldBrowser();
+            if (token !== _gridRunToken) return null;
+          }
+        }
+        if (!improved) break;
+      }
+    }
+    bestCD = _cellData(fl, mLv, bestSet);
     bestCD._set = bestSet;
+    cellCache[cellKey] = bestCD;
     return bestCD;
+  }
+  function _bestCellData(fl, mLv) {
+    return cellCache[fl + ':' + mLv] || null;
+  }
+
+  function _metricValue(cd) {
+    var metric = MODE_METRIC[curMode] || 'totalJadeHr';
+    return Number(cd && cd[metric]) || 0;
+  }
+  function _sourceLabel(item) {
+    if (!item) return 'unknown';
+    if (item.source === 'inv') return 'Inventory ' + (item.slot - 59);
+    if (item.source === 'equip') {
+      var sourceTwin = Math.floor((item.slot - 12) / 4);
+      var sourcePart = (item.slot - 12) % 4;
+      return _charName(sourceTwin) + ' ' + ['hat','weapon','charm 1','charm 2'][sourcePart];
+    }
+    return item.source === 'all' ? 'Future gear sandbox' : 'Generated';
+  }
+  function _destinationLabel(slot) {
+    var twinIdx = Math.floor((slot - 12) / 4);
+    var part = (slot - 12) % 4;
+    return _charName(twinIdx) + ' ' + ['hat','weapon','charm 1','charm 2'][part];
+  }
+  function _recommendationHtml() {
+    function _savedPlacement() {
+      var floorsNow = [];
+      var groups = {};
+      for (var savedIdx = 0; savedIdx < twins.length; savedIdx++) {
+        var savedTwin = twins[savedIdx];
+        floorsNow[savedTwin.idx] = savedTwin.floor;
+        if (!groups[savedTwin.floor]) groups[savedTwin.floor] = [];
+        groups[savedTwin.floor].push(savedTwin);
+      }
+      var summary = { totalJadeHr: 0, totalFlHr: 0, totalItemsHr: 0, totalDoorDmgHr: 0, totalDoorHitsHr: 0, totalUntieHr: 0, byFloor: {} };
+      Object.keys(groups).forEach(function(floorKey) {
+        var floor = Number(floorKey);
+        var group = groups[floorKey];
+        var door = doorState(floor, m1, m2, m1, nd);
+        var scenario = computeSneakingTeamScenario(group.map(function(twin) {
+          return {
+            idx: twin.idx,
+            actionSpeed: twin.actionSpd,
+            detection: detectionChance(twin.stealth, floor, m1),
+            koTime: koDuration(nkLvs, twin.koPct),
+            dodgePct: twin.dodgePct,
+            taunting: (twin.charmMap[1] || 0) > 0,
+            actionProgress: twin.actionProgress,
+            stealth: twin.stealth,
+            itemFindPct: twin.itemFindPct,
+            charmBonuses: twin.charmMap,
+            weaponSubtype: twin.weaponSubtype,
+            doorDamage: twin.door,
+            untieProgress: twin.untie,
+            isSolo: soloMultiplier(14, twin.idx, nd, _playerCount()) > 1,
+          };
+        }), saveData, {
+          activeCharIdx: twins.activeCharIdx,
+          floor: floor,
+          mastery: m1,
+          doorActive: door.active,
+          ninjaData: nd,
+          twinFloors: floorsNow,
+          itemBatchHours: _itemBatchHours(),
+          bubbleY9Val: bubbleY9Val,
+          flowerMode: _flowerMode(),
+          flowerBatchHours: _flowerBatchHours(),
+          initialFlowers: Number(flowers[floor]) || 0,
+          playerCount: _playerCount(),
+          doorMaxHP: door.maxHP,
+          doorProgress: door.progress,
+        });
+        var row = {
+          door: door,
+          jade: scenario.total.jadePerHour,
+          flowers: scenario.total.flowersPerHour,
+          items: scenario.total.itemsPerHour,
+          doorDamage: scenario.total.doorDamagePerHour,
+          doorHits: scenario.total.doorHitsPerHour,
+          untie: scenario.total.untieProgressPerHour,
+        };
+        summary.byFloor[floor] = row;
+        summary.totalJadeHr += row.jade;
+        summary.totalFlHr += row.flowers;
+        summary.totalItemsHr += row.items;
+        summary.totalDoorDmgHr += row.doorDamage;
+        summary.totalDoorHitsHr += row.doorHits;
+        summary.totalUntieHr += row.untie;
+      });
+      return summary;
+    }
+    var savedPlacement = _savedPlacement();
+    var currentDoorFloor = -1;
+    for (var stateFloor = 1; stateFloor < FLOOR_COUNT; stateFloor++) {
+      var state = doorState(stateFloor, m1, m2, m1, nd);
+      if (state.active) { currentDoorFloor = stateFloor; break; }
+    }
+    var activeDoor = currentDoorFloor >= 0 ? doorState(currentDoorFloor, m1, m2, m1, nd) : null;
+    var savedDoor = currentDoorFloor >= 0 ? savedPlacement.byFloor[currentDoorFloor] : null;
+    var savedDoorEta = activeDoor && savedDoor
+      ? computeDoorClearEstimate(activeDoor.remainingHP, savedDoor.doorDamage, savedDoor.doorHits).hours
+      : Infinity;
+    var activeDoorHtml = '<div class="decision-card"><h3>Active Door</h3>';
+    if (activeDoor && activeDoor.remainingHP > 0) {
+      activeDoorHtml += '<div class="decision-value">Floor ' + currentDoorFloor + ' · ' + (isFinite(savedDoorEta) ? _timeStr(savedDoorEta) : 'No active attackers') + '</div>';
+      activeDoorHtml += '<div class="decision-sub">Saved placement · ' + _fmt(activeDoor.remainingHP) + ' HP remaining · ' + _fmt(savedDoor ? savedDoor.doorDamage : 0) + ' damage/hr · ' + _perHour(savedDoor ? savedDoor.doorHits : 0) + ' hits/hr</div>';
+    } else activeDoorHtml += '<div class="decision-value">No active door</div><div class="decision-sub">Current mastery has no actionable undefeated door.</div>';
+    activeDoorHtml += '</div>';
+
+    var captiveHtml = '<div class="decision-card"><h3>Next Captive</h3>';
+    var nextCaptive = -1;
+    for (var captive = 0; captive < _playerCount(); captive++) if (!isTwinUntied(captive, nd)) { nextCaptive = captive; break; }
+    if (nextCaptive >= 0) {
+      var captiveFloor = floorActions(nextCaptive) || Number(nd[nextCaptive]?.[0]) || 0;
+      var savedUntie = savedPlacement.byFloor[captiveFloor];
+      var untieRemaining = Math.max(0, untieReq(nextCaptive) - (Number(nd[nextCaptive]?.[3]) || 0));
+      var savedUntieEta = savedUntie && savedUntie.untie > 0 ? untieRemaining / savedUntie.untie : Infinity;
+      captiveHtml += '<div class="decision-value">Twin ' + (nextCaptive + 1) + ' · Floor ' + captiveFloor + '</div>';
+      captiveHtml += '<div class="decision-sub">Saved placement · ' + _fmt(untieRemaining) + ' progress remaining · ' + (isFinite(savedUntieEta) ? _timeStr(savedUntieEta) : 'move a Kunai wielder to this floor') + '</div>';
+    } else captiveHtml += '<div class="decision-value">All twins untied</div><div class="decision-sub">No captive remains in the current save.</div>';
+    captiveHtml += '</div>';
+
+    var recommendationHtml = '';
+    if (curMode !== 'current' && simSets.length > 0) {
+      var bestRec = null;
+      for (var floorIdx = 0; floorIdx < validFloors.length; floorIdx++) {
+        var floor = validFloors[floorIdx];
+        if (curMode === 'untie' && (nextCaptive < 0 || floor !== captiveFloor)) continue;
+        var candidate = _bestCellData(floor, m1);
+        var saved = _cellData(floor, m1, defaultSet);
+        var value = _metricValue(candidate);
+        var score = curMode === 'untie'
+          ? (isFinite(candidate.untieEta) ? -candidate.untieEta : -Infinity)
+          : value;
+        if (curMode === 'untie' && !isFinite(candidate.untieEta)) continue;
+        if (!bestRec || score > bestRec.score) bestRec = { floor: floor, candidate: candidate, saved: saved, value: value, score: score };
+      }
+      if (!bestRec && curMode === 'untie' && nextCaptive >= 0) {
+        recommendationHtml = '<div class="decision-card"><h3>Recommended Untie ETA</h3>'
+          + '<div class="decision-value">No feasible Kunai loadout</div>'
+          + '<div class="decision-sub">No available copy can produce finite progress for the next captive under the current assumptions.</div></div>';
+      }
+      if (bestRec) {
+        var baseline = _metricValue(bestRec.saved);
+        var candidateUntieEta = curMode === 'untie' && bestRec.value > 0 ? untieRemaining / bestRec.value : Infinity;
+        var floorUntieEta = curMode === 'untie' && baseline > 0 ? untieRemaining / baseline : Infinity;
+        var gain = curMode === 'untie'
+          ? (isFinite(floorUntieEta) && isFinite(candidateUntieEta) ? 100 * (1 - candidateUntieEta / floorUntieEta) : isFinite(candidateUntieEta) ? Infinity : 0)
+          : baseline > 0 ? 100 * (bestRec.value / baseline - 1) : bestRec.value > 0 ? Infinity : 0;
+        var savedPlacementBaseline = curMode === 'jade' ? savedPlacement.totalJadeHr
+          : curMode === 'flower' ? savedPlacement.totalFlHr
+          : curMode === 'itemfind' ? savedPlacement.totalItemsHr
+          : curMode === 'door' ? savedPlacement.totalDoorDmgHr
+          : savedUntie && savedUntie.untie || 0;
+        var savedTargetEta = curMode === 'untie' && savedPlacementBaseline > 0 ? untieRemaining / savedPlacementBaseline : Infinity;
+        var totalGain = curMode === 'untie'
+          ? (isFinite(savedTargetEta) && isFinite(candidateUntieEta) ? 100 * (1 - candidateUntieEta / savedTargetEta) : isFinite(candidateUntieEta) ? Infinity : 0)
+          : savedPlacementBaseline > 0 ? 100 * (bestRec.value / savedPlacementBaseline - 1)
+            : bestRec.value > 0 ? Infinity : 0;
+        var assignments = bestRec.candidate._set && bestRec.candidate._set.twins._assignments || [];
+        var moves = assignments.filter(function(item) {
+          return item && (item._empty || item.source !== 'equip' || item.slot !== item.destination);
+        });
+        recommendationHtml = '<div class="decision-card"><h3>Recommended ' + OPT_MODES[curMode].label + '</h3>';
+        var totalGainText = totalGain === Infinity ? (curMode === 'untie' ? 'new finite ETA vs saved' : 'new output vs saved')
+          : curMode === 'untie' ? totalGain.toFixed(2) + '% shorter ETA vs saved'
+            : (totalGain >= 0 ? '+' : '') + totalGain.toFixed(2) + '% vs saved';
+        var floorGainText = gain === Infinity ? (curMode === 'untie' ? 'new finite ETA' : 'new output')
+          : curMode === 'untie' ? gain.toFixed(2) + '% shorter ETA'
+            : (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%';
+        recommendationHtml += '<div class="decision-value">Floor ' + bestRec.floor
+          + (curMode === 'untie' ? ' · ETA ' + _timeStr(candidateUntieEta) : '')
+          + ' · ' + totalGainText + '</div>';
+        recommendationHtml += '<div class="decision-sub">Equipment gain on this floor: ' + floorGainText + '. Bounded search across the top pair families, every lead twin, and both symbol-slot orders. ' + bestRec.candidate.configLabel + '</div>';
+        if (moves.length) {
+          recommendationHtml += '<details><summary style="cursor:pointer;color:var(--cyan);font-size:.72em;margin-top:6px;">Show complete move plan (' + moves.length + ' changes)</summary><div class="move-list">';
+          for (var moveIdx = 0; moveIdx < moves.length; moveIdx++) {
+            var move = moves[moveIdx];
+            recommendationHtml += '<div class="move-row"><span>' + (move._empty ? 'Clear slot' : _sourceLabel(move)) + '</span><span>' + (move._empty ? 'Empty' : (NjEQ[move.key]?.[2] || move.key).replace(/_/g,' ') + ' +' + _fmt(move.level)) + '</span><span>→ ' + _destinationLabel(move.destination) + '</span></div>';
+          }
+          recommendationHtml += '</div></details>';
+        }
+        recommendationHtml += '</div>';
+        _recommendationCache[curMode] = {
+          floor: bestRec.floor,
+          value: bestRec.value,
+          baseline: baseline,
+          gain: gain,
+          totalGain: totalGain,
+          comparisonText: totalGainText,
+          label: bestRec.candidate.configLabel,
+          useAllItems: useAllItems,
+          sandboxCopies: _sandboxCopies(),
+          deepRefinement: _deepRefinement(),
+          login: twins.activeCharIdx,
+          mastery: m1,
+          batchHours: _itemBatchHours(),
+          projectionFlowers: _projectionFlowers(),
+          outcomes: {
+            jade: bestRec.candidate.totalJadeHr,
+            flower: bestRec.candidate.totalFlHr,
+            itemfind: bestRec.candidate.totalItemsHr,
+            door: bestRec.candidate.totalDoorDmgHr,
+            untie: bestRec.candidate.totalUntieHr,
+          },
+          flowerMode: _flowerMode(),
+          flowerBatchHours: _flowerBatchHours(),
+          currentMasteryOnly: currentMasteryOnly,
+        };
+      }
+    }
+    var compareHtml = '<div data-objective-comparison>' + _objectiveComparisonHtml(useAllItems) + '</div>';
+    var savedHtml = '<div class="decision-card"><h3>Saved Placement Output</h3><div class="decision-value">' + _fmt(savedPlacement.totalJadeHr) + ' Jade/hr</div>'
+      + '<div class="decision-sub">' + _perHour(savedPlacement.totalFlHr) + ' flowers/hr · ' + _perHour(savedPlacement.totalItemsHr) + ' items/hr · action modes evaluated on each saved floor</div></div>';
+    return '<div class="decision-grid">' + savedHtml + activeDoorHtml + captiveHtml + recommendationHtml + compareHtml + '</div>';
   }
 
   function _thresholds(fl, mLv) {
@@ -1276,12 +2405,44 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     return vals;
   }
 
+  function _flowerRecoveryHours(fl, mLv, targetFlowers, set) {
+    targetFlowers = Math.max(0, Math.floor(Number(targetFlowers) || 0));
+    if (targetFlowers <= 0) return 0;
+    var st = set || defaultSet;
+    var tw = st.twins;
+    var ata = _allTogetherAllyAtFloor(st, fl);
+    var projectedSolo = _projectedSoloAtFloor(st, fl);
+    var sampleStep = targetFlowers > 5000 ? Math.ceil(targetFlowers / 5000) : 1;
+    var hours = 0;
+    for (var flowerCount = 0; flowerCount < targetFlowers; flowerCount += sampleStep) {
+      var funeralPct = funeralStealthBonus(flowerCount, nkLvs);
+      var contexts = [];
+      for (var twinIdx = 0; twinIdx < tw.length; twinIdx++) {
+        var twin = tw[twinIdx];
+        var stealth = simStealth(twin.coreStealth, ata[twinIdx], funeralPct);
+        contexts.push({
+          actionSpeed: (twin.actionSpdTogether != null ? twin.actionSpdTogether : twin.actionSpd)
+            + (projectedSolo ? (Number(twin.charmMap[2]) || 0) / 100 : 0),
+          detection: detectionChance(stealth, fl, mLv),
+          koTime: koDuration(nkLvs, twin.koPct),
+          dodgePct: twin.dodgePct,
+          taunting: (twin.charmMap[1] || 0) > 0,
+        });
+      }
+      var rates = computeTeamDoorRates(contexts);
+      var rate = rates.reduce(function(sum, row) { return sum + row.flowersPerHour; }, 0);
+      if (!(rate > 0)) return Infinity;
+      hours += Math.min(sampleStep, targetFlowers - flowerCount) / rate;
+    }
+    return hours;
+  }
+
   // Flowers needed for worst twin to reach target stealth on a floor
   var nk21 = nkBonus(21, nkLvs);
-  function _flowersForStealth(targetStealth, set) {
+  function _flowersForStealth(fl, targetStealth, set) {
     if (nk21 <= 0) return Infinity;
     var tw = (set || defaultSet).twins;
-    var ata = (set || defaultSet).allTogetherAlly;
+    var ata = _allTogetherAllyAtFloor(set || defaultSet, fl);
     var maxFlowers = 0;
     for (var fi = 0; fi < tw.length; fi++) {
       var cs = tw[fi].coreStealth;
@@ -1294,9 +2455,9 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   }
 
   // Funeral multi required for best stealth twin (with full party ally buffs)
-  function _funeralMultiForStealth(targetStealth, set) {
+  function _funeralMultiForStealth(fl, targetStealth, set) {
     var tw = (set || defaultSet).twins;
-    var ata = (set || defaultSet).allTogetherAlly;
+    var ata = _allTogetherAllyAtFloor(set || defaultSet, fl);
     var minMulti = Infinity;
     for (var fi2 = 0; fi2 < tw.length; fi2++) {
       var cs2 = tw[fi2].coreStealth;
@@ -1308,18 +2469,47 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     return Math.max(1, minMulti);
   }
 
+  if (curMode !== 'current') {
+    gridEl.innerHTML = '<div class="loading" style="padding:12px;color:var(--text2);font-size:.85em;">Scoring representative floors…</div>';
+    await _yieldBrowser();
+    if (token !== _gridRunToken) return;
+  }
+  for (var preFloorIdx = 0; preFloorIdx < validFloors.length; preFloorIdx++) {
+    for (var preMasteryIdx = 0; preMasteryIdx < masteryLevels.length; preMasteryIdx++) {
+      var preFloor = validFloors[preFloorIdx];
+      var preMastery = masteryLevels[preMasteryIdx];
+      if (!cellCache[preFloor + ':' + preMastery]) {
+        if (curMode !== 'current') gridEl.innerHTML = '<div class="loading" style="padding:12px;color:var(--text2);font-size:.85em;">Refining floor ' + preFloor + ' at M' + preMastery + '…</div>';
+        var computedCell = await _bestCellDataAsync(preFloor, preMastery);
+        if (!computedCell || token !== _gridRunToken) return;
+      }
+    }
+  }
+  h += _recommendationHtml();
+  var batchApproximationUsed = Object.keys(cellCache).some(function(key) {
+    return !!cellCache[key].batchApproximate;
+  });
+  if (batchApproximationUsed) {
+    h += '<div class="scenario-chip expected" style="display:inline-block;margin-bottom:8px;">Batch rates use bounded probability-state compression</div>';
+  }
+  if (token !== _gridRunToken) return;
+
+  var mobileCards = '';
+
   // Build table
-  h += '<div style="overflow-x:auto;"><table class="mastery-tbl">';
+  h += '<div class="desktop-mastery-wrap" style="overflow-x:auto;"><table class="mastery-tbl">';
 
   // Header: Floor | Funeral | then per mastery: Det | ×/hr | Jade/hr | Door | 0% | Rebuild
   h += '<thead><tr>';
-  h += '<th class="left">Floor</th><th>Funeral Flowers</th>';
+  h += '<th class="left">Floor</th><th data-tip="Saved per-floor Funeral multiplier from Spelunk[15]. Advancing to a new highest mastery relocks floors but preserves these stacks; manually switching mastery clears them.">Saved Funeral Flowers ×</th>';
   for (var mi = 0; mi < mCount; mi++) {
     var cc = mIsCur[mi] ? ' mcur' : '';
-    h += '<th class="mg-sep' + cc + '">Detection</th>';
-    h += '<th class="' + cc + '" title="Funeral multi growth per hour">×/hr</th>';
+    h += '<th class="mg-sep' + cc + '">Best det.</th>';
+    h += '<th class="' + cc + '" title="Summed net Funeral Flower change per hour">Net flowers/hr</th>';
     h += '<th class="' + cc + '">Jade/hr</th>';
-    h += '<th class="' + cc + '">Door</th>';
+    h += '<th class="' + cc + '">Items/hr</th>';
+    h += '<th class="' + cc + '">Door ETA</th>';
+    h += '<th class="' + cc + '">Untie ETA</th>';
     h += '<th class="' + cc + '">0% Detection</th>';
     h += '<th class="' + cc + '">\u23F1</th>';
   }
@@ -1329,7 +2519,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   h += '<th colspan="2" style="border-bottom:1px solid #333;"></th>';
   for (var mi0 = 0; mi0 < mCount; mi0++) {
     var cc0 = mIsCur[mi0] ? ' mcur' : '';
-    h += '<th colspan="6" class="mg-sep' + cc0 + '" style="text-align:center;color:var(--cyan);border-bottom:1px solid #333;">' + mLabels[mi0] + '</th>';
+    h += '<th colspan="8" class="mg-sep' + cc0 + '" style="text-align:center;color:var(--cyan);border-bottom:1px solid #333;">' + mLabels[mi0] + '</th>';
   }
   h += '</tr></thead>';
 
@@ -1342,9 +2532,31 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     var funeralMulti = 1 + cd1.funeralF / 100;
     var rowId = 'mrow-' + fl;
 
-    h += '<tr class="mg-row" data-rowid="' + rowId + '" style="cursor:pointer;">';
+    for (var mobileMasteryIdx = 0; mobileMasteryIdx < mCount; mobileMasteryIdx++) {
+      var mobileCd = mIsCur[mobileMasteryIdx] ? cd1 : _bestCellData(fl, masteryLevels[mobileMasteryIdx]);
+      mobileCards += '<article class="mobile-floor-card"><div class="mobile-floor-head"><strong>Floor ' + fl + '</strong><span class="mobile-floor-mastery">' + mLabels[mobileMasteryIdx] + '</span></div><div class="mobile-floor-grid">';
+      mobileCards += '<div class="mobile-stat"><span>Best detection</span><strong style="color:' + _detColor(mobileCd.bestDet) + '">' + _pct(mobileCd.bestDet) + '</strong></div>';
+      mobileCards += '<div class="mobile-stat"><span>Net flowers</span><strong>' + _perHour(mobileCd.totalFlHr) + '/hr' + (mobileCd.batchApproximate ? '~' : '') + '</strong></div>';
+      mobileCards += '<div class="mobile-stat"><span>Jade</span><strong>' + _fmt(mobileCd.totalJadeHr) + '/hr</strong></div>';
+      mobileCards += '<div class="mobile-stat"><span>Items</span><strong>' + _perHour(mobileCd.totalItemsHr) + '/hr</strong></div>';
+      mobileCards += '<div class="mobile-stat"><span>Door</span><strong>' + (isFinite(mobileCd.doorEta) ? _timeStr(mobileCd.doorEta) : mobileCd.doorStateLabel) + '</strong></div>';
+      mobileCards += '<div class="mobile-stat"><span>Untie</span><strong>' + (isFinite(mobileCd.untieEta) ? _timeStr(mobileCd.untieEta) : mobileCd.captiveIdx >= 0 ? 'Need Kunai' : '—') + '</strong></div>';
+      mobileCards += '</div><details style="margin-top:7px;"><summary style="cursor:pointer;color:var(--cyan);font-size:.75em;">Per-twin and drop details</summary><div class="move-list">';
+      for (var mobileTwinIdx = 0; mobileTwinIdx < mobileCd.perTwin.length; mobileTwinIdx++) {
+        var mobileTwin = mobileCd.perTwin[mobileTwinIdx];
+        mobileCards += '<div class="move-row"><span>' + mobileTwin.name + ' · ' + mobileTwin.actionMode + '</span><span>' + _pct(mobileTwin.det) + ' det</span><span>'
+          + _fmt(mobileTwin.jHr) + ' Jade · ' + _perHour(mobileTwin.flHr) + ' flowers · ' + _perHour(mobileTwin.iHr) + ' items</span></div>';
+      }
+      for (var mobileDropIdx = 0; mobileDropIdx < mobileCd.dropTable.length; mobileDropIdx++) {
+        var mobileDrop = mobileCd.dropTable[mobileDropIdx];
+        mobileCards += '<div class="move-row"><span>' + (equipInfo(mobileDrop.key, 0)?.name || mobileDrop.key) + '</span><span>' + (100 * mobileDrop.chance).toFixed(2) + '%</span><span>max +' + _fmt(maxDropLevel(mobileDrop.key, nkLvs, masteryLevels[mobileMasteryIdx], nk11Extras)) + '</span></div>';
+      }
+      mobileCards += '</div></details></article>';
+    }
+
+    h += '<tr class="mg-row" data-rowid="' + rowId + '" tabindex="0" role="button" aria-expanded="false" style="cursor:pointer;">';
     h += '<td class="col-floor">' + fl + '</td>';
-    h += '<td class="col-funeral" title="' + _fmtMulti(funeralMulti) + ' funeral multi (' + cd1.flCount + ' flowers)">' + _fmtMulti(funeralMulti) + '</td>';
+    h += '<td class="col-funeral" data-tip="' + _fmt(cd1.flCount) + ' saved flowers on floor ' + fl + '. These may be carryover from the previous mastery even while this floor is relocked.">' + _fmtMulti(funeralMulti) + '</td>';
 
     for (var mi2 = 0; mi2 < mCount; mi2++) {
       var cd = mIsCur[mi2] ? cd1 : _bestCellData(fl, masteryLevels[mi2]);
@@ -1352,16 +2564,18 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       var isFaked = !mIsCur[mi2];
       var cc2 = mIsCur[mi2] ? ' mcur' : '';
 
-      h += '<td class="col-det mg-sep' + cc2 + '" style="color:' + _detColor(cd.bestDet) + ';">' + _pct(cd.bestDet) + '</td>';
-      var multiHr = cd.totalFlHr * nk21 / 100;
-      h += '<td class="col-flhr' + cc2 + '" title="' + _fmt(cd.totalFlHr) + ' flowers/hr × ' + nk21.toFixed(1) + '% Funeral Flowers bonus">' + (multiHr >= 0.01 ? multiHr.toFixed(2) : multiHr.toFixed(4)) + '×' + (isFaked ? '*' : '') + '</td>';
+      h += '<td class="col-det mg-sep' + cc2 + '" style="color:' + _detColor(cd.bestDet) + ';" data-tip="Detection range: ' + _pct(cd.bestDet) + ' best to ' + _pct(cd.worstDet) + ' worst">' + _pct(cd.bestDet) + '</td>';
+      h += '<td class="col-flhr' + cc2 + '" title="Summed net Funeral Flower change across all twins">' + _perHour(cd.totalFlHr) + (isFaked ? '*' : '') + (cd.batchApproximate ? '~' : '') + '</td>';
       h += '<td class="col-jade' + cc2 + '" data-tip="Login context: ' + cd.loginContext + '\nSum of per-character game display: ' + _fmt(cd.totalJadePA) + ' jade/hr">' + _fmt(cd.totalJadeHr) + '</td>';
-      h += '<td class="col-door' + cc2 + '">' + (cd.hp > 0 ? _fmt(cd.totalDoorDmgHr) + '/' + _fmt(cd.hp) : '-') + '</td>';
-      h += '<td class="col-0pct' + cc2 + '">' + _fmt(thresh[5].stealth);
-      h += '<span class="tt">';
+      h += '<td class="' + cc2 + '" data-tip="Expected finds for a ' + _itemBatchHours() + 'h processing batch">' + _perHour(cd.totalItemsHr) + '</td>';
+      h += '<td class="col-door' + cc2 + '" data-tip="State: ' + cd.doorStateLabel + '\nRemaining door HP: ' + _fmt(cd.hp) + '\nMaximum door HP: ' + _fmt(cd.doorMaxHP) + '\nSaved damage: ' + _fmt(cd.doorProgress) + '\nAverage damage/successful hit: ' + _fmt(cd.doorAverageDamagePerHit) + '\nEstimated successful hits needed: ' + (isFinite(cd.doorRequiredHits) ? _fmt(cd.doorRequiredHits) : '—') + '\nSuccessful hits/hr: ' + _perHour(cd.totalDoorHitsHr) + '\nFluid DPS ETA (not displayed): ' + (isFinite(cd.doorFluidEta) ? _timeStr(cd.doorFluidEta) : '—') + '">' + (isFinite(cd.doorEta) ? _timeStr(cd.doorEta) : cd.doorStateLabel) + '</td>';
+      h += '<td class="' + cc2 + '" data-tip="' + (cd.captiveIdx >= 0 ? 'Twin ' + (cd.captiveIdx + 1) + ' remaining progress: ' + _fmt(cd.untieRemaining) + '\nProgress/hr: ' + _fmt(cd.totalUntieHr) : 'No captive assigned to this floor') + '">' + (isFinite(cd.untieEta) ? _timeStr(cd.untieEta) : cd.captiveIdx >= 0 ? 'Need Kunai' : '—') + '</td>';
+      var thresholdTipId = 'threshold-tip-' + fl + '-' + mi2;
+      h += '<td class="col-0pct' + cc2 + '" tabindex="0" aria-describedby="' + thresholdTipId + '">' + _fmt(thresh[5].stealth);
+      h += '<span class="tt" id="' + thresholdTipId + '" role="tooltip">';
       var ttSet = cd._set || defaultSet;
       for (var si2 = 0; si2 < thresh.length; si2++) {
-        var fmNeeded = _funeralMultiForStealth(thresh[si2].stealth, ttSet);
+        var fmNeeded = _funeralMultiForStealth(fl, thresh[si2].stealth, ttSet);
         var fmStr = fmNeeded === Infinity || fmNeeded > 1e15 ? '-' : _fmtMulti(fmNeeded);
         h += thresh[si2].label + ': ' + _fmt(thresh[si2].stealth) + ' (🌸' + fmStr + ')' + (si2 < thresh.length - 1 ? '<br>' : '');
       }
@@ -1371,8 +2585,8 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       if (mIsCur[mi2]) {
         h += '<td class="' + cc2 + '" style="color:var(--text2);">—</td>';
       } else {
-        var rebuildHrs = cd1.flCount > 0 && cd.totalFlHr > 0 ? cd1.flCount / cd.totalFlHr : 0;
-        h += '<td class="' + cc2 + '" style="color:' + (rebuildHrs > 0 ? 'var(--gold)' : 'var(--text2)') + ';" title="Time to rebuild ' + _fmt(cd1.flCount) + ' flowers at ' + _fmt(cd.totalFlHr) + ' fl/hr">' + (rebuildHrs > 0 ? _timeStr(rebuildHrs) : '—') + '</td>';
+        var rebuildHrs = _flowerRecoveryHours(fl, masteryLevels[mi2], cd1.flCount, cd._set || defaultSet);
+        h += '<td class="' + cc2 + '" style="color:' + (rebuildHrs > 0 ? 'var(--gold)' : 'var(--text2)') + ';" title="Stepwise recovery to ' + _fmt(cd1.flCount) + ' flowers; detection and KO rate update as flowers accumulate">' + (rebuildHrs > 0 && isFinite(rebuildHrs) ? _timeStr(rebuildHrs) : '—') + '</td>';
       }
     }
     h += '</tr>';
@@ -1384,7 +2598,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
     for (var mi3 = 0; mi3 < mCount; mi3++) {
       var cd2 = mIsCur[mi3] ? cd1 : _bestCellData(fl, masteryLevels[mi3]);
       var isFirstCol = (mi3 === 0);
-      h += '<td colspan="' + (isFirstCol ? '8' : '6') + '" style="vertical-align:top;padding:0;">';
+      h += '<td colspan="' + (isFirstCol ? '10' : '8') + '" style="vertical-align:top;padding:0;">';
       if (curMode !== 'current' && cd2.configLabel) {
         h += '<div style="font-size:.68em;color:var(--cyan);font-weight:600;padding:2px 4px;">' + cd2.configLabel + '</div>';
       }
@@ -1392,7 +2606,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
       h += '<tr>';
       if (isFirstCol) h += '<th></th>';
       if (curMode !== 'current') h += '<th>Loadout</th>';
-      h += '<th class="num">Detection</th><th class="num">Interval</th><th class="num">KO time</th><th class="num">Jade/hr</th><th class="num">Funeral ×/hr</th><th class="num">Items/hr</th><th class="num">Door/hr</th></tr>';
+      h += '<th>Action</th><th class="num">Detection</th><th class="num">Interval</th><th class="num">KO time</th><th class="num">Jade/hr</th><th class="num">Flowers/hr</th><th class="num">Items/hr</th><th class="num">Damage/hit</th><th class="num">Hit chance</th><th class="num">Hits/hr</th><th class="num">Door dmg/hr</th><th class="num">Untie/hr</th></tr>';
       for (var pt = 0; pt < cd2.perTwin.length; pt++) {
         var p = cd2.perTwin[pt];
         var secPerAct = 3600 / p.spd;
@@ -1412,14 +2626,18 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
           }
           h += '<td style="font-size:.7em;color:var(--text2);white-space:nowrap;">' + eqParts.join(', ') + '</td>';
         }
+        h += '<td style="text-transform:capitalize;color:var(--cyan);">' + p.actionMode.replace('-', ' ') + '</td>';
         h += '<td class="num" style="color:' + _detColor(p.det) + ';font-weight:600;">' + _pct(p.det) + '</td>';
         h += '<td class="num">' + secPerAct.toFixed(1) + 's</td>';
         h += '<td class="num" style="color:var(--red);">' + (p.koProb > 0 ? (p.koSec / p.spd).toFixed(1) + 's' : '-') + '</td>';
         h += '<td class="num" style="color:var(--gold);" data-tip="Login context: ' + p.jadeContext + '\nGame display: ' + _fmt(p.jPA) + ' jade/hr\nJade per action: ' + _fmt(p.jadeCoin) + '\nSuccessful actions/hr: ' + p.jadeActionsHr.toPrecision(4) + '">' + _fmt(p.jHr) + '</td>';
-        var pMultiHr = p.flHr * nk21 / 100;
-        h += '<td class="num" style="color:var(--purple);" title="' + p.flHr.toFixed(1) + ' fl/hr">' + (pMultiHr >= 0.01 ? pMultiHr.toFixed(2) : pMultiHr.toFixed(4)) + '×</td>';
+        h += '<td class="num" style="color:var(--purple);">' + _perHour(p.flHr) + '</td>';
         h += '<td class="num" style="color:var(--text);">' + p.iHr.toFixed(2) + '</td>';
-        h += '<td class="num">' + _fmt(p.dmgHr) + '</td>';
+        h += '<td class="num">' + (p.canHitDoor ? _fmt(p.damagePerHit) : '—') + '</td>';
+        h += '<td class="num">' + (p.canHitDoor ? _chance(p.hitChance) : '—') + '</td>';
+        h += '<td class="num">' + (p.canHitDoor ? _perHour(p.hitsHr) : '—') + '</td>';
+        h += '<td class="num">' + (p.canHitDoor ? _fmt(p.dmgHr) : '—') + '</td>';
+        h += '<td class="num">' + (p.actionMode === 'untie' ? _fmt(p.untieHr) : '—') + '</td>';
         h += '</tr>';
       }
       h += '</table>';
@@ -1428,7 +2646,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
         var mLvThis = masteryLevels[mi3];
         h += '<div style="margin-top:3px;"><strong style="color:var(--cyan);font-size:.68em;">Drops</strong>';
         h += '<table class="data-table" style="margin-top:1px;font-size:.78em;">';
-        h += '<tr><th>Item</th><th>Type</th><th class="num">Drop Weight</th><th class="num">Max Level</th></tr>';
+        h += '<tr><th>Item</th><th>Type</th><th class="num" data-tip="Actual first-hit probability after earlier sequential Drop Weight rolls miss">Actual Roll (Drop Weight)</th><th class="num">Max Level</th></tr>';
         for (var di = 0; di < cd2.dropTable.length; di++) {
           var d = cd2.dropTable[di];
           var info2 = equipInfo(d.key, 0);
@@ -1437,7 +2655,7 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
           var mxLv = maxDropLevel(d.key, nkLvs, mLvThis, nk11Extras);
           var lvStr = mxLv > 0 ? _fmt(Math.floor(mxLv)) : (info2 && info2.type === 0 ? '—' : '0');
           h += '<tr><td>' + dn3 + '</td><td style="color:var(--text2);">' + label3 + '</td>';
-          h += '<td class="num">' + (d.chance * 100).toFixed(1) + '%</td>';
+          h += '<td class="num" data-tip="Sequential conditional chance: ' + (100 * d.conditionalChance).toFixed(2) + '%">' + (d.chance * 100).toFixed(2) + '%</td>';
           h += '<td class="num" style="color:' + (mxLv > 0 ? 'var(--gold)' : 'var(--text2)') + ';">' + lvStr + '</td></tr>';
         }
         h += '</table></div>';
@@ -1448,9 +2666,12 @@ function _renderGridInner(gridEl, curMode, useAllItems, cacheKey) {
   }
 
   h += '</tbody></table></div>';
+  h += '<div class="mobile-floor-list">' + mobileCards + '</div>';
 
   _gridCache[cacheKey] = h;
+  if (token !== _gridRunToken) return;
   gridEl.innerHTML = h;
+  _prepareAccessibleTooltips(gridEl);
 }
 </script>
 </body>

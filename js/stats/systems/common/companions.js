@@ -34,10 +34,10 @@ export var compMulti = {
     var raw = divisor > 1 ? bonusVal / divisor : bonusVal;
     var val = Math.max(1, Math.min(cap, 1 + raw));
     return node(name, val, [
-      node(owned ? 'Owned' : 'Not owned', 0, null, { fmt: 'raw' }),
+      node(owned ? 'Owned' : 'Not owned', owned ? 1 : 0, null, { fmt: 'raw' }),
       node('Raw bonus', bonusVal, null, { fmt: '+' }),
       node('Cap', cap, null, { fmt: 'x' }),
       node('Result', val, null, { fmt: 'x' }),
-    ], { fmt: 'x', note: 'compMulti ' + id });
+    ], { fmt: 'x' });
   },
 };

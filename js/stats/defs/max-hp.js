@@ -2,7 +2,7 @@
 // _customBlock_PlayerHPmax: LIST[0] × LIST[1] × LIST[2]
 
 import { computeTotalStat, computeStatueBonusGiven, computeCardBonusByType,
-  computeBoxReward, computeMealBonus, computeFamBonusQTY } from '../systems/common/stats.js';
+  computeBoxReward, computeMealBonus, computeFamBonusQTYs } from '../systems/common/stats.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { computeStarSignBonus } from '../systems/common/starSign.js';
 import { goldFoodBonuses } from '../systems/common/goldenFood.js';
@@ -19,7 +19,7 @@ import { safe, rval, safeTree, getBuffBonus, createDescriptor } from './helpers.
 export default createDescriptor({
   id: 'max-hp',
   name: 'Max HP',
-  scope: 'character',
+  scope: 'character+map',
   category: 'stat',
 
   combine: function(pools, ctx) {
@@ -32,7 +32,7 @@ export default createDescriptor({
     // LIST[0] — Base HP
     var _cardBonus1T = safeTree(computeCardBonusByType, 1, ci, s);
     var cardBonus1 = _cardBonus1T.val;
-    var _bubbleBaseHPT = safeTree(bubbleValByKey, 'BaseHP', ci, s);
+    var _bubbleBaseHPT = safeTree(bubbleValByKey, 'BaseHP', ci, s, ctx.dnsmCache);
     var bubbleBaseHP = _bubbleBaseHPT.val;
     var _stampBaseHPT = safeTree(computeStampBonusOfTypeX, 'BaseHP', s);
     var stampBaseHP = _stampBaseHPT.val;
@@ -105,7 +105,8 @@ export default createDescriptor({
     var shrine1 = rval(shrine, 1, ctx);
     var _brPctHP = safe(computeBoxReward, ci, 'pctHP');
     var boxPctHP = (typeof _brPctHP === 'object') ? (_brPctHP.val || 0) : Number(_brPctHP) || 0;
-    var famBonus18 = safe(computeFamBonusQTY, 18, s);
+    var famBonuses = safe(computeFamBonusQTYs, ci, s);
+    var famBonus18 = famBonuses && typeof famBonuses === 'object' ? Number(famBonuses[18]) || 0 : 0;
     var _cardBonus8T = safeTree(computeCardBonusByType, 8, ci, s);
     var cardBonus8 = _cardBonus8T.val;
     var _starSignHPT = safeTree(computeStarSignBonus, 'TotalHP', ci, s);
@@ -115,7 +116,7 @@ export default createDescriptor({
       * (1 + shrine1 / 100);
 
     // GoldFoodBonuses("MaxHPpct") — golden food HP multiplier
-    var _gfHPT = safeTree(goldFoodBonuses, 'MaxHPpct', ci, undefined, s);
+    var _gfHPT = safeTree(goldFoodBonuses, 'MaxHPpct', ci, undefined, s, ctx.dnsmCache);
     var gfHPpct = _gfHPT.val > 0 ? (1 + _gfHPT.val / 100) : 1;
     list1 *= gfHPpct;
 
@@ -129,7 +130,7 @@ export default createDescriptor({
 
     // LIST[2] — normally 1, but 164 for maps 20-23
     var list2 = 1;
-    var mapIdx = (currentMapData && currentMapData[ci]) || 0;
+    var mapIdx = ctx.mapIdx != null ? ctx.mapIdx : (currentMapData && currentMapData[ci]) || 0;
     if (mapIdx > 19 && mapIdx < 24) list2 = 164;
 
     var val = list0 * list1 * list2;

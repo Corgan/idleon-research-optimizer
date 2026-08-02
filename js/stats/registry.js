@@ -10,7 +10,7 @@ import { starSign } from './systems/common/starSign.js';
 import { achievement } from './systems/common/achievement.js';
 import { bundle } from './systems/common/bundle.js';
 import { goldenFood } from './systems/common/goldenFood.js';
-import { card, cardSet, cardSingle } from './systems/common/cards.js';
+import { card, cardSet, cardSingle, cardPassiveDropRate } from './systems/common/cards.js';
 import { companion, compMulti } from './systems/common/companions.js';
 import { etcBonus } from './systems/common/etcBonus.js';
 import { obol } from './systems/w2/obols.js';
@@ -20,7 +20,7 @@ import { lukScaling } from './systems/common/stats.js';
 import { ola } from './systems/common/ola.js';
 import { stamp } from './systems/w1/stamp.js';
 import { owl } from './systems/w1/owl.js';
-import { alchemy, sigil } from './systems/w2/alchemy.js';
+import { alchemy, sigil, vial } from './systems/w2/alchemy.js';
 import { postOffice } from './systems/w2/postOffice.js';
 import { arcade } from './systems/w2/arcade.js';
 import { voting } from './systems/w2/voting.js';
@@ -87,11 +87,12 @@ var _systems = {
   get card() { return card; },
   get cardSet() { return cardSet; },
   get cardSingle() { return cardSingle; },
+  get cardPassiveDropRate() { return cardPassiveDropRate; },
   companion, compMulti, vault, friend,
   get lukScaling() { return lukScaling; },
   ola, etcBonus, obol,
   stamp, owl,
-  alchemy, sigil, postOffice, arcade, voting,
+  alchemy, sigil, vial, postOffice, arcade, voting,
   prayer, setBonus, dream,
   cloudBonus: cloudBonusSys,
   get grid() { return grid; },

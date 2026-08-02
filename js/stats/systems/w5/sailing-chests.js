@@ -177,6 +177,12 @@ export function boatBaseSpeed(level) {
   return 10 + (5 + Math.pow(Math.floor(level / 7), 2)) * level;
 }
 
+export function nextBoatUpgradeBreakpoint(level, stat) {
+  level = Math.max(0, Math.floor(_num(level)));
+  var interval = stat === 'loot' || stat === 0 ? 8 : 7;
+  return interval * (Math.floor(level / interval) + 1);
+}
+
 export function boatUpgradeCostType(boatIdx, stat) {
   if (stat === 'loot' || stat === 0) return boatIdx < 4 ? 0 : Math.min(30, 1 + 2 * (boatIdx - 4));
   if (boatIdx < 2) return boatIdx;
@@ -189,6 +195,11 @@ export function boatUpgradeCost(boatIdx, stat, saveData) {
   var isLoot = stat === 'loot' || stat === 0;
   var level = _num(boat[isLoot ? 3 : 5]);
   var type = boatUpgradeCostType(boatIdx, stat);
+  return _boatUpgradeCostAtLevel(boatIdx, isLoot ? 'loot' : 'speed', level, type, saveData);
+}
+
+function _boatUpgradeCostAtLevel(boatIdx, stat, level, type, saveData) {
+  var isLoot = stat === 'loot' || stat === 0;
   var raw;
   if (type === 0) {
     raw = (5 + 4 * level) * Math.pow(1.17 - 0.12 * level / (level + 200), level);
@@ -229,11 +240,116 @@ export function boatUpgradeEta(boatIdx, stat, routes, saveData) {
     remaining: remaining, hours: remaining <= 0 ? 0 : rate > 0 ? remaining / rate : Infinity });
 }
 
-export function daveyJonesBonus(boatIdx, saveData) {
+function _percentGain(current, next) {
+  return current > 0 ? 100 * (next / current - 1) : 0;
+}
+
+export function boatUpgradeBreakpoint(boatIdx, stat, routes, saveData, options) {
+  options = options || {};
+  var boat = saveData.boatsData && saveData.boatsData[boatIdx] || [];
+  var isLoot = stat === 'loot' || stat === 0;
+  var statName = isLoot ? 'loot' : 'speed';
+  var level = Math.max(0, Math.floor(_num(boat[isLoot ? 3 : 5])));
+  var otherLevel = Math.max(0, Math.floor(_num(boat[isLoot ? 5 : 3])));
+  var interval = isLoot ? 8 : 7;
+  var formulaLevel = nextBoatUpgradeBreakpoint(level, statName);
+  var daveyUnlocked = _gridBonus(105, saveData) > 0;
+  var daveyActive = daveyUnlocked && level + otherLevel >= 400;
+  var daveyLevel = daveyUnlocked && !daveyActive ? level + (400 - level - otherLevel) : null;
+  var targetLevel = formulaLevel;
+  var reasons = [(isLoot ? 'Loot' : 'Speed') + ' level divisible by ' + interval];
+
+  var baseFn = isLoot ? boatBaseLoot : boatBaseSpeed;
+  var currentBase = baseFn(level);
+  var nextBase = baseFn(level + 1);
+  var targetBase = baseFn(targetLevel);
+  var thresholdMarginal = baseFn(targetLevel - 1) > 0
+    ? _percentGain(baseFn(targetLevel - 1), targetBase) : 0;
+  var type = boatUpgradeCostType(boatIdx, statName);
+  var currency = sailingCurrencyMeta(type);
+  var currentRoutes = Array.isArray(routes) ? routes.slice() : [];
+  var currentRoute = currentRoutes.find(function(route) { return route.boatIdx === boatIdx; });
+  var balance = _num(saveData.sailingData && saveData.sailingData[1]
+    && saveData.sailingData[1][type]);
+  var available = balance;
+  var totalCost = 0;
+  var hours = 0;
+  var initialRate = expectedCurrencyPerHour(currentRoutes, type);
+  var currentTreasure = _num(currentRoute && currentRoute.treasurePerHour);
+  var currentChests = _num(currentRoute && currentRoute.generatedChestsPerHour);
+  var currentArtifacts = _num(currentRoute && currentRoute.artifactFindsPerHour);
+
+  for (var upgradeLevel = level; upgradeLevel < targetLevel; upgradeLevel++) {
+    var cost = _boatUpgradeCostAtLevel(boatIdx, statName, upgradeLevel, type, saveData).cost;
+    totalCost += cost;
+    var rate = expectedCurrencyPerHour(currentRoutes, type);
+    if (available < cost) {
+      if (rate > 0) hours += (cost - available) / rate;
+      else hours = Infinity;
+      available = 0;
+    } else {
+      available -= cost;
+    }
+
+    if (currentRoute) {
+      var routeOptions = Object.assign({}, options, {
+        captainIdx: currentRoute.captainIdx,
+      });
+      routeOptions[isLoot ? 'lootLevel' : 'speedLevel'] = upgradeLevel + 1;
+      var upgradedRoute = routeMetrics(boatIdx, currentRoute.islandIdx, saveData, routeOptions);
+      var routeIndex = currentRoutes.findIndex(function(route) { return route.boatIdx === boatIdx; });
+      if (routeIndex >= 0) currentRoutes[routeIndex] = upgradedRoute;
+      currentRoute = upgradedRoute;
+    }
+  }
+
+  var finalRate = expectedCurrencyPerHour(currentRoutes, type);
+  var targetTreasure = _num(currentRoute && currentRoute.treasurePerHour);
+  var targetChests = _num(currentRoute && currentRoute.generatedChestsPerHour);
+  var targetArtifacts = _num(currentRoute && currentRoute.artifactFindsPerHour);
+  return {
+    boatIdx: boatIdx,
+    stat: statName,
+    level: level,
+    interval: interval,
+    formulaLevel: formulaLevel,
+    targetLevel: targetLevel,
+    levels: targetLevel - level,
+    reasons: reasons,
+    currentBase: currentBase,
+    nextBase: nextBase,
+    targetBase: targetBase,
+    nextBaseGainPct: _percentGain(currentBase, nextBase),
+    baseGainPct: _percentGain(currentBase, targetBase),
+    thresholdMarginalPct: thresholdMarginal,
+    daveyUnlocked: daveyUnlocked,
+    daveyActive: daveyActive,
+    daveyLevel: daveyLevel,
+    type: type,
+    currency: currency,
+    totalCost: totalCost,
+    balance: balance,
+    remaining: Math.max(0, totalCost - balance),
+    initialRate: initialRate,
+    finalRate: finalRate,
+    hours: totalCost <= balance ? 0 : hours,
+    currentTreasurePerHour: currentTreasure,
+    targetTreasurePerHour: targetTreasure,
+    treasureGainPct: _percentGain(currentTreasure, targetTreasure),
+    chestGainPct: _percentGain(currentChests, targetChests),
+    artifactGainPct: _percentGain(currentArtifacts, targetArtifacts),
+    speedCapped: !isLoot && currentRoute ? currentRoute.timing.capped : false,
+  };
+}
+
+export function daveyJonesBonus(boatIdx, saveData, options) {
+  options = options || {};
   var boat = saveData.boatsData && saveData.boatsData[boatIdx] || [];
   var gem = _num(saveData.gemItemsData && saveData.gemItemsData[8]);
   var legend = legendPTSbonus(11, saveData);
-  var totalBoatLv = _num(boat[3]) + _num(boat[5]);
+  var lootLevel = options.lootLevel != null ? options.lootLevel : _num(boat[3]);
+  var speedLevel = options.speedLevel != null ? options.speedLevel : _num(boat[5]);
+  var totalBoatLv = _num(lootLevel) + _num(speedLevel);
   var daveyUnlocked = _gridBonus(105, saveData) > 0 ? 1 : 0;
   var davey = totalBoatLv >= 400 ? daveyUnlocked : 0;
   return (1 + (50 * gem + legend) / 100) * (1 + 2 * davey);
@@ -252,7 +368,7 @@ export function boatLootValue(boatIdx, saveData, options) {
   var arcade = _num(arcadeBonus(33, saveData));
   var vault = vaultUpgBonus(67, saveData);
   var talent = maxTalentBonus(325, activeCharIdx, saveData);
-  var davey = daveyJonesBonus(boatIdx, saveData);
+  var davey = daveyJonesBonus(boatIdx, saveData, options);
   var lamp = _lampBonus(1, 0, saveData);
   var sushi = rogBonusQTY(57, saveData.cachedUniqueSushi || 0);
   var fountain = _fountainBonus(saveData, 0, 17);
@@ -313,10 +429,11 @@ export function boatSpeed(boatIdx, saveData, options) {
   var vault = vaultUpgBonus(62, saveData);
   var second = 1 + (bless9 + artifact + stamp + statue + meal + vial + rift + msa + star + vault) / 125;
   var captain = captainBonus(captainIdx, 0, saveData);
-  var speed = boatBaseSpeed(level) * (1 + captain / 100) * first * daveyJonesBonus(boatIdx, saveData)
+  var davey = daveyJonesBonus(boatIdx, saveData, options);
+  var speed = boatBaseSpeed(level) * (1 + captain / 100) * first * davey
     * (1 + bless4 / 100) * (1 + bless6 / 100) * (1 + vote / 100) * second;
   return { value: speed, base: boatBaseSpeed(level), captain: captain, first: first,
-    davey: daveyJonesBonus(boatIdx, saveData), bless4: bless4, bless6: bless6,
+    davey: davey, bless4: bless4, bless6: bless6,
     vote: vote, second: second, factors: { divMinor: divMinor, card1: card1,
       cardBoss: cardBoss, bubble: bubble, bless9: bless9, artifact: artifact,
       stamp: stamp, statue: statue, meal: meal, vial: vial, rift: rift,
@@ -580,7 +697,7 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
   var purpleSlugs = eventShopOwned(48, saveData.cachedEventShopStr);
   var sushi = rogBonusQTY(7, saveData.cachedUniqueSushi || 0);
   var win = computeWinBonus(3, {}, saveData);
-  var davey = daveyJonesBonus(boatIdx, saveData);
+  var davey = daveyJonesBonus(boatIdx, saveData, options);
   var lab = mainframeBonus(14, saveData);
   var lore = computeLoreEpisodeBonus(3, saveData);
   var pristine = pristineBon(2, saveData);

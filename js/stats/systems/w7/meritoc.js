@@ -9,11 +9,16 @@ import { arcadeBonus } from '../w2/arcade.js';
 import { legendPTSbonus } from './spelunking.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { rogBonusQTY } from './sushi.js';
+import { klaData } from '../../../save/data.js';
 
-function _meritocParts(optionIdx, saveData) {
+function _meritocParts(optionIdx, saveData, charIdx) {
   if (!saveData || !saveData.olaData) return { val: 0, inactive: true };
   var activeVote = Number(saveData.olaData[453]) || 0;
   if (optionIdx !== activeVote) return { val: 0, inactive: true };
+  var map250 = klaData[charIdx == null ? 0 : charIdx] && klaData[charIdx == null ? 0 : charIdx][250];
+  if (map250 == null) return { val: 0, mapUnknown: true };
+  var killsLeft = Number(Array.isArray(map250) ? map250[0] : map250) || 0;
+  if (killsLeft > 0) return { val: 0, mapLocked: true, killsLeft: killsLeft };
   var baseVal = MERITOC_BASE[optionIdx] || 0;
   if (baseVal <= 0) return { val: 0, noBase: true };
   var canVote = Number(saveData.olaData[472]) === 1;
@@ -34,15 +39,21 @@ function _meritocParts(optionIdx, saveData) {
   };
 }
 
-export function computeMeritocBonusz(optionIdx, saveData) {
-  return _meritocParts(optionIdx, saveData).val;
+export function computeMeritocBonusz(optionIdx, saveData, charIdx) {
+  return _meritocParts(optionIdx, saveData, charIdx).val;
 }
 
 export var meritoc = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
-    var p = _meritocParts(id, saveData);
+    var p = _meritocParts(id, saveData, ctx.charIdx);
     if (p.inactive) return node(label('Meritoc', id), 0, [node('Not active vote', 0)]);
+    if (p.mapUnknown) return node(label('Meritoc', id), 0, [
+      node('Map 250 Clear State Unavailable', 0, null, { fmt: 'raw' }),
+    ]);
+    if (p.mapLocked) return node(label('Meritoc', id), 0, [
+      node('Map 250 Not Cleared', p.killsLeft, null, { fmt: 'raw', note: 'kills remaining' }),
+    ]);
     if (p.noBase) return node(label('Meritoc', id), 0);
     var multiCh = [];
     if (p.clamWork3) multiCh.push(node(label('ClamWork', 3), 5 * p.clamWork3, null, { fmt: 'raw' }));

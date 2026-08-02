@@ -10,6 +10,9 @@ import { emporiumBonus } from '../../../game-helpers.js';
 import { grimoireUpgBonus22 } from '../mc/grimoire.js';
 import { exoticParams } from '../../data/w5/farming.js';
 import { ninjaInfo } from '../../data/w5/farming.js';
+import { stickerBase } from '../../data/w7/research.js';
+import { gbWith } from '../w7/research-math.js';
+import { eventShopOwned, superBitType } from '../../../game-helpers.js';
 
 export function exoticBonusQTY40(saveData) {
   var lv = (saveData.farmUpgData && saveData.farmUpgData[60]) || 0;
@@ -23,7 +26,7 @@ import { formulaEval } from '../../../formulas.js';
 import { computeAllTalentLVz } from '../common/talent.js';
 import { talentParams } from '../../data/common/talent.js';
 
-function getbonus2Detail(talentIdx, data, activeCharIdx, saveData) {
+function getbonus2Detail(talentIdx, data, activeCharIdx, saveData, dnsmCache) {
   var best = 0, bestCi = -1, bestBase = 0, bestBonus = 0, bestEff = 0;
   for (var ci = 0; ci < numCharacters; ci++) {
     var sl = skillLvData[ci] || {};
@@ -33,7 +36,8 @@ function getbonus2Detail(talentIdx, data, activeCharIdx, saveData) {
     // Game passes rawLv (not talentIdx) to AllTalentLVz — this affects the
     // Spelunk super talent lookup, which checks indexOf(rawLv) in Spelunk array.
     var bonusChar = activeCharIdx != null ? activeCharIdx : ci;
-    var bonus = computeAllTalentLVz(rawLv, bonusChar, undefined, saveData);
+    var bonus = computeAllTalentLVz(rawLv, bonusChar,
+      dnsmCache ? { dnsmCache: dnsmCache } : undefined, saveData);
     var effLv = rawLv + bonus;
     var val = formulaEval(data.formula, data.x1, data.x2, effLv);
     if (val > best) { best = val; bestCi = ci; bestBase = rawLv; bestBonus = bonus; bestEff = effLv; }
@@ -51,7 +55,7 @@ export var farm = {
       var rankIdx = id === 'rank9' ? 9 : 19;
       var ninjaVal = ninjaInfo(36)[rankIdx] || 0;
       var rankLv = Number((saveData.farmRankData && saveData.farmRankData['2'] && saveData.farmRankData['2'][rankIdx]) || 0);
-      var d207 = getbonus2Detail(207, TAL207, ctx.charIdx, saveData);
+      var d207 = getbonus2Detail(207, TAL207, ctx.charIdx, saveData, ctx.dnsmCache);
       var tal207 = d207.val;
       var exotic14Lv = Number((saveData.farmUpgData && saveData.farmUpgData[34]) || 0);
       var exotic14 = exotic14Lv > 0 ? 60 * exotic14Lv / (1000 + exotic14Lv) : 0;
@@ -151,13 +155,25 @@ function _safe(fn) {
 
 export function computeStickerBonus(stickerIdx, saveData) {
   var s = saveData;
-  var stickers = s.stickerData;
-  if (!stickers) return 0;
-  var count = 0;
-  for (var i = 0; i < stickers.length; i++) {
-    if (Number(stickers[i]) === stickerIdx) count++;
-  }
-  return count;
+  var stickerLv = Number(s.research && s.research[9] && s.research[9][stickerIdx]) || 0;
+  if (stickerLv <= 0) return 0;
+  var grid68 = gbWith(s.gridLevels || [], s.shapeOverlay || [], 68, { abm: s.allBonusMulti || 1 });
+  var boonyCount = s.research && s.research[11] ? s.research[11].length : 0;
+  var event37 = eventShopOwned(37, s.cachedEventShopStr);
+  var superBit62 = superBitType(62, s.gamingData && s.gamingData[12]);
+  return (1 + (grid68 * boonyCount + 30 * event37) / 100)
+    * (1 + 20 * superBit62 / 100)
+    * stickerLv * stickerBase(stickerIdx);
+}
+
+export function computeStickerDmgMulti(saveData) {
+  var s = saveData;
+  var grid47 = gbWith(s.gridLevels || [], s.shapeOverlay || [], 47, { abm: s.allBonusMulti || 1 });
+  if (grid47 < 1) return 1;
+  var stickers = s.research && s.research[9] || [];
+  var totalStickers = 0;
+  for (var i = 0; i < stickers.length; i++) totalStickers += Number(stickers[i]) || 0;
+  return 1 + grid47 * totalStickers / 100;
 }
 
 // ==================== EXOTIC BONUS (GENERIC) ====================
@@ -168,5 +184,5 @@ export function computeExoticBonus(idx, saveData) {
   if (!ex) return 0;
   var lv = Number(s.farmUpgData && s.farmUpgData[ex.farmSlot]) || 0;
   if (lv <= 0) return 0;
-  return ex.base * lv / (ex.denom + lv);
+  return ex.type === 'decay' ? ex.base * lv / (ex.denom + lv) : ex.base * lv;
 }

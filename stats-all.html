@@ -4,88 +4,166 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdleOn Stats Dashboard</title>
-<link rel="stylesheet" href="css/breakdown.css">
 <style>
-/* Summary grid */
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
-.stat-card { background: var(--bg2); border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; transition: border .15s; border: 2px solid transparent; }
-.stat-card:hover { border-color: var(--accent); }
-.stat-card .sc-label { color: var(--text2); font-size: .78em; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-card .sc-val { font-size: 1.5em; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
-.stat-card .sc-sub { color: var(--text2); font-size: .72em; margin-top: 2px; }
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --border: #444; --text1: var(--text); --warning: #ffb74d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { display: flex; align-items: baseline; gap: 12px; text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 .page-title { flex: 1; min-width: 0; }
+h1 .brand { color: var(--accent); }
+.header-link { color: var(--text2); text-decoration: none; font-size: .5em; font-weight: 400; white-space: nowrap; }
+.header-link:hover { color: var(--text); }
+.subtitle { color: var(--text2); font-size: .82em; text-align: center; padding: 10px 16px 0; }
 
-/* Category tabs */
-.cat-tabs { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; margin-bottom: 14px; flex-wrap: wrap; }
-.cat-tab { padding: 7px 16px; cursor: pointer; color: var(--text2); border-radius: 6px; font-size: .85em; font-weight: 600; transition: all .15s; user-select: none; }
-.cat-tab:hover { color: var(--text); background: rgba(255,255,255,.06); }
-.cat-tab.active { color: var(--accent); background: var(--bg2); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2, .region-title { margin-bottom: 12px; color: var(--accent); font-size: 1.05em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.dashboard-region { margin-bottom: 16px; }
+.context-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.context-controls label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .82em; font-weight: 600; }
+.context-controls select { min-width: 190px; max-width: min(460px, calc(100vw - 64px)); padding: 7px 9px; background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; font-size: .95em; }
+.context-controls select:disabled { opacity: .55; }
+.context-note { color: var(--text2); font-size: .76em; margin-top: 10px; }
+
+.cat-tabs { display: flex; gap: 2px; background: var(--bg2); border-bottom: 1px solid #333; margin-bottom: 12px; flex-wrap: wrap; }
+.cat-tab { appearance: none; padding: 10px 16px; cursor: pointer; color: var(--text2); background: transparent; border: 0; border-bottom: 2px solid transparent; font: inherit; font-size: .84em; font-weight: 600; }
+.cat-tab:hover, .cat-tab:focus-visible { color: var(--text); background: rgba(255,255,255,.05); outline: none; }
+.cat-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .cat-panel { display: none; }
 .cat-panel.active { display: block; }
 
-/* Section headers (per-descriptor collapse) */
-.desc-section { margin-bottom: 14px; }
-.desc-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--bg3); border-radius: 8px; cursor: pointer; user-select: none; }
-.desc-header:hover { background: rgba(255,255,255,.06); }
-.desc-header .dh-arrow { font-size: .7em; color: var(--text2); transition: transform .15s; width: 12px; }
-.desc-header .dh-arrow.open { transform: rotate(90deg); }
-.desc-header .dh-name { flex: 1; font-weight: 600; font-size: .95em; }
-.desc-header .dh-val { font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; font-size: .95em; }
-.desc-body { display: none; padding: 4px 0 0 0; }
+.desc-section { margin-bottom: 8px; }
+.desc-header { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 9px 12px; background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; text-align: left; font: inherit; }
+.desc-header:hover, .desc-header:focus-visible { background: #1b2a4f; border-color: #5a5a6a; outline: none; }
+.desc-header.partial { border-left: 3px solid var(--warning); }
+.desc-header.unavailable { border-left: 3px solid var(--red); }
+.dh-arrow { width: 14px; flex: 0 0 14px; color: var(--text2); font-size: .7em; transition: transform .15s; }
+.dh-arrow.open { transform: rotate(90deg); }
+.dh-copy { flex: 1 1 220px; min-width: 0; }
+.dh-name { display: block; font-weight: 650; font-size: .9em; }
+.dh-reason { display: none; color: var(--text2); font-size: .7em; line-height: 1.3; margin-top: 2px; }
+.desc-header.partial .dh-reason, .desc-header.unavailable .dh-reason { display: block; }
+.dh-val { flex: 0 0 auto; color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; font-size: .9em; white-space: nowrap; }
+.desc-header.unavailable .dh-val { color: var(--red); }
+.desc-body { display: none; padding: 4px 0 6px 24px; border-left: 1px solid #333; }
 .desc-body.open { display: block; }
+.tree { padding: 8px 0; min-width: 0; }
 
-/* Scope badges */
-.scope-badge { font-size: .65em; padding: 1px 6px; border-radius: 4px; color: var(--text); font-weight: 400; }
-.scope-badge.char { background: rgba(102,204,255,.15); color: var(--accent); }
-.scope-badge.acct { background: rgba(153,102,255,.15); color: var(--purple); }
-.scope-badge.map { background: rgba(255,170,50,.15); color: var(--orange); }
+.scope-badge, .state-badge { display: inline-block; flex: 0 0 auto; padding: 2px 6px; border-radius: 3px; font-size: .62em; font-weight: 700; white-space: nowrap; }
+.scope-badge.char { background: rgba(77,208,225,.14); color: var(--cyan); }
+.scope-badge.acct { background: rgba(187,134,252,.14); color: var(--purple); }
+.scope-badge.map { background: rgba(33,150,243,.16); color: #82c5ff; }
+.state-badge.partial { background: rgba(255,183,77,.16); color: var(--warning); }
+.state-badge.unavailable { background: rgba(255,68,68,.16); color: var(--red); }
+
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .84em; min-width: 0; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.05); }
+.bt-children { background: rgba(0,0,0,.1); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.04em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-tag { font-size: .7em; opacity: .75; margin-left: 4px; }
+.bt-tag.auto { color: var(--accent); }
+.bt-tag.manual { color: var(--warning); }
+.bt-tooltip { position: fixed; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: min(350px, calc(100vw - 24px)); pointer-events: none; z-index: 999; display: none; }
+
+@media (max-width: 700px) {
+  h1 { gap: 7px; font-size: 1.05em; }
+  .header-link { font-size: .58em; }
+  .main { padding: 10px; }
+  .section { padding: 12px; }
+  .context-controls { align-items: stretch; }
+  .context-controls label, .context-controls select { width: 100%; max-width: none; }
+  .cat-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .cat-tab { flex: 0 0 auto; padding: 9px 12px; }
+  .desc-header { flex-wrap: wrap; }
+  .dh-copy { flex-basis: calc(100% - 30px); }
+  .scope-badge { margin-left: 22px; }
+  .dh-val { margin-left: auto; }
+  .desc-body { padding-left: 8px; }
+  .bt-label { white-space: normal; overflow-wrap: anywhere; }
+}
 </style>
 </head>
 <body>
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:#c0c0d4;text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F4CA; IdleOn Stats Dashboard</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:#c0c0d4;text-decoration:none;" title="GitHub">GitHub</a></h1>
-<p class="subtitle">All stat breakdowns in one place. Import save, pick a character.</p>
-<div class="container">
+<h1>
+  <a class="header-link" href="index.html" title="Home">Home</a>
+  <span class="page-title">&#x1F4CA; <span class="brand">IdleOn</span> Stats Dashboard</span>
+  <a class="header-link" href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" title="GitHub">GitHub</a>
+</h1>
+<div id="save-area"></div>
 
-<!-- Import -->
-<details class="import-box" open>
-  <summary>&#x1F4CB; Import Save JSON</summary>
-  <textarea id="json-in" placeholder="Paste your it.json or save.json contents here..."></textarea>
-  <div class="top-bar">
-    <button class="btn" onclick="doImport()">Load Save</button>
-    <select id="char-sel" onchange="switchChar(+this.value)" disabled>
-      <option value="-1">-- load save first --</option>
-    </select>
-    <select id="map-sel" onchange="switchMap(+this.value)" disabled>
-      <option value="0">Map: Town</option>
-    </select>
-  </div>
-  <div id="import-msg" class="import-msg"></div>
-</details>
+<main class="main" id="main-content">
+  <section class="section" aria-labelledby="context-heading">
+    <h2 id="context-heading">Calculation Context</h2>
+    <div class="context-controls">
+      <label>Character
+        <select id="char-sel" disabled>
+          <option value="-1">Load a save first</option>
+        </select>
+      </label>
+      <label>Map
+        <select id="map-sel" disabled>
+          <option value="0">Town</option>
+        </select>
+      </label>
+      <label>Skill
+        <select id="skill-sel">
+          <option>Mining</option>
+          <option>Choppin</option>
+          <option>Fishing</option>
+          <option>Catching</option>
+          <option>Trapping</option>
+          <option>Worship</option>
+          <option>Cooking</option>
+          <option value="Laboratory">Laboratory</option>
+          <option>Divinity</option>
+          <option>Spelunking</option>
+        </select>
+      </label>
+        <label>Construction Mode
+          <select id="construction-mode">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </label>
+    </div>
+    <div class="context-note" id="context-note">Load a save to calculate all descriptors.</div>
+  </section>
 
-<!-- Summary cards -->
-<div class="summary-grid" id="summary-grid"></div>
-
-<!-- Category tabs -->
-<div class="cat-tabs" id="cat-tabs"></div>
-
-<!-- Category panels -->
-<div id="cat-panels"></div>
-
-</div>
+  <section class="dashboard-region" aria-labelledby="breakdowns-heading">
+    <h2 class="region-title" id="breakdowns-heading">Breakdowns</h2>
+    <div class="cat-tabs" id="cat-tabs" role="tablist"></div>
+    <div id="cat-panels"></div>
+  </section>
+</main>
 <div class="bt-tooltip" id="bt-tooltip"></div>
 <script type="module">
 'use strict';
 
 import { saveData } from './js/state.js';
-import { buildTree, toRenderNode } from './js/stats/tree-builder.js';
-import { getCatalog, allDescriptors } from './js/stats/registry.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+import { createStatContext } from './js/stats/stat-context.js';
+import { allDescriptors } from './js/stats/registry.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { fmtVal, fmtMonsterCash, fmtDmgRange } from './js/renderers/format.js';
-import { MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
+import { ClassNames, MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
 import { MONSTERS } from './js/stats/data/game/monsters.js';
+import { afkTargetData, currentMapData, mapBonData } from './js/save/data.js';
 import { computeOverkillTier } from './js/stats/systems/common/overkill.js';
-import damageDesc from './js/stats/defs/damage.js';
-import coinMultiDesc from './js/stats/defs/coin-multi.js';
-import { doImport as _doImport } from './js/ui/save-import.js';
 
 // ======================= CONSTANTS =======================
 var CATEGORY_ORDER = ['combat', 'stat', 'multiplier', 'rate', 'construction', 'research', 'currency', 'progression'];
@@ -131,7 +209,17 @@ var FMT = {
   'crystal-spawn': function(v) { return v > 0 ? '1 in ' + fmtVal(Math.round(1/v)) : 'N/A'; },
 };
 
-function _j(v) { return typeof v === 'string' ? JSON.parse(v) : v; }
+function escHtml(value) {
+  return String(value).replace(/[&<>"']/g, function(char) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+  });
+}
+
+function _j(value) {
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch (error) { return []; }
+}
+
 function _getLOG(x) { return Math.log(Math.max(x, 1)) / 2.30259; }
 function _arcaneMulti(kills) {
   if (kills < 1) return 0;
@@ -145,7 +233,12 @@ var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
 var CUR_MAP = 0;
-var RESULTS = {};  // { descId: { val, children } }
+var CUR_SKILL = 'Mining';
+var CONSTRUCTION_ACTIVE = true;
+var RESULTS = Object.create(null);
+var ACTIVE_CTX = null;
+var OVERKILL_INFO = null;
+var OVERKILL_REASON = '';
 
 // ======================= DESCRIPTOR GROUPING =======================
 var DESCS = allDescriptors();
@@ -156,6 +249,28 @@ for (var i = 0; i < DESCS.length; i++) {
   if (!BY_CAT[cat]) BY_CAT[cat] = [];
   BY_CAT[cat].push(d);
 }
+var CATEGORY_KEYS = CATEGORY_ORDER.concat(Object.keys(BY_CAT).filter(function(cat) {
+  return CATEGORY_ORDER.indexOf(cat) === -1;
+}));
+
+function _categoryLabel(category) {
+  if (CATEGORY_LABELS[category]) return CATEGORY_LABELS[category];
+  return category.charAt(0).toUpperCase() + category.slice(1).replace(/-/g, ' ');
+}
+
+function _scopeInfo(desc) {
+  if (desc.scope === 'account') return { className: 'acct', label: 'Account' };
+  if (desc.scope === 'character+map') return { className: 'map', label: 'Char + Map' };
+  return { className: 'char', label: 'Character' };
+}
+
+function _descriptorName(desc) {
+  if (CUR_SKILL === 'Divinity') {
+    if (desc.id === 'skill-efficiency') return 'Divinity Points/hr';
+    if (desc.id === 'skill-exp') return 'Divinity EXP/hr';
+  }
+  return desc.name;
+}
 
 // ======================= BUILD UI SKELETON =======================
 function buildTabs() {
@@ -165,22 +280,24 @@ function buildTabs() {
   panelsEl.innerHTML = '';
 
   var first = true;
-  for (var ci = 0; ci < CATEGORY_ORDER.length; ci++) {
-    var cat = CATEGORY_ORDER[ci];
+  for (var ci = 0; ci < CATEGORY_KEYS.length; ci++) {
+    var cat = CATEGORY_KEYS[ci];
     if (!BY_CAT[cat] || BY_CAT[cat].length === 0) continue;
 
-    // Tab button
-    var tab = document.createElement('div');
+    var tab = document.createElement('button');
+    tab.type = 'button';
     tab.className = 'cat-tab' + (first ? ' active' : '');
-    tab.textContent = CATEGORY_LABELS[cat] || cat;
+    tab.textContent = _categoryLabel(cat);
     tab.dataset.cat = cat;
-    tab.onclick = switchTab;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', first ? 'true' : 'false');
+    tab.addEventListener('click', switchTab);
     tabsEl.appendChild(tab);
 
-    // Panel
     var panel = document.createElement('div');
     panel.className = 'cat-panel' + (first ? ' active' : '');
     panel.id = 'panel-' + cat;
+    panel.setAttribute('role', 'tabpanel');
 
     var descs = BY_CAT[cat];
     for (var di = 0; di < descs.length; di++) {
@@ -189,19 +306,23 @@ function buildTabs() {
       section.className = 'desc-section';
       section.id = 'section-' + desc.id;
 
-      var scopeClass = desc.scope === 'account' ? 'acct' : (desc.scope === 'character+map' ? 'map' : 'char');
-      var scopeLabel = desc.scope === 'account' ? 'Account' : (desc.scope === 'character+map' ? 'Char+Map' : 'Character');
+      var scope = _scopeInfo(desc);
 
       section.innerHTML =
-        '<div class="desc-header" onclick="window._toggleDesc(\'' + desc.id + '\')">' +
+        '<button type="button" class="desc-header" data-desc-id="' + escHtml(desc.id) + '" aria-expanded="false">' +
           '<span class="dh-arrow" id="arrow-' + desc.id + '">&#x25B6;</span>' +
-          '<span class="dh-name">' + desc.name + '</span>' +
-          '<span class="scope-badge ' + scopeClass + '">' + scopeLabel + '</span>' +
+          '<span class="dh-copy"><span class="dh-name">' + escHtml(_descriptorName(desc)) + '</span>' +
+            '<span class="dh-reason" id="reason-' + desc.id + '"></span></span>' +
+          '<span class="scope-badge ' + scope.className + '">' + scope.label + '</span>' +
+          '<span class="state-badge" id="state-' + desc.id + '" hidden></span>' +
           '<span class="dh-val" id="hval-' + desc.id + '">—</span>' +
-        '</div>' +
+        '</button>' +
         '<div class="desc-body" id="body-' + desc.id + '">' +
-          '<div class="tree"><div id="tree-' + desc.id + '"></div></div>' +
+          '<div class="tree" id="tree-' + desc.id + '"></div>' +
         '</div>';
+      section.querySelector('.desc-header').addEventListener('click', function(event) {
+        toggleDescriptor(event.currentTarget.dataset.descId);
+      });
       panel.appendChild(section);
     }
     panelsEl.appendChild(panel);
@@ -213,24 +334,47 @@ function switchTab(e) {
   var cat = e.currentTarget.dataset.cat;
   var tabs = document.querySelectorAll('.cat-tab');
   var panels = document.querySelectorAll('.cat-panel');
-  for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.cat === cat);
+  for (var i = 0; i < tabs.length; i++) {
+    var selected = tabs[i].dataset.cat === cat;
+    tabs[i].classList.toggle('active', selected);
+    tabs[i].setAttribute('aria-selected', selected ? 'true' : 'false');
+  }
   for (var i = 0; i < panels.length; i++) panels[i].classList.toggle('active', panels[i].id === 'panel-' + cat);
 }
 
-window._toggleDesc = function(id) {
+function _descriptorById(id) {
+  return DESCS.find(function(desc) { return desc.id === id; });
+}
+
+function _renderDescriptorTree(id) {
+  var result = RESULTS[id];
+  var desc = _descriptorById(id);
+  var container = document.getElementById('tree-' + id);
+  if (!result || !desc || !container) return;
+  var renderRoot = toRenderNode({
+    name: result.name || desc.name,
+    val: Number.isFinite(Number(result.val)) ? Number(result.val) : 0,
+    children: result.children,
+    fmt: result.fmt || desc.fmt || 'x',
+    note: result.reason || result.note || '',
+  });
+  renderBreakdownTree(renderRoot, container, { tooltipId: 'bt-tooltip' });
+}
+
+function toggleDescriptor(id) {
   var body = document.getElementById('body-' + id);
   var arrow = document.getElementById('arrow-' + id);
+  var header = body && body.previousElementSibling;
+  if (!body || !arrow || !header) return;
   var isOpen = body.classList.toggle('open');
   arrow.classList.toggle('open', isOpen);
+  header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 
-  // Lazy-render tree on first open
   if (isOpen && RESULTS[id] && !body.dataset.rendered) {
-    var tree = RESULTS[id];
-    var renderRoot = toRenderNode({ name: tree.name || id, val: tree.val, children: tree.children, fmt: tree.fmt || 'x' });
-    renderBreakdownTree(renderRoot, document.getElementById('tree-' + id), { tooltipId: 'bt-tooltip' });
+    _renderDescriptorTree(id);
     body.dataset.rendered = '1';
   }
-};
+}
 
 buildTabs();
 
@@ -248,188 +392,311 @@ function _mapLabel(idx, bonArr) {
   return label;
 }
 
-function populateMapSel(data, charIdx, curMap) {
+function _mapBonuses() {
+  var data = SAVE_RAW && (SAVE_RAW.data || SAVE_RAW);
+  if (data && data.MapBon != null) return _j(data.MapBon) || [];
+  return mapBonData || [];
+}
+
+function populateMapSel(curMap) {
   var mapSel = document.getElementById('map-sel');
   mapSel.innerHTML = '';
-  var mb = data.MapBon ? _j(data.MapBon) : [];
+  var mb = _mapBonuses();
   var added = new Set();
 
-  var oTown = document.createElement('option');
-  oTown.value = 0; oTown.textContent = 'Town'; mapSel.appendChild(oTown); added.add(0);
-
-  for (var i = 0; i < mb.length; i++) {
-    if (added.has(i) || !Array.isArray(mb[i]) || !mb[i][0] || !MapDispName[i]) continue;
+  for (var i = 0; i < MapDispName.length; i++) {
+    if (!MapDispName[i] || added.has(i)) continue;
     var o = document.createElement('option');
-    o.value = i; o.textContent = _mapLabel(i, mb[i]); mapSel.appendChild(o); added.add(i);
+    o.value = i;
+    o.textContent = _mapLabel(i, mb[i]) + (i === curMap ? ' (current)' : '');
+    mapSel.appendChild(o);
+    added.add(i);
+  }
+
+  if (!added.has(0)) {
+    var oTown = document.createElement('option');
+    oTown.value = 0;
+    oTown.textContent = 'Town' + (curMap === 0 ? ' (current)' : '');
+    mapSel.insertBefore(oTown, mapSel.firstChild);
+    added.add(0);
   }
 
   if (curMap != null && !added.has(curMap)) {
     var name = MapDispName[curMap] ? MapDispName[curMap].replace(/_/g, ' ') : 'Map ' + curMap;
     var oC = document.createElement('option');
     oC.value = curMap; oC.textContent = name + ' (current)';
-    mapSel.insertBefore(oC, mapSel.firstChild.nextSibling);
+    mapSel.insertBefore(oC, mapSel.firstChild);
+    added.add(curMap);
+  }
+}
+
+function _currentMapForCharacter(charIdx) {
+  var current = Number(currentMapData && currentMapData[charIdx]);
+  return Number.isFinite(current) ? current : 0;
+}
+
+function _clearRenderedTrees() {
+  var bodies = document.querySelectorAll('.desc-body');
+  for (var i = 0; i < bodies.length; i++) bodies[i].dataset.rendered = '';
+}
+
+function _failureResult(desc, error) {
+  return {
+    name: _descriptorName(desc),
+    val: 0,
+    children: null,
+    fmt: desc.fmt,
+    unavailable: true,
+    reason: 'Calculation failed: ' + String(error && error.message ? error.message : error),
+  };
+}
+
+function _resolveDescriptor(ctx, desc) {
+  try {
+    var result = ctx.resolve(desc.id);
+    result.name = _descriptorName(desc);
+    result.fmt = desc.fmt || result.fmt;
+    return result;
+  } catch (error) {
+    return _failureResult(desc, error);
+  }
+}
+
+function _combineReasons(first, second) {
+  if (!first) return second || '';
+  if (!second || second === first) return first;
+  return first + ' ' + second;
+}
+
+function _displayValue(desc, result) {
+  if (result.unavailable) return 'Unavailable';
+  var value = Number(result.val);
+  if (!Number.isFinite(value)) return 'Unavailable';
+  if (desc.id === 'damage') {
+    var minNode = (result.children || []).find(function(child) { return child.name === 'Min Damage'; });
+    var minDamage = minNode ? Number(minNode.val) : value;
+    var damageRange = fmtDmgRange(Number.isFinite(minDamage) ? minDamage : value, value);
+    return result.partial ? '~' + damageRange : damageRange;
+  }
+  var formatter = FMT[desc.id] || function(v) { return fmtVal(v); };
+  if (desc.id === 'skill-exp' && CUR_SKILL === 'Divinity') {
+    return (result.partial ? '~' : '') + fmtVal(value) + '/hr';
+  }
+  if (desc.id === 'skill-efficiency' && CUR_SKILL === 'Divinity') {
+    return (result.partial ? '~' : '') + fmtVal(value) + '/hr';
+  }
+  var formatted;
+  try { formatted = formatter(value); } catch (error) { formatted = fmtVal(value); }
+  return result.partial ? '~' + formatted : formatted;
+}
+
+function _resultReason(result) {
+  if (result.reason) return String(result.reason);
+  if (result.unavailable) return 'Required calculation inputs are unavailable.';
+  if (result.partial) return 'Some source metadata is absent from the imported save.';
+  return '';
+}
+
+function _renderResult(desc, result) {
+  var valueText = _displayValue(desc, result);
+  var reason = _resultReason(result);
+  var header = document.querySelector('[data-desc-id="' + desc.id + '"]');
+  var state = document.getElementById('state-' + desc.id);
+  var reasonEl = document.getElementById('reason-' + desc.id);
+  var valueEl = document.getElementById('hval-' + desc.id);
+  var nameEl = header && header.querySelector('.dh-name');
+  var status = result.unavailable ? 'unavailable' : (result.partial ? 'partial' : '');
+
+  if (header) {
+    if (nameEl) nameEl.textContent = _descriptorName(desc);
+    header.classList.toggle('partial', status === 'partial');
+    header.classList.toggle('unavailable', status === 'unavailable');
+  }
+  if (state) {
+    state.hidden = !status;
+    state.className = 'state-badge' + (status ? ' ' + status : '');
+    state.textContent = status === 'partial' ? 'Partial' : (status === 'unavailable' ? 'Unavailable' : '');
+  }
+  if (reasonEl) reasonEl.textContent = reason;
+  if (valueEl) valueEl.textContent = valueText;
+
+  var body = document.getElementById('body-' + desc.id);
+  if (body && body.classList.contains('open')) {
+    _renderDescriptorTree(desc.id);
+    body.dataset.rendered = '1';
   }
 }
 
 // ======================= COMPUTE ALL =======================
 function recalcAll() {
   if (!SAVE_RAW) return;
-  RESULTS = {};
+  RESULTS = Object.create(null);
+  OVERKILL_INFO = null;
+  OVERKILL_REASON = '';
+  _clearRenderedTrees();
 
-  var data = SAVE_RAW.data || SAVE_RAW;
-  var mapBon = data.MapBon ? _j(data.MapBon) : null;
-  var catalog = getCatalog();
+  var ctx = createStatContext({
+    charIdx: CUR_CHAR,
+    mapIdx: CUR_MAP,
+    saveData: saveData,
+    mapBon: _mapBonuses(),
+    layer1: { skillType: CUR_SKILL, isActive: CONSTRUCTION_ACTIVE },
+  });
+  ACTIVE_CTX = ctx;
 
-  // Pre-compute damage + overkill for coin-multi
-  var dmgResult = null;
-  var okTier = 1;
-  var okInfo = null;
-  try {
-    dmgResult = buildTree(damageDesc, catalog, { charIdx: CUR_CHAR, saveData: saveData });
-  } catch(e) {}
-  try {
-    var maxDmg = dmgResult ? dmgResult.val : 0;
-    okInfo = computeOverkillTier(CUR_CHAR, { saveData: saveData }, { maxDmg: maxDmg });
-    okTier = okInfo.tier;
-  } catch(e) {}
+  var damageDescriptor = _descriptorById('damage');
+  var damageResult = damageDescriptor ? _resolveDescriptor(ctx, damageDescriptor) : null;
+  if (damageResult) RESULTS.damage = damageResult;
 
-  // Build context variants
-  // resolve() lets descriptors compute cross-dependencies (e.g. gfood-multi needs voting-multi)
-  function resolve(descId) {
-    if (RESULTS[descId]) return RESULTS[descId];
-    var d = DESCS.find(function(x) { return x.id === descId; });
-    if (!d) return { val: 0, children: null };
-    var c = d.scope === 'character+map' ? ctxMap : ctxChar;
-    c.resolve = resolve;
-    var r = buildTree(d, catalog, c);
-    RESULTS[descId] = r;
-    return r;
+  if (!damageResult || damageResult.unavailable || !Number.isFinite(Number(damageResult.val))) {
+    ctx.overkillTier = 1;
+    OVERKILL_REASON = 'Overkill defaults to tier 1 because Damage is unavailable.';
+  } else {
+    try {
+      var selectedTarget = String(afkTargetData[CUR_CHAR] || '');
+      var selectedMonster = selectedTarget ? MONSTERS[selectedTarget] : null;
+      OVERKILL_INFO = computeOverkillTier(CUR_CHAR, ctx, {
+        mapIdx: CUR_MAP,
+        afkTarget: selectedTarget,
+        monsterHP: selectedMonster ? Number(selectedMonster.MonsterHPTotal) || 0 : 0,
+        maxDmg: Number(damageResult.val),
+      });
+      ctx.overkillTier = Number(OVERKILL_INFO && OVERKILL_INFO.tier) || 1;
+      if (damageResult.partial) {
+        OVERKILL_REASON = 'Overkill uses a partial Damage result.';
+      }
+      if (OVERKILL_INFO && OVERKILL_INFO.partial) {
+        OVERKILL_REASON = _combineReasons(
+          OVERKILL_REASON,
+          'Overkill defaults to tier 1 because this map has no target monster HP metadata.'
+        );
+      }
+    } catch (error) {
+      ctx.overkillTier = 1;
+      OVERKILL_REASON = 'Overkill defaults to tier 1: ' + String(error && error.message ? error.message : error);
+    }
   }
-  var ctxChar = { charIdx: CUR_CHAR, saveData: saveData, resolve: resolve };
-  var ctxMap = { charIdx: CUR_CHAR, mapIdx: CUR_MAP, saveData: saveData, mapBon: mapBon, resolve: resolve };
-  var ctxCoin = { charIdx: CUR_CHAR, saveData: saveData, overkillTier: okTier, resolve: resolve };
-
-  var summaryGridEl = document.getElementById('summary-grid');
-  summaryGridEl.innerHTML = '';
 
   for (var i = 0; i < DESCS.length; i++) {
     var desc = DESCS[i];
-    var ctx;
-    if (desc.id === 'coin-multi') ctx = ctxCoin;
-    else if (desc.scope === 'character+map') ctx = ctxMap;
-    else ctx = ctxChar;
+    var result = desc.id === 'damage' && damageResult
+      ? damageResult
+      : _resolveDescriptor(ctx, desc);
 
-    var result;
-    try {
-      result = buildTree(desc, catalog, ctx);
-    } catch(e) {
-      result = { val: 0, children: null, name: desc.name, _error: e.message };
+    if (desc.id === 'coin-multi' && OVERKILL_REASON && !result.unavailable) {
+      result.partial = true;
+      result.reason = _combineReasons(result.reason, OVERKILL_REASON);
     }
-    result.name = desc.name;
-    result.fmt = desc.fmt || result.fmt;
     RESULTS[desc.id] = result;
-
-    // Update header value
-    var fmt = FMT[desc.id] || function(v) { return fmtVal(v); };
-    var valStr = result._error ? 'Err' : fmt(result.val || 0);
-    var hvalEl = document.getElementById('hval-' + desc.id);
-    if (hvalEl) hvalEl.textContent = valStr;
-
-    // Re-render tree if body is already open
-    var body = document.getElementById('body-' + desc.id);
-    if (body && body.classList.contains('open')) {
-      body.dataset.rendered = '';
-      var renderRoot = toRenderNode({ name: desc.name, val: result.val, children: result.children, fmt: result.fmt });
-      renderBreakdownTree(renderRoot, document.getElementById('tree-' + desc.id), { tooltipId: 'bt-tooltip' });
-      body.dataset.rendered = '1';
-    }
-
-    // Summary card
-    var card = document.createElement('div');
-    card.className = 'stat-card';
-    card.onclick = (function(did, dcat) { return function() {
-      // Switch to the right tab and open the section
-      var tabs = document.querySelectorAll('.cat-tab');
-      var panels = document.querySelectorAll('.cat-panel');
-      for (var t = 0; t < tabs.length; t++) tabs[t].classList.toggle('active', tabs[t].dataset.cat === dcat);
-      for (var p = 0; p < panels.length; p++) panels[p].classList.toggle('active', panels[p].id === 'panel-' + dcat);
-      var bodyEl = document.getElementById('body-' + did);
-      var arrowEl = document.getElementById('arrow-' + did);
-      if (bodyEl && !bodyEl.classList.contains('open')) {
-        bodyEl.classList.add('open');
-        if (arrowEl) arrowEl.classList.add('open');
-        if (!bodyEl.dataset.rendered && RESULTS[did]) {
-          var rr = toRenderNode({ name: RESULTS[did].name, val: RESULTS[did].val, children: RESULTS[did].children, fmt: RESULTS[did].fmt });
-          renderBreakdownTree(rr, document.getElementById('tree-' + did), { tooltipId: 'bt-tooltip' });
-          bodyEl.dataset.rendered = '1';
-        }
-      }
-      var sec = document.getElementById('section-' + did);
-      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }; })(desc.id, desc.category);
-
-    var sub = '';
-    if (desc.id === 'coin-multi' && okInfo) sub = 'Overkill: ' + okInfo.tier;
-    else if (desc.id === 'damage' && dmgResult) {
-      var minD = 0;
-      if (dmgResult.children) for (var ch of dmgResult.children) { if (ch.name === 'Min Damage') minD = ch.val; }
-      sub = fmtVal(minD) + ' min';
-    }
-
-    card.innerHTML =
-      '<div class="sc-label">' + desc.name + '</div>' +
-      '<div class="sc-val">' + valStr + '</div>' +
-      (sub ? '<div class="sc-sub">' + sub + '</div>' : '');
-    summaryGridEl.appendChild(card);
+    _renderResult(desc, result);
   }
+
+  var character = CHARS[CUR_CHAR] || ('Character ' + (CUR_CHAR + 1));
+  var map = String(MapDispName[CUR_MAP] || ('Map ' + CUR_MAP)).replace(/_/g, ' ');
+  document.getElementById('context-note').textContent = character + ' · ' + map + ' · ' + CUR_SKILL
+    + ' · Construction ' + (CONSTRUCTION_ACTIVE ? 'Active' : 'Inactive');
 }
 
-// ======================= IMPORT =======================
-function doImport() {
-  _doImport({
-    textareaId: 'json-in',
-    charSelId: 'char-sel',
-    msgId: 'import-msg',
-    onLoaded: function(raw, chars) {
-      SAVE_RAW = raw;
-      CHARS = chars;
-      CUR_CHAR = 0;
+// ======================= SAVE LOADING =======================
+function onLoad(_loadedSaveData, raw) {
+  SAVE_RAW = raw || _loadedSaveData;
+  var data = SAVE_RAW.data || SAVE_RAW;
+  CHARS = Array.isArray(SAVE_RAW.charNames) ? SAVE_RAW.charNames : (saveData.charNames || []);
+  var charCount = Math.max(CHARS.length, saveData.lv0AllData?.length || 0);
+  var charSel = document.getElementById('char-sel');
+  charSel.innerHTML = '';
 
-      var data = raw.data || raw;
-      CUR_MAP = data['CurrentMap_' + CUR_CHAR] || 0;
-      var mapSel = document.getElementById('map-sel');
-      populateMapSel(data, CUR_CHAR, CUR_MAP);
-      mapSel.disabled = false;
-      mapSel.value = CUR_MAP;
+  for (var i = 0; i < charCount; i++) {
+    var classId = data['CharacterClass_' + i];
+    var className = String(ClassNames[classId] || 'Unknown Class').replace(/_/g, ' ');
+    var option = document.createElement('option');
+    option.value = i;
+    option.textContent = (CHARS[i] || ('Character ' + (i + 1))) + ' (' + className + ')';
+    charSel.appendChild(option);
+  }
 
-      recalcAll();
-    }
-  });
+  charSel.disabled = charCount === 0;
+  CUR_CHAR = 0;
+  CUR_MAP = _currentMapForCharacter(CUR_CHAR);
+  CUR_SKILL = document.getElementById('skill-sel').value;
+  CONSTRUCTION_ACTIVE = document.getElementById('construction-mode').value === 'active';
+
+  var mapSel = document.getElementById('map-sel');
+  populateMapSel(CUR_MAP);
+  mapSel.disabled = charCount === 0;
+  mapSel.value = String(CUR_MAP);
+  recalcAll();
 }
-window.doImport = doImport;
+
+initSaveLoader({ target: '#save-area', onLoad, auth: true });
 
 function switchChar(idx) {
   CUR_CHAR = idx;
-  if (SAVE_RAW) {
-    var data = SAVE_RAW.data || SAVE_RAW;
-    CUR_MAP = data['CurrentMap_' + idx] || 0;
-    populateMapSel(data, idx, CUR_MAP);
-    document.getElementById('map-sel').value = CUR_MAP;
-  }
-  // Clear rendered flags so trees re-render on next open
-  var bodies = document.querySelectorAll('.desc-body');
-  for (var i = 0; i < bodies.length; i++) bodies[i].dataset.rendered = '';
+  CUR_MAP = _currentMapForCharacter(idx);
+  populateMapSel(CUR_MAP);
+  document.getElementById('map-sel').value = String(CUR_MAP);
   recalcAll();
 }
-window.switchChar = switchChar;
 
 function switchMap(idx) {
   CUR_MAP = idx;
-  var bodies = document.querySelectorAll('.desc-body');
-  for (var i = 0; i < bodies.length; i++) bodies[i].dataset.rendered = '';
   recalcAll();
 }
-window.switchMap = switchMap;
+
+function switchSkill(skillType) {
+  CUR_SKILL = skillType;
+  recalcAll();
+}
+
+function switchConstructionMode(value) {
+  CONSTRUCTION_ACTIVE = value === 'active';
+  recalcAll();
+}
+
+window.statsDebug = function() {
+  var descriptorResults = Object.create(null);
+  for (var i = 0; i < DESCS.length; i++) {
+    var desc = DESCS[i];
+    var result = RESULTS[desc.id];
+    descriptorResults[desc.id] = {
+      val: result ? result.val : null,
+      partial: Boolean(result && result.partial),
+      unavailable: Boolean(result && result.unavailable),
+      reason: result ? _resultReason(result) : 'Not calculated.',
+    };
+  }
+
+  var debug = {
+    context: {
+      charIdx: CUR_CHAR,
+      character: CHARS[CUR_CHAR] || ('Character ' + (CUR_CHAR + 1)),
+      mapIdx: CUR_MAP,
+      map: String(MapDispName[CUR_MAP] || ('Map ' + CUR_MAP)).replace(/_/g, ' '),
+      skillType: CUR_SKILL,
+      constructionMode: CONSTRUCTION_ACTIVE ? 'active' : 'inactive',
+      overkillTier: ACTIVE_CTX ? ACTIVE_CTX.overkillTier : null,
+    },
+    descriptors: descriptorResults,
+  };
+  console.log('Stats diagnostics', debug);
+  return debug;
+};
+
+window.copyStatsDebug = function() {
+  var text = JSON.stringify(window.statsDebug(), null, 2);
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    return Promise.reject(new Error('Clipboard access is unavailable in this browser context.'));
+  }
+  return navigator.clipboard.writeText(text).then(function() {
+    console.log('Stats diagnostics copied to clipboard.');
+    return true;
+  });
+};
+
+document.getElementById('char-sel').addEventListener('change', function() { switchChar(Number(this.value)); });
+document.getElementById('map-sel').addEventListener('change', function() { switchMap(Number(this.value)); });
+document.getElementById('skill-sel').addEventListener('change', function() { switchSkill(this.value); });
+document.getElementById('construction-mode').addEventListener('change', function() { switchConstructionMode(this.value); });
 </script>
 </body>
 </html>

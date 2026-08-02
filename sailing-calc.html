@@ -145,6 +145,7 @@ import {
   CHEST_TIER_NAMES,
   allArtifactsMaxed,
   availableIslandCount,
+  boatUpgradeBreakpoint,
   boatUpgradeCost,
   boatUpgradeEta,
   boatTargetIsland,
@@ -328,40 +329,47 @@ function renderLevels() {
       var targetIsland=Math.max(0,currency.islandIdx);
       var targetAvailable=targetIsland<islandCount();
       var targetFleet=targetAvailable?activeFleet(targetIsland,'treasure'):[];
-      boatRows.push(Object.assign(boatUpgradeEta(boat,stat,targetFleet,saveData),{
+      var nextLevel=boatUpgradeEta(boat,stat,targetFleet,saveData);
+      var breakpoint=boatUpgradeBreakpoint(boat,stat,targetFleet,saveData,options());
+      boatRows.push(Object.assign(nextLevel,{
         targetIsland:targetIsland,
         targetAvailable:targetAvailable,
+        breakpoint:breakpoint,
       }));
     });
-    groups.push({boatIdx:boat,rows:boatRows,lowestEta:Math.min.apply(null,boatRows.map(levelEtaValue))});
+    groups.push({boatIdx:boat,rows:boatRows,lowestEta:Math.min.apply(null,boatRows.map(breakpointEtaValue))});
   }
   if(sortLevelsByEta)groups.sort(function(a,b){return a.lowestEta-b.lowestEta||a.boatIdx-b.boatIdx;});
   var rows=groups.reduce(function(all,group){return all.concat(group.rows);},[]);
-  var ready=rows.filter(function(row){return row.remaining<=0;}).length;
-  var fastest=rows.reduce(function(best,row){return row.hours<best.hours?row:best;},{hours:Infinity});
-  var fastestText=isFinite(fastest.hours)?'Boat '+(fastest.boatIdx+1)+' '+fastest.stat:'No current resource income';
-  var h='<div class="section"><h2>Next Ship Levels</h2><div class="card-grid">';
-  h+=card('Upgrades ready',fmt(ready),fmt(rows.length)+' loot and speed upgrades checked');
-  h+=card('Fastest next level',isFinite(fastest.hours)?(fastest.hours<=0?'Ready':time(fastest.hours*3600)):'&mdash;',fastestText);
+  var ready=rows.filter(function(row){return row.breakpoint.remaining<=0;}).length;
+  var fastest=rows.reduce(function(best,row){return row.breakpoint.hours<best.breakpoint.hours?row:best;},{breakpoint:{hours:Infinity}});
+  var fastestHours=fastest.breakpoint.hours;
+  var fastestText=isFinite(fastestHours)?'Boat '+(fastest.boatIdx+1)+' '+fastest.stat:'No current resource income';
+  var h='<div class="section"><h2>Ship Upgrade Breakpoints</h2><div class="card-grid">';
+  h+=card('Breakpoints ready',fmt(ready),fmt(rows.length)+' loot and speed breakpoints checked');
+  h+=card('Fastest next breakpoint',isFinite(fastestHours)?(fastestHours<=0?'Ready':time(fastestHours*3600)):'&mdash;',fastestText);
   h+=card('ETA assignment',fleetAssignmentMode==='optimized'?'Optimized captains':'Current save captains','Each fleet targets the required resource island');
-  h+='</div><div class="controls" style="margin-top:10px"><label class="check-control"><input type="checkbox" data-set="sortEta"'+(sortLevelsByEta?' checked':'')+'>Sort boats by lowest ETA</label></div>';
-  h+='<div class="table-wrap" style="margin-top:8px"><table class="data-table"><thead><tr><th>Boat</th><th>Upgrade</th><th class="num">Level</th><th>Resource</th><th>Target route</th><th class="num">Cost</th><th class="num">Balance</th><th class="num">Needed</th><th class="num">Fleet/hr</th><th class="num">ETA</th></tr></thead><tbody>';
+  h+='</div><div class="controls" style="margin-top:10px"><label class="check-control"><input type="checkbox" data-set="sortEta"'+(sortLevelsByEta?' checked':'')+'>Sort boats by lowest breakpoint ETA</label></div>';
+  h+='<div class="table-wrap" style="margin-top:8px"><table class="data-table"><thead><tr><th>Boat</th><th>Upgrade</th><th class="num">Next level</th><th class="num" data-tip="Next level where floor(level / 8) increases for loot or floor(level / 7) increases for speed">Breakpoint</th><th class="num">Levels away</th><th class="num">Base gain</th><th class="num">Route gain</th><th>Resource</th><th>Target route</th><th class="num">Breakpoint cost</th><th class="num">Needed</th><th class="num">Breakpoint ETA</th></tr></thead><tbody>';
   groups.forEach(function(group,groupIdx){
     group.rows.forEach(function(row,rowIdx){
-      var isFastest=isFinite(fastest.hours)&&row.hours===fastest.hours;
-      var status=row.remaining<=0?'<span class="badge badge-green">ready</span>':isFinite(row.hours)?time(row.hours*3600):'&mdash;';
+      var isFastest=isFinite(fastestHours)&&row.breakpoint.hours===fastestHours;
       var target=row.targetAvailable?islandLabel(row.targetIsland):'<span class="badge badge-red">locked</span>';
+      var bp=row.breakpoint;
+      var routeGain=row.stat==='speed'?bp.chestGainPct:bp.treasureGainPct;
+      var routeText=bp.speedCapped&&row.stat==='speed'?'<span class="badge badge-cyan" data-tip="Raw speed increases, but the route is already at minimum travel time">capped · 0%</span>':'+'+routeGain.toFixed(2)+'%';
+      var bpStatus=bp.remaining<=0?'<span class="badge badge-green">ready</span>':isFinite(bp.hours)?time(bp.hours*3600):'&mdash;';
       var rowClass=(rowIdx===0?'ship-pair-first':'ship-pair-second')+(groupIdx%2?' ship-group-alt':'')+(isFastest?' best':'');
       h+='<tr class="'+rowClass+'">';
       if(rowIdx===0)h+='<td class="ship-boat-cell" rowspan="2">Boat '+(group.boatIdx+1)+'</td>';
-      h+='<td>'+(row.stat==='loot'?'Loot value':'Speed')+'</td><td class="num">'+fmt(row.level)+' &rarr; '+fmt(row.level+1)+'</td><td>'+esc(row.currency.name)+'</td><td>'+target+'</td><td class="num">'+fmt(row.cost)+'</td><td class="num">'+fmt(row.balance)+'</td><td class="num">'+fmt(row.remaining)+'</td><td class="num">'+fmt(row.rate)+'</td><td class="num">'+status+'</td></tr>';
+      h+='<td>'+(row.stat==='loot'?'Loot value':'Speed')+'</td><td class="num">'+fmt(row.level)+' &rarr; '+fmt(row.level+1)+'</td><td class="num"><strong>'+fmt(row.level)+' / '+fmt(bp.targetLevel)+'</strong></td><td class="num">'+fmt(bp.levels)+'</td><td class="num">+'+bp.baseGainPct.toFixed(2)+'%</td><td class="num">'+routeText+'</td><td>'+esc(row.currency.name)+'</td><td>'+target+'</td><td class="num">'+fmt(bp.totalCost)+'</td><td class="num">'+fmt(bp.remaining)+'</td><td class="num">'+bpStatus+'</td></tr>';
     });
   });
-  h+='</tbody></table></div><div class="callout" style="margin-top:10px">Each ETA assumes the entire fleet targets the island that provides that upgrade resource, using '+(fleetAssignmentMode==='optimized'?'captains optimized for <strong>direct loot value</strong>':'the <strong>current save\'s captain-to-boat pairings</strong>')+'. Gold Bars use Island 1 because they can drop everywhere and the shortest route maximizes chest generation. Stateful near-full pile gains are excluded.</div></div>';
+  h+='</tbody></table></div><div class="callout" style="margin-top:10px"><strong>Breakpoint:</strong> the next loot level divisible by 8 or speed level divisible by 7. At that level, the squared floor term in the ship formula increases, producing a much larger one-level jump than surrounding upgrades. Route gain includes the selected destination and minimum-trip-time cap; a capped speed breakpoint still raises raw speed but does not generate more chests. Costs and ETAs cover every level through the breakpoint and assume the entire fleet targets the required resource island using '+(fleetAssignmentMode==='optimized'?'captains optimized for <strong>direct loot value</strong>':'the <strong>current save\'s captain-to-boat pairings</strong>')+'.</div></div>';
   return h;
 }
 
-function levelEtaValue(row){return row.remaining<=0?0:row.hours;}
+function breakpointEtaValue(row){return row.breakpoint.remaining<=0?0:row.breakpoint.hours;}
 
 function captainRollCell(quality,captainIdx) {
   if(quality.bonusType<0)return '&mdash;';

@@ -17,6 +17,6 @@ export var bundle = {
     var offVal = owned ? info.val : info.off;
     return node(info.name, offVal, [
       node(owned ? 'Owned' : 'Not owned', owned ? 1 : 0, null, { fmt: 'raw' }),
-    ], { note: 'bundle:' + id });
+    ], { fmt: id === 'bun_p' ? 'x' : '+', note: 'bundle:' + id });
   },
 };

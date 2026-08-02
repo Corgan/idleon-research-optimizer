@@ -12,10 +12,25 @@ import { deathNoteRank } from '../../../sim-math.js';
 import { numCharacters, klaData } from '../../../save/data.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
+import { zenithMarketPerLevel } from '../../data/w5/sailing.js';
 import { HOLE_MULTIPLIERS } from '../../data/game-constants.js';
 import { bonTOT as fountainBonTOT } from './fountain.js';
 
 var HOLE_DATA = HOLE_MULTIPLIERS;
+
+export function computeBUpg(idx, value, saveData) {
+  var holesData = saveData && saveData.holesData;
+  if (!holesData || !holesData.length || (Number(holesData[13] && holesData[13][idx]) || 0) < 1) return 0;
+  if (idx !== 49) return Number(value) || 0;
+
+  var cavernLevels = holesData[11] || [];
+  return (Number(value) || 0) * (
+    (Number(cavernLevels[1]) || 0)
+    + (Number(cavernLevels[3]) || 0) * computeBUpg(50, 1, saveData)
+    + (Number(cavernLevels[5]) || 0) * computeBUpg(79, 1, saveData)
+    + (Number(cavernLevels[7]) || 0) * computeBUpg(98, 1, saveData)
+  );
+}
 
 export var holes = {
   resolve: function(id, ctx) {
@@ -72,46 +87,18 @@ export var holes = {
 
     // Monument ROG bonus
     if (id === 'monument') {
-      var t = 2, iDR = 6, iWis = 9;
-      var idx = 10 * t + iDR;
-      var monLv = Number((hd[15] && hd[15][idx]) || 0);
-      if (monLv <= 0) return node('Monument Drop Rate', 0, null, { note: 'hole:monument' });
-      var bonusPerLv = holesMonBonus(26);
-
-      // Wisdom monument multiplier (MonumentROGbonuses(t, 9))
-      var wisIdx = 10 * t + iWis;
-      var wisLv = Number((hd[15] && hd[15][wisIdx]) || 0);
-      var wisBonusPerLv = holesMonBonus(29);
-      var wisBonus = 0;
-      if (wisLv > 0) {
-        // Wisdom uses diminishing (bonusPerLv=250 >= 30), HoleozDN=1 (self)
-        wisBonus = 0.1 * Math.ceil(wisLv / (250 + wisLv) * 10 * wisBonusPerLv);
-      }
-
-      // CosmoBonusQTY(0,0) = floor(CosmoUpgrades[0][0][0] * Holes[4][0])
-      var cosmo00Base = cosmoUpgBase(0, 0);
-      var cosmo00Lv = Number((hd[4] && hd[4][0]) || 0);
-      var cosmoBonus = Math.floor(cosmo00Base * cosmo00Lv);
-
-      // HoleozDN = (1 + wisBonus/100) + cosmoBonus/100
-      var holeozDN = (1 + wisBonus / 100) + cosmoBonus / 100;
-
-      // Diminishing formula (bonusPerLv=100 >= 30)
-      var val = 0.1 * Math.ceil(monLv / (250 + monLv) * 10 * bonusPerLv * Math.max(1, holeozDN));
-
-      var multiCh = [];
-      if (wisBonus > 0) multiCh.push(node('Wisdom Monument', wisBonus, [
-        node('Wisdom Level', wisLv, null, { fmt: 'raw' }),
-        node('Bonus Per Level', wisBonusPerLv, null, { fmt: 'raw' }),
-      ], { fmt: 'raw', note: 'monument idx 29' }));
-      if (cosmoBonus > 0) multiCh.push(node('Cosmo Upgrade', cosmoBonus, [
-        node('Cosmo Level', cosmo00Lv, null, { fmt: 'raw' }),
-      ], { fmt: 'raw', note: 'cosmo 0/0' }));
-      return node('Monument Drop Rate', val, [
-        node('Monument Level', monLv, null, { fmt: 'raw' }),
-        node('Bonus Per Level', bonusPerLv, null, { fmt: 'raw' }),
-        node('Wisdom Multiplier', holeozDN, multiCh.length ? multiCh : null, { fmt: 'x' }),
-      ], { fmt: '+', note: 'hole:monument' });
+      var monLv = Number((hd[15] && hd[15][26]) || 0);
+      var fountLevels = (hd[31] && hd[31][2]) || [];
+      var fountMarbles = (hd[32] && hd[32][2]) || [];
+      var fountBonus = fountainBonTOT([[], [], fountLevels], [[], [], fountMarbles], 2, 13);
+      var val = computeMonumentROGbonus(2, 6, saveData);
+      return node('Wisdom Monument: Drop Rate', val, [
+        node('Permanent Bonus Level', monLv, null, { fmt: 'raw' }),
+        node('Base Bonus', holesMonBonus(26), null, { fmt: 'raw' }),
+        node('Wisdom Bonuses Multiplier', computeMonumentROGbonus(2, 9, saveData), null, { fmt: '+' }),
+        node('Cosmo: Monument Bonuses', computeCosmoBonus(0, 0, saveData), null, { fmt: '+' }),
+        node('Wisdom Boost (Fountain)', fountBonus, null, { fmt: '+' }),
+      ], { fmt: '+' });
     }
 
     return node('Hole ' + id, 0, null, { note: 'hole:' + id });
@@ -295,6 +282,22 @@ export function computeMonumentROGbonus(t, i, saveData, ext) {
   } else {
     return 0.1 * Math.ceil(level / (250 + level) * 10 * bonusInfo * Math.max(1, holeozDN));
   }
+}
+
+export function computeLampBonus(t, i, saveData) {
+  var grids = [
+    [25, 10, 8],
+    [15, 40, 10],
+    [20, 35, 12],
+    [5, 1, 1],
+    [2, 2, 2],
+  ];
+  var lampLevels = saveData.holesData && saveData.holesData[21] || [];
+  var lampLevel = Number(lampLevels[Math.min(11, 4 + 2 * t)]) || 0;
+  var zenithLevel = Number(saveData.spelunkData && saveData.spelunkData[45] && saveData.spelunkData[45][2]) || 0;
+  var zenithBonus = Math.floor(zenithMarketPerLevel(2) * zenithLevel);
+  if (t === 99) return 25 * (Number(lampLevels[7]) || 0) * (1 + zenithBonus / 100);
+  return (Number(grids[t] && grids[t][i]) || 0) * lampLevel * (1 + zenithBonus / 100);
 }
 
 // GambitBonuses(7): coins bonus = bval * LOG(totalPts) if pts >= threshold

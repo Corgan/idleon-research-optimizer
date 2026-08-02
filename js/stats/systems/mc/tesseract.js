@@ -54,7 +54,11 @@ export var arcaneMap = {
         node('Session-only (no map data)', 0, null, { fmt: 'raw' }),
       ], { note: 'arcane map' });
     }
-    var kills = (ctx.mapBon[ctx.mapIdx] && ctx.mapBon[ctx.mapIdx][0]) || 0;
+    var mapData = ctx.mapBon[ctx.mapIdx];
+    if (!mapData || mapData.length < 3) return node('Arcane Map Bonus', 0, [
+      node('Map data row is incomplete', mapData ? mapData.length : 0, null, { fmt: 'raw' }),
+    ]);
+    var kills = mapData[0] || 0;
     var raw = arcaneMapBonus(kills, saveData);
     var cap = arcaneMapMultiBonMax(ctx.charIdx, saveData);
     var val = Math.min(cap, raw);

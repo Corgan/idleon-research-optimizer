@@ -40,8 +40,14 @@ export default createDescriptor({
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
     var ci = ctx.charIdx;
-    var isActive = ctx.isActive !== undefined ? ctx.isActive : true;
     if (!saveData) return { val: 0, children: null };
+    if (ctx.isActive === undefined) return {
+      val: 0,
+      children: null,
+      unavailable: true,
+      reason: 'Select whether this character is actively playing.',
+    };
+    var isActive = Boolean(ctx.isActive);
 
     var constLv = Number(saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][8]) || 0;
     var buildSpd = computePlayerBuildSpd(ci, null, ctx.saveData);
@@ -57,7 +63,7 @@ export default createDescriptor({
     var conEXPbubble = safe(bubbleValByKey, 'conEXPACTIVE', ci, saveData);
     var tal132 = _talVal(132, ci, saveData);
     var tal104 = _talVal(104, ci, saveData);
-    var vialConsExp = safe(computeVialByKey, 'ConsExp', saveData);
+    var vialConsExp = safe(computeVialByKey, 'ConsExp', saveData, ci);
     var statue18 = safe(computeStatueBonusGiven, 18, ci, saveData);
     var stampConstExp = safe(computeStampBonusOfTypeX, 'ConstructionExp', saveData);
     var voting18 = safe(votingBonusz, 18, 1, saveData);

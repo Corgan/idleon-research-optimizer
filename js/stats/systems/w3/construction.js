@@ -6,23 +6,34 @@ import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { computeCardLv, computeCardLvDetail } from '../common/cards.js';
 import { shrineBase, shrinePerLevel } from '../../data/w3/shrine.js';
-import { SaltLicks, AtomInfo } from '../../data/game/customlists.js';
+import { SaltLicks, AtomInfo, StatueInfo } from '../../data/game/customlists.js';
 import { BOSS3B_CARD_PCT } from '../../data/game-constants.js';
-
-var SHRINE_DATA = {
-  4: { base: shrineBase(4), perLevel: shrinePerLevel(4) },
-};
+import { mainframeBonus } from '../w4/lab.js';
 
 export var shrine = {
   resolve: function(id, ctx) {
-    var data = SHRINE_DATA[id];
-    if (!data) return node(label('Shrine', id), 0);
+    var data = { base: shrineBase(id), perLevel: shrinePerLevel(id) };
+    if (data.base === 0 && data.perLevel === 0) return node(label('Shrine', id), 0);
     var name = label('Shrine', id);
     var saveData = ctx.saveData;
     var shrineArr = saveData.shrineData && saveData.shrineData[id];
     if (!shrineArr) return node(name, 0);
     var shrineLv = Number(shrineArr[3]) || 0;
     if (shrineLv <= 0) return node(name, 0);
+
+    var currentMap = Number(ctx.mapIdx) || 0;
+    var shrineMap = Number(shrineArr[0]) || 0;
+    var artifactGlobal = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][0]) > 0;
+    var exactMap = currentMap === shrineMap;
+    var worldTour = mainframeBonus(5, saveData) === 1
+      && Math.floor(currentMap / 50) === Math.floor(shrineMap / 50);
+    if (!artifactGlobal && !exactMap && !worldTour) {
+      return node(name, 0, [
+        node('Inactive on Selected Map', 0, null, { fmt: 'raw' }),
+        node('Shrine Map', shrineMap, null, { fmt: 'raw' }),
+        node('Selected Map', currentMap, null, { fmt: 'raw' }),
+      ]);
+    }
 
     var cd = computeCardLvDetail('Boss3B', saveData);
     var boss3bLv = cd.lv;
@@ -39,6 +50,7 @@ export var shrine = {
     return node(name, val, [
       node('Shrine Level ' + shrineLv, baseBonus, null, { fmt: '+', note: data.base + ' base + ' + data.perLevel + '/level' }),
       node('Boss3B Card Bonus', cardMulti, cardChildren, { fmt: 'x', note: BOSS3B_CARD_PCT + '% per level' }),
+      node(artifactGlobal ? 'Moai Head: Global Shrine Effects' : exactMap ? 'Same Map' : 'Shrine World Tour: Same World', 1, null, { fmt: 'raw' }),
     ], { fmt: '+' });
   },
 };
@@ -221,23 +233,23 @@ export function computePlayerBuildSpd(ci, opts, saveData) {
   var base = 3 * Math.pow(constLv / 2 + 0.7, 1.6);
 
   // Bubble multiplier: 1 + constLv * AlchBubbles.Construction / 100
-  var constBubble = _safe(bubbleValByKey, 'Construction', ci);
+  var constBubble = _safe(bubbleValByKey, 'Construction', ci, s);
   var bubbleMult = 1 + constLv * constBubble / 100;
 
   // Additive pool
   var ctx = { charIdx: ci, saveData: s };
-  var stampBuildProd = _safe(computeStampBonusOfTypeX, 'BuildProd');
+  var stampBuildProd = _safe(computeStampBonusOfTypeX, 'BuildProd', s);
   var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
   var guildBonus5 = _rval(guild, 5, ctx);
   var etcBonus30 = _rval(etcBonus, '30', ctx);
-  var ach153 = Math.min(5, 5 * _safe(achieveStatus, 153));
+  var ach153 = Math.min(5, 5 * _safe(achieveStatus, 153, s));
   var constMastery2 = computeConstMasteryBonus(2, saveData);
-  var vialContspd = _safe(computeVialByKey, 'Contspd');
-  var arcade44 = _safe(arcadeBonus, 44);
-  var voting18 = _safe(votingBonusz, 18, 1);
-  var summUpg48 = _safe(vaultUpgBonus, 48);
-  var vaultKills11 = _safe(computeVaultKillzTotal, 11);
-  var bubbaRoG1 = _safe(bubbaRoGBonuses, 1);
+  var vialContspd = _safe(computeVialByKey, 'Contspd', s, ci);
+  var arcade44 = _safe(arcadeBonus, 44, s);
+  var voting18 = _safe(votingBonusz, 18, 1, s);
+  var summUpg48 = _safe(vaultUpgBonus, 48, s);
+  var vaultKills11 = _safe(computeVaultKillzTotal, 11, s);
+  var bubbaRoG1 = _safe(bubbaRoGBonuses, 1, s);
 
   var addPool = stampBuildProd + 0.25 * postOffice17
     + guildBonus5 + etcBonus30
@@ -249,9 +261,10 @@ export function computePlayerBuildSpd(ci, opts, saveData) {
   var additiveMulti = 1 + addPool / 100;
 
   // True multipliers
-  var winBonus13 = (opts && opts.noArt32) ? _safe(computeWinBonus, 13, opts) : _safe(computeWinBonus, 13);
-  var palette25 = _safe(computePaletteBonus, 25);
-  var vial6turtle = _safe(computeVialByKey, '6turtle');
+  var winOpts = Object.assign({ charIdx: ci }, opts || {});
+  var winBonus13 = _safe(computeWinBonus, 13, winOpts, s);
+  var palette25 = _safe(computePaletteBonus, 25, s);
+  var vial6turtle = _safe(computeVialByKey, '6turtle', s, ci);
   var trueMulti = (1 + winBonus13 / 100) * (1 + palette25 / 100) * (1 + vial6turtle / 100);
 
   // Talent 131 (Redox Rates): requires Refinery1 items owned
@@ -293,18 +306,18 @@ export function computePlayerConExp(ci, isActive, saveData) {
   if (isActive) {
     // Active char: full additive pool
     var ctx = { charIdx: ci, saveData: s };
-    var conEXPbubble = _safe(bubbleValByKey, 'conEXPACTIVE', ci);
+    var conEXPbubble = _safe(bubbleValByKey, 'conEXPACTIVE', ci, s);
     var sl = skillLvData[ci] || {};
 
     // GetTalentNumber(1, 132) and GetTalentNumber(1, 104) for active char
     var tal132Val = _computeTalentVal(132, ci, saveData);
     var tal104Val = _computeTalentVal(104, ci, saveData);
 
-    var vialConsExp = _safe(computeVialByKey, 'ConsExp');
-    var statue18 = _safe(computeStatueBonusGiven, 18);
-    var stampConstExp = _safe(computeStampBonusOfTypeX, 'ConstructionExp');
-    var voting18 = _safe(votingBonusz, 18, 1);
-    var starConstExp = _safe(computeStarSignBonus, 'ConstExp', ci);
+    var vialConsExp = _safe(computeVialByKey, 'ConsExp', s, ci);
+    var statue18 = _safe(computeStatueBonusGiven, 18, ci, s);
+    var stampConstExp = _safe(computeStampBonusOfTypeX, 'ConstructionExp', s);
+    var voting18 = _safe(votingBonusz, 18, 1, s);
+    var starConstExp = _safe(computeStarSignBonus, 'ConstExp', ci, s);
     var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
     var poBonus = Math.max(0, 0.5 * (postOffice17 - 100));
 
@@ -333,13 +346,13 @@ export function computePlayerConExp(ci, isActive, saveData) {
 
   if (hasBub) {
     // BubbleBonus(0, 11, 0): orange bubble #11 = construction EXP bubble
-    var bubbleVal = _safe(bubbleValByKey, 'conEXPACTIVE', ci);
+    var bubbleVal = _safe(bubbleValByKey, 'conEXPACTIVE', ci, s);
     if (cls < 18) {
       // Warrior: multiply by Opassz
-      var opassz = _safe(bubbleValByKey, 'Opassz');
-      dn2 = bubbleVal * Math.max(1, opassz) + _safe(computeVialByKey, 'ConsExp');
+      var opassz = _safe(bubbleValByKey, 'Opassz', ci, s);
+      dn2 = bubbleVal * Math.max(1, opassz) + _safe(computeVialByKey, 'ConsExp', s, ci);
     } else {
-      dn2 = bubbleVal + _safe(computeVialByKey, 'ConsExp');
+      dn2 = bubbleVal + _safe(computeVialByKey, 'ConsExp', s, ci);
     }
   }
 
@@ -352,8 +365,8 @@ export function computePlayerConExp(ci, isActive, saveData) {
   statueBase18 = Number(StatueInfo[18] && StatueInfo[18][3]) || 1;
   dn2 += statueLv18 * statueBase18;
 
-  dn2 += _safe(computeStampBonusOfTypeX, 'ConstructionExp');
-  dn2 += _safe(votingBonusz, 18, 1);
+  dn2 += _safe(computeStampBonusOfTypeX, 'ConstructionExp', s);
+  dn2 += _safe(votingBonusz, 18, 1, s);
   var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
   dn2 += Math.max(0, 0.5 * (postOffice17 - 100));
 

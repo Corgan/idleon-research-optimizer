@@ -4,49 +4,100 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdleOn Drop Rate Calculator</title>
-<link rel="stylesheet" href="css/breakdown.css">
 <style>
-/* Page-specific overrides */
-.top-bar .btn-sm:hover { color: var(--red); border-color: var(--red); }
-.dr-card { background: var(--bg2); border-radius: 10px; padding: 18px; margin-bottom: 18px; text-align: center; }
-.dr-total { font-size: 2.6em; font-weight: 800; color: var(--gold); }
-.dr-sub { color: var(--text2); font-size: .85em; margin-top: 4px; }
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+  --border: #444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.context-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.context-controls label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .82em; font-weight: 600; }
+.context-controls select,
+.context-controls input { background: var(--bg3); color: var(--text); border: 1px solid #555; border-radius: 4px; padding: 6px 8px; font-size: .95em; }
+.context-controls select { max-width: min(440px, calc(100vw - 64px)); }
+.context-controls select:disabled { opacity: .55; }
+.runtime-panel { display: none; gap: 12px; flex-wrap: wrap; align-items: end; margin-top: 12px; padding: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; }
+.runtime-panel strong { color: var(--gold); align-self: center; }
+.runtime-panel .runtime-note { color: var(--text2); font-size: .78em; align-self: center; }
+.card { background: var(--bg3); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 3px; }
+.card .card-val { font-weight: 800; font-size: 2em; color: var(--gold); font-variant-numeric: tabular-nums; }
+.card .card-sub { color: var(--text2); font-size: .78em; margin-top: 3px; }
+.result-card { text-align: center; }
+.result-card.partial { border-color: var(--gold); }
+.result-card.unavailable { border-color: var(--red); }
+.bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+.bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
+.bt-controls .btn-sm:hover { color: var(--cyan); border-color: var(--cyan); }
+.bt-tree { font-size: .85em; }
+.bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+.bt-row:hover { background: rgba(255,255,255,.07); }
+.bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+.bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+.bt-arrow:hover { color: var(--cyan); }
+.bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-tooltip { position: fixed; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: 350px; pointer-events: none; z-index: 999; display: none; }
+@media (max-width: 600px) {
+  .main { padding: 10px; }
+  .section { padding: 12px; }
+  .context-controls { align-items: stretch; }
+  .context-controls label { width: 100%; }
+  .context-controls select, .context-controls input { width: 100%; max-width: none; }
+  .runtime-panel { align-items: stretch; }
+  .runtime-panel strong, .runtime-panel .runtime-note { width: 100%; }
+  .card .card-val { font-size: 1.65em; }
+}
 </style>
 </head>
 <body>
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:#c0c0d4;text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F3B2; IdleOn Drop Rate Calculator</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:#c0c0d4;text-decoration:none;" title="GitHub">GitHub</a></h1>
-<p class="subtitle">Auto-computes from save JSON. Select character &amp; map.</p>
-<div class="container">
+<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F3B2; <span>IdleOn</span> Drop Rate Calculator</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
 
-<!-- Import -->
-<details class="import-box" open>
-  <summary>&#x1F4CB; Import Save JSON</summary>
-  <textarea id="json-in" placeholder="Paste your it.json or save.json contents here..."></textarea>
-  <div class="top-bar">
-    <button class="btn" id="btn-import">Load Save</button>
-    <select id="char-sel" disabled>
-      <option value="-1">-- load save first --</option>
-    </select>
-    <select id="map-sel" disabled>
-      <option value="0">Map: Town (no map-kill bonus)</option>
-    </select>
+<div id="save-area"></div>
+
+<div class="main">
+  <div class="section">
+    <h2>Calculation Context</h2>
+    <div class="context-controls">
+      <label>Character
+        <select id="char-sel" disabled>
+          <option value="-1">Load a save first</option>
+        </select>
+      </label>
+      <label>Map
+        <select id="map-sel" disabled>
+          <option value="0">Town</option>
+        </select>
+      </label>
+    </div>
+    <div id="dungeon-runtime" class="runtime-panel">
+      <strong>Live Dungeon Inputs</strong>
+      <label>Dungeon Total LUK <input id="dungeon-luk" type="number" min="0" step="1"></label>
+      <label>Dungeon Drop Rate Stat <input id="dungeon-dr" type="number" min="0" step="1"></label>
+      <span class="runtime-note">These current-run values are not stored in save JSON.</span>
+    </div>
   </div>
-  <div id="import-msg" class="import-msg"></div>
-</details>
 
-<!-- Total DR -->
-<div class="dr-card">
-  <div class="dr-sub">Total Drop Rate Multiplier</div>
-  <div class="dr-total" id="dr-total">1.00x</div>
-  <div class="dr-sub" id="dr-sub"></div>
-</div>
+  <div class="card result-card" id="result-card">
+    <div class="card-title">Total Drop Rate Multiplier</div>
+    <div class="card-val" id="dr-total">Load a save</div>
+    <div class="card-sub" id="dr-sub">Select a character and map after loading.</div>
+  </div>
 
-<!-- Breakdown tree -->
-<div class="tree">
-  <h2>Formula Breakdown</h2>
-  <div id="tree"></div>
-</div>
-
+  <div class="section">
+    <h2>Formula Breakdown</h2>
+    <div id="tree"></div>
+  </div>
 </div>
 <div class="bt-tooltip" id="bt-tooltip"></div>
 <script type="module">
@@ -54,15 +105,13 @@
 
 // ======================= MODULE IMPORTS =======================
 import { saveData } from './js/state.js';
-import { buildTree, toRenderNode } from './js/stats/tree-builder.js';
-import { getCatalog } from './js/stats/registry.js';
-import drDesc from './js/stats/defs/drop-rate.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+import { createStatContext } from './js/stats/stat-context.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
-import { MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
+import { ClassNames, MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
 import { MONSTERS } from './js/stats/data/game/monsters.js';
-import { doImport as _doImport } from './js/ui/save-import.js';
-
-const catalog = getCatalog();
+import { isDungeonMap } from './js/stats/systems/w2/dungeon.js';
 
 function _j(v) { return typeof v === 'string' ? JSON.parse(v) : v; }
 function fN(n, d) {
@@ -99,6 +148,7 @@ var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
 var CUR_MAP = 0;
+var LAST_TREE = null;
 
 
 // ======================= COMPUTE & RENDER =======================
@@ -110,12 +160,32 @@ function recalc() {
     mapBon = _j(SAVE_RAW.data.MapBon);
   }
 
-  var ctx = { charIdx: CUR_CHAR, mapIdx: CUR_MAP, saveData: saveData, mapBon: mapBon };
-  var tree = buildTree(drDesc, catalog, ctx);
+  var dungeonLukInput = document.getElementById('dungeon-luk');
+  var dungeonDRInput = document.getElementById('dungeon-dr');
+  var dungeonLuk = dungeonLukInput.value !== '' ? Number(dungeonLukInput.value) : NaN;
+  var dungeonDropRarity = dungeonDRInput.value !== '' ? Number(dungeonDRInput.value) : NaN;
+  var ctx = createStatContext({
+    charIdx: CUR_CHAR,
+    mapIdx: CUR_MAP,
+    saveData: saveData,
+    mapBon: mapBon,
+    layer1: {
+      dungeonLuk: dungeonLuk,
+      dungeonDropRarity: dungeonDropRarity,
+    },
+  });
+  var tree = ctx.resolve('drop-rate');
+  LAST_TREE = tree;
+  var resultCard = document.getElementById('result-card');
+  resultCard.classList.toggle('partial', Boolean(tree.partial));
+  resultCard.classList.toggle('unavailable', Boolean(tree.unavailable));
 
-  document.getElementById('dr-total').textContent = tree.val.toFixed(2) + 'x';
+  document.getElementById('dr-total').textContent = tree.unavailable
+    ? 'Unavailable'
+    : tree.val.toFixed(2) + 'x' + (tree.partial ? ' (partial)' : '');
   document.getElementById('dr-sub').textContent =
-    'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + ' · Map: ' + (MapDispName[CUR_MAP] || CUR_MAP).replace(/_/g, ' ');
+    ((tree.unavailable || tree.partial) ? tree.reason + ' · ' : '')
+    + 'Character: ' + (CHARS[CUR_CHAR] || CUR_CHAR) + ' · Map: ' + (MapDispName[CUR_MAP] || CUR_MAP).replace(/_/g, ' ');
 
   var renderRoot = toRenderNode(tree);
   renderBreakdownTree(renderRoot, document.getElementById('tree'), { tooltipId: 'bt-tooltip' });
@@ -134,14 +204,16 @@ function populateMapSel(data, charIdx, curMap) {
   mapSel.appendChild(oTown);
   added.add(0);
 
-  // 2) All maps with arcane kills
-  for (var i = 0; i < mb.length; i++) {
+  // 2) Every named map. Map context also controls Shrines and dungeon behavior,
+  // so maps remain selectable even without an Arcane kill-count row.
+  for (var i = 1; i < MapDispName.length; i++) {
     if (added.has(i)) continue;
-    if (!Array.isArray(mb[i]) || !mb[i][0]) continue;
     if (!MapDispName[i]) continue;
     var o = document.createElement('option');
     o.value = i;
-    o.textContent = _mapLabel(i, mb[i]);
+    o.textContent = _mapLabel(i, mb[i])
+      + (isDungeonMap(i) ? ' (dungeon)' : '')
+      + (i === curMap ? ' (current)' : '');
     mapSel.appendChild(o);
     added.add(i);
   }
@@ -155,31 +227,52 @@ function populateMapSel(data, charIdx, curMap) {
     oC.value = curMap;
     oC.textContent = name + ' (current)';
     mapSel.insertBefore(oC, mapSel.firstChild.nextSibling);
+    added.add(curMap);
   }
+
 }
 
-// ======================= IMPORT =======================
-function doImport() {
-  _doImport({
-    textareaId: 'json-in',
-    charSelId: 'char-sel',
-    msgId: 'import-msg',
-    onLoaded: function(raw, chars) {
-      SAVE_RAW = raw;
-      CHARS = chars;
-      CUR_CHAR = 0;
-
-      var data = raw.data || raw;
-      CUR_MAP = data['CurrentMap_' + CUR_CHAR] || 0;
-      var mapSel = document.getElementById('map-sel');
-      populateMapSel(data, CUR_CHAR, CUR_MAP);
-      mapSel.disabled = false;
-      mapSel.value = CUR_MAP;
-
-      recalc();
-    },
-  });
+function updateDungeonInputs() {
+  document.getElementById('dungeon-runtime').style.display = isDungeonMap(CUR_MAP) ? 'flex' : 'none';
 }
+
+// ======================= SAVE LOADING =======================
+function onSaveLoaded(_loadedSaveData, raw) {
+  SAVE_RAW = raw;
+  var data = raw.data || raw;
+  CHARS = Array.isArray(raw.charNames) ? raw.charNames : (saveData.charNames || []);
+  var charCount = Math.max(CHARS.length, saveData.lv0AllData?.length || 0);
+  var charSel = document.getElementById('char-sel');
+  charSel.innerHTML = '';
+  for (var i = 0; i < charCount; i++) {
+    var classId = data['CharacterClass_' + i];
+    var className = String(ClassNames[classId] || 'Unknown Class').replace(/_/g, ' ');
+    var option = document.createElement('option');
+    option.value = i;
+    option.textContent = (CHARS[i] || ('Character ' + (i + 1))) + ' (' + className + ')';
+    charSel.appendChild(option);
+  }
+  charSel.disabled = charCount === 0;
+  CUR_CHAR = 0;
+  CUR_MAP = Number(data['CurrentMap_' + CUR_CHAR]) || 0;
+
+  var mapSel = document.getElementById('map-sel');
+  populateMapSel(data, CUR_CHAR, CUR_MAP);
+  mapSel.disabled = false;
+  mapSel.value = CUR_MAP;
+  updateDungeonInputs();
+  recalc();
+}
+
+initSaveLoader({
+  target: '#save-area',
+  onLoad: onSaveLoaded,
+  statusText: function(sd) {
+    var count = Math.max(sd.charNames?.length || 0, sd.lv0AllData?.length || 0);
+    return count + (count === 1 ? ' character' : ' characters');
+  },
+  auth: true,
+});
 
 function switchChar(idx) {
   CUR_CHAR = idx;
@@ -190,17 +283,159 @@ function switchChar(idx) {
     var mapSel = document.getElementById('map-sel');
     mapSel.value = CUR_MAP;
   }
+  updateDungeonInputs();
   recalc();
 }
-function switchMap(idx) { CUR_MAP = idx; recalc(); }
+function switchMap(idx) { CUR_MAP = idx; updateDungeonInputs(); recalc(); }
 
-window.doImport = doImport;
+function _debugRows(root) {
+  var rows = [];
+  function visit(node, path, depth) {
+    if (!node) return;
+    var nodePath = path ? path + ' > ' + node.name : node.name;
+    rows.push({
+      depth: depth,
+      path: nodePath,
+      name: node.name,
+      value: node.val,
+      format: node.fmt || '',
+      note: node.note || '',
+    });
+    var children = node.children || [];
+    for (var i = 0; i < children.length; i++) visit(children[i], nodePath, depth + 1);
+  }
+  visit(root, '', 0);
+  return rows;
+}
+
+function _debugFinalModifiers(tree) {
+  var baseNode = (tree.children || []).find(function(node) { return node.name === 'Base Drop Rate'; });
+  var chipNode = (tree.children || []).find(function(node) { return node.name.indexOf('Grounded Processor') === 0; });
+  var finalNode = (tree.children || []).find(function(node) { return node.name.indexOf('Final Drop Rate Modifiers') === 0; });
+  var running = Number(baseNode && baseNode.val) || 0;
+  running += Number(chipNode && chipNode.val) || 0;
+  var rows = [];
+  var modifiers = finalNode && finalNode.children ? finalNode.children : [];
+  for (var i = 0; i < modifiers.length; i++) {
+    var item = modifiers[i];
+    var value = Number(item.val) || 0;
+    var before = running;
+    var operation;
+    if (i === 0 || i === 2) {
+      operation = '+' + value;
+      running += value;
+    } else if (item.fmt === 'x') {
+      operation = 'x ' + value;
+      running *= value;
+    } else {
+      operation = 'x (1 + ' + value + '/100)';
+      running *= 1 + value / 100;
+    }
+    rows.push({
+      order: i + 1,
+      source: item.name,
+      rawValue: value,
+      format: item.fmt || '',
+      operation: operation,
+      before: before,
+      after: running,
+      change: running - before,
+    });
+  }
+  return rows;
+}
+
+window.dropRateDebug = function(target) {
+  if (!LAST_TREE) {
+    console.warn('Load a save first.');
+    return null;
+  }
+  var children = LAST_TREE.children || [];
+  var core = children.find(function(node) { return node.name === 'Core Drop Rate Bonuses'; });
+  var additional = children.find(function(node) { return node.name === 'Additional Drop Rate Bonuses'; });
+  var lukCurve = children.find(function(node) { return node.name === 'Drop Rate from Total LUK'; });
+  var lukContribution = children.find(function(node) { return node.name.indexOf('LUK Contribution') === 0; });
+  var base = children.find(function(node) { return node.name === 'Base Drop Rate'; });
+  var chip = children.find(function(node) { return node.name.indexOf('Grounded Processor') === 0; });
+  var finalModifiers = _debugFinalModifiers(LAST_TREE);
+  var result = {
+    characterIndex: CUR_CHAR,
+    character: CHARS[CUR_CHAR] || ('Character ' + (CUR_CHAR + 1)),
+    mapIndex: CUR_MAP,
+    map: String(MapDispName[CUR_MAP] || ('Map ' + CUR_MAP)).replace(/_/g, ' '),
+    calculated: LAST_TREE.val,
+    target: Number.isFinite(Number(target)) ? Number(target) : null,
+    stages: {
+      dropRateLUK: Number(lukCurve && lukCurve.val) || 0,
+      lukContribution: Number(lukContribution && lukContribution.val) || 0,
+      coreSum: Number(core && core.val) || 0,
+      dropRateLUK2: Number(additional && additional.val) || 0,
+      baseBeforeChip: Number(base && base.val) || 0,
+      chipApplied: Number(chip && chip.val) || 0,
+      baseAfterChip: (Number(base && base.val) || 0) + (Number(chip && chip.val) || 0),
+      final: Number(LAST_TREE.val) || 0,
+    },
+    core: core ? core.children || [] : [],
+    additional: additional ? additional.children || [] : [],
+    finalModifiers: finalModifiers,
+    fullTree: _debugRows(LAST_TREE),
+  };
+  if (result.target != null) {
+    var postMultiplier = finalModifiers.length && (Number(base && base.val) + Number(chip && chip.val)) > 0
+      ? finalModifiers[finalModifiers.length - 1].after / (Number(base && base.val) + Number(chip && chip.val))
+      : 1;
+    var requiredBase = result.target / postMultiplier;
+    var currentBase = (Number(base && base.val) || 0) + (Number(chip && chip.val) || 0);
+    result.gap = {
+      difference: result.target - result.calculated,
+      ratio: result.target / result.calculated,
+      missingFinalMultiplierPercent: 100 * (result.target / result.calculated - 1),
+      missingAdditivePoints: 100 * (requiredBase - currentBase),
+    };
+  }
+  console.group('Drop Rate Debug: ' + result.character + ' @ ' + result.map);
+  console.log('Summary', {
+    calculated: result.calculated,
+    target: result.target,
+    gap: result.gap || null,
+  });
+  console.table(result.stages);
+  console.group('Core Drop Rate Bonuses');
+  console.table(result.core.map(function(node) {
+    return { source: node.name, value: node.val, format: node.fmt || '', note: node.note || '' };
+  }));
+  console.groupEnd();
+  console.group('Additional Drop Rate Bonuses');
+  console.table(result.additional.map(function(node) {
+    return { source: node.name, value: node.val, format: node.fmt || '', note: node.note || '' };
+  }));
+  console.groupEnd();
+  console.group('Final Modifiers in Source Order');
+  console.table(result.finalModifiers);
+  console.groupEnd();
+  console.group('Full Nested Tree');
+  console.table(result.fullTree);
+  console.groupEnd();
+  console.groupEnd();
+  return result;
+};
+
+window.copyDropRateDebug = function(target) {
+  var result = window.dropRateDebug(target);
+  if (!result) return Promise.resolve(false);
+  return navigator.clipboard.writeText(JSON.stringify(result, null, 2)).then(function() {
+    console.log('Drop Rate diagnostics copied to clipboard.');
+    return true;
+  });
+};
+
 window.switchChar = switchChar;
 window.switchMap = switchMap;
 
-document.getElementById('btn-import').addEventListener('click', doImport);
 document.getElementById('char-sel').addEventListener('change', function() { switchChar(+this.value); });
 document.getElementById('map-sel').addEventListener('change', function() { switchMap(+this.value); });
+document.getElementById('dungeon-luk').addEventListener('input', recalc);
+document.getElementById('dungeon-dr').addEventListener('input', recalc);
 
 // Init
 recalc();

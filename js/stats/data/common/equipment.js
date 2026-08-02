@@ -36,6 +36,16 @@ export function itemUqMatch(itemName, statNames) {
   return null;
 }
 
+export function itemUqSlot(itemName, uq) {
+  var item = ITEMS[itemName];
+  if (!item) return null;
+  return {
+    stat: item['UQ' + uq + 'txt'],
+    val: Number(item['UQ' + uq + 'val']) || 0,
+    uq: uq,
+  };
+}
+
 // Convenience: all items with specific UQ stat (returns the ITEMS_BY_UQ bucket)
 export function itemsWithUq(statName) { return ITEMS_BY_UQ[statName] || {}; }
 

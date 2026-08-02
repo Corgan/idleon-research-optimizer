@@ -46,7 +46,7 @@ import { StarSigns, PostOffUpgradeInfo, ClassFamilyBonuses, ClassAccountBonus,
 import { CARD_BONUS } from '../../data/common/cards.js';
 import { IDforCardBonus } from '../../data/game/custommaps.js';
 import { computeCardLv } from './cards.js';
-import { computeSeraphMulti } from './starSign.js';
+import { computePositiveStarSignMultiplier, getEnabledStarSigns, isStarSignActive } from './starSign.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { achieveStatus } from './achievement.js';
 import { computeWinBonus } from '../w6/summoning.js';
@@ -66,7 +66,12 @@ import { equipSetBonus } from '../../data/common/equipment.js';
 import { talentParams } from '../../data/common/talent.js';
 import { farm as farmResolver } from '../w6/farming.js';
 import { cookingMealMulti } from './cooking.js';
-import { galleryBonusMulti, hatrackBonusMulti, trophyTier } from '../w7/gallery.js';
+import { bonusMultiCook } from './meal-impact.js';
+import { getSetBonus } from '../w3/setBonus.js';
+import {
+  galleryBonusMulti, hatrackBonusMulti, trophyTier,
+  galleryBonusSystemOn, premHatBonusSystemOn,
+} from '../w7/gallery.js';
 import { COMPANION_BONUS } from '../../data/game-constants.js';
 
 function _effectLabel(prefix, raw, fallback) {
@@ -94,7 +99,7 @@ var STAT_CONFIG = {
     olaShimmer: 174,
     extraTalents: [98, 203],  // ABSOLUTE_UNIT, BUILT_DIFFERENT
     extraTab2Talent: 142,     // SKILL_STRENGTHEN
-    buffBonus: [94, 1],       // GetBuffBonuses(94,1) [NOT YET COMPUTED]
+    buffBonus: [94, 1],       // GetBuffBonuses(94,1)
     boxRewardsStat: '23b',
     famBonusIdx: 14,
     starSignStat: 'STR',
@@ -201,7 +206,9 @@ var STAT_CONFIG = {
 function computeStarSignStatBonuses(statName, charIdx, saveData) {
   var flatTotal = 0, pctTotal = 0;
   var flatChildren = [], pctChildren = [];
+  var enabled = getEnabledStarSigns(saveData);
   for (var i = 0; i < StarSigns.length; i++) {
+    if (!isStarSignActive(i, charIdx, enabled, saveData)) continue;
     var sign = StarSigns[i];
     for (var e = 1; e <= 3; e++) {
       var eff = sign[e];
@@ -214,15 +221,15 @@ function computeStarSignStatBonuses(statName, charIdx, saveData) {
       if (type === statName || type === 'All_Stats' || type === 'All_Stat') {
         if (isPct) {
           pctTotal += val;
-          pctChildren.push(node(sign[0], val, null, { fmt: 'raw' }));
+          pctChildren.push(node(label('Star Sign', i), val, null, { fmt: 'raw' }));
         } else {
           flatTotal += val;
-          flatChildren.push(node(sign[0], val, null, { fmt: 'raw' }));
+          flatChildren.push(node(label('Star Sign', i), val, null, { fmt: 'raw' }));
         }
       }
     }
   }
-  var seraphMulti = computeSeraphMulti(charIdx, saveData);
+  var seraphMulti = computePositiveStarSignMultiplier(charIdx, saveData);
   return {
     flat: { val: flatTotal * seraphMulti, baseVal: flatTotal, seraphMulti: seraphMulti, children: flatChildren },
     pct:  { val: pctTotal * seraphMulti,  baseVal: pctTotal,  seraphMulti: seraphMulti, children: pctChildren },
@@ -233,11 +240,26 @@ function computeStarSignStatBonuses(statName, charIdx, saveData) {
 // CardBonusREAL(typeId): sum of EQUIPPED cards matching the type for given character.
 // typeId maps via IDforCardBonus (e.g. 2 -> "+{_Base_LUK").
 // Game reads from DNSM.CardBonusS which is pre-computed from equipped cards only.
-export function computeCardBonusByType(typeId, charIdx, saveData) {
+export function computeCardBonusByType(typeId, charIdx, saveData, options) {
   var targetDesc = IDforCardBonus[String(typeId)];
   if (!targetDesc) return { val: 0, children: [] };
   var legend21 = legendPTSbonus(21, saveData);
   var legendMulti = 1 + legend21 / 100;
+  if (options && options.passive) {
+    var passiveTotal = 0;
+    var passiveChildren = [];
+    for (var cardKey in CARD_BONUS) {
+      var passiveCard = CARD_BONUS[cardKey];
+      if (!passiveCard || passiveCard.desc !== targetDesc) continue;
+      if ((Number(saveData.cards0Data && saveData.cards0Data[cardKey]) || 0) < 1) continue;
+      var passiveLv = computeCardLv(cardKey, saveData);
+      var passiveContrib = passiveLv * passiveCard.val;
+      passiveTotal += passiveContrib;
+      passiveChildren.push(node(cardKey + ' Lv' + passiveLv, passiveContrib, null,
+        { fmt: 'raw', note: 'passive; per-star=' + passiveCard.val }));
+    }
+    return { val: passiveTotal, children: passiveChildren };
+  }
   var equipped = cardEquipData[charIdx] || [];
   var total = 0;
   var children = [];
@@ -306,9 +328,8 @@ export function computeEquipBaseStat(charIdx, statName, saveData) {
   if (!eqData) return { val: 0, children: [] };
   var emm = emmData && emmData[charIdx];
   // Skip gallery/premhat-managed slots (same as equipment.js)
-  var sp = saveData.spelunkData || [];
-  var galleryOn = (sp[16] && sp[16].length > 0) || (sp[17] && sp[17].length > 0);
-  var premhatOn = sp[46] && sp[46].length > 0;
+  var galleryOn = galleryBonusSystemOn(charIdx);
+  var premhatOn = premHatBonusSystemOn(charIdx);
   for (var row = 0; row < 2; row++) {
     var rr = eqData[row];
     if (!rr) continue;
@@ -343,13 +364,15 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
   var total = 0;
   var children = [];
   var sp = saveData.spelunkData || [];
-  var gbmObj = galleryBonusMulti(saveData);
+  var galleryOn = galleryBonusSystemOn(charIdx);
+  var premhatOn = premHatBonusSystemOn(charIdx);
+  var gbmObj = galleryBonusMulti(saveData, charIdx, ctx.dnsmCache);
   var gbm = gbmObj.val;
   var hbmObj = hatrackBonusMulti(saveData);
   var hbm = hbmObj.val;
 
   // Trophy base stat
-  var trophySlots = sp[16] || [];
+  var trophySlots = galleryOn ? (sp[16] || []) : [];
   var trophyTotal = 0;
   var trophyCh = [];
   for (var i = 0; i < trophySlots.length; i++) {
@@ -370,7 +393,7 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
   }
 
   // Nametag base stat
-  var nametagLevels = sp[17] || [];
+  var nametagLevels = galleryOn ? (sp[17] || []) : [];
   var nametagTotal = 0;
   var nametagCh = [];
   for (var ni = 0; ni < nametagLevels.length; ni++) {
@@ -393,7 +416,7 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
   }
 
   // Premhat base stat
-  var hats = sp[46] || [];
+  var hats = premhatOn ? (sp[46] || []) : [];
   var premhatTotal = 0;
   var premhatCh = [];
   for (var hi = 0; hi < hats.length; hi++) {
@@ -583,9 +606,19 @@ function getMultiBubbleMult(cauldron, bubbleIndex, saveData) {
   };
 }
 
-function computeAlchBubble(bonusType, charIdx, saveData) {
+function computeAlchBubble(bonusType, charIdx, saveData, dnsmCache) {
   var bk = BUBBLE_KEYS[bonusType];
   if (!bk) return { val: 0, children: [] };
+  var cachedBubbles = dnsmCache && dnsmCache.alchBubbles;
+  if (cachedBubbles) {
+    var cachedValue = Object.prototype.hasOwnProperty.call(cachedBubbles, bonusType)
+      ? Number(cachedBubbles[bonusType]) || 0 : 0;
+    return {
+      val: cachedValue,
+      children: [node('TalentCalc cache', cachedValue, null, { fmt: 'raw' })],
+      name: bonusType,
+    };
+  }
   var params = bubbleParams(bk.cauldron, bk.index);
   if (!params) return { val: 0, children: [] };
   params.slab = bk.slab;
@@ -725,15 +758,10 @@ function computeAllStatPCT(charIdx, ctx) {
   var saveData = ctx.saveData;
   var sum = 0;
   var children = [];
-  var subMissing = [];
 
   function addSub(name, val, ch) {
     sum += val;
     children.push(node(name, val, ch || null, { fmt: 'raw' }));
-  }
-  function stubSub(name) {
-    subMissing.push(name);
-    children.push(node(name + ' [TODO]', 0, null, { fmt: 'raw' }));
   }
 
   // 1. AlchVials.AllStatPCT
@@ -761,7 +789,7 @@ function computeAllStatPCT(charIdx, ctx) {
     var riftVialBonus = riftActive ? 2 * maxLvVials : 0;
     var dNzz = riftVialBonus + vub42;
     var mf10lab = mainframeBonus(10, saveData) === 2 ? 2 : 1;
-    var meritoc20 = computeMeritocBonusz(20, saveData);
+    var meritoc20 = computeMeritocBonusz(20, saveData, charIdx);
     vialAllStatPCT += mf10lab * (1 + dNzz / 100) * (1 + meritoc20 / 100) * vialBase;
     vialCh.push(node(vDesc[0] + ' Lv' + vialLv, vialAllStatPCT, [
       node('Base', vialBase, null, { fmt: 'raw', note: vDesc[3] + '(' + vDesc[1] + ',' + vDesc[2] + ',' + vialLv + ')' }),
@@ -815,7 +843,7 @@ function computeAllStatPCT(charIdx, ctx) {
   ] : null);
 
   // 9. GoldFoodBonuses("AllStatz")
-  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, undefined, saveData);
+  var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, undefined, saveData, ctx.dnsmCache);
   addSub('Golden Food: All Stats', gfoodAllStatz.total);
 
   // 10. AchieveStatus(309)
@@ -848,8 +876,13 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('Farming Rank 19', farmRank19.val, farmRank19.children);
 
   // 15. Summoning VotingBonusz(2)
-  var vote2 = votingBonusz(2, null, saveData);
-  addSub(label('Voting', 2), vote2);
+  var votingMultiResult = ctx.resolve ? ctx.resolve('voting-multi') : null;
+  var votingMulti = votingMultiResult ? votingMultiResult.val : 1;
+  var vote2 = votingBonusz(2, votingMulti, saveData);
+  addSub(label('Voting', 2), vote2, vote2 ? [
+    node('Voting Multiplier', votingMulti,
+      votingMultiResult ? votingMultiResult.children : null, { fmt: 'x' }),
+  ] : null);
 
   // 16. SetBonus("MARBIGLASS_SET")
   var perma379 = String((optionsListData && optionsListData[379]) || '');
@@ -857,7 +890,7 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('Marbiglass Equipment Set', marbiVal);
 
   var raw = 0.1 * Math.floor(10 * sum);
-  return { val: raw, rawSum: sum, children: children, subMissing: subMissing };
+  return { val: raw, rawSum: sum, children: children };
 }
 
 // ==================== MAIN: computeTotalStat ====================
@@ -869,7 +902,6 @@ export function computeTotalStat(statName, charIdx, ctx) {
 
   var tracked = { computed: 0, missing: 0, missingNames: [] };
   function addComputed(val) { tracked.computed += val; return val; }
-  function addMissing(name) { tracked.missing++; tracked.missingNames.push(name); return 0; }
 
   // ==================== EQUIP DN ====================
   var equipBase = computeEquipBaseStat(charIdx, statName, saveData);
@@ -920,10 +952,6 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var allStatPCTResult = computeAllStatPCT(charIdx, ctx);
   var allStatPCT = allStatPCTResult.val;
   addComputed(allStatPCT);
-  for (var _asmi = 0; _asmi < allStatPCTResult.subMissing.length; _asmi++) {
-    tracked.missing++;
-    tracked.missingNames.push('AllStatPCT.' + allStatPCTResult.subMissing[_asmi]);
-  }
   var pristineVal = pristineResolver.resolve(cfg.pristineIdx, ctx).val;
   addComputed(pristineVal);
 
@@ -942,7 +970,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // Stat-specific pct bubble (STR=W8, AGI=A9, WIS=M9; LUK=none)
   var pctBubbleVal = 0;
   if (cfg.pctBubble) {
-    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx, saveData);
+    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx, saveData, ctx.dnsmCache);
     pctBubbleVal = pctBbl.val;
     addComputed(pctBubbleVal);
   }
@@ -1116,7 +1144,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var a4Val = 0;
   var a4bubble;
   if (cfg.a4Bubble) {
-    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx, saveData);
+    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx, saveData, ctx.dnsmCache);
     a4Val = a4bubble.val;
     addComputed(a4Val);
   }
@@ -1176,7 +1204,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   );
 
   // ==================== TOP LEVEL ====================
-  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx, saveData);
+  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx, saveData, ctx.dnsmCache);
   addComputed(totalBubble.val);
   var tal652 = talentResolver.resolve(652, ctx).val;
   addComputed(tal652);
@@ -1310,7 +1338,7 @@ export function computeStatueBonusGiven(idx, charIdx, saveData) {
     val *= Math.max(1, g3Mult);
   }
   if (idx === 0 || idx === 1 || idx === 2 || idx === 6) {
-    var _v25 = _safe(vaultUpgBonus, 25);
+    var _v25 = _safe(vaultUpgBonus, 25, s);
     if (_v25 > 0) { children.push(node(label('Vault', 25), _v25, null, { fmt: 'raw' })); }
     val *= Math.max(1, 1 + _v25 / 100);
   }
@@ -1322,7 +1350,7 @@ export function computeStatueBonusGiven(idx, charIdx, saveData) {
   }
   var _evShop = eventShopOwned(19, s.cachedEventShopStr);
   var _t56 = _rval(talentResolver, 56, { saveData: s, charIdx: charIdx != null ? charIdx : 0 }, { mode: 'max' });
-  var _m26 = _safe(computeMeritocBonusz, 26);
+  var _m26 = _safe(computeMeritocBonusz, 26, s, _ci);
   if (_dbg) console.log('[statue'+idx+'] before finals:', val.toFixed(2), 'evShop:', _evShop, 't56:', _t56, 'm26:', _m26);
   if (_evShop) children.push(node('Event Shop: Statue Bonus', _evShop, null, { fmt: 'raw', note: '×' + (1+0.3*_evShop).toFixed(2) }));
   val *= (1 + 0.3 * _evShop);
@@ -1336,11 +1364,13 @@ export function computeStatueBonusGiven(idx, charIdx, saveData) {
 
 // ==================== MEAL BONUS ====================
 
-export function computeMealBonus(effectKey, saveData) {
+export function computeMealBonus(effectKey, saveData, charIdx) {
   var s = saveData;
   var meals0 = s.mealsData && s.mealsData[0];
   if (!meals0) return treeResult(0, null);
-  var cookMulti = cookingMealMulti(s).val;
+  var cookMulti = cookingMealMulti(s, charIdx).val;
+  var mastery = s.cookMasterData && s.cookMasterData[0] || [];
+  var emperorSet = Number(getSetBonus('EMPEROR_SET', charIdx)) || 0;
   var total = 0;
   var children = [];
   for (var mi = 0; mi < MealINFO.length; mi++) {
@@ -1349,11 +1379,13 @@ export function computeMealBonus(effectKey, saveData) {
     if (mealLv <= 0) continue;
     var bonusPerLv = Number(MealINFO[mi][2]) || 0;
     var ribIdx = 28 + mi;
-    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData);
-    var contrib = cookMulti * ribMeal * mealLv * bonusPerLv;
+    var masteryLv = Number(mastery[mi]) || 0;
+    var masteryMulti = bonusMultiCook(masteryLv);
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData, emperorSet);
+    var contrib = masteryMulti * cookMulti * ribMeal * mealLv * bonusPerLv;
     total += contrib;
     children.push(node('Meal ' + mi + ' (' + (MealINFO[mi][0] || '').replace(/_/g, ' ') + ')', contrib, null,
-      { fmt: 'raw', note: 'lv=' + mealLv + ' rib=' + ribMeal.toFixed(2) }));
+      { fmt: 'raw', note: 'lv=' + mealLv + ' mastery=' + masteryLv + ' rib=' + ribMeal.toFixed(2) }));
   }
   return treeResult(total, children);
 }

@@ -4,15 +4,17 @@
 import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData, equipOrderData } from '../../../save/data.js';
-import { equipSetBonus, SET_BONUS_VALUES } from '../../data/common/equipment.js';
+import { equipSetBonus } from '../../data/common/equipment.js';
 import { EquipmentSets } from '../../data/game/custommaps.js';
 
-export function getSetBonus(setName) {
+export function getSetBonus(setName, charIdx) {
   var perma = String(optionsListData[379] || '');
-  if (!perma.includes(setName)) return treeResult(0);
-  var val = SET_BONUS_VALUES[setName] || 0;
+  var permanent = perma.includes(setName);
+  var equipped = charIdx != null && checkSetEquipped(setName, charIdx);
+  if (!permanent && !equipped) return treeResult(0);
+  var val = equipSetBonus(setName);
   return treeResult(val, [
-    { name: setName + ' Unlocked', val: 1, fmt: 'raw' },
+    { name: permanent ? 'Permanent Set Bonus' : 'Currently Equipped Set', val: 1, fmt: 'raw' },
     { name: 'Bonus Value', val: val, fmt: 'raw' },
   ]);
 }
@@ -51,6 +53,15 @@ function checkSetEquipped(setName, charIdx) {
       }
     }
   }
+  if (specialCap === 1) {
+    var specialPieces = setDef[2] || [];
+    for (var s = 0; s < 16; s++) {
+      if (specialPieces.indexOf(row0[s]) !== -1) {
+        partsOn++;
+        break;
+      }
+    }
+  }
   return partsOn >= partsReq;
 }
 
@@ -59,11 +70,7 @@ export var setBonus = {
     var data = SET_DATA[id];
     if (!data) return node(label('Smithing', id), 0, null, { note: 'set ' + id });
     var name = label('Smithing', id);
-    var perma = String((optionsListData && optionsListData[379]) || '');
-    var unlocked = perma.includes(data.key);
-    if (!unlocked) {
-      unlocked = checkSetEquipped(data.key, ctx.charIdx);
-    }
+    var unlocked = Number(getSetBonus(data.key, ctx.charIdx)) > 0;
     return node(name, unlocked ? data.bonus : 0, [
       node(unlocked ? 'Unlocked' : 'Not unlocked', 0, null, { fmt: 'raw' }),
     ], { fmt: '+', note: 'set ' + id });

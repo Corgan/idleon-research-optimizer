@@ -17,6 +17,7 @@ import { NjEQ } from '../../data/game/custommaps.js';
 import {
   nkBonus, charmStat, charmBonusType, isGoldCharm,
   funeralStealthBonus, parseTwinData, parseTwinEquip,
+  isTwinUntied,
 } from './sneaking-math.js';
 import { farmRankUpgBonus } from './farmRank.js';
 import { computeCompassBonus } from '../../systems/w7/compass.js';
@@ -27,16 +28,16 @@ import { computeEmperorBon } from './emperor.js';
 import { computeStatueBonusGiven } from '../common/stats.js';
 import { legendPTSbonus, computePaletteBonus } from '../../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../../systems/w7/sushi.js';
-import { bubbleValByKey } from '../../systems/w2/alchemy.js';
+import { bubbleValByKey, computeVialByKey } from '../../systems/w2/alchemy.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { cloudBonus } from '../../../game-helpers.js';
-import { computeSeraphMulti } from '../common/starSign.js';
-import { computeShinyBonusS } from '../../systems/w4/breeding.js';
-import { starSignData as _starSignData } from '../../../save/data.js';
+import { computeStarSignBonus } from '../common/starSign.js';
+import { createStatContext } from '../../stat-context.js';
 import { maxTalentBonus } from '../common/talent.js';
 import { ZenithMarket } from '../../data/game/customlists.js';
 import { gambitPTSmulti } from '../w5/hole.js';
 import { getLOG } from '../../../formulas.js';
+import { node } from '../../node.js';
 
 // ===== HELPERS =====
 
@@ -97,6 +98,21 @@ function _weaponItemStat(slotIdx, ninjaData) {
   }
   return base * Math.pow(1.23, 110) * Math.pow(0.92, 30)
                * Math.pow(1.063704, Math.max(0, lv - 110));
+}
+
+export function weaponItemStat(itemKey, level) {
+  var eq = NjEQ[String(itemKey || 'Blank')];
+  if (!eq || _num(eq[0]) !== 1) return 0;
+  var bonusType = _num(eq[1]);
+  var base = _num(eq[3]);
+  var itemLevel = _num(level);
+  if (bonusType === 0) return 10 * base * ((itemLevel + 10) / (itemLevel + 40));
+  if (itemLevel <= 110) {
+    return base * Math.pow(1.23, itemLevel) * Math.pow(0.92, Math.max(0, itemLevel - 80))
+      * Math.pow(0.94, Math.max(0, itemLevel - 110));
+  }
+  return base * Math.pow(1.23, 110) * Math.pow(0.92, 30)
+    * Math.pow(1.063704, Math.max(0, itemLevel - 110));
 }
 
 // ----- SneakSymbolBon(slotLVID) -----
@@ -183,7 +199,7 @@ function _twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses) {
 }
 
 // ----- Gold inventory bonuses (NinjaBonus(type, -1)) -----
-// Scans Ninja[60..99] for Gold_ items, keeps first per bonus type.
+// Scans Ninja[60..98] for Gold_ items, keeps first per bonus type.
 // Game compares raw > storedMultiplied, so the first match always wins.
 // Multiplied by (1 + gemstone3/100) * (1 + legendPts6/100) * (1 + symbolBon/100)
 export function goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
@@ -194,7 +210,7 @@ function _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, active
   var legend6 = 0;
   try { legend6 = legendPTSbonus(6, saveData) || 0; } catch(e) {}
   var result = {}; // bonusType -> multiplied stat (first match wins)
-  for (var i = 0; i < 40; i++) {
+  for (var i = 0; i < 39; i++) {
     var slotIdx = 60 + i;
     var slot = ninjaData[slotIdx];
     if (!slot) continue;
@@ -287,9 +303,9 @@ function _fractalIslandBonus6(saveData) {
 // ----- A10AllCharz (Alchemy bubble for stealth) -----
 // STEALTH_CHAPTER bubble (Kazam cauldron idx 10, key 'A10AllCharz').
 // Game: bubbleVal * floor(max(0, (TomeCompletionPts - 5000) / 2000))
-function _alchA10AllCharz(saveData) {
+function _alchA10AllCharz(saveData, activeCharIdx) {
   var bubbleVal = 0;
-  try { bubbleVal = Number(bubbleValByKey('A10AllCharz', 0, saveData)) || 0; } catch(e) {}
+  try { bubbleVal = Number(bubbleValByKey('A10AllCharz', activeCharIdx || 0, saveData)) || 0; } catch(e) {}
   if (bubbleVal <= 0) return 0;
   var tomeScore = _num(saveData.totalTomePoints);
   var tomeMult = Math.floor(Math.max(0, (tomeScore - 5000) / 2000));
@@ -299,30 +315,17 @@ function _alchA10AllCharz(saveData) {
 // ----- StarSigns[73] (S._Tealio: +12% Ninja Twin Stealth) -----
 // Active if: equipped in PVtStarSign, OR (unlocked AND infinite star signs >= 74)
 // Value = 12 * seraphMulti (per activation pass — game loops twice for dual-sign chip)
-function _starSign73(saveData) {
-  var isActive = false;
-  // Check equipped signs across all characters (game uses global accumulation)
-  for (var ci = 0; ci < (_starSignData.length || 0); ci++) {
-    var equipped = String(_starSignData[ci] || '').split(',');
-    if (equipped.indexOf('73') !== -1) { isActive = true; break; }
-  }
-  // Check infinite star signs (Rift level >= 10)
-  if (!isActive) {
-    var unlocked = saveData.starSignsUnlocked || {};
-    if ('S._Tealio' in unlocked) {
-      var riftLv = _num(saveData.riftData && saveData.riftData[0]);
-      if (riftLv >= 10) {
-        var enabled = 5;
-        try { enabled += computeShinyBonusS(3, saveData) || 0; } catch(e) {}
-        if (73 < enabled) isActive = true;
-      }
-    }
-  }
-  if (!isActive) return 0;
-  var base = 12;
-  var seraph = 1;
-  try { seraph = computeSeraphMulti(0, saveData) || 1; } catch(e) {}
-  return base * seraph;
+function _starSign73(saveData, activeCharIdx) {
+  try { return Number(computeStarSignBonus('Stealth', activeCharIdx || 0, saveData)) || 0; }
+  catch(e) { return 0; }
+}
+
+function _votingBonus25(saveData, activeCharIdx) {
+  if (saveData.activeVoteIdx !== 25) return 0;
+  var votingMulti = 1;
+  try { votingMulti = Number(createStatContext({ charIdx: activeCharIdx || 0, saveData: saveData }).resolve('voting-multi').val) || 1; }
+  catch(e) {}
+  return votingBonusz(25, votingMulti, saveData);
 }
 
 // ===== Internal: compute factors shared across all floors =====
@@ -337,7 +340,8 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   // Per-character sneaking level
   var lv0All = s.lv0AllData || [];
   var sneakLv = _num(lv0All[twinIdx] && lv0All[twinIdx][17]);
-  var farmLv = _num(lv0All[twinIdx] && lv0All[twinIdx][16]);
+  var farmCharIdx = activeCharIdx != null ? activeCharIdx : twinIdx;
+  var farmLv = _num(lv0All[farmCharIdx] && lv0All[farmCharIdx][16]);
 
   // Gold inventory bonuses (shared across all twins)
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, s, activeCharIdx);
@@ -351,7 +355,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
 
   // ---- CORE MULTIPLIER (everything except ally and funeral) ----
   var farmRankBon = 0;
-  try { farmRankBon = farmRankUpgBonus(4, 0, s) || 0; } catch(e) {}
+  try { farmRankBon = farmRankUpgBonus(4, farmCharIdx, s) || 0; } catch(e) {}
   var farmFactor = 1 + farmRankBon * farmLv / 100;
 
   var nb7 = _num(charmMap[7]);
@@ -373,13 +377,13 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var nb20 = _num(goldInv[20]);
   var factor20 = 1 + nb20 / 100;
 
-  var alchA10 = _alchA10AllCharz(s);
-  var starSign73v = _starSign73(s);
+  var alchA10 = _alchA10AllCharz(s, farmCharIdx);
+  var starSign73v = _starSign73(s, farmCharIdx);
   var factorAlchStar = 1 + (alchA10 + starSign73v) / 100;
 
   var statue26 = 0;
   try {
-    var statResult = computeStatueBonusGiven(26, 0, s);
+    var statResult = computeStatueBonusGiven(26, farmCharIdx, s);
     statue26 = (statResult && statResult.val) || 0;
   } catch(e) {}
   var factorStatue = 1 + statue26 / 100;
@@ -396,7 +400,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var factorGemstone = 1 + gem0 / 100;
 
   var vote25 = 0;
-  try { vote25 = votingBonusz(25, 1, s) || 0; } catch(e) {}
+  try { vote25 = _votingBonus25(s, farmCharIdx) || 0; } catch(e) {}
   var factorVoting = 1 + vote25 / 100;
 
   var lamp21 = _lampBonus(2, 1, holesData, spelunkData);
@@ -441,13 +445,24 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
     goldInv: goldInv,
     charmMap: charmMap,
     breakdown: {
-      sneakLv, nk13, farmFactor, nb7, compass45, gambit11,
+      sneakLv, farmLv, farmRankBon, nk13, farmFactor, factor7, nb7,
+      factorCompass, compass45, factorGambit, gambit11,
+      factor4, factor17, factor20,
       nb4, nb17, nb20, alchA10, starSign73: starSign73v,
-      statue26, cardLv, ach368, gem0, vote25, lamp21,
-      bUpg54: bUpg54v, fractal6, emperor0, rogPct, nk23, comp163,
+      factorAlchStar, factorStatue, statue26, factorCards, cardLv,
+      factorAchieve, ach368, factorGemstone, gem0, factorVoting, vote25,
+      factorLamp, lamp21, factorBUpg, bUpg54: bUpg54v,
+      fractal6, emperor0, rogPct, nk23, comp163,
       fractalMulti, emperorMulti, rogMulti, shhMulti, comp163Multi,
     },
   };
+}
+
+function _pctFactorNode(name, pct, children, note) {
+  var factor = 1 + _num(pct) / 100;
+  return node(name, factor, children || [
+    node('Bonus', pct, null, { fmt: '%' }),
+  ], { fmt: 'x', note: note || '1 + bonus / 100' });
 }
 
 // ===== computeCoreStealth(twinIdx, saveData) =====
@@ -507,6 +522,201 @@ export function computeTwinStealth(twinIdx, floor, allTwinFloors, saveData, acti
   };
 }
 
+// ===== Full Stealth breakdown tree =====
+export function buildStealthBreakdown(twinIdx, floor, allTwinFloors, saveData, activeCharIdx) {
+  var s = saveData;
+  var nd = s.ninjaData || [];
+  var nkLvs = nd[103] || [];
+  var spelunkData = s.spelunkData || [];
+  var floors = allTwinFloors || [];
+  var f = _computeFactors(twinIdx, s, activeCharIdx);
+  var b = f.breakdown;
+
+  var coreChildren = [
+    node('Land Rank Stealth', b.farmFactor, [
+      node('Land Rank bonus per Farming level', b.farmRankBon, null, { fmt: '%' }),
+      node('Login character Farming level', b.farmLv, null, { fmt: 'raw' }),
+      node('Combined bonus', b.farmRankBon * b.farmLv, null, { fmt: '%' }),
+    ], { fmt: 'x', note: '1 + Land Rank bonus × active login Farming level / 100' }),
+    _pctFactorNode('Equipped Charm: EXP, Jade & Stealth', b.nb7),
+    _pctFactorNode('Compass: Sneaking Stealth', b.compass45),
+    _pctFactorNode('Gambit: Sneaking Stealth', b.gambit11),
+    _pctFactorNode('Equipped Charm: Total Stealth', b.nb4),
+    _pctFactorNode('Equipped Charm: Total Stealth II', b.nb17),
+    _pctFactorNode('Gold Inventory: Total Stealth', b.nb20),
+    node('Alchemy + Star Sign', b.factorAlchStar, [
+      node('A10AllCharz bubble', b.alchA10, null, { fmt: '%' }),
+      node('S. Tealio star sign', b.starSign73, null, { fmt: '%' }),
+      node('Combined bonus', b.alchA10 + b.starSign73, null, { fmt: '%' }),
+    ], { fmt: 'x', note: '1 + (bubble + star sign) / 100' }),
+    _pctFactorNode('Sneaking Statue', b.statue26),
+    node('Crystal 5 Card', b.factorCards, [
+      node('Card level', b.cardLv, null, { fmt: 'raw' }),
+      node('Bonus per level', 4, null, { fmt: '%' }),
+      node('Combined bonus', 4 * b.cardLv, null, { fmt: '%' }),
+    ], { fmt: 'x', note: '1 + 4 × card level / 100' }),
+    node('Achievement 368', b.factorAchieve, [
+      node('Achievement status', b.ach368, null, { fmt: 'raw' }),
+      node('Combined bonus', 5 * b.ach368, null, { fmt: '%' }),
+    ], { fmt: 'x' }),
+    _pctFactorNode('Gemstone: Stealth', b.gem0),
+    _pctFactorNode('Voting: Sneaking Stealth', b.vote25),
+    _pctFactorNode('Lamp: Sneaking Stealth', b.lamp21),
+    node('Holes Upgrade 54', b.factorBUpg, [
+      node('Raw multiplier', b.bUpg54, null, { fmt: 'x' }),
+    ], { fmt: 'x', note: 'max(1, B_UPG 54)' }),
+    node('Fractal Island', b.fractalMulti, [
+      node('Unlock status', b.fractal6, null, { fmt: 'raw' }),
+      node('Sneaking level', b.sneakLv, null, { fmt: 'raw' }),
+      node('Combined bonus', 2 * b.fractal6 * b.sneakLv, null, { fmt: '%' }),
+    ], { fmt: 'x', note: '1 + 2 × unlock × Sneaking level / 100' }),
+    _pctFactorNode('Emperor: Sneaking Stealth', b.emperor0),
+    _pctFactorNode('RoG: Sneaking Stealth', b.rogPct),
+    _pctFactorNode('Shh! Ninja Knowledge', b.nk23),
+    node('Companion 163', b.comp163Multi, [
+      node('Owned', b.comp163, null, { fmt: 'raw' }),
+      node('Multiplier contribution', 39 * b.comp163, null, { fmt: '+' }),
+    ], { fmt: 'x', note: '1 + 39 × owned' }),
+  ];
+
+  var allyBonus = 1;
+  var allyChildren = [];
+  for (var otherIdx = 0; otherIdx < floors.length; otherIdx++) {
+    if (otherIdx === twinIdx || floors[otherIdx] !== floor) continue;
+    var otherMap = _twinCharmBonuses(otherIdx, nd, spelunkData, f.goldInv);
+    var type8 = _num(otherMap[8]);
+    var type16 = _num(otherMap[16]);
+    allyBonus += (type8 + type16) / 100;
+    var otherName = (s.charNames && s.charNames[otherIdx]) || ('Twin ' + (otherIdx + 1));
+    allyChildren.push(node(otherName, type8 + type16, [
+      node('Floor Stealth charm', type8, null, { fmt: '%' }),
+      node('Floor Stealth charm II', type16, null, { fmt: '%' }),
+    ], { fmt: '%' }));
+  }
+  if (allyChildren.length === 0) {
+    allyChildren.push(node('No other twins on this floor', 0, null, { fmt: '%' }));
+  }
+
+  var flowers = _num(spelunkData[15] && spelunkData[15][floor]);
+  var funeralPerFlower = nkBonus(21, nkLvs);
+  var funeralPct = funeralStealthBonus(flowers, nkLvs);
+  var funeralMulti = 1 + funeralPct / 100;
+  var total = f.baseStealth * f.coreMulti * allyBonus * funeralMulti;
+  var twinName = (s.charNames && s.charNames[twinIdx]) || ('Twin ' + (twinIdx + 1));
+
+  return node(twinName + ' Stealth', total, [
+    node('Base Stealth', f.baseStealth, [
+      node('Base', 10, null, { fmt: 'raw' }),
+      node('Way of Stealth contribution', b.nk13 * b.sneakLv, [
+        node('Bonus per Sneaking level', b.nk13, null, { fmt: 'raw' }),
+        node('Sneaking level', b.sneakLv, null, { fmt: 'raw' }),
+      ], { fmt: '+' }),
+    ], { fmt: 'raw', note: '10 + Way of Stealth × Sneaking level' }),
+    node('Core Multipliers', f.coreMulti, coreChildren, { fmt: 'x', note: 'Product of all listed factors' }),
+    node('Ally Stealth Multiplier', allyBonus, allyChildren, { fmt: 'x', note: '1 + sum of ally floor-stealth charm bonuses / 100' }),
+    node('Funeral Flowers Multiplier', funeralMulti, [
+      node('Flowers on floor ' + floor, flowers, null, { fmt: 'raw' }),
+      node('Bonus per flower', funeralPerFlower, null, { fmt: '%' }),
+      node('Combined bonus', funeralPct, null, { fmt: '%' }),
+    ], { fmt: 'x', note: '1 + flowers × bonus per flower / 100' }),
+  ], { fmt: 'raw', note: 'Base Stealth × Core Multipliers × Ally Multiplier × Funeral Multiplier' });
+}
+
+// ===== Exact Nunchaku door damage =====
+export function computeDoorDamageDetailed(twinIdx, saveData, activeCharIdx) {
+  var s = saveData;
+  var nd = s.ninjaData || [];
+  var olaData = s.olaData || [];
+  var spelunkData = s.spelunkData || [];
+  var slotIdx = 13 + 4 * twinIdx;
+  var slot = nd[slotIdx] || [];
+  var itemKey = String(slot[0] || 'Blank');
+  var eq = NjEQ[itemKey];
+  var isNunchaku = !!eq && _num(eq[0]) === 1 && _num(eq[1]) === 1;
+  var weaponStat = isNunchaku ? _weaponItemStat(slotIdx, nd) : 0;
+  var sneakLv = _num(s.lv0AllData && s.lv0AllData[twinIdx] && s.lv0AllData[twinIdx][17]);
+  var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, s, activeCharIdx);
+  var mahjong = _nlBonus(5, nd);
+  var goldPerTen = _num(goldInv[22]);
+  var sneakTens = Math.floor(sneakLv / 10);
+  var goldDamage = _num(goldInv[18]);
+  var y8 = 0;
+  try { y8 = Number(bubbleValByKey('Y8', activeCharIdx || 0, s)) || 0; } catch(e) {}
+  var gem2 = _gemstoneBonus(2, olaData, s, activeCharIdx);
+  var trueBattering = _nlBonus(27, nd);
+  var factors = {
+    mahjong: 1 + mahjong / 100,
+    goldPerTen: 1 + goldPerTen * sneakTens / 100,
+    goldDamage: 1 + goldDamage / 100,
+    y8: 1 + y8 / 100,
+    gemstone: 1 + gem2 / 100,
+    trueBattering: 1 + trueBattering / 100,
+  };
+  var damage = isNunchaku
+    ? weaponStat * factors.mahjong * factors.goldPerTen * factors.goldDamage
+      * factors.y8 * factors.gemstone * factors.trueBattering
+    : 0;
+
+  return {
+    damage: damage,
+    canHitDoor: isNunchaku,
+    itemKey: itemKey,
+    itemLevel: _num(slot[1]),
+    weaponStat: weaponStat,
+    sneakLv: sneakLv,
+    sneakTens: sneakTens,
+    bonuses: { mahjong: mahjong, goldPerTen: goldPerTen, goldDamage: goldDamage, y8: y8, gem2: gem2, trueBattering: trueBattering },
+    factors: factors,
+  };
+}
+
+export function computeUntieProgressDetailed(twinIdx, saveData, activeCharIdx) {
+  var s = saveData;
+  var nd = s.ninjaData || [];
+  var slotIdx = 13 + 4 * twinIdx;
+  var slot = nd[slotIdx] || [];
+  var itemKey = String(slot[0] || 'Blank');
+  var eq = NjEQ[itemKey];
+  var isKunai = !!eq && _num(eq[0]) === 1 && _num(eq[1]) === 2;
+  var weaponStat = isKunai ? _weaponItemStat(slotIdx, nd) : 0;
+  var mahjong = _nlBonus(5, nd);
+  var vial = 0;
+  try { vial = Number(computeVialByKey('6Untie', s, activeCharIdx)) || 0; } catch(e) {}
+  var progress = isKunai ? weaponStat * (1 + mahjong / 100) * (1 + vial / 100) : 0;
+  return { progress: progress, canUntie: isKunai, itemKey: itemKey, itemLevel: _num(slot[1]), weaponStat: weaponStat, mahjong: mahjong, vial: vial };
+}
+
+export function buildDoorDamageBreakdown(twinIdx, saveData, activeCharIdx) {
+  var d = computeDoorDamageDetailed(twinIdx, saveData, activeCharIdx);
+  var twinName = (saveData.charNames && saveData.charNames[twinIdx]) || ('Twin ' + (twinIdx + 1));
+  if (!d.canHitDoor) {
+    return node(twinName + ' Door Damage / Hit', 0, [
+      node('No Nunchaku equipped', 0, [
+        node('Equipped weapon', 0, null, { fmt: 'raw', note: d.itemKey }),
+        node('Item level', d.itemLevel, null, { fmt: 'raw' }),
+      ], { fmt: 'raw', note: 'Only Nunchaku weapons use the native door attack action' }),
+    ], { fmt: 'raw' });
+  }
+  return node(twinName + ' Door Damage / Hit', d.damage, [
+    node('Nunchaku Weapon Damage', d.weaponStat, [
+      node('Equipped weapon', 0, null, { fmt: 'raw', note: d.itemKey }),
+      node('Item level', d.itemLevel, null, { fmt: 'raw' }),
+    ], { fmt: 'raw', note: d.canHitDoor ? 'Native ItemStat for equipped Nunchaku' : 'No Nunchaku equipped; this twin does not attack doors' }),
+    _pctFactorNode('Mahjong Boosters', d.bonuses.mahjong),
+    node('Gold Inventory: Damage per 10 Sneaking Levels', d.factors.goldPerTen, [
+      node('Bonus per 10 levels', d.bonuses.goldPerTen, null, { fmt: '%' }),
+      node('Sneaking level groups', d.sneakTens, [
+        node('Sneaking level', d.sneakLv, null, { fmt: 'raw' }),
+      ], { fmt: 'raw' }),
+      node('Combined bonus', d.bonuses.goldPerTen * d.sneakTens, null, { fmt: '%' }),
+    ], { fmt: 'x' }),
+    _pctFactorNode('Gold Inventory: Door Damage', d.bonuses.goldDamage),
+    _pctFactorNode('Hinge Buster Bubble', d.bonuses.y8),
+    _pctFactorNode('Gemstone: Door Damage', d.bonuses.gem2),
+    _pctFactorNode('True Battering', d.bonuses.trueBattering),
+  ], { fmt: 'raw', note: 'Only a Nunchaku wielder attacks an undefeated floor door' });
+}
+
 // ===== Find the best active character for stealth =====
 // The logged-in character affects AllTalentLVz bonuses which feed into
 // gemstone and gold inventory multipliers. Returns { charIdx, charName, stealth }.
@@ -534,9 +744,9 @@ export function getTwinAllyContributions(saveData, activeCharIdx) {
   var spelunkData = s.spelunkData || [];
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, s, activeCharIdx);
   var result = [];
-  var count = (s.charNames && s.charNames.length)
-    || (s.lv0AllData && s.lv0AllData.length)
-    || 10;
+  var count = Math.min(12, (saveData.charNames && saveData.charNames.length)
+    || (saveData.lv0AllData && saveData.lv0AllData.length)
+    || 12);
   for (var t = 0; t < count; t++) {
     var map = _twinCharmBonuses(t, nd, spelunkData, goldInv);
     result.push({ type8: _num(map[8]), type16: _num(map[16]) });
@@ -545,9 +755,10 @@ export function getTwinAllyContributions(saveData, activeCharIdx) {
 }
 
 // ===== Check if twin is alone on its floor =====
-function _isTwinSolo(twinIdx, ninjaData) {
+function _isTwinSolo(twinIdx, ninjaData, playerCount) {
   var myFloor = _num(ninjaData[twinIdx] && ninjaData[twinIdx][0]);
-  for (var e = 0; e < 12; e++) {
+  var count = Math.max(0, Math.min(12, Number(playerCount) || 12));
+  for (var e = 0; e < count; e++) {
     if (e === twinIdx) continue;
     if (!ninjaData[e]) continue;
     if (_num(ninjaData[e][0]) === myFloor) return false;
@@ -557,14 +768,15 @@ function _isTwinSolo(twinIdx, ninjaData) {
 
 // Solo multiplier: round(2 + floor(bonusType / 13))
 // type 2 → 2x, types 13/14/19 → 3x
-export function soloMultiplier(bonusType, twinIdx, ninjaData) {
+export function soloMultiplier(bonusType, twinIdx, ninjaData, playerCount) {
   if (bonusType !== 2 && bonusType !== 13 && bonusType !== 14 && bonusType !== 19) return 1;
-  return _isTwinSolo(twinIdx, ninjaData) ? Math.round(2 + Math.floor(bonusType / 13)) : 1;
+  return _isTwinSolo(twinIdx, ninjaData, playerCount) ? Math.round(2 + Math.floor(bonusType / 13)) : 1;
 }
 
 // ===== Compute full action speed per twin =====
 // ActionSpd = 1 + (NLbonuses(4) + NB(t,2) + gloveSPD + NB(24,-1)) / 100
-export function computeActionSpeed(twinIdx, saveData, activeCharIdx) {
+export function computeActionSpeed(twinIdx, saveData, activeCharIdx, options) {
+  options = options || {};
   var nd = saveData.ninjaData || [];
   var olaData = saveData.olaData || [];
   var spelunkData = saveData.spelunkData || [];
@@ -574,7 +786,11 @@ export function computeActionSpeed(twinIdx, saveData, activeCharIdx) {
   var charmMap = _twinCharmBonuses(twinIdx, nd, spelunkData, goldInv);
   var nb2 = _num(charmMap[2]);
   // Solo twin: 2x action speed charm bonus when alone on floor
-  nb2 *= soloMultiplier(2, twinIdx, nd);
+  var playerCount = (saveData.charNames && saveData.charNames.length)
+    || (saveData.lv0AllData && saveData.lv0AllData.length)
+    || 12;
+  var isSolo = options.isSolo != null ? !!options.isSolo : _isTwinSolo(twinIdx, nd, playerCount);
+  nb2 *= isSolo ? 2 : 1;
   var gSpd = _gloveSPD(twinIdx, nd);
   var nb24 = _num(goldInv[24]);
   return 1 + (nk4 + nb2 + gSpd + nb24) / 100;

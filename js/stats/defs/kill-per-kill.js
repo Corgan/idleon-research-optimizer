@@ -4,6 +4,7 @@
 // Scope: character+map (depends on current map for world range).
 
 import { companion } from '../systems/common/companions.js';
+import { friend } from '../systems/common/friend.js';
 import { vault } from '../systems/common/vault.js';
 import { pristine } from '../systems/w6/sneaking.js';
 import { votingBonusz } from '../systems/w2/voting.js';
@@ -21,18 +22,18 @@ import { AlchemyDescription } from '../data/game/customlists.js';
 import { numCharacters } from '../../save/data.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { computeFamBonusQTY, computeWorkbenchStuff } from '../systems/common/stats.js';
+import { computeFamBonusQTYs } from '../systems/common/stats.js';
 import { computeDivinityMajor } from '../systems/w5/divinity.js';
 import { computeExoticBonus } from '../systems/w6/farming.js';
 import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
-import { computeOverkillTier } from '../systems/common/overkill.js';
+import { computeMultiKillTotal, computeOverkillActive } from '../systems/common/overkill.js';
 
 export default createDescriptor({
   id: 'kill-per-kill',
   name: 'Kill Per Kill (Multikill)',
-  scope: 'character',
+  scope: 'character+map',
   category: 'multiplier',
 
   combine: function(pools, ctx) {
@@ -50,9 +51,8 @@ export default createDescriptor({
     else if (mapIdx >= 200 && mapIdx < 250) { kpkDumm = rval(etcBonus, '73', ctx); worldEtcId = '73'; }
     else if (mapIdx >= 250 && mapIdx < 300) { kpkDumm = rval(etcBonus, '90', ctx); worldEtcId = '90'; }
     else if (mapIdx >= 300 && mapIdx < 350) {
-      // W7: BigFishBonuses(3) — from spelunking
-      kpkDumm = safe(computeBigFishBonus, 3, s);
-      worldEtcId = 'BigFish(3)';
+      kpkDumm = safe(computeBigFishBonus, 3, s) + rval(etcBonus, '105', ctx);
+      worldEtcId = 'BigFish(3)+105';
     }
 
     // KpKDumm2 — stat-based talent bonus (not for W7+)
@@ -68,20 +68,21 @@ export default createDescriptor({
         + talent531 * (totalWIS / 1000);
     }
 
-    // OverkillStuffs("3"): overkill is active if tier >= 2 (dmg ≥ HP * exp * exp^1)
-    var okInfo = computeOverkillTier(ci, ctx, { mapIdx: mapIdx });
-    var overkillActive = okInfo.tier >= 2;
+    var okInfo = computeOverkillActive(ci, ctx, { mapIdx: mapIdx });
+    var overkillActive = okInfo.active;
 
     // Multiplicative chain (when overkill active)
     var mf4 = Math.max(1, safe(mainframeBonus, 4, s));
     var comp14 = 1 + rval(companion, 14, ctx);
+    var comp168 = 1 + 0.2 * rval(companion, 168, ctx);
     var comp29 = 1 + rval(companion, 29, ctx);
     var comp154 = 1 + rval(companion, 154, ctx);
     var etc96 = 1 + rval(etcBonus, '96', ctx) / 100;
     var etc103 = 1 + rval(etcBonus, '103', ctx) / 100;
 
     // FamBonus28 + Voting5
-    var famBonus28 = safe(computeFamBonusQTY, 28, s);
+    var familyBonuses = safe(computeFamBonusQTYs, ci, s);
+    var famBonus28 = Number(familyBonuses && familyBonuses[28]) || 0;
     var voting5 = safe(votingBonusz, 5, 1, s);
     var kpkAdditive1 = 1 + (kpkDumm + famBonus28 + voting5) / 100;
 
@@ -91,7 +92,9 @@ export default createDescriptor({
 
     // Second additive group
     var talent109 = rval(talent, 109, ctx);
-    var workbenchMultiKill = safe(computeWorkbenchStuff, s);
+    var workbenchMultiKill = overkillActive
+      ? computeMultiKillTotal(ci, ctx, { mapIdx: mapIdx })
+      : 0;
     var kpkBubble = safe(bubbleValByKey, 'kpkACTIVE', ci, s);
     var prayer13 = computePrayerReal(13, 0, ci, ctx.saveData);
     var pristine6 = rval(pristine, 6, ctx);
@@ -99,18 +102,19 @@ export default createDescriptor({
     var legend16 = safe(legendPTSbonus, 16, s);
     var bubbaRoG5 = safe(bubbaRoGBonuses, 5, s);
     var vault64 = rval(vault, 64, ctx);
+    var friend6 = rval(friend, 6, ctx);
 
     var kpkAdditive2;
     if (overkillActive) {
       kpkAdditive2 = 1 + (kpkDumm2 + talent109 + workbenchMultiKill + kpkBubble
-        + prayer13 + pristine6 + exotic56 + legend16 + bubbaRoG5 + vault64) / 100;
+        + prayer13 + pristine6 + exotic56 + legend16 + bubbaRoG5 + vault64 + friend6) / 100;
     } else {
       // Non-overkill path: same but WITHOUT workbenchMultiKill
       kpkAdditive2 = 1 + (kpkDumm2 + talent109 + kpkBubble
-        + prayer13 + pristine6 + exotic56 + legend16 + bubbaRoG5 + vault64) / 100;
+        + prayer13 + pristine6 + exotic56 + legend16 + bubbaRoG5 + vault64 + friend6) / 100;
     }
 
-    var val = mf4 * comp14 * comp29 * comp154 * etc96 * etc103
+    var val = mf4 * comp14 * comp168 * comp29 * comp154 * etc96 * etc103
       * kpkAdditive1 * divMajorMult * kpkAdditive2;
 
     if (val !== val || val == null) val = 1;
@@ -118,6 +122,7 @@ export default createDescriptor({
     var children = [];
     children.push({ name: label('Mainframe', 4), val: mf4, fmt: 'x' });
     if (comp14 > 1) children.push({ name: label('Companion', 14), val: comp14, fmt: 'x' });
+    if (comp168 > 1) children.push({ name: label('Companion', 168), val: comp168, fmt: 'x' });
     if (comp29 > 1) children.push({ name: label('Companion', 29), val: comp29, fmt: 'x' });
     if (comp154 > 1) children.push({ name: label('Companion', 154), val: comp154, fmt: 'x' });
     if (rval(etcBonus, '96', ctx) > 0) children.push({ name: label('EtcBonus', 96), val: etc96, fmt: 'x' });
@@ -129,14 +134,26 @@ export default createDescriptor({
     var add2ch = [];
     if (kpkDumm2 > 0) add2ch.push({ name: 'Stat-based talents', val: kpkDumm2, fmt: 'raw' });
     if (talent109 > 0) add2ch.push({ name: label('Talent', 109), val: talent109, fmt: 'raw' });
+    if (workbenchMultiKill > 0) add2ch.push({ name: 'MultiKill TOTAL', val: workbenchMultiKill, fmt: 'raw' });
     if (kpkBubble > 0) add2ch.push({ name: 'Bubble: Kill Per Kill', val: kpkBubble, fmt: 'raw' });
     if (prayer13 > 0) add2ch.push({ name: label('Prayer', 13), val: prayer13, fmt: 'raw' });
     if (pristine6 > 0) add2ch.push({ name: label('Pristine', 6), val: pristine6, fmt: 'raw' });
     if (legend16 > 0) add2ch.push({ name: label('Legend', 16), val: legend16, fmt: 'raw' });
     if (vault64 > 0) add2ch.push({ name: label('Vault', 64), val: vault64, fmt: 'raw' });
+    if (friend6 > 0) add2ch.push({ name: 'Friend Bonus: Kill Per Kill', val: friend6, fmt: 'raw' });
     children.push({ name: 'Additive KpK Pool', val: kpkAdditive2, fmt: 'x',
       children: add2ch.length ? add2ch : null });
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   }
 });

@@ -401,6 +401,18 @@ export function renderBreakdownTree(root, container, opts) {
 
   function fmtNodeVal(node) {
     const v = Number(node.val) || 0;    if (node.fmt === 'full') return fmtExact(v);    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
+    if (node.fmt === 'rate') {
+      if (v === 0) return '0/hr';
+      if (Math.abs(v) < 0.001) return v.toExponential(3) + '/hr';
+      if (Math.abs(v) < 1000) return parseFloat(v.toPrecision(6)) + '/hr';
+      return fmtVal(v) + '/hr';
+    }
+    if (node.fmt === 'chance') {
+      if (v <= 0) return '0%';
+      if (v >= 1) return '100%';
+      if (v >= 0.001) return parseFloat((100 * v).toFixed(3)) + '%';
+      return '1 in ' + fmtVal(Math.round(1 / v));
+    }
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
     if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
     if (node.fmt === 'x') return '\u00d7' + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));
@@ -411,6 +423,8 @@ export function renderBreakdownTree(root, container, opts) {
 
   function valColor(node) {
     if (node.fmt === '/hr') return 'var(--green)';
+    if (node.fmt === 'rate') return 'var(--green)';
+    if (node.fmt === 'chance') return 'var(--green)';
     if (node.fmt === 'pct') return 'var(--green)';
     if (node.fmt === '+') return 'var(--green)';
     if (node.fmt === '%') return 'var(--purple)';

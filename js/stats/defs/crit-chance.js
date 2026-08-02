@@ -69,7 +69,7 @@ export default createDescriptor({
     var talent640 = rval(talent, 640, ctx);
     var etc23 = rval(etcBonus, '23', ctx);
     var prayer11 = computePrayerReal(11, 0, ci, s);
-    var _mealCritT = safeTree(computeMealBonus, 'Crit', s);
+    var _mealCritT = safeTree(computeMealBonus, 'Crit', s, ci);
     var mealCrit = _mealCritT.val;
     var _statue13T = safeTree(computeStatueBonusGiven, 13, ci, s);
     var statue13 = _statue13T.val;

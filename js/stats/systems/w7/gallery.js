@@ -3,7 +3,7 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { optionsListData, numCharacters, labData } from '../../../save/data.js';
+import { optionsListData, labData, klaData } from '../../../save/data.js';
 import { computeCardLv } from '../common/cards.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
 import { NAMETAG_DR, NAMETAG_NAMES, TROPHY_DR, TROPHY_NAMES,
@@ -20,29 +20,46 @@ import { bubbleBonusY13 } from '../w2/alchemy.js';
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
 // GalleryBonusMulti: 1 + (3*GalleryLv + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
-export function galleryBonusMulti(saveData) {
+function _mapCleared(charIdx, mapIdx) {
+  var kla = klaData[charIdx == null ? 0 : charIdx] || [];
+  var map = kla[mapIdx];
+  if (map == null) return false;
+  return (Number(Array.isArray(map) ? map[0] : map) || 0) <= 0;
+}
+
+export function galleryBonusSystemOn(charIdx) {
+  return _mapCleared(charIdx, 250);
+}
+
+export function premHatBonusSystemOn(charIdx) {
+  return _mapCleared(charIdx, 50);
+}
+
+export function galleryBonusMulti(saveData, charIdx, dnsmCache) {
   var sp = saveData.spelunkData || [];
   var galleryLv = Number((sp[13] && sp[13][4]) || 0);
   var trophChip = 0;
-  if (labData) {
-    for (var ci = 0; ci < numCharacters; ci++) {
-      var chipSlots = labData[1 + ci];
-      if (!chipSlots) continue;
-      for (var s = 0; s < 7; s++) {
-        if (Number(chipSlots[s]) === 16) { trophChip = 1; break; }
-      }
-      if (trophChip) break;
+  var chipSlots = labData && labData[1 + (charIdx == null ? 0 : charIdx)];
+  if (chipSlots) {
+    for (var s = 0; s < 7; s++) {
+      if (Number(chipSlots[s]) === 16) { trophChip = 1; break; }
     }
   }
   // AlchBubbles.Y13: Kazam cauldron bubble 13, gallery bonus.
   // TalentCalc(-2) computes AlchBubbles at login, before gallery bonuses run.
-  var y13capped = Math.min(20, bubbleBonusY13(saveData));
+  var cachedBubbles = dnsmCache && dnsmCache.alchBubbles;
+  var y13 = cachedBubbles
+    ? (Object.prototype.hasOwnProperty.call(cachedBubbles, 'Y13')
+      ? Number(cachedBubbles.Y13) || 0 : 0)
+    : bubbleBonusY13(saveData);
+  var y13capped = Math.min(20, y13);
   var cardLv = Math.min(computeCardLv('w7a11', saveData), 10);
   var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
+  var sushiRoG54 = rogBonusQTY(54, saveData.cachedUniqueSushi || 0);
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
   var ola467 = Number(optionsListData[467]) || 0;
   var killroy3 = ola467 / (200 + ola467) * 10;
-  var sum = 3 * galleryLv + GALLERY_TROPH_CHIP_MULTI * trophChip + 3 * clamWork7 + killroy3 + y13capped + cardLv + comp49;
+  var sum = 3 * galleryLv + GALLERY_TROPH_CHIP_MULTI * trophChip + 3 * clamWork7 + killroy3 + y13capped + cardLv + comp49 + sushiRoG54;
   var val = 1 + sum / 100;
   var ch = [];
   if (galleryLv > 0) ch.push(node('Gallery Level', 3 * galleryLv, [node('Level', galleryLv, null, { fmt: 'raw' })], { fmt: 'raw', note: '3 per level' }));
@@ -52,6 +69,7 @@ export function galleryBonusMulti(saveData) {
   if (y13capped > 0) ch.push(node('Bubble Y13 (capped 20)', y13capped, null, { fmt: 'raw', note: 'kazam bubble 13' }));
   if (cardLv > 0) ch.push(node('Card w7a11 (capped 10)', cardLv, null, { fmt: 'raw' }));
   if (comp49 > 0) ch.push(node(label('Companion', 49), comp49, null, { fmt: 'raw' }));
+  if (sushiRoG54 > 0) ch.push(node(label('RoG', 54), sushiRoG54, null, { fmt: 'raw' }));
   return { val: val, children: ch };
 }
 
@@ -64,13 +82,15 @@ export function hatrackBonusMulti(saveData) {
   var evStr = saveData.cachedEventShopStr || '';
   var evShop30 = eventShopOwned(30, evStr);
   var sushiRoG36 = rogBonusQTY(36, saveData.cachedUniqueSushi || 0);
-  var sum = hatCount + 10 * evShop30 + mhq21 + sushiRoG36;
+  var comp31 = saveData.companionIds && saveData.companionIds.has(31) ? companionBonus(31) : 0;
+  var sum = hatCount + comp31 + 10 * evShop30 + mhq21 + sushiRoG36;
   var val = 1 + sum / 100;
   var ch = [];
   if (hatCount > 0) ch.push(node('Hats Owned', hatCount, null, { fmt: 'raw' }));
+  if (comp31 > 0) ch.push(node(label('Companion', 31), comp31, null, { fmt: 'raw' }));
   if (evShop30 > 0) ch.push(node(label('Event', 30), 10 * evShop30, null, { fmt: 'raw' }));
   if (mhq21 > 0) ch.push(node(label('Minehead Floor', 21), mhq21, null, { fmt: 'raw', note: 'minehead 21' }));
-  if (sushiRoG36 > 0) ch.push(node(label('Sushi', 36), sushiRoG36, null, { fmt: 'raw', note: 'RoG_BonusQTY(36)' }));
+  if (sushiRoG36 > 0) ch.push(node(label('RoG', 36), sushiRoG36, null, { fmt: 'raw' }));
   return { val: val, children: ch };
 }
 
@@ -138,9 +158,12 @@ export var nametag = {
     for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Nametag ' + id, 0, null, { note: 'nametag ' + id });
     var saveData = ctx.saveData;
+    if (!galleryBonusSystemOn(ctx.charIdx)) return node('Nametag Bonuses', 0, [
+      node('Map 250 Not Cleared', 0, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'nametag ' + id });
     var sp = saveData.spelunkData || [];
     var levels = sp[17] || [];
-    var gbmObj = galleryBonusMulti(saveData);
+    var gbmObj = galleryBonusMulti(saveData, ctx.charIdx, ctx.dnsmCache);
     var gbm = gbmObj.val;
     var total = 0;
     var children = [];
@@ -177,9 +200,12 @@ export var trophy = {
     for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Trophy ' + id, 0, null, { note: 'trophy ' + id });
     var saveData = ctx.saveData;
+    if (!galleryBonusSystemOn(ctx.charIdx)) return node('Trophy Bonuses', 0, [
+      node('Map 250 Not Cleared', 0, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'trophy ' + id });
     var sp = saveData.spelunkData || [];
     var trophySlots = sp[16] || [];
-    var gbmObj = galleryBonusMulti(saveData);
+    var gbmObj = galleryBonusMulti(saveData, ctx.charIdx, ctx.dnsmCache);
     var gbm = gbmObj.val;
     var total = 0;
     var children = [];
@@ -214,6 +240,9 @@ export var premhat = {
     for (var si = 0; si < ids.length; si++) { var s = GALLERY_STAT_FOR_ID[ids[si]]; if (s) statNameMap[s] = true; }
     if (!Object.keys(statNameMap).length) return node('Hatrack ' + id, 0, null, { note: 'premhat ' + id });
     var saveData = ctx.saveData;
+    if (!premHatBonusSystemOn(ctx.charIdx)) return node('Hatrack Bonuses', 0, [
+      node('Map 50 Not Cleared', 0, null, { fmt: 'raw' }),
+    ], { fmt: '+', note: 'premhat ' + id });
     var sp = saveData.spelunkData || [];
     var hats = sp[46] || [];
     var hbmObj = hatrackBonusMulti(saveData);

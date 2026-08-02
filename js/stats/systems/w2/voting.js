@@ -14,7 +14,7 @@ export function votingBonusz(voteIdx, votingMulti, saveData) {
 }
 
 var VOTING_DATA = {
-  27: { base: votingBonusValue(27), name: 'Voting Bonus (DR)' },
+  27: { base: votingBonusValue(27), name: 'Voting Bonus: Drop Rate' },
 };
 
 export var voting = {

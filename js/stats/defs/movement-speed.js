@@ -115,7 +115,7 @@ export default createDescriptor({
     if (finalSpeed <= 2) {
       _saltLick7T = safeTree(computeSaltLick, 7, s);
       saltLick7 = _saltLick7T.val;
-      _chipMoveT = safeTree(computeChipBonus, 'move');
+      _chipMoveT = safeTree(computeChipBonus, 'move', ci);
       chipMove = _chipMoveT.val;
       talent641 = rval(talent, 641, ctx);
       sigil13 = rval(sigil, 13, ctx);

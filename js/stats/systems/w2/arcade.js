@@ -30,7 +30,8 @@ export var arcade = {
     if (!params) return node(label('Arcade', id), 0, null, { note: 'arcade ' + id });
     var lv = (saveData.arcadeUpgData && saveData.arcadeUpgData[id]) || 0;
     if (lv <= 0) return node(label('Arcade', id), 0, null, { note: 'arcade ' + id });
-    var val = arcadeBonus(id, saveData);
+    var result = arcadeBonus(id, saveData);
+    var val = Number(result) || 0;
     var maxedM = lv === 101 ? 2 : 1;
     var comp27M = (saveData.companionIds && saveData.companionIds.has(27)) ? 2 : 1;
     return node(label('Arcade', id), val, [
@@ -38,6 +39,6 @@ export var arcade = {
       node('Raw Value', val / maxedM / comp27M, null, { fmt: 'raw' }),
       node('Maxed Bonus', maxedM, null, { fmt: 'x', note: lv === 101 ? 'Level 101' : 'Not maxed' }),
       node(label('Companion', 27), comp27M, null, { fmt: 'x' }),
-    ], { fmt: '+' });
+    ].concat(result.children || []), { fmt: '+' });
   },
 };

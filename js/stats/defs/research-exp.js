@@ -90,7 +90,7 @@ export default createDescriptor({
     var c1len = saveData.cards1Data.length || 0;
     var slabboBase = Math.floor(Math.max(0, c1len - 1300) / 5);
     var slabboMF15 = mainframeBonus(15, ctx.saveData);
-    var slabboMeritoc23 = computeMeritocBonusz(23, ctx.saveData);
+    var slabboMeritoc23 = computeMeritocBonusz(23, ctx.saveData, ctx.charIdx);
     var slabboLegend28 = legendPTSbonus(28, ctx.saveData);
     var vub74 = saveData.vaultData[74] || 0;
     var slabboMult = (1 + slabboMF15 / 100) * (1 + slabboMeritoc23 / 100) * (1 + slabboLegend28 / 100) * (1 + vub74 / 100);

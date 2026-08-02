@@ -12,7 +12,7 @@ export var pristine = {
     var saveData = ctx.saveData;
     var equipped = (saveData.ninjaData && saveData.ninjaData[107] && saveData.ninjaData[107][id]) === 1;
     return node(label('Pristine', id), equipped ? bonus : 0, [
-      node(equipped ? 'Equipped' : 'Not equipped', 0, null, { fmt: 'raw' }),
-    ], { fmt: '+', note: 'pristine ' + id });
+      node(equipped ? 'Equipped' : 'Not equipped', equipped ? 1 : 0, null, { fmt: 'raw' }),
+    ], { fmt: '+' });
   },
 };

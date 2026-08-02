@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idleon Farming Planner</title>
+<style>
+:root {
+  --bg:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --panel:#101b35;
+  --accent:#e94560; --text:#eee; --text2:#c0c0d4; --gold:#ffd700;
+  --green:#4caf50; --blue:#2196f3; --purple:#bb86fc; --cyan:#4dd0e1;
+  --red:#f44; --orange:#ffa060; --border:#425071;
+  --seed0:#72c65d; --seed1:#bc8f58; --seed2:#d7c64e; --seed3:#ef6f93;
+  --seed4:#9b78cc; --seed5:#57b6c7; --seed6:#d7a941;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+h1 { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:var(--bg2); border-bottom:2px solid var(--accent); font-size:1.35em; }
+h1 span { color:var(--accent); }
+h1 a { color:var(--text2); font-size:.62em; text-decoration:none; }
+.main { max-width:1560px; margin:0 auto; padding:14px; }
+.empty { padding:36px; text-align:center; color:var(--text2); }
+.section { background:var(--bg2); border-radius:8px; padding:14px; margin-bottom:14px; }
+.section h2 { margin-bottom:10px; color:var(--accent); font-size:1.08em; border-bottom:1px solid #34405f; padding-bottom:6px; }
+.section h3 { margin:12px 0 8px; color:var(--cyan); font-size:.9em; }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:8px; }
+.card { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:9px 11px; min-height:78px; }
+.card-title { color:var(--cyan); font-size:.73em; font-weight:700; }
+.card-val { color:var(--gold); font-size:1.32em; font-weight:700; margin:3px 0; font-variant-numeric:tabular-nums; }
+.card-sub { color:var(--text2); font-size:.68em; line-height:1.35; }
+.toolbar { background:var(--bg2); border-bottom:1px solid #39435f; padding:10px 14px; display:flex; flex-wrap:wrap; gap:9px 14px; align-items:flex-end; position:sticky; top:0; z-index:20; }
+.control { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-size:.71em; }
+select,input { min-height:31px; border:1px solid #586482; border-radius:4px; background:var(--panel); color:var(--text); padding:4px 7px; }
+input[type=number] { width:92px; }
+.check-control { display:flex; align-items:center; gap:7px; min-height:31px; color:var(--text2); font-size:.75em; cursor:pointer; }
+.check-control input { min-height:16px; width:16px; accent-color:var(--accent); }
+.tabs { display:flex; flex-wrap:wrap; background:var(--bg2); border-bottom:1px solid #39435f; padding:0 10px; }
+.tabs button { border:0; border-bottom:2px solid transparent; background:transparent; color:var(--text2); padding:9px 12px; cursor:pointer; font-weight:600; }
+.tabs button:hover { color:var(--text); background:rgba(255,255,255,.04); }
+.tabs button.active { color:var(--accent); border-bottom-color:var(--accent); }
+.table-wrap { overflow:auto; max-height:690px; }
+.data-table { width:100%; border-collapse:collapse; font-size:.77em; white-space:nowrap; }
+.data-table th { position:sticky; top:0; z-index:1; text-align:left; padding:6px; color:var(--text2); background:var(--bg2); border-bottom:1px solid #46516c; }
+.data-table td { padding:5px 6px; border-bottom:1px solid rgba(255,255,255,.05); }
+.data-table tr:hover td { background:rgba(255,255,255,.035); }
+.data-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.data-table tr.recommended td { background:rgba(76,175,80,.07); }
+.badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.7em; font-weight:700; }
+.badge-green { background:rgba(76,175,80,.2); color:#83db88; }
+.badge-gold { background:rgba(255,215,0,.15); color:var(--gold); }
+.badge-red { background:rgba(255,68,68,.16); color:#ff8b8b; }
+.badge-cyan { background:rgba(77,208,225,.16); color:var(--cyan); }
+.badge-purple { background:rgba(187,134,252,.18); color:var(--purple); }
+.badge-muted { background:rgba(192,192,212,.12); color:var(--text2); }
+.callout-list { display:grid; gap:7px; }
+.callout { border-left:3px solid var(--gold); background:rgba(255,215,0,.065); padding:8px 10px; color:var(--text2); font-size:.76em; line-height:1.45; }
+.callout.good { border-left-color:var(--green); background:rgba(76,175,80,.06); }
+.callout.warn { border-left-color:var(--red); background:rgba(255,68,68,.055); }
+.split { display:grid; grid-template-columns:minmax(300px,1fr) minmax(480px,2fr); gap:12px; }
+.stat-line { display:flex; justify-content:space-between; gap:14px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:.78em; }
+.stat-line span:first-child { color:var(--text2); }
+.stat-line strong { color:var(--gold); font-variant-numeric:tabular-nums; }
+.field-wrap { overflow:auto; padding-bottom:5px; }
+.plot-grid { display:grid; grid-template-columns:repeat(9,minmax(92px,1fr)); gap:6px; min-width:920px; }
+.plot-tile { appearance:none; width:100%; aspect-ratio:1.16; border:1px solid #53617e; border-top:4px solid var(--seed-color,#777); border-radius:5px; background:linear-gradient(155deg,rgba(255,255,255,.04),rgba(0,0,0,.12)),var(--panel); color:var(--text); padding:7px; cursor:pointer; text-align:left; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
+.plot-tile:hover { border-color:var(--cyan); }
+.plot-tile.selected { outline:2px solid var(--gold); outline-offset:1px; }
+.plot-tile .plot-head { display:flex; justify-content:space-between; gap:5px; color:var(--text2); font-size:.64em; }
+.plot-tile .crop-id { color:var(--gold); font-size:1.12em; font-weight:800; }
+.plot-tile .plot-meta { display:grid; grid-template-columns:1fr 1fr; gap:2px 5px; font-size:.63em; color:var(--text2); }
+.plot-tile .plot-target { color:var(--cyan); font-size:.62em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.plot-tile.f0 { --seed-color:var(--seed0); } .plot-tile.f1 { --seed-color:var(--seed1); }
+.plot-tile.f2 { --seed-color:var(--seed2); } .plot-tile.f3 { --seed-color:var(--seed3); }
+.plot-tile.f4 { --seed-color:var(--seed4); } .plot-tile.f5 { --seed-color:var(--seed5); }
+.plot-tile.f6 { --seed-color:var(--seed6); }
+.family-key { display:flex; flex-wrap:wrap; gap:6px 12px; margin-bottom:9px; font-size:.7em; color:var(--text2); }
+.family-key i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; background:var(--key-color); }
+.progress { height:8px; border-radius:4px; background:#313a52; overflow:hidden; }
+.progress i { display:block; height:100%; background:var(--cyan); }
+.delta-up { color:#83db88; font-weight:700; }
+.delta-zero { color:var(--text2); }
+.row-note { color:var(--text2); font-size:.68em; }
+.two-tables { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.panel { background:var(--panel); border:1px solid #3b4765; border-radius:6px; padding:10px; min-width:0; }
+.panel h3 { margin:0 0 8px; }
+@media(max-width:900px) {
+  .main { padding:8px; } h1 { font-size:1.04em; padding:10px; }
+  .toolbar { position:static; padding:8px; } .split,.two-tables { grid-template-columns:1fr; }
+  .card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .tabs { overflow:auto; flex-wrap:nowrap; } .tabs button { white-space:nowrap; }
+}
+@media(max-width:500px) { .card-grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<h1><a href="index.html">Home</a><div>&#127793; <span>Idleon</span> Farming Planner</div><a href="https://github.com/Corgan/idleon-research-optimizer">GitHub</a></h1>
+<div id="save-area"></div>
+<div id="app" class="main"><div class="empty">Load a save to inspect and optimize Farming.</div></div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtNum } from './js/renderers/format.js';
+import { seedFamily, seedFamilyCount } from './js/stats/data/w5/farming.js';
+import { computeCropSC } from './js/stats/systems/w6/farming.js';
+import {
+  allPlotMetrics,
+  beanResetPlan,
+  evolutionChainPlan,
+  exoticOfferRows,
+  farmingAccountSnapshot,
+  farmingDiagnostics,
+  growthBreakpointRows,
+  landRankResetStatus,
+  landRankUpgradeRows,
+  marketMarginalRows,
+  marketUpgradeRows,
+  optimalOvergrowthTarget,
+  optimizeLandRank,
+  optimizeMarketPurchases,
+  overgrowthStepPlan,
+  plotAssignmentPlan,
+  stickerRows,
+} from './js/stats/systems/w6/farming-planner.js';
+
+var loaded = false;
+var activeTab = 'overview';
+var activeCharIdx = 0;
+var objective = 'rankXp';
+var targetCropId = 1;
+var rankMode = 'unspent';
+var selectedPlot = 0;
+var showTargets = true;
+
+var OBJECTIVES = [
+  ['rankXp','Land Rank XP'], ['farmingExp','Farming EXP'], ['evolution','Crop Evolution'],
+  ['overgrowth','Overgrowth'], ['cropValue','Crop Value'], ['beans','Magic Beans'], ['growth','Growth Speed'],
+];
+var TABS = [
+  ['overview','Overview'], ['plots','Full Plot Grid'], ['rank','Land Rank'],
+  ['evolution','Evolution & OG'], ['markets','Beans & Markets'], ['exotics','Exotic Market'], ['stickers','Stickers'],
+];
+
+initSaveLoader({
+  target:'#save-area',
+  auth:true,
+  statusText:function() { return (saveData.farmCropCount || 0) + ' crops, ' + (saveData.farmPlotData?.length || 0) + ' plots'; },
+  onLoad:function() {
+    loaded = true;
+    var ids = Object.keys(saveData.farmCropData || {}).map(Number).filter(Number.isFinite);
+    targetCropId = Math.min(maxCropId(), (ids.length ? Math.max.apply(null, ids) : 0) + 1);
+    activeCharIdx = Math.min(activeCharIdx, Math.max(0, characterCount() - 1));
+    render();
+  },
+});
+
+function esc(value) { return String(value).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); }
+function fmt(value) { value=Number(value); return Number.isFinite(value) ? fmtNum(value) : 'Never'; }
+function pct(value,digits) {
+  value=(Number(value)||0)*100;
+  if(Math.abs(value)>=1e6)return fmt(value)+'%';
+  return value.toFixed(digits==null?2:digits)+'%';
+}
+function chance(value) {
+  value=Number(value)||0;
+  if(value<=0)return 'Never';
+  if(value>=1)return '100%';
+  if(value>=.0001)return pct(value,value>=.01?2:4);
+  return '1 in '+fmt(1/value);
+}
+function time(seconds) {
+  seconds=Number(seconds);
+  if(!Number.isFinite(seconds))return 'Never';
+  if(seconds<1)return Math.max(0,seconds).toFixed(2)+'s';
+  if(seconds===1)return '1s';
+  if(seconds<60)return seconds.toFixed(0)+'s';
+  if(seconds<3600)return (seconds/60).toFixed(1)+'m';
+  if(seconds<86400)return (seconds/3600).toFixed(2)+'h';
+  if(seconds<31557600)return (seconds/86400).toFixed(seconds<864000?2:1)+'d';
+  return fmt(seconds/31557600)+'y';
+}
+function title(value) {
+  return String(value||'').toLowerCase().replace(/\b\w/g,function(c){return c.toUpperCase();})
+    .replace(/\bGmo\b/g,'GMO').replace(/\bOg\b/g,'OG').replace(/\bExp\b/g,'EXP');
+}
+function objectiveName(id) { var row=OBJECTIVES.find(function(x){return x[0]===id;}); return row?row[1]:id; }
+function characterCount() { return Math.max(saveData.charNames?.length||0,saveData.lv0AllData?.length||0,1); }
+function maxCropId() { var last=seedFamily(seedFamilyCount()-1); return last?last.end:329; }
+function card(name,value,sub) { return '<div class="card"><div class="card-title">'+esc(name)+'</div><div class="card-val">'+value+'</div><div class="card-sub">'+sub+'</div></div>'; }
+function badge(text,type) { return '<span class="badge badge-'+(type||'muted')+'">'+esc(text)+'</span>'; }
+function tableHead(labels) { return '<thead><tr>'+labels.map(function(x){return '<th'+(x[1]?' class="num"':'')+'>'+esc(x[0])+'</th>';}).join('')+'</tr></thead>'; }
+function familyName(id) { var family=seedFamily(Number(id)); return family?title(family.name):'Empty'; }
+
+function renderToolbar() {
+  var html='<div class="toolbar">';
+  html+='<label class="control">Login context<select data-control="char">';
+  for(var i=0;i<characterCount();i++)html+='<option value="'+i+'"'+(i===activeCharIdx?' selected':'')+'>'+esc(saveData.charNames?.[i]||('Character '+(i+1)))+'</option>';
+  html+='</select></label>';
+  html+='<label class="control">Optimization goal<select data-control="objective">';
+  for(var oi=0;oi<OBJECTIVES.length;oi++)html+='<option value="'+OBJECTIVES[oi][0]+'"'+(OBJECTIVES[oi][0]===objective?' selected':'')+'>'+OBJECTIVES[oi][1]+'</option>';
+  html+='</select></label>';
+  html+='<label class="control">Target crop<input data-control="target" type="number" min="1" max="'+maxCropId()+'" value="'+targetCropId+'"></label>';
+  html+='<label class="control">Rank baseline<select data-control="rankMode"><option value="unspent"'+(rankMode==='unspent'?' selected':'')+'>Spend unspent points</option><option value="reset"'+(rankMode==='reset'?' selected':'')+'>Full reset</option></select></label>';
+  html+='<label class="check-control"><input data-control="targets" type="checkbox"'+(showTargets?' checked':'')+'>Target overlay</label>';
+  html+='</div><div class="tabs">';
+  for(var ti=0;ti<TABS.length;ti++)html+='<button data-tab="'+TABS[ti][0]+'" class="'+(activeTab===TABS[ti][0]?'active':'')+'">'+TABS[ti][1]+'</button>';
+  return html+'</div>';
+}
+
+function render() {
+  if(!loaded)return;
+  var snapshot=farmingAccountSnapshot(saveData,{activeCharIdx:activeCharIdx});
+  var diagnostics=farmingDiagnostics(saveData,snapshot);
+  var plots=allPlotMetrics(saveData,snapshot);
+  var html=renderToolbar();
+  if(activeTab==='overview')html+=renderOverview(snapshot,diagnostics,plots);
+  else if(activeTab==='plots')html+=renderPlots(snapshot,plots);
+  else if(activeTab==='rank')html+=renderRank(snapshot,diagnostics);
+  else if(activeTab==='evolution')html+=renderEvolution(snapshot,plots);
+  else if(activeTab==='markets')html+=renderMarkets(snapshot,diagnostics);
+  else if(activeTab==='exotics')html+=renderExotics();
+  else html+=renderStickers();
+  document.getElementById('app').innerHTML=html;
+}
+
+function renderOverview(snapshot,diagnostics,plots) {
+  var beans=beanResetPlan(saveData,snapshot);
+  var html='<div class="section"><div class="card-grid">';
+  html+=card('Crops Discovered',fmt(diagnostics.cropCount)+' / '+fmt(maxCropId()+1),'Highest crop #'+Math.max.apply(null,Object.keys(saveData.farmCropData||{}).map(Number)));
+  html+=card('Growth Rate',fmt(snapshot.growthRate)+'x',diagnostics.ordinaryGrowthAtActiveCap?'All ordinary seeds at active floor':'Some ordinary seeds still benefit');
+  html+=card('Crop Value Cap',fmt(snapshot.cropValueCap),diagnostics.cappedPlots+' / 36 plots capped');
+  html+=card('Crop Evolution',fmt(snapshot.nextCropCommon)+'x','Global multiplier before plot rank');
+  html+=card('Pending Bean Trade',fmt(beans.tradeValue),beans.newRecord?pct(beans.recordGain,1)+' above prior best':'Below prior best');
+  html+=card('Unspent Rank Points',fmt(diagnostics.unspentRankPoints),'5th-column max level '+diagnostics.fifthColumnMax);
+  html+='</div></div>';
+  html+='<div class="section"><h2>Priority Signals</h2><div class="callout-list">';
+  if(diagnostics.allPlotsCapped)html+='<div class="callout warn">Every plot is at the crop-value cap. Production Rank points and value upgrades have no current output gain until the cap rises.</div>';
+  if(diagnostics.ordinaryGrowthAtActiveCap)html+='<div class="callout">Ordinary seed growth is below the one-second active scheduler floor. More speed can add offline overflow, but not more active evolution checks.</div>';
+  if(diagnostics.medalPlotCount)html+='<div class="callout">'+diagnostics.medalPlotCount+' Medal plots use a fixed seven-hour cycle. Growth Rate cancels out of Medal growth time.</div>';
+  if(diagnostics.unspentRankPoints)html+='<div class="callout good">'+diagnostics.unspentRankPoints+' Land Rank points are available. The Land Rank tab allocates them against the selected goal.</div>';
+  if(beans.newRecord)html+='<div class="callout good">The current bean trade is a new record by '+pct(beans.recordGain,1)+'. Trading resets all crop quantities and every GMO threshold.</div>';
+  html+='</div></div>';
+  html+='<div class="section"><h2>Account Multipliers</h2><div class="two-tables"><div class="panel">';
+  html+='<div class="stat-line"><span>Farming EXP multiplier</span><strong>'+fmt(snapshot.farmingExp)+'x</strong></div>';
+  html+='<div class="stat-line"><span>Magic Bean multiplier</span><strong>'+fmt(snapshot.beanMultiplier)+'x</strong></div>';
+  html+='<div class="stat-line"><span>Displayed Rank multiplier</span><strong>'+fmt(snapshot.plotRankDisplay)+'x</strong></div>';
+  html+='<div class="stat-line"><span>Overgrowth common multiplier</span><strong>'+fmt(snapshot.overgrowthCommon)+'x</strong></div>';
+  html+='<div class="stat-line"><span>Expected crops on vine</span><strong>'+fmt(snapshot.expectedVines)+'</strong></div>';
+  html+='</div><div class="panel"><h3>GMO Thresholds</h3>';
+  var labels=['200 crops','1K crops','2.5K crops','10K crops','100K crops'];
+  for(var i=0;i<labels.length;i++)html+='<div class="stat-line"><span>'+labels[i]+'</span><strong>'+fmt(snapshot.cropCounts[i])+'</strong></div>';
+  html+='</div></div></div>';
+  html+='<div class="section"><h2>Crop Scientist Bonuses</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Permanent Bonus'],['Value',1],['Applies To']])+'<tbody>';
+  var cropScientist=[
+    ['Total Damage',computeCropSC(0,saveData),'+%','All characters'],
+    ['Gaming Evolution Chance',computeCropSC(1,saveData),'x','Gaming sprouts'],
+    ['Jade Coin Gain',computeCropSC(2,saveData),'+%','Sneaking'],
+    ['Meal Cooking Speed',computeCropSC(3,saveData),'x','All kitchens'],
+    ['Coins from Monsters',computeCropSC(4,saveData),'+%','Monster cash'],
+    ['Breedability and Shiny Speed',computeCropSC(5,saveData),'+%','Breeding'],
+    ['Base Critter Quantity',Math.min(20,computeCropSC(6,saveData)),'+','Trapping, capped at +20'],
+    ['Drop Rate',computeCropSC(7,saveData),'+%','All characters'],
+    ['Spelunking POW and Amber',computeCropSC(8,saveData),'+%','Spelunking'],
+    ['Research EXP',computeCropSC(9,saveData),'+%','Research'],
+  ];
+  for(var sci=0;sci<cropScientist.length;sci++){
+    var bonus=cropScientist[sci],value=bonus[2]==='x'?fmt(bonus[1])+'x':bonus[2]+fmt(bonus[1])+(bonus[2]==='+%'?'%':'');
+    html+='<tr><td>'+bonus[0]+'</td><td class="num">'+value+'</td><td>'+bonus[3]+'</td></tr>';
+  }
+  html+='</tbody></table></div></div>';
+  html+='<div class="section"><h2>Growth Breakpoints</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Seed'],['Raw Cycle',1],['Active Cycle',1],['One-Second Threshold',1],['State']])+'<tbody>';
+  var growth=growthBreakpointRows(saveData,snapshot);
+  for(var gi=0;gi<growth.length;gi++){
+    var row=growth[gi];
+    html+='<tr><td>'+familyName(row.familyId)+'</td><td class="num">'+time(row.rawSeconds)+'</td><td class="num">'+time(row.activeSeconds)+'</td><td class="num">'+(row.medalFixed?'Not applicable':fmt(row.oneSecondRate)+'x')+'</td><td>'+(row.medalFixed?badge('Fixed 7h','gold'):row.atActiveCap?badge('Active cap','green'):badge('Benefits','cyan'))+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+
+function familyKey() {
+  var html='<div class="family-key">';
+  for(var i=0;i<seedFamilyCount();i++)html+='<span><i style="--key-color:var(--seed'+i+')"></i>'+familyName(i)+'</span>';
+  return html+'</div>';
+}
+
+function renderPlotGrid(plots,assignment) {
+  var html=familyKey()+'<div class="field-wrap"><div class="plot-grid">';
+  for(var i=0;i<plots.length;i++){
+    var p=plots[i],target=assignment?.rows?.[i];
+    var progress=p.rankRequirement>0?Math.max(0,Math.min(1,p.rankProgress/p.rankRequirement)):0;
+    var targetText=showTargets&&target&&target.changeNeeded?'Target #'+target.targetCropId:'';
+    html+='<button class="plot-tile f'+p.seedFamily+(i===selectedPlot?' selected':'')+'" data-plot="'+i+'" title="Plot '+(i+1)+': '+familyName(p.seedFamily)+', crop '+p.cropId+'">';
+    html+='<div class="plot-head"><span>Plot '+(i+1)+'</span><span>'+familyName(p.seedFamily)+'</span></div>';
+    html+='<div class="crop-id">Crop #'+p.cropId+'</div>';
+    html+='<div class="plot-meta"><span>OG '+p.overgrowth+'</span><span>Rank '+p.rank+'</span><span>Evo '+chance(p.nextCropChance)+'</span><span>'+time(p.growthSeconds)+'</span></div>';
+    html+='<div class="progress"><i style="width:'+(progress*100).toFixed(2)+'%"></i></div><div class="plot-target">'+targetText+'</div></button>';
+  }
+  return html+'</div></div>';
+}
+
+function renderPlots(snapshot,plots) {
+  var assignment=plotAssignmentPlan(saveData,snapshot,objective,{targetCropId:targetCropId});
+  var p=plots[selectedPlot]||plots[0],target=assignment.rows[selectedPlot];
+  var html='<div class="section"><h2>Full 9 x 4 Field</h2>'+renderPlotGrid(plots,assignment)+'</div>';
+  html+='<div class="section"><h2>Plot '+(selectedPlot+1)+'</h2><div class="card-grid">';
+  html+=card('Current Crop','#'+p.cropId,familyName(p.seedFamily)+' evolution '+p.evolution);
+  html+=card('Growth Remaining',time(p.growthSeconds),fmt(p.growthProgress)+' / '+fmt(p.growthRequirement));
+  html+=card('Next Evolution',chance(p.nextCropChance),p.evolutionBlocked?'Evolution locked':'Evolution enabled');
+  html+=card('Next OG',chance(p.nextOvergrowthChance),'OG '+p.overgrowth+' to '+(p.overgrowth+1));
+  html+=card('Expected Harvest',fmt(p.cropValue.expectedHarvest),p.cropValue.capped?'Crop value capped':'Below crop-value cap');
+  html+=card('Rank XP / Harvest',fmt(p.rankXp),fmt(p.rankProgress)+' / '+fmt(p.rankRequirement));
+  html+=card('Farming EXP / Harvest',fmt(p.farmingExp),'Includes OG x'+fmt(Math.min(1e9,Math.pow(2,p.overgrowth))));
+  html+=card('Goal Target',target?'#'+target.targetCropId:'None',objectiveName(objective));
+  html+='</div></div>';
+  html+='<div class="section"><h2>Plot Assignment: '+objectiveName(objective)+'</h2><div class="callout">'+assignment.rows.filter(function(x){return x.changeNeeded;}).length+' plots differ from the target assignment. Evolution uses crop '+(targetCropId-1)+' as the predecessor for crop '+targetCropId+'.</div><div class="table-wrap"><table class="data-table">'+tableHead([['Plot'],['Current'],['Target'],['Seed'],['Change']])+'<tbody>';
+  for(var i=0;i<assignment.rows.length;i++){
+    var row=assignment.rows[i];
+    html+='<tr><td>Plot '+(i+1)+'</td><td class="num">#'+row.currentCropId+'</td><td class="num">#'+row.targetCropId+'</td><td>'+familyName(row.targetFamilyId)+'</td><td>'+(row.changeNeeded?badge('Change','cyan'):badge('Keep','green'))+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+
+function renderRank(snapshot,diagnostics) {
+  var result=optimizeLandRank(saveData,activeCharIdx,objective,{mode:rankMode,targetCropId:targetCropId});
+  var reset=landRankResetStatus(saveData);
+  var current=landRankUpgradeRows(saveData,activeCharIdx);
+  var planned=landRankUpgradeRows(saveData,activeCharIdx,result.levels);
+  var gainValue=objective==='evolution'&&result.initialScore>0
+    ? fmt(result.finalScore/result.initialScore)+'x'
+    : pct(result.relativeGain,3);
+  var gainDetail=objective==='evolution'
+    ? chance(result.initialScore)+' to '+chance(result.finalScore)+' per cycle'
+    : fmt(result.initialScore)+' to '+fmt(result.finalScore);
+  var html='<div class="section"><div class="card-grid">';
+  html+=card('Objective',objectiveName(objective),rankMode==='reset'?'Full reallocation':'Current levels retained');
+  html+=card('Points Available',fmt(result.pointsAvailable),fmt(result.pointsSpent)+' assigned');
+  html+=card('Projected Gain',gainValue,gainDetail);
+  html+=card('Reset Status',reset.available?'Available':time(reset.secondsRemaining),reset.available?'No cooldown active':'Cooldown active');
+  html+=card('5th-Column Max',fmt(diagnostics.fifthColumnMax),'All four current levels obey this cap');
+  html+='</div></div>';
+  if(result.pointsUnused>0){
+    var unusedReason=objective==='cropValue'||objective==='beans'
+      ? 'the current crop-value cap makes additional production bonuses ineffective'
+      : objective==='growth'
+        ? 'Land Rank has no growth-speed upgrade channel'
+        : objective==='evolution'&&result.finalScore>=1
+          ? 'the selected evolution roll is already guaranteed'
+          : 'no remaining unlocked upgrade changes the selected objective';
+    html+='<div class="section"><div class="callout warn">'+result.pointsUnused+' points remain unused because '+unusedReason+'.</div></div>';
+  }
+  html+='<div class="section"><h2>Recommended Allocation</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Upgrade'],['Unlock Rank',1],['Current Lv',1],['Target Lv',1],['Move',1],['Current Bonus',1],['Target Bonus',1],['Status']])+'<tbody>';
+  for(var i=0;i<current.length;i++){
+    var delta=planned[i].level-current[i].level;
+    html+='<tr'+(delta?' class="recommended"':'')+'><td>'+esc(current[i].name)+'</td><td class="num">'+fmt(current[i].unlockRank)+'</td><td class="num">'+fmt(current[i].level)+'</td><td class="num">'+fmt(planned[i].level)+'</td><td class="num '+(delta?'delta-up':'delta-zero')+'">'+(delta>0?'+':'')+delta+'</td><td class="num">'+fmt(current[i].bonus)+'</td><td class="num">'+fmt(planned[i].bonus)+'</td><td>'+(current[i].unlocked?(planned[i].level>=planned[i].maxLevel?badge('Capped','gold'):badge('Open','green')):badge('Locked','red'))+'</td></tr>';
+  }
+  html+='</tbody></table></div></div>';
+  html+='<div class="section"><h2>Preset Comparison</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Goal'],['Gain',1],['Points Used',1],['Largest Moves']])+'<tbody>';
+  for(var oi=0;oi<OBJECTIVES.length;oi++){
+    var goal=OBJECTIVES[oi][0],preview=optimizeLandRank(saveData,activeCharIdx,goal,{mode:rankMode,targetCropId:targetCropId});
+    var moves=preview.changes.slice(0,4).map(function(x){return x.name+' +'+x.delta;}).join(', ')||'No positive move';
+    html+='<tr'+(goal===objective?' class="recommended"':'')+'><td>'+OBJECTIVES[oi][1]+'</td><td class="num">'+pct(preview.relativeGain,3)+'</td><td class="num">'+preview.pointsSpent+'</td><td>'+esc(moves)+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+
+function renderEvolution(snapshot,plots) {
+  var chain=evolutionChainPlan(targetCropId,saveData,snapshot);
+  var assignment=plotAssignmentPlan(saveData,snapshot,'evolution',{targetCropId:targetCropId});
+  var selectedOg=optimalOvergrowthTarget(selectedPlot,saveData,snapshot);
+  var html='<div class="section"><h2>Evolution Chain to Crop #'+targetCropId+'</h2>';
+  if(!chain)html+='<div class="callout warn">Target crop is outside the known seed families.</div>';
+  else {
+    html+='<div class="card-grid">';
+    html+=card('Parallel Plots',fmt(chain.plotCount),familyName(chain.familyId));
+    html+=card('Evolution Steps',fmt(chain.stepCount),'Current depth '+chain.currentDepth+' to '+chain.targetDepth);
+    html+=card('Expected ETA',time(chain.expectedSeconds),'Stage expectations summed');
+    html+=card('Median ETA',time(chain.medianSeconds),'Stage medians summed');
+    html+=card('P90 ETA',time(chain.p90Seconds),'Stage estimates summed');
+    html+=card('Required Crop','#'+(targetCropId-1),'Run on every eligible plot');
+    html+='</div><h3>Hardest Remaining Steps</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Target Crop'],['Any-Plot Chance',1],['Per Plot',1],['Cycle',1],['Expected',1],['Median',1],['P90',1]])+'<tbody>';
+    var steps=chain.steps.slice().sort(function(a,b){return b.expectedSeconds-a.expectedSeconds;}).slice(0,20);
+    for(var i=0;i<steps.length;i++){var step=steps[i];html+='<tr><td>Crop #'+step.targetCropId+'</td><td class="num">'+chance(step.chance)+'</td><td class="num">'+chance(step.perPlotMin)+'</td><td class="num">'+time(step.cycleSeconds)+'</td><td class="num">'+time(step.expectedSeconds)+'</td><td class="num">'+time(step.medianSeconds)+'</td><td class="num">'+time(step.p90Seconds)+'</td></tr>';}
+    html+='</tbody></table></div>';
+  }
+  html+='</div><div class="section"><h2>Overgrowth Stopping</h2><div class="card-grid">';
+  html+=card('Selected Plot','Plot '+(selectedPlot+1),'Current OG '+selectedOg.currentOg);
+  html+=card('Long-Run Target','OG '+selectedOg.best.targetOg,'Best reward per total regrowth time');
+  html+=card('Target Multiplier',fmt(selectedOg.best.rewardMultiplier)+'x','OG multiplier caps at 1B');
+  html+=card('ETA From Current',selectedOg.currentOg>=selectedOg.best.targetOg?'Harvest now':time(selectedOg.best.etaFromCurrent),selectedOg.currentOg>=selectedOg.best.targetOg?'At or beyond optimum':'Expected additional wait');
+  html+='</div><div class="two-tables"><div class="panel"><h3>All Plots</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Plot'],['Current OG',1],['Next Chance',1],['Long-Run Target',1],['Action']])+'<tbody>';
+  for(var pi=0;pi<36;pi++){
+    var og=optimalOvergrowthTarget(pi,saveData,snapshot),next=overgrowthStepPlan(pi,saveData,snapshot);
+    html+='<tr data-plot="'+pi+'"><td>Plot '+(pi+1)+'</td><td class="num">'+og.currentOg+'</td><td class="num">'+chance(next.chance)+'</td><td class="num">'+og.best.targetOg+'</td><td>'+(og.currentOg>=og.best.targetOg?badge('Harvest','green'):badge('Wait '+time(og.best.etaFromCurrent),'gold'))+'</td></tr>';
+  }
+  html+='</tbody></table></div></div><div class="panel"><h3>Plot '+(selectedPlot+1)+' Curve</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Target OG'],['Reward',1],['Full-Cycle Time',1],['Long-Run Rate',1],['ETA Now',1]])+'<tbody>';
+  for(var ri=0;ri<selectedOg.rows.length;ri++){var row=selectedOg.rows[ri];if(Math.abs(row.targetOg-selectedOg.best.targetOg)>4&&row.targetOg!==selectedOg.currentOg&&row.targetOg!==30)continue;html+='<tr'+(row.targetOg===selectedOg.best.targetOg?' class="recommended"':'')+'><td>OG '+row.targetOg+'</td><td class="num">'+fmt(row.rewardMultiplier)+'x</td><td class="num">'+time(row.repeatSeconds)+'</td><td class="num">'+fmt(row.longRunRate)+'</td><td class="num">'+(row.targetOg<=selectedOg.currentOg?'Ready':time(row.etaFromCurrent))+'</td></tr>';}
+  html+='</tbody></table></div></div></div></div>';
+  html+='<div class="section"><h2>Evolution Assignment</h2>'+renderPlotGrid(plots,assignment)+'</div>';
+  return html;
+}
+
+function renderMarketTable(page,objectiveId) {
+  var marginal=marketMarginalRows(page,saveData,activeCharIdx,objectiveId,{targetCropId:targetCropId});
+  var sequence=optimizeMarketPurchases(page,saveData,activeCharIdx,objectiveId,{targetCropId:targetCropId,maxSteps:100});
+  var titleText=page===0?'Day Market':'Night Market';
+  var html='<div class="panel"><h3>'+titleText+'</h3>';
+  if(sequence.sequence.length)html+='<div class="callout good">'+sequence.sequence.length+' affordable positive-gain purchases for '+objectiveName(objectiveId)+', projected '+pct(sequence.relativeGain,3)+' gain.</div>';
+  else html+='<div class="callout">No positive-gain purchase is currently affordable for '+objectiveName(objectiveId)+'. The table retains the next marginal upgrades.</div>';
+  html+='<div class="table-wrap"><table class="data-table">'+tableHead([['Upgrade'],['Lv',1],['Effect',1],['Cost',1],['Owned',1],['Gain',1],['State']])+'<tbody>';
+  for(var i=0;i<marginal.rows.length;i++){
+    var row=marginal.rows[i],costLabel=page===0?'Crop #'+row.costType:'Beans';
+    html+='<tr'+(i===0&&row.relativeGain>0?' class="recommended"':'')+'><td>'+title(row.name)+'<span class="row-note"> '+costLabel+'</span></td><td class="num">'+row.level+' / '+row.maxLevel+'</td><td class="num">'+fmt(row.effect)+'</td><td class="num">'+fmt(row.cost)+'</td><td class="num">'+fmt(row.owned)+'</td><td class="num">'+pct(row.relativeGain,4)+'</td><td>'+(row.maxed?badge('Maxed','gold'):row.affordable?badge('Affordable','green'):badge('Need '+fmt(Math.max(0,row.cost-row.owned)),'red'))+'</td></tr>';
+  }
+  html+='</tbody></table></div>';
+  if(sequence.sequence.length){html+='<h3>Purchase Path</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Step'],['Upgrade'],['Level'],['Cost',1],['Step Gain',1]])+'<tbody>';for(var si=0;si<sequence.sequence.length;si++){var step=sequence.sequence[si];html+='<tr><td>'+(si+1)+'</td><td>'+title(step.name)+'</td><td>'+step.fromLevel+' to '+step.toLevel+'</td><td class="num">'+fmt(step.cost)+'</td><td class="num">'+pct(step.relativeGain,4)+'</td></tr>';}html+='</tbody></table></div>';}
+  return html+'</div>';
+}
+
+function renderMarkets(snapshot,diagnostics) {
+  var bean=beanResetPlan(saveData,snapshot);
+  var html='<div class="section"><h2>Magic Bean Reset</h2><div class="card-grid">';
+  html+=card('Pending Trade',fmt(bean.tradeValue),bean.newRecord?badge('New record','green'):'Below prior best');
+  html+=card('Current Beans',fmt(bean.currentBeans),fmt(bean.beansAfterTrade)+' after trade');
+  html+=card('Prior Best',fmt(bean.previousBest),bean.newRecord?pct(bean.recordGain,1)+' improvement':'No new record');
+  html+=card('Rebuild Prior Trade',time(bean.estimatedSecondsToPreviousBest),'Current-layout lower bound');
+  html+=card('Rebuild Current Trade',time(bean.estimatedSecondsToCurrentTrade),'Current-layout lower bound');
+  html+='</div><h3>GMO Reset Impact</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Threshold'],['Before',1],['After Trade',1],['Loss',1]])+'<tbody>';
+  var thresholds=['200','1K','2.5K','10K','100K'];
+  for(var i=0;i<5;i++)html+='<tr><td>'+thresholds[i]+' crops</td><td class="num">'+bean.gmoCountsBefore[i]+'</td><td class="num">0</td><td class="num">-'+bean.gmoCountsBefore[i]+'</td></tr>';
+  html+='</tbody></table></div><h3>Top Bean Contributors</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Crop'],['Seed'],['Quantity',1],['Weight',1],['Raw Contribution',1],['Share',1]])+'<tbody>';
+  for(var ci=0;ci<Math.min(25,bean.contributions.length);ci++){var c=bean.contributions[ci];html+='<tr><td>Crop #'+c.cropId+'</td><td>'+familyName(c.familyId)+'</td><td class="num">'+fmt(c.quantity)+'</td><td class="num">'+fmt(c.weight)+'</td><td class="num">'+fmt(c.raw)+'</td><td class="num">'+pct(c.share,2)+'</td></tr>';}
+  html+='</tbody></table></div></div>';
+  html+='<div class="section"><h2>Market Optimization: '+objectiveName(objective)+'</h2><div class="two-tables">'+renderMarketTable(0,objective)+renderMarketTable(1,objective)+'</div></div>';
+  return html;
+}
+
+function renderExotics() {
+  var plan=exoticOfferRows(saveData);
+  var limits=plan.limits;
+  var html='<div class="section"><div class="card-grid">';
+  html+=card('Weekly Rotation','Week '+plan.week.week,time(plan.week.secondsRemaining)+' remaining');
+  html+=card('Purchases',limits.used+' / '+limits.allowed,limits.remaining+' remaining');
+  html+=card('Free Purchases',limits.freePurchases,limits.freePercent+'% of allowance');
+  html+=card('No-Count Chance',pct(limits.noCountChance,2),'Per Exotic purchase');
+  html+=card('Save Rollover',limits.rolledOver?'Pending':'Current',limits.rolledOver?'Counter resets on market refresh':'Week marker matches');
+  html+='</div></div><div class="section"><h2>Current Offers</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Priority'],['Offer'],['Cost Crop'],['Owned',1],['Current Lv',1],['Level Gain',1],['Bonus Gain',1],['Purchase']])+'<tbody>';
+  for(var i=0;i<plan.rows.length;i++){
+    var row=plan.rows[i];
+    html+='<tr'+(row.capRelevant?' class="recommended"':'')+'><td>'+(row.capRelevant?badge('Raises value cap','gold'):badge('Bonus','cyan'))+'</td><td>'+title(row.name)+' <span class="row-note">slot '+(row.slot+1)+'</span></td><td>Crop #'+row.cropId+'</td><td class="num">'+fmt(row.cropQuantity)+'</td><td class="num">'+fmt(row.currentLevel)+'</td><td class="num">+'+fmt(row.levelGain)+'</td><td class="num">+'+fmt(row.bonusGain)+'</td><td>'+(limits.remaining<=0?badge('Limit reached','red'):row.affordable?(limits.used<limits.freePurchases?badge('Free next','green'):badge('Consumes stack','gold')):badge('No crop','red'))+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+
+function renderStickers() {
+  var rows=stickerRows(saveData,activeCharIdx);
+  var html='<div class="section"><h2>Megacrop Stickers</h2><div class="card-grid">';
+  var best=rows.slice().sort(function(a,b){return b.bestAttemptChance-a.bestAttemptChance;})[0];
+  html+=card('Sticker System',rows[0]?.unlocked?'Unlocked':'Locked',rows[0]?.unlocked?'Research Grid active':'Requires Research Grid bonus');
+  html+=card('Best Current Attempt',best?familyName(best.seedType):'None',best?chance(best.bestAttemptChance):'No eligible seed');
+  html+=card('Best OG Used',best?'OG '+best.bestOg:'None','Success attempt uses OG '+(best?best.bestOg+1:0)+' multiplier');
+  html+='</div><div class="table-wrap"><table class="data-table">'+tableHead([['Seed'],['Sticker Lv',1],['Base Chance',1],['Base Attempts',1],['Best Plot OG',1],['Best Attempt',1],['State']])+'<tbody>';
+  for(var i=0;i<rows.length;i++){var row=rows[i];html+='<tr'+(row===best?' class="recommended"':'')+'><td>'+familyName(row.seedType)+'</td><td class="num">'+row.level+'</td><td class="num">'+chance(row.baseChance)+'</td><td class="num">'+fmt(row.expectedAttempts)+'</td><td class="num">'+(row.plotCount?row.bestOg:'—')+'</td><td class="num">'+(row.plotCount?chance(row.bestAttemptChance):'No plot')+'</td><td>'+(row.unlocked?badge(row.plotCount?'Active':'Unplanted',row.plotCount?'green':'muted'):badge('Locked','red'))+'</td></tr>';}
+  return html+'</tbody></table></div></div>';
+}
+
+document.addEventListener('click',function(event){
+  var tab=event.target.closest('[data-tab]');
+  if(tab){activeTab=tab.dataset.tab;render();return;}
+  var plot=event.target.closest('[data-plot]');
+  if(plot){selectedPlot=Math.max(0,Math.min(35,Number(plot.dataset.plot)||0));render();}
+});
+document.addEventListener('change',function(event){
+  var key=event.target.dataset.control;if(!key)return;
+  if(key==='char')activeCharIdx=Number(event.target.value)||0;
+  else if(key==='objective')objective=event.target.value;
+  else if(key==='target')targetCropId=Math.max(1,Math.min(maxCropId(),Math.floor(Number(event.target.value)||1)));
+  else if(key==='rankMode')rankMode=event.target.value;
+  else if(key==='targets')showTargets=event.target.checked;
+  render();
+});
+</script>
+</body>
+</html>

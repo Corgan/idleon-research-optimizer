@@ -131,7 +131,43 @@ export function shopUpgBonus(idx, saveData) {
   var lv = Number(saveData.spelunkData[5][idx]) || 0;
   if (lv <= 0) return 0;
   if (!SpelunkUpg || !SpelunkUpg[idx]) return 0;
-  return Number(SpelunkUpg[idx][4]) * lv;
+  var value = (Number(SpelunkUpg[idx][4]) || 0) * Math.max(0, lv);
+  var spelunk = saveData.spelunkData;
+  var totalSpelunkLv = 0;
+  var levels = saveData.lv0AllData || [];
+  for (var ci = 0; ci < levels.length; ci++) totalSpelunkLv += Math.max(0, Number(levels[ci] && levels[ci][19]) || 0);
+  var discoveries = spelunk[6] ? spelunk[6].length : 0;
+  var totalDepth = 0;
+  var depths = spelunk[1] || [];
+  for (var depthIdx = 0; depthIdx < depths.length; depthIdx++) totalDepth += Number(depths[depthIdx]) || 0;
+  var haulDigits = 0;
+  var hauls = spelunk[2] || [];
+  for (var haulIdx = 0; haulIdx < hauls.length; haulIdx++) {
+    var haul = Number(hauls[haulIdx]) || 0;
+    if (haul > 0) haulDigits += Math.ceil(Math.log10(haul));
+  }
+  var grandDiscoveries = 0;
+  var grandRows = spelunk[44] || [];
+  for (var grandIdx = 0; grandIdx < grandRows.length; grandIdx++) grandDiscoveries += Number(grandRows[grandIdx]) || 0;
+
+  if (idx === 0) value *= totalSpelunkLv;
+  else if (idx === 8) value *= 1 + totalSpelunkLv / 100;
+  else if (idx === 1 || idx === 10) value *= 1 + 5 * discoveries / 100;
+  else if (idx === 2) value *= 2 + totalDepth / 100;
+  else if (idx === 9) value *= 1 + totalDepth / 100;
+  else if (idx === 3) value *= 1 + 3 * haulDigits / 100;
+  else if (idx === 7) value = 15 + value / (250 + value) * 45;
+  else if (idx === 19) value = Math.max(10, 50 - value);
+  else if (idx === 25) value = 1 + value;
+  else if (idx === 38) value = 20 + value;
+  else if (idx === 44 || idx === 45 || idx === 46) value *= grandDiscoveries;
+  return value;
+}
+
+export function computeDancingCoralBonus(idx, saveData) {
+  var base = Number(Spelunky[24] && Spelunky[24][idx]) || 0;
+  var towerLv = Number(saveData.towerData && saveData.towerData[18 + idx]) || 0;
+  return base * Math.max(0, towerLv - 200);
 }
 
 // ==================== CHAPTER BONUS ====================

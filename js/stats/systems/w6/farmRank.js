@@ -12,11 +12,9 @@ function rval(resolver, id, ctx, args) {
   catch(e) { return 0; }
 }
 
-export function farmRankUpgBonus(idx, activeCharIdx, saveData) {
+export function farmRankUpgBonusAtLevel(idx, rankLv, activeCharIdx, saveData) {
   var s = saveData;
-  var farmRank2 = s.farmRankData && s.farmRankData[2];
-  if (!farmRank2) return 0;
-  var rankLv = Number(farmRank2[idx]) || 0;
+  rankLv = Number(rankLv) || 0;
   if (rankLv <= 0) return 0;
 
   // getbonus2(1, 207, -1, saveData) = max talent 207 across all chars
@@ -36,4 +34,10 @@ export function farmRankUpgBonus(idx, activeCharIdx, saveData) {
     // Decay formula
     return talentMult * (1 + exotic14 / 100) * 1.7 * basePerLv * rankLv / (rankLv + 80);
   }
+}
+
+export function farmRankUpgBonus(idx, activeCharIdx, saveData) {
+  var farmRank2 = saveData.farmRankData && saveData.farmRankData[2];
+  if (!farmRank2) return 0;
+  return farmRankUpgBonusAtLevel(idx, farmRank2[idx], activeCharIdx, saveData);
 }

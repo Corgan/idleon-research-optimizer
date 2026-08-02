@@ -13,6 +13,23 @@ import { legendPTSbonus } from '../w7/spelunking.js';
 import { computeTotalStat } from '../common/stats.js';
 import { computePlayerBuildSpd } from '../w3/construction.js';
 
+var ARTIFACT_TIER_MULTIPLIER_TEXT = {
+  2: "The_artifact's_main_bonus_is_doubled!",
+  3: "The_artifact's_main_bonus_is_tripled!",
+  4: "The_artifact's_main_bonus_is_quadrupled!",
+  5: "The_artifact's_main_bonus_is_quintupled!",
+  6: "The_artifact's_main_bonus_is_sixtupled!",
+};
+
+function _highestCharacterLevel(saveData) {
+  var levels = saveData.lv0AllData || [];
+  var highest = 0;
+  for (var ci = 0; ci < levels.length; ci++) {
+    highest = Math.max(highest, Number(levels[ci] && levels[ci][0]) || 0);
+  }
+  return highest;
+}
+
 // ==================== ARTIFACT BONUS ====================
 
 // Game: _customBlock_Sailing("ArtifactBonus", idx, 0)
@@ -42,14 +59,14 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
     try { mf15 = mainframeBonus(15, saveData); } catch(e) {}
     // SlabboBonus_AllMulti = (1+Meritoc23/100) * (1+LegendPTS(28)/100) * (1+VaultUpg(74)/100)
     var mer23 = 0, leg28 = 0, v74 = 0;
-    try { mer23 = computeMeritocBonusz(23, saveData); } catch(e) {}
+    try { mer23 = computeMeritocBonusz(23, saveData, ci); } catch(e) {}
     try { leg28 = legendPTSbonus(28, saveData); } catch(e) {}
     try { v74 = vaultUpgBonus(74, saveData); } catch(e) {}
     var slabboMulti = (1 + mer23/100) * (1 + leg28/100) * (1 + v74/100);
     val *= (1 + mf15/100) * slabboMulti * slabItems;
   } else if (artIdx === 1) {
-    // base * CalcTalentMAP[620] — talent 620 value
-    // Approximate: skip talent scaling for now, just use base
+    // CalcTalentMAP[620] is the highest character level cache.
+    val *= _highestCharacterLevel(saveData);
   } else if (artIdx === 3 || artIdx === 5) {
     // base * Lv0[13] (sailing level)
     var sailLv = Number(s.lv0AllData && s.lv0AllData[ci >= 0 ? ci : 0] && s.lv0AllData[ci >= 0 ? ci : 0][13]) || 0;
@@ -71,8 +88,7 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
     if (totalBuildRate < 1) totalBuildRate = 1;
     val *= getLOG(totalBuildRate);
   } else if (artIdx === 11) {
-    // base * min(CalcTalentMAP[620], 200+200*(tier-1))
-    // Skip talent scaling
+    val *= Math.min(_highestCharacterLevel(saveData), 200 + 200 * (tier - 1));
   } else if (artIdx === 13) {
     // base * LOG(Meals[2][0]) (highest meal qty?)
     var meals2 = s.mealsData && s.mealsData[2];
@@ -103,9 +119,12 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
     val *= getLOG(div39);
   }
 
-  // Tier multiplier: game checks ArtifactInfo[idx][5/7/9/11/13] for tier-match strings
-  // In practice: tier 2 → *=2, tier 3 → *=3, etc (up to 6)
-  if (tier >= 2) val *= tier;
+  // Only artifacts whose tier description explicitly multiplies the main
+  // bonus receive the generic 2x-6x scaling.
+  if (tier >= 2 && ArtifactInfo[artIdx]
+    && ArtifactInfo[artIdx][2 * tier + 1] === ARTIFACT_TIER_MULTIPLIER_TEXT[tier]) {
+    val *= tier;
+  }
 
   return val;
 }

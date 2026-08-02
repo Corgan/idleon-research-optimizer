@@ -15,8 +15,8 @@ import { computeCardSetBonus } from '../systems/common/cards.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
-import { computeSummUpgBonus } from '../systems/w6/summoning.js';
-import { winBonus } from '../systems/w6/summoning.js';
+import { vaultUpgBonus } from '../systems/common/vault.js';
+import { votingBonusz } from '../systems/w2/voting.js';
 import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { companion } from '../systems/common/companions.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
@@ -37,7 +37,7 @@ function secondaryStatForClass(ci) {
 export default createDescriptor({
   id: 'accuracy',
   name: 'Accuracy',
-  scope: 'character',
+  scope: 'character+map',
   category: 'combat',
 
   combine: function(pools, ctx) {
@@ -51,7 +51,7 @@ export default createDescriptor({
     var galleryAcc = _galleryAccT.val;
     var _obolAccT = safeTree(computeObolBaseStat, ci, 'Accuracy');
     var obolAcc = _obolAccT.val;
-    var _vialBaseACCT = safeTree(computeVialByKey, 'baseACC', s);
+    var _vialBaseACCT = safeTree(computeVialByKey, 'baseACC', s, ci);
     var vialBaseACC = _vialBaseACCT.val;
     var boxAcc = (function(){ var v=safe(computeBoxReward, ci, 'acc'); return (typeof v==='object'&&v)?v.val||0:Number(v)||0; })();
     var _cardBonus23T = safeTree(computeCardBonusByType, 23, ci, s);
@@ -61,7 +61,7 @@ export default createDescriptor({
     var gfBaseAcc = _gfBaseAccT.val;
     var _stampBaseAccT = safeTree(computeStampBonusOfTypeX, 'BaseAcc', s);
     var stampBaseAcc = _stampBaseAccT.val;
-    var _summVault4T = safeTree(computeSummUpgBonus, 4, s);
+    var _summVault4T = safeTree(vaultUpgBonus, 4, s);
     var summVault4 = _summVault4T.val;
 
     var totalStatsAcc = 2 + vialBaseACC + boxAcc + cardBonus23 + etc28
@@ -99,7 +99,7 @@ export default createDescriptor({
       * (1 + pctSum / 100);
 
     // ---- Step 3: speed→accuracy talent 641 conditional ----
-    var talent641 = rval(talent, 641, ctx);
+    var talent641 = rval(talent, 641, ctx, { tab: 2 });
     var spdTree = ctx.resolve && ctx.resolve('movement-speed');
     var playerSpeed = 1;
     if (spdTree && spdTree.val != null) playerSpeed = spdTree.val;
@@ -119,15 +119,14 @@ export default createDescriptor({
     var prayer15pen = _prayer15penT.val;
     var _prayer16penT = safeTree(computePrayerReal, 16, 1, ci, s);
     var prayer16pen = _prayer16penT.val;
-    var _chipAccT = safeTree(computeChipBonus, 'acc');
+    var _chipAccT = safeTree(computeChipBonus, 'acc', ci);
     var chipAcc = _chipAccT.val;
-    var _mealTotAccT = safeTree(computeMealBonus, 'TotAcc', s);
+    var _mealTotAccT = safeTree(computeMealBonus, 'TotAcc', s, ci);
     var mealTotAcc = _mealTotAccT.val;
     var _rooBonus3T = safeTree(computeRooBonus, 3, s);
     var rooBonus3 = _rooBonus3T.val;
-    var _wb3 = rval(winBonus, 3, ctx);
-    var votingBonus3 = (typeof _wb3 === 'object') ? (_wb3.val || 0) : Number(_wb3) || 0;
-    var _amarokSetT = safeTree(getSetBonus, 'AMAROK_SET');
+    var votingBonus3 = safe(votingBonusz, 3, ctx.resolve ? ctx.resolve('voting-multi').val : 1, s);
+    var _amarokSetT = safeTree(getSetBonus, 'AMAROK_SET', ci);
     var amarokSet = _amarokSetT.val;
     var _divinityMinorT = safeTree(computeDivinityMinor, ci, 0, s);
     var divinityMinor = _divinityMinorT.val;
@@ -185,6 +184,16 @@ export default createDescriptor({
       { name: 'Divinity Minor', val: postMult3, fmt: 'x', children: _divinityMinorT.children },
     ];
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   },
 });

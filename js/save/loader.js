@@ -20,8 +20,10 @@ import resExpDesc from '../stats/defs/research-exp.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import { buildTree } from '../stats/tree-builder.js';
 import { getCatalog } from '../stats/registry.js';
+import { resetVaultKillzCache } from '../stats/systems/common/vaultKillz.js';
 
 export function loadSaveData(raw) {
+  resetVaultKillzCache();
   const save = raw.data ? raw.data : raw;
   const companionRaw = raw.companion;
 
@@ -54,7 +56,11 @@ export function loadSaveData(raw) {
   assignState({ ribbonData: parseSaveKey(save, 'Ribbon') || [] });
   assignState({ mealsData: parseSaveKey(save, 'Meals') || [] });
   const farmCrop = parseSaveKey(save, 'FarmCrop') || {};
-  assignState({ farmCropCount: typeof farmCrop === 'object' ? Object.keys(farmCrop).length : 0 });
+  assignState({
+    farmPlotData: parseSaveKey(save, 'FarmPlot') || [],
+    farmCropData: farmCrop,
+    farmCropCount: typeof farmCrop === 'object' ? Object.keys(farmCrop).length : 0,
+  });
   assignState({ grimoireData: parseSaveKey(save, 'Grimoire') || [] });
   assignState({ vaultData: parseSaveKey(save, 'UpgVault') || [] });
   assignSaveData({ labData: parseSaveKey(save, 'Lab') || [] });
@@ -89,6 +95,7 @@ export function loadSaveData(raw) {
   assignState({ minigameHiscores: parseSaveKey(save, 'FamValMinigameHiscores') || [] });
   assignState({ chestOrderData: parseSaveKey(save, 'ChestOrder') || [] });
   assignState({ chestQuantityData: parseSaveKey(save, 'ChestQuantity') || [] });
+  assignState({ greenStacksData: parseSaveKey(save, 'GreenStacks') || [] });
   assignState({ krBestData: parseSaveKey(save, 'KRbest') || {} });
 
   // StarSg: stored as a char-by-char object {0:'{',1:'"',...} — reconstruct and parse
@@ -98,6 +105,8 @@ export function loadSaveData(raw) {
     try { assignState({ starSignsUnlocked: JSON.parse(starSgStr) }); } catch(e) { assignState({ starSignsUnlocked: {} }); }
   } else if (typeof starSgRaw === 'string') {
     try { assignState({ starSignsUnlocked: JSON.parse(starSgRaw) }); } catch(e) { assignState({ starSignsUnlocked: {} }); }
+  } else {
+    assignState({ starSignsUnlocked: {} });
   }
   // SSprog: array of [name, status] pairs for constellation completion
   assignState({ starSignProgData: parseSaveKey(save, 'SSprog') || [] });
@@ -125,7 +134,7 @@ export function loadSaveData(raw) {
 
   let inferredChars = 0;
   for (const key of Object.keys(save)) {
-    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign)_(\d+)$/.exec(key);
+    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign|PVFishingToolkit|FoodSlO)_(\d+)$/.exec(key);
     if (match) inferredChars = Math.max(inferredChars, Number(match[1]) + 1);
   }
   const loadedNames = Array.isArray(raw.charNames) ? raw.charNames : [];
@@ -178,10 +187,12 @@ export function loadSaveData(raw) {
   assignSaveData({ klaData: kla });
 
   // Per-character equipment (food bags needed for golden food bonuses)
-  const equipOrders = [], equipQtys = [], emmAll = [];
+  const equipOrders = [], equipQtys = [], inventoryOrders = [], foodSlotsOwned = [], emmAll = [];
   for (let ci = 0; ci < nChars; ci++) {
     equipOrders.push(parseSaveKey(save, 'EquipOrder_' + ci) || []);
     equipQtys.push(parseSaveKey(save, 'EquipQTY_' + ci) || []);
+    inventoryOrders.push(parseSaveKey(save, 'InventoryOrder_' + ci) || []);
+    foodSlotsOwned.push(Number(parseSaveKey(save, 'FoodSlO_' + ci)) || 0);
     // Equipment stat maps: EMm0=gear(16 slots), EMm1=tools(8 slots)
     emmAll.push([
       parseSaveKey(save, 'EMm0_' + ci) || {},
@@ -190,6 +201,8 @@ export function loadSaveData(raw) {
   }
   assignSaveData({ equipOrderData: equipOrders });
   assignSaveData({ equipQtyData: equipQtys });
+  assignSaveData({ inventoryOrderData: inventoryOrders });
+  assignSaveData({ foodSlotsOwnedData: foodSlotsOwned });
   assignSaveData({ emmData: emmAll });
 
   // Per-character obols + family obols
@@ -204,13 +217,20 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
   // Per-character prayers, post office, card equip, currentMap
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], buffsActive = [];
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], afkTargetData = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], buffsActive = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
     cardEquip.push(parseSaveKey(save, 'CardEquip_' + ci) || []);
     csetEq.push(parseSaveKey(save, 'CSetEq_' + ci) || {});
     currentMapData.push(Number(parseSaveKey(save, 'CurrentMap_' + ci)) || 0);
+    afkTargetData.push(String(save['AFKtarget_' + ci] || ''));
+    const toolkitKey = 'PVFishingToolkit_' + ci;
+    const toolkit = parseSaveKey(save, toolkitKey);
+    fishingToolkitData.push(Array.isArray(toolkit)
+      ? [Number(toolkit[0]) || 0, Number(toolkit[1]) || 0]
+      : [0, 0]);
+    fishingToolkitDataAvailable.push(Object.prototype.hasOwnProperty.call(save, toolkitKey));
     buffsActive.push(parseSaveKey(save, 'BuffsActive_' + ci) || []);
   }
   assignSaveData({ prayersPerCharData: prayersPerChar });
@@ -218,6 +238,9 @@ export function loadSaveData(raw) {
   assignSaveData({ cardEquipData: cardEquip });
   assignSaveData({ csetEqData: csetEq });
   assignSaveData({ currentMapData: currentMapData });
+  assignSaveData({ afkTargetData: afkTargetData });
+  assignSaveData({ fishingToolkitData: fishingToolkitData });
+  assignSaveData({ fishingToolkitDataAvailable: fishingToolkitDataAvailable });
   assignSaveData({ buffsActiveData: buffsActive });
 
   // MapBon — account-wide per-map kill counts (arcane map bonus)
@@ -225,26 +248,31 @@ export function loadSaveData(raw) {
   const mapBonData = mapBonRaw ? (typeof mapBonRaw === 'string' ? JSON.parse(mapBonRaw) : mapBonRaw) : [];
   assignSaveData({ mapBonData: mapBonData });
 
-  // Companion ownership from it.json
-  if (companionRaw && Array.isArray(companionRaw.l)) {
-    const ids = new Set();
-    for (const entry of companionRaw.l) {
+  // Companion ownership from it.json plus account-level Pet Bonus Tokens.
+  const companionIds = new Set();
+  const companionListRaw = companionRaw && companionRaw.l;
+  const companionList = Array.isArray(companionListRaw)
+    ? companionListRaw
+    : companionListRaw && typeof companionListRaw === 'object'
+      ? Object.keys(companionListRaw).sort((a, b) => Number(a) - Number(b)).map(key => companionListRaw[key])
+      : null;
+  const companionDataAvailable = Array.isArray(companionList);
+  if (companionDataAvailable) {
+    for (const entry of companionList) {
       const id = parseInt(String(entry).split(',')[0]);
-      if (!isNaN(id)) ids.add(id);
+      if (!isNaN(id)) companionIds.add(id);
     }
-    // Pet Bonus Token: OLA[606] is a comma-separated list of CompanionDB names
-    // whose bonuses apply even without owning the pet.
-    const tokenStr = String(olaRaw[606] || '');
-    if (tokenStr && tokenStr !== '0') {
-      const tokenNames = tokenStr.split(',');
-      for (const name of tokenNames) {
-        for (let ci = 0; ci < CompanionDB.length; ci++) {
-          if (CompanionDB[ci][0] === name) { ids.add(ci); break; }
-        }
+  }
+  const tokenStr = String(olaRaw[606] || '');
+  if (tokenStr && tokenStr !== '0') {
+    const tokenNames = tokenStr.split(',');
+    for (const name of tokenNames) {
+      for (let ci = 0; ci < CompanionDB.length; ci++) {
+        if (CompanionDB[ci][0] === name) { companionIds.add(ci); break; }
       }
     }
-    assignState({ companionIds: ids });
   }
+  assignState({ companionIds: companionIds, companionDataAvailable: companionDataAvailable });
 
   // Per-character quest completion
   const questComplete = [];
@@ -256,12 +284,20 @@ export function loadSaveData(raw) {
   if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
   if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
   if (raw.serverVars?.A_MineCost != null) assignState({ serverVarMineCost: Number(raw.serverVars.A_MineCost) || 1 });
-  if (raw.serverVars?.voteCategories) assignState({ activeVoteIdx: Number(raw.serverVars.voteCategories[0]) || -1 });
+  const activeVoteRaw = raw.serverVars?.voteCategories?.[0];
+  const activeVote = Number(activeVoteRaw);
+  assignState({
+    activeVoteIdx: activeVoteRaw == null || !Number.isFinite(activeVote) ? -1 : activeVote,
+    activeVoteDataAvailable: activeVoteRaw != null && Number.isFinite(activeVote),
+  });
 
   const timeAwayRaw = parseSaveKey(save, 'TimeAway');
   if (timeAwayRaw) {
     const ta = typeof timeAwayRaw === 'string' ? JSON.parse(timeAwayRaw) : timeAwayRaw;
+    assignState({ timeAwayData: ta || {} });
     if (ta?.GlobalTime) assignSaveData({ saveGlobalTime: Number(ta.GlobalTime) || 0 });
+  } else {
+    assignState({ timeAwayData: {} });
   }
 
   // Tournament day number (game's internal counter, NOT derived from GlobalTime)

@@ -16,9 +16,10 @@ import {
 } from '../../../save/data.js';
 import { formulaEval, getLOG } from '../../../formulas.js';
 import { superBitType } from '../../../game-helpers.js';
+import { getSetBonus } from '../w3/setBonus.js';
 import { hasBonusMajor } from '../w5/divinity.js';
 import { label, entityName } from '../../entity-names.js';
-import { talentParams, familyBonusParams } from '../../data/common/talent.js';
+import { CLASS_TREES, talentParams, familyBonusParams } from '../../data/common/talent.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
@@ -77,8 +78,8 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
     var maxMageCharIdx = -1;
     for (var ci = 0; ci < numCharacters; ci++) {
       var cls = charClassData[ci];
-      // Classes whose ReturnClasses tree includes 34: class 34 (mod 4) and class 38 (mod 8)
-      if (cls === 34 || cls === 38) {
+      var classTree = CLASS_TREES[cls];
+      if (classTree && classTree.includes(34)) {
         var lv = saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0] || 0;
         if (lv > maxMageCharLv) { maxMageCharLv = lv; maxMageCharIdx = ci; }
       }
@@ -106,6 +107,7 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   var y2BubbleLv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
   var y2Value = y2BubbleLv > 0 ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2BubbleLv) : 0;
   var allBubblesActive = saveData.companionIds.has(4);
+  var cachedBubbles = opts && opts.dnsmCache && opts.dnsmCache.alchBubbles;
   // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character's
   // own divinity level, NOT the max across all characters.
   var divMinor = 0;
@@ -113,7 +115,10 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   if (ctxSlot >= 0 && hasBonusMajor(ctxSlot, 2, saveData)) {
     var divLv = saveData.lv0AllData[ctxSlot] && saveData.lv0AllData[ctxSlot][14] || 0;
     if (divLv > 0) {
-      var y2Active = (allBubblesActive || (cauldronBubblesData && cauldronBubblesData[ctxSlot] || []).includes('d21')) ? y2Value : 0;
+      var y2Active = cachedBubbles
+        ? (Object.prototype.hasOwnProperty.call(cachedBubbles, 'Y2ACTIVE')
+          ? Number(cachedBubbles.Y2ACTIVE) || 0 : 0)
+        : (allBubblesActive || (cauldronBubblesData && cauldronBubblesData[ctxSlot] || []).includes('d21')) ? y2Value : 0;
       divMinor = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (DIVINITY_MINOR_DENOM + divLv) * godMinorX1(2);
     }
   }
@@ -122,7 +127,7 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   var ola232 = Number(optionsListData && optionsListData[232]) || 0;
   var ola232bonus = 5 * Math.floor((97 + ola232) / 100);
   var grimoire39 = Number(saveData.grimoireData && saveData.grimoireData[39]) || 0;
-  var kattlekrukSet = String(optionsListData && optionsListData[379] || '').split(',').includes('KATTLEKRUK_SET') ? equipSetBonus('KATTLEKRUK_SET') : 0;
+  var kattlekrukSet = Number(getSetBonus('KATTLEKRUK_SET', ctxSlot));
   var arcane57 = Math.min(5, Number(saveData.arcaneData && saveData.arcaneData[57]) || 0);
 
   var currentPlayerLv = (ctxSlot >= 0 ? saveData.lv0AllData[ctxSlot] && saveData.lv0AllData[ctxSlot][0] : 0) || 0;
@@ -210,7 +215,8 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   var maxMageCharIdx2 = -1;
   for (var ci3 = 0; ci3 < numCharacters; ci3++) {
     var cls = charClassData[ci3];
-    if (cls === 34 || cls === 38) {
+    var classTree = CLASS_TREES[cls];
+    if (classTree && classTree.includes(34)) {
       var lv3 = saveData.lv0AllData[ci3] && saveData.lv0AllData[ci3][0] || 0;
       if (lv3 > maxMageCharLv) { maxMageCharLv = lv3; maxMageCharIdx2 = ci3; }
     }
@@ -245,13 +251,17 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   var y2BubbleLv2 = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
   var y2Value2 = y2BubbleLv2 > 0 ? formulaEval(_y2bp2.formula, _y2bp2.x1, _y2bp2.x2, y2BubbleLv2) : 0;
   var allBubblesActive2 = saveData.companionIds.has(4);
+  var cachedBubbles2 = opts && opts.dnsmCache && opts.dnsmCache.alchBubbles;
   // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character.
   var divMinor2 = 0;
   var coralKid32 = Number(optionsListData && optionsListData[430]) || 0;
   if (slotIdx >= 0 && hasBonusMajor(slotIdx, 2, saveData)) {
     var divLv2 = saveData.lv0AllData[slotIdx] && saveData.lv0AllData[slotIdx][14] || 0;
     if (divLv2 > 0) {
-      var y2Active2 = (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[slotIdx] || []).includes('d21')) ? y2Value2 : 0;
+      var y2Active2 = cachedBubbles2
+        ? (Object.prototype.hasOwnProperty.call(cachedBubbles2, 'Y2ACTIVE')
+          ? Number(cachedBubbles2.Y2ACTIVE) || 0 : 0)
+        : (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[slotIdx] || []).includes('d21')) ? y2Value2 : 0;
       divMinor2 = Math.max(1, y2Active2) * (1 + coralKid32 / 100) * divLv2 / (DIVINITY_MINOR_DENOM + divLv2) * godMinorX1(2);
     }
   }
@@ -272,7 +282,7 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   if (grimoire39v > 0) children.push(node(label('Grimoire', 39), grimoire39v, null, { fmt: 'raw' }));
 
   // Kattlekruk set
-  var kattlekrukSetV = String(optionsListData && optionsListData[379] || '').split(',').includes('KATTLEKRUK_SET') ? equipSetBonus('KATTLEKRUK_SET') : 0;
+  var kattlekrukSetV = Number(getSetBonus('KATTLEKRUK_SET', slotIdx));
   if (kattlekrukSetV > 0) children.push(node('Kattlekruk Set', kattlekrukSetV, null, { fmt: 'raw' }));
 
   // Arcane 57
@@ -304,12 +314,12 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
 // uses the active character's context (Spelunk, talents 149/374/539).
 // atlIdx: override for the index passed to resolveAllTalentLVz (game's getbonus2
 //   passes raw talent LEVEL instead of the talent index).
-function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx, saveData) {
+function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx, saveData, opts) {
   var sl = skillLvData[charIdx] || {};
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return { val: 0, rawLv: 0, effectiveLv: 0, bonusDetail: null };
   var ctxChar = activeCharIdx != null ? activeCharIdx : charIdx;
-  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar, undefined, saveData);
+  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar, opts, saveData);
   var effectiveLv = rawLv + bd.total;
   var result = formulaEval(data.formula, data.x1, data.x2, effectiveLv);
   return { val: result, rawLv: rawLv, bonus: bd.total, effectiveLv: effectiveLv, bonusDetail: bd };
@@ -319,7 +329,7 @@ function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx, saveDa
 // instead of the talent index. We replicate this by passing rawLv as atlIdx.
 // Game gate: AllTalentLVz is only applied when talentIdx >= 100.
 // For talents < 100, getbonus2 uses raw level without ATL bonus.
-function getbonus2(talentIdx, data, activeCharIdx, saveData) {
+function getbonus2(talentIdx, data, activeCharIdx, saveData, opts) {
   var best = 0, bestChar = -1, bestR = null;
   for (var ci = 0; ci < numCharacters; ci++) {
     var sl = skillLvData[ci] || {};
@@ -330,7 +340,7 @@ function getbonus2(talentIdx, data, activeCharIdx, saveData) {
       // When activeCharIdx=-1 (offline/unknown), use ci's own context as
       // best approximation — each character provides its own bonus levels.
       var ctxForATL = activeCharIdx >= 0 ? activeCharIdx : ci;
-      r = getTalentNumber(ci, talentIdx, data, ctxForATL, rawLv, saveData);
+      r = getTalentNumber(ci, talentIdx, data, ctxForATL, rawLv, saveData, opts);
     } else {
       // No ATL for talents < 100 in getbonus2
       if (rawLv <= 0) {
@@ -364,9 +374,10 @@ export var talent = {
 
     // args can specify mode: 'max' = best across all chars (getbonus2)
     var mode = args && args.mode;
+    var runtimeOpts = ctx.dnsmCache ? { dnsmCache: ctx.dnsmCache } : undefined;
     var r;
     if (mode === 'max') {
-      r = getbonus2(id, data, ctx.charIdx, saveData);
+      r = getbonus2(id, data, ctx.charIdx, saveData, runtimeOpts);
       var maxChildren = [node('Best Character ' + r.bestChar, r.val, null, { fmt: 'raw' })];
       if (r.detail && r.detail.bonusDetail) {
         maxChildren = [
@@ -387,7 +398,7 @@ export var talent = {
     // using the active in-game character's context. We approximate this
     // with ctx.charIdx since there's no "active" character in save data.
     if (id === 328) {
-      var gb = getbonus2(id, data, ctx.charIdx, saveData);
+      var gb = getbonus2(id, data, ctx.charIdx, saveData, runtimeOpts);
       var plunderKills = Number(optionsListData && optionsListData[139]) || 0;
       var logVal = plunderKills > 0 ? getLOG(plunderKills) : 0;
       if (gb.val <= 0 || plunderKills <= 0) return node(name, 1, null, { fmt: 'x' });
@@ -407,7 +418,7 @@ export var talent = {
       ], { fmt: 'x' });
     }
 
-    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, undefined, saveData);
+    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, undefined, saveData, runtimeOpts);
     if (r.val === 0) return node(name, 0);
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;

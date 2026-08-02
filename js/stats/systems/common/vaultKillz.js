@@ -6,13 +6,15 @@
 
 import { getLOG } from '../../../formulas.js';
 import { numCharacters, klaData, cauldronInfoData } from '../../../save/data.js';
+import { MapDetails } from '../../data/game/customlists.js';
 
 var _cache = null;
+var _cacheSave = null;
 
-export function resetVaultKillzCache() { _cache = null; }
+export function resetVaultKillzCache() { _cache = null; _cacheSave = null; }
 
 export function computeVaultKillzTotal(idx, saveData) {
-  if (_cache) return _cache[idx] || 0;
+  if (_cache && _cacheSave === saveData) return _cache[idx] || 0;
   var s = saveData;
   var result = [];
   var mapIdxs = [14, 24, 13, 8];
@@ -23,7 +25,8 @@ export function computeVaultKillzTotal(idx, saveData) {
       var kla = klaData && klaData[ci];
       if (!kla || !kla[mapIdx]) continue;
       var killsLeft = Number(Array.isArray(kla[mapIdx]) ? kla[mapIdx][0] : kla[mapIdx]) || 0;
-      totalKills += Math.max(0, -killsLeft);
+      var required = Number(MapDetails[mapIdx] && MapDetails[mapIdx][0] && MapDetails[mapIdx][0][0]) || 0;
+      totalKills += Math.max(0, required - killsLeft);
     }
     result.push(totalKills);
   }
@@ -57,10 +60,12 @@ export function computeVaultKillzTotal(idx, saveData) {
     var kla2 = klaData && klaData[ci2];
     if (!kla2 || !kla2[101]) continue;
     var kl101 = Number(Array.isArray(kla2[101]) ? kla2[101][0] : kla2[101]) || 0;
-    map101Kills += Math.max(0, -kl101);
+    var req101 = Number(MapDetails[101] && MapDetails[101][0] && MapDetails[101][0][0]) || 0;
+    map101Kills += Math.max(0, req101 - kl101);
   }
   result.push(map101Kills);
   result.push(map101Kills < 10 ? 0 : Math.floor(getLOG(map101Kills)));
   _cache = result;
+  _cacheSave = saveData;
   return result[idx] || 0;
 }

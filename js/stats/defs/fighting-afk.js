@@ -8,14 +8,14 @@ import { companion } from '../systems/common/companions.js';
 import { vault } from '../systems/common/vault.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
 import { votingBonusz } from '../systems/w2/voting.js';
-import { cardLv } from '../systems/common/cards.js';
+import { cardLv, countDiscoveredCards } from '../systems/common/cards.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
 import { guild } from '../systems/common/guild.js';
 import { computeBoxReward } from '../systems/common/stats.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeDivinityMajor, computeDivinityMinor } from '../systems/w5/divinity.js';
 import { shrine } from '../systems/w3/construction.js';
-import { computeFamBonusQTY } from '../systems/common/stats.js';
+import { computeFamBonusQTYs } from '../systems/common/stats.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
 import { computeChipBonus } from '../systems/w4/lab.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
@@ -33,6 +33,13 @@ import { currentMapData } from '../../save/data.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
+import { afkGains as cglunkoAfkGains } from '../systems/w5/cglunko.js';
+
+function _votingBonus(voteIdx, ctx) {
+  var votingMulti = 1;
+  try { votingMulti = Number(ctx.resolve('voting-multi').val) || 1; } catch(e) {}
+  return votingBonusz(voteIdx, votingMulti, ctx.saveData);
+}
 
 export default createDescriptor({
   id: 'fighting-afk',
@@ -52,20 +59,21 @@ export default createDescriptor({
     // Tasks[2][1][2] check: bonus for being in top N characters
     var tasks2_1_2 = Number(s.tasksGlobalData && s.tasksGlobalData[2] && s.tasksGlobalData[2][1] &&
       s.tasksGlobalData[2][1][2]) || 0;
-    var charPosition = ci; // simplified — real game checks position in username list
+    // Per-character save arrays follow GetPlayersUsernames order.
+    var charPosition = ci;
     if (tasks2_1_2 > charPosition) afkAll += 2;
 
     // Shared ALL-AFK sources
     var arcade6 = rval(arcade, 6, ctx);
     var compassBonus57 = safe(computeCompassBonus, 57, s);
-    var voidSet = safe(getSetBonus, 'VOID_SET');
+    var voidSet = safe(getSetBonus, 'VOID_SET', ci);
     var flurbo7 = safe(computeFlurboShop, 7, s);
     var divMajor0 = 30 * safe(computeDivinityMajor, ci, 0, s);
-    var divMinor5 = safe(computeDivinityMinor, -1, 5, s);
+    var divMinor5 = safe(computeDivinityMinor, -1, 5, s, ci);
     var comp6 = rval(companion, 6, ctx);
     var comp25 = rval(companion, 25, ctx);
     var shrine8 = rval(shrine, 8, ctx);
-    var talentCalc650 = rval(talent, 650, ctx);
+    var talentCalc650 = rval(talent, 650, ctx) * countDiscoveredCards(s);
     var winBonus11 = rval(winBonus, 11, ctx);
     var _gfAFK = 0;
     try {
@@ -74,7 +82,7 @@ export default createDescriptor({
     } catch(e) {}
     var cardW6d3 = 1.5 * safe(cardLv, 'w6d3', s);
     var rooBonus5 = safe(computeRooBonus, 5, s);
-    var voting6 = safe(votingBonusz, 6, 1, s);
+    var voting6 = _votingBonus(6, ctx);
     var evShop5 = 20 * eventShopOwned(5, s.cachedEventShopStr);
     var vault23 = rval(vault, 23, ctx);
 
@@ -91,7 +99,8 @@ export default createDescriptor({
     var afkAllMulti = (1 + arcaneMapMulti2 / 100) * (1 + etc92 / 100);
 
     // === Fighting-specific sources ===
-    var famBonus8 = safe(computeFamBonusQTY, 8, s);
+    var familyBonuses = safe(computeFamBonusQTYs, ci, s);
+    var famBonus8 = familyBonuses && typeof familyBonuses === 'object' ? Number(familyBonuses[8]) || 0 : 0;
     var _brFAFK = safe(computeBoxReward, ci, 'fightAFK');
     var boxFightAFK = (typeof _brFAFK === 'object' && _brFAFK) ? (_brFAFK.val || 0) : Number(_brFAFK) || 0;
     var talent88 = rval(talent, 88, ctx);
@@ -109,7 +118,7 @@ export default createDescriptor({
     var guild4 = rval(guild, 4, ctx);
     var prayer4 = computePrayerReal(4, 0, ci, ctx.saveData);
     var prayer12curse = computePrayerReal(12, 1, ci, ctx.saveData);
-    var chipFafk = safe(computeChipBonus, 'fafk');
+    var chipFafk = safe(computeChipBonus, 'fafk', ci);
     var cardW6d1 = safe(cardLv, 'w6d1', s);
 
     var fightSum = famBonus8 + boxFightAFK + talent88 + bribe3
@@ -121,6 +130,11 @@ export default createDescriptor({
     var penumbraMulti = (mapIdx === 306) ? 0.2 : 1;
 
     var val = penumbraMulti * (0.4 + fightSum / 100) * afkAllMulti;
+    var cavern = Number(s.holesData && s.holesData[0] && s.holesData[0][ci]);
+    var cglunkoOverride = mapIdx === 216 && cavern === 17;
+    if (cglunkoOverride) {
+      val = cglunkoAfkGains(s) * (1 + 30 * Math.min(1, Number(s.bundlesData && s.bundlesData.bun_u) || 0) / 100);
+    }
     val = Math.max(0.01, val);
 
     if (val !== val || val == null) val = 0.01;
@@ -131,7 +145,18 @@ export default createDescriptor({
       note: 'sum/100 added to base' });
     children.push({ name: 'ALL AFK multiplier', val: afkAllMulti, fmt: 'x' });
     if (penumbraMulti !== 1) children.push({ name: 'Penumbra 0.2x', val: penumbraMulti, fmt: 'x' });
+    if (cglunkoOverride) children.push({ name: 'Cglunko AFK Override', val: val, fmt: 'raw' });
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   }
 });

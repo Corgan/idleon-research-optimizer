@@ -5,6 +5,16 @@ import { formulaEval } from '../../../formulas.js';
 import { treeResult } from '../../node.js';
 import { DungPassiveStats2 } from '../../data/game/customlists.js';
 
+export var DUNGEON_MAPS = new Set([39, 40, 70, 71, 118, 119]);
+
+export function isDungeonMap(mapIdx) {
+  return DUNGEON_MAPS.has(Number(mapIdx));
+}
+
+export function computeDungeonDropRate(totalLuk, dungeonDropRarity) {
+  return 1 + ((Number(totalLuk) || 0) + (Number(dungeonDropRarity) || 0)) / 100;
+}
+
 // ==================== FLURBO SHOP ====================
 
 export function computeFlurboShop(idx, saveData) {

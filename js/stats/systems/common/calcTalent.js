@@ -6,60 +6,50 @@
 // CalcTalentMAP[42] = array of 9 values (skill EXP bonus per skill slot)
 // CalcTalentMAP[43] = array of 9 values (skill efficiency bonus per skill slot)
 
-import { TalentDescriptions } from '../../data/game/customlists.js';
+import { charClassData, fishingToolkitData, fishingToolkitDataAvailable, skillLvData } from '../../../save/data.js';
+import { FishToolkitInfo, TalentDescriptions } from '../../data/game/customlists.js';
 import { formulaEval } from '../../../formulas.js';
+import { maxTalentBonus } from './talent.js';
 
-var _cache = null;
-var _cacheKey = null;
-
-function buildCalcTalentMAP(saveData) {
-  // Check if we can use cache (same save data reference)
-  if (_cache && _cacheKey === saveData) return _cache;
-
+export function computeCalcTalentMAP(charIdx, saveData) {
   var result = { 42: [0,0,0,0,0,0,0,0,0], 43: [0,0,0,0,0,0,0,0,0] };
+  var lv0All = saveData && saveData.lv0AllData;
+  if (!lv0All || !charClassData.length) return result;
 
-  var lv0All = saveData.lv0AllData;
-  var classAll = saveData.charClassAllData;
-  if (!lv0All || !classAll) { _cache = result; _cacheKey = saveData; return result; }
-
-  // Find first Journeyman character (class 3, 4, or 5)
+  // PlayerDATABASE iteration overwrites the candidate, so the last
+  // Journeyman-family character in player order owns the cache rows.
   var jmanIdx = -1;
-  for (var c = 0; c < classAll.length; c++) {
-    var cls = Number(classAll[c]) || 0;
-    if (cls >= 3 && cls < 6) { jmanIdx = c; break; }
+  for (var c = 0; c < charClassData.length; c++) {
+    var cls = Number(charClassData[c]) || 0;
+    if (cls >= 3 && cls < 6) jmanIdx = c;
   }
-  if (jmanIdx < 0) { _cache = result; _cacheKey = saveData; return result; }
+  if (jmanIdx < 0 || !lv0All[jmanIdx] || !lv0All[charIdx]) return result;
 
-  var jmanLv0 = lv0All[jmanIdx];
-  if (!jmanLv0) { _cache = result; _cacheKey = saveData; return result; }
-
-  // Talent formula params
   var t42 = TalentDescriptions[42] && TalentDescriptions[42][1];
   var t43 = TalentDescriptions[43] && TalentDescriptions[43][1];
-  if (!t42 || !t43) { _cache = result; _cacheKey = saveData; return result; }
+  if (!t42 || !t43) return result;
 
-  var t42type = String(t42[2]);
-  var t42x1 = Number(t42[0]);
-  var t42x2 = Number(t42[1]);
-  var jmanSk42 = Number(jmanLv0[42]) || 0;
+  var jmanSkills = skillLvData[jmanIdx] || {};
+  var base42 = formulaEval(String(t42[2]), Number(t42[0]), Number(t42[1]), Number(jmanSkills[42]) || 0);
+  var base43 = formulaEval(String(t43[2]), Number(t43[0]), Number(t43[1]), Number(jmanSkills[43]) || 0);
 
-  var t43type = String(t43[2]);
-  var t43x1 = Number(t43[0]);
-  var t43x2 = Number(t43[1]);
-  var jmanSk43 = Number(jmanLv0[43]) || 0;
+  if (charIdx !== jmanIdx) {
+    for (var skillIdx = 0; skillIdx < 9; skillIdx++) {
+      if ((Number(lv0All[charIdx][skillIdx + 1]) || 0) < (Number(lv0All[jmanIdx][skillIdx + 1]) || 0)) {
+        result[42][skillIdx] = base42;
+        result[43][skillIdx] = base43;
+      }
+    }
+    return result;
+  }
 
-  // Compute base values from jman's skill levels
-  var base42 = formulaEval(t42type, t42x1, t42x2, jmanSk42);
-  var base43 = formulaEval(t43type, t43x1, t43x2, jmanSk43);
-
-  // Check if jman IS the current character (self-buff: 2x if TalentEnh)
-  // For save-based computation, we check if the jman has the talent enhanced
-  // TalentEnh for talent 42/43 means the jman's class is Maestro or higher (class 4+)
-  var jmanCls = Number(classAll[jmanIdx]) || 0;
-  var isSelfEnhanced = jmanCls >= 4; // Maestro+ can self-enhance
-
-  _cache = result;
-  _cacheKey = saveData;
+  var enhancementTalent = maxTalentBonus(49, charIdx, saveData);
+  var enhance42 = enhancementTalent >= 25;
+  var enhance43 = enhancementTalent >= 175;
+  for (var selfSkillIdx = 0; selfSkillIdx < 9; selfSkillIdx++) {
+    if (enhance42) result[42][selfSkillIdx] = 2 * base42;
+    if (enhance43) result[43][selfSkillIdx] = 2 * base43;
+  }
   return result;
 }
 
@@ -68,41 +58,28 @@ function buildCalcTalentMAP(saveData) {
 // skillSlotIdx: 0-8 (Mining=0, Smithing=1, Choppin=2, Fishing=3, Alchemy=4, Catching=5, ...)
 // charIdx: which character to check
 export function computeCalcTalent(talentIdx, skillSlotIdx, charIdx, saveData) {
-  var lv0All = saveData.lv0AllData;
-  var classAll = saveData.charClassAllData;
-  if (!lv0All || !classAll) return 0;
+  var row = computeCalcTalentMAP(charIdx, saveData)[talentIdx];
+  return row ? Number(row[skillSlotIdx]) || 0 : 0;
+}
 
-  // Find first Journeyman character (class 3-5)
-  var jmanIdx = -1;
-  for (var c = 0; c < classAll.length; c++) {
-    var cls = Number(classAll[c]) || 0;
-    if (cls >= 3 && cls < 6) { jmanIdx = c; break; }
+var FISHING_TOOLKIT_STAT_INDEX = {
+  D0: 0,
+  D1: 1,
+  D2: 2,
+  D3: 3,
+  EXP: 4,
+  SPEED: 5,
+  POW: 6,
+};
+
+export function computeFishingToolkitStat(statKey, charIdx) {
+  var statIdx = FISHING_TOOLKIT_STAT_INDEX[statKey];
+  if (statIdx == null || !fishingToolkitDataAvailable[charIdx]) return 0;
+  var selected = fishingToolkitData[charIdx] || [0, 0];
+  var total = 0;
+  for (var toolkitType = 0; toolkitType < 2; toolkitType++) {
+    var row = FishToolkitInfo[toolkitType] && FishToolkitInfo[toolkitType][Number(selected[toolkitType]) || 0];
+    total += Number(row && row[statIdx + 1]) || 0;
   }
-  if (jmanIdx < 0) return 0;
-
-  var jmanLv0 = lv0All[jmanIdx];
-  var charLv0 = lv0All[charIdx];
-  if (!jmanLv0 || !charLv0) return 0;
-
-  // Check if current char's skill level < journeyman's for this skill slot
-  var charSkill = Number(charLv0[skillSlotIdx + 1]) || 0;
-  var jmanSkill = Number(jmanLv0[skillSlotIdx + 1]) || 0;
-  if (charSkill >= jmanSkill && charIdx !== jmanIdx) return 0;
-
-  // Get talent desc
-  var td = TalentDescriptions[talentIdx] && TalentDescriptions[talentIdx][1];
-  if (!td) return 0;
-
-  var talentSkillLv = Number(jmanLv0[talentIdx]) || 0;
-  var val = formulaEval(String(td[2]), Number(td[0]), Number(td[1]), talentSkillLv);
-
-  // Self-buff: if jman IS the current char, check TalentEnh (2x)
-  // TalentEnh is 1 when the character has the talent points invested
-  // A Maestro (class 4+) gets 2x if they have the talent enhanced
-  if (charIdx === jmanIdx) {
-    var jmanCls = Number(classAll[jmanIdx]) || 0;
-    if (jmanCls >= 4) val *= 2;
-  }
-
-  return val;
+  return total;
 }

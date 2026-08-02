@@ -20,9 +20,9 @@ import { achieveStatus } from '../systems/common/achievement.js';
 import { legendPTSbonus, computeBigFishBonus } from '../systems/w7/spelunking.js';
 import { computeStatueBonusGiven, computeMealBonus, computeCardBonusByType, computeBoxReward, computeTotalStat } from '../systems/common/stats.js';
 import { computeVialByKey, bubbleValByKey, getPrismaBonusMult } from '../systems/w2/alchemy.js';
-import { DungPassiveStats2, StatueInfo,
-  SaltLicks } from '../data/game/customlists.js';
-import { optionsListData } from '../../save/data.js';
+import { DungPassiveStats2, MapAFKtarget, StatueInfo,
+  SaltLicks, ZenithMarket } from '../data/game/customlists.js';
+import { divinityData, optionsListData } from '../../save/data.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
@@ -33,14 +33,13 @@ import { grimoireUpgBonus22, grimoire } from '../systems/mc/grimoire.js';
 import { GrimoireUpg } from '../data/game/customlists.js';
 import { exoticBonusQTY40 } from '../systems/w6/farming.js';
 import { computeShinyBonusS } from '../systems/w4/breeding.js';
-import { gambitPTSmulti } from '../systems/w5/hole.js';
-import { holes } from '../systems/w5/hole.js';
+import { computeMonumentROGbonus, holes } from '../systems/w5/hole.js';
 import { computeDivinityMinor } from '../systems/w5/divinity.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { dancingCoralBase } from '../data/w7/research.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { cookingMealMulti } from '../systems/common/cooking.js';
-import { computeOwlBonus } from '../systems/w1/owl.js';
+import { owl } from '../systems/w1/owl.js';
 import { computeExoticBonus, computeStickerBonus } from '../systems/w6/farming.js';
 import { computeMSABonus } from '../systems/w4/gaming.js';
 import { computeAllShimmerBonuses } from '../systems/w3/equinox.js';
@@ -49,11 +48,12 @@ import { computeWorkbenchStuff as _computeWorkbenchStuff } from '../systems/comm
 import { computeCompassBonus, computeTotalTitanKills } from '../systems/w7/compass.js';
 import { computeArcaneMapMultiBon } from '../systems/mc/tesseract.js';
 import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
-import { computeCardSetBonusRaw } from '../systems/common/cards.js';
+import { computeCardSetBonus } from '../systems/common/cards.js';
 import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeSaltLick, shrine } from '../systems/w3/construction.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
+import { bonTOT as fountainBonTOT } from '../systems/w5/fountain.js';
 
 // Compute StatueBonusGiven for any statue index (same as coin-multi.js)
 
@@ -82,7 +82,7 @@ import { computePrayerReal } from '../systems/w3/prayer.js';
 export default createDescriptor({
   id: 'monster-exp',
   name: 'Monster EXP Multiplier',
-  scope: 'character',
+  scope: 'character+map',
   category: 'multiplier',
 
   combine: function(pools, ctx) {
@@ -106,16 +106,18 @@ export default createDescriptor({
     // Highest level check: Tasks[2][0][2] > 0, and char is highest level among all
     var tasks2_0_2 = Number(s.tasksGlobalData && s.tasksGlobalData[2] && s.tasksGlobalData[2][0] &&
       s.tasksGlobalData[2][0][2]) || 0;
+    var lowestLevelBonusActive = false;
     if (tasks2_0_2 > 0) {
-      // Check if this char has the highest class level
-      var isHighest = true;
-      var allUsernames = s.usernamesData || [];
-      for (var ui = 0; ui < allUsernames.length; ui++) {
+      // Source grants this only when the active character is below every other character's level.
+      var isLowest = true;
+      var allCharacters = s.lv0AllData || [];
+      for (var ui = 0; ui < allCharacters.length; ui++) {
         if (ui === ci) continue;
-        var otherLv = Number(s.lv0AllData && s.lv0AllData[ui] && s.lv0AllData[ui][0]) || 0;
-        if (otherLv > charLv) { isHighest = false; break; }
+        var otherLv = Number(allCharacters[ui] && allCharacters[ui][0]) || 0;
+        if (!(charLv < otherLv)) { isLowest = false; break; }
       }
-      if (isHighest) {
+      if (isLowest) {
+        lowestLevelBonusActive = true;
         egl2 += 3 * tasks2_0_2 + rval(vault, 12, ctx);
         if (superBitType(19, s.gamingData) === 1) {
           // ExpGainLUK3 gets +50 later
@@ -124,8 +126,8 @@ export default createDescriptor({
     }
 
     // Level-based flat bonuses
-    if (charLv < 50) egl2 += computeCardSetBonusRaw('0', ctx.saveData);
-    if (charLv < 120) egl2 += safe(computeMealBonus, 'Clexp', s);
+    if (charLv < 50) egl2 += Number(computeCardSetBonus(ci, '0')) || 0;
+    if (charLv < 120) egl2 += safe(computeMealBonus, 'Clexp', s, ci);
 
     // WeeklyBoss.c bonus
     var weeklyBossC = Number(s.weeklyBossData && s.weeklyBossData.c) || 0;
@@ -140,11 +142,11 @@ export default createDescriptor({
     egl2 += computeDivinityMinor(ci, 4, ctx.saveData);
 
     // CardSetBonuses(0, "5")
-    egl2 += computeCardSetBonusRaw('5', ctx.saveData);
+    egl2 += Number(computeCardSetBonus(ci, '5')) || 0;
 
     // ======= STAGE 3: ExpGainLUK3 (SuperBit + Bundle) =======
     var egl3 = 0;
-    if (tasks2_0_2 > 0 && superBitType(19, s.gamingData) === 1) egl3 += 50;
+    if (lowestLevelBonusActive && superBitType(19, s.gamingData) === 1) egl3 += 50;
     if (s.bundlesData && s.bundlesData.bun_q === 1) egl3 += 20;
 
     // ======= STAGE 4: ExpGainLUK4 (compass/gambit/vault/grid/grimoire) =======
@@ -166,8 +168,9 @@ export default createDescriptor({
       + vault3 + vault35 * getLOG(ola345) + holesB83;
 
     // ======= STAGE 5: ExpGainLUK5 (massive multiplicative chain) =======
-    // GenINFO[17] check — this is a server-side flag, use opt-in default
-    var genInfo17 = 1; // Assume active (server-controlled)
+    var currentTarget = MapAFKtarget[ctx.mapIdx] || '';
+    var compassTargets = s.compassData && s.compassData[3] || [];
+    var genInfo17 = compassTargets.indexOf(currentTarget) !== -1 ? 1 : 0;
     var talent429 = rval(talent, 429, ctx, { mode: 'max' });
     var egl5_talentMult = genInfo17 ? Math.max(1, talent429) : 1;
 
@@ -179,8 +182,11 @@ export default createDescriptor({
     var comp34 = rval(companion, 34, ctx);
     var comp145 = rval(companion, 145, ctx);
     var comp50 = rval(companion, 50, ctx);
+    var comp128 = rval(companion, 128, ctx);
+    var comp168 = rval(companion, 168, ctx);
     var compMult = (1 + 9 * comp37) * (1 + comp33) * (1 + 4 * comp160)
-      * (1 + comp32) * (1 + comp34) * (1 + comp145);
+      * (1 + comp32) * (1 + comp34) * (1 + comp145)
+      * (1 + 0.4 * comp168) * (1 + Math.min(0.5, comp128));
 
     // Grid bonuses 130, 131, 132, 152
     var grid130 = rval(grid, 130, ctx);
@@ -200,8 +206,7 @@ export default createDescriptor({
     var zenithMarket9 = 0;
     if (s.spelunkData && s.spelunkData[45]) {
       var zmLv = Number(s.spelunkData[45][9]) || 0;
-      var zmMulti = 1;
-      try { var ZM = require('../data/game/customlists.js').ZenithMarket; zmMulti = Number(ZM[9] && ZM[9][4]) || 1; } catch(e) {}
+      var zmMulti = Number(ZenithMarket[9] && ZenithMarket[9][4]) || 1;
       zenithMarket9 = Math.floor(zmMulti * zmLv);
     }
 
@@ -217,7 +222,7 @@ export default createDescriptor({
     var _cb100 = safe(computeCardBonusByType, 100, ci, s);
     var card100 = (typeof _cb100 === 'object' && _cb100) ? (_cb100.val || 0) : Number(_cb100) || 0;
     var arcade60 = rval(arcade, 60, ctx);
-    var vial7classexp = safe(computeVialByKey, '7classexp', s);
+    var vial7classexp = safe(computeVialByKey, '7classexp', s, ci);
 
     // Talent 434 ^ TotalTitanKills
     var talent434 = rval(talent, 434, ctx, { mode: 'max' });
@@ -235,10 +240,11 @@ export default createDescriptor({
     var arcaneMapMulti1 = safe(computeArcaneMapMultiBon, 1, ctx);
     var bigFish4 = safe(computeBigFishBonus, 4, s);
     var dancingCoral3 = dancingCoralBase(3);
-    var coralKid2 = Number(optionsListData[430] || 0) || 0; // CoralKidUpgBonus(2) = OLA[428+2] = OLA[430]
-    var div25 = Number(s.divinityAllData && s.divinityAllData[25]) || 0;
+    var coralKidLv2 = Number(optionsListData[429]) || 0;
+    var coralKid2 = coralKidLv2 / (25 + coralKidLv2) * 20;
+    var div25 = Number(divinityData && divinityData[25]) || 0;
     var coralKidPow = Math.pow(1 + coralKid2 / 100, Math.max(0, div25 - 10));
-    var cardSet12 = computeCardSetBonusRaw('12', ctx.saveData);
+    var cardSet12 = Number(computeCardSetBonus(ci, '12')) || 0;
     var bubbaRoG6 = safe(bubbaRoGBonuses, 6, s); // BubbaRoG_Bonuses(6) — NOT sushi RoG
     var rog15 = rogBonusQTY(15, s.cachedUniqueSushi || 0);
 
@@ -249,12 +255,13 @@ export default createDescriptor({
     egl5 *= (1 + arcaneMapMulti1 / 100) * (1 + bigFish4 / 100)
       * (1 + dancingCoralVal / 100) * coralKidPow
       * (1 + cardSet12 / 100) * (1 + bubbaRoG6 / 100) * (1 + rog15 / 100)
-      * (1 + 5 * _cloudBonus(70, s.weeklyBossData) / 100);
+      * (1 + 5 * _cloudBonus(70, s.weeklyBossData) / 100)
+      * (1 + fountainBonTOT(s.holesData && s.holesData[31] || [], s.holesData && s.holesData[32] || [], 0, 16) / 100);
 
     // Third chain: Spelunk6.length as pow(1.03, count), SuperBit(24), MeritocBonusz(27), OLA[464]
     var spelunk6len = (s.spelunkData && s.spelunkData[6]) ? s.spelunkData[6].length : 0;
     var superBit24 = superBitType(24, s.gamingData) === 1 ? 1 : 0;
-    var meritoc27 = safe(computeMeritocBonusz, 27, s);
+    var meritoc27 = safe(computeMeritocBonusz, 27, s, ci);
     var ola464 = Number(optionsListData[464]) || 0;
     var ola464bonus = Math.max(0, 5 * (ola464 - 8));
     egl5 *= Math.max(1, Math.pow(1.03, spelunk6len) * superBit24
@@ -271,10 +278,11 @@ export default createDescriptor({
       var _gf = goldFoodBonuses('ClassEXPz', ci, undefined, ctx.saveData);
       gfoodClassEXP = (_gf && typeof _gf === 'object') ? (Number(_gf.total) || 0) : (Number(_gf) || 0);
     } catch(e) {}
-    var owlBonus0 = safe(computeOwlBonus, 0, s);
+    var owlBonus0 = 0;
+    try { owlBonus0 = owl.resolve(0, ctx).val || 0; } catch(e) {}
     var voting15 = safe(votingBonusz, 15, 1, s); // VotingBonusz(15)
-    var monumentROG16 = rval(holes, 'monument6', ctx);
-    var ironSet = safe(getSetBonus, 'IRON_SET');
+    var monumentROG16 = safe(computeMonumentROGbonus, 1, 6, s);
+    var ironSet = safe(getSetBonus, 'IRON_SET', ci);
     var exotic50 = safe(computeExoticBonus, 50, s);
     var ola421 = Number(optionsListData[421]) || 0;
     var stampClassXP = safe(computeStampBonusOfTypeX, 'classxp', s);
@@ -287,12 +295,13 @@ export default createDescriptor({
     var egl6 = cardSpringEvent1 + comp3 + comp50add
       + shimmerOla179 * shimmerBonus + gfoodClassEXP + owlBonus0 + voting15
       + monumentROG16 + egl4 + ironSet + exotic50 + ola421
-      + stampClassXP + friendStatz1 + comp47 + comp111 + bb8;
+      + stampClassXP + friendStatz1 + comp47 + comp111 + bb8 + comp128;
 
     // ======= FINAL: MonsterEXP combine =======
     // WorkbenchStuff × (1+EGL3/100) × EGL5 × (1+EtcBonuses("78")/100)
     // × (EGL/1.8 × (1+talent35/100) + additivePool/100 + 1)
-    var wb = safe(_computeWorkbenchStuff, s);
+    var wbTalent328 = rval(talent, 328, ctx, { mode: 'max' });
+    var wb = 1 + wbTalent328 * getLOG(Number(optionsListData[139]) || 0) / 100;
     var etc78 = rval(etcBonus, '78', ctx);
     var talent35 = rval(talent, 35, ctx);
 
@@ -382,6 +391,16 @@ export default createDescriptor({
     children.push({ name: 'Base + Additive Pool', val: lukContrib + additivePool / 100 + 1, fmt: 'x',
       children: [lukPart].concat(addCh) });
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   }
 });

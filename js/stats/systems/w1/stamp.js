@@ -18,6 +18,7 @@ import { exoticParams } from '../../data/w5/farming.js';
 import { paletteParams } from '../../data/w4/gaming.js';
 import { compassUpgPerLevel } from '../../data/common/compass.js';
 import { rogBonusQTY } from '../w7/sushi.js';
+import { talent } from '../common/talent.js';
 import { STAMP_DATA } from '../../data/w1/stamp.js';
 import { ITEMS } from '../../data/game/items.js';
 
@@ -36,7 +37,7 @@ function isExalted(cat, idx, saveData) {
   return exaltedArr.indexOf(key) !== -1;
 }
 
-function computeStampDoublerSources(saveData) {
+function computeStampDoublerSources(saveData, charIdx) {
 
   // Source 1: AtomBonuses(12) = Atoms[12] × perLv(1)
   var atom12 = Number(saveData.atomsData && saveData.atomsData[12]) || 0;
@@ -49,7 +50,7 @@ function computeStampDoublerSources(saveData) {
   var compass76 = compassLv * compassUpgPerLevel(76);
 
   // Source 4: GetSetBonus("EMPEROR_SET", "Bonus")
-  var emperorSet = getSetBonus('EMPEROR_SET');
+  var emperorSet = Number(getSetBonus('EMPEROR_SET', charIdx));
 
   // Source 5: 20 × EventShopOwned(18)
   var evShop18 = 20 * eventShopOwned(18, saveData.cachedEventShopStr);
@@ -120,7 +121,7 @@ export var stamp = {
     var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
 
     var exalted = isExalted(data.cat, data.idx, ctx.saveData);
-    var doublerInfo = computeStampDoublerSources(ctx.saveData);
+    var doublerInfo = computeStampDoublerSources(ctx.saveData, ctx.charIdx);
     var exaltedMulti = exalted ? 1 + doublerInfo.total / 100 : 1;
     var val = baseVal * exaltedMulti;
 
@@ -193,7 +194,7 @@ function buildStampTypeMap() {
   return _stampTypeCache;
 }
 
-export function computeStampBonusOfTypeX(typeKey, saveData) {
+export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
   var map = buildStampTypeMap();
   var stamps = map[typeKey];
   if (!stamps) return treeResult(0, null);
@@ -212,7 +213,7 @@ export function computeStampBonusOfTypeX(typeKey, saveData) {
     var noteStr = 'lv=' + lv;
     if (isExalted(st.cat, st.idx, saveData)) {
       if (doublerTotal === null) {
-        var _d = computeStampDoublerSources(saveData);
+        var _d = computeStampDoublerSources(saveData, charIdx);
         doublerTotal = (typeof _d === 'object' && _d) ? (_d.total || 0) : (Number(_d) || 0);
       }
       val *= 1 + doublerTotal / 100;
@@ -228,6 +229,10 @@ export function computeStampBonusOfTypeX(typeKey, saveData) {
   if (typeKey === 'BaseDmg' || typeKey === 'BaseHP' || typeKey === 'BaseAcc' || typeKey === 'BaseDef') {
     var vault16 = vaultUpgBonus(16, saveData);
     if (vault16 > 0) total *= 1 + vault16 / 100;
+  }
+  if (typeKey === 'BaseAllEff') {
+    var stampTalent625 = talent.resolve(625, { charIdx: charIdx == null ? 0 : charIdx, saveData: saveData }).val;
+    total *= Math.max(Number(stampTalent625) || 0, 1);
   }
   return treeResult(total, children);
 }

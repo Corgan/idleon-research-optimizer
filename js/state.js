@@ -44,6 +44,8 @@ export const saveData = {
   charNames: [],
   ribbonData: [],
   mealsData: [],
+  farmPlotData: [],
+  farmCropData: {},
   farmCropCount: 0,
   grimoireData: [],
   vaultData: [],
@@ -66,11 +68,14 @@ export const saveData = {
   labJewelConnected: [],
   labMainBonusFull: [],
   companionIds: new Set(),
+  companionDataAvailable: false,
   extBonusOverrides: {},
   serverVarResXP: 1.01,
   serverVarMineHP: 1,
   serverVarMineCost: 1,
   activeVoteIdx: -1,
+  activeVoteDataAvailable: false,
+  timeAwayData: {},
   starSignsUnlocked: {},
   cachedEventShopStr: '',
   cachedResearchExp: 0,
@@ -121,6 +126,7 @@ export const saveData = {
   minigameHiscores: [],
   chestOrderData: [],
   chestQuantityData: [],
+  greenStacksData: [],
   krBestData: {},
   divinityAllData: [],
   labChipData: [],
@@ -205,6 +211,7 @@ export function restoreState(s) {
   if (!saveData.summonData) saveData.summonData = [];
   if (!saveData.atomsData) saveData.atomsData = [];
   if (!saveData.arcaneData) saveData.arcaneData = [];
+  if (!saveData.timeAwayData) saveData.timeAwayData = {};
   if (!saveData.starSignsUnlocked) saveData.starSignsUnlocked = {};
   if (!saveData.gemItemsData) saveData.gemItemsData = [];
   if (!saveData.achieveRegData) saveData.achieveRegData = [];
@@ -217,6 +224,8 @@ export function restoreState(s) {
   if (!saveData.labBonusConnected) saveData.labBonusConnected = [];
   if (!saveData.labJewelConnected) saveData.labJewelConnected = [];
   if (!saveData.labMainBonusFull) saveData.labMainBonusFull = [];
+  if (saveData.companionDataAvailable == null) saveData.companionDataAvailable = false;
+  if (saveData.activeVoteDataAvailable == null) saveData.activeVoteDataAvailable = false;
   if (!saveData.extBonusOverrides) saveData.extBonusOverrides = {};
   if (!saveData.cachedEventShopStr) saveData.cachedEventShopStr = '';
 }

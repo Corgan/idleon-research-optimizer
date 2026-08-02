@@ -41,12 +41,14 @@ import { shrine, computeSaltLick } from '../systems/w3/construction.js';
 import { computeArtifactBonus } from '../systems/w5/sailing.js';
 import { computeShinyBonusS } from '../systems/w4/breeding.js';
 import { computeMSABonus } from '../systems/w4/gaming.js';
-import { computeCropSC, computeExoticBonus, computeStickerBonus } from '../systems/w6/farming.js';
+import { computeCropSC, computeExoticBonus, computeStickerDmgMulti } from '../systems/w6/farming.js';
 import { computeAllShimmerBonuses } from '../systems/w3/equinox.js';
 import { AtomInfo } from '../data/game/customlists.js';
 import { superBitType } from '../../game-helpers.js';
 import { computeCompassBonus } from '../systems/w7/compass.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
+import { totalDmgBonus as computeCglunkoTotalDmg } from '../systems/w5/cglunko.js';
+import { bonTOT as fountainBonTOT } from '../systems/w5/fountain.js';
 import { achieveStatus } from '../systems/common/achievement.js';
 import { computeCardSetBonus, computeCardLv } from '../systems/common/cards.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
@@ -55,28 +57,35 @@ import { computePaletteBonus } from '../systems/w7/spelunking.js';
 import { tome } from '../systems/w4/tome.js';
 import { mineheadBonusQTY } from '../systems/w7/minehead.js';
 import { ITEMS } from '../data/game/items.js';
-import { equipOrderData, equipQtyData, emmData, obolNamesData, obolMapsData, obolFamilyNames, obolFamilyMaps } from '../../save/data.js';
+import { equipOrderData, equipQtyData, inventoryOrderData, emmData, obolNamesData, obolMapsData, obolFamilyNames, obolFamilyMaps } from '../../save/data.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
+import { isDungeonMap } from '../systems/w2/dungeon.js';
 import { computeCalcTalent } from '../systems/common/calcTalent.js';
 import { guild } from '../systems/common/guild.js';
-import { safe, rval, createDescriptor } from './helpers.js';
+import { safe, rval, getBuffBonus, createDescriptor } from './helpers.js';
 
 // computeStatueBonusGiven is now in systems/common/stats.js
 
 export default createDescriptor({
   id: 'damage',
   name: 'Damage (Normal)',
-  scope: 'character',
+  scope: 'character+map',
   category: 'stat',
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;
     if (!s) return { val: 0, children: null };
     var ci = ctx.charIdx || 0;
+    if (isDungeonMap(ctx.mapIdx)) return {
+      val: 0,
+      children: null,
+      unavailable: true,
+      reason: 'Current-run Dungeon damage and Mastery are not stored in save JSON.',
+    };
 
     // === MASTERY (min damage ratio) ===
     // Math.min(0.8, 0.35 - talent(2,113)/100 + (Mastery_bubble + CardBonus(21) + talent(1,123) + EtcBonuses("21"))/100)
-    var talent113 = rval(talent, 113, ctx); // GetTalentNumber(2, 113) — negative effect
+    var talent113 = rval(talent, 113, ctx, { tab: 2 });
     var masteryBubble = safe(bubbleValByKey, 'Mastery', ci, s);
     var _cb21 = safe(computeCardBonusByType, 21, ci, s);
     var card21 = (typeof _cb21 === 'object' && _cb21) ? (_cb21.val || 0) : Number(_cb21) || 0;
@@ -113,8 +122,7 @@ export default createDescriptor({
     // Then add food bonuses (BaseDmgBoosts equipped food items)
     // Then LIST[1] = pct multiplier from stat^.7 + vaults + stamps + statues + talents + etc
 
-    // Simplified computation (getting the broad structure right)
-    // Compute Weapon_Power inline since computeTotalStat doesn't support it
+    // Compute Weapon_Power inline since computeTotalStat doesn't support it.
     var wpRaw = 0;
     try {
       // Equipment WP: sum all gear items' base + affix WP
@@ -191,7 +199,7 @@ export default createDescriptor({
       var _sigil17 = (function(){ var v=rval(sigil, 17, ctx); return v; })();
       // Pct scaling on equip WP: (1 + (chipWP + bubW1 + bubA1 + bubM1)/100)
       // Game zeros class-mismatched bubbles: warrior→W1 only, archer→A1 only, mage→M1 only
-      var _chipWP = safe(computeChipBonus, 'weppow');
+      var _chipWP = safe(computeChipBonus, 'weppow', ci);
       var _bubW1 = safe(bubbleValByKey, 'W1', ci, s);
       var _bubA1 = safe(bubbleValByKey, 'A1', ci, s);
       var _bubM1 = safe(bubbleValByKey, 'M1', ci, s);
@@ -379,6 +387,8 @@ export default createDescriptor({
       var mpList1 = (1 + (_mpT452 + _mpT272) / 100) * (1 + (_mpBoxPctVal + _mpCard29) / 100);
       mpMax = Math.max(1, mpList0 * mpList1);
     } catch(e) {}
+    try { hpMax = ctx.resolve('max-hp').val; } catch(e) {}
+    try { mpMax = ctx.resolve('max-mp').val; } catch(e) {}
     var bubbleHP = bdmgHP * getLOG(Math.max(hpMax - 250, 1));
     var bubbleMP = bdmgMP * getLOG(Math.max(mpMax - 150, 1));
     // PlayerSpeedBonus: game formula computes movement speed
@@ -433,7 +443,7 @@ export default createDescriptor({
       // Caps (skip dungeon mode: always false for save-based calc)
       if (playerSpeed <= 2) {
         var _saltLick7 = safe(computeSaltLick, 7, s);
-        var _chipMove = safe(computeChipBonus, 'move');
+        var _chipMove = safe(computeChipBonus, 'move', ci);
         var _spdT641 = rval(talent, 641, ctx);
         var _sigil13 = rval(sigil, 13, ctx);
         if (playerSpeed > 1.75) {
@@ -445,6 +455,7 @@ export default createDescriptor({
       playerSpeed = Math.floor(100 * playerSpeed) / 100;
     } catch(e) {}
     // bdmgSPD * (Log2(max(speed - 0.1, 0)) / 0.25)
+    try { playerSpeed = ctx.resolve('movement-speed').val; } catch(e) {}
     var bubbleSPD = bdmgSPD * (Math.log2(Math.max(playerSpeed - 0.1, 0)) / 0.25);
     baseDmgRaw += stampBaseDmg + owlBonus1 + sigil4 + bubbleHP + bubbleMP + bubbleSPD;
 
@@ -660,6 +671,8 @@ export default createDescriptor({
     // SummUpgBonus(79): Summon[0][79] * SummonUPG[79][6] * gilded multiplier
     var vaultUpg79 = safe(computeSummUpgBonus, 79, s);
     ddl2 *= (1 + vaultUpg79 / 100);
+    var cglunkoDmg = safe(computeCglunkoTotalDmg, s);
+    ddl2 *= (1 + cglunkoDmg / 100);
     _ddl2Steps.push(['Individual Multipliers', ddl2]);
 
     // Buff+Friend+StarSigns+Divinity
@@ -674,14 +687,14 @@ export default createDescriptor({
     var charLvl = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][0]) || 0;
     var talent50 = rval(talent, 50, ctx, { mode: 'max', tab: 1 });
     var lvlBonus = Math.floor(Math.max(0, charLvl - 200) / 50) * talent50;
-    // GetBuffBonuses(108,2) — buff bonus, approximated as 0 (runtime state)
-    var _grp1Sum = friendDmg + starSignPctDmg + divLvBonus + lvlBonus;
+    var buff108 = getBuffBonus(108, 2, ci, ctx);
+    var _grp1Sum = buff108 + friendDmg + starSignPctDmg + divLvBonus + lvlBonus;
     ddl2 *= (1 + _grp1Sum / 100);
     _ddl2Steps.push(['Friends, Star Signs & Divinity', _grp1Sum, ddl2]);
 
     // Grimoire+Set+Shrine+Monument+Box+Art+Atom+Shiny+MSA+Shimmer+Crop+Vault41
     var grimoireUpg35 = safe(grimoireUpgBonus, 35, GrimoireUpg, s);
-    var lustreSet = safe(getSetBonus, 'LUSTRE_SET');
+    var lustreSet = safe(getSetBonus, 'LUSTRE_SET', ci);
     var shrine0 = rval(shrine, 0, ctx);
     // MonumentROGbonuses(0, 6)
     var monument06 = safe(computeMonumentROGbonus, 0, 6, s);
@@ -806,8 +819,8 @@ export default createDescriptor({
     // PetArena + Chips + Meal + Achievements + Divinity bless
     var petArena2 = safe(computePetArenaBonus, 2);
     var petArena15 = safe(computePetArenaBonus, 15);
-    var chipDmg = safe(computeChipBonus, 'dmg');
-    var mealTotDmg = safe(computeMealBonus, 'TotDmg', s);
+    var chipDmg = safe(computeChipBonus, 'dmg', ci);
+    var mealTotDmg = safe(computeMealBonus, 'TotDmg', s, ci);
     var achSum = 2 * safe(achieveStatus, 58, s) + 3 * safe(achieveStatus, 59, s)
       + 5 * safe(achieveStatus, 60, s) + 5 * safe(achieveStatus, 62, s)
       + 2 * safe(achieveStatus, 119, s) + 3 * safe(achieveStatus, 120, s)
@@ -827,8 +840,9 @@ export default createDescriptor({
     var talent24 = rval(talent, 24, ctx);
     var prayer6penalty = safe(computePrayerReal, 6, 1, ci, s);
     var prayer13penalty = safe(computePrayerReal, 13, 1, ci, s);
+    var buff124 = getBuffBonus(124, 2, ci, ctx);
     var penaltyMult = Math.max(
-      (1 - talent24 / 100) * 1 * Math.max(0.01, 1 - (prayer6penalty + prayer13penalty) / 100),
+      (1 - talent24 / 100) * (1 - buff124 / 100) * Math.max(0.01, 1 - (prayer6penalty + prayer13penalty) / 100),
       0.05
     );
     ddl2 *= penaltyMult;
@@ -874,13 +888,19 @@ export default createDescriptor({
     var etc75 = rval(etcBonus, '75', ctx);
     var etc104 = rval(etcBonus, '104', ctx);
     var votingDmg = safe(votingBonusz, 1, 1, s);
+    var fountainDmg = fountainBonTOT(
+      s.holesData && s.holesData[31] || [],
+      s.holesData && s.holesData[32] || [],
+      1,
+      16
+    );
     var rogBonus49 = safe(rogBonusQTY, 49, s.cachedUniqueSushi || 0);
     var superBit64 = safe(superBitType, 64, s.gamingData && s.gamingData[12]);
     var ola232 = Number(optionsListData[232]) || 0;
     var ola232Bonus = 10 * Math.floor((96 + ola232) / 100);
     var _cb96 = safe(computeCardBonusByType, 96, ci, s);
     var card96 = (typeof _cb96 === 'object' && _cb96) ? (_cb96.val || 0) : Number(_cb96) || 0;
-    var stickerDmg = safe(computeStickerBonus, 0, s);
+    var stickerDmg = safe(computeStickerDmgMulti, s);
     if (stickerDmg < 1) stickerDmg = 1;
     var tomeBonus6 = 0;
     try { tomeBonus6 = tome.resolve(6, ctx).val || 0; } catch(e) {}
@@ -888,7 +908,7 @@ export default createDescriptor({
     var ach384 = safe(achieveStatus, 384, s);
 
     ddl2 *= (1 + etc72 / 100) * (1 + etc75 / 100) * (1 + etc104 / 100)
-      * (1 + votingDmg / 100) * (1 + rogBonus49 / 100)
+      * (1 + votingDmg / 100) * (1 + fountainDmg / 100) * (1 + rogBonus49 / 100)
       * (1 + 0.1 * superBit64)
       * (1 + ola232Bonus / 100)
       * (1 + card96 / 100)
@@ -900,11 +920,12 @@ export default createDescriptor({
     var comp12 = rval(companion, 12, ctx);
     var comp33 = rval(companion, 33, ctx);
     var comp160 = rval(companion, 160, ctx);
-    var compMult = Math.max(1, (1 + comp12) * (1 + comp33) * (1 + 2 * comp160));
+    var comp168 = rval(companion, 168, ctx);
+    var compMult = Math.max(1, (1 + comp12) * (1 + comp33) * (1 + 2 * comp160) * (1 + 0.5 * comp168));
     var _crystal6 = safe(computeCardLv, 'Crystal6', s);
     var crystal6Lv = (typeof _crystal6 === 'object' && _crystal6) ? (_crystal6.val || 0) : Number(_crystal6) || 0;
     var crystal6Bonus = Math.min(1.5 * crystal6Lv, 15);
-    var meritoc5 = safe(computeMeritocBonusz, 5, s);
+    var meritoc5 = safe(computeMeritocBonusz, 5, s, ci);
     ddl2 *= compMult * (1 + crystal6Bonus / 100) * (1 + meritoc5 / 100);
 
     // Bundle bonus
@@ -921,11 +942,10 @@ export default createDescriptor({
     } catch(e) {}
     ddl2 *= (1 + famBonus80 / 100);
 
-    // Reliquarium: if in possession, DDL[2] = pow(DDL[2], 4 / (5 + OLA[473]))
-    try {
-      var _reliq = friend.resolve && friend.resolve(-1, ctx);
-      // Skip reliquarium — needs Thingies("ReliquariumInPosession")
-    } catch(e) {}
+    var reliquariumOwned = (inventoryOrderData[ci] || []).indexOf('Quest105') !== -1;
+    if (reliquariumOwned) {
+      ddl2 = Math.pow(ddl2, 4 / (5 + (Number(optionsListData[473]) || 0)));
+    }
 
     // === Final: MaxDmg = DDL[0] * DDL[1] * DDL[2] ===
     var maxDmg = baseDmgRaw * pctMult * ddl2;
@@ -981,14 +1001,27 @@ export default createDescriptor({
       _debug: { preSoftcap: _ddl2PreSoftcap, postSoftcap: _ddl2PostSoftcap, final: ddl2,
                 penaltyMult: penaltyMult, compMult: compMult,
                 etc72: etc72, etc75: etc75, etc104: etc104, votingDmg: votingDmg,
-                comp12: comp12, comp33: comp33, comp160: comp160,
+                comp12: comp12, comp33: comp33, comp160: comp160, comp168: comp168,
+                cglunkoDmg: cglunkoDmg, buff108: buff108, buff124: buff124,
+                fountainDmg: fountainDmg, stickerDmg: stickerDmg,
                 ola232: ola232, ola232Bonus: ola232Bonus, card96: card96,
                 ach371: ach371, ach384: ach384, rog49: rogBonus49, superBit64: superBit64,
                 tomeBonus6: tomeBonus6, crystal6Bonus: crystal6Lv,
                 meritoc5: meritoc5, famBonus80: famBonus80,
+                reliquariumOwned: reliquariumOwned,
                 bundleApplied: !!(s.bundlesData && s.bundlesData.bon_a == 1),
                 steps: _ddl2Steps } });
 
-    return { val: val, children: children };
+    var missingMetadata = [];
+    if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   }
 });

@@ -7,8 +7,9 @@ import { label, entityName } from '../../entity-names.js';
 import { emmData, equipOrderData } from '../../../save/data.js';
 import { gbWith } from '../../../sim-math.js';
 import { SHAPE_BONUS_PCT } from '../../../game-data.js';
-import { ETC_STAT_NAMES, itemUqMatch } from '../../data/common/equipment.js';
+import { ETC_STAT_NAMES, itemUqSlot } from '../../data/common/equipment.js';
 import { charHasChip } from '../w4/lab.js';
+import { galleryBonusSystemOn, premHatBonusSystemOn } from '../w7/gallery.js';
 
 function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots, chipDoubles) {
   var data = emm[row] || {};
@@ -21,24 +22,14 @@ function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots, chi
     var sd = data[slot] || data[String(slot)];
     var val = 0;
     var itemName = eqRow[slot] || eqRow[String(slot)] || '';
-    var builtIn = itemUqMatch(itemName, statNames);
-    // EMm random-roll UQ stats (when EMm has explicit txt)
-    if (sd) {
-      for (var si = 0; si < statNames.length; si++) {
-        var statName = statNames[si];
-        if (sd.UQ1txt === statName) val += Number(sd.UQ1val) || 0;
-        if (sd.UQ2txt === statName) val += Number(sd.UQ2val) || 0;
-      }
-    }
-    // Built-in UQ stats from item definitions
-    if (builtIn) {
-      val += builtIn.val;
-      // Also add EMm stone upgrade for same UQ slot (val without txt).
-      // Game: value = itemDef.UQx_val + EMm.UQx_val
-      var uqTxtKey = 'UQ' + builtIn.uq + 'txt';
-      var uqValKey = 'UQ' + builtIn.uq + 'val';
-      if (sd && !sd[uqTxtKey] && (Number(sd[uqValKey]) || 0) > 0) {
-        val += Number(sd[uqValKey]);
+    for (var uq = 1; uq <= 2; uq++) {
+      var builtIn = itemUqSlot(itemName, uq);
+      var builtInStat = builtIn && builtIn.stat;
+      var hasBuiltIn = builtInStat && builtInStat !== '0' && builtInStat !== 'Blank';
+      var savedVal = Number(sd && sd['UQ' + uq + 'val']) || 0;
+      var effectiveStat = hasBuiltIn ? builtInStat : (savedVal > 0 ? sd && sd['UQ' + uq + 'txt'] : null);
+      if (statNames.indexOf(effectiveStat) !== -1) {
+        val += (hasBuiltIn ? builtIn.val : 0) + savedVal;
       }
     }
     if (val <= 0) continue;
@@ -73,10 +64,8 @@ export var equipment = {
     // Game skips gallery/premhat-managed slots in equipment scan.
     // Gallery ON: skip slot 10 (trophy), 14 (nametag) — they use Gallery resolvers
     // PremHat ON: skip slot 8 (head) — uses Hatrack resolver
-    // Detect via spelunkData: [16]=trophies, [17]=nametags, [46]=premhats
-    var sp = saveData.spelunkData || [];
-    var galleryOn = (sp[16] && sp[16].length > 0) || (sp[17] && sp[17].length > 0);
-    var premhatOn = sp[46] && sp[46].length > 0;
+    var galleryOn = galleryBonusSystemOn(ctx.charIdx);
+    var premhatOn = premHatBonusSystemOn(ctx.charIdx);
     var skipSlots = null;
     if (galleryOn || premhatOn) {
       skipSlots = {};
