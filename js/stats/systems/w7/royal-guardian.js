@@ -144,15 +144,28 @@ function _formatDollar(value) {
 	if (Number.isInteger(value)) return String(value);
 	return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
+function _kingdomSovereigntyNextUnit(S) {
+	const level = Math.max(0, Math.floor(armoryLevel(S, 68)));
+	if (level >= 36) return "None. You've recruited them all!";
+	const types = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2];
+	const worlds = [1, 2, 1, 2, 1, 2, 3, 1, 2, 3, 1, 2, 3, 3, 4, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 4, 4, 4];
+	return `${['Commander', 'Knight', 'Priest'][types[level]]} for World ${worlds[level]}`;
+}
+function _outpostROGBonus(S, type) {
+	const selected = Math.floor(n(royalG(S, 3, 2)));
+	if (selected !== type || type < 0 || type > 3) return 1;
+	const progress = Math.max(1, TotalStatz(S)[4] - 6);
+	return 1 + progress / (40 + progress) * [10, 2, 1, 4][type];
+}
 function _replaceMarkers(template, value, dollar) {
 	return _sourceText(template)
 		.replace(/\+?\{%/g, `+${n(value)}%`)
 		.replace(/\{px/g, `${n(value)}px`)
 		.replace(/\}x/g, `${(1 + n(value) / 100).toFixed(2)}x`)
-		.replace(/\{/g, `+${n(value)}`)
+		.replace(/\{/g, `${n(value)}`)
 		.replace(/\}/g, `${(1 + n(value) / 100).toFixed(2)}x`)
-		.replace(/\$/g, dollar == null ? 'Source value unavailable' : _formatDollar(dollar).replace(/\+/g, ''))
-		.replace(/@/g, '').replace(/\+\s*\+/g, '+').replace(/\s+/g, ' ').trim();
+		.replace(/\$/g, dollar == null ? 'Source value unavailable' : typeof dollar === 'number' ? _formatDollar(dollar).replace(/\+/g, '') : String(dollar))
+		.replace(/@/g, '').replace(/\+\s*\+/g, '+').replace(/([.!?])(?=[A-Z])/g, '$1 ').replace(/:(?=\+)/g, ': ').replace(/\s+/g, ' ').trim();
 }
 function _etcBonusValue(S, id) {
 	const character = royalGuardianCharacter(S);
@@ -185,11 +198,16 @@ function _armoryDollarValue(S, index, value = armoryBonus(S, index)) {
 	if (index === 39) return value;
 	if (index === 40) return Math.min(75, value);
 	if (index === 41) return 1 / marbleDropChance(S, 0, value);
-	if (index === 42) return supportCollection(S);
+	if (index === 42) { const multiplier = 1 + supportCollection(S) / 100; return `${_formatDollar(multiplier)}x EXP & ${_formatDollar(multiplier)}x Collection Rate!`; }
 	if (index === 44) return savageCollection(S);
-	if ([50, 51, 52, 53].includes(index)) return TotalStatz(S)[index - 50] * value;
+	if (index === 50) return TotalStatz(S)[1] * value;
+	if (index === 51) return TotalStatz(S)[2] * value;
+	if (index === 52) return Math.floor(Math.max(0, royalGuardianDerivedInputs(S).charLevel - 1000) / 100) * value;
+	if (index === 53) return TotalStatz(S)[3] * value;
 	if ([60, 61, 62, 63, 64, 65, 66, 67].includes(index)) return unitSpecEffect(S, 4);
-	if (index === 71) return armoryBonus(S, 71) >= 1 ? `every ${Math.max(1, 11 - armoryLevel(S, 71))} ranks` : 'Source value unavailable';
+	if (index === 68) return _kingdomSovereigntyNextUnit(S);
+	if (index === 71) return armoryLevel(S, 71) >= 1 ? ` You now get +1 additional PTS every ${Math.max(1, 11 - armoryLevel(S, 71))} Ranks` : '';
+	if (index === 79) { const type = Math.max(0, Math.min(3, Math.floor(n(royalG(S, 3, 2))))); return `${_formatDollar(_outpostROGBonus(S, type))}x ${['Construction Build Rate', 'Research EXP Gain', 'Spelunking Stamina Regen', 'Minehead Currency Gain'][type]}`; }
 	return null;
 }
 export function armoryDescription(S, index, value = armoryBonus(S, index)) { return _replaceMarkers(ARMORY_UPGRADES[index]?.description, value, _armoryDollarValue(S, index, value)); }
@@ -383,7 +401,7 @@ export function resourceCurrency(index) { return ROYAL_RESOURCES[index]?.currenc
 export function TotalStatz(S) {
 	const grades = arr(S, 5).reduce((sum, value) => sum + n(value), 0);
 	const levels = (S?.royalMapsData || []).reduce((sum, value, mapIdx) => sum + (outpostBuilt(S, mapIdx) ? n(value[0]) + n(value[1]) + n(value[2]) : 0), 0);
-	const purified = (S?.royalMapsData || []).reduce((sum, value, mapIdx) => sum + (outpostBuilt(S, mapIdx) && n(value[12]) > 0 ? 1 : 0), 0);
+	const purified = (S?.royalMapsData || []).reduce((sum, value, mapIdx) => sum + (outpostBuilt(S, mapIdx) && outpostRank(S, mapIdx, 4) >= 1 ? 1 : 0), 0);
 	const logCurrencies = Array.from({ length: 8 }, (_, index) => getLOG(royalG(S, 1, 10 * index))).reduce((sum, value) => sum + value, 0);
 	const outposts = (S?.royalMapsData || []).filter((_, mapIdx) => outpostBuilt(S, mapIdx)).length;
 	return [grades, levels, purified, logCurrencies, outposts];
