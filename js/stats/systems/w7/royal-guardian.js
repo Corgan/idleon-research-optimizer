@@ -454,18 +454,18 @@ export function supportCollection(S) { return 200 * (1 + armoryBonus(S, 43) / 10
 export function savageCollection(S) { return 5 * (1 + armoryBonus(S, 69) / 100); }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
 export function barExpRateBase(S, bar, ext) { const derived = royalGuardianDerivedInputs(S); ext = ext || {}; let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
-// Source passes the bar index to isMapPurified(t) here, independently of the
-// target map's own 2x purified register. Preserve that dispatcher behavior.
-export function barExpRate(S, bar, mapIdx, ext) { const purifiedMap = outpostPurification(S, mapIdx) >= 1; const purifiedBarIndexMap = outpostPurification(S, bar) >= 1; return barExpRateBase(S, bar, ext) * (purifiedMap ? 2 : 1) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
+// BarExpRate writes an own-map purification value into rBarXPdn, then
+// BarExpRate_Base immediately resets that cache before it is read. Preserve
+// the effective source result, including its separate isMapPurified(bar) call.
+export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
 function _rankAssignmentCount(S, mapIdx, bar) { const assignmentType = Math.floor(n(bar)) + 3; return militiaAssignments(S).filter(assignment => assignment.type === assignmentType && assignment.mapIdx === Number(mapIdx)).length; }
+export function outpostRankContributorCount(S, mapIdx, bar) { const index = Math.floor(n(bar)); return index === 0 ? totalUnitsByType(S, mapIdx)[1] : index === 1 ? totalUnitsByType(S, mapIdx)[3] : index >= 2 && index <= 4 ? _rankAssignmentCount(S, mapIdx, index) : 0; }
 function _highestOutpostRankBar(S, mapIdx) { let highestBar = 0; for (let bar = 1; bar < 5; bar++) if (outpostRank(S, mapIdx, bar) > outpostRank(S, mapIdx, highestBar)) highestBar = bar; return highestBar; }
 export function outpostRankExpPerHour(S, mapIdx, bar, ext) {
 	const index = Math.floor(n(bar));
 	if (!outpostBuilt(S, mapIdx) || !outpostUnlockedBars(S)[index]) return 0;
 	let value = 0;
-	if (index === 0) value += barExpRate(S, index, mapIdx, ext) * totalUnitsByType(S, mapIdx)[1];
-	else if (index === 1) value += barExpRate(S, index, mapIdx, ext) * totalUnitsByType(S, mapIdx)[3];
-	else value += barExpRate(S, index, mapIdx, ext) * _rankAssignmentCount(S, mapIdx, index);
+	value += barExpRate(S, index, mapIdx, ext) * outpostRankContributorCount(S, mapIdx, index);
 	if (armoryLevel(S, 17) >= 1 && index === _highestOutpostRankBar(S, mapIdx)) value += barExpRate(S, 3, mapIdx, ext) * militiaAssignmentCount(S, mapIdx) / 2;
 	return value;
 }
@@ -535,6 +535,12 @@ export function militiaAssignments(S, worldIdx) {
 		}
 	}
 	return assignments;
+}
+export function transientUnitName(type) { return ['Militia', 'Commander', 'Knight', 'Priest'][Math.floor(n(type)) - 4] || `Assignment ${Math.floor(n(type))}`; }
+export function outpostTransientAssignments(S, mapIdx) {
+	const target = Number(mapIdx); const grouped = new Map();
+	for (const assignment of militiaAssignments(S)) if (assignment.mapIdx === target && assignment.type >= 4 && assignment.type <= 7) grouped.set(assignment.type, (grouped.get(assignment.type) || 0) + 1);
+	return [...grouped].sort((a, b) => a[0] - b[0]).map(([type, count]) => ({ type, name: transientUnitName(type), count }));
 }
 export function militiaAssignmentCount(S, mapIdx) { const target = Number(mapIdx); return militiaAssignments(S).filter(assignment => assignment.type === 4 && assignment.mapIdx === target).length; }
 export function militiaClearRate(S, mapIdx, ext) { return militiaAssignmentCount(S, mapIdx) * unitSpecEffect(S, 4, ext); }
