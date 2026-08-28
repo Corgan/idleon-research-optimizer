@@ -264,6 +264,11 @@ export function armoryLevel(S, index) { return royalG(S, 2, index); }
 export function armoryBonus(S, index) { return armoryLevel(S, index) * (ARMORY_UPGRADES[index]?.bonusPerLevel || 0); }
 export function armoryTotalLevels(S) { return arr(S, 2).reduce((sum, value) => sum + n(value), 0); }
 export function armoryUnlockOrder() { return ARMORY_ORDER.slice(); }
+export function armoryUnlockedCount(S) {
+	const total = armoryTotalLevels(S);
+	const unlocked = ARMORY_UPGRADES.reduce((count, upgrade) => count + (total >= n(upgrade.researchOrder) ? 1 : 0), 0);
+	return Math.round(Math.min(unlocked, ARMORY_ORDER.length));
+}
 export function allMasterclassCostReduxPrefix(S) {
 	const threshold = n(optionsListData?.[480]);
 	const legend = legendPTSbonus(23, S);

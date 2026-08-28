@@ -310,10 +310,10 @@
       }
       .royal-map-shell {
         display: grid;
-        grid-template-columns: 48px 600px 210px;
+        grid-template-columns: 48px 960px 210px;
         gap: 10px;
         width: 100%;
-        max-width: 900px;
+        max-width: 1240px;
         margin: 0 auto;
         align-items: start;
       }
@@ -329,15 +329,15 @@
       }
       .royal-map {
         position: relative;
-        width: 600px;
-        min-width: 600px;
-        max-width: 600px;
+        width: 960px;
+        min-width: 960px;
+        max-width: 960px;
         aspect-ratio: 811 / 433;
         overflow: hidden;
         background: #0b1428 center / cover no-repeat;
       }
       .royal-map-counters {
-        height: 320px;
+        height: 513px;
         min-width: 0;
         overflow: hidden;
         padding: 8px;
@@ -435,15 +435,15 @@
       .royal-map-outpost:not(.built) .royal-map-node-glyph { inset: 0; }
       .royal-map-outpost.built .royal-map-node-glyph { left: 28.571%; top: 0; width: 41.071%; height: 90%; }
       .royal-map-outpost-glyph { left: 0; top: 10%; width: 100%; height: 85%; }
-      .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 7px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
+      .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 11.2px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
       .royal-map-assignments .royal-map-glyph { filter: drop-shadow(0 1px 1px rgba(3, 8, 18, .95)) drop-shadow(0 0 3px rgba(3, 8, 18, .85)); }
       .royal-map-node-glyph { z-index: 2; }
       .royal-map-outpost-glyph { z-index: 3; }
-      .royal-worker-icon { position: relative; width: 18px; height: 27px; flex: 0 0 auto; }
-      .royal-worker-icon .worker-profession { left: 2px; top: 0; width: 13px; height: 18px; }
-      .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
-      .royal-worker-icon .militia-profession { left: 3px; top: 2px; width: 12px; height: 13px; }
-      .assignment-count { position: absolute; right: -2px; top: -3px; min-width: 12px; padding: 0 3px; border-radius: 6px; background: #111827; color: var(--gold); font-size: 8px; line-height: 11px; text-align: center; }
+      .royal-worker-icon { position: relative; width: 28.8px; height: 43.2px; flex: 0 0 auto; }
+      .royal-worker-icon .worker-profession { left: 3.2px; top: 0; width: 20.8px; height: 28.8px; }
+      .royal-worker-icon .worker-shadow { left: 3.2px; top: 27.2px; width: 22.4px; height: 8px; }
+      .royal-worker-icon .militia-profession { left: 4.8px; top: 3.2px; width: 19.2px; height: 20.8px; }
+      .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
       .currency-inline { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
       .royal-resource-icon { position: relative; display: inline-block; width: 28px; height: 28px; flex: 0 0 28px; vertical-align: middle; }
       .royal-resource-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -487,6 +487,11 @@
       .royal-map.range-finder-active .range-match { z-index: 4; opacity: 1; filter: drop-shadow(0 0 5px var(--gold)); }
       .royal-range-status { min-width: 150px; color: var(--cyan); }
       .royal-map-node.selected { z-index: 2; filter: drop-shadow(0 0 3px var(--gold)); outline: 2px solid var(--gold); outline-offset: 2px; }
+      .upgrade-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+      .upgrade-heading h2 { margin-bottom: 0; }
+      .upgrade-spoiler-toggle { padding: 4px 10px; border-radius: 999px; font-size: .82em; }
+      .upgrade-spoiler-toggle[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+      .upgrade-spoiler-hidden { color: var(--text2); font-style: italic; }
       .row-head {
         display: flex;
         justify-content: space-between;
@@ -633,6 +638,12 @@
       .bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
       .bt-tooltip { position: fixed; display: none; z-index: 10; max-width: 320px; padding: 8px; background: #101b35; color: var(--text); border: 1px solid #4a607e; border-radius: 4px; font-size: .8em; }
+      @media (max-width: 1300px) {
+        .royal-map-shell { grid-template-columns: 48px minmax(0, 1fr); max-width: 100%; }
+        .royal-map-area { min-width: 0; }
+        .royal-map-scroll { overflow-x: auto; }
+        .royal-map-counters { grid-column: 2; width: 100%; height: auto; min-height: 150px; }
+      }
       @media (max-width: 700px) {
         .royal-map-shell { grid-template-columns: 36px minmax(0, 1fr); max-width: 100%; gap: 6px; }
         .royal-world-rail button { width: 36px; font-size: .78em; }
@@ -802,6 +813,7 @@
         breakdownOutpost: null,
         currencyTarget: 0,
         upgradeView: "armory",
+        spoilersVisible: false,
         flairCategory: "all",
         flairShowMaxed: false,
       };
@@ -848,6 +860,12 @@
       }
       function card(t, v, s = "") {
         return `<article class="card"><div class="card-title">${t}</div><div class="card-val">${v === null || v === undefined ? "Unavailable" : v}</div><div class="card-sub">${s}</div></article>`;
+      }
+      function spoilerToggle() {
+        return `<button type="button" class="upgrade-spoiler-toggle" data-toggle-spoilers aria-pressed="${session.spoilersVisible ? "true" : "false"}">Spoilers: ${session.spoilersVisible ? "Shown" : "Hidden"}</button>`;
+      }
+      function visibleWorlds(S) {
+        return worlds.filter(world => session.spoilersVisible || R.royalWorldUnlocked(S, world));
       }
       function currencyIcon(slot, labelText = "") {
         const value = Number(slot);
@@ -1107,6 +1125,7 @@
           const state = resourceState(x);
           const searchText = `resource ${x.resourceIdx + 1} ${resourceCurrencyLabel(x)}`.toLowerCase();
           return ROYAL_RESOURCES[x.resourceIdx]?.baseCapacity > 0 &&
+            (session.spoilersVisible || R.royalWorldUnlocked(S, R.resourceWorld(x.resourceIdx))) &&
             R.resourceWorld(x.resourceIdx) === session.worldIdx &&
             (session.resourceState === "all" || (session.resourceState === "active" ? x.remaining > 0 && x.rate > 0 : session.resourceState === "actionable" ? x.remaining > 0 && resourceActionable(S, x) : state === session.resourceState)) &&
             (session.resourceCurrency === "all" || x.currencySlot === Number(session.resourceCurrency)) &&
@@ -1175,7 +1194,7 @@
                   initializeCollectionBreakdowns();
       }
       function persistentMap(S) {
-        const q = R.worldOutpostRows(S, session.worldIdx);
+        const q = R.worldOutpostRows(S, session.worldIdx).filter(row => session.spoilersVisible || row.state !== "locked");
         return `<section class="section royal-map-section"><div class="royal-map-shell">${worldNav()}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
       }
       function syncResourceSelection(S) {
@@ -1216,11 +1235,12 @@
             rankTarget: { aggregate: true },
             armoryTarget: session.armoryTarget,
           }),
-          all = worlds.map((w) => R.worldOutpostRows(S, w)),
+          shownWorlds = visibleWorlds(S),
+          all = worlds.map((w) => R.worldOutpostRows(S, w).filter(row => session.spoilersVisible || row.state !== "locked")),
           a = nextActions(S, m),
           p = rows.filter((x) => x.purification > 0);
             const reset = resourceDetails(S);
-            return `<section class="section"><div class="card-grid cols-5">${card("Built outposts", rows.length)}${card("Worlds unlocked", worlds.filter((w) => R.royalWorldUnlocked(S, w)).length, "of 7")}${card("Resource output/hr", f(m.resourcesPerHour))}${card("Collectable before reset", resetValue(reset.collectableBeforeReset, reset.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(reset.nodesEmptyingByReset, reset.resetProjectionAvailable))}</div>${resetNote(reset.reset)}</section><section class="section"><h2>World progress</h2><div class="card-grid cols-4">${worlds
+            return `<section class="section"><div class="card-grid cols-5">${card("Built outposts", rows.length)}${card("Worlds unlocked", worlds.filter((w) => R.royalWorldUnlocked(S, w)).length, "of 7")}${card("Resource output/hr", f(m.resourcesPerHour))}${card("Collectable before reset", resetValue(reset.collectableBeforeReset, reset.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(reset.nodesEmptyingByReset, reset.resetProjectionAvailable))}</div>${resetNote(reset.reset)}</section><section class="section"><h2>World progress</h2><div class="card-grid cols-4">${shownWorlds
           .map((w) => {
             const q = all[w],
               locked = !R.royalWorldUnlocked(S, w);
@@ -1243,8 +1263,9 @@
         }</div></section>`;
       }
       function nextActions(S, m) {
-        const clearTargets = worlds.flatMap((w) => R.worldOutpostRows(S, w))
+        const clearTargets = visibleWorlds(S).flatMap((w) => R.worldOutpostRows(S, w))
           .filter((x) => !x.built)
+          .filter((x) => session.spoilersVisible || x.state !== "locked")
           .map((x) => ({ ...x, clear: R.outpostClearMetrics(S, x.mapIdx) })),
           q = clearTargets
             .filter((x) => x.clear.state === "clearing" && Number.isFinite(x.clear.etaHours) && x.clear.etaHours > 0)
@@ -1255,7 +1276,7 @@
             idx,
             o,
             c: R.armoryUpgradeCost(S, o),
-          })).find(
+          })).filter(x => session.spoilersVisible || x.o < R.armoryUnlockedCount(S)).find(
             (x) =>
               R.armoryLevel(S, x.idx) < n(ARMORY_UPGRADES[x.idx]?.maxLevel),
           ),
@@ -1269,7 +1290,7 @@
         ];
       }
       function worldNav() {
-        return `<nav class="royal-world-rail" role="tablist" aria-label="Outpost worlds">${worlds.map((w) => `<button role="tab" aria-selected="${session.worldIdx === w ? "true" : "false"}" tabindex="${session.worldIdx === w ? 0 : -1}" data-world-tab="${w}">W${w + 1}${R.royalWorldUnlocked(saveData, w) ? "" : " *"}</button>`).join("")}</nav>`;
+        return `<nav class="royal-world-rail" role="tablist" aria-label="Outpost worlds">${visibleWorlds(saveData).map((w) => `<button role="tab" aria-selected="${session.worldIdx === w ? "true" : "false"}" tabindex="${session.worldIdx === w ? 0 : -1}" data-world-tab="${w}">W${w + 1}${R.royalWorldUnlocked(saveData, w) ? "" : " *"}</button>`).join("")}</nav>`;
       }
       function mapPoint(x, y) {
         return `left:${((n(x) - 75) / 811) * 100}%;top:${((n(y) - 27) / 433) * 100}%`;
@@ -1331,12 +1352,12 @@
       function royalMap(S, q, m) {
         const resources = ROYAL_RESOURCES.filter((resource, index) => R.resourceWorld(index) === session.worldIdx && resource.currencySlot >= 0);
         const lines = q.filter(row => row.built).flatMap(row => R.outpostConnections(S, row.mapIdx).map(connection => mapLine(S, row.mapIdx, connection))).join("");
-        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button><span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
       }
       function outposts() {
         if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
         const S = saveData,
-          q = R.worldOutpostRows(S, session.worldIdx),
+          q = R.worldOutpostRows(S, session.worldIdx).filter(x => session.spoilersVisible || x.state !== "locked"),
           rows = q.filter(
             (x) =>
               session.outpostFilter === "all" ||
@@ -1532,7 +1553,7 @@
       }
       function currencies() {
         if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        const slots = O.validCurrencySlots(), slot = slots.includes(session.currencyTarget) ? session.currencyTarget : (session.currencyTarget = slots[0] ?? 0), breakdown = currencyDetails(saveData, slot), nodes = breakdown.nodes || [];
+        const slots = O.validCurrencySlots().filter(value => session.spoilersVisible || ROYAL_RESOURCES.some(resource => resource.currencySlot === value && R.royalWorldUnlocked(saveData, R.resourceWorld(resource.index)))), slot = slots.includes(session.currencyTarget) ? session.currencyTarget : (session.currencyTarget = slots[0] ?? 0), breakdown = currencyDetails(saveData, slot), nodes = (breakdown.nodes || []).filter(node => session.spoilersVisible || R.royalWorldUnlocked(saveData, R.resourceWorld(node.resourceIdx)));
         if (nodes.length && !nodes.some(node => node.resourceIdx === session.selectedResource)) session.selectedResource = nodes[0].resourceIdx;
         if (nodes.length && session.mapSelectionKind === null) { session.mapSelectionKind = "resource"; session.worldIdx = R.resourceWorld(session.selectedResource); }
         const selected = nodes.find(node => node.resourceIdx === session.selectedResource) || nodes[0];
@@ -1546,10 +1567,8 @@
             ? [R.orbletOwnedDetail(S)]
             : k === "statues"
               ? [
-                  R.parchmentOwnedDetail(S),
-                  ...visibleMarbles.map((_, i) =>
-                    R.royalMarbleOwnedDetail(S, i),
-                  ),
+                  ...(session.spoilersVisible || visibleMarbles.some((_, i) => R.royalG(S, 0, i) > 0) ? [R.parchmentOwnedDetail(S)] : []),
+                  ...visibleMarbles.flatMap((_, i) => session.spoilersVisible || R.royalG(S, 0, i) > 0 ? [R.royalMarbleOwnedDetail(S, i)] : []),
                 ]
               : visibleMarbles.map((_, i) => R.royalMarbleOwnedDetail(S, i));
         return `<div class="context-balance">${a.map((x) => `<span>${displayItemName(x.itemName)} <b>${f(x.value)}</b></span>`).join("")}</div>`;
@@ -1560,35 +1579,38 @@
       }
       function armory() {
         const S = saveData,
-          rows = R.armoryRows(S), redux = R.allMasterclassCostReduxDetail(S);
-        return `<h2>Armory</h2><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Shelf</th><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
+          rows = R.armoryRows(S), redux = R.allMasterclassCostReduxDetail(S), unlockedCount = R.armoryUnlockedCount(S);
+        return `<div class="upgrade-heading"><h2>Armory</h2>${spoilerToggle()}</div><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x. ${fi(unlockedCount)} of ${fi(rows.length)} shelves reached.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Shelf</th><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
           .map((r) => {
             const u = ARMORY_UPGRADES[r.index],
-              max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]);
+              max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible;
+            if (concealed) return `<tr><td>${fi(r.orderIndex + 1)}</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Unreached upgrade</td><td class="upgrade-spoiler-hidden">???</td></tr>`;
             return `<tr><td>${fi(r.orderIndex + 1)}</td><td>${displayItemName(u?.name)}</td><td>${fi(r.currentLevel)} / ${fi(u?.maxLevel)}</td><td>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</td><td class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">${max ? `${currencyIcon(r.cost.currencySlot)}MAX (slot ${r.cost.currencySlot})` : `${currencyIcon(r.cost.currencySlot)}${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</td></tr>`;
           })
           .join(
             "",
-            )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]); return `<article class="mobile-card"><b>${displayItemName(u?.name)}</b><div>Shelf ${f(r.orderIndex + 1)} | Level ${f(r.currentLevel)} / ${f(u?.maxLevel)}</div><div>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${currencyIcon(r.cost.currencySlot)}${max ? `MAX (slot ${r.cost.currencySlot})` : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>`; }).join("")}</div>`;
+            )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible; return concealed ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ???</div><div class="upgrade-spoiler-hidden">Unreached upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(u?.name)}</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ${f(r.currentLevel)} / ${f(u?.maxLevel)}</div><div>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${currencyIcon(r.cost.currencySlot)}${max ? `MAX (slot ${r.cost.currencySlot})` : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>`; }).join("")}</div>`;
       }
       function statues() {
         const S = saveData;
-        return `<h2>Royal Statues</h2>${balances(S, "statues")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Material / Owned / Cost</th><th>Odds</th></tr></thead><tbody>${Array.from(
+        return `<div class="upgrade-heading"><h2>Royal Statues</h2>${spoilerToggle()}</div>${balances(S, "statues")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Material / Owned / Cost</th><th>Odds</th></tr></thead><tbody>${Array.from(
           { length: 7 },
           (_, i) => {
             const d = R.royalStatueUpgradeDetail(S, i);
             const level = R.royalG(S, 0, i);
+            if (level <= 0 && !session.spoilersVisible) return `<tr><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Locked Royal Statue</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td></tr>`;
             return `<tr><td>${esc(ROYAL_STATUES[i].name)}</td><td>${fi(level)}</td><td>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</td><td>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)}</td><td>${f(R.statueUpgradeOdds(S, i) * 100)}%</td></tr>`;
           },
         ).join("")}</tbody></table></div><div class="mobile-cards">${Array.from(
           { length: 7 },
           (_, i) => {
             const d = R.royalStatueUpgradeDetail(S, i);
-            const level = R.royalG(S, 0, i); return `<article class="mobile-card"><b>${esc(ROYAL_STATUES[i].name)}</b><div>Level ${fi(level)}</div><div>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</div><div>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)} | Odds ${f(R.statueUpgradeOdds(S, i) * 100)}%</div></article>`;
+            const level = R.royalG(S, 0, i); return level <= 0 && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Royal Statue</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${esc(ROYAL_STATUES[i].name)}</b><div>Level ${fi(level)}</div><div>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</div><div>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)} | Odds ${f(R.statueUpgradeOdds(S, i) * 100)}%</div></article>`;
           },
         ).join("")}</div>`;
       }
       function flair() {
+        if (!R.SF_unlocked(saveData) && !session.spoilersVisible) return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div><div class="empty-state upgrade-spoiler-hidden">Statue Flair is locked.</div>`;
         const S = saveData,
           rows = Array.from({ length: 32 }, (_, i) =>
             R.statueFlairRow(S, i),
@@ -1599,12 +1621,12 @@
                 n(r.material?.category) === n(session.flairCategory)) &&
               (session.flairShowMaxed || !r.maxed),
           );
-        return `<h2>Statue Flair</h2>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level / effect</th><th>Material / owned / cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td>${fi(r.level)} / ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</td><td>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Lv ${fi(r.level)} | ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</div><div>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</div></article>`).join("")}</div>`;
+        return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level / effect</th><th>Material / owned / cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td>${fi(r.level)} / ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</td><td>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Lv ${fi(r.level)} | ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</div><div>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</div></article>`).join("")}</div>`;
       }
       function orblets() {
         const S = saveData,
           rows = R.orbletRows(S);
-        return `<h2>Orblets</h2>${balances(S, "orblets")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${displayItemName(r.name)}</td><td>${fi(r.level)} / ${fi(r.maxLevel)}</td><td>${esc(R.orbletDescription(S, r.index))}</td><td class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${displayItemName(r.name)}</b><div>Level ${fi(r.level)} / ${fi(r.maxLevel)}</div><div>${esc(R.orbletDescription(S, r.index))}</div><div class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">Cost ${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</div></article>`).join("")}</div>`;
+        return `<div class="upgrade-heading"><h2>Orblets</h2>${spoilerToggle()}</div>${balances(S, "orblets")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<tr><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Locked Orblet upgrade</td><td class="upgrade-spoiler-hidden">???</td></tr>` : `<tr><td>${displayItemName(r.name)}</td><td>${fi(r.level)} / ${fi(r.maxLevel)}</td><td>${esc(R.orbletDescription(S, r.index))}</td><td class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Orblet upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(r.name)}</b><div>Level ${fi(r.level)} / ${fi(r.maxLevel)}</div><div>${esc(R.orbletDescription(S, r.index))}</div><div class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">Cost ${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</div></article>`).join("")}</div>`;
       }
       function wire() {
         wireTabs(".tab-btn", (b) => (session.tab = b.dataset.tab));
@@ -1691,6 +1713,11 @@
           royalQuickTooltip.classList.remove("open");
           render();
         });
+        document.querySelectorAll("[data-toggle-spoilers]").forEach(toggle => toggle.addEventListener("click", () => {
+          session.spoilersVisible = !session.spoilersVisible;
+          if (!session.spoilersVisible && !R.royalWorldUnlocked(saveData, session.worldIdx)) session.worldIdx = visibleWorlds(saveData)[0] ?? 0;
+          render();
+        }));
         document.querySelector("#currency-selector")?.addEventListener("change", e => {
           session.currencyTarget = n(e.target.value);
           const first = currencyDetails(saveData, session.currencyTarget).nodes?.[0];
