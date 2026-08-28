@@ -319,6 +319,9 @@ export function glorificationPlan(S, ext) { const attempts = glorificationAttemp
 export function outpostExpFormula(rank, bar = 0) { rank = Math.max(0, n(rank)); return bar === 4 ? 1e5 * 10 ** rank : bar === 2 ? (50 + 50 * rank) * 1.6 ** rank : (10 + 5 * rank) * 1.3 ** rank; }
 export function outpostRank(S, mapIdx, bar = 0) { const exp = n(row(S, mapIdx)?.[3 + bar]); let rank = 0; while (exp >= outpostExpFormula(rank, bar)) rank++; return rank; }
 export function outpostRankInfo(S, mapIdx, bar = 0) { const rank = outpostRank(S, mapIdx, bar); const exp = n(row(S, mapIdx)?.[3 + bar]); const previous = rank ? outpostExpFormula(rank - 1, bar) : 0; const next = outpostExpFormula(rank, bar); return { rank, exp, previousReq: previous, nextReq: next, progress: Math.max(0, Math.min(1, (exp - previous) / Math.max(1, next - previous))) }; }
+export function outpostRankName(bar) { return ['Trading Rank', 'Intel Rank', 'Command Rank', 'Military Rank', 'Purity Rank'][Math.floor(n(bar))] || `Rank ${Math.floor(n(bar)) + 1}`; }
+export function outpostRankContributor(bar) { return ['Trader', 'Surveyor', 'Commander', 'Knight', 'Priest'][Math.floor(n(bar))] || 'Unit'; }
+export function movableProfessionName(type) { return ['Worker', 'Trader', 'Guard', 'Surveyor'][Math.floor(n(type))] || `Profession ${Math.floor(n(type)) + 1}`; }
 export function outpostPointsLeft(S, mapIdx) { const r = row(S, mapIdx); if (!r || r.length <= 3) return 0; const rank = outpostRank(S, mapIdx, 0); const level71 = armoryLevel(S, 71); let points = 2 + armoryBonus(S, 9 + Math.floor(mapIdx / 50)) + rank; if (level71 >= 1) points += Math.floor(rank / (11 - level71)); if (n(r[12]) > 0) points += 10; return points - n(r[0]) * 12 - n(r[1]) * 2 - n(r[2]); }
 export function outpostPointCost(type) { return type === 'major' ? 12 : type === 'minor' ? 2 : 1; }
 export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => armoryLevel(S, idx) >= 1); }
@@ -454,7 +457,18 @@ export function barExpRateBase(S, bar, ext) { const derived = royalGuardianDeriv
 // Source passes the bar index to isMapPurified(t) here, independently of the
 // target map's own 2x purified register. Preserve that dispatcher behavior.
 export function barExpRate(S, bar, mapIdx, ext) { const purifiedMap = outpostPurification(S, mapIdx) >= 1; const purifiedBarIndexMap = outpostPurification(S, bar) >= 1; return barExpRateBase(S, bar, ext) * (purifiedMap ? 2 : 1) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
-export function outpostRankExpPerHour(S, mapIdx, bar, ext) { const unitIndex = bar === 0 ? 1 : bar === 1 ? 3 : -1; const units = unitIndex < 0 ? 1 : totalUnitsByType(S, mapIdx)[unitIndex]; return barExpRate(S, bar, mapIdx, ext) * units * n(royalG(S, 3, 0)) / 3600 * (bar === 3 ? 0.5 : 1); }
+function _rankAssignmentCount(S, mapIdx, bar) { const assignmentType = Math.floor(n(bar)) + 3; return militiaAssignments(S).filter(assignment => assignment.type === assignmentType && assignment.mapIdx === Number(mapIdx)).length; }
+function _highestOutpostRankBar(S, mapIdx) { let highestBar = 0; for (let bar = 1; bar < 5; bar++) if (outpostRank(S, mapIdx, bar) > outpostRank(S, mapIdx, highestBar)) highestBar = bar; return highestBar; }
+export function outpostRankExpPerHour(S, mapIdx, bar, ext) {
+	const index = Math.floor(n(bar));
+	if (!outpostBuilt(S, mapIdx) || !outpostUnlockedBars(S)[index]) return 0;
+	let value = 0;
+	if (index === 0) value += barExpRate(S, index, mapIdx, ext) * totalUnitsByType(S, mapIdx)[1];
+	else if (index === 1) value += barExpRate(S, index, mapIdx, ext) * totalUnitsByType(S, mapIdx)[3];
+	else value += barExpRate(S, index, mapIdx, ext) * _rankAssignmentCount(S, mapIdx, index);
+	if (armoryLevel(S, 17) >= 1 && index === _highestOutpostRankBar(S, mapIdx)) value += barExpRate(S, 3, mapIdx, ext) * militiaAssignmentCount(S, mapIdx) / 2;
+	return value;
+}
 export function outpostRankExpBreakdown(S, mapIdx, ext) {
 	const missing = new Set();
 	if (!hasRoyalGData(S)) missing.add('RoyalG');
