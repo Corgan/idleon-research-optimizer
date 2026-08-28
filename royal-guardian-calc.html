@@ -444,6 +444,15 @@
       .royal-worker-icon .worker-shadow { left: 3.2px; top: 27.2px; width: 22.4px; height: 8px; }
       .royal-worker-icon .militia-profession { left: 4.8px; top: 3.2px; width: 19.2px; height: 20.8px; }
       .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
+      .royal-map-shell.map-size-small { grid-template-columns: 48px 600px 210px; max-width: 900px; }
+      .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
+      .map-size-small .royal-map-counters { height: 320px; }
+      .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
+      .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
+      .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
+      .map-size-small .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
+      .map-size-small .royal-worker-icon .militia-profession { left: 3px; top: 2px; width: 12px; height: 13px; }
+      .map-size-small .assignment-count { right: -2px; top: -3px; min-width: 12px; padding: 0 3px; border-radius: 6px; font-size: 8px; line-height: 11px; }
       .currency-inline { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
       .royal-resource-icon { position: relative; display: inline-block; width: 28px; height: 28px; flex: 0 0 28px; vertical-align: middle; }
       .royal-resource-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -804,6 +813,7 @@
         mapSelectionKind: null,
         assignmentIconsVisible: true,
         rangeFinderMode: false,
+        largeMap: true,
         selectedResource: 0,
         resourceState: "active",
         resourceSort: "drain",
@@ -863,6 +873,9 @@
       }
       function spoilerToggle() {
         return `<button type="button" class="upgrade-spoiler-toggle" data-toggle-spoilers aria-pressed="${session.spoilersVisible ? "true" : "false"}">Spoilers: ${session.spoilersVisible ? "Shown" : "Hidden"}</button>`;
+      }
+      function mapSizeToggle() {
+        return `<button type="button" class="royal-map-range-toggle" data-toggle-map-size aria-pressed="${session.largeMap ? "true" : "false"}" title="Switch map and assignment icon size">Map size: ${session.largeMap ? "Big" : "Small"}</button>`;
       }
       function visibleWorlds(S) {
         return worlds.filter(world => session.spoilersVisible || R.royalWorldUnlocked(S, world));
@@ -1195,7 +1208,7 @@
       }
       function persistentMap(S) {
         const q = R.worldOutpostRows(S, session.worldIdx).filter(row => session.spoilersVisible || row.state !== "locked");
-        return `<section class="section royal-map-section"><div class="royal-map-shell">${worldNav()}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
+        return `<section class="section royal-map-section"><div class="royal-map-shell${session.largeMap ? "" : " map-size-small"}">${worldNav()}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
       }
       function syncResourceSelection(S) {
         const rows = resourceFilterRows(S, resourceDetails(S));
@@ -1352,7 +1365,7 @@
       function royalMap(S, q, m) {
         const resources = ROYAL_RESOURCES.filter((resource, index) => R.resourceWorld(index) === session.worldIdx && resource.currencySlot >= 0);
         const lines = q.filter(row => row.built).flatMap(row => R.outpostConnections(S, row.mapIdx).map(connection => mapLine(S, row.mapIdx, connection))).join("");
-        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
       }
       function outposts() {
         if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
@@ -1450,7 +1463,7 @@
         const nextCycle = cycle.nextCycleAvailable
           ? `${card("Next full cycle drain", fmtDrainHours(cycle.nextDrainHours, cycle.nextCapacity), `Grade ${fi(cycle.nextGrade)} | ${f(cycle.nextCapacity)} capacity | ${f(cycle.nextRate)}/hr`)}<div class="metric-line">Resource Replenish is active.${cycle.resourceGradeIncreaseUnlocked ? " Resource Grades adds +1 grade on refill." : " Resource Grades is locked, so grade stays unchanged."}</div>`
           : `${card("Full node (current grade)", fmtDrainHours(cycle.hypotheticalFullDrainHours, cycle.hypotheticalFullCapacity), `${f(cycle.hypotheticalFullCapacity)} capacity | ${f(cycle.hypotheticalFullRate)}/hr`)}<div class="metric-line">Resource Replenish is locked; no automatic next cycle is projected.</div>`;
-        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}</div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Free endpoints</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${fi(y.slotsFree)}</td><td>${fi(y.connectedCount)}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div></div>`;
+        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, x.resourceIdx))}${R.resourceDrained(S, x.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}</div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Free endpoints</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${fi(y.slotsFree)}</td><td>${fi(y.connectedCount)}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div></div>`;
       }
       const collectionFactorLabels = {
         base: "Base collection",
@@ -1711,6 +1724,10 @@
         document.querySelector("[data-toggle-range-finder]")?.addEventListener("click", () => {
           session.rangeFinderMode = !session.rangeFinderMode;
           royalQuickTooltip.classList.remove("open");
+          render();
+        });
+        document.querySelector("[data-toggle-map-size]")?.addEventListener("click", () => {
+          session.largeMap = !session.largeMap;
           render();
         });
         document.querySelectorAll("[data-toggle-spoilers]").forEach(toggle => toggle.addEventListener("click", () => {
