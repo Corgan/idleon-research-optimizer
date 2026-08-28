@@ -25,13 +25,12 @@ import { bubbleParams } from '../../data/w2/alchemy.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
 import { godMinorX1 } from '../../data/w5/divinity.js';
 import { DIVINITY_MINOR_DENOM } from '../../data/game-constants.js';
+import { ARMORY_UPGRADES } from '../../data/w7/royal-guardian.js';
 
 export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   // Replicates AllTalentLVz from the game.
-  // talentIdx is normally the talent index, but game's getbonus2 passes the raw
-  // talent LEVEL (SkillLevels[t]) instead — callers replicate this by passing
-  // rawLv directly as talentIdx.
   // opts.contextSlot: use this slot for per-char bonus lookups (149/374/539, player level)
+  // opts.allSpelunkPresets: check both candidate Spelunk preset arrays instead of the selected one
   var ctxSlot = (opts && opts.contextSlot !== undefined) ? opts.contextSlot : slotIdx;
   if ((talentIdx >= 49 && talentIdx <= 59) || talentIdx === 149 || talentIdx === 374
       || talentIdx === 539 || talentIdx === 505 || talentIdx > 614) return 0;
@@ -41,7 +40,14 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   if (slotIdx >= 0) {
     var preset = Number(playerStuffData[slotIdx] && playerStuffData[slotIdx][1]) || 0;
     var superArr = saveData.spelunkData && saveData.spelunkData[20 + slotIdx + 12 * preset];
-    if (Array.isArray(superArr) && superArr.indexOf(talentIdx) !== -1) {
+    var hasSuperTalent = Array.isArray(superArr) && superArr.indexOf(talentIdx) !== -1;
+    if (opts && opts.allSpelunkPresets) {
+      var firstSuperArr = saveData.spelunkData && saveData.spelunkData[20 + slotIdx];
+      var secondSuperArr = saveData.spelunkData && saveData.spelunkData[32 + slotIdx];
+      hasSuperTalent = (Array.isArray(firstSuperArr) && firstSuperArr.indexOf(talentIdx) !== -1)
+        || (Array.isArray(secondSuperArr) && secondSuperArr.indexOf(talentIdx) !== -1);
+    }
+    if (hasSuperTalent) {
       spelunkBonus = Math.round(50 + (Number(saveData.spelunkData[18] && saveData.spelunkData[18][7]) || 0) * 10 + (Number(saveData.spelunkData[45] && saveData.spelunkData[45][5]) || 0));
     }
   }
@@ -134,7 +140,7 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   var superBit47 = superBitType(47, saveData.gamingData[12]);
   var lvBonusTerm = superBit47 ? Math.max(0, Math.floor((currentPlayerLv - 500) / 100)) : 0;
 
-  return Math.floor(
+  var total = Math.floor(
     spelunkBonus + tal149 + tal374 + tal539 + achieve291
     + Math.floor(famBonus68)
     + comp1
@@ -146,6 +152,12 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
     + arcane57
     + lvBonusTerm
   );
+  if (talentIdx >= 225 && talentIdx <= 239) {
+    var royalCap = (Number(saveData.royalGData?.[2]?.[55]) || 0)
+      * (Number(ARMORY_UPGRADES[55]?.bonusPerLevel) || 0);
+    total = Math.floor(Math.min(royalCap, total));
+  }
+  return total;
 }
 
 // Dynamic talent data lookup from TalentDescriptions game data.
@@ -158,10 +170,6 @@ function getTalentData(id, tab) {
   return { x1: p.x1, x2: p.x2, formula: p.formula, name: name };
 }
 
-// Returns { total, children } for AllTalentLVz bonus breakdown
-// talentIdx is normally the talent index, but game's getbonus2 passes the raw
-// talent LEVEL (SkillLevels[t]) instead — callers replicate this by passing
-// rawLv directly as talentIdx.
 function resolveAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   if ((talentIdx >= 49 && talentIdx <= 59) || talentIdx === 149 || talentIdx === 374
       || talentIdx === 539 || talentIdx === 505 || talentIdx > 614)
@@ -174,7 +182,14 @@ function resolveAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   if (slotIdx >= 0) {
     var preset = Number(playerStuffData[slotIdx] && playerStuffData[slotIdx][1]) || 0;
     var superArr = saveData.spelunkData && saveData.spelunkData[20 + slotIdx + 12 * preset];
-    if (Array.isArray(superArr) && superArr.indexOf(talentIdx) !== -1) {
+    var hasSuperTalent = Array.isArray(superArr) && superArr.indexOf(talentIdx) !== -1;
+    if (opts && opts.allSpelunkPresets) {
+      var firstSuperArr = saveData.spelunkData && saveData.spelunkData[20 + slotIdx];
+      var secondSuperArr = saveData.spelunkData && saveData.spelunkData[32 + slotIdx];
+      hasSuperTalent = (Array.isArray(firstSuperArr) && firstSuperArr.indexOf(talentIdx) !== -1)
+        || (Array.isArray(secondSuperArr) && secondSuperArr.indexOf(talentIdx) !== -1);
+    }
+    if (hasSuperTalent) {
       var baseSp = 50;
       var legend7 = (Number(saveData.spelunkData[18] && saveData.spelunkData[18][7]) || 0) * 10;
       var w7b5 = Number(saveData.spelunkData[45] && saveData.spelunkData[45][5]) || 0;
@@ -190,7 +205,8 @@ function resolveAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   // Talents 149/374/539: uses active character's own level.
   // Game calls GetTalentNumber(1, x) which reads the current char's SkillLevels.
   function intervalAddCharNode(talId, label) {
-    var sl = slotIdx >= 0 ? skillLvData[slotIdx] : null;
+    var contextSlot = (opts && opts.contextSlot !== undefined) ? opts.contextSlot : slotIdx;
+    var sl = contextSlot >= 0 ? skillLvData[contextSlot] : null;
     var lv = Number(sl && (sl[talId] || sl[String(talId)])) || 0;
     var val = lv > 0 ? 1 + Math.floor(lv / 20) : 0;
     if (val > 0) {
@@ -224,10 +240,11 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   var famN2 = Math.max(0, Math.round(maxMageCharLv - _fb342.lvOffset));
   var famBonus682 = famN2 > 0 ? formulaEval(_fb342.formula, _fb342.x1, _fb342.x2, famN2) : 0;
   // Talent 144 multiplier: applied when context char is the max provider
-  if (famBonus682 > 0 && maxMageCharIdx2 === slotIdx) {
-    var _rawLv1442 = Number(skillLvData[slotIdx] && skillLvData[slotIdx][144]) || 0;
+  var contextSlot2 = (opts && opts.contextSlot !== undefined) ? opts.contextSlot : slotIdx;
+  if (famBonus682 > 0 && maxMageCharIdx2 === contextSlot2) {
+    var _rawLv1442 = Number(skillLvData[contextSlot2] && skillLvData[contextSlot2][144]) || 0;
     if (_rawLv1442 > 0) {
-      var _atlFor1442 = computeAllTalentLVz(144, slotIdx, { skipTal144FamMult: true }, saveData);
+      var _atlFor1442 = computeAllTalentLVz(144, slotIdx, { skipTal144FamMult: true, contextSlot: contextSlot2 }, saveData);
       var _effLv1442 = _rawLv1442 + _atlFor1442;
       var _t1442 = talentParams(144);
       var _tal144Val2 = formulaEval(_t1442.formula, _t1442.x1, _t1442.x2, _effLv1442);
@@ -255,13 +272,13 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character.
   var divMinor2 = 0;
   var coralKid32 = Number(optionsListData && optionsListData[430]) || 0;
-  if (slotIdx >= 0 && hasBonusMajor(slotIdx, 2, saveData)) {
-    var divLv2 = saveData.lv0AllData[slotIdx] && saveData.lv0AllData[slotIdx][14] || 0;
+  if (contextSlot2 >= 0 && hasBonusMajor(contextSlot2, 2, saveData)) {
+    var divLv2 = saveData.lv0AllData[contextSlot2] && saveData.lv0AllData[contextSlot2][14] || 0;
     if (divLv2 > 0) {
       var y2Active2 = cachedBubbles2
         ? (Object.prototype.hasOwnProperty.call(cachedBubbles2, 'Y2ACTIVE')
           ? Number(cachedBubbles2.Y2ACTIVE) || 0 : 0)
-        : (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[slotIdx] || []).includes('d21')) ? y2Value2 : 0;
+        : (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[contextSlot2] || []).includes('d21')) ? y2Value2 : 0;
       divMinor2 = Math.max(1, y2Active2) * (1 + coralKid32 / 100) * divLv2 / (DIVINITY_MINOR_DENOM + divLv2) * godMinorX1(2);
     }
   }
@@ -282,7 +299,7 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   if (grimoire39v > 0) children.push(node(label('Grimoire', 39), grimoire39v, null, { fmt: 'raw' }));
 
   // Kattlekruk set
-  var kattlekrukSetV = Number(getSetBonus('KATTLEKRUK_SET', slotIdx));
+  var kattlekrukSetV = Number(getSetBonus('KATTLEKRUK_SET', contextSlot2));
   if (kattlekrukSetV > 0) children.push(node('Kattlekruk Set', kattlekrukSetV, null, { fmt: 'raw' }));
 
   // Arcane 57
@@ -290,7 +307,7 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   if (arcane57v > 0) children.push(node('Arcane Map 57', arcane57v, null, { fmt: 'raw', note: 'cap 5' }));
 
   // SuperBit 47 level bonus
-  var currentPlayerLv2 = (slotIdx >= 0 ? saveData.lv0AllData[slotIdx] && saveData.lv0AllData[slotIdx][0] : 0) || 0;
+  var currentPlayerLv2 = (contextSlot2 >= 0 ? saveData.lv0AllData[contextSlot2] && saveData.lv0AllData[contextSlot2][0] : 0) || 0;
   var superBit47v = superBitType(47, saveData.gamingData[12]);
   var lvBonusTerm2 = superBit47v ? Math.max(0, Math.floor((currentPlayerLv2 - 500) / 100)) : 0;
   if (lvBonusTerm2 > 0) {
@@ -305,28 +322,25 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
     + famFloor + comp1v + divCeil + dream12v + ola232bonus2
     + grimoire39v + kattlekrukSetV + arcane57v + lvBonusTerm2
   );
+  if (talentIdx >= 225 && talentIdx <= 239) {
+    var royalCap2 = (Number(saveData.royalGData?.[2]?.[55]) || 0)
+      * (Number(ARMORY_UPGRADES[55]?.bonusPerLevel) || 0);
+    total = Math.floor(Math.min(royalCap2, total));
+  }
 
   return { total: total, children: children };
 }
 
-// activeCharIdx: the character whose DR is being computed.
-// In getbonus2, raw talent level comes from charIdx but AllTalentLVz
-// uses the active character's context (Spelunk, talents 149/374/539).
-// atlIdx: override for the index passed to resolveAllTalentLVz (game's getbonus2
-//   passes raw talent LEVEL instead of the talent index).
-function getTalentNumber(charIdx, talentIdx, data, activeCharIdx, atlIdx, saveData, opts) {
+function getTalentNumber(charIdx, talentIdx, data, contextSlot, saveData, opts) {
   var sl = skillLvData[charIdx] || {};
   var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
   if (rawLv <= 0) return { val: 0, rawLv: 0, effectiveLv: 0, bonusDetail: null };
-  var ctxChar = activeCharIdx != null ? activeCharIdx : charIdx;
-  var bd = resolveAllTalentLVz(atlIdx !== undefined ? atlIdx : talentIdx, ctxChar, opts, saveData);
+  var bd = resolveAllTalentLVz(talentIdx, charIdx, Object.assign({}, opts, { contextSlot }), saveData);
   var effectiveLv = rawLv + bd.total;
   var result = formulaEval(data.formula, data.x1, data.x2, effectiveLv);
   return { val: result, rawLv: rawLv, bonus: bd.total, effectiveLv: effectiveLv, bonusDetail: bd };
 }
 
-// Game's getbonus2 passes SkillLevels[t] (raw talent level) to AllTalentLVz
-// instead of the talent index. We replicate this by passing rawLv as atlIdx.
 // Game gate: AllTalentLVz is only applied when talentIdx >= 100.
 // For talents < 100, getbonus2 uses raw level without ATL bonus.
 function getbonus2(talentIdx, data, activeCharIdx, saveData, opts) {
@@ -336,11 +350,9 @@ function getbonus2(talentIdx, data, activeCharIdx, saveData, opts) {
     var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
     var r;
     if (talentIdx >= 100) {
-      // Game uses the logged-in character's context for AllTalentLVz.
-      // When activeCharIdx=-1 (offline/unknown), use ci's own context as
-      // best approximation — each character provides its own bonus levels.
       var ctxForATL = activeCharIdx >= 0 ? activeCharIdx : ci;
-      r = getTalentNumber(ci, talentIdx, data, ctxForATL, rawLv, saveData, opts);
+      r = getTalentNumber(ci, talentIdx, data, ctxForATL, saveData,
+        Object.assign({}, opts, { allSpelunkPresets: true }));
     } else {
       // No ATL for talents < 100 in getbonus2
       if (rawLv <= 0) {
@@ -353,15 +365,20 @@ function getbonus2(talentIdx, data, activeCharIdx, saveData, opts) {
     }
     if (r.val > best) { best = r.val; bestChar = ci; bestR = r; }
   }
-  return { val: best, bestChar: bestChar, detail: bestR };
+  return { value: best, val: best, bestChar: bestChar, detail: bestR, contextAvailable: activeCharIdx >= 0 };
+}
+
+export function maxTalentBonusDetail(talentIdx, currentCharIdx, saveData, options) {
+  options = options || {};
+  var data = getTalentData(talentIdx, options.mode === 2 ? 2 : 1);
+  if (!data) return { value: 0, val: 0, bestChar: -1, detail: null, contextAvailable: currentCharIdx >= 0 };
+  return getbonus2(talentIdx, data, currentCharIdx, saveData, options);
 }
 
 // Public helper: max talent value across all characters (getbonus2).
-// activeCharIdx: optional — which character's AllTalentLVz context to use.
 export function maxTalentBonus(talentIdx, activeCharIdx, saveData) {
-  var data = getTalentData(talentIdx);
-  if (!data) return 0;
-  return getbonus2(talentIdx, data, activeCharIdx, saveData).val;
+  var detail = maxTalentBonusDetail(talentIdx, activeCharIdx, saveData);
+  return detail && detail.value || 0;
 }
 
 export var talent = {
@@ -418,7 +435,7 @@ export var talent = {
       ], { fmt: 'x' });
     }
 
-    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, undefined, saveData, runtimeOpts);
+    r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, saveData, runtimeOpts);
     if (r.val === 0) return node(name, 0);
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;

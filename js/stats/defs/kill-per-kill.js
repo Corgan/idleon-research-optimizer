@@ -29,12 +29,14 @@ import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { computeMultiKillTotal, computeOverkillActive } from '../systems/common/overkill.js';
+import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
 
 export default createDescriptor({
   id: 'kill-per-kill',
   name: 'Kill Per Kill (Multikill)',
   scope: 'character+map',
   category: 'multiplier',
+  applies: combatMapApplicability,
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

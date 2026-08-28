@@ -16,6 +16,23 @@ import { _bNode } from './node-helpers.js';
  * @returns {{ name: string, val: number, children: Array }}
  */
 export function buildTree(desc, catalog, ctx) {
+  if (typeof desc.applies === 'function') {
+    var applicability = desc.applies(ctx);
+    var applies = applicability !== false
+      && !(applicability && typeof applicability === 'object' && applicability.applicable === false);
+    if (!applies) {
+      return {
+        name: desc.name,
+        val: 0,
+        children: null,
+        notApplicable: true,
+        reason: applicability && applicability.reason
+          ? applicability.reason
+          : 'This stat does not apply to the selected context.',
+      };
+    }
+  }
+
   var pools = {};
 
   for (var poolName in desc.pools) {
@@ -44,14 +61,15 @@ export function buildTree(desc, catalog, ctx) {
   }
 
   var result = desc.combine(pools, ctx);
-  return {
-    name: desc.name,
+  return Object.assign({}, result, {
+    name: result.name || desc.name,
     val: result.val,
-    children: result.children,
+    children: result.children || null,
     unavailable: !!result.unavailable,
     partial: !!result.partial,
+    notApplicable: !!result.notApplicable,
     reason: result.reason || '',
-  };
+  });
 }
 
 /**

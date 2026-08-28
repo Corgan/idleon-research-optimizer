@@ -61,6 +61,7 @@ h1 .brand { color: var(--accent); }
 .scope-badge.map { background: rgba(33,150,243,.16); color: #82c5ff; }
 .state-badge.partial { background: rgba(255,183,77,.16); color: var(--warning); }
 .state-badge.unavailable { background: rgba(255,68,68,.16); color: var(--red); }
+.state-badge.not-applicable { background: rgba(192,192,212,.12); color: var(--text2); }
 
 .bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
 .bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: .8em; }
@@ -119,6 +120,13 @@ h1 .brand { color: var(--accent); }
           <option value="0">Town</option>
         </select>
       </label>
+      <label>Map List
+        <select id="map-visibility">
+          <option value="accessible">Accessible</option>
+          <option value="advanced">Accessible + Special</option>
+          <option value="all">All Valid Maps</option>
+        </select>
+      </label>
       <label>Skill
         <select id="skill-sel">
           <option>Mining</option>
@@ -127,10 +135,12 @@ h1 .brand { color: var(--accent); }
           <option>Catching</option>
           <option>Trapping</option>
           <option>Worship</option>
+          <option>Smithing</option>
           <option>Cooking</option>
           <option value="Laboratory">Laboratory</option>
           <option>Divinity</option>
           <option>Spelunking</option>
+          <option>Breeding</option>
         </select>
       </label>
         <label>Construction Mode
@@ -160,16 +170,26 @@ import { createStatContext } from './js/stats/stat-context.js';
 import { allDescriptors } from './js/stats/registry.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { fmtVal, fmtMonsterCash, fmtDmgRange } from './js/renderers/format.js';
-import { ClassNames, MapDispName, MapAFKtarget } from './js/stats/data/game/customlists.js';
+import { ClassNames, MapDispName } from './js/stats/data/game/customlists.js';
 import { MONSTERS } from './js/stats/data/game/monsters.js';
-import { afkTargetData, currentMapData, mapBonData } from './js/save/data.js';
-import { computeOverkillTier } from './js/stats/systems/common/overkill.js';
+import {
+  currentMapData,
+  currentMapDataAvailable,
+  dreamData,
+  klaData,
+  mapBonData,
+  optionsListData,
+} from './js/save/data.js';
+import {
+  buildCharacterMapOptions,
+  classifyMap,
+} from './js/stats/systems/common/map-access.js';
 
 // ======================= CONSTANTS =======================
-var CATEGORY_ORDER = ['combat', 'stat', 'multiplier', 'rate', 'construction', 'research', 'currency', 'progression'];
+var CATEGORY_ORDER = ['combat', 'stat', 'multiplier', 'rate', 'capacity', 'construction', 'research', 'currency', 'progression'];
 var CATEGORY_LABELS = {
   combat: 'Combat', stat: 'Stats', multiplier: 'Multipliers', rate: 'Rates',
-  construction: 'Construction', research: 'Research', currency: 'Currency', progression: 'Progression'
+  capacity: 'Capacity', construction: 'Construction', research: 'Research', currency: 'Currency', progression: 'Progression'
 };
 
 // Special formatters per descriptor
@@ -179,17 +199,36 @@ var FMT = {
   'damage':    function(v) { return fmtVal(v); },
   'kill-per-kill': function(v) { return v.toFixed(1) + ' kpk'; },
   'fighting-afk': function(v) { return v.toFixed(2) + 'x'; },
+  'raw-combat-kills-per-hour': function(v) { return fmtVal(v) + '/hr'; },
+  'combat-survivability': function(v) { return v.toFixed(0) + '%'; },
+  'reward-roll-kills-per-hour': function(v) { return fmtVal(v) + '/hr'; },
+  'credited-kills-per-hour': function(v) { return fmtVal(v) + '/hr'; },
+  'class-exp-per-hour': function(v) { return fmtVal(v) + '/hr'; },
+  'panel-coins-per-hour': function(v) { return fmtMonsterCash(v) + '/hr'; },
+  'direct-card-average-time': function(v) { return '1 in ' + fmtVal(v) + ' hr'; },
+  'carry-capacity-mining': function(v) { return fmtVal(v); },
+  'carry-capacity-chopping': function(v) { return fmtVal(v); },
+  'carry-capacity-fishing': function(v) { return fmtVal(v); },
+  'carry-capacity-catching': function(v) { return fmtVal(v); },
+  'carry-capacity-food': function(v) { return fmtVal(v); },
+  'carry-capacity-critters': function(v) { return fmtVal(v); },
+  'carry-capacity-souls': function(v) { return fmtVal(v); },
+  'carry-capacity-materials': function(v) { return fmtVal(v); },
   'skill-afk':    function(v) { return v.toFixed(2) + 'x'; },
   'voting-multi': function(v) { return v.toFixed(2) + 'x'; },
   'gfood-multi':  function(v) { return v.toFixed(2) + 'x'; },
   'monster-exp':  function(v) { return v.toFixed(2) + 'x'; },
   'skill-exp':    function(v) { return v.toFixed(2) + 'x'; },
   'skill-efficiency': function(v) { return fmtVal(v); },
+  'divinity-points-per-hour': function(v) { return fmtVal(v) + '/hr'; },
+  'divinity-exp-per-hour': function(v) { return fmtVal(v) + '/hr'; },
   'build-rate':   function(v) { return fmtVal(v) + '/hr'; },
   'construction-exp': function(v) { return fmtVal(v) + '/hr'; },
   'flaggy-speed': function(v) { return v.toFixed(2) + 'x'; },
-  'research-exp': function(v) { return '+' + v.toFixed(2) + '%'; },
+  'research-exp': function(v) { return v.toFixed(2) + 'x'; },
   'research-afk-gains': function(v) { return (100 * v).toFixed(2) + '%'; },
+  'printer-sample-size': function(v) { return (100 * v).toFixed(1) + '%'; },
+  'card-drop-chance-multiplier': function(v) { return v.toFixed(2) + 'x'; },
   'sushi-bucks':  function(v) { return fmtVal(v) + '/hr'; },
   'minehead-currency': function(v) { return fmtVal(v) + '/hr'; },
   'spelunking-pow': function(v) { return fmtVal(v); },
@@ -203,6 +242,12 @@ var FMT = {
   'max-hp':       function(v) { return fmtVal(v); },
   'max-mp':       function(v) { return fmtVal(v); },
   'accuracy':     function(v) { return fmtVal(v); },
+  'hit-chance':  function(v) { return v.toFixed(0) + '%'; },
+  'accuracy-required': function(v) { return fmtVal(v); },
+  'overkill-tier': function(v) { return 'Tier ' + Math.round(v); },
+  'multikill-base': function(v) { return '+' + fmtVal(v) + '%'; },
+  'multikill-per-tier': function(v) { return '+' + fmtVal(v) + '%'; },
+  'multikill-total': function(v) { return '+' + fmtVal(v) + '%'; },
   'defence':      function(v) { return fmtVal(v); },
   'movement-speed': function(v) { return fmtVal(Math.round((v - 1) * 100)) + '%'; },
   'giant-mob':    function(v) { return v > 0 ? '1 in ' + fmtVal(Math.round(1/v)) : 'N/A'; },
@@ -233,12 +278,11 @@ var SAVE_RAW = null;
 var CHARS = [];
 var CUR_CHAR = 0;
 var CUR_MAP = 0;
+var MAP_VISIBILITY = 'accessible';
 var CUR_SKILL = 'Mining';
 var CONSTRUCTION_ACTIVE = true;
 var RESULTS = Object.create(null);
 var ACTIVE_CTX = null;
-var OVERKILL_INFO = null;
-var OVERKILL_REASON = '';
 
 // ======================= DESCRIPTOR GROUPING =======================
 var DESCS = allDescriptors();
@@ -260,15 +304,12 @@ function _categoryLabel(category) {
 
 function _scopeInfo(desc) {
   if (desc.scope === 'account') return { className: 'acct', label: 'Account' };
+  if (desc.scope === 'character+map+skill') return { className: 'map', label: 'Char + Map + Skill' };
   if (desc.scope === 'character+map') return { className: 'map', label: 'Char + Map' };
   return { className: 'char', label: 'Character' };
 }
 
 function _descriptorName(desc) {
-  if (CUR_SKILL === 'Divinity') {
-    if (desc.id === 'skill-efficiency') return 'Divinity Points/hr';
-    if (desc.id === 'skill-exp') return 'Divinity EXP/hr';
-  }
   return desc.name;
 }
 
@@ -379,9 +420,10 @@ function toggleDescriptor(id) {
 buildTabs();
 
 // ======================= MAP SELECTOR =======================
-function _mapLabel(idx, bonArr) {
-  var name = (MapDispName[idx] || 'Map ' + idx).replace(/_/g, ' ');
-  var mobId = MapAFKtarget[idx];
+function _mapLabel(mapOption, bonArr) {
+  var idx = mapOption.mapIdx;
+  var name = mapOption.name;
+  var mobId = mapOption.target;
   var mob = mobId && MONSTERS[mobId] ? MONSTERS[mobId].Name.replace(/_/g, ' ') : '';
   var label = name;
   if (mob && mob !== 'Nothing') label += ' - ' + mob;
@@ -389,6 +431,9 @@ function _mapLabel(idx, bonArr) {
     var multi = _arcaneMulti(bonArr[0] || 0);
     if (multi > 0) label += ' (' + (1 + multi / 100).toFixed(2) + 'x)';
   }
+  if (mapOption.current) label += ' (current)';
+  else if (mapOption.locked) label += ' (not proven accessible)';
+  if (mapOption.visibility === 'advanced') label += ' [' + mapOption.category + ']';
   return label;
 }
 
@@ -398,36 +443,49 @@ function _mapBonuses() {
   return mapBonData || [];
 }
 
-function populateMapSel(curMap) {
+function _mapAccessSnapshot() {
+  return {
+    saveData: saveData,
+    klaData: klaData,
+    currentMapData: currentMapData,
+    currentMapDataAvailable: currentMapDataAvailable,
+    dreamData: dreamData,
+    optionsListData: optionsListData,
+  };
+}
+
+function populateMapSel(preferredMap) {
   var mapSel = document.getElementById('map-sel');
   mapSel.innerHTML = '';
   var mb = _mapBonuses();
-  var added = new Set();
+  var options = buildCharacterMapOptions(CUR_CHAR, _mapAccessSnapshot(), { level: MAP_VISIBILITY });
+  var groups = new Map();
 
-  for (var i = 0; i < MapDispName.length; i++) {
-    if (!MapDispName[i] || added.has(i)) continue;
-    var o = document.createElement('option');
-    o.value = i;
-    o.textContent = _mapLabel(i, mb[i]) + (i === curMap ? ' (current)' : '');
-    mapSel.appendChild(o);
-    added.add(i);
+  for (var i = 0; i < options.length; i++) {
+    var mapOption = options[i];
+    var groupLabel = mapOption.world > 0 ? 'World ' + mapOption.world : 'Other';
+    if (!groups.has(groupLabel)) {
+      var group = document.createElement('optgroup');
+      group.label = groupLabel;
+      groups.set(groupLabel, group);
+      mapSel.appendChild(group);
+    }
+    var option = document.createElement('option');
+    option.value = mapOption.mapIdx;
+    option.textContent = _mapLabel(mapOption, mb[mapOption.mapIdx]);
+    option.dataset.category = mapOption.category;
+    option.dataset.accessible = mapOption.accessible ? '1' : '0';
+    groups.get(groupLabel).appendChild(option);
   }
 
-  if (!added.has(0)) {
-    var oTown = document.createElement('option');
-    oTown.value = 0;
-    oTown.textContent = 'Town' + (curMap === 0 ? ' (current)' : '');
-    mapSel.insertBefore(oTown, mapSel.firstChild);
-    added.add(0);
+  var available = new Set(options.map(function(option) { return option.mapIdx; }));
+  var selected = Number(preferredMap);
+  if (!available.has(selected)) {
+    var current = _currentMapForCharacter(CUR_CHAR);
+    selected = available.has(current) ? current : (options[0] ? options[0].mapIdx : 0);
   }
-
-  if (curMap != null && !added.has(curMap)) {
-    var name = MapDispName[curMap] ? MapDispName[curMap].replace(/_/g, ' ') : 'Map ' + curMap;
-    var oC = document.createElement('option');
-    oC.value = curMap; oC.textContent = name + ' (current)';
-    mapSel.insertBefore(oC, mapSel.firstChild);
-    added.add(curMap);
-  }
+  mapSel.value = String(selected);
+  return selected;
 }
 
 function _currentMapForCharacter(charIdx) {
@@ -462,13 +520,8 @@ function _resolveDescriptor(ctx, desc) {
   }
 }
 
-function _combineReasons(first, second) {
-  if (!first) return second || '';
-  if (!second || second === first) return first;
-  return first + ' ' + second;
-}
-
 function _displayValue(desc, result) {
+  if (result.notApplicable) return 'Not applicable';
   if (result.unavailable) return 'Unavailable';
   var value = Number(result.val);
   if (!Number.isFinite(value)) return 'Unavailable';
@@ -479,12 +532,6 @@ function _displayValue(desc, result) {
     return result.partial ? '~' + damageRange : damageRange;
   }
   var formatter = FMT[desc.id] || function(v) { return fmtVal(v); };
-  if (desc.id === 'skill-exp' && CUR_SKILL === 'Divinity') {
-    return (result.partial ? '~' : '') + fmtVal(value) + '/hr';
-  }
-  if (desc.id === 'skill-efficiency' && CUR_SKILL === 'Divinity') {
-    return (result.partial ? '~' : '') + fmtVal(value) + '/hr';
-  }
   var formatted;
   try { formatted = formatter(value); } catch (error) { formatted = fmtVal(value); }
   return result.partial ? '~' + formatted : formatted;
@@ -492,6 +539,7 @@ function _displayValue(desc, result) {
 
 function _resultReason(result) {
   if (result.reason) return String(result.reason);
+  if (result.notApplicable) return 'This stat does not apply to the selected context.';
   if (result.unavailable) return 'Required calculation inputs are unavailable.';
   if (result.partial) return 'Some source metadata is absent from the imported save.';
   return '';
@@ -505,7 +553,8 @@ function _renderResult(desc, result) {
   var reasonEl = document.getElementById('reason-' + desc.id);
   var valueEl = document.getElementById('hval-' + desc.id);
   var nameEl = header && header.querySelector('.dh-name');
-  var status = result.unavailable ? 'unavailable' : (result.partial ? 'partial' : '');
+  var status = result.notApplicable ? 'not-applicable'
+    : (result.unavailable ? 'unavailable' : (result.partial ? 'partial' : ''));
 
   if (header) {
     if (nameEl) nameEl.textContent = _descriptorName(desc);
@@ -515,7 +564,9 @@ function _renderResult(desc, result) {
   if (state) {
     state.hidden = !status;
     state.className = 'state-badge' + (status ? ' ' + status : '');
-    state.textContent = status === 'partial' ? 'Partial' : (status === 'unavailable' ? 'Unavailable' : '');
+    state.textContent = status === 'partial' ? 'Partial'
+      : (status === 'unavailable' ? 'Unavailable'
+        : (status === 'not-applicable' ? 'Not applicable' : ''));
   }
   if (reasonEl) reasonEl.textContent = reason;
   if (valueEl) valueEl.textContent = valueText;
@@ -531,8 +582,6 @@ function _renderResult(desc, result) {
 function recalcAll() {
   if (!SAVE_RAW) return;
   RESULTS = Object.create(null);
-  OVERKILL_INFO = null;
-  OVERKILL_REASON = '';
   _clearRenderedTrees();
 
   var ctx = createStatContext({
@@ -544,57 +593,19 @@ function recalcAll() {
   });
   ACTIVE_CTX = ctx;
 
-  var damageDescriptor = _descriptorById('damage');
-  var damageResult = damageDescriptor ? _resolveDescriptor(ctx, damageDescriptor) : null;
-  if (damageResult) RESULTS.damage = damageResult;
-
-  if (!damageResult || damageResult.unavailable || !Number.isFinite(Number(damageResult.val))) {
-    ctx.overkillTier = 1;
-    OVERKILL_REASON = 'Overkill defaults to tier 1 because Damage is unavailable.';
-  } else {
-    try {
-      var selectedTarget = String(afkTargetData[CUR_CHAR] || '');
-      var selectedMonster = selectedTarget ? MONSTERS[selectedTarget] : null;
-      OVERKILL_INFO = computeOverkillTier(CUR_CHAR, ctx, {
-        mapIdx: CUR_MAP,
-        afkTarget: selectedTarget,
-        monsterHP: selectedMonster ? Number(selectedMonster.MonsterHPTotal) || 0 : 0,
-        maxDmg: Number(damageResult.val),
-      });
-      ctx.overkillTier = Number(OVERKILL_INFO && OVERKILL_INFO.tier) || 1;
-      if (damageResult.partial) {
-        OVERKILL_REASON = 'Overkill uses a partial Damage result.';
-      }
-      if (OVERKILL_INFO && OVERKILL_INFO.partial) {
-        OVERKILL_REASON = _combineReasons(
-          OVERKILL_REASON,
-          'Overkill defaults to tier 1 because this map has no target monster HP metadata.'
-        );
-      }
-    } catch (error) {
-      ctx.overkillTier = 1;
-      OVERKILL_REASON = 'Overkill defaults to tier 1: ' + String(error && error.message ? error.message : error);
-    }
-  }
-
   for (var i = 0; i < DESCS.length; i++) {
     var desc = DESCS[i];
-    var result = desc.id === 'damage' && damageResult
-      ? damageResult
-      : _resolveDescriptor(ctx, desc);
-
-    if (desc.id === 'coin-multi' && OVERKILL_REASON && !result.unavailable) {
-      result.partial = true;
-      result.reason = _combineReasons(result.reason, OVERKILL_REASON);
-    }
+    var result = _resolveDescriptor(ctx, desc);
     RESULTS[desc.id] = result;
     _renderResult(desc, result);
   }
 
   var character = CHARS[CUR_CHAR] || ('Character ' + (CUR_CHAR + 1));
-  var map = String(MapDispName[CUR_MAP] || ('Map ' + CUR_MAP)).replace(/_/g, ' ');
+  var mapContext = classifyMap(CUR_MAP);
+  var map = mapContext.name;
   document.getElementById('context-note').textContent = character + ' · ' + map + ' · ' + CUR_SKILL
-    + ' · Construction ' + (CONSTRUCTION_ACTIVE ? 'Active' : 'Inactive');
+    + ' · Construction ' + (CONSTRUCTION_ACTIVE ? 'Active' : 'Inactive')
+    + (mapContext.warning ? ' · ' + mapContext.warning : '');
 }
 
 // ======================= SAVE LOADING =======================
@@ -618,13 +629,13 @@ function onLoad(_loadedSaveData, raw) {
   charSel.disabled = charCount === 0;
   CUR_CHAR = 0;
   CUR_MAP = _currentMapForCharacter(CUR_CHAR);
+  MAP_VISIBILITY = document.getElementById('map-visibility').value;
   CUR_SKILL = document.getElementById('skill-sel').value;
   CONSTRUCTION_ACTIVE = document.getElementById('construction-mode').value === 'active';
 
   var mapSel = document.getElementById('map-sel');
-  populateMapSel(CUR_MAP);
+  CUR_MAP = populateMapSel(CUR_MAP);
   mapSel.disabled = charCount === 0;
-  mapSel.value = String(CUR_MAP);
   recalcAll();
 }
 
@@ -633,13 +644,18 @@ initSaveLoader({ target: '#save-area', onLoad, auth: true });
 function switchChar(idx) {
   CUR_CHAR = idx;
   CUR_MAP = _currentMapForCharacter(idx);
-  populateMapSel(CUR_MAP);
-  document.getElementById('map-sel').value = String(CUR_MAP);
+  CUR_MAP = populateMapSel(CUR_MAP);
   recalcAll();
 }
 
 function switchMap(idx) {
   CUR_MAP = idx;
+  recalcAll();
+}
+
+function switchMapVisibility(value) {
+  MAP_VISIBILITY = value;
+  CUR_MAP = populateMapSel(CUR_MAP);
   recalcAll();
 }
 
@@ -674,7 +690,7 @@ window.statsDebug = function() {
       map: String(MapDispName[CUR_MAP] || ('Map ' + CUR_MAP)).replace(/_/g, ' '),
       skillType: CUR_SKILL,
       constructionMode: CONSTRUCTION_ACTIVE ? 'active' : 'inactive',
-      overkillTier: ACTIVE_CTX ? ACTIVE_CTX.overkillTier : null,
+      overkillTier: RESULTS['overkill-tier'] ? RESULTS['overkill-tier'].val : null,
     },
     descriptors: descriptorResults,
   };
@@ -695,6 +711,7 @@ window.copyStatsDebug = function() {
 
 document.getElementById('char-sel').addEventListener('change', function() { switchChar(Number(this.value)); });
 document.getElementById('map-sel').addEventListener('change', function() { switchMap(Number(this.value)); });
+document.getElementById('map-visibility').addEventListener('change', function() { switchMapVisibility(this.value); });
 document.getElementById('skill-sel').addEventListener('change', function() { switchSkill(this.value); });
 document.getElementById('construction-mode').addEventListener('change', function() { switchConstructionMode(this.value); });
 </script>

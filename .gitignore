@@ -11,6 +11,4 @@ _*
 node_modules/
 /img
 js/tests
-!js/tests/
 js/tests/*
-!js/tests/test-sneaking-breakdowns.mjs

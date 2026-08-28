@@ -230,7 +230,8 @@ function _overkillTarget(charIdx, opts) {
   var mapIdx = opts.mapIdx != null ? opts.mapIdx
     : (currentMapData && currentMapData[charIdx]) || 0;
   var savedTarget = afkTargetData && afkTargetData[charIdx];
-  var monsterKey = opts.afkTarget || savedTarget || MapAFKtarget[mapIdx];
+  var hasTargetOverride = Object.prototype.hasOwnProperty.call(opts, 'afkTarget');
+  var monsterKey = hasTargetOverride ? opts.afkTarget : (savedTarget || MapAFKtarget[mapIdx]);
   var monster = monsterKey && MONSTERS[monsterKey];
   return {
     mapIdx: mapIdx,

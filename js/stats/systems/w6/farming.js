@@ -32,12 +32,13 @@ function getbonus2Detail(talentIdx, data, activeCharIdx, saveData, dnsmCache) {
     var sl = skillLvData[ci] || {};
     var rawLv = Number(sl[talentIdx] || sl[String(talentIdx)]) || 0;
     if (rawLv <= 0) continue;
-    // Game: AllTalentLVz always uses active character's context, not per-char.
-    // Game passes rawLv (not talentIdx) to AllTalentLVz — this affects the
-    // Spelunk super talent lookup, which checks indexOf(rawLv) in Spelunk array.
+    // The candidate selects Spelunk presets; ordinary terms use the active character.
     var bonusChar = activeCharIdx != null ? activeCharIdx : ci;
-    var bonus = computeAllTalentLVz(rawLv, bonusChar,
-      dnsmCache ? { dnsmCache: dnsmCache } : undefined, saveData);
+    var talentOpts = Object.assign({}, dnsmCache ? { dnsmCache: dnsmCache } : {}, {
+      contextSlot: bonusChar,
+      allSpelunkPresets: true,
+    });
+    var bonus = computeAllTalentLVz(talentIdx, ci, talentOpts, saveData);
     var effLv = rawLv + bonus;
     var val = formulaEval(data.formula, data.x1, data.x2, effLv);
     if (val > best) { best = val; bestCi = ci; bestBase = rawLv; bestBonus = bonus; bestEff = effLv; }

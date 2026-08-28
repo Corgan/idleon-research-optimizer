@@ -55,8 +55,14 @@ var SKILL_SOURCES = {
 export default createDescriptor({
   id: 'skill-afk',
   name: 'Skill AFK Rate',
-  scope: 'character',
+  scope: 'character+map+skill',
   category: 'rate',
+  applies: function(ctx) {
+    var skillType = ctx.skillType || 'Mining';
+    return skillType === 'Smithing' || skillType === 'Breeding'
+      ? { applicable: false, reason: skillType + ' has no AFK gain-rate panel branch.' }
+      : true;
+  },
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

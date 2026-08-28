@@ -12,7 +12,6 @@ import { computeMealBonus } from '../systems/common/stats.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { bubbleValByKey } from '../systems/w2/alchemy.js';
 import { achieveStatus } from '../systems/common/achievement.js';
-import { currentMapData } from '../../save/data.js';
 import { MapAFKtarget } from '../data/game/customlists.js';
 import { MONSTERS } from '../data/game/monsters.js';
 import { getLOG } from '../../formulas.js';
@@ -27,7 +26,7 @@ function lukCurve(v) {
 export default createDescriptor({
   id: 'crit-chance',
   name: 'Crit Chance',
-  scope: 'character',
+  scope: 'character+map',
   category: 'stat',
 
   combine: function(pools, ctx) {
@@ -55,8 +54,8 @@ export default createDescriptor({
       var playerAcc = 0;
       if (accTree && accTree.val != null) playerAcc = accTree.val;
       else if (typeof accTree === 'number') playerAcc = accTree;
-      // Get monster defence from current map
-      var mapIdx = (currentMapData && currentMapData[ci]) || 0;
+      // Talent 645 uses the active calculation map's target defence.
+      var mapIdx = ctx.mapIdx != null ? Number(ctx.mapIdx) : 0;
       var monKey = MapAFKtarget[mapIdx] || 'Nothing';
       var monDef = (MONSTERS[monKey] && Number(MONSTERS[monKey].Defence)) || 0;
       var accOverflow = Math.floor(playerAcc) - 1.5 * monDef;

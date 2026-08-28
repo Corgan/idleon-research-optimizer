@@ -21,6 +21,7 @@ import { rogBonusQTY } from '../w7/sushi.js';
 import { talent } from '../common/talent.js';
 import { STAMP_DATA } from '../../data/w1/stamp.js';
 import { ITEMS } from '../../data/game/items.js';
+import { emporiumBonus } from '../../../game-helpers.js';
 
 // Number2Letter mapping for stamp key encoding: cat → letter
 // Game's Number2Letter: [0]='_', [1]='a', [2]='b', [3]='c'
@@ -189,7 +190,15 @@ function buildStampTypeMap() {
     var catNum = catLetter === 'A' ? 0 : catLetter === 'B' ? 1 : 2;
     var idx = item.ID - catNum * 1000;
     if (!_stampTypeCache[type]) _stampTypeCache[type] = [];
-    _stampTypeCache[type].push({ cat: catNum, idx: idx, x1: Number(parts[2]), x2: Number(parts[3]), formula: parts[1] });
+    _stampTypeCache[type].push({
+      cat: catNum,
+      idx: idx,
+      x1: Number(parts[2]),
+      x2: Number(parts[3]),
+      formula: parts[1],
+      overlevelStep: Number(parts[4]) || 0,
+      skillIdx: Number(parts[10]) || 0,
+    });
   }
   return _stampTypeCache;
 }
@@ -233,6 +242,55 @@ export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
   if (typeKey === 'BaseAllEff') {
     var stampTalent625 = talent.resolve(625, { charIdx: charIdx == null ? 0 : charIdx, saveData: saveData }).val;
     total *= Math.max(Number(stampTalent625) || 0, 1);
+  }
+  return treeResult(total, children);
+}
+
+function _stampOverLevel(stamp, rawLevel, saveData, charIdx) {
+  if (stamp.skillIdx <= 0
+      || emporiumBonus(5, saveData.ninjaData?.[102]?.[9]) > 0) return rawLevel;
+  if (stamp.overlevelStep <= 1) return rawLevel;
+  var skillLevel = Number(saveData.lv0AllData?.[charIdx]?.[stamp.skillIdx]) || 0;
+  var scaledStampLevel = rawLevel * (10 / stamp.overlevelStep);
+  var adjusted = scaledStampLevel;
+  if (scaledStampLevel > 3) {
+    adjusted = 3 + (scaledStampLevel - 3)
+      * Math.pow(skillLevel / Math.max(scaledStampLevel - 3, 1e-300), 0.75);
+    adjusted *= stamp.overlevelStep / 10;
+  }
+  return Math.min(adjusted, rawLevel);
+}
+
+export function computeCarryStampBonus(typeKey, saveData, charIdx) {
+  var stamps = buildStampTypeMap()[typeKey];
+  if (!stamps) return treeResult(0, null);
+  var total = 0;
+  var children = [];
+  var labDouble = mainframeBonus(7, saveData) === 2 ? 2 : 1;
+  var prist17 = pristineBon(17, saveData) || 0;
+  var pristineMulti = prist17 > 0 ? 1 + prist17 / 100 : 1;
+
+  for (var stampIdx = 0; stampIdx < stamps.length; stampIdx++) {
+    var stamp = stamps[stampIdx];
+    var rawLevel = Number(stampLvData?.[stamp.cat]?.[stamp.idx]) || 0;
+    if (rawLevel <= 0) continue;
+    var effectiveLevel = Math.floor(_stampOverLevel(stamp, rawLevel, saveData, charIdx));
+    var rawValue = formulaEval(stamp.formula, stamp.x1, stamp.x2, effectiveLevel);
+    var exalted = isExalted(stamp.cat, stamp.idx, saveData);
+    var exaltedMultiplier = 1;
+    if (exalted) {
+      var doubler = computeStampDoublerSources(saveData, charIdx);
+      exaltedMultiplier = 1 + doubler.total / 100;
+    }
+    var categoryMultiplier = stamp.cat < 2 ? labDouble * pristineMulti : 1;
+    var value = rawValue * exaltedMultiplier * categoryMultiplier;
+    total += value;
+    children.push(node(stampKey(stamp.cat, stamp.idx), value, [
+      node('Saved Level', rawLevel, null, { fmt: 'raw' }),
+      node('Effective Level', effectiveLevel, null, { fmt: 'raw' }),
+      node('Exalted Multiplier', exaltedMultiplier, null, { fmt: 'x' }),
+      node('Category Multiplier', categoryMultiplier, null, { fmt: 'x' }),
+    ], { fmt: 'raw' }));
   }
   return treeResult(total, children);
 }

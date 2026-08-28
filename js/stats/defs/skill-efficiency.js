@@ -29,7 +29,7 @@ import {
   getEnabledStarSigns,
   isStarSignActive,
 } from '../systems/common/starSign.js';
-import { talent } from '../systems/common/talent.js';
+import { maxTalentBonusDetail, talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { votingBonusz } from '../systems/w2/voting.js';
@@ -39,11 +39,11 @@ import { getSetBonus } from '../systems/w3/setBonus.js';
 import { computeTrapMGBonus } from '../systems/w3/trapping.js';
 import { computeRiftSkillBonus } from '../systems/w4/rift.js';
 import { computeMonumentROGbonus } from '../systems/w5/hole.js';
-import { computeDivinityPointsPerHour } from '../systems/w5/divinity-rate.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
-import { chapterBonus } from '../systems/w7/spelunking.js';
+import { chapterBonus, shopUpgBonus } from '../systems/w7/spelunking.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { createDescriptor } from './helpers.js';
+import { label } from '../entity-names.js';
 import {
   computeAllBaseSkillEff,
   computeAllEfficiencies,
@@ -420,14 +420,28 @@ function _laboratory(charIdx, ctx, shared) {
 
 function _spelunking(charIdx, ctx, shared) {
   var saveData = ctx.saveData;
+  var shop56Factor = 1 + _num(shopUpgBonus(56, saveData)) / 100;
+  var talent237Detail = maxTalentBonusDetail(237, charIdx, saveData);
+  var talent237Factor = Math.max(1, _num(talent237Detail && talent237Detail.value));
   var value = (10 + chapterBonus(0, 0, saveData) + chapterBonus(1, 0, saveData))
     * Math.max(1, 1 + (shared.allEfficiencies - 1) / 20)
     * (1 + 30 * computeRiftSkillBonus(18, 1, saveData) / 100)
+    * shop56Factor
     * (1 + chapterBonus(0, 1, saveData) / 100)
+    * talent237Factor
     * (1 + (_stamp('spelunkeff', charIdx, saveData)
       + _card(98, 18, charIdx, saveData) + _vial('7spelunkeff', charIdx, saveData)
       + _num(bubbleValByKey('A11', charIdx, saveData))) / 100);
-  return { value: value, statsDN: 0, stat: 0, level: 0 };
+  return {
+    value: value,
+    statsDN: 0,
+    stat: 0,
+    level: 0,
+    children: [
+      { name: 'Shop Upgrade 56 Multiplier', val: shop56Factor, fmt: 'x', note: 'ShopUpgBonus(56)' },
+      { name: label('Talent', 237) + ' Multiplier', val: talent237Factor, fmt: 'x', note: 'max(1, getbonus2(1,237,-1))' },
+    ],
+  };
 }
 
 var COMPUTE = {
@@ -445,8 +459,14 @@ var COMPUTE = {
 export default createDescriptor({
   id: 'skill-efficiency',
   name: 'Skill Efficiency',
-  scope: 'character+map',
+  scope: 'character+map+skill',
   category: 'stat',
+  applies: function(ctx) {
+    var skillType = ctx.skillType || 'Mining';
+    return skillType === 'Smithing' || skillType === 'Breeding'
+      ? { applicable: false, reason: skillType + ' has no Skill Efficiency panel value.' }
+      : true;
+  },
 
   combine: function(pools, ctx) {
     var saveData = ctx.saveData;
@@ -455,17 +475,9 @@ export default createDescriptor({
     var skillType = ctx.skillType || 'Mining';
 
     if (skillType === 'Divinity') {
-      var divinityResult = computeDivinityPointsPerHour(charIdx, ctx);
-      var divinityMissing = [];
-      if (saveData.companionDataAvailable === false) divinityMissing.push('companion ownership');
-      if (saveData.activeVoteDataAvailable === false) divinityMissing.push('current server vote');
       return {
-        val: Number(divinityResult) || 0,
-        children: divinityResult.children || null,
-        partial: divinityMissing.length > 0,
-        reason: divinityMissing.length > 0
-          ? 'Partial total: the imported JSON does not include ' + divinityMissing.join(' or ') + ' metadata.'
-          : '',
+        val: 100,
+        children: [{ name: 'Divinity Efficiency', val: 100, fmt: 'raw', note: 'SkillStats("DivinityEfficiency")' }],
       };
     }
     var compute = COMPUTE[skillType];
@@ -498,6 +510,7 @@ export default createDescriptor({
       val: result.level,
       fmt: 'raw',
     });
+    if (result.children) children.push.apply(children, result.children);
     children.push({ name: 'All Base Skill Efficiency', val: shared.allBaseSkillEff, fmt: 'raw' });
     children.push({ name: 'All Skill Efficiencies', val: shared.allEfficiencies, fmt: 'x' });
 

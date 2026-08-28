@@ -28,7 +28,7 @@ import { dreamData } from '../../save/data.js';
 
 export default createDescriptor({
   id: 'research-exp',
-  name: 'Research EXP Bonus',
+  name: 'Research EXP Multiplier',
   scope: 'account',
   category: 'research',
 
@@ -266,12 +266,29 @@ export default createDescriptor({
     if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'Level ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ', Marble Level ' + _fMlv2_16 : '') });
 
     // ---- Build result ----
-    var children = [];
+    var additiveItems = [];
     for (var i = 0; i < items.length; i++) {
-      if (items[i].val > 0) children.push(items[i]);
+      if (items[i].val > 0) additiveItems.push(items[i]);
     }
-    children.push({ name: 'True Multipliers', val: 0, children: multItems, fmt: 'raw', note: 'Applied separately in sim' });
+    var trueMultiplier = 1;
+    for (var mi = 0; mi < multItems.length; mi++) trueMultiplier *= Number(multItems[mi].val) || 1;
+    var fullMultiplier = (1 + totalAdd / 100) * trueMultiplier;
+    var missingMetadata = [];
+    if (saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
 
-    return { val: totalAdd, children: children };
+    return {
+      val: fullMultiplier,
+      additivePct: totalAdd,
+      stickerBonus: sticker,
+      trueMultiplier: trueMultiplier,
+      children: [
+        { name: 'Additive Research EXP', val: totalAdd, children: additiveItems, fmt: 'raw' },
+        { name: 'True Multipliers', val: trueMultiplier, children: multItems, fmt: 'x' },
+      ],
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   },
 });

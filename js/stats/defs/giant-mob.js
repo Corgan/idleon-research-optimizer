@@ -7,12 +7,14 @@ import { computeVialByKey } from '../systems/w2/alchemy.js';
 import { optionsListData } from '../../save/data.js';
 import { label } from '../entity-names.js';
 import { safe, safeTree, rval, createDescriptor } from './helpers.js';
+import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
 
 export default createDescriptor({
   id: 'giant-mob',
   name: 'Giant Mob Odds',
-  scope: 'character',
+  scope: 'character+map',
   category: 'combat',
+  applies: combatMapApplicability,
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

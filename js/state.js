@@ -52,6 +52,11 @@ export const saveData = {
   farmUpgData: [],
   totalTomePoints: 0,
   holesData: [],
+  royalGData: [],
+  royalMapsData: [],
+  royalGDataAvailable: false,
+  royalMapsDataAvailable: false,
+  royalDataAvailable: false,
   riftData: [],
   breedingData: [],
   summonData: [],
@@ -126,6 +131,10 @@ export const saveData = {
   minigameHiscores: [],
   chestOrderData: [],
   chestQuantityData: [],
+  itemQuantityData: {
+    chest: { order: [], quantity: [], available: false },
+    inventories: [],
+  },
   greenStacksData: [],
   krBestData: {},
   divinityAllData: [],
@@ -206,6 +215,34 @@ export function restoreState(s) {
   if (!saveData.vaultData) saveData.vaultData = [];
   if (!saveData.farmUpgData) saveData.farmUpgData = [];
   if (!saveData.holesData) saveData.holesData = [];
+  if (!Object.prototype.hasOwnProperty.call(s, 'itemQuantityData')) {
+    saveData.itemQuantityData = {
+      chest: { order: [], quantity: [], available: false },
+      inventories: [],
+    };
+  } else {
+    const itemQuantity = saveData.itemQuantityData || {};
+    const chest = itemQuantity.chest || {};
+    saveData.itemQuantityData = {
+      chest: {
+        order: Array.isArray(chest.order) ? chest.order : [],
+        quantity: Array.isArray(chest.quantity) ? chest.quantity : [],
+        available: chest.available === true,
+      },
+      inventories: Array.isArray(itemQuantity.inventories)
+        ? itemQuantity.inventories.map(inventory => ({
+          order: Array.isArray(inventory?.order) ? inventory.order : [],
+          quantity: Array.isArray(inventory?.quantity) ? inventory.quantity : [],
+          available: inventory?.available === true,
+        }))
+        : [],
+    };
+  }
+  if (!Object.prototype.hasOwnProperty.call(s, 'royalGData')) saveData.royalGData = [];
+  if (!Object.prototype.hasOwnProperty.call(s, 'royalMapsData')) saveData.royalMapsData = [];
+  if (!Object.prototype.hasOwnProperty.call(s, 'royalGDataAvailable')) saveData.royalGDataAvailable = false;
+  if (!Object.prototype.hasOwnProperty.call(s, 'royalMapsDataAvailable')) saveData.royalMapsDataAvailable = false;
+  if (!Object.prototype.hasOwnProperty.call(s, 'royalDataAvailable')) saveData.royalDataAvailable = false;
   if (!saveData.riftData) saveData.riftData = [];
   if (!saveData.breedingData) saveData.breedingData = [];
   if (!saveData.summonData) saveData.summonData = [];

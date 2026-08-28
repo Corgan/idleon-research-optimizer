@@ -34,6 +34,7 @@ import { rogBonusQTY } from '../systems/w7/sushi.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { afkGains as cglunkoAfkGains } from '../systems/w5/cglunko.js';
+import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
 
 function _votingBonus(voteIdx, ctx) {
   var votingMulti = 1;
@@ -44,8 +45,9 @@ function _votingBonus(voteIdx, ctx) {
 export default createDescriptor({
   id: 'fighting-afk',
   name: 'Fighting AFK Rate',
-  scope: 'character',
+  scope: 'character+map',
   category: 'rate',
+  applies: combatMapApplicability,
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

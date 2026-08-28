@@ -59,6 +59,19 @@ function isBubblePrismad(cauldron, bubbleIdx) {
   return prismaStr.indexOf(letter + Math.round(bubbleIdx) + ',') !== -1;
 }
 
+export function isBubbleKeyPrismad(key) {
+  for (var cauldron = 0; cauldron < 4; cauldron++) {
+    var bubbles = AlchemyDescription[cauldron];
+    if (!bubbles) continue;
+    for (var bubbleIdx = 0; bubbleIdx < bubbles.length; bubbleIdx++) {
+      if (bubbles[bubbleIdx] && bubbles[bubbleIdx][15] === key) {
+        return isBubblePrismad(cauldron, bubbleIdx);
+      }
+    }
+  }
+  return false;
+}
+
 // PrismaBonusMult: Math.min(4, 2 + (ArcaneUpg(45) + Arcade(54) + HaveW6Trophy + Palette(28)
 //   + 0.2*TotalPurpleSigils + ExoticBonusQTY(48) + LegendPTS(36) + 50*Companions(88)) / 100)
 function getPrismaBonusMult(saveData) {

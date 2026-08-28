@@ -9,12 +9,14 @@ import { shrine } from '../systems/w3/construction.js';
 import { eventShopOwned } from '../../game-helpers.js';
 import { label } from '../entity-names.js';
 import { safe, rval, safeTree, createDescriptor } from './helpers.js';
+import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
 
 export default createDescriptor({
   id: 'crystal-spawn',
   name: 'Crystal Mob Chance',
-  scope: 'character',
+  scope: 'character+map',
   category: 'combat',
+  applies: combatMapApplicability,
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

@@ -101,6 +101,9 @@ var SIGN_BONUSES = {
   CropEvoPerFarmLv: { 65: 3 },
   FarmingEXP: { 66: 20 },
   OGChance: { 67: 15 },
+  MobRespawn: { 26: 2, 49: 4 },
+  pctCardDrop: { 41: 15 },
+  CarryCap: { 11: 10, 25: 5, 29: 30 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)
@@ -139,6 +142,8 @@ export function computeStarSignBonus(key, ci, saveData) {
   for (var i = 0; i < signIndices.length; i++) {
     var sigIdx = Number(signIndices[i]);
     var val = bonusMap[sigIdx];
+    if (key === 'MobRespawn' && sigIdx === 49
+      && (Number(saveData.lv0AllData?.[ci]?.[0]) || 0) < 60) continue;
     if (!isStarSignActive(sigIdx, ci, enabled, saveData)) continue;
     if (val < 0 && sigIdx < enabled) continue;
     total += val;

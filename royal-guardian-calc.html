@@ -1,0 +1,1759 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Idleon Royal Guardian Calculator</title>
+    <style>
+      :root {
+        --bg: #1a1a2e;
+        --bg2: #16213e;
+        --bg3: #0f3460;
+        --accent: #e94560;
+        --text: #eee;
+        --text2: #c0c0d4;
+        --gold: #ffd700;
+        --green: #4caf50;
+        --blue: #2196f3;
+        --cyan: #4dd0e1;
+        --red: #f44;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      h1 {
+        text-align: center;
+        margin: 0;
+        padding: 12px;
+        background: var(--bg2);
+        border-bottom: 2px solid var(--accent);
+      }
+      h1 a {
+        float: left;
+        color: var(--text2);
+        font-size: 0.7em;
+      }
+      h1 span {
+        color: var(--accent);
+      }
+      .main {
+        max-width: 1400px;
+        margin: auto;
+        padding: 16px;
+      }
+      .tabs,
+      .subtabs {
+        display: flex;
+        flex-wrap: wrap;
+        background: var(--bg2);
+        border-bottom: 1px solid #334;
+      }
+      .tab-btn,
+      .subtabs button,
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+      .tab-btn,
+      .subtabs button {
+        padding: 10px 18px;
+        background: transparent;
+        color: var(--text2);
+        border: 0;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+      }
+      .tab-btn:hover,
+      .subtabs button:hover {
+        background: #ffffff0d;
+        color: var(--text);
+      }
+      .tab-btn[aria-selected="true"],
+      .subtabs button[aria-selected="true"] {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: bold;
+      }
+      .section,
+      .opt-section {
+        background: var(--bg2);
+        border-radius: 8px;
+        padding: 16px;
+        margin: 12px 0;
+      }
+      .section h2,
+      .opt-section h2 {
+        color: var(--accent);
+        font-size: 1.15em;
+        border-bottom: 1px solid #333;
+        padding-bottom: 7px;
+        margin: 0 0 12px;
+      }
+      .section h3,
+      .opt-section h3 {
+        color: var(--cyan);
+        font-size: 1em;
+        margin: 12px 0 7px;
+      }
+      .card-grid {
+        display: grid;
+        gap: 10px;
+      }
+      .cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .cols-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .cols-5 {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .card {
+        border: 1px solid #445;
+        border-radius: 6px;
+        padding: 10px;
+        min-width: 0;
+      }
+      .card-title {
+        color: var(--cyan);
+        font-size: 0.82em;
+      }
+      .card-val {
+        color: var(--gold);
+        font-size: 1.35em;
+        font-weight: bold;
+      }
+      .card-sub,
+      .note,
+      .small {
+        color: var(--text2);
+        font-size: 0.82em;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.74em;
+        font-weight: bold;
+      }
+      .badge-green {
+        background: #4caf5033;
+        color: var(--green);
+      }
+      .badge-gold {
+        background: #ffd70022;
+        color: var(--gold);
+      }
+      .badge-blue {
+        background: #2196f333;
+        color: var(--blue);
+      }
+      .badge-red {
+        background: #ff444422;
+        color: var(--red);
+      }
+      .badge-cyan {
+        background: #4dd0e133;
+        color: var(--cyan);
+      }
+      button {
+        padding: 7px 12px;
+        color: var(--text);
+        background: var(--bg3);
+        border: 1px solid #4a607e;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .controls,
+      .planner-controls {
+        display: flex;
+        gap: 10px;
+        align-items: end;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .controls label,
+      .planner-controls label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        color: var(--text2);
+        font-size: 0.84em;
+      }
+      input,
+      select {
+        background: #101b35;
+        color: var(--text);
+        border: 1px solid #4a607e;
+        padding: 6px;
+      }
+      .data-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.82em;
+      }
+      .data-table th,
+      .data-table td {
+        padding: 6px;
+        border-bottom: 1px solid #334;
+        text-align: left;
+        vertical-align: top;
+      }
+      .data-table th {
+        color: var(--text2);
+      }
+      .table-wrap {
+        overflow: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #526b8f #101b35;
+      }
+      .table-wrap::-webkit-scrollbar,
+      .resource-list::-webkit-scrollbar,
+      .resource-inspector::-webkit-scrollbar {
+        width: 9px;
+        height: 9px;
+      }
+      .table-wrap::-webkit-scrollbar-track,
+      .resource-list::-webkit-scrollbar-track,
+      .resource-inspector::-webkit-scrollbar-track {
+        background: #101b35;
+      }
+      .table-wrap::-webkit-scrollbar-thumb,
+      .resource-list::-webkit-scrollbar-thumb,
+      .resource-inspector::-webkit-scrollbar-thumb {
+        background: #526b8f;
+        border: 2px solid #101b35;
+        border-radius: 8px;
+      }
+      .table-wrap::-webkit-scrollbar-thumb:hover,
+      .resource-list::-webkit-scrollbar-thumb:hover,
+      .resource-inspector::-webkit-scrollbar-thumb:hover {
+        background: #6f8db8;
+      }
+      .mobile-cards {
+        display: none;
+        gap: 8px;
+      }
+      .mobile-card {
+        background: #132745;
+        border: 1px solid #334;
+        border-radius: 5px;
+        padding: 9px;
+        overflow-wrap: anywhere;
+      }
+      .mobile-card b {
+        display: block;
+        color: var(--cyan);
+        margin-bottom: 4px;
+      }
+      .progress {
+        height: 9px;
+        min-width: 70px;
+        background: #333;
+        border-radius: 5px;
+        overflow: hidden;
+        margin: 5px 0;
+      }
+      .progress i {
+        display: block;
+        height: 100%;
+        background: var(--green);
+      }
+      .info-panel {
+        border-left: 3px solid var(--cyan);
+        padding: 9px 12px;
+        background: #132745;
+      }
+      .outpost-row {
+        border: 1px solid #40536e;
+        border-radius: 6px;
+        margin: 8px 0;
+        background: #132745;
+      }
+      .outpost-row summary {
+        cursor: pointer;
+        padding: 10px;
+        list-style: none;
+      }
+      .outpost-row summary::-webkit-details-marker {
+        display: none;
+      }
+      .outpost-workspace { display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1.8fr); gap: 12px; align-items: start; }
+      .outpost-list, .outpost-detail { min-width: 0; max-height: 680px; overflow: auto; padding: 10px; background: #101b35; border: 1px solid #40536e; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #526b8f #101b35; }
+      .outpost-selectable { display: block; width: 100%; text-align: left; color: var(--text); cursor: pointer; }
+      .outpost-selectable:hover, .outpost-selectable.selected { border-color: var(--accent); background: #ffffff12; }
+      .outpost-selectable.selected { box-shadow: inset 3px 0 var(--accent); }
+      .outpost-selectable .small { color: var(--text2); }
+      .royal-map-scroll {
+        min-width: 0;
+        overflow: hidden;
+        background: #0b1428;
+        border: 1px solid #40536e;
+        border-radius: 6px;
+      }
+      .royal-map-shell {
+        display: grid;
+        grid-template-columns: 48px 600px 210px;
+        gap: 10px;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        align-items: start;
+      }
+      .royal-world-rail {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .royal-world-rail button {
+        width: 48px;
+        min-height: 32px;
+        padding: 5px 2px;
+      }
+      .royal-map {
+        position: relative;
+        width: 600px;
+        min-width: 600px;
+        max-width: 600px;
+        aspect-ratio: 811 / 433;
+        overflow: hidden;
+        background: #0b1428 center / cover no-repeat;
+      }
+      .royal-map-counters {
+        height: 320px;
+        min-width: 0;
+        overflow: hidden;
+        padding: 8px;
+        background: #101b35;
+        border: 1px solid #40536e;
+        border-radius: 6px;
+      }
+      .royal-map-counters h3 { margin: 0 0 7px; color: var(--cyan); font-size: .9em; }
+      .royal-counter-grid { display: grid; gap: 5px; }
+      .royal-counter { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 5px; align-items: center; min-width: 0; font-size: .76em; }
+      .royal-counter img, .royal-currency-chip img { width: 20px; height: 20px; object-fit: contain; }
+      .royal-counter-label { color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .royal-counter-value { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+      .royal-currency-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+      .royal-currency-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px; background: #132745; border: 1px solid #40536e; border-radius: 4px; color: var(--text); font-size: .72em; }
+      .royal-partial { display: block; color: var(--gold); font-size: .82em; white-space: normal; overflow-wrap: anywhere; }
+      .royal-map-layer { position: absolute; inset: 0; }
+      .royal-map-line {
+        position: absolute;
+        height: 1.386%;
+        transform-origin: left center;
+        pointer-events: none;
+        opacity: .85;
+      }
+      .royal-map-node,
+      .royal-map-outpost {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        cursor: pointer;
+      }
+      .royal-map-node {
+        width: 6.905%;
+        aspect-ratio: 1;
+        transform: none;
+        padding: 0;
+        background: transparent;
+        border: 0;
+      }
+      .royal-map-node img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .royal-map-node img:last-child {
+        inset: 21.429% auto auto 25%;
+        width: 50%;
+        height: 50%;
+      }
+      .royal-map-outpost {
+        width: 2.836%;
+        aspect-ratio: 23 / 18;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        overflow: visible;
+      }
+      .royal-map-outpost.built {
+        width: 6.905%;
+        aspect-ratio: 56 / 20;
+        transform: translate(-48.2%, -40%);
+      }
+      .royal-map-outpost.locked { opacity: .45; filter: grayscale(1); }
+      .royal-map-outpost::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 117.4%;
+        aspect-ratio: 27 / 24;
+        transform: translate(-50%, -50%);
+        background: url('./assets/royal-guardian/UImapsel.png') center / contain no-repeat;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .royal-map-outpost:hover::after,
+      .royal-map-outpost:focus-visible::after,
+      .royal-map-outpost.selected::after { opacity: 1; }
+      .royal-map-outpost.built::after {
+        left: 49.1%;
+        top: 45%;
+        width: 48.2%;
+      }
+      .royal-map-outpost:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+      .royal-map-glyph { position: absolute; overflow: hidden; pointer-events: none; }
+      .royal-map-glyph img {
+        position: absolute;
+        left: calc(-1 * var(--gx) / var(--gw) * 100%);
+        top: calc(-1 * var(--gy) / var(--gh) * 100%);
+        width: calc(var(--aw) / var(--gw) * 100%);
+        height: calc(var(--ah) / var(--gh) * 100%);
+        max-width: none;
+      }
+      .royal-map-outpost:not(.built) .royal-map-node-glyph { inset: 0; }
+      .royal-map-outpost.built .royal-map-node-glyph { left: 28.571%; top: 0; width: 41.071%; height: 90%; }
+      .royal-map-outpost-glyph { left: 0; top: 10%; width: 100%; height: 85%; }
+      .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 7px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
+      .royal-map-assignments .royal-map-glyph { filter: drop-shadow(0 1px 1px rgba(3, 8, 18, .95)) drop-shadow(0 0 3px rgba(3, 8, 18, .85)); }
+      .royal-map-node-glyph { z-index: 2; }
+      .royal-map-outpost-glyph { z-index: 3; }
+      .royal-map-militia { position: absolute; left: 50%; top: -2px; width: 9px; height: 10px; transform: translate(-50%, -100%); z-index: 4; pointer-events: none; }
+      .royal-map-militia .royal-map-glyph { inset: 0; }
+      .royal-map-militia b { position: absolute; right: -6px; top: -5px; min-width: 14px; padding: 1px 3px; border-radius: 7px; background: #111827; color: var(--gold); font-size: 9px; line-height: 12px; }
+      .royal-worker-icon { position: relative; width: 18px; height: 27px; flex: 0 0 auto; }
+      .royal-worker-icon .worker-profession { left: 2px; top: 0; width: 13px; height: 18px; }
+      .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
+      .assignment-count { position: absolute; right: -2px; top: -3px; min-width: 12px; padding: 0 3px; border-radius: 6px; background: #111827; color: var(--gold); font-size: 8px; line-height: 11px; text-align: center; }
+      .currency-inline { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
+      .royal-resource-icon { position: relative; display: inline-block; width: 28px; height: 28px; flex: 0 0 28px; vertical-align: middle; }
+      .royal-resource-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .royal-resource-icon img:last-child { inset: 21.429% auto auto 25%; width: 50%; height: 50%; }
+      .outpost-unit-list, .outpost-connection-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+      .outpost-unit-detail, .outpost-connection-detail { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 3px 7px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text2); font-size: .82em; }
+      .outpost-unit-detail .royal-worker-icon { width: 24px; height: 34px; }
+      .outpost-unit-detail .worker-profession { left: 3px; width: 18px; height: 24px; }
+      .outpost-unit-detail .worker-shadow { left: 3px; top: 23px; width: 19px; height: 6px; }
+      .currency-icon-picker { position: relative; display: inline-block; }
+      .currency-icon-picker summary { display: flex; align-items: center; justify-content: center; min-width: 44px; height: 34px; padding: 3px 8px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text2); cursor: pointer; list-style: none; }
+      .currency-icon-picker summary::-webkit-details-marker { display: none; }
+      .currency-icon-menu { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; display: grid; grid-template-columns: repeat(6, 30px); gap: 3px; padding: 6px; border: 1px solid #40536e; border-radius: 5px; background: #0c172b; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+      .currency-icon-picker button { width: 30px; height: 30px; padding: 3px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text2); cursor: pointer; }
+      .currency-icon-picker button.selected { border-color: var(--gold); background: #1d3150; box-shadow: 0 0 0 1px var(--gold); }
+      .currency-icon-picker img { width: 22px; height: 22px; object-fit: contain; margin: 0; }
+      .currency-icon-picker + select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      .royal-quick-tooltip { position: fixed; z-index: 1000; display: none; width: min(330px, calc(100vw - 20px)); max-height: min(460px, calc(100vh - 20px)); overflow: auto; padding: 10px; border: 1px solid #60799d; border-radius: 6px; background: #0c172b; color: var(--text); box-shadow: 0 10px 28px rgba(0,0,0,.5); pointer-events: none; font-size: .8em; }
+      .royal-quick-tooltip.open { display: block; }
+      .royal-quick-tooltip h3 { margin: 0 0 6px; color: var(--cyan); }
+      .tooltip-grid { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; }
+      .tooltip-grid b { color: var(--gold); text-align: right; }
+      .tooltip-units { display: flex; gap: 5px; flex-wrap: wrap; margin: 7px 0; }
+      .tooltip-unit { display: inline-flex; align-items: center; }
+      .tooltip-unit .royal-worker-icon { width: 36px; height: 52px; }
+      .tooltip-unit .worker-profession { left: 6px; width: 24px; height: 34px; }
+      .tooltip-unit .worker-shadow { left: 6px; top: 33px; width: 25px; height: 8px; }
+      .royal-map-key { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--text2); font-size: .8em; }
+      .royal-map-key i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; }
+      .royal-map-assignment-toggle { padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
+      .royal-map-assignment-toggle[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+      .royal-map-assignment-toggle:disabled { opacity: .5; cursor: not-allowed; }
+      .royal-map-range-toggle { padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
+      .royal-map-range-toggle[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 0 1px rgba(77, 208, 225, .25); }
+      .royal-range-circle { position: absolute; z-index: 0; display: none; aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid rgba(77, 208, 225, .9); border-radius: 50%; background: rgba(77, 208, 225, .1); box-shadow: 0 0 12px rgba(77, 208, 225, .3); pointer-events: none; }
+      .royal-map.range-finder-active .royal-map-node,
+      .royal-map.range-finder-active .royal-map-outpost { transition: opacity .12s, filter .12s; }
+      .royal-map.range-finder-active .range-dimmed { opacity: .22; filter: grayscale(.75); }
+      .royal-map.range-finder-active .range-active { z-index: 5; filter: drop-shadow(0 0 4px var(--cyan)); }
+      .royal-map.range-finder-active .range-match { z-index: 4; opacity: 1; filter: drop-shadow(0 0 5px var(--gold)); }
+      .royal-range-status { min-width: 150px; color: var(--cyan); }
+      .royal-map-node.selected { z-index: 2; filter: drop-shadow(0 0 3px var(--gold)); outline: 2px solid var(--gold); outline-offset: 2px; }
+      .row-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+      .row-head strong {
+        color: var(--cyan);
+      }
+      .row-body {
+        padding: 0 10px 12px;
+      }
+      .metric-line {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        color: var(--text2);
+        font-size: 0.82em;
+      }
+      .metric-line b {
+        color: var(--gold);
+      }
+      .range-target { margin: 10px 0; padding: 9px; border: 1px solid #40536e; border-radius: 6px; background: rgba(10, 24, 44, .72); }
+      .range-target h3 { margin-top: 0; }
+      .range-target-main { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+      .range-target-main .currency-inline { margin: 0; }
+      .rank-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(100px, 1fr));
+        gap: 7px;
+      }
+      .rank {
+        background: #101b35;
+        padding: 7px;
+        border-radius: 4px;
+      }
+      .rank.locked {
+        opacity: 0.5;
+      }
+      .rank small {
+        display: block;
+        color: var(--text2);
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .move {
+        padding: 7px;
+        border-bottom: 1px solid #334;
+      }
+      .world-card {
+        cursor: pointer;
+      }
+      .world-card.locked {
+        opacity: 0.6;
+      }
+      .empty-state {
+        text-align: center;
+        color: var(--text2);
+        padding: 25px;
+        border: 1px dashed #4a607e;
+        border-radius: 6px;
+      }
+      .resource-workspace {
+        display: grid;
+        grid-template-columns: minmax(520px, 1.2fr) minmax(320px, 0.8fr);
+        gap: 12px;
+        align-items: start;
+      }
+      .resource-list,
+      .resource-inspector {
+        min-width: 0;
+        max-height: 680px;
+        overflow: auto;
+        padding: 10px;
+        background: #101b35;
+        border: 1px solid #40536e;
+        border-radius: 8px;
+        scrollbar-width: thin;
+        scrollbar-color: #526b8f #101b35;
+      }
+      .resource-list table { table-layout: fixed; }
+      .resource-list th:nth-child(1) { width: 22%; }
+      .resource-list th:nth-child(2) { width: 10%; }
+      .resource-list th:nth-child(3) { width: 30%; }
+      .resource-list th:nth-child(4) { width: 18%; }
+      .resource-list th:nth-child(5) { width: 20%; }
+      .resource-selectable { cursor: pointer; }
+      .resource-selectable:hover td,
+      .resource-selectable.selected td { background: #ffffff12; }
+      .resource-selectable.selected td:first-child { box-shadow: inset 3px 0 var(--accent); }
+      .resource-cell { display: grid; gap: 4px; }
+      .resource-cell .progress { width: 100%; }
+      .inspector-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+      .inspector-head h3 { margin-top: 0; }
+      .resource-inspector .data-table { margin-top: 8px; }
+      .resource-mobile-list { display: none; gap: 8px; }
+      .resource-mobile-card { cursor: pointer; }
+      .resource-mobile-card.selected { border-color: var(--accent); }
+      .resource-mobile-card .resource-inspector { max-height: none; overflow: visible; margin-top: 10px; }
+      .resource-toolbar { margin-bottom: 12px; }
+      .context-balance {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        color: var(--text2);
+        font-size: 0.82em;
+        margin: 7px 0;
+      }
+      .context-balance b {
+        color: var(--gold);
+      }
+      details > summary {
+        color: var(--cyan);
+        cursor: pointer;
+        padding: 5px 0;
+      }
+      .error {
+        color: var(--red);
+      }
+      .currency-workspace { display: grid; grid-template-columns: minmax(520px, 1.15fr) minmax(340px, .85fr); gap: 12px; align-items: start; }
+      .currency-list, .currency-inspector { min-width: 0; max-height: 680px; overflow: auto; padding: 10px; background: #101b35; border: 1px solid #40536e; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #526b8f #101b35; }
+      .currency-list table { table-layout: fixed; }
+      .currency-selectable { cursor: pointer; }
+      .currency-selectable:hover td, .currency-selectable.selected td { background: #ffffff12; }
+      .currency-selectable.selected td:first-child { box-shadow: inset 3px 0 var(--accent); }
+      .currency-mobile-list { display: none; gap: 8px; }
+      .currency-mobile-card { cursor: pointer; }
+      .currency-mobile-card.selected { border-color: var(--accent); }
+      .currency-mobile-card .currency-inspector { max-height: none; overflow: visible; margin-top: 10px; }
+      .breakdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .breakdown-panel { min-width: 0; padding: 10px; background: #101b35; border: 1px solid #40536e; border-radius: 8px; }
+      .breakdown-panel label { display: grid; gap: 5px; color: var(--text2); margin-bottom: 10px; }
+      .bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+      .bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid #4a607e; border-radius: 4px; cursor: pointer; font-size: .8em; }
+      .bt-tree { font-size: .85em; }
+      .bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+      .bt-row:hover { background: rgba(255,255,255,.07); }
+      .bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+      .bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #445; }
+      .bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+      .bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+      .bt-tooltip { position: fixed; display: none; z-index: 10; max-width: 320px; padding: 8px; background: #101b35; color: var(--text); border: 1px solid #4a607e; border-radius: 4px; font-size: .8em; }
+      @media (max-width: 700px) {
+        .royal-map-shell { grid-template-columns: 36px minmax(0, 1fr); max-width: 100%; gap: 6px; }
+        .royal-world-rail button { width: 36px; font-size: .78em; }
+        .royal-map-area { min-width: 0; }
+        .royal-map-scroll { overflow-x: auto; }
+        .royal-map-counters { grid-column: 2; width: 100%; height: auto; min-height: 150px; }
+        .main {
+          padding: 8px;
+        }
+        .section,
+        .opt-section {
+          padding: 10px;
+        }
+        .tab-btn {
+          flex: 1;
+          min-width: 0;
+          padding: 10px 6px;
+        }
+        .cols-3,
+        .cols-4,
+        .cols-5 {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .cols-2,
+        .comparison {
+          grid-template-columns: 1fr;
+        }
+        .table-wrap {
+          display: none;
+        }
+        .mobile-cards {
+          display: grid;
+        }
+        .rank-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .controls label,
+        .controls input,
+        .controls select,
+        .controls button,
+        .planner-controls label,
+        .planner-controls input,
+        .planner-controls select {
+          width: 100%;
+        }
+        .row-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .resource-workspace { display: block; }
+        .resource-list { display: none; }
+        .resource-mobile-list { display: grid; }
+        .resource-workspace > .resource-inspector { display: none; }
+        .resource-mobile-card .resource-inspector { display: block; padding: 8px; }
+        .currency-workspace { display: block; }
+        .outpost-workspace { display: block; }
+        .outpost-list { max-height: 360px; margin-bottom: 12px; }
+        .outpost-detail { max-height: none; }
+        .currency-list { display: none; }
+        .currency-mobile-list { display: grid; }
+        .currency-workspace > .currency-inspector { display: none; }
+        .currency-mobile-card .currency-inspector { display: block; padding: 8px; }
+        .bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
+        .bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid #4a607e; border-radius: 4px; cursor: pointer; font-size: .8em; }
+        .bt-tree { font-size: .85em; }
+        .bt-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.04); min-height: 26px; cursor: pointer; }
+        .bt-row:hover { background: rgba(255,255,255,.07); }
+        .bt-children { background: rgba(0,0,0,.12); border-left: 2px solid rgba(255,255,255,.08); }
+        .bt-root { font-weight: 700; font-size: 1.05em; padding-top: 6px; padding-bottom: 6px; border-bottom: 2px solid #445; }
+        .bt-arrow { cursor: pointer; color: var(--text2); font-size: 1em; width: 14px; text-align: center; user-select: none; flex-shrink: 0; }
+        .bt-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bt-val { font-weight: 600; text-align: right; flex-shrink: 0; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; }
+        .bt-tooltip { position: fixed; display: none; z-index: 10; max-width: 320px; padding: 8px; background: #101b35; color: var(--text); border: 1px solid #4a607e; border-radius: 4px; font-size: .8em; }
+        @media (max-width: 700px) { .breakdown-grid { grid-template-columns: 1fr; } .bt-label { white-space: normal; overflow-wrap: anywhere; } }
+      }
+    </style>
+  </head>
+  <body>
+    <h1><a href="index.html">Home</a><span>Idleon</span> Royal Guardian</h1>
+    <div id="save-area"></div>
+    <main class="main">
+      <div id="royal-map-host"></div>
+      <nav class="tabs" role="tablist" aria-label="Royal Guardian views">
+        <button
+          class="tab-btn"
+          role="tab"
+          aria-selected="true"
+          tabindex="0"
+          data-tab="overview"
+        >
+          Overview</button
+        ><button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="outposts"
+        >
+          Outposts</button
+        ><button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="resources"
+        >
+          Resource Nodes</button
+        ><button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="currencies"
+        >
+          Currencies</button
+        ><button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="upgrades"
+        >
+          Upgrades
+        </button>
+      </nav>
+      <div id="content" role="tabpanel"></div>
+    </main>
+    <script type="module">
+      import { saveData } from "./js/state.js";
+      import { initSaveLoader } from "./js/ui/save-loader.js";
+      import * as R from "./js/stats/systems/w7/royal-guardian.js";
+      import * as O from "./js/stats/systems/w7/royal-guardian-optimizer.js";
+      import {
+        ARMORY_UPGRADES,
+        ARMORY_ORDER,
+        ROYAL_RESOURCES,
+        ROYAL_MARBLES,
+        ROYAL_STATUES,
+      } from "./js/stats/data/w7/royal-guardian.js";
+      import { mapDisplayName } from "./js/stats/data/common/maps.js";
+      import { label } from "./js/stats/entity-names.js";
+      import { fmtVal } from "./js/renderers/format.js";
+      import { renderBreakdownTree, resetTreeCounter } from "./js/ui/dash-breakdowns.js";
+      const breakdownTooltip = document.createElement("div");
+      breakdownTooltip.className = "bt-tooltip";
+      breakdownTooltip.id = "bt-tooltip";
+      document.body.appendChild(breakdownTooltip);
+      const royalQuickTooltip = document.createElement("div");
+      royalQuickTooltip.className = "royal-quick-tooltip";
+      royalQuickTooltip.id = "royal-quick-tooltip";
+      royalQuickTooltip.setAttribute("role", "tooltip");
+      document.body.appendChild(royalQuickTooltip);
+      const session = {
+        tab: "overview",
+        worldIdx: 0,
+        outpostFilter: "all",
+        selectedOutpost: null,
+        mapSelectionKind: null,
+        assignmentIconsVisible: true,
+        rangeFinderMode: false,
+        selectedResource: 0,
+        resourceState: "active",
+        resourceSort: "drain",
+        resourceCurrency: "all",
+        resourceSearch: "",
+        currencyView: "sources",
+        breakdownOutpost: null,
+        currencyTarget: 0,
+        upgradeView: "armory",
+        flairCategory: "all",
+        flairShowMaxed: false,
+      };
+      const collectionBreakdownLabels = "Collection-rate breakdown currencyFactorLabel Final per-endpoint currency/hr";
+      let resourceResetNote = "";
+      const n = (v) => Number(v) || 0,
+        f = (v) => fmtVal(n(v)),
+        fi = (v) => Math.round(n(v)).toLocaleString("en-US"),
+        esc = (v) =>
+          String(v ?? "").replace(
+            /[&<>"']/g,
+            (c) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              })[c],
+          );
+      const types = ["Normal", "Support", "Savage"],
+        worlds = Array.from({ length: 7 }, (_, i) => i),
+        visibleMarbles = ROYAL_MARBLES.slice(0, 7);
+      function safeRawValue(value) {
+        if (typeof value === "string") return JSON.stringify(value);
+        if (typeof value === "number") return String(value);
+        try {
+          return JSON.stringify(value) ?? String(value);
+        } catch {
+          return String(value);
+        }
+      }
+      function displayItemName(v) {
+        return esc(
+          String(v ?? "")
+            .replaceAll("_", " ")
+            .replaceAll("|", " ")
+            .replace(/\s+/g, " ")
+            .trim(),
+        );
+      }
+      function mapName(i) {
+        return esc(mapDisplayName(i) || `Outpost ${i}`);
+      }
+      function card(t, v, s = "") {
+        return `<article class="card"><div class="card-title">${t}</div><div class="card-val">${v === null || v === undefined ? "Unavailable" : v}</div><div class="card-sub">${s}</div></article>`;
+      }
+      function currencyIcon(slot, labelText = "") {
+        const value = Number(slot);
+        return Number.isFinite(value) && value >= 0 ? `<img class="currency-inline" src="./assets/royal-guardian/RGres${value}.png" alt="${labelText ? esc(labelText) : ""}">` : "";
+      }
+      function resourceIcon(S, resourceIdx, labelText = "") {
+        const index = n(resourceIdx), grade = Math.max(0, Math.min(49, Math.floor(n(R.resourceGrade(S, index))))), slot = R.resourceCurrency(index);
+        return `<span class="royal-resource-icon" role="img" aria-label="${esc(labelText || `Resource ${index + 1}, grade ${grade}`)}"><img src="./assets/royal-guardian/RGresB${grade}.png" alt="">${slot >= 0 ? `<img src="./assets/royal-guardian/RGres${slot}.png" alt="">` : ""}</span>`;
+      }
+      function atlasGlyph(name, file, source, width, height, atlasWidth, atlasHeight) {
+        return `<span class="royal-map-glyph ${name}" style="--gx:${source.x};--gy:${source.y};--gw:${width};--gh:${height};--aw:${atlasWidth};--ah:${atlasHeight}"><img src="./assets/royal-guardian/${file}" alt=""></span>`;
+      }
+      function unitIcon(type, count = 1) {
+        const source = [{ x: 149, y: 395 }, { x: 179, y: 395 }, { x: 205, y: 395 }, { x: 233, y: 395 }][n(type)];
+        return source ? `<span class="royal-worker-icon" aria-label="Profession ${fi(type + 1)}${count > 1 ? `, ${fi(count)} assigned` : ""}">${atlasGlyph("worker-profession", "font-784.png", source, 29, 32, 1000, 500)}${atlasGlyph("worker-shadow", "font-784.png", { x: 150, y: 382 }, 31, 10, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
+      }
+      function positionRoyalTooltip(clientX, clientY) {
+        const pad = 12, width = royalQuickTooltip.offsetWidth, height = royalQuickTooltip.offsetHeight;
+        royalQuickTooltip.style.left = `${Math.max(10, Math.min(innerWidth - width - 10, clientX + pad))}px`;
+        royalQuickTooltip.style.top = `${Math.max(10, Math.min(innerHeight - height - 10, clientY + pad))}px`;
+      }
+      function wireRoyalTooltips() {
+        if (session.rangeFinderMode) return;
+        const hide = () => royalQuickTooltip.classList.remove("open");
+        const bind = (element, html) => {
+          element.setAttribute("aria-describedby", royalQuickTooltip.id);
+          const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); positionRoyalTooltip(x, y); };
+          element.addEventListener("pointerenter", event => show(event.clientX, event.clientY));
+          element.addEventListener("pointermove", event => positionRoyalTooltip(event.clientX, event.clientY));
+          element.addEventListener("pointerleave", hide);
+          element.addEventListener("focus", () => { const rect = element.getBoundingClientRect(); show(rect.right, rect.top); });
+          element.addEventListener("blur", hide);
+          element.addEventListener("keydown", event => { if (event.key === "Escape") hide(); });
+        };
+        document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(saveData, n(element.dataset.mapOutpost))));
+        document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => resourceQuickView(saveData, n(element.dataset.mapResource))));
+      }
+      function clearRoyalRangeFinder() {
+        const map = document.querySelector(".royal-map");
+        if (!map) return;
+        map.querySelector(".royal-range-circle")?.removeAttribute("style");
+        map.querySelectorAll(".range-active, .range-match, .range-dimmed").forEach(element => element.classList.remove("range-active", "range-match", "range-dimmed"));
+        const status = document.querySelector("[data-range-status]");
+        if (status) status.textContent = "Hover or focus an outpost or resource";
+      }
+      function showOutpostRange(mapIdx) {
+        clearRoyalRangeFinder();
+        const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-outpost="${mapIdx}"]`);
+        if (!map || !target || !R.outpostBuilt(saveData, mapIdx) || ![0, 2].includes(R.outpostType(saveData, mapIdx))) return;
+        const position = R.outpostMapPosition(mapIdx), radius = R.outpostRange(saveData, mapIdx) + 15;
+        const matches = R.reachableResourcesForOutpost(saveData, mapIdx).filter(result => result.reachable && R.resourceCurrency(result.resourceIdx) >= 0);
+        const matchIds = new Set(matches.map(result => result.resourceIdx));
+        target.classList.add("range-active");
+        map.querySelectorAll("[data-map-resource]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapResource)) ? "range-match" : "range-dimmed"));
+        const circle = map.querySelector(".royal-range-circle");
+        if (circle && position) circle.style.cssText = `display:block;left:${((position.x - 75) / 811) * 100}%;top:${((position.y - 27) / 433) * 100}%;width:${((radius * 2) / 811) * 100}%`;
+        const status = document.querySelector("[data-range-status]");
+        if (status) status.textContent = `${mapName(mapIdx)}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in range`;
+      }
+      function showResourceRange(resourceIdx) {
+        clearRoyalRangeFinder();
+        const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-resource="${resourceIdx}"]`);
+        if (!map || !target) return;
+        const matches = R.reachableOutpostsForResource(saveData, resourceIdx).filter(result => result.reachable);
+        const matchIds = new Set(matches.map(result => result.mapIdx));
+        target.classList.add("range-active");
+        map.querySelectorAll("[data-map-outpost]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapOutpost)) ? "range-match" : "range-dimmed"));
+        const status = document.querySelector("[data-range-status]");
+        if (status) status.textContent = `Resource ${resourceIdx + 1}: ${matches.length} outpost${matches.length === 1 ? "" : "s"} in range`;
+      }
+      function wireRoyalRangeFinder() {
+        if (!session.rangeFinderMode) return;
+        const bind = (element, show) => {
+          element.addEventListener("pointerenter", show);
+          element.addEventListener("pointerleave", clearRoyalRangeFinder);
+          element.addEventListener("focus", show);
+          element.addEventListener("blur", clearRoyalRangeFinder);
+          element.addEventListener("keydown", event => { if (event.key === "Escape") { clearRoyalRangeFinder(); element.blur(); } });
+        };
+        document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => showOutpostRange(n(element.dataset.mapOutpost))));
+        document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => showResourceRange(n(element.dataset.mapResource))));
+      }
+      function decorateCurrencySelectors() {
+        for (const select of document.querySelectorAll("#currency-selector, #resource-currency")) {
+          const picker = document.createElement("details"); picker.className = "currency-icon-picker";
+          const selectedOption = select.selectedOptions[0], selectedSlot = Number(selectedOption?.value);
+          picker.innerHTML = `<summary aria-label="Currency: ${esc(selectedOption?.textContent || "All")}" title="${esc(selectedOption?.textContent || "All")}">${Number.isFinite(selectedSlot) && selectedSlot >= 0 ? currencyIcon(selectedSlot) : "All"}</summary><span class="currency-icon-menu" role="group" aria-label="Choose currency"></span>`;
+          const menu = picker.querySelector(".currency-icon-menu");
+          for (const option of select.options) {
+            const slot = Number(option.value), button = document.createElement("button"); button.type = "button"; button.dataset.currencyChoice = option.value; button.classList.toggle("selected", option.selected);
+            button.setAttribute("aria-label", option.textContent.trim()); button.title = option.textContent.trim();
+            button.innerHTML = Number.isFinite(slot) && slot >= 0 ? currencyIcon(slot) : "All";
+            button.onclick = () => { picker.open = false; select.value = option.value; select.dispatchEvent(new Event("change", { bubbles: true })); };
+            menu.appendChild(button);
+          }
+          select.before(picker);
+        }
+      }
+      function rangeTargetPanel(target, kind) {
+        if (!target) return `<section class="range-target"><h3>Next range target</h3><div class="note">All available ${kind === "resource" ? "resource nodes" : "collecting outposts"} are already within range.</div></section>`;
+        const plan = target.plan || {}, resource = kind === "resource", name = resource ? `Resource ${target.resourceIdx + 1}` : mapName(target.mapIdx);
+        const icon = resource ? currencyIcon(R.resourceCurrency(target.resourceIdx)) : "";
+        const reach = n(target.range) + 15;
+        const logistics = plan.possible
+          ? plan.levelsNeeded === 0 ? "Already in range" : `+${fi(plan.levelsNeeded)} upgrade${plan.levelsNeeded === 1 ? "" : "s"} (Lv ${fi(plan.currentLevel)} → ${fi(plan.targetLevel)}, ${fi(plan.levelsNeeded * 2)} points)`
+          : esc(plan.reason || "Not reachable through Advanced Logistics");
+        return `<section class="range-target"><h3>Next range target</h3><div class="range-target-main">${icon}<b>${name}</b></div><div class="metric-line">Distance <b>${f(target.distance)}</b> | Current reach <b>${f(reach)}</b></div><div class="metric-line">Advanced Logistics <b>${logistics}</b></div></section>`;
+      }
+      function decorateRangeTargets() {
+        if (session.tab === "outposts" && session.selectedOutpost !== null && R.outpostBuilt(saveData, session.selectedOutpost)) {
+          const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextResourceRangeTarget(saveData, session.selectedOutpost), "resource"));
+          const body = document.querySelector(".outpost-detail .row-body"), rankHeading = body ? [...body.querySelectorAll("h3")].find(element => element.textContent === "Rank bars") : null;
+          if (body) body.insertBefore(panel, rankHeading || body.firstChild);
+        }
+        if (session.tab === "resources") {
+          for (const inspector of document.querySelectorAll(".resource-inspector .info-panel")) {
+            const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextOutpostRangeTarget(saveData, session.selectedResource), "outpost"));
+            const heading = [...inspector.querySelectorAll("h3")].find(element => element.textContent === "Reachable outposts");
+            inspector.insertBefore(panel, heading || null);
+          }
+        }
+      }
+      function bar(v) {
+        return `<div class="progress"><i style="width:${Math.max(0, Math.min(100, n(v) * 100))}%"></i></div>`;
+      }
+      function fmtHours(v) {
+        return Number.isFinite(v) ? `${f(v)}h` : "Unavailable";
+      }
+      function fmtDrainHours(v, capacity = 1) {
+        return !Number.isFinite(v) && capacity > 0 ? "No active drain" : fmtHours(v);
+      }
+      function fmtResetDuration(hours) {
+        if (!Number.isFinite(hours)) return "Unavailable";
+        if (hours <= 0) return "0h";
+        const minutes = Math.max(1, Math.round(hours * 60));
+        const days = Math.floor(minutes / 1440), remaining = minutes % 1440;
+        const h = Math.floor(remaining / 60), m = remaining % 60;
+        return days ? `${days}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+      }
+      function royalDataGate() {
+        if (R.hasCompleteRoyalData(saveData)) return "";
+        const missing = [!R.hasRoyalGData(saveData) ? "RoyalG" : "", !R.hasRoyalMapsData(saveData) ? "RoyalMaps" : ""].filter(Boolean);
+        return `<section class="section empty-state" role="status"><strong>Royal Guardian data unavailable.</strong><p>Missing required save data: ${missing.join(" and ")}.</p></section>`;
+      }
+      function resetNote(reset) {
+        if (!reset?.available) return '<div class="info-panel warning-panel" role="status"><b>Daily reset timing unavailable.</b><p>Before-reset collection and reset goals are unavailable because the save does not include a usable save-snapshot countdown.</p></div>';
+        if (reset.due) return '<div class="info-panel warning-panel" role="status"><b>Reset due</b><p>Reset due — refresh save after the game processes reset.</p></div>';
+        return `<div class="note">Save-snapshot countdown to daily reset: <b>${fmtResetDuration(reset.hoursRemaining)}</b>. This is not a live timer.</div>`;
+      }
+      function fmtMultiplier(v) {
+        const value = n(v);
+        return value > 0 && value < 1 ? value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') : f(value);
+      }
+      function endpoint(c) {
+        if (!c || c.kind === "empty") return "Empty";
+        return c.kind === "map" ? mapName(c.id) : `Resource ${n(c.id) + 1}`;
+      }
+      function formatDescription(t, v) {
+        return String(t || "")
+          .replace(/\+?\{%/g, `+${f(v)}%`)
+          .replace(/\{px/g, `${f(v)}px`)
+          .replace(/\}x/g, `${(1 + n(v) / 100).toFixed(2)}x`)
+          .replace(/\{/g, `+${f(v)}`)
+          .replace(/\}/g, `${(1 + n(v) / 100).toFixed(2)}x`)
+          .replace(/[@${}]/g, "")
+          .replace(/\+\s*\+/g, "+")
+          .replace(/x\s*x/g, "x")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      function formatOrbletDescription(r, v) {
+        return R.orbletDescription(saveData, r.index, v / Math.max(1, r.bonusPerLevel));
+      }
+      function resourceDetails(S = saveData) {
+        const details = O.resourceAllocationToReset(S);
+        resourceResetNote = resetNote(details.reset);
+        return details;
+      }
+      function currencyDetails(S, slot) {
+        return O.currencyIncomeToReset(S, slot);
+      }
+      function resetProjection(x) {
+        if (x?.resetProjectionAvailable === false) return '<div class="metric-line"><b>Reset projection unavailable.</b></div>';
+        const refillsAtReset = x.refillsAtReset;
+        const refill = x.refillBoundary === "source-certain"
+          ? `Refill at reset: ${refillsAtReset ? "Yes (saved drained node)" : "No"}`
+          : x.refillBoundary === "projected-uncertain"
+            ? "Projected refill at boundary: Possible (uncertain)"
+            : "Refill at reset: No";
+        const grade = x.refillBoundary === "projected-uncertain"
+          ? `Projected grade at boundary: Possible gain (+${resetValue(x.gradeGainAtReset, x.resetProjectionAvailable)})`
+          : `Projected grade: ${resetValue(x.projectedGradeAtReset ?? x.grade, x.resetProjectionAvailable)} (+${resetValue(x.gradeGainAtReset, x.resetProjectionAvailable)})`;
+        return `<div class="metric-line">Empties by reset: <b>${x.emptiesByReset ? "Yes" : "No"}</b> | <b>${refill}</b> | ${grade}</div>`;
+      }
+      function invalidResourceWarning(invalid) {
+        const resetWarning = resourceResetNote;
+        resourceResetNote = "";
+        if (!invalid?.length) return resetWarning;
+          const endpointLabel = x => x.rawValue !== undefined ? `Malformed endpoint value: ${esc(safeRawValue(x.rawValue))}` : `Resource ${esc(n(x.resourceIdx) + 1)}`;
+        return `${resetWarning}<div class="info-panel warning-panel" role="status"><b>${invalid.length} saved connection${invalid.length === 1 ? "" : "s"} could not be used</b><p>These saved endpoints are malformed, unknown, or incompatible with their outpost type, so they are excluded from the displayed totals.</p><details><summary>Review affected connections</summary>${invalid.map(x => `<div class="metric-line">${mapName(x.mapIdx)} endpoint ${n(x.slot) + 1} -> ${endpointLabel(x)}: ${esc(x.reason)}</div>`).join("")}</details></div>`;
+      }
+      function currencyCoverageWarning(breakdown) {
+        const missing = [...new Set((breakdown.missing || []).map(x => String(x)))];
+        if (breakdown.available === false) return `<div class="info-panel warning-panel" role="status"><b>Currency rates unavailable</b><p>Currency rates cannot be calculated from this save.</p>${missing.length ? `<div>Missing inputs: ${missing.map(esc).join(", ")}</div>` : ""}</div>`;
+        const currentMissing = missing.filter(x => x !== "TimeAway.ShopRestock");
+        if (breakdown.resetProjectionAvailable === false && !currentMissing.length) return "";
+        if (!currentMissing.length && !breakdown.partial) return "";
+        return `<div class="info-panel warning-panel" role="status"><b>Currency rates are partial</b><p>Some current-data inputs are unavailable, so the displayed nominal rates may be incomplete.</p>${currentMissing.length ? `<div>Missing inputs: ${currentMissing.map(esc).join(", ")}</div>` : ""}</div>`;
+      }
+      function currencySummary(breakdown) {
+        if (breakdown.available === false) return "";
+        const collectable = breakdown.collectableBeforeReset;
+        return `<div class="card-grid cols-4">${card("Balance", f(breakdown.balance))}${card("Nominal configured / hr", f(breakdown.nominalCurrencyPerHour), "Nominal current-state rate")}${card("Collectable before reset", resetValue(collectable, breakdown.resetProjectionAvailable))}${card("Active streams / nodes", `${breakdown.activeStreams} / ${breakdown.activeNodes}`)}</div>${resetNote(breakdown.reset)}`;
+      }
+      function resetValue(value, projectionAvailable) {
+        return projectionAvailable ? f(value) : "Unavailable";
+      }
+      function resourceState(x) {
+        if (x.remaining === 0) return "empty";
+        if (x.rate === 0) return "no-stream";
+        if (x.remaining > 0 && x.rate > 0 && Number.isFinite(x.drainHours) && x.drainHours <= (resourceDetails(saveData).hoursToReset ?? -1)) return "empties-window";
+        return "active";
+      }
+      function resourceReachable(S, idx) {
+        return R.reachableOutpostsForResource(S, idx).filter(x => x.reachable);
+      }
+      function resourceActionable(S, x) {
+        return x.remaining > 0 && resourceReachable(S, x.resourceIdx).length > 0;
+      }
+      function resourceStatus(S, x) {
+        const state = resourceState(x);
+        return state === "empty" ? "Empty" : state === "no-stream" ? "No stream" : state === "empties-window" ? `Empties in ${fmtHours(x.drainHours)}` : resourceActionable(S, x) ? "Active" : "Active";
+      }
+      function resourceCurrencyLabel(x) {
+        return x.currencySlot < 0 ? "No currency" : `Currency slot ${x.currencySlot}`;
+      }
+      function resourceCurrencyOptions() {
+        const slots = [...new Set(ROYAL_RESOURCES.map(x => x.currencySlot).filter(x => x >= 0))].sort((a, b) => a - b);
+        return `<option value="all" ${session.resourceCurrency === "all" ? "selected" : ""}>All currencies</option>${slots.map(i => `<option value="${i}" ${String(session.resourceCurrency) === String(i) ? "selected" : ""}>Currency slot ${i}</option>`).join("")}`;
+      }
+      function currencyNavigationIndex(key, index, length) {
+        if (length <= 0) return -1;
+        const last = length - 1;
+        const current = Math.min(Math.max(Number(index) || 0, 0), last);
+        if (key === "Home") return 0;
+        if (key === "End") return last;
+        if (key === "ArrowDown") return current === last ? 0 : current + 1;
+        if (key === "ArrowUp") return current === 0 ? last : current - 1;
+        return current;
+      }
+      function resourceFilterRows(S, m) {
+        const query = session.resourceSearch.trim().toLowerCase();
+        return m.details.filter(x => {
+          const state = resourceState(x);
+          const searchText = `resource ${x.resourceIdx + 1} ${resourceCurrencyLabel(x)}`.toLowerCase();
+          return ROYAL_RESOURCES[x.resourceIdx]?.baseCapacity > 0 &&
+            R.resourceWorld(x.resourceIdx) === session.worldIdx &&
+            (session.resourceState === "all" || (session.resourceState === "active" ? x.remaining > 0 && x.rate > 0 : session.resourceState === "actionable" ? x.remaining > 0 && resourceActionable(S, x) : state === session.resourceState)) &&
+            (session.resourceCurrency === "all" || x.currencySlot === Number(session.resourceCurrency)) &&
+            (!query || searchText.includes(query));
+        }).sort((a, b) => {
+          const av = session.resourceSort === "rate" ? -a.rate : session.resourceSort === "remaining" ? -a.remaining : a.drainHours;
+          const bv = session.resourceSort === "rate" ? -b.rate : session.resourceSort === "remaining" ? -b.remaining : b.drainHours;
+          return (av - bv) || (a.resourceIdx - b.resourceIdx);
+        });
+      }
+      function currentRate(S, i) {
+        return resourceDetails(S).details[i]?.rate || 0;
+      }
+      function wireTabs(sel, change) {
+        const bs = [...document.querySelectorAll(sel)];
+        bs.forEach((b) => {
+          b.onclick = () => {
+            change(b);
+            render();
+          };
+          b.onkeydown = (e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+              e.preventDefault();
+              const x =
+                bs[
+                  (bs.indexOf(b) +
+                    (e.key === "ArrowRight" ? 1 : -1) +
+                    bs.length) %
+                    bs.length
+                ];
+              x.focus();
+              change(x);
+              render();
+            }
+          };
+        });
+      }
+      function render() {
+        royalQuickTooltip.classList.remove("open");
+        if (R.hasCompleteRoyalData(saveData) && session.tab === "resources") syncResourceSelection(saveData);
+        document.querySelector("#royal-map-host").innerHTML = R.hasCompleteRoyalData(saveData) ? persistentMap(saveData) : "";
+        document.querySelectorAll(".tab-btn").forEach((b) => {
+          b.classList.toggle("active", b.dataset.tab === session.tab);
+          b.setAttribute(
+            "aria-selected",
+            b.dataset.tab === session.tab ? "true" : "false",
+          );
+          b.tabIndex = b.dataset.tab === session.tab ? 0 : -1;
+        });
+        document.querySelector("#content").innerHTML =
+          session.tab === "overview"
+            ? overview()
+            : session.tab === "outposts"
+              ? outposts()
+              : session.tab === "resources"
+                ? resources()
+                : session.tab === "currencies"
+                  ? currencies()
+                  : upgrades();
+                document.querySelector(".resource-subtabs")?.closest(".section")?.remove();
+                document.querySelectorAll("[data-optimize-resource], #optimize-currency").forEach(element => element.remove());
+                document.querySelectorAll(".resource-list thead tr > :nth-child(2), .currency-list thead tr > :nth-child(2), .resource-list thead tr > :last-child").forEach(element => element.remove());
+                decorateCurrencySelectors();
+                decorateRangeTargets();
+        wire();
+                  initializeCollectionBreakdowns();
+      }
+      function persistentMap(S) {
+        const q = R.worldOutpostRows(S, session.worldIdx);
+        return `<section class="section royal-map-section"><div class="royal-map-shell">${worldNav()}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
+      }
+      function syncResourceSelection(S) {
+        const rows = resourceFilterRows(S, resourceDetails(S));
+        if (rows.length) {
+          if (!rows.some(x => x.resourceIdx === session.selectedResource)) session.selectedResource = rows[0].resourceIdx;
+          session.mapSelectionKind = "resource";
+        } else if (session.mapSelectionKind === "resource") {
+          session.mapSelectionKind = null;
+        }
+      }
+      function ownedCounter(detail) {
+        const missing = [...new Set(detail.missing || [])];
+        return `${f(detail.value)}${detail.partial ? `<span class="royal-partial" role="status">Partial: ${missing.map(esc).join(", ") || "inventory unavailable"}</span>` : ""}`;
+      }
+      function counterCoverage(details) {
+        const missing = [...new Set((details.missing || []).filter(source => source !== "TimeAway.ShopRestock"))];
+        if (details.invalid?.length) missing.push(`${details.invalid.length} invalid connection${details.invalid.length === 1 ? "" : "s"}`);
+        return missing.length ? `<span class="royal-partial" role="status">Partial: ${missing.map(esc).join(", ")}</span>` : "";
+      }
+      function royalMapCounters(S, q) {
+        const built = q.filter(x => x.built).length;
+        const militia = R.militiaAssignments(S, session.worldIdx).filter(x => x.type === 4).length;
+        const allocation = resourceDetails(S);
+        const details = allocation.details || [];
+        const income = details.filter(x => R.resourceWorld(x.resourceIdx) === session.worldIdx).reduce((sum, x) => sum + n(x.currencyRate), 0);
+        const marble = R.royalMarbleOwnedDetail(S, session.worldIdx);
+        const orblet = R.orbletOwnedDetail(S);
+        const slots = [...new Set(ROYAL_RESOURCES.filter(x => R.resourceWorld(x.index ?? ROYAL_RESOURCES.indexOf(x)) === session.worldIdx).map(x => n(x.currencySlot)).filter(x => x >= 0))].sort((a, b) => a - b);
+        const chips = slots.map(slot => `<span class="royal-currency-chip" title="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}" aria-label="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${f(S.royalGData?.[1]?.[slot])}</span>`).join("") || '<span class="note">No world currencies.</span>';
+        return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div><div class="royal-counter-label" style="margin-top:8px">Currency balances</div><div class="royal-currency-chips">${chips}</div></aside>`;
+      }
+      function overview() {
+        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
+        const S = saveData,
+          rows = R.outpostRows(S),
+          m = O.kingdomMetrics(S, undefined, {
+            rankTarget: { aggregate: true },
+            armoryTarget: session.armoryTarget,
+          }),
+          all = worlds.map((w) => R.worldOutpostRows(S, w)),
+          a = nextActions(S, m),
+          p = rows.filter((x) => x.purification > 0);
+            const reset = resourceDetails(S);
+            return `<section class="section"><div class="card-grid cols-5">${card("Built outposts", rows.length)}${card("Worlds unlocked", worlds.filter((w) => R.royalWorldUnlocked(S, w)).length, "of 7")}${card("Resource output/hr", f(m.resourcesPerHour))}${card("Collectable before reset", resetValue(reset.collectableBeforeReset, reset.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(reset.nodesEmptyingByReset, reset.resetProjectionAvailable))}</div>${resetNote(reset.reset)}</section><section class="section"><h2>World progress</h2><div class="card-grid cols-4">${worlds
+          .map((w) => {
+            const q = all[w],
+              locked = !R.royalWorldUnlocked(S, w);
+            const clearing = q.filter((x) => !x.built && R.outpostClearMetrics(S, x.mapIdx).state === "clearing").length;
+            return `<article class="card world-card ${locked ? "locked" : ""}" data-world="${w}"><div class="card-title">W${w + 1} ${locked ? '<span class="badge badge-red">Locked</span>' : ""}</div><div class="card-val">${q.filter((x) => x.built).length} / ${q.length}</div><div class="card-sub">${clearing} militia clearing</div></article>`;
+          })
+          .join(
+            "",
+          )}</div></section><section class="section"><h2>Next actions</h2>${a.map((x) => `<div class="info-panel">${x}</div>`).join("")}</section><section class="section"><h2>Purified outposts</h2><div class="card-grid cols-3">${
+          p
+            .slice(0, 6)
+            .map((x) =>
+              card(
+                mapName(x.mapIdx),
+                `W${Math.floor(x.mapIdx / 50) + 1}`,
+                `Resource/hr ${f(x.resourceRate.value)} | points ${f(x.pointsLeft)}`,
+              ),
+            )
+            .join("") || '<div class="note">No purified outposts yet.</div>'
+        }</div></section>`;
+      }
+      function nextActions(S, m) {
+        const clearTargets = worlds.flatMap((w) => R.worldOutpostRows(S, w))
+          .filter((x) => !x.built)
+          .map((x) => ({ ...x, clear: R.outpostClearMetrics(S, x.mapIdx) })),
+          q = clearTargets
+            .filter((x) => x.clear.state === "clearing" && Number.isFinite(x.clear.etaHours) && x.clear.etaHours > 0)
+            .sort((a, b) => a.clear.etaHours - b.clear.etaHours)[0],
+          waiting = clearTargets.find((x) => x.clear.state === "waiting-militia"),
+          secured = clearTargets.find((x) => x.clear.state === "secured"),
+          u = ARMORY_ORDER.map((idx, o) => ({
+            idx,
+            o,
+            c: R.armoryUpgradeCost(S, o),
+          })).find(
+            (x) =>
+              R.armoryLevel(S, x.idx) < n(ARMORY_UPGRADES[x.idx]?.maxLevel),
+          ),
+          d = resourceDetails(S)
+            .details.filter((x) => x.remaining > 0 && x.rate > 0)
+            .sort((a, b) => a.drainHours - b.drainHours)[0];
+        return [
+          `${q ? `Next militia completion: <b>${mapName(q.mapIdx)}</b>, ${fmtHours(q.clear.etaHours)}.` : waiting ? `<b>${mapName(waiting.mapIdx)}</b> has progress but no militia assigned.` : secured ? `<b>${mapName(secured.mapIdx)}</b> is secured and ready to build.` : "No militia clearing is active."}`,
+          `${u ? `Next Armory option: <b>${displayItemName(ARMORY_UPGRADES[u.idx]?.name)}</b>, cost ${f(u.c.value)}.` : "Armory is fully maxed."}`,
+          `${d ? `Most constrained useful node: <b>Resource ${d.resourceIdx + 1}</b>, drains in ${fmtHours(d.drainHours)}.` : "No positive resource drain is active."}`,
+        ];
+      }
+      function worldNav() {
+        return `<nav class="royal-world-rail" role="tablist" aria-label="Outpost worlds">${worlds.map((w) => `<button role="tab" aria-selected="${session.worldIdx === w ? "true" : "false"}" tabindex="${session.worldIdx === w ? 0 : -1}" data-world-tab="${w}">W${w + 1}${R.royalWorldUnlocked(saveData, w) ? "" : " *"}</button>`).join("")}</nav>`;
+      }
+      function mapPoint(x, y) {
+        return `left:${((n(x) - 75) / 811) * 100}%;top:${((n(y) - 27) / 433) * 100}%`;
+      }
+      function mapLine(S, mapIdx, connection) {
+        if (!connection || connection.kind === "empty") return "";
+        const sourcePosition = R.outpostMapPosition(mapIdx);
+        const source = sourcePosition ? { x: sourcePosition.x + 1, y: sourcePosition.y - 1 } : null;
+        const target = connection.kind === "map"
+          ? R.outpostMapPosition(connection.id)
+          : ROYAL_RESOURCES[connection.id]
+            ? { x: n(ROYAL_RESOURCES[connection.id].x) + 30, y: n(ROYAL_RESOURCES[connection.id].y) + 23 }
+            : null;
+        if (!source || !target || ![source.x, source.y, target.x, target.y].every(Number.isFinite)) return "";
+        const dx = target.x - source.x, dy = target.y - source.y, distance = Math.hypot(dx, dy);
+        if (!Number.isFinite(distance) || distance <= 0) return "";
+        const family = connection.kind === "map" ? "B" : R.outpostType(S, mapIdx) === 2 ? "C" : "A";
+        return `<img class="royal-map-line" src="./assets/royal-guardian/RGline${family}.png" alt="" style="left:${((source.x - 75) / 811) * 100}%;top:${((source.y - 27) / 433) * 100}%;width:${(distance / 811) * 100}%;transform:rotate(${Math.atan2(dy, dx) * 180 / Math.PI}deg)">`;
+      }
+      function mapResource(S, m, resource) {
+        const grade = Math.max(0, Math.min(49, Math.floor(n(R.resourceGrade(S, resource.index)))));
+        const state = resourceState(m.details[resource.index] || { remaining: 0, rate: 0 });
+        const selected = session.mapSelectionKind === "resource" && resource.index === session.selectedResource;
+        return `<button class="royal-map-node${selected ? " selected" : ""}" data-map-resource="${resource.index}" style="${mapPoint(resource.x, resource.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="Resource ${resource.index + 1}, currency slot ${resource.currencySlot}, grade ${grade}, ${state}"><img src="./assets/royal-guardian/RGresB${grade}.png" alt=""><img src="./assets/royal-guardian/RGres${resource.currencySlot}.png" alt=""></button>`;
+      }
+      function mapOutpost(S, row) {
+        const position = R.outpostMapPosition(row.mapIdx);
+        if (!position) return "";
+        const clear = !row.built ? R.outpostClearMetrics(S, row.mapIdx) : null;
+        const type = row.built ? R.outpostType(S, row.mapIdx) : 0;
+        const state = row.built ? "built" : clear?.state || row.state;
+        const status = row.built ? types[type] : state;
+        const selected = session.mapSelectionKind === "outpost" && session.selectedOutpost === row.mapIdx;
+        const classes = ["royal-map-outpost", row.built ? "built" : "", row.built && type === 1 ? "support" : "", row.built && type === 2 ? "savage" : "", state === "clearing" ? "clearing" : "", state === "locked" ? "locked" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
+        const nodeGlyph = row.built ? { x: 3, y: 94 } : { x: 3, y: 75 };
+        const outpostGlyph = [{ x: 412, y: 13 }, { x: 525, y: 4 }, { x: 525, y: 21 }][type] || { x: 412, y: 13 };
+        const militia = R.militiaAssignmentCount(S, row.mapIdx);
+        const militiaMarker = militia ? `<span class="royal-map-militia">${atlasGlyph("", "font-784.png", { x: 150, y: 432 }, 16, 17, 1000, 500)}${militia > 1 ? `<b>${fi(militia)}</b>` : ""}</span>` : "";
+        const workerCounts = row.built ? R.outpostUnits(S, row.mapIdx).reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + 1), new Map()) : new Map();
+        const workers = [...workerCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("");
+        const assignments = session.assignmentIconsVisible && !session.rangeFinderMode && workers ? `<span class="royal-map-assignments">${workers}</span>` : "";
+        const visibleMilitiaMarker = session.assignmentIconsVisible && !session.rangeFinderMode ? militiaMarker : "";
+        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${assignments}${visibleMilitiaMarker}</button>`;
+      }
+      function outpostQuickView(S, mapIdx) {
+        const row = R.outpostEligibility(S, mapIdx);
+        if (!row.built) {
+          const clear = R.outpostClearMetrics(S, mapIdx), militia = R.militiaAssignmentCount(S, mapIdx);
+          return `<h3>${mapName(mapIdx)}</h3><div class="tooltip-grid"><span>Status</span><b>Unconquered</b><span>Unlock progress</span><b>${f(clear.progress)} / ${f(clear.requirement)}</b><span>Remaining</span><b>${f(clear.remaining)}</b><span>Militia assigned</span><b>${fi(militia)}</b><span>Clear rate</span><b>${f(clear.ratePerHour)}/hr</b><span>ETA</span><b>${fmtHours(clear.etaHours)}</b></div>`;
+        }
+        const units = R.outpostUnits(S, mapIdx), rate = R.outpostResourceRateBreakdown(S, mapIdx);
+        const ranks = [0, 1, 2, 3, 4].filter(index => R.outpostUnlockedBars(S)[index]).map(index => { const rank = R.outpostRankInfo(S, mapIdx, index); return `<span>Bar ${index + 1}: rank ${fi(rank.rank)}</span><b>${f(rank.exp)} EXP · ${f(R.outpostRankExpPerHour(S, mapIdx, index))}/hr</b>`; }).join("");
+        return `<h3>${mapName(mapIdx)} · ${types[R.outpostType(S, mapIdx)]}</h3><div class="tooltip-grid"><span>Collection rate</span><b>${f(rate.value)}/hr</b><span>Range</span><b>${fi(R.outpostRange(S, mapIdx))}</b><span>Points left</span><b>${fi(R.outpostPointsLeft(S, mapIdx))}</b>${ranks}</div><div class="tooltip-units">${units.map(unit => `<span class="tooltip-unit">${unitIcon(unit.type)}</span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
+      }
+      function resourceQuickView(S, resourceIdx) {
+        const detail = resourceDetails(S).details[resourceIdx], capacity = R.resourceCapacity(S, resourceIdx), slot = R.resourceCurrency(resourceIdx);
+        const cycle = R.nextResourceCycleMetrics(S, resourceIdx, detail?.rate);
+        return `<h3>${currencyIcon(slot)}Resource ${resourceIdx + 1}</h3><div class="tooltip-grid"><span>Amount / cap</span><b>${f(detail?.remaining)} / ${f(capacity)}</b><span>Collection rate</span><b>${f(detail?.rate)}/hr</b><span>Currency rate</span><b>${f(detail?.currencyRate)}/hr</b><span>Grade</span><b>${fi(R.resourceGrade(S, resourceIdx))}</b><span>Current remaining drain</span><b>${fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining)}</b><span>Active streams</span><b>${fi(detail?.streams?.length)}</b></div>`;
+      }
+      function royalMap(S, q, m) {
+        const resources = ROYAL_RESOURCES.filter((resource, index) => R.resourceWorld(index) === session.worldIdx && resource.currencySlot >= 0);
+        const lines = q.filter(row => row.built).flatMap(row => R.outpostConnections(S, row.mapIdx).map(connection => mapLine(S, row.mapIdx, connection))).join("");
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button><span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+      }
+      function outposts() {
+        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
+        const S = saveData,
+          q = R.worldOutpostRows(S, session.worldIdx),
+          rows = q.filter(
+            (x) =>
+              session.outpostFilter === "all" ||
+              (session.outpostFilter === "built" && x.built) ||
+              (session.outpostFilter === "in-progress" &&
+                !x.built && R.outpostClearMetrics(S, x.mapIdx).state === "clearing") ||
+              (session.outpostFilter === "unconquered" &&
+                !x.built && R.outpostClearMetrics(S, x.mapIdx).state !== "clearing"),
+          ),
+          b = q.filter((x) => x.built),
+          targets = q.filter((x) => !x.built),
+          clearing = targets.filter((x) => R.outpostClearMetrics(S, x.mapIdx).state === "clearing"),
+          militiaRate = clearing.reduce((total, x) => total + R.militiaClearRate(S, x.mapIdx), 0);
+        if (!rows.some(x => x.mapIdx === session.selectedOutpost)) session.selectedOutpost = rows[0]?.mapIdx ?? null;
+        const selected = rows.find(x => x.mapIdx === session.selectedOutpost);
+        return `<section class="section"><div class="card-grid cols-5">${card("Built", b.length)}${card("Militia clearing", clearing.length)}${card("Militia clears/hr", f(militiaRate))}${card("Units", f(b.reduce((a, x) => a + R.outpostTotalUnits(S, x.mapIdx), 0)))}${card("Support / Savage", `${b.filter((x) => R.outpostType(S, x.mapIdx) === 1).length} / ${b.filter((x) => R.outpostType(S, x.mapIdx) === 2).length}`)}</div><div class="planner-controls"><label>Filter<select id="outpost-filter"><option value="all" ${session.outpostFilter === "all" ? "selected" : ""}>All</option><option value="built" ${session.outpostFilter === "built" ? "selected" : ""}>Built</option><option value="in-progress" ${session.outpostFilter === "in-progress" ? "selected" : ""}>Militia clearing</option><option value="unconquered" ${session.outpostFilter === "unconquered" ? "selected" : ""}>Unconquered</option></select></label></div></section><section class="section"><h2>W${session.worldIdx + 1} outposts</h2><div class="outpost-workspace"><div class="outpost-list" role="listbox" aria-label="Current world outposts">${rows.map(outpostListRow.bind(null, S)).join("") || '<div class="empty-state">No outposts match this filter.</div>'}</div><div class="outpost-detail" aria-live="polite">${selected ? outpostCard(S, selected, true) : '<div class="empty-state">Select an outpost to inspect its details.</div>'}</div></div></section>`;
+      }
+      function outpostListRow(S, x) {
+        const clear = !x.built ? R.outpostClearMetrics(S, x.mapIdx) : null;
+        const type = x.built ? types[R.outpostType(S, x.mapIdx)] : "Unbuilt";
+        const status = x.built ? "Built" : clear?.state || x.state;
+        const summary = x.built ? `${type} | ${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr | range ${f(R.outpostRange(S, x.mapIdx))}` : `${status} | ${f(clear?.progress)} / ${f(clear?.requirement)} progress | ${f(clear?.ratePerHour)} clears/hr`;
+        const selected = session.selectedOutpost === x.mapIdx;
+        return `<button class="outpost-row outpost-selectable ${selected ? "selected" : ""}" type="button" role="option" tabindex="${selected ? "0" : "-1"}" aria-selected="${selected ? "true" : "false"}" data-outpost-select="${x.mapIdx}"><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge ${x.built ? "badge-green" : "badge-gold"}">${status}</span></div><div class="small">${summary}</div></button>`;
+      }
+      function outpostUnitDetails(S, mapIdx) {
+        const units = R.outpostUnits(S, mapIdx);
+        return `<div class="outpost-unit-list">${units.map(unit => `<span class="outpost-unit-detail">${unitIcon(unit.type)}<span>Slot ${unit.slot + 1}<br>Profession ${unit.type + 1}</span></span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
+      }
+      function outpostConnectionDetails(S, connections) {
+        return `<div class="outpost-connection-list">${connections.map((connection, slot) => connection.kind === "resource" ? `<span class="outpost-connection-detail">${resourceIcon(S, connection.id)}<span>Endpoint ${slot + 1}<br>Resource ${connection.id + 1}</span></span>` : `<span class="outpost-connection-detail"><span>Endpoint ${slot + 1}<br>${connection.kind === "map" ? mapName(connection.id) : "Empty"}</span></span>`).join("")}</div>`;
+      }
+      function reachableResourceRows(S, reachable) {
+        return reachable.map(result => `<tr><td><span class="resource-cell">${resourceIcon(S, result.resourceIdx)}<span>Resource ${result.resourceIdx + 1}</span></span></td><td>${f(result.distance)} / ${f(result.range + 15)}</td><td>${result.connectedSlots}</td><td>${f(R.resourceRemaining(S, result.resourceIdx))}</td><td>${f(R.resourceGrade(S, result.resourceIdx))}</td><td>${fmtDrainHours(R.resourceDrainHours(S, result.resourceIdx, currentRate(S, result.resourceIdx)), R.resourceRemaining(S, result.resourceIdx))}</td></tr>`).join("");
+      }
+      function reachableResourceCards(S, reachable) {
+        return reachable.map(result => `<article class="mobile-card"><b class="resource-cell">${resourceIcon(S, result.resourceIdx)}<span>Resource ${result.resourceIdx + 1}</span></b><div>Distance / reach ${f(result.distance)} / ${f(result.range + 15)}</div><div>Slots ${result.connectedSlots} | Remaining ${f(R.resourceRemaining(S, result.resourceIdx))} | Grade ${f(R.resourceGrade(S, result.resourceIdx))}</div></article>`).join("");
+      }
+      function outpostCard(S, x, forceOpen = false) {
+        if (!x.built) {
+          const clear = R.outpostClearMetrics(S, x.mapIdx),
+            assignmentCount = R.militiaAssignmentCount(S, x.mapIdx),
+            hasMilitiaAssignment = R.militiaAssignments(S).some((assignment) => assignment.type === 4 && assignment.mapIdx === x.mapIdx),
+            stateText = clear.state === "clearing"
+              ? `<p>Militia clearing; ETA ${fmtHours(clear.etaHours)}.</p>`
+              : clear.state === "waiting-militia"
+                ? "<p>Waiting for militia; progress is started but no militia assigned.</p>"
+                : clear.state === "secured"
+                  ? "<p>Secured; ready to build, no ETA.</p>"
+                  : clear.state === "non-accruing"
+                    ? `<p>Not currently accruing${clear.reason ? `: ${esc(clear.reason)}` : "."}</p>`
+                    : `<p>${clear.reason ? esc(clear.reason) : "Clear status unavailable."}</p>`,
+            badge = clear.state === "clearing" ? "Militia clearing" : clear.state === "waiting-militia" ? "Waiting for militia" : clear.state === "secured" ? "Secured" : clear.state === "non-accruing" ? "Not currently accruing" : "Unavailable";
+          return `<article class="outpost-row"><div class="row-body"><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge badge-gold">${badge}</span></div>${stateText}${bar(clear.requirement ? clear.progress / clear.requirement : 0)}<div class="small">${f(clear.progress)} / ${f(clear.requirement)} progress | ${f(clear.remaining)} remaining | ${assignmentCount && hasMilitiaAssignment ? `${f(assignmentCount)} militia assigned | ${f(clear.ratePerHour)} clears/hr` : "No militia assigned"}</div></div></article>`;
+        }
+        const raw = S.royalMapsData[x.mapIdx] || [],
+          con = R.outpostConnections(S, x.mapIdx),
+          reach = R.reachableResourcesForOutpost(S, x.mapIdx).filter(
+            (r) => r.reachable,
+          );
+        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge badge-green">Built</span></div><div class="metric-line">${types[R.outpostType(S, x.mapIdx)]} | ${R.outpostPurification(S, x.mapIdx) > 0 ? "Purified" : "Built"} | points <b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b> | range <b>${f(R.outpostRange(S, x.mapIdx))}</b> | resource/hr <b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}</b></div></summary><div class="row-body"><h3>Outpost Upgrades</h3><div class="card-grid cols-3"><div class="card"><b>Level0: Expanded Barracks</b><div>Current ${f(raw[0])} | next ${f(n(raw[0]) + 1)} | cost 12 points</div><div class="small">Unit slots ${f(1 + n(raw[0]))} to ${f(2 + n(raw[0]))}</div></div><div class="card"><b>Level1: Advanced Logistics</b><div>Current ${f(raw[1])} | next ${f(n(raw[1]) + 1)} | cost 2 points</div><div class="small">+5% collection/lv | range ${f((250 * n(raw[1])) / (n(raw[1]) + 100))} to ${f((250 * (n(raw[1]) + 1)) / (n(raw[1]) + 101))}</div></div><div class="card"><b>Level2: Greater Education</b><div>Current ${f(raw[2])} | next ${f(n(raw[2]) + 1)} | cost 1 point</div><div class="small">Additional unit education level.</div></div></div><h3>Rank bars</h3><div class="rank-grid">${[
+          0, 1, 2, 3, 4,
+        ]
+          .map((b, i) => {
+            const z = R.outpostRankInfo(S, x.mapIdx, b),
+              locked = !R.outpostUnlockedBars(S)[b];
+            return `<div class="rank ${locked ? "locked" : ""}"><b>Bar${i + 1}${b === 4 ? " / Purification" : ""}</b>${locked ? "<small>Locked</small>" : `<small>Rank ${fi(z.rank)} | ${f(z.exp)} / ${f(z.nextReq)}</small>${bar(z.progress)}<small>${f(R.outpostRankExpPerHour(S, x.mapIdx, b))}/hr</small>`}</div>`;
+          })
+          .join(
+            "",
+          )}</div><h3>Units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Connections</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected slots</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, reach)}</div></div></details>`;
+      }
+      function resources() {
+        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
+        const S = saveData, m = resourceDetails(S), rows = resourceFilterRows(S, m);
+        if (rows.length && !rows.some(x => x.resourceIdx === session.selectedResource)) session.selectedResource = rows[0].resourceIdx;
+        const selected = m.details[session.selectedResource];
+        return `<section class="section"><nav class="subtabs resource-subtabs" role="tablist" aria-label="Resource views"><button role="tab" aria-selected="${session.resourceView === "nodes"}" tabindex="${session.resourceView === "nodes" ? 0 : -1}" data-resource-view="nodes">Nodes</button><button role="tab" aria-selected="${session.resourceView === "optimizer"}" tabindex="${session.resourceView === "optimizer" ? 0 : -1}" data-resource-view="optimizer">Optimizer</button></nav></section>${session.resourceView === "optimizer" ? optimizer() : `<section class="section">${invalidResourceWarning(m.invalid)}<div class="card-grid cols-4">${card("Collectable before reset", resetValue(m.collectableBeforeReset, m.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(m.nodesEmptyingByReset, m.resetProjectionAvailable))}${card("Projected refills at reset", resetValue(m.projectedRefillsAtReset, m.resetProjectionAvailable))}${card("Projected grade gains", resetValue(m.projectedGradeGainsAtReset, m.resetProjectionAvailable))}</div><h2>W${session.worldIdx + 1} resource nodes</h2><div class="planner-controls resource-toolbar"><label>State<select id="resource-state">${[["all", "All"], ["active", "Active streams"], ["actionable", "Actionable"], ["no-stream", "No active stream"], ["empty", "Empty"], ["empties-window", `Empties by reset`]].map(([v, t]) => `<option value="${v}" ${session.resourceState === v ? "selected" : ""}>${t}</option>`).join("")}</select></label><label>Currency<select id="resource-currency">${resourceCurrencyOptions()}</select></label><label>Sort<select id="resource-sort"><option value="drain" ${session.resourceSort === "drain" ? "selected" : ""}>Drain time</option><option value="rate" ${session.resourceSort === "rate" ? "selected" : ""}>Rate / hr</option><option value="remaining" ${session.resourceSort === "remaining" ? "selected" : ""}>Remaining</option></select></label><label>Search<input id="resource-search" type="search" placeholder="Resource N" value="${esc(session.resourceSearch)}"></label></div><div class="resource-workspace"><div class="resource-list"><table class="data-table"><thead><tr><th>Node</th><th>World</th><th>Grade</th><th>Remaining</th><th>Rate / hr</th><th>Drain</th><th>Currency</th></tr></thead><tbody>${rows.map(x => resourceRow(S, x)).join("")}</tbody></table>${rows.length ? "" : '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-mobile-list">${rows.map(x => resourceMobile(S, x)).join("") || '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-inspector">${selected && rows.length ? resourceInspector(S, selected) : '<div class="empty-state">Select a visible resource node to inspect it.</div>'}</div></div></section>`}`;
+      }
+      function resourceRow(S, x) {
+        const capacity = R.resourceCapacity(S, x.resourceIdx), pct = capacity ? x.remaining / capacity : 0, selected = x.resourceIdx === session.selectedResource;
+        return `<tr class="resource-selectable ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><td>${currencyIcon(x.currencySlot)}Resource ${x.resourceIdx + 1}</td><td>${fi(R.resourceGrade(S, x.resourceIdx))}</td><td><div class="resource-cell"><span>${f(x.remaining)} / ${f(capacity)} <span class="badge ${x.remaining ? "badge-green" : "badge-gold"}">${resourceStatus(S, x)}</span></span>${bar(pct)}</div></td><td>${f(x.rate)}</td><td>${fmtHours(x.drainHours)}</td></tr>`;
+      }
+      function resourceMobile(S, x) {
+        const capacity = R.resourceCapacity(S, x.resourceIdx), selected = x.resourceIdx === session.selectedResource;
+        return `<article class="mobile-card resource-mobile-card ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><b>${currencyIcon(x.currencySlot)}Resource ${x.resourceIdx + 1}</b><div><span class="badge badge-gold">${resourceStatus(S, x)}</span> | Grade ${fi(R.resourceGrade(S, x.resourceIdx))}</div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div>Rate/hr ${f(x.rate)} | Drain ${fmtHours(x.drainHours)}</div>${selected ? `<div class="resource-inspector">${resourceInspector(S, x)}</div>` : ""}</article>`;
+      }
+      function resourceInspector(S, x) {
+        const capacity = R.resourceCapacity(S, x.resourceIdx), links = resourceReachable(S, x.resourceIdx), cycle = R.nextResourceCycleMetrics(S, x.resourceIdx, x.rate);
+        const nextCycle = cycle.nextCycleAvailable
+          ? `${card("Next full cycle drain", fmtDrainHours(cycle.nextDrainHours, cycle.nextCapacity), `Grade ${fi(cycle.nextGrade)} | ${f(cycle.nextCapacity)} capacity | ${f(cycle.nextRate)}/hr`)}<div class="metric-line">Resource Replenish is active.${cycle.resourceGradeIncreaseUnlocked ? " Resource Grades adds +1 grade on refill." : " Resource Grades is locked, so grade stays unchanged."}</div>`
+          : `${card("Full node (current grade)", fmtDrainHours(cycle.hypotheticalFullDrainHours, cycle.hypotheticalFullCapacity), `${f(cycle.hypotheticalFullCapacity)} capacity | ${f(cycle.hypotheticalFullRate)}/hr`)}<div class="metric-line">Resource Replenish is locked; no automatic next cycle is projected.</div>`;
+        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}</div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Free endpoints</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${fi(y.slotsFree)}</td><td>${fi(y.connectedCount)}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div>`;
+      }
+      const collectionFactorLabels = {
+        base: "Base collection",
+        companion141: "Companion",
+        "orbletBonus1+sushi60+alchemyW14+arcade70": "Orblet / Sushi / Alchemy / Arcade",
+        outpostPurifyBonus: "Purification",
+        supportCollection: "Support outposts",
+        mapLevel1: "Advanced Logistics",
+        "commandRank*armory73": "Command Rank",
+        "TotalStatz0*armory18": "Kingdom grades",
+        "TotalStatz1*armory50": "Kingdom levels",
+        "TotalStatz2*armory51": "Purified outposts",
+        "charLevel*armory52": "Royal character level",
+        "unitSpec0*totalUnits0": "Worker units",
+        "talent225+talent226": "Talents 225 + 226",
+        talent230Multi: "Talent 230",
+        "TotalStatz3*armory53": "Kingdom currency logs",
+        zenith10: "Zenith Market",
+        mapLevel0Cap: "Expanded Barracks cap",
+      };
+      function collectionFactorLabel(name) {
+        return collectionFactorLabels[name] || String(name || "Rate factor").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[+*_]/g, " / ");
+      }
+      function buildGlobalCollectionTree(S) {
+        const breakdown = R.globalResourceRateBreakdown(S);
+        return { breakdown, tree: { label: "Global Collection Multiplier", val: breakdown.value, fmt: "x", children: (breakdown.factors || []).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x" })) } };
+      }
+      function buildOutpostCollectionTree(S, mapIdx) {
+        const breakdown = R.outpostResourceRateBreakdown(S, mapIdx);
+        const factors = breakdown.factors || [];
+        return { breakdown, tree: { label: `${mapName(mapIdx)} PRE-GRADE Collection Rate`, val: breakdown.value, fmt: "rate", children: [
+          { label: "Base collection", val: factors[0]?.value || 0, fmt: "rate" },
+          { label: "Global Collection Multiplier", val: breakdown.global?.value || factors[1]?.value || 0, fmt: "x" },
+          ...factors.slice(2).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x" })),
+        ] } };
+      }
+      function breakdownWarning(breakdown, title) {
+        if (!breakdown || (!breakdown.partial && breakdown.available !== false)) return "";
+        const missing = (breakdown.missing || []).map(esc).join(", ");
+        return `<div class="info-panel warning-panel" role="status"><b>${title} is partial or unavailable</b><p>Some saved inputs are unavailable, so this breakdown may be incomplete.</p>${missing ? `<div>Missing inputs: ${missing}</div>` : ""}</div>`;
+      }
+      function initializeCollectionBreakdowns() {
+        if (session.tab !== "currencies" || session.currencyView !== "breakdown") return;
+        resetTreeCounter();
+        const global = buildGlobalCollectionTree(saveData);
+        const globalEl = document.querySelector("#global-collection-tree");
+        if (globalEl) {
+          globalEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(global.breakdown, "Global collection rate");
+          renderBreakdownTree(global.tree, globalEl, { tooltipId: "bt-tooltip" });
+        }
+        const options = R.outpostRows(saveData).filter(x => x.type === 0 || x.type === 2);
+        if (!options.some(x => x.mapIdx === session.breakdownOutpost)) session.breakdownOutpost = options[0]?.mapIdx ?? null;
+        const outpostEl = document.querySelector("#outpost-collection-tree");
+        if (outpostEl && session.breakdownOutpost !== null) {
+          const outpost = buildOutpostCollectionTree(saveData, session.breakdownOutpost);
+          outpostEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(outpost.breakdown, "Outpost collection rate");
+          renderBreakdownTree(outpost.tree, outpostEl, { tooltipId: "bt-tooltip" });
+        }
+      }
+      function currencyState(node) {
+        return node.state === "active" ? "Active" : node.state === "drained" ? "Drained" : node.state === "empty" ? "Empty" : "Inactive";
+      }
+      function currencyStream(S, node, stream) {
+        const type = types[stream.outpostType] || "Unknown", reach = stream.currentlyReachable ? "Current reach yes" : "Legacy saved link";
+        return `<tr><td>${mapName(stream.mapIdx)}</td><td>Endpoint ${n(stream.slot) + 1} / 2</td><td>${type}${stream.savage ? " (Drain only)" : ""}</td><td>${f(stream.currencyRate)}/hr</td><td>${f(stream.drainRate)}/hr</td><td>${reach}</td></tr>`;
+      }
+      function currencyStreamCard(S, node, stream) {
+        return `<article class="mobile-card"><b>${mapName(stream.mapIdx)}</b><div>Endpoint ${n(stream.slot) + 1} / 2 | ${types[stream.outpostType] || "Unknown"}${stream.savage ? " | Savage: Drain only" : ""}</div><div>Currency/hr ${f(stream.currencyRate)} | Drain/hr ${f(stream.drainRate)}</div><div>${stream.currentlyReachable ? "Current reach yes" : "Legacy saved link"}</div></article>`;
+      }
+      function currencyOutpostRows(S, node) {
+        return [...node.connectableOutposts].sort((a, b) => (a.type === 2 ? 1 : 0) - (b.type === 2 ? 1 : 0) || n(b.potentialCurrencyRate) - n(a.potentialCurrencyRate) || n(a.mapIdx) - n(b.mapIdx));
+      }
+      function currencyOutpost(S, node, outpost) {
+        const connected = node.streams.filter(stream => stream.mapIdx === outpost.mapIdx).length, normal = outpost.type !== 2;
+        return `<tr><td>${mapName(outpost.mapIdx)}</td><td>${types[outpost.type]}</td><td>${f(outpost.distance)} / ${f(outpost.range + 15)}</td><td>${f(outpost.slotsFree)}</td><td>${f(connected)}</td><td>${normal ? `${f(outpost.potentialCurrencyRate)}/hr` : "Drain only (0 currency)"}</td></tr>`;
+      }
+      function currencyOutpostCard(S, node, outpost) {
+        const connected = node.streams.filter(stream => stream.mapIdx === outpost.mapIdx).length, normal = outpost.type !== 2;
+        return `<article class="mobile-card"><b>${mapName(outpost.mapIdx)}</b><div>${types[outpost.type]} | Distance / Reach ${f(outpost.distance)} / ${f(outpost.range + 15)}</div><div>Free endpoints ${f(outpost.slotsFree)} | Connected here ${f(connected)}</div><div>${normal ? `Potential currency/hr per endpoint ${f(outpost.potentialCurrencyRate)}` : "Drain only / 0 currency"}</div></article>`;
+      }
+      function currencyInspector(S, node) {
+        const streamCount = node.streams.length, connectable = currencyOutpostRows(S, node);
+        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">Resource ${node.resourceIdx + 1}</h3><div class="small">World ${node.tier + 1} | Grade ${f(node.grade)} | Grade multiplier ${fmtMultiplier(node.gradeMultiplier)}x</div></div><span class="badge badge-cyan">${currencyState(node)}</span></div><div>${f(node.remaining)} / ${f(node.capacity)}${bar(node.capacity ? node.remaining / node.capacity : 0)}</div><div class="card-grid cols-2">${card("Nominal currency/hr", f(node.nominalCurrencyPerHour))}${card("Total drain/hr", f(node.drainRate))}${card(`Collectable before reset`, resetValue(node.collectableBeforeReset, node.resetProjectionAvailable))}${card("Current streams", streamCount)}${card("Connectable outposts", connectable.length)}</div>${resetProjection(node)}<h3>Current streams</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Endpoint</th><th>Type</th><th>Currency/hr</th><th>Drain/hr</th><th>Current reach</th></tr></thead><tbody>${node.streams.map(stream => currencyStream(S, node, stream)).join("") || '<tr><td colspan="6">No current streams.</td></tr>'}</tbody></table></div><div class="mobile-cards">${node.streams.map(stream => currencyStreamCard(S, node, stream)).join("") || '<div class="note">No current streams.</div>'}</div><h3>Connectable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Free endpoints</th><th>Connected here</th><th>Potential / endpoint</th></tr></thead><tbody>${connectable.map(outpost => currencyOutpost(S, node, outpost)).join("") || '<tr><td colspan="6">No connectable outposts.</td></tr>'}</tbody></table></div><div class="mobile-cards">${connectable.map(outpost => currencyOutpostCard(S, node, outpost)).join("") || '<div class="note">No connectable outposts.</div>'}</div></div>`;
+      }
+      function currencyNodeRow(S, node) {
+        const selected = node.resourceIdx === session.selectedResource;
+        return `<tr class="currency-selectable ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><td>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</td><td>${fi(node.grade)}</td><td>${f(node.remaining)} / ${f(node.capacity)}</td><td>${currencyState(node)}</td><td>${f(node.nominalCurrencyPerHour)}/hr</td></tr>`;
+      }
+      function currencyNodeCard(S, node) {
+        const selected = node.resourceIdx === session.selectedResource;
+        return `<article class="mobile-card currency-mobile-card ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><b>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</b><div><span class="badge badge-gold">${currencyState(node)}</span> | Grade ${fi(node.grade)} (${fmtMultiplier(node.gradeMultiplier)}x)</div><div>Remaining ${f(node.remaining)} / ${f(node.capacity)} | Nominal configured/hr ${f(node.nominalCurrencyPerHour)}</div>${selected ? `<div class="currency-inspector">${currencyInspector(S, node)}</div>` : ""}</article>`;
+      }
+      function currencyViewTabs() {
+        return `<section class="section"><nav class="subtabs currency-subtabs" role="tablist" aria-label="Currency views"><button role="tab" aria-selected="${session.currencyView === "sources" ? "true" : "false"}" tabindex="${session.currencyView === "sources" ? 0 : -1}" data-currency-view="sources">Sources</button><button role="tab" aria-selected="${session.currencyView === "breakdown" ? "true" : "false"}" tabindex="${session.currencyView === "breakdown" ? 0 : -1}" data-currency-view="breakdown">Collection Breakdown</button></nav></section>`;
+      }
+      function currencyBreakdownView(S) {
+        const options = R.outpostRows(S).filter(x => x.type === 0 || x.type === 2);
+        if (!options.some(x => x.mapIdx === session.breakdownOutpost)) session.breakdownOutpost = options[0]?.mapIdx ?? null;
+        return `${currencyViewTabs()}<section class="section"><h2>Collection Breakdown</h2><div class="breakdown-grid"><div class="breakdown-panel"><h3>Global collection</h3><div class="breakdown-warning"></div><div id="global-collection-tree"></div></div><div class="breakdown-panel"><h3>Selected outpost</h3><label>Outpost<select id="breakdown-outpost">${options.map(x => `<option value="${x.mapIdx}" ${x.mapIdx === session.breakdownOutpost ? "selected" : ""}>${mapName(x.mapIdx)} (${types[x.type]})</option>`).join("")}</select></label><div class="breakdown-warning"></div><div id="outpost-collection-tree"></div>${options.length ? "" : '<div class="empty-state">No Normal or Savage collecting outposts are available.</div>'}</div></div></section>`;
+      }
+      function currencies() {
+        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
+        const slots = O.validCurrencySlots(), slot = slots.includes(session.currencyTarget) ? session.currencyTarget : (session.currencyTarget = slots[0] ?? 0), breakdown = currencyDetails(saveData, slot), nodes = breakdown.nodes || [];
+        if (nodes.length && !nodes.some(node => node.resourceIdx === session.selectedResource)) session.selectedResource = nodes[0].resourceIdx;
+        if (nodes.length && session.mapSelectionKind === null) { session.mapSelectionKind = "resource"; session.worldIdx = R.resourceWorld(session.selectedResource); }
+        const selected = nodes.find(node => node.resourceIdx === session.selectedResource) || nodes[0];
+        if (session.currencyView === "breakdown") return currencyBreakdownView(saveData);
+        const sourcePanel = `<section class="section"><h2>Currency slot ${slot} source nodes</h2>${breakdown.available === false ? '<div class="empty-state">Currency source nodes are unavailable for this save.</div>' : nodes.length ? `<div class="currency-workspace"><div class="currency-list" role="listbox" aria-label="Currency source nodes"><table class="data-table"><thead><tr><th>Resource</th><th>World</th><th>Grade</th><th>Remaining</th><th>State</th><th>Nominal configured / hr</th></tr></thead><tbody>${nodes.map(node => currencyNodeRow(saveData, node)).join("")}</tbody></table></div><div class="currency-inspector">${currencyInspector(saveData, selected)}</div></div><div class="currency-mobile-list" role="listbox" aria-label="Currency source nodes">${nodes.map(node => currencyNodeCard(saveData, node)).join("")}</div>` : '<div class="empty-state">No resource nodes produce this currency.</div>'}</section>`;
+        return `${currencyViewTabs()}<section class="section"><div class="planner-controls"><label>Currency<select id="currency-selector">${slots.map(value => `<option value="${value}" ${value === slot ? "selected" : ""}>Currency slot ${value}</option>`).join("")}</select></label><button class="primary" id="optimize-currency">Optimize before reset</button></div>${invalidResourceWarning(breakdown.invalid)}${currencyCoverageWarning(breakdown)}${currencySummary(breakdown)}<p class="note">Nominal configured output uses the fixed current node state. Projection ends at the saved daily reset; no post-reset simulation. Boundary refill and grade are projected.${breakdown.invalid?.length ? " Some saved connections are excluded from totals." : ""}</p></section>${sourcePanel}`;
+      }
+      function balances(S, k) {
+        const a =
+          k === "orblets"
+            ? [R.orbletOwnedDetail(S)]
+            : k === "statues"
+              ? [
+                  R.parchmentOwnedDetail(S),
+                  ...visibleMarbles.map((_, i) =>
+                    R.royalMarbleOwnedDetail(S, i),
+                  ),
+                ]
+              : visibleMarbles.map((_, i) => R.royalMarbleOwnedDetail(S, i));
+        return `<div class="context-balance">${a.map((x) => `<span>${displayItemName(x.itemName)} <b>${f(x.value)}</b></span>`).join("")}</div>`;
+      }
+      function upgrades() {
+        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
+        return `<section class="section"><nav class="subtabs" role="tablist" aria-label="Upgrade views">${["armory", "statues", "flair", "orblets"].map((v) => `<button role="tab" aria-selected="${session.upgradeView === v ? "true" : "false"}" data-upgrade="${v}">${v === "armory" ? "Armory" : v === "statues" ? "Royal Statues" : v === "flair" ? "Statue Flair" : "Orblets"}</button>`).join("")}</nav>${session.upgradeView === "armory" ? armory() : session.upgradeView === "statues" ? statues() : session.upgradeView === "flair" ? flair() : orblets()}</section>`;
+      }
+      function armory() {
+        const S = saveData,
+          rows = R.armoryRows(S), redux = R.allMasterclassCostReduxDetail(S);
+        return `<h2>Armory</h2><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
+          .map((r) => {
+            const u = ARMORY_UPGRADES[r.index],
+              max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]);
+            return `<tr><td>${displayItemName(u?.name)}</td><td>${fi(r.currentLevel)}</td><td>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</td><td class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">${max ? "MAX" : `${currencyIcon(r.cost.currencySlot)}${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</td></tr>`;
+          })
+          .join(
+            "",
+            )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]); return `<article class="mobile-card"><b>${displayItemName(u?.name)}</b><div>Level ${f(r.currentLevel)}</div><div>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${max ? "MAX" : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>`; }).join("")}</div>`;
+      }
+      function statues() {
+        const S = saveData;
+        return `<h2>Royal Statues</h2>${balances(S, "statues")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Material / Owned / Cost</th><th>Odds</th></tr></thead><tbody>${Array.from(
+          { length: 7 },
+          (_, i) => {
+            const d = R.royalStatueUpgradeDetail(S, i);
+            const level = R.royalG(S, 0, i);
+            return `<tr><td>${esc(ROYAL_STATUES[i].name)}</td><td>${fi(level)}</td><td>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</td><td>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)}</td><td>${f(R.statueUpgradeOdds(S, i) * 100)}%</td></tr>`;
+          },
+        ).join("")}</tbody></table></div><div class="mobile-cards">${Array.from(
+          { length: 7 },
+          (_, i) => {
+            const d = R.royalStatueUpgradeDetail(S, i);
+            const level = R.royalG(S, 0, i); return `<article class="mobile-card"><b>${esc(ROYAL_STATUES[i].name)}</b><div>Level ${fi(level)}</div><div>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</div><div>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)} | Odds ${f(R.statueUpgradeOdds(S, i) * 100)}%</div></article>`;
+          },
+        ).join("")}</div>`;
+      }
+      function flair() {
+        const S = saveData,
+          rows = Array.from({ length: 32 }, (_, i) =>
+            R.statueFlairRow(S, i),
+          ).filter(
+            (r) =>
+              n(r.material?.category) < 7 &&
+              (session.flairCategory === "all" ||
+                n(r.material?.category) === n(session.flairCategory)) &&
+              (session.flairShowMaxed || !r.maxed),
+          );
+        return `<h2>Statue Flair</h2>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level / effect</th><th>Material / owned / cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td>${fi(r.level)} / ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</td><td>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Lv ${fi(r.level)} | ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</div><div>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</div></article>`).join("")}</div>`;
+      }
+      function orblets() {
+        const S = saveData,
+          rows = R.orbletRows(S);
+        return `<h2>Orblets</h2>${balances(S, "orblets")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${displayItemName(r.name)}</td><td>${fi(r.level)} / ${fi(r.maxLevel)}</td><td>${esc(R.orbletDescription(S, r.index))}</td><td class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${displayItemName(r.name)}</b><div>Level ${fi(r.level)} / ${fi(r.maxLevel)}</div><div>${esc(R.orbletDescription(S, r.index))}</div><div class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">Cost ${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</div></article>`).join("")}</div>`;
+      }
+      function wire() {
+        wireTabs(".tab-btn", (b) => (session.tab = b.dataset.tab));
+        wireTabs(
+          "[data-world-tab]",
+          (b) => {
+            session.worldIdx = n(b.dataset.worldTab);
+            if (!R.worldOutpostRows(saveData, session.worldIdx).some(x => x.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
+            if (session.selectedResource !== null && R.resourceWorld(session.selectedResource) !== session.worldIdx) session.selectedResource = null;
+            if ((session.mapSelectionKind === "outpost" && session.selectedOutpost === null) || (session.mapSelectionKind === "resource" && session.selectedResource === null)) session.mapSelectionKind = null;
+          },
+        );
+        wireTabs(
+          "[data-upgrade]",
+          (b) => (session.upgradeView = b.dataset.upgrade),
+        );
+        wireTabs(
+          "[data-currency-view]",
+          (b) => (session.currencyView = b.dataset.currencyView),
+        );
+        document.querySelectorAll("[data-world]").forEach(
+          (x) =>
+            (x.onclick = () => {
+              session.worldIdx = n(x.dataset.world);
+              if (!R.worldOutpostRows(saveData, session.worldIdx).some(y => y.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
+              if (session.selectedResource !== null && R.resourceWorld(session.selectedResource) !== session.worldIdx) session.selectedResource = null;
+              if ((session.mapSelectionKind === "outpost" && session.selectedOutpost === null) || (session.mapSelectionKind === "resource" && session.selectedResource === null)) session.mapSelectionKind = null;
+              session.tab = "outposts";
+              render();
+            }),
+        );
+        document
+          .querySelector("#outpost-filter")
+          ?.addEventListener("change", (e) => {
+            session.outpostFilter = e.target.value;
+            render();
+          });
+        document.querySelectorAll("[data-outpost-select]").forEach(x => {
+          const select = () => { session.selectedOutpost = n(x.dataset.outpostSelect); session.mapSelectionKind = "outpost"; session.tab = "outposts"; render(); };
+          x.onclick = select;
+          x.onkeydown = e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); return; }
+            if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+            e.preventDefault();
+            const owner = x.closest(".outpost-list"), options = [...owner.querySelectorAll("[data-outpost-select]")], index = options.indexOf(x);
+            const next = currencyNavigationIndex(e.key, index, options.length);
+            if (next < 0) return;
+            const target = n(options[next].dataset.outpostSelect);
+            session.selectedOutpost = target;
+            session.mapSelectionKind = "outpost";
+            session.tab = "outposts";
+            render();
+            document.querySelector(`.outpost-list [data-outpost-select="${target}"]`)?.focus();
+          };
+        });
+        for (const [id, key] of [["resource-state", "resourceState"], ["resource-currency", "resourceCurrency"], ["resource-sort", "resourceSort"]])
+          document.querySelector(`#${id}`)?.addEventListener("change", e => { session[key] = e.target.value; render(); });
+        document.querySelector("#resource-search")?.addEventListener("input", e => { session.resourceSearch = e.target.value; render(); });
+        document.querySelectorAll("[data-resource]").forEach(x => {
+          const select = () => { session.selectedResource = n(x.dataset.resource); session.mapSelectionKind = "resource"; render(); };
+          x.onclick = select;
+          x.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } };
+        });
+        document.querySelectorAll("[data-map-resource]").forEach(x => x.onclick = () => {
+          session.selectedResource = n(x.dataset.mapResource);
+          session.mapSelectionKind = "resource";
+          session.resourceState = "all";
+          session.resourceCurrency = "all";
+          session.resourceSearch = "";
+          session.tab = "resources";
+          render();
+        });
+        document.querySelectorAll("[data-map-outpost]").forEach(x => {
+          const select = () => { session.selectedOutpost = n(x.dataset.mapOutpost); session.mapSelectionKind = "outpost"; session.outpostFilter = "all"; session.tab = "outposts"; render(); };
+          x.onclick = select;
+          x.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } };
+        });
+        document.querySelector("[data-toggle-assignments]")?.addEventListener("click", e => {
+          session.assignmentIconsVisible = !session.assignmentIconsVisible;
+          render();
+        });
+        document.querySelector("[data-toggle-range-finder]")?.addEventListener("click", () => {
+          session.rangeFinderMode = !session.rangeFinderMode;
+          royalQuickTooltip.classList.remove("open");
+          render();
+        });
+        document.querySelector("#currency-selector")?.addEventListener("change", e => {
+          session.currencyTarget = n(e.target.value);
+          const first = currencyDetails(saveData, session.currencyTarget).nodes?.[0];
+          if (first) { session.selectedResource = first.resourceIdx; session.mapSelectionKind = "resource"; session.worldIdx = R.resourceWorld(first.resourceIdx); }
+          render();
+        });
+        document.querySelector("#breakdown-outpost")?.addEventListener("change", e => {
+          session.breakdownOutpost = n(e.target.value);
+          render();
+        });
+        document.querySelectorAll("[data-currency-resource]").forEach(x => {
+          const select = (focusOwner = false) => {
+            session.selectedResource = n(x.dataset.currencyResource);
+            session.mapSelectionKind = "resource";
+            session.worldIdx = R.resourceWorld(session.selectedResource);
+            const owner = x.closest(".currency-list, .currency-mobile-list"), ownerClass = owner?.classList.contains("currency-list") ? "currency-list" : "currency-mobile-list";
+            render();
+            if (focusOwner) document.querySelector(`.${ownerClass} [data-currency-resource="${session.selectedResource}"]`)?.focus();
+          };
+          x.onclick = () => select();
+          x.onkeydown = e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); return; }
+            if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+            e.preventDefault();
+            const owner = x.closest(".currency-list, .currency-mobile-list"), options = [...owner.querySelectorAll("[data-currency-resource]")], index = options.indexOf(x);
+            if (!options.length) return;
+            const next = currencyNavigationIndex(e.key, index, options.length);
+            const ownerClass = owner.classList.contains("currency-list") ? "currency-list" : "currency-mobile-list";
+            const target = n(options[next].dataset.currencyResource);
+            session.selectedResource = target;
+            session.mapSelectionKind = "resource";
+            session.worldIdx = R.resourceWorld(target);
+            render();
+            document.querySelector(`.${ownerClass} [data-currency-resource="${n(target)}"]`)?.focus();
+          };
+        });
+        document
+          .querySelector("#flair-category")
+          ?.addEventListener("change", (e) => {
+            session.flairCategory = e.target.value;
+            render();
+          });
+        document
+          .querySelector("#flair-maxed")
+          ?.addEventListener("change", (e) => {
+            session.flairShowMaxed = e.target.checked;
+            render();
+          });
+        wireRoyalTooltips();
+        wireRoyalRangeFinder();
+      }
+      initSaveLoader({
+        target: "#save-area",
+        onLoad: (S) => {
+          const x = R.worldOutpostRows(S, 0).find(
+            (q) => q.built || q.state === "in-progress",
+          );
+          session.worldIdx = x?.worldIdx ?? 0;
+          session.selectedOutpost = x?.mapIdx ?? null;
+          render();
+        },
+        auth: true,
+      });
+      render();
+    </script>
+  </body>
+</html>

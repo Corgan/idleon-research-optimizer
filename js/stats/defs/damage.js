@@ -1017,6 +1017,8 @@ export default createDescriptor({
     if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
     return {
       val: val,
+      minDamage: minDmg,
+      mastery: mastery,
       children: children,
       partial: missingMetadata.length > 0,
       reason: missingMetadata.length > 0

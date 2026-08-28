@@ -244,15 +244,18 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
   }
 
   // === getbonus2_1_209 ===
-  // Game's getbonus2(-1, saveData) passes SkillLevels[t] (raw talent level) to AllTalentLVz
-  // instead of the talent index. We replicate this by passing rawLv as talentIdx.
+  // Candidates select Spelunk presets; ordinary AllTalentLVz terms use the active character.
   {
     var maxVal = 0, bestCi = -1, bestBase = 0, bestBonus = 0, bestEff = 0;
     for (var ci = 0; ci < numCharacters; ci++) {
       var sl = skillLvData[ci] || {};
       var rawLv = Number(sl[209]) || 0;
       if (rawLv > 0) {
-        var allTalentLv = computeAllTalentLVz(rawLv, charIdx, talentOpts, saveData);
+        var allTalentOpts = Object.assign({}, talentOpts || {}, {
+          contextSlot: charIdx,
+          allSpelunkPresets: true,
+        });
+        var allTalentLv = computeAllTalentLVz(209, ci, allTalentOpts, saveData);
         var effectiveLv = rawLv + allTalentLv;
         var _t209 = talentParams(209);
         var val = formulaEval(_t209.formula, _t209.x1, _t209.x2, effectiveLv);

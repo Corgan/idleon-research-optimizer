@@ -4,14 +4,17 @@
 //   × min(3, 1+BonusQTY(6)/100) × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+Arcade62)/100)
 //   × (1+Button_Bonuses(1)/100) × (1+Atom(13)/100) × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
 
-import { arcadeBonus } from '../systems/w2/arcade.js';
-import { companionBonus } from '../data/common/companions.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
-import { mineheadBonusQTY, mhUpgradeQTY } from '../systems/w7/minehead.js';
-import { createDescriptor, gridBonusFinal, computeButtonBonus } from './helpers.js';
+import {
+  computeButtonBonus,
+  computeMineheadCurrSources,
+  currencyPerHour,
+  mineheadBonusQTY,
+  mhUpgradeQTY,
+} from '../systems/w7/minehead.js';
+import { createDescriptor, gridBonusFinal } from './helpers.js';
 import { label } from '../entity-names.js';
 import { getLOG } from '../../formulas.js';
-import { computeMealBonus } from '../systems/common/stats.js';
 
 export default createDescriptor({
   id: 'minehead-currency',
@@ -34,13 +37,14 @@ export default createDescriptor({
     var grid148 = gridBonusFinal(saveData, 148);
     children.push({ name: label('Grid', 148), val: 1 + grid148 / 100, fmt: 'x' });
 
+    var sources = computeMineheadCurrSources(saveData, ctx.charIdx);
+
     // 3. × (1+RoG(12)/100)
     var rog12 = rogBonusQTY(12, saveData.cachedUniqueSushi);
     children.push({ name: label('RoG', 12), val: 1 + rog12 / 100, fmt: 'x' });
 
     // 4. × max(1, min(2, Comp143))
-    var comp143raw = saveData.companionIds && saveData.companionIds.has(143) ? companionBonus(143) : 0;
-    var comp143 = Math.max(1, Math.min(2, comp143raw));
+    var comp143 = Math.max(1, Math.min(2, sources.comp143));
     children.push({ name: label('Companion', 143), val: comp143, fmt: 'x' });
 
     // 5. × min(3, 1+BonusQTY(6)/100) — floor bonus
@@ -53,14 +57,14 @@ export default createDescriptor({
     var upg22 = mhUpgradeQTY(22, saveData);
     var research76 = (saveData.research && saveData.research[7] && Number(saveData.research[7][6])) || 0;
     var upg28 = mhUpgradeQTY(28, saveData) * getLOG(research76);
-    var arcade62 = arcadeBonus(62, ctx.saveData);
+    var arcade62 = sources.arcade62;
     var additive6 = upg5 + upg22 + upg28 + arcade62;
     children.push({ name: 'Minehead Upgrades and Arcade', val: 1 + additive6 / 100, fmt: 'x',
       children: [
         { name: label('Minehead', 5), val: upg5, fmt: 'raw' },
         { name: label('Minehead', 22), val: upg22, fmt: 'raw' },
         { name: label('Minehead', 28), val: upg28, fmt: 'raw', note: 'scaled by Research progress' },
-        { name: label('Arcade', 62), val: arcade62, fmt: 'raw', children: arcade62.children },
+        { name: label('Arcade', 62), val: arcade62, fmt: 'raw' },
       ] });
 
     // 7. × (1+Button_Bonuses(1)/100)
@@ -68,14 +72,16 @@ export default createDescriptor({
     children.push({ name: label('Button', 1), val: 1 + bb1 / 100, fmt: 'x' });
 
     // 8. × (1+Atom(13)/100)
-    var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
+    var atom13 = sources.atom13;
     children.push({ name: label('Atom', 13), val: 1 + atom13 / 100, fmt: 'x' });
 
-    // 8. × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
+    var eventShop44 = sources.eventShop44;
+    children.push({ name: 'Event Shop: Minehead Currency', val: 1 + eventShop44, fmt: 'x' });
+
+    // 9. × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
     var grid147 = gridBonusFinal(saveData, 147);
     var grid166 = gridBonusFinal(saveData, 166);
-    var mealMineCurr = 0;
-    try { mealMineCurr = computeMealBonus('MineCurr', ctx.saveData, ctx.charIdx) || 0; } catch(e) {}
+    var mealMineCurr = sources.mealMineCurr;
     children.push({ name: 'Research Grid and Meals', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
       children: [
         { name: label('Grid', 147), val: grid147, fmt: 'raw' },
@@ -83,12 +89,33 @@ export default createDescriptor({
         { name: 'Meals: Minehead Currency', val: mealMineCurr, fmt: 'raw' },
       ] });
 
-    // Multiply all
-    var val = grid129;
-    for (var i = 1; i < children.length; i++) {
-      val *= children[i].val;
-    }
-
-    return { val: val, children: children };
+    var upgLevels = saveData.mineheadUpgLevels || saveData.research && saveData.research[8] || [];
+    var highestDmg = Number(saveData.stateR7 && saveData.stateR7[6]) || 1;
+    var val = currencyPerHour({
+      gridBonus129: grid129,
+      gridBonus148: grid148,
+      gridBonus147: grid147,
+      gridBonus166: grid166,
+      comp143: sources.comp143,
+      bonusQTY6: bonusQTY6,
+      atom13: atom13,
+      mealMineCurr: mealMineCurr,
+      arcade62: arcade62,
+      rogBonus12: rog12,
+      buttonBonus1: bb1,
+      eventShop44: eventShop44,
+      upgLevels: upgLevels,
+      highestDmg: highestDmg,
+    });
+    var missingMetadata = [];
+    if (saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    return {
+      val: val,
+      children: children,
+      partial: missingMetadata.length > 0,
+      reason: missingMetadata.length > 0
+        ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'
+        : '',
+    };
   },
 });

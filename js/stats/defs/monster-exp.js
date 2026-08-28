@@ -54,6 +54,7 @@ import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { computeSaltLick, shrine } from '../systems/w3/construction.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { bonTOT as fountainBonTOT } from '../systems/w5/fountain.js';
+import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
 
 // Compute StatueBonusGiven for any statue index (same as coin-multi.js)
 
@@ -84,6 +85,7 @@ export default createDescriptor({
   name: 'Monster EXP Multiplier',
   scope: 'character+map',
   category: 'multiplier',
+  applies: combatMapApplicability,
 
   combine: function(pools, ctx) {
     var s = ctx.saveData;

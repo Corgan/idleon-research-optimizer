@@ -214,7 +214,11 @@ export default createDescriptor({
     var mapIdx = ctx.mapIdx != null ? ctx.mapIdx : (currentMapData && currentMapData[ci]) || 0;
     var guildMapFactor = 1 + Math.floor(mapIdx / 50);
     var guildContrib = guild8 * guildMapFactor;
-    var overkillTier = ctx.overkillTier || 1;
+    var overkillResult = null;
+    try { overkillResult = ctx.resolve && ctx.resolve('overkill-tier'); } catch(e) {}
+    var overkillTier = overkillResult && !overkillResult.unavailable
+      ? Number(overkillResult.val) || 1
+      : 1;
     var talentCalc643 = rval(talent, 643, ctx) * overkillTier;
     var lv0_10 = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][10]) || 0;
     var talentCalc644 = rval(talent, 644, ctx) * lv0_10 / 10;
@@ -401,6 +405,9 @@ export default createDescriptor({
     var missingMetadata = [];
     if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
     if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
+    if (overkillResult && (overkillResult.partial || overkillResult.unavailable) && overkillResult.reason) {
+      missingMetadata.push('Overkill: ' + overkillResult.reason);
+    }
     return {
       val: val,
       children: children,

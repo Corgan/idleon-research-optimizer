@@ -47,7 +47,6 @@ import { getSetBonus } from '../systems/w3/setBonus.js';
 import { gambitPTSmulti } from '../systems/w5/hole.js';
 import { zenithMarketPerLevel } from '../data/w5/sailing.js';
 import { getLOG } from '../../formulas.js';
-import { computeDivinityExpPerHour } from '../systems/w5/divinity-rate.js';
 import { createDescriptor } from './helpers.js';
 
 function _num(value) {
@@ -332,6 +331,7 @@ function _computeSpelunkingExp(ci, ctx) {
 }
 
 function _statusFor(skillType, ci, saveData) {
+  if (skillType === 'Divinity') return {};
   var missing = [];
   if (saveData.companionDataAvailable === false) missing.push('companion ownership');
   if (skillType !== 'Spelunking' && saveData.activeVoteDataAvailable === false) {
@@ -533,8 +533,10 @@ var SKILL_EXP_CONFIG = {
     skillLvIdx: 14,
     calcTalentRow: null,
     customCombine: function(ci, ctx) {
-      var result = computeDivinityExpPerHour(ci, ctx);
-      return { val: Number(result) || 0, children: result.children || null };
+      return {
+        val: 1,
+        children: [{ name: 'Divinity EXP Multiplier', val: 1, fmt: 'x', note: 'ExpMulti(14) source fallthrough' }],
+      };
     },
     sources: null,
   },
@@ -570,7 +572,7 @@ var SKILL_EXP_CONFIG = {
 export default createDescriptor({
   id: 'skill-exp',
   name: 'Skill EXP Multiplier',
-  scope: 'character+map',
+  scope: 'character+map+skill',
   category: 'multiplier',
 
   combine: function(pools, ctx) {

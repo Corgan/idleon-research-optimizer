@@ -8,6 +8,7 @@ import { MINEHEAD_BONUS_QTY, MINEHEAD_UPG, GRID_DIMS, TILE_MULTIPLIERS } from '.
 import { ribbonBonusAt, eventShopOwned } from '../../../game-helpers.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { cookingMealMulti } from '../common/cooking.js';
+import { computeMealBonus } from '../common/stats.js';
 import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { gbWith } from '../../../sim-math.js';
@@ -44,7 +45,8 @@ export function computeButtonBonus(slotIdx, saveData) {
 
 // ===== MINEHEAD CURRENCY SOURCES =====
 
-export function computeMineheadCurrSources(saveData) {
+export function computeMineheadCurrSources(saveData, charIdx) {
+  charIdx = Number(charIdx) || 0;
   var comp143 = saveData.companionIds.has(143) ? companionBonus(143) : 0;
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
   var eventShop44 = eventShopOwned(44, saveData.cachedEventShopStr);
@@ -70,7 +72,7 @@ export function computeMineheadCurrSources(saveData) {
     mealShinyS20 = cm.shinyS20;
     mealWinBon26 = cm.winBon26;
     mealComp162 = cm.comp162;
-    mealMineCurr = mealCookMulti * mealRibBon * mealLv * 0.02;
+    mealMineCurr = Number(computeMealBonus('MineCurr', saveData, charIdx).val) || 0;
   }
   return {
     comp143: comp143, atom13: atom13, eventShop44: eventShop44,

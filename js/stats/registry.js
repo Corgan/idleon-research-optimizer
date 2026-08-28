@@ -77,6 +77,24 @@ import defence from './defs/defence.js';
 import movementSpeed from './defs/movement-speed.js';
 import giantMob from './defs/giant-mob.js';
 import crystalSpawn from './defs/crystal-spawn.js';
+import { divinityExpPerHour, divinityPointsPerHour } from './defs/divinity-rates.js';
+import { cardDropChanceMultiplier, printerSampleSize } from './defs/utility-stats.js';
+import { carryCapacityDescriptors } from './defs/carry-capacity.js';
+import {
+  accuracyRequired,
+  combatSurvivability,
+  classExpPerHour,
+  creditedKillsPerHour,
+  directCardAverageTime,
+  hitChance,
+  multikillBase,
+  multikillPerTier,
+  multikillTotal,
+  overkillTier,
+  rawCombatKillsPerHour,
+  rewardRollKillsPerHour,
+  panelCoinsPerHour,
+} from './defs/combat-outcomes.js';
 
 // ----- Internal storage -----
 // Some systems use lazy getters to avoid circular-dep undefined at module
@@ -177,3 +195,23 @@ registerDescriptor(defence);
 registerDescriptor(movementSpeed);
 registerDescriptor(giantMob);
 registerDescriptor(crystalSpawn);
+registerDescriptor(hitChance);
+registerDescriptor(accuracyRequired);
+registerDescriptor(overkillTier);
+registerDescriptor(multikillBase);
+registerDescriptor(multikillPerTier);
+registerDescriptor(multikillTotal);
+registerDescriptor(divinityPointsPerHour);
+registerDescriptor(divinityExpPerHour);
+registerDescriptor(rawCombatKillsPerHour);
+registerDescriptor(printerSampleSize);
+registerDescriptor(cardDropChanceMultiplier);
+registerDescriptor(combatSurvivability);
+registerDescriptor(rewardRollKillsPerHour);
+registerDescriptor(creditedKillsPerHour);
+registerDescriptor(classExpPerHour);
+registerDescriptor(panelCoinsPerHour);
+registerDescriptor(directCardAverageTime);
+for (var capacityIdx = 0; capacityIdx < carryCapacityDescriptors.length; capacityIdx++) {
+  registerDescriptor(carryCapacityDescriptors[capacityIdx]);
+}

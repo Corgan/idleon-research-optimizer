@@ -6,9 +6,68 @@ import { loadSaveData } from '../save/loader.js';
 import { saveData } from '../state.js';
 import { createStatContext } from '../stats/stat-context.js';
 import { allDescriptors } from '../stats/registry.js';
+import { diffPhaseConfigs } from '../phase-diff.js';
+import { GRID_INDICES, NODE_GOAL, NODE_GOAL_COLORS, RES_GRID_RAW } from '../stats/data/w7/research.js';
+import {
+  KNOWLEDGE_CAT_VALUE, MAX_TIER, ROG_BONUS_QTY, ROG_DESC,
+  TIER_TO_KNOWLEDGE_CAT,
+} from '../stats/data/w7/sushi.js';
+import { knowledgeBonusSpecific, knowledgeBonusTotals } from '../stats/systems/w7/sushi.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const failures = [];
+
+if (JSON.stringify(RES_GRID_RAW[191]?.slice(0, 3)) !== JSON.stringify(['Royal_Rewards', 4, 10])) {
+  failures.push('Research node 191: expected Royal_Rewards grid data');
+}
+if (!GRID_INDICES.includes(191)) failures.push('Research node 191: missing from GRID_INDICES');
+if (NODE_GOAL[191] !== 'Royal Rewards') failures.push('Research node 191: expected Royal Rewards goal');
+if (NODE_GOAL_COLORS['Royal Rewards'] !== undefined) {
+  failures.push('Research node 191: Royal Rewards must remain an uncolored manual tier');
+}
+if (MAX_TIER !== 57) failures.push(`Sushi MAX_TIER: expected 57, got ${MAX_TIER}`);
+if (MAX_TIER !== TIER_TO_KNOWLEDGE_CAT.length - 1) {
+  failures.push('Sushi MAX_TIER: must track TIER_TO_KNOWLEDGE_CAT');
+}
+if (JSON.stringify(TIER_TO_KNOWLEDGE_CAT.slice(54, 58)) !== JSON.stringify([3, 5, 8, 7])) {
+  failures.push('Sushi tiers 54-57: unexpected knowledge category mapping');
+}
+const sushiFixture = [[], [], [], [], [], [], [], []];
+sushiFixture[5] = Array(MAX_TIER + 1).fill(0);
+sushiFixture[7] = Array(MAX_TIER + 1).fill(0);
+for (const tier of [54, 55, 56, 57]) {
+  sushiFixture[5][tier] = 1;
+  sushiFixture[7][tier] = 2;
+  const category = TIER_TO_KNOWLEDGE_CAT[tier];
+  const expected = KNOWLEDGE_CAT_VALUE[category] * 2 * 2 * (1 + tier / 30);
+  if (knowledgeBonusSpecific(tier, sushiFixture) !== expected || expected <= 0) {
+    failures.push(`Sushi tier ${tier}: knowledge bonus formula mismatch`);
+  }
+}
+const sushiTotals = knowledgeBonusTotals(sushiFixture);
+for (const tier of [54, 55, 56, 57]) {
+  const category = TIER_TO_KNOWLEDGE_CAT[tier];
+  if (sushiTotals[category] !== knowledgeBonusSpecific(tier, sushiFixture)) {
+    failures.push(`Sushi tier ${tier}: knowledge total contribution missing`);
+  }
+}
+if (JSON.stringify(ROG_BONUS_QTY.slice(59, 63)) !== JSON.stringify([10, 30, 2, 10])) {
+  failures.push('Sushi RoG bonuses 59-62: unexpected quantities');
+}
+if (ROG_DESC.length !== ROG_BONUS_QTY.length || ROG_DESC.length < 63) {
+  failures.push('Sushi RoG bonuses: descriptions and quantities are misaligned');
+}
+const emptyPhase = () => ({
+  rLv: 0,
+  config: { gl: Array(240).fill(0), so: Array(240).fill(-1), md: [], il: [] },
+});
+const phaseBefore = emptyPhase();
+const phaseAfter = emptyPhase();
+phaseAfter.config.gl[191] = 1;
+const phaseDiff = diffPhaseConfigs(phaseBefore, phaseAfter);
+if (phaseDiff.grid['Royal Rewards']?.[0]?.idx !== 191) {
+  failures.push('Research node 191: phase diff must group under Royal Rewards');
+}
 
 function read(relativePath) {
   return readFileSync(resolve(root, relativePath), 'utf8');

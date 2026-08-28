@@ -22,6 +22,33 @@ import { buildTree } from '../stats/tree-builder.js';
 import { getCatalog } from '../stats/registry.js';
 import { resetVaultKillzCache } from '../stats/systems/common/vaultKillz.js';
 
+function parseRoyalArray(save, key) {
+  const parsed = parseSaveKey(save, key);
+  if (Array.isArray(parsed)) return parsed;
+  if (!parsed || typeof parsed !== 'object') return [];
+  const keys = Object.keys(parsed);
+  if (!keys.every(k => /^\d+$/.test(k))) return [];
+  const result = [];
+  for (const k of keys) result[Number(k)] = parsed[k];
+  return result;
+}
+
+function parseItemPair(save, orderKey, quantityKey) {
+  const orderRaw = parseSaveKey(save, orderKey);
+  const quantityRaw = parseSaveKey(save, quantityKey);
+  const order = Array.isArray(orderRaw) ? orderRaw : [];
+  const quantity = Array.isArray(quantityRaw) ? quantityRaw : [];
+  return {
+    order,
+    quantity,
+    available: Object.prototype.hasOwnProperty.call(save, orderKey)
+      && Object.prototype.hasOwnProperty.call(save, quantityKey)
+      && Array.isArray(orderRaw)
+      && Array.isArray(quantityRaw)
+      && order.length === quantity.length,
+  };
+}
+
 export function loadSaveData(raw) {
   resetVaultKillzCache();
   const save = raw.data ? raw.data : raw;
@@ -66,6 +93,14 @@ export function loadSaveData(raw) {
   assignSaveData({ labData: parseSaveKey(save, 'Lab') || [] });
   assignState({ farmUpgData: parseSaveKey(save, 'FarmUpg') || [] });
   assignState({ holesData: parseSaveKey(save, 'Holes') || [] });
+  assignState({
+    royalGData: parseRoyalArray(save, 'RoyalG'),
+    royalMapsData: parseRoyalArray(save, 'RoyalMaps'),
+    royalGDataAvailable: Object.prototype.hasOwnProperty.call(save, 'RoyalG'),
+    royalMapsDataAvailable: Object.prototype.hasOwnProperty.call(save, 'RoyalMaps'),
+    royalDataAvailable: Object.prototype.hasOwnProperty.call(save, 'RoyalG')
+      || Object.prototype.hasOwnProperty.call(save, 'RoyalMaps'),
+  });
   assignState({ riftData: parseSaveKey(save, 'Rift') || [] });
   assignState({ breedingData: parseSaveKey(save, 'Breeding') || [] });
   assignState({ summonData: parseSaveKey(save, 'Summon') || [] });
@@ -95,6 +130,10 @@ export function loadSaveData(raw) {
   assignState({ minigameHiscores: parseSaveKey(save, 'FamValMinigameHiscores') || [] });
   assignState({ chestOrderData: parseSaveKey(save, 'ChestOrder') || [] });
   assignState({ chestQuantityData: parseSaveKey(save, 'ChestQuantity') || [] });
+  assignState({ itemQuantityData: {
+    chest: parseItemPair(save, 'ChestOrder', 'ChestQuantity'),
+    inventories: [],
+  } });
   assignState({ greenStacksData: parseSaveKey(save, 'GreenStacks') || [] });
   assignState({ krBestData: parseSaveKey(save, 'KRbest') || {} });
 
@@ -134,7 +173,7 @@ export function loadSaveData(raw) {
 
   let inferredChars = 0;
   for (const key of Object.keys(save)) {
-    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign|PVFishingToolkit|FoodSlO)_(\d+)$/.exec(key);
+    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign|PVFishingToolkit|FoodSlO|AttackLoadout|MaxCarryCap|InventoryOrder|ItemQTY)_(\d+)$/.exec(key);
     if (match) inferredChars = Math.max(inferredChars, Number(match[1]) + 1);
   }
   const loadedNames = Array.isArray(raw.charNames) ? raw.charNames : [];
@@ -187,11 +226,13 @@ export function loadSaveData(raw) {
   assignSaveData({ klaData: kla });
 
   // Per-character equipment (food bags needed for golden food bonuses)
-  const equipOrders = [], equipQtys = [], inventoryOrders = [], foodSlotsOwned = [], emmAll = [];
+  const equipOrders = [], equipQtys = [], inventoryOrders = [], itemInventories = [], foodSlotsOwned = [], emmAll = [];
   for (let ci = 0; ci < nChars; ci++) {
     equipOrders.push(parseSaveKey(save, 'EquipOrder_' + ci) || []);
     equipQtys.push(parseSaveKey(save, 'EquipQTY_' + ci) || []);
-    inventoryOrders.push(parseSaveKey(save, 'InventoryOrder_' + ci) || []);
+    const inventoryPair = parseItemPair(save, 'InventoryOrder_' + ci, 'ItemQTY_' + ci);
+    inventoryOrders.push(inventoryPair.order);
+    itemInventories.push(inventoryPair);
     foodSlotsOwned.push(Number(parseSaveKey(save, 'FoodSlO_' + ci)) || 0);
     // Equipment stat maps: EMm0=gear(16 slots), EMm1=tools(8 slots)
     emmAll.push([
@@ -202,6 +243,10 @@ export function loadSaveData(raw) {
   assignSaveData({ equipOrderData: equipOrders });
   assignSaveData({ equipQtyData: equipQtys });
   assignSaveData({ inventoryOrderData: inventoryOrders });
+  assignState({ itemQuantityData: {
+    chest: saveData.itemQuantityData.chest,
+    inventories: itemInventories,
+  } });
   assignSaveData({ foodSlotsOwnedData: foodSlotsOwned });
   assignSaveData({ emmData: emmAll });
 
@@ -217,14 +262,34 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
   // Per-character prayers, post office, card equip, currentMap
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], afkTargetData = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], buffsActive = [];
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], currentMapDataAvailable = [], afkTargetData = [], attackLoadoutData = [], attackLoadoutDataAvailable = [], combatAfkInputDataAvailable = [], maxCarryCapData = [], maxCarryCapDataAvailable = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], buffsActive = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
     cardEquip.push(parseSaveKey(save, 'CardEquip_' + ci) || []);
     csetEq.push(parseSaveKey(save, 'CSetEq_' + ci) || {});
-    currentMapData.push(Number(parseSaveKey(save, 'CurrentMap_' + ci)) || 0);
+    const currentMapKey = 'CurrentMap_' + ci;
+    currentMapData.push(Number(parseSaveKey(save, currentMapKey)) || 0);
+    currentMapDataAvailable.push(Object.prototype.hasOwnProperty.call(save, currentMapKey));
     afkTargetData.push(String(save['AFKtarget_' + ci] || ''));
+    const attackLoadoutKey = 'AttackLoadout_' + ci;
+    const attackLoadout = parseSaveKey(save, attackLoadoutKey);
+    attackLoadoutData.push(Array.isArray(attackLoadout)
+      ? attackLoadout.map(function(row) { return Array.isArray(row) ? row.slice() : []; })
+      : []);
+    attackLoadoutDataAvailable.push(Object.prototype.hasOwnProperty.call(save, attackLoadoutKey));
+    combatAfkInputDataAvailable.push({
+      skillLevels: Object.prototype.hasOwnProperty.call(save, 'SL_' + ci),
+      equipment: Object.prototype.hasOwnProperty.call(save, 'EquipOrder_' + ci),
+      equipmentQty: Object.prototype.hasOwnProperty.call(save, 'EquipQTY_' + ci),
+      foodSlots: Object.prototype.hasOwnProperty.call(save, 'FoodSlO_' + ci),
+      buffs: Object.prototype.hasOwnProperty.call(save, 'BuffsActive_' + ci),
+      postOffice: Object.prototype.hasOwnProperty.call(save, 'POu_' + ci),
+    });
+    const maxCarryCapKey = 'MaxCarryCap_' + ci;
+    const maxCarryCap = parseSaveKey(save, maxCarryCapKey);
+    maxCarryCapData.push(maxCarryCap && typeof maxCarryCap === 'object' ? { ...maxCarryCap } : {});
+    maxCarryCapDataAvailable.push(Object.prototype.hasOwnProperty.call(save, maxCarryCapKey));
     const toolkitKey = 'PVFishingToolkit_' + ci;
     const toolkit = parseSaveKey(save, toolkitKey);
     fishingToolkitData.push(Array.isArray(toolkit)
@@ -238,7 +303,13 @@ export function loadSaveData(raw) {
   assignSaveData({ cardEquipData: cardEquip });
   assignSaveData({ csetEqData: csetEq });
   assignSaveData({ currentMapData: currentMapData });
+  assignSaveData({ currentMapDataAvailable: currentMapDataAvailable });
   assignSaveData({ afkTargetData: afkTargetData });
+  assignSaveData({ attackLoadoutData: attackLoadoutData });
+  assignSaveData({ attackLoadoutDataAvailable: attackLoadoutDataAvailable });
+  assignSaveData({ combatAfkInputDataAvailable: combatAfkInputDataAvailable });
+  assignSaveData({ maxCarryCapData: maxCarryCapData });
+  assignSaveData({ maxCarryCapDataAvailable: maxCarryCapDataAvailable });
   assignSaveData({ fishingToolkitData: fishingToolkitData });
   assignSaveData({ fishingToolkitDataAvailable: fishingToolkitDataAvailable });
   assignSaveData({ buffsActiveData: buffsActive });
@@ -391,12 +462,8 @@ export function recomputeDerivedBonuses() {
   });
 
   const rexp = buildTree(resExpDesc, getCatalog(), { saveData: saveData });
-  let _stickerVal = 0;
-  if (rexp.children) {
-    for (let i = 0; i < rexp.children.length; i++) {
-      if (rexp.children[i].name === 'Sticker Bonus') { _stickerVal = rexp.children[i].val; break; }
-    }
-  }
+  const _researchAdditivePct = Number(rexp.additivePct) || 0;
+  const _stickerVal = Number(rexp.stickerBonus) || 0;
   // simTotalExpWith adds grid bonuses dynamically (so optimizer sees changes),
   // so extPctExSticker must exclude both sticker AND grids to avoid double-counting.
   // Grid(112) and Grid(94) are added by the sim with i=2 multipliers (×occFound, ×obsLVs),
@@ -422,8 +489,8 @@ export function recomputeDerivedBonuses() {
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 31, _abmCtx) +
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 51, _abmCtx);
   assignState({
-    externalResearchPct: rexp.val,
-    cachedExtPctExSticker: rexp.val - _stickerVal - _gridAdd,
+    externalResearchPct: _researchAdditivePct,
+    cachedExtPctExSticker: _researchAdditivePct - _stickerVal - _gridAdd,
     comp52TrueMulti: (1 + (saveData.companionIds.has(52) ? 0.5 : 0)) * (1 + (saveData.companionIds.has(153) ? 1 : 0)),
   });
 

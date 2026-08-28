@@ -30,4 +30,4 @@ export const ROG_DESC = Research[36].map(s => s.replace(/_/g, ' '));
 export const CURRENCY_PER_TIER = [1,3,8,20,50,115,250,560,1220,2650];
 
 export const MAX_SLOTS = 120;
-export const MAX_TIER = 53;
+export const MAX_TIER = TIER_TO_KNOWLEDGE_CAT.length - 1;

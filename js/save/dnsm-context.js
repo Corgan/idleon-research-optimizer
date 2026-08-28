@@ -134,7 +134,10 @@ export function computeDNSM(charIdx = 0) {
       const sl = skillLvData[ci] || {};
       const rawLv = Number(sl[209]) || 0;
       if (rawLv > 0) {
-        const allTalentLv = computeAllTalentLVz(209, ci, undefined, saveData);
+        const allTalentLv = computeAllTalentLVz(209, ci, {
+          contextSlot: charIdx,
+          allSpelunkPresets: true,
+        }, saveData);
         const effectiveLv = rawLv + allTalentLv;
         const val = formulaEval('decay', 2, 200, effectiveLv);
         if (val > maxVal) { maxVal = val; bestCi = ci; bestBase = rawLv; bestBonus = allTalentLv; bestEff = effectiveLv; }
