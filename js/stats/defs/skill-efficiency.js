@@ -29,7 +29,7 @@ import {
   getEnabledStarSigns,
   isStarSignActive,
 } from '../systems/common/starSign.js';
-import { maxTalentBonusDetail, talent } from '../systems/common/talent.js';
+import { talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { votingBonusz } from '../systems/w2/voting.js';
@@ -421,8 +421,7 @@ function _laboratory(charIdx, ctx, shared) {
 function _spelunking(charIdx, ctx, shared) {
   var saveData = ctx.saveData;
   var shop56Factor = 1 + _num(shopUpgBonus(56, saveData)) / 100;
-  var talent237Detail = maxTalentBonusDetail(237, charIdx, saveData);
-  var talent237Factor = Math.max(1, _num(talent237Detail && talent237Detail.value));
+  var talent237Factor = Math.max(1, rval(talent, 237, ctx));
   var value = (10 + chapterBonus(0, 0, saveData) + chapterBonus(1, 0, saveData))
     * Math.max(1, 1 + (shared.allEfficiencies - 1) / 20)
     * (1 + 30 * computeRiftSkillBonus(18, 1, saveData) / 100)
@@ -439,7 +438,7 @@ function _spelunking(charIdx, ctx, shared) {
     level: 0,
     children: [
       { name: 'Shop Upgrade 56 Multiplier', val: shop56Factor, fmt: 'x', note: 'ShopUpgBonus(56)' },
-      { name: label('Talent', 237) + ' Multiplier', val: talent237Factor, fmt: 'x', note: 'max(1, getbonus2(1,237,-1))' },
+      { name: label('Talent', 237) + ' Multiplier', val: talent237Factor, fmt: 'x', note: 'max(1, GetTalentNumber(1,237))' },
     ],
   };
 }
