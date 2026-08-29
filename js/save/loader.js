@@ -336,10 +336,15 @@ export function loadSaveData(raw) {
   }
   const tokenStr = String(olaRaw[606] || '');
   if (tokenStr && tokenStr !== '0') {
-    const tokenNames = tokenStr.split(',');
-    for (const name of tokenNames) {
+    const tokenEntries = tokenStr.split(',');
+    for (const entry of tokenEntries) {
+      const tokenId = Number(entry);
+      if (Number.isInteger(tokenId) && tokenId >= 0 && tokenId < CompanionDB.length) {
+        companionIds.add(tokenId);
+        continue;
+      }
       for (let ci = 0; ci < CompanionDB.length; ci++) {
-        if (CompanionDB[ci][0] === name) { companionIds.add(ci); break; }
+        if (CompanionDB[ci][0] === entry) { companionIds.add(ci); break; }
       }
     }
   }

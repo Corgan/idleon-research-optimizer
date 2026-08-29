@@ -435,6 +435,7 @@
       .royal-map-outpost:not(.built) .royal-map-node-glyph { inset: 0; }
       .royal-map-outpost.built .royal-map-node-glyph { left: 28.571%; top: 0; width: 41.071%; height: 90%; }
       .royal-map-outpost-glyph { left: 0; top: 10%; width: 100%; height: 85%; }
+      .royal-map-glory-glyph { left: 35.714%; top: 55%; width: 28.571%; height: 25%; z-index: 4; filter: drop-shadow(0 1px 2px rgba(3, 8, 18, .95)); }
       .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 11.2px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
       .royal-map-assignments .royal-map-glyph { filter: drop-shadow(0 1px 1px rgba(3, 8, 18, .95)) drop-shadow(0 0 3px rgba(3, 8, 18, .85)); }
       .royal-map-node-glyph { z-index: 2; }
@@ -530,6 +531,33 @@
       .metric-line b {
         color: var(--gold);
       }
+      .projection-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 10px;
+      }
+      .projection-item { display: grid; gap: 3px; min-width: 0; padding: 9px 10px; border: 1px solid #40536e; border-radius: 6px; background: #132745; }
+      .projection-label { color: var(--text2); font-size: .72em; text-transform: uppercase; }
+      .projection-value { color: var(--gold); font-size: .84em; font-weight: 700; overflow-wrap: anywhere; }
+      .projection-note { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(255, 215, 0, .07); color: var(--text2); font-size: .76em; line-height: 1.4; }
+      .resource-cycle-status { grid-column: 1 / -1; display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px 10px; border: 1px solid rgba(77, 208, 225, .35); border-radius: 6px; background: rgba(77, 208, 225, .07); color: var(--text2); font-size: .78em; line-height: 1.4; }
+      .resource-cycle-pill { flex: 0 0 auto; padding: 2px 7px; border: 1px solid rgba(77, 208, 225, .5); border-radius: 999px; color: var(--cyan); font-size: .86em; font-weight: 700; white-space: nowrap; }
+      .upgrade-table th:not(:first-child),
+      .upgrade-table td:not(:first-child) { white-space: nowrap; }
+      .upgrade-table .effect-cell { min-width: 180px; white-space: normal; }
+      .upgrade-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .outpost-detail-header { display: grid; gap: 9px; }
+      .outpost-detail-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .outpost-detail-title strong { color: var(--cyan); font-size: 1.05em; }
+      .outpost-detail-pills { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+      .outpost-detail-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border: 1px solid #526b8f; border-radius: 999px; color: var(--text2); font-size: .7em; font-weight: 700; white-space: nowrap; }
+      .outpost-detail-pill.state { border-color: rgba(76, 175, 80, .5); background: rgba(76, 175, 80, .1); color: var(--green); }
+      .outpost-detail-pill.purified { border-color: rgba(77, 208, 225, .5); background: rgba(77, 208, 225, .1); color: var(--cyan); }
+      .outpost-detail-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .outpost-detail-stat { display: grid; gap: 2px; padding: 7px 9px; border-radius: 5px; background: #101b35; }
+      .outpost-detail-stat span { color: var(--text2); font-size: .68em; text-transform: uppercase; }
+      .outpost-detail-stat b { color: var(--gold); font-size: .86em; font-variant-numeric: tabular-nums; }
       .range-target { margin: 10px 0; padding: 9px; border: 1px solid #40536e; border-radius: 6px; background: rgba(10, 24, 44, .72); }
       .range-target h3 { margin-top: 0; }
       .range-target-main { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
@@ -693,6 +721,8 @@
         .mobile-cards {
           display: grid;
         }
+        .projection-strip { grid-template-columns: 1fr; }
+        .outpost-detail-stats { grid-template-columns: 1fr; }
         .rank-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -1071,17 +1101,19 @@
         return O.currencyIncomeToReset(S, slot);
       }
       function resetProjection(x) {
-        if (x?.resetProjectionAvailable === false) return '<div class="metric-line"><b>Reset projection unavailable.</b></div>';
+        if (x?.resetProjectionAvailable === false) return '<div class="projection-strip"><div class="projection-item"><span class="projection-label">Reset projection</span><span class="projection-value">Unavailable</span></div></div>';
         const refillsAtReset = x.refillsAtReset;
-        const refill = x.refillBoundary === "source-certain"
-          ? `Refill at reset: ${refillsAtReset ? "Yes (saved drained node)" : "No"}`
-          : x.refillBoundary === "projected-uncertain"
-            ? "Projected refill at boundary: Possible (uncertain)"
-            : "Refill at reset: No";
-        const grade = x.refillBoundary === "projected-uncertain"
-          ? `Projected grade at boundary: Possible gain (+${resetValue(x.gradeGainAtReset, x.resetProjectionAvailable)})`
-          : `Projected grade: ${resetValue(x.projectedGradeAtReset ?? x.grade, x.resetProjectionAvailable)} (+${resetValue(x.gradeGainAtReset, x.resetProjectionAvailable)})`;
-        return `<div class="metric-line">Empties by reset: <b>${x.emptiesByReset ? "Yes" : "No"}</b> | <b>${refill}</b> | ${grade}</div>`;
+        const requiresCollection = x.refillRequiresCollection || x.refillBoundary === "collect-before-reset";
+        const refill = x.refillBoundary === "saved-drained"
+          ? refillsAtReset ? "Yes — already drained" : "No"
+          : requiresCollection
+            ? "Collect before reset"
+            : "No";
+        const grade = requiresCollection
+          ? `${resetValue(x.projectedGradeAtReset ?? x.grade, x.resetProjectionAvailable)} if refilled`
+          : `${resetValue(x.projectedGradeAtReset ?? x.grade, x.resetProjectionAvailable)} (+${resetValue(x.gradeGainAtReset, x.resetProjectionAvailable)})`;
+        const note = requiresCollection ? '<p class="projection-note">Projected to empty before reset. The game marks it drained only when Royal resources are collected, so collect after it empties and before the daily reset.</p>' : "";
+        return `<div class="projection-strip"><div class="projection-item"><span class="projection-label">Empties before reset</span><span class="projection-value">${x.emptiesByReset ? "Yes — projected" : "No"}</span></div><div class="projection-item"><span class="projection-label">Daily reset refill</span><span class="projection-value">${refill}</span></div><div class="projection-item"><span class="projection-label">Grade after reset</span><span class="projection-value">${grade}</span></div>${note}</div>`;
       }
       function invalidResourceWarning(invalid) {
         const resetWarning = resourceResetNote;
@@ -1258,7 +1290,7 @@
           shownWorlds = visibleWorlds(S),
           all = worlds.map((w) => R.worldOutpostRows(S, w).filter(row => session.spoilersVisible || row.state !== "locked")),
           a = nextActions(S, m),
-          p = rows.filter((x) => x.purification > 0);
+          p = rows.filter((x) => x.purified);
             const reset = resourceDetails(S);
             return `<section class="section"><div class="card-grid cols-5">${card("Built outposts", rows.length)}${card("Worlds unlocked", worlds.filter((w) => R.royalWorldUnlocked(S, w)).length, "of 7")}${card("Resource output/hr", f(m.resourcesPerHour))}${card("Collectable before reset", resetValue(reset.collectableBeforeReset, reset.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(reset.nodesEmptyingByReset, reset.resetProjectionAvailable))}</div>${resetNote(reset.reset)}</section><section class="section"><h2>World progress</h2><div class="card-grid cols-4">${shownWorlds
           .map((w) => {
@@ -1342,9 +1374,10 @@
         const clear = !row.built ? R.outpostClearMetrics(S, row.mapIdx) : null;
         const type = row.built ? R.outpostType(S, row.mapIdx) : 0;
         const state = row.built ? "built" : clear?.state || row.state;
-        const status = row.built ? types[type] : state;
+        const glorified = row.built && R.outpostIsGlorified(S, row.mapIdx), purified = row.built && R.outpostIsPurified(S, row.mapIdx);
+        const status = row.built ? `${types[type]}${glorified ? ", Glorified" : ""}${purified ? ", Purified" : ""}` : state;
         const selected = session.mapSelectionKind === "outpost" && session.selectedOutpost === row.mapIdx;
-        const classes = ["royal-map-outpost", row.built ? "built" : "", row.built && type === 1 ? "support" : "", row.built && type === 2 ? "savage" : "", state === "clearing" ? "clearing" : "", state === "locked" ? "locked" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
+        const classes = ["royal-map-outpost", row.built ? "built" : "", glorified ? "glorified" : "", purified ? "purified" : "", row.built && type === 1 ? "support" : "", row.built && type === 2 ? "savage" : "", state === "clearing" ? "clearing" : "", state === "locked" ? "locked" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
         const nodeGlyph = row.built ? { x: 3, y: 94 } : { x: 3, y: 75 };
         const outpostGlyph = [{ x: 412, y: 13 }, { x: 525, y: 4 }, { x: 525, y: 21 }][type] || { x: 412, y: 13 };
         const militia = R.militiaAssignmentCount(S, row.mapIdx);
@@ -1352,7 +1385,7 @@
         const workers = [...workerCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("");
         const assignmentItems = `${workers}${militiaIcon(militia)}`;
         const assignments = session.assignmentIconsVisible && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
-        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${assignments}</button>`;
+        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
       }
       function outpostQuickView(S, mapIdx) {
         const row = R.outpostEligibility(S, mapIdx);
@@ -1362,7 +1395,8 @@
         }
         const units = R.outpostUnits(S, mapIdx), rate = R.outpostResourceRateBreakdown(S, mapIdx);
         const ranks = [0, 1, 2, 3, 4].filter(index => R.outpostUnlockedBars(S)[index]).map(index => { const rank = R.outpostRankInfo(S, mapIdx, index); return `<span>${R.outpostRankName(index)} (${R.outpostRankContributor(index)}): rank ${fi(rank.rank)}</span><b>${f(rank.exp)} EXP · ${f(R.outpostRankExpPerHour(S, mapIdx, index))}/hr</b>`; }).join("");
-        return `<h3>${mapName(mapIdx)} · ${types[R.outpostType(S, mapIdx)]}</h3><div class="tooltip-grid"><span>Collection rate</span><b>${f(rate.value)}/hr</b><span>Range</span><b>${fi(R.outpostRange(S, mapIdx))}</b><span>Points left</span><b>${fi(R.outpostPointsLeft(S, mapIdx))}</b>${ranks}</div><div class="tooltip-units">${units.map(unit => `<span class="tooltip-unit">${unitIcon(unit.type)}</span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
+        const statuses = [R.outpostIsGlorified(S, mapIdx) ? "Glorified" : "", R.outpostIsPurified(S, mapIdx) ? "Purified" : ""].filter(Boolean).join(" · ");
+        return `<h3>${mapName(mapIdx)} · ${types[R.outpostType(S, mapIdx)]}</h3><div class="tooltip-grid">${statuses ? `<span>Status</span><b>${statuses}</b>` : ""}<span>Collection rate</span><b>${f(rate.value)}/hr</b><span>Range</span><b>${fi(R.outpostRange(S, mapIdx))}</b><span>Points left</span><b>${fi(R.outpostPointsLeft(S, mapIdx))}</b>${ranks}</div><div class="tooltip-units">${units.map(unit => `<span class="tooltip-unit">${unitIcon(unit.type)}</span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
       }
       function resourceQuickView(S, resourceIdx) {
         const detail = resourceDetails(S).details[resourceIdx], capacity = R.resourceCapacity(S, resourceIdx), slot = R.resourceCurrency(resourceIdx);
@@ -1460,7 +1494,8 @@
           reach = R.reachableResourcesForOutpost(S, x.mapIdx).filter(
             (r) => r.reachable,
           );
-        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge badge-green">Built</span></div><div class="metric-line">${types[R.outpostType(S, x.mapIdx)]} | ${R.outpostPurification(S, x.mapIdx) > 0 ? "Purified" : "Built"} | points <b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b> | range <b>${f(R.outpostRange(S, x.mapIdx))}</b> | resource/hr <b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}</b></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}<h3>Rank bars</h3><div class="rank-grid">${[
+        const outpostType = types[R.outpostType(S, x.mapIdx)], glorified = R.outpostIsGlorified(S, x.mapIdx), purified = R.outpostIsPurified(S, x.mapIdx);
+        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="outpost-detail-header"><div class="outpost-detail-title"><strong>${mapName(x.mapIdx)}</strong><div class="outpost-detail-pills"><span class="outpost-detail-pill">${outpostType}</span><span class="outpost-detail-pill state">${glorified ? "Glorified" : "Built"}</span>${purified ? '<span class="outpost-detail-pill purified">Purified</span>' : ""}</div></div><div class="outpost-detail-stats"><div class="outpost-detail-stat"><span>Points available</span><b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Connection range</span><b>${f(R.outpostRange(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Resource output</span><b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr</b></div></div></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}<h3>Rank bars</h3><div class="rank-grid">${[
           0, 1, 2, 3, 4,
         ]
           .map((b, i) => {
@@ -1491,8 +1526,8 @@
       function resourceInspector(S, x) {
         const capacity = R.resourceCapacity(S, x.resourceIdx), links = resourceReachable(S, x.resourceIdx), cycle = R.nextResourceCycleMetrics(S, x.resourceIdx, x.rate);
         const nextCycle = cycle.nextCycleAvailable
-          ? `${card("Next full cycle drain", fmtDrainHours(cycle.nextDrainHours, cycle.nextCapacity), `Grade ${fi(cycle.nextGrade)} | ${f(cycle.nextCapacity)} capacity | ${f(cycle.nextRate)}/hr`)}<div class="metric-line">Resource Replenish is active.${cycle.resourceGradeIncreaseUnlocked ? " Resource Grades adds +1 grade on refill." : " Resource Grades is locked, so grade stays unchanged."}</div>`
-          : `${card("Full node (current grade)", fmtDrainHours(cycle.hypotheticalFullDrainHours, cycle.hypotheticalFullCapacity), `${f(cycle.hypotheticalFullCapacity)} capacity | ${f(cycle.hypotheticalFullRate)}/hr`)}<div class="metric-line">Resource Replenish is locked; no automatic next cycle is projected.</div>`;
+          ? `${card("Next full cycle drain", fmtDrainHours(cycle.nextDrainHours, cycle.nextCapacity), `Grade ${fi(cycle.nextGrade)} | ${f(cycle.nextCapacity)} capacity | ${f(cycle.nextRate)}/hr`)}<div class="resource-cycle-status"><span class="resource-cycle-pill">Auto-refill on</span><span>Drained nodes refill at daily reset.${cycle.resourceGradeIncreaseUnlocked ? " Each refill also adds +1 grade." : " Grade remains unchanged until Resource Grades is unlocked."}</span></div>`
+          : `${card("Full node (current grade)", fmtDrainHours(cycle.hypotheticalFullDrainHours, cycle.hypotheticalFullCapacity), `${f(cycle.hypotheticalFullCapacity)} capacity | ${f(cycle.hypotheticalFullRate)}/hr`)}<div class="resource-cycle-status"><span class="resource-cycle-pill">Auto-refill off</span><span>Resource Replenish is locked, so no automatic next cycle is projected.</span></div>`;
         return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, x.resourceIdx))}${R.resourceDrained(S, x.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}</div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Connection free</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${currentConnectionFree(S, y.mapIdx) ? "Yes" : "No"}</td><td>${currentConnectionToResource(S, y.mapIdx, x.resourceIdx) ? "Yes" : "No"}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div></div>`;
       }
       const collectionFactorLabels = {
@@ -1636,19 +1671,21 @@
       }
       function statues() {
         const S = saveData;
-        return `<div class="upgrade-heading"><h2>Royal Statues</h2>${spoilerToggle()}</div>${balances(S, "statues")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Material / Owned / Cost</th><th>Odds</th></tr></thead><tbody>${Array.from(
+        return `<div class="upgrade-heading"><h2>Royal Statues</h2>${spoilerToggle()}</div>${balances(S, "statues")}<div class="table-wrap"><table class="data-table upgrade-table"><thead><tr><th>Name</th><th class="num">Level</th><th>Current effect</th><th>Next effect</th><th>Material</th><th class="num">Owned</th><th class="num">Cost</th><th class="num">Upgrade odds</th></tr></thead><tbody>${Array.from(
           { length: 7 },
           (_, i) => {
             const d = R.royalStatueUpgradeDetail(S, i);
             const level = R.royalG(S, 0, i);
-            if (level <= 0 && !session.spoilersVisible) return `<tr><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Locked Royal Statue</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td></tr>`;
-            return `<tr><td>${esc(ROYAL_STATUES[i].name)}</td><td>${fi(level)}</td><td>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</td><td>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)}</td><td>${f(R.statueUpgradeOdds(S, i) * 100)}%</td></tr>`;
+            if (level <= 0 && !session.spoilersVisible) return `<tr><td class="upgrade-spoiler-hidden">???</td><td class="num upgrade-spoiler-hidden">???</td><td class="effect-cell upgrade-spoiler-hidden">Locked Royal Statue</td><td class="effect-cell upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="num upgrade-spoiler-hidden">???</td><td class="num upgrade-spoiler-hidden">???</td><td class="num upgrade-spoiler-hidden">???</td></tr>`;
+            const currentEffect = level > 0 ? R.royalStatueDescription(S, i, level) : "No effect";
+            const nextEffect = R.royalStatueDescription(S, i, level + 1);
+            return `<tr><td>${esc(ROYAL_STATUES[i].name)}</td><td class="num">${fi(level)} → ${fi(level + 1)}</td><td class="effect-cell">${esc(currentEffect)}</td><td class="effect-cell">${esc(nextEffect)}</td><td>${displayItemName(d.itemName)}</td><td class="num">${fi(d.owned)}</td><td class="num">${fi(d.cost)}</td><td class="num">1 in ${fi(R.statueExpectedAttempts(S, i))}</td></tr>`;
           },
         ).join("")}</tbody></table></div><div class="mobile-cards">${Array.from(
           { length: 7 },
           (_, i) => {
             const d = R.royalStatueUpgradeDetail(S, i);
-            const level = R.royalG(S, 0, i); return level <= 0 && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Royal Statue</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${esc(ROYAL_STATUES[i].name)}</b><div>Level ${fi(level)}</div><div>${esc(level > 0 ? R.royalStatueDescription(S, i) : `On purchase: ${R.royalStatueDescription(S, i, 1)}`)}</div><div>${displayItemName(d.itemName)} / ${fi(d.owned)} / ${fi(d.cost)} | Odds ${f(R.statueUpgradeOdds(S, i) * 100)}%</div></article>`;
+            const level = R.royalG(S, 0, i); return level <= 0 && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Royal Statue</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${esc(ROYAL_STATUES[i].name)}</b><div>Level ${fi(level)} → ${fi(level + 1)} | Odds 1 in ${fi(R.statueExpectedAttempts(S, i))}</div><div>Current: ${esc(level > 0 ? R.royalStatueDescription(S, i, level) : "No effect")}</div><div>Next: ${esc(R.royalStatueDescription(S, i, level + 1))}</div><div>${displayItemName(d.itemName)} | Owned ${fi(d.owned)} | Cost ${fi(d.cost)}</div></article>`;
           },
         ).join("")}</div>`;
       }
@@ -1664,7 +1701,7 @@
                 n(r.material?.category) === n(session.flairCategory)) &&
               (session.flairShowMaxed || !r.maxed),
           );
-        return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level / effect</th><th>Material / owned / cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td>${fi(r.level)} / ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</td><td>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Lv ${fi(r.level)} | ${f(r.currentMultiplier)} to ${f(r.nextMultiplier)}</div><div>${displayItemName(r.material?.name)} / ${fi(r.owned)} / ${fi(r.cost)}</div></article>`).join("")}</div>`;
+        return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table upgrade-table"><thead><tr><th>Name</th><th class="num">Level / max</th><th class="num">Current effect</th><th class="num">Next effect</th><th>Material</th><th class="num">Owned</th><th class="num">Cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td class="num">${fi(r.level)} / ${fi(R.statueFlairMax())}</td><td class="num">${f(r.currentMultiplier)}x</td><td class="num">${r.maxed ? "MAX" : `${f(r.nextMultiplier)}x`}</td><td>${displayItemName(r.material?.name)}</td><td class="num">${fi(r.owned)}</td><td class="num">${r.maxed ? "MAX" : fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Level ${fi(r.level)} / ${fi(R.statueFlairMax())} | ${f(r.currentMultiplier)}x → ${r.maxed ? "MAX" : `${f(r.nextMultiplier)}x`}</div><div>${displayItemName(r.material?.name)} | Owned ${fi(r.owned)} | Cost ${r.maxed ? "MAX" : fi(r.cost)}</div><div>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</div></article>`).join("")}</div>`;
       }
       function orblets() {
         const S = saveData,

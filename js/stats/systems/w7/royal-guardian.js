@@ -328,7 +328,7 @@ export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => 
 
 export function decodePackedUnits(packed) { const digits = String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number); const units = digits.map((digit, slot) => ({ slot, type: digit >= 2 && digit <= 5 ? digit - 2 : -1, raw: digit })).filter(unit => unit.type >= 0); return units; }
 export function outpostUnits(S, mapIdx) { return decodePackedUnits(row(S, mapIdx)?.[11]); }
-export function passiveUnits(S, mapIdx, type) { const rank = Math.max(0, outpostRank(S, mapIdx, 2)); if (type === 0) return Math.floor(rank / 4) + Math.min(1, outpostPurification(S, mapIdx)); return Math.floor(Math.max(0, rank - type) / 4); }
+export function passiveUnits(S, mapIdx, type) { const rank = Math.max(0, outpostRank(S, mapIdx, 2)); if (type === 0) return Math.floor(rank / 4) + (outpostIsGlorified(S, mapIdx) ? 1 : 0); return Math.floor(Math.max(0, rank - type) / 4); }
 export function totalUnitsByType(S, mapIdx) { const totals = outpostUnits(S, mapIdx).reduce((counts, unit) => { counts[unit.type]++; return counts; }, [0, 0, 0, 0]); return totals.map((value, type) => value + passiveUnits(S, mapIdx, type)); }
 export function parseConnectionEndpoint(value) { if (value === undefined || value === null || value === '' || (typeof value === 'string' && value.trim() === '')) return { kind: 'empty', id: -1 }; const endpoint = Number(value); if (!Number.isFinite(endpoint) || endpoint < 0) return { kind: 'empty', id: -1 }; return endpoint >= 1000 ? { kind: 'map', id: endpoint - 1000 } : { kind: 'resource', id: endpoint }; }
 export function outpostConnections(S, mapIdx) { const r = row(S, mapIdx); return [parseConnectionEndpoint(r?.[8]), parseConnectionEndpoint(r?.[9])]; }
@@ -350,7 +350,9 @@ export function logisticsUpgradesToReach(S, mapIdx, distance, extraReach = 15, e
 	if (targetLevel >= 1e9) return { possible: false, currentLevel, currentRange, levelsNeeded: null, targetLevel: null, requiredRange, reason: 'beyond maximum Advanced Logistics range' };
 	return { possible: true, currentLevel, currentRange, levelsNeeded: targetLevel - currentLevel, targetLevel, requiredRange };
 }
-export function outpostPurification(S, mapIdx) { return n(row(S, mapIdx)?.[12]); }
+export function outpostIsGlorified(S, mapIdx) { return n(row(S, mapIdx)?.[12]) >= 1; }
+export function outpostIsPurified(S, mapIdx) { return outpostBuilt(S, mapIdx) && outpostRank(S, mapIdx, 4) >= 1; }
+export function outpostPurification(S, mapIdx) { return outpostIsPurified(S, mapIdx) ? 1 : 0; }
 export function outpostTotalUnits(S, mapIdx, ext) { return totalUnitsByType(S, mapIdx, ext).reduce((a, b) => a + b, 0); }
 export function supportCount(S, targetMap) { return (S?.royalMapsData || []).reduce((count, r, mapIdx) => count + (outpostBuilt(S, mapIdx) && n(r[10]) === 1 ? outpostConnections(S, mapIdx).filter(connection => connection.kind === 'map' && connection.id === targetMap).length : 0), 0); }
 
@@ -454,7 +456,7 @@ export function supportCollection(S) { return 200 * (1 + armoryBonus(S, 43) / 10
 export function savageCollection(S) { return 5 * (1 + armoryBonus(S, 69) / 100); }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
 export function barExpRateBase(S, bar, ext) { const derived = royalGuardianDerivedInputs(S); ext = ext || {}; let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
-// BarExpRate writes an own-map purification value into rBarXPdn, then
+// BarExpRate writes an own-map Glorified multiplier into rBarXPdn, then
 // BarExpRate_Base immediately resets that cache before it is read. Preserve
 // the effective source result, including its separate isMapPurified(bar) call.
 export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
@@ -520,7 +522,7 @@ export function XtraClearKillz(S, ext) {
 export function mapWorldUnlockCount(S) { return 1 + [2, 3, 4, 5, 6, 7].reduce((sum, idx) => sum + armoryBonus(S, idx), 0); }
 
 export function kingdomTotals(S, ext) { const maps = Array.isArray(S?.royalMapsData) ? S.royalMapsData : []; let resources = 0; const missing = new Set(); maps.forEach((r, i) => { if (!outpostBuilt(S, i) || outpostType(S, i) !== 0) return; for (const endpoint of outpostConnections(S, i)) if (endpoint.kind === 'resource' && ROYAL_RESOURCES[endpoint.id]) { const rate = resourceProductionWithGrade(S, i, endpoint.id, ext); resources += rate.value; for (const source of rate.missing || []) missing.add(source); } }); if (!hasCompleteRoyalData(S)) { if (!hasRoyalGData(S)) missing.add('RoyalG'); if (!hasRoyalMapsData(S)) missing.add('RoyalMaps'); } return { available: hasCompleteRoyalData(S), outposts: maps.filter((_, mapIdx) => outpostBuilt(S, mapIdx)).length, armoryLevels: armoryTotalLevels(S), resourcesPerHour: resources, partial: !hasCompleteRoyalData(S) || missing.size > 0, missing: Array.from(missing) }; }
-export function outpostRows(S, ext) { const maps = Array.isArray(S?.royalMapsData) ? S.royalMapsData : []; return maps.map((r, mapIdx) => outpostBuilt(S, mapIdx) ? ({ mapIdx, type: outpostType(S, mapIdx), range: outpostRange(S, mapIdx, ext), pointsLeft: outpostPointsLeft(S, mapIdx), units: outpostUnits(S, mapIdx), connections: outpostConnections(S, mapIdx), resourceRate: outpostResourceRateBreakdown(S, mapIdx, ext), rankExp: outpostRankExpBreakdown(S, mapIdx, ext), purification: n(r[12]) }) : null).filter(Boolean); }
+export function outpostRows(S, ext) { const maps = Array.isArray(S?.royalMapsData) ? S.royalMapsData : []; return maps.map((r, mapIdx) => outpostBuilt(S, mapIdx) ? ({ mapIdx, type: outpostType(S, mapIdx), range: outpostRange(S, mapIdx, ext), pointsLeft: outpostPointsLeft(S, mapIdx), units: outpostUnits(S, mapIdx), connections: outpostConnections(S, mapIdx), resourceRate: outpostResourceRateBreakdown(S, mapIdx, ext), rankExp: outpostRankExpBreakdown(S, mapIdx, ext), glorified: outpostIsGlorified(S, mapIdx), purified: outpostIsPurified(S, mapIdx), purification: outpostPurification(S, mapIdx) }) : null).filter(Boolean); }
 
 export function militiaAssignments(S, worldIdx) {
 	const worlds = worldIdx == null ? Array.from({ length: 7 }, (_, index) => index) : [Math.floor(n(worldIdx))];
