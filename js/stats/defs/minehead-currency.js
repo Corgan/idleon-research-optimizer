@@ -104,6 +104,7 @@ export default createDescriptor({
       rogBonus12: rog12,
       buttonBonus1: bb1,
       eventShop44: eventShop44,
+      dancingCoral5: sources.dancingCoral5,
       upgLevels: upgLevels,
       highestDmg: highestDmg,
     });

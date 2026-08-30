@@ -51,17 +51,18 @@ function _winBonusParts(idx, swb, saveData, charIdx) {
   var godshardSet = Number(getSetBonus('GODSHARD_SET', charIdx));
   var ach379 = achieveStatus(379, saveData);
   var ach373 = achieveStatus(373, saveData);
+  var banIBundle = saveData.bundlesData && saveData.bundlesData.ban_i ? 50 : 0;
   var baseMult = (idx >= 20 && idx <= 33) ? 1 : 3.5;
   var pristineMult = 1 + pristine8 / 100;
   var gemMult = 1 + 10 * gemItems11 / 100;
-  var winnerSum = artBonus32 + taskVal + ach379 + ach373 + godshardSet;
+  var winnerSum = artBonus32 + taskVal + ach379 + ach373 + godshardSet + banIBundle;
   if (idx !== 19) winnerSum += wb31 + empBon8;
   var winnerMult = 1 + winnerSum / 100;
   var val = baseMult * raw * pristineMult * gemMult * winnerMult;
   return {
     val: val, raw: raw, baseMult: baseMult, pristine8: pristine8, pristineMult: pristineMult,
     gemItems11: gemItems11, gemMult: gemMult, artBonus32: artBonus32, artRarity: artRarity,
-    taskVal: taskVal, ach379: ach379, ach373: ach373, wb31: wb31, empBon8: empBon8,
+    taskVal: taskVal, ach379: ach379, ach373: ach373, banIBundle: banIBundle, wb31: wb31, empBon8: empBon8,
     godshardSet: godshardSet, winnerSum: winnerSum, winnerMult: winnerMult, idx: idx,
   };
 }

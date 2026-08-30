@@ -58,7 +58,8 @@ function achieveStatusTiered(idx, saveData) {
 
 export function gfoodBonusMULTI(charIdx, opts, saveData) {
   var inputs = computeGFoodInputs(charIdx, opts && opts.dnsmCache, saveData);
-  var setMul = 1 + Number(getSetBonus('SECRET_SET', charIdx)) / 100;
+  var companion174 = companions(174, saveData);
+  var setMul = 1 + (Number(getSetBonus('SECRET_SET', charIdx)) + 50 * companion174) / 100;
   var famBonus = Math.max(inputs.famBonusQTYs66, 1);
   var votingMulti = (opts && opts.votingBonuszMulti != null) ? opts.votingBonuszMulti : inputs.votingBonuszMulti;
   var rest =
@@ -81,6 +82,7 @@ export function gfoodBonusMULTI(charIdx, opts, saveData) {
     Math.min(4 * cardLv('cropfallEvent1', saveData), 50) +
     Math.min(5 * cardLv('anni5Event1', saveData), 50) +
     companions(155, saveData) +
+    10000 * companion174 +
     vaultUpgBonus(86, saveData);
   return setMul * (famBonus + rest / 100);
 }
@@ -146,6 +148,7 @@ export function gfoodBonusMULTIBreakdown(charIdx, opts, saveData) {
   var ach383 = achieveStatusTiered(383, saveData);
   var comp48 = companions(48, saveData);
   var comp155 = companions(155, saveData);
+  var comp174 = companions(174, saveData);
   var tal209xMap = inputs.getbonus2_1_209 * inputs.calcTalentMAP209;
 
   var items = [
@@ -185,14 +188,15 @@ export function gfoodBonusMULTIBreakdown(charIdx, opts, saveData) {
       node('5 per Level (Cap 50)', anniversaryCardVal, null, { fmt: 'raw' }),
     ], { fmt: 'raw' }) : null },
     { name: label('Companion', 155), val: comp155, tree: comp155 > 0 ? node(label('Companion', 155), comp155) : null },
+    { name: label('Companion', 174) + ' Additive', val: 10000 * comp174, tree: comp174 > 0 ? node(label('Companion', 174), 10000 * comp174) : null },
     { name: label('Vault', 86), val: vaultVal, tree: vaultLv > 0 ? node(label('Vault', 86), vaultVal, [
       node('Level', vaultLv, null, { fmt: 'raw' }),
     ], { fmt: 'raw' }) : null },
   ];
   var famBonus = items[0].val;
   var rest = items.reduce(function(acc, it, idx) { return idx === 0 ? acc : acc + it.val; }, 0);
-  var setMul = 1 + Number(getSetBonus('SECRET_SET', charIdx)) / 100;
-  return { items: items, sum: famBonus + rest, setMul: setMul, result: setMul * (famBonus + rest / 100) };
+  var setMul = 1 + (Number(getSetBonus('SECRET_SET', charIdx)) + 50 * comp174) / 100;
+  return { items: items, sum: famBonus + rest, setMul: setMul, companion174Multiplier: 1 + 50 * comp174 / 100, result: setMul * (famBonus + rest / 100) };
 }
 
 // ===== GOLDEN FOOD INPUT COMPUTATION =====

@@ -6,7 +6,7 @@
 // function the optimizer maximizes via greedy numerical differentiation.
 
 import { MealINFO } from '../../data/game/customlists.js';
-import { ribbonBonusAt } from '../../../game-helpers.js';
+import { eventShopOwned, ribbonBonusAt } from '../../../game-helpers.js';
 import { cookingMealMulti } from './cooking.js';
 
 // ========== CORE: MealBonusesS computation ==========
@@ -52,7 +52,16 @@ export function yellowPointBudget(saveData) {
     && saveData.cookMasterData[1][0]) || 0;
   var companion = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
   var grid190 = Math.round(Number(saveData.gridLevels && saveData.gridLevels[190]) || 0);
-  return Math.max(0, Math.round(rank + 1 + companion + grid190));
+  var event54 = 5 * eventShopOwned(54, saveData.cachedEventShopStr);
+  return Math.max(0, Math.round(rank + 1 + companion + grid190 + event54));
+}
+
+export function purplePointBudget(saveData) {
+  var rank = Number(saveData.cookMasterData && saveData.cookMasterData[1]
+    && saveData.cookMasterData[1][0]) || 0;
+  var companion = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  var event54 = 5 * eventShopOwned(54, saveData.cachedEventShopStr);
+  return Math.max(0, Math.round(rank + 1 + companion + event54));
 }
 
 // ========== GOAL DEFINITIONS ==========
@@ -158,7 +167,8 @@ export var GOALS = [
     value: function(mb, saveData, options) {
       var farmScale = farmingMealCookingScale(saveData, options && options.activeCharIdx);
       var kitchenScale = kitchenCookingAggregate(saveData, 'meal');
-      return (1 + (mb.Mcook || 0) / 100)
+      var event53 = 1 + eventShopOwned(53, saveData.cachedEventShopStr);
+      return event53 * (1 + (mb.Mcook || 0) / 100)
         * (1 + (mb.zMealFarm || 0) * farmScale.steps / 100)
         * (1 + (mb.KitchenEff || 0) * kitchenScale.weightedSteps / 100);
     },

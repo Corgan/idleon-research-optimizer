@@ -12,6 +12,7 @@ import { computeMealBonus } from '../common/stats.js';
 import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { gbWith } from '../../../sim-math.js';
+import { computeDancingCoralBonus } from './spelunking.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -50,6 +51,7 @@ export function computeMineheadCurrSources(saveData, charIdx) {
   var comp143 = saveData.companionIds.has(143) ? companionBonus(143) : 0;
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
   var eventShop44 = eventShopOwned(44, saveData.cachedEventShopStr);
+  var dancingCoral5 = computeDancingCoralBonus(5, saveData);
   var arcade62tree = arcadeBonus(62, saveData);
   var arcade62val = (arcade62tree && arcade62tree.val) || 0;
   var arcade62lv = saveData.arcadeUpgData[62] || 0;
@@ -75,7 +77,7 @@ export function computeMineheadCurrSources(saveData, charIdx) {
     mealMineCurr = Number(computeMealBonus('MineCurr', saveData, charIdx).val) || 0;
   }
   return {
-    comp143: comp143, atom13: atom13, eventShop44: eventShop44,
+    comp143: comp143, atom13: atom13, eventShop44: eventShop44, dancingCoral5: dancingCoral5,
     arcade62: arcade62val, arcade62lv: arcade62lv,
     mealMineCurr: mealMineCurr, mealLv: mealLv, mealRibBon: mealRibBon, mealRibT: mealRibT,
     mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26, mealComp162: mealComp162,
@@ -198,12 +200,14 @@ export function minesOnFloor(floor, reduction) {
 
 // ===== DAMAGE PIPELINE =====
 
-export function baseDMG(upgLevels, gridBonus167, sailing38) {
+export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (sailing38 === undefined) sailing38 = 0;
+  if (dancingCoral5 === undefined) dancingCoral5 = 0;
   var flat = 1 + upgradeQTY(0, upgLevels[0])
                + upgradeQTY(7, upgLevels[7])
-               + upgradeQTY(25, upgLevels[25]);
+               + upgradeQTY(25, upgLevels[25])
+               + dancingCoral5;
   var pctMega = 1 + (upgradeQTY(4, upgLevels[4])
                     + upgradeQTY(21, upgLevels[21])
                     + upgradeQTY(27, upgLevels[27])) / 100;
@@ -237,11 +241,12 @@ export function jackpotTiles(upgLevels) {
 
 export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
                                     upgLevels, gridBonus167, gridBonus146,
-                                    wepPowDmgPCT, sailing38) {
+                                    wepPowDmgPCT, sailing38, dancingCoral5) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (gridBonus146 === undefined) gridBonus146 = 0;
   if (wepPowDmgPCT === undefined) wepPowDmgPCT = 0;
   if (sailing38 === undefined) sailing38 = 0;
+  if (dancingCoral5 === undefined) dancingCoral5 = 0;
   var addSum = 0;
   var multiProd = 1;
   var tileCount = 0;
@@ -260,7 +265,7 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
     tileCount++;
   }
 
-  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38);
+  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5);
   dmg *= multiProd;
   dmg *= (1 + wepPowDmgPCT / 100);
   dmg *= (1 + tileCount * bonusDMGperTilePCT(upgLevels, gridBonus146) / 100);
@@ -285,6 +290,7 @@ export function currencyPerHour(opts) {
   var arcade62 = opts.arcade62 || 0;
   var rogBonus12 = opts.rogBonus12 || 0;
   var eventShop44 = opts.eventShop44 || 0;
+  var dancingCoral5 = opts.dancingCoral5 || 0;
   var upgLevels = opts.upgLevels;
   var highestDmg = opts.highestDmg || 1;
 
@@ -299,7 +305,8 @@ export function currencyPerHour(opts) {
   var farmPCT = 1 + (upgradeQTY(5, upgLevels[5])
                     + upgradeQTY(22, upgLevels[22])
                     + upgradeQTY(28, upgLevels[28]) * logDmg
-                    + arcade62) / 100;
+                    + arcade62
+                    + dancingCoral5) / 100;
   var atomMulti = 1 + atom13 / 100;
   var buttonMulti = 1 + (opts.buttonBonus1 || 0) / 100;
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;

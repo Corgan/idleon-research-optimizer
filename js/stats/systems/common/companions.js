@@ -10,6 +10,11 @@ export function companions(idx, saveData) {
   return companionBonus(idx);
 }
 
+export function petBonusTokensOwned(saveData) {
+  var options = saveData && saveData.olaData || [];
+  return Math.min(1, Number(options[605]) || 0) + Math.min(1, Number(options[615]) || 0);
+}
+
 export var companion = {
   resolve: function(id, ctx) {
     var name = label('Companion', id);

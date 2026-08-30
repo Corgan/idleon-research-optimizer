@@ -12,7 +12,8 @@ import { votingBonusz } from '../systems/w2/voting.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
 import { label } from '../entity-names.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
-import { talent } from '../systems/common/talent.js';
+import { maxTalentBonusDetail, talent } from '../systems/common/talent.js';
+import { guild } from '../systems/common/guild.js';
 import { arcade } from '../systems/w2/arcade.js';
 import {
   computeCardBonusByType, computeBoxReward, computeMealBonus,
@@ -40,6 +41,7 @@ import {
   getEnabledStarSigns, isStarSignActive
 } from '../systems/common/starSign.js';
 import { computeExoticBonus } from '../systems/w6/farming.js';
+import { computeShinyBonusS } from '../systems/w4/breeding.js';
 import {
   chapterBonus, computePaletteBonus, legendPTSbonus, shopUpgBonus
 } from '../systems/w7/spelunking.js';
@@ -308,6 +310,8 @@ function _computeSpelunkingExp(ci, ctx) {
   var statue30 = _num(safe(computeStatueBonusGiven, 30, ci, saveData));
   var spelunkSources = shop45 + goldenFood + mealSplkExp + stampSpelunk + statue30;
   var allSkillxpz = computeAllSkillxpz(ci, ctx);
+  var talent236Detail = maxTalentBonusDetail(236, ci, saveData, { mode: 2 });
+  var talent236Factor = Math.max(1, _num(talent236Detail && talent236Detail.value));
   var prehistoric = _num(safe(getSetBonus, 'PREHISTORIC_SET', ci));
 
   var product = (1 + skillSources / 100)
@@ -315,6 +319,7 @@ function _computeSpelunkingExp(ci, ctx) {
     * allSkillxpMULTI
     * (1 + spelunkSources / 100)
     * (1 + allSkillxpz / 1000)
+    * talent236Factor
     * (1 + Math.min(1, prehistoric / 100));
   var val = Math.max(1, gambit14 / 100 + product);
   return {
@@ -326,8 +331,41 @@ function _computeSpelunkingExp(ci, ctx) {
       { name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' },
       { name: 'Spelunking EXP sources', val: spelunkSources, fmt: 'raw' },
       { name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' },
+      { name: label('Talent', 236) + ' Multiplier', val: talent236Factor, fmt: 'x', note: 'max(1, getbonus2(2,236,-1))' },
     ],
   };
+}
+
+function _computeSummoningExp(ci, ctx) {
+  var saveData = ctx.saveData;
+  var talent596 = Math.max(1, _num(maxTalentBonusDetail(596, ci, saveData).value));
+  var allSkillxpMULTI = computeAllSkillxpMULTI(ctx);
+  var firstPool = _num(safe(computeVialByKey, '6SummEXP', saveData, ci))
+    + 3 * safe(cardLv, 'w6b1', saveData)
+    + _num(safe(computeMealBonus, 'zSummonExp', saveData, ci))
+    + safe(mainframeBonus, 16, saveData)
+    + rval(vault, 84, ctx);
+  var arcade53 = rval(arcade, 53, ctx);
+  var companion121 = companions(121, saveData);
+  var secondPool = safe(computeShinyBonusS, 25, saveData)
+    + 25 * safe(computeRiftSkillBonus, 17, 0, saveData)
+    + _stampBonus('SummonExp', ci, saveData)
+    + _activeStarSignBonus(77, 20, ci, saveData)
+    + rval(guild, 14, ctx)
+    + _vote(28, ctx);
+  var value = talent596 * allSkillxpMULTI
+    * (1 + firstPool / 100)
+    * (1 + arcade53 / 100)
+    * (1 + companion121)
+    * (1 + secondPool / 100);
+  return { val: value, children: [
+    { name: label('Talent', 596), val: talent596, fmt: 'x', note: 'max(1, getbonus2(1,596,-1))' },
+    { name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' },
+    { name: 'Summoning EXP sources I', val: firstPool, fmt: 'raw' },
+    { name: label('Arcade', 53), val: 1 + arcade53 / 100, fmt: 'x' },
+    { name: label('Companion', 121), val: 1 + companion121, fmt: 'x', note: 'Companions(121)' },
+    { name: 'Summoning EXP sources II', val: secondPool, fmt: 'raw' },
+  ] };
 }
 
 function _statusFor(skillType, ci, saveData) {
@@ -545,6 +583,14 @@ var SKILL_EXP_CONFIG = {
     calcTalentRow: null,
     customCombine: function(ci, ctx) {
       return _computeSpelunkingExp(ci, ctx);
+    },
+    sources: null,
+  },
+  Summoning: {
+    skillLvIdx: 15,
+    calcTalentRow: null,
+    customCombine: function(ci, ctx) {
+      return _computeSummoningExp(ci, ctx);
     },
     sources: null,
   },

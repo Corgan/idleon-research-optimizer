@@ -208,6 +208,7 @@ function _boatUpgradeCostAtLevel(boatIdx, stat, level, type, saveData) {
   } else {
     raw = (2 + level) * Math.pow(1.12 - 0.07 * level / (level + 200), level);
   }
+  raw *= 1 / (1 + 0.43 * eventShopOwned(55, saveData.cachedEventShopStr));
   return { boatIdx: boatIdx, stat: isLoot ? 'loot' : 'speed', level: level, type: type,
     cost: raw < 1e6 ? Math.floor(raw) : raw,
     balance: _num(saveData.sailingData && saveData.sailingData[1] && saveData.sailingData[1][type]) };

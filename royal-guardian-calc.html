@@ -443,7 +443,7 @@
       .royal-worker-icon { position: relative; width: 28.8px; height: 43.2px; flex: 0 0 auto; }
       .royal-worker-icon .worker-profession { left: 3.2px; top: 0; width: 20.8px; height: 28.8px; }
       .royal-worker-icon .worker-shadow { left: 3.2px; top: 27.2px; width: 22.4px; height: 8px; }
-      .royal-worker-icon .militia-profession { left: 4.8px; top: 3.2px; width: 19.2px; height: 20.8px; }
+      .royal-worker-icon .transient-profession { left: 4.8px; top: 3.2px; width: 19.2px; height: 20.8px; }
       .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
       .royal-map-shell.map-size-small { grid-template-columns: 48px 600px 210px; max-width: 900px; }
       .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
@@ -452,7 +452,7 @@
       .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
       .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
       .map-size-small .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
-      .map-size-small .royal-worker-icon .militia-profession { left: 3px; top: 2px; width: 12px; height: 13px; }
+      .map-size-small .royal-worker-icon .transient-profession { left: 3px; top: 2px; width: 12px; height: 13px; }
       .map-size-small .assignment-count { right: -2px; top: -3px; min-width: 12px; padding: 0 3px; border-radius: 6px; font-size: 8px; line-height: 11px; }
       .currency-inline { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
       .royal-resource-icon { position: relative; display: inline-block; width: 28px; height: 28px; flex: 0 0 28px; vertical-align: middle; }
@@ -932,8 +932,15 @@
         const source = [{ x: 149, y: 395 }, { x: 179, y: 395 }, { x: 205, y: 395 }, { x: 233, y: 395 }][n(type)];
         return source ? `<span class="royal-worker-icon" aria-label="${R.movableProfessionName(type)}${count > 1 ? `, ${fi(count)} assigned` : ""}">${atlasGlyph("worker-profession", "font-784.png", source, 29, 32, 1000, 500)}${atlasGlyph("worker-shadow", "font-784.png", { x: 150, y: 382 }, 31, 10, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
       }
-      function militiaIcon(count) {
-        return count > 0 ? `<span class="royal-worker-icon" aria-label="Militia, ${fi(count)} assigned">${atlasGlyph("militia-profession", "font-784.png", { x: 150, y: 432 }, 16, 17, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
+      function transientUnitIcon(type, count = 1) {
+        const source = {
+          4: { x: 150, y: 432, width: 16, height: 17 },
+          5: { x: 169, y: 432, width: 17, height: 17 },
+          6: { x: 193, y: 432, width: 16, height: 17 },
+          7: { x: 215, y: 432, width: 16, height: 17 },
+        }[Math.floor(n(type))];
+        const name = R.transientUnitName(type);
+        return source && count > 0 ? `<span class="royal-worker-icon" aria-label="${esc(name)}, ${fi(count)} assigned">${atlasGlyph("transient-profession", "font-784.png", source, source.width, source.height, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
       }
       function positionRoyalTooltip(clientX, clientY) {
         const pad = 12, width = royalQuickTooltip.offsetWidth, height = royalQuickTooltip.offsetHeight;
@@ -1380,12 +1387,14 @@
         const classes = ["royal-map-outpost", row.built ? "built" : "", glorified ? "glorified" : "", purified ? "purified" : "", row.built && type === 1 ? "support" : "", row.built && type === 2 ? "savage" : "", state === "clearing" ? "clearing" : "", state === "locked" ? "locked" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
         const nodeGlyph = row.built ? { x: 3, y: 94 } : { x: 3, y: 75 };
         const outpostGlyph = [{ x: 412, y: 13 }, { x: 525, y: 4 }, { x: 525, y: 21 }][type] || { x: 412, y: 13 };
-        const militia = R.militiaAssignmentCount(S, row.mapIdx);
+        const transientAssignments = R.outpostTransientAssignments(S, row.mapIdx);
+        const transientSummary = transientAssignments.length ? `, assignments: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : "";
         const workerCounts = row.built ? R.outpostUnits(S, row.mapIdx).reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + 1), new Map()) : new Map();
         const workers = [...workerCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("");
-        const assignmentItems = `${workers}${militiaIcon(militia)}`;
+        const transientUnits = transientAssignments.map(assignment => transientUnitIcon(assignment.type, assignment.count)).join("");
+        const assignmentItems = `${workers}${transientUnits}`;
         const assignments = session.assignmentIconsVisible && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
-        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
+        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${transientSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
       }
       function outpostQuickView(S, mapIdx) {
         const row = R.outpostEligibility(S, mapIdx);
@@ -1441,13 +1450,22 @@
         const units = R.outpostUnits(S, mapIdx);
         return `<div class="outpost-unit-list">${units.map(unit => `<span class="outpost-unit-detail">${unitIcon(unit.type)}<span>Slot ${unit.slot + 1}<br>${R.movableProfessionName(unit.type)}</span></span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
       }
+      function outpostPermanentUnitDetails(S, mapIdx) {
+        const units = R.permanentUnitDetails(S, mapIdx).filter(unit => unit.count > 0), next = R.nextCommandRankUnit(S, mapIdx);
+        const rows = units.map(unit => {
+          const sources = [`Command Rank: ${fi(unit.commandRank)}`];
+          if (unit.glorified) sources.push(`Glorified: ${fi(unit.glorified)}`);
+          return `<span class="outpost-unit-detail">${unitIcon(unit.type)}<span>${unit.name} ×${fi(unit.count)}<br>${sources.join(" · ")}</span></span>`;
+        }).join("");
+        return `<div class="outpost-unit-list">${rows || '<span class="note">No permanent units yet</span>'}</div><div class="small">Fixed professions; these cannot be reassigned. Next Command Rank unit: ${next.name} at rank ${fi(next.rank)}.</div>`;
+      }
       function transientUnitRole(S, mapIdx, type) {
         if (type === 4) return R.armoryLevel(S, 17) >= 1 ? `Feeds ${R.outpostRankName([0, 1, 2, 3, 4].reduce((best, bar) => R.outpostRank(S, mapIdx, bar) > R.outpostRank(S, mapIdx, best) ? bar : best, 0))} at half Military base rate` : "No peacetime rank effect";
         return `Feeds ${R.outpostRankName(type - 3)}`;
       }
       function outpostTransientUnitDetails(S, mapIdx) {
         const assignments = R.outpostTransientAssignments(S, mapIdx);
-        return `<div class="outpost-unit-list">${assignments.map(assignment => `<span class="outpost-unit-detail">${assignment.type === 4 ? militiaIcon(assignment.count) : ""}<span>${assignment.name}${assignment.count > 1 ? ` ×${fi(assignment.count)}` : ""}<br>${transientUnitRole(S, mapIdx, assignment.type)}</span></span>`).join("") || '<span class="note">No transient units assigned</span>'}</div>`;
+        return `<div class="outpost-unit-list">${assignments.map(assignment => `<span class="outpost-unit-detail">${transientUnitIcon(assignment.type, assignment.count)}<span>${assignment.name}${assignment.count > 1 ? ` ×${fi(assignment.count)}` : ""}<br>${transientUnitRole(S, mapIdx, assignment.type)}</span></span>`).join("") || '<span class="note">No transient units assigned</span>'}</div>`;
       }
       function outpostUpgradeCards(S, raw) {
         const barracks = Math.max(0, n(raw[0])), logistics = Math.max(0, n(raw[1])), education = Math.max(0, n(raw[2]));
@@ -1506,7 +1524,7 @@
           })
           .join(
             "",
-          )}</div><h3>Units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Transient units</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
+          )}</div><h3>Movable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient units</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
       }
       function resources() {
         if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
@@ -1533,7 +1551,7 @@
       const collectionFactorLabels = {
         base: "Base collection",
         companion141: "Companion",
-        "orbletBonus1+sushi60+alchemyW14+arcade70": "Orblet / Sushi / Alchemy / Arcade",
+        "orbletBonus1+sushi60+alchemyW14+arcade70+armory70": "Orblet / Sushi / Alchemy / Arcade / Replenish",
         outpostPurifyBonus: "Purification",
         supportCollection: "Support outposts",
         mapLevel1: "Advanced Logistics",

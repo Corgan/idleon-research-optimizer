@@ -188,6 +188,8 @@ export function marbleDropChance(S, category = 0, armoryBonus41Override) {
 		* (1 + (armory41 + n(rogBonusQTY(62, S?.cachedUniqueSushi || 0)) + n(arcadeBonus(71, S)) + n(companions(172, S)) + _etcBonusValue(S, 107)) / 100)
 		* (1 + 50 * lore / 100);
 }
+export function marbleDailyStreakMultiplier(S) { return 0.25 * Math.max(1, 100 - n(royalG(S, 3, 5))); }
+export function activeMarbleDropChance(S, category = 0, armoryBonus41Override) { return marbleDropChance(S, category, armoryBonus41Override) * marbleDailyStreakMultiplier(S); }
 function _armoryDollarValue(S, index, value = armoryBonus(S, index)) {
 	if (index === 0) return 25;
 	if (index === 1) return Math.round(1 + (200 + value) * outpostPurification(S, 0) / 100);
@@ -290,7 +292,7 @@ export function armoryUpgradeCost(S, orderIndex) {
 	const level = armoryLevel(S, index); const redux = allMasterclassCostRedux(S); const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
 	if (index === 46 && level < 3) return { value: 2, factors: [{ name: 'source special case', value: 2 }], index, level, currencySlot };
 	if (index === 58 && level < 1) return { value: 3, factors: [{ name: 'source special case', value: 3 }], index, level, currencySlot };
-	const factors = [{ name: 'base', value: 35 }, { name: 'Masterclass reduction', value: redux }, { name: 'order growth', value: 1.28 ** orderIndex }, { name: 'order coefficient', value: 3 + 6 * orderIndex }, { name: 'base cost coefficient', value: upgrade.baseCost }, { name: 'level growth', value: upgrade.costGrowth ** level }];
+	const factors = [{ name: 'base', value: 25 }, { name: 'Masterclass reduction', value: redux }, { name: 'order growth', value: 1.24 ** orderIndex }, { name: 'order coefficient', value: 3 + 5 * orderIndex }, { name: 'base cost coefficient', value: upgrade.baseCost }, { name: 'level growth', value: upgrade.costGrowth ** level }];
 	return { value: factors.reduce((value, factor) => value * factor.value, 1), factors, index, level, currencySlot };
 }
 export function armoryRows(S) { return ARMORY_ORDER.map((index, orderIndex) => ({ index, orderIndex, currentLevel: armoryLevel(S, index), currentBonus: armoryBonus(S, index), nextBonus: armoryBonus(S, index) + (ARMORY_UPGRADES[index]?.bonusPerLevel || 0), cost: armoryUpgradeCost(S, orderIndex) })); }
@@ -328,7 +330,10 @@ export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => 
 
 export function decodePackedUnits(packed) { const digits = String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number); const units = digits.map((digit, slot) => ({ slot, type: digit >= 2 && digit <= 5 ? digit - 2 : -1, raw: digit })).filter(unit => unit.type >= 0); return units; }
 export function outpostUnits(S, mapIdx) { return decodePackedUnits(row(S, mapIdx)?.[11]); }
-export function passiveUnits(S, mapIdx, type) { const rank = Math.max(0, outpostRank(S, mapIdx, 2)); if (type === 0) return Math.floor(rank / 4) + (outpostIsGlorified(S, mapIdx) ? 1 : 0); return Math.floor(Math.max(0, rank - type) / 4); }
+export function commandRankPassiveUnits(S, mapIdx, type) { const rank = Math.max(0, outpostRank(S, mapIdx, 2)); return Math.floor(Math.max(0, rank - Math.floor(n(type))) / 4); }
+export function passiveUnits(S, mapIdx, type) { return commandRankPassiveUnits(S, mapIdx, type) + (type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0); }
+export function permanentUnitDetails(S, mapIdx) { return [0, 1, 2, 3].map(type => { const commandRank = commandRankPassiveUnits(S, mapIdx, type); const glorified = type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0; return { type, name: movableProfessionName(type), commandRank, glorified, count: commandRank + glorified }; }); }
+export function nextCommandRankUnit(S, mapIdx) { const currentRank = Math.max(0, outpostRank(S, mapIdx, 2)); const rank = currentRank < 4 ? 4 : currentRank + 1; const type = (rank - 4) % 4; return { rank, type, name: movableProfessionName(type) }; }
 export function totalUnitsByType(S, mapIdx) { const totals = outpostUnits(S, mapIdx).reduce((counts, unit) => { counts[unit.type]++; return counts; }, [0, 0, 0, 0]); return totals.map((value, type) => value + passiveUnits(S, mapIdx, type)); }
 export function parseConnectionEndpoint(value) { if (value === undefined || value === null || value === '' || (typeof value === 'string' && value.trim() === '')) return { kind: 'empty', id: -1 }; const endpoint = Number(value); if (!Number.isFinite(endpoint) || endpoint < 0) return { kind: 'empty', id: -1 }; return endpoint >= 1000 ? { kind: 'map', id: endpoint - 1000 } : { kind: 'resource', id: endpoint }; }
 export function outpostConnections(S, mapIdx) { const r = row(S, mapIdx); return [parseConnectionEndpoint(r?.[8]), parseConnectionEndpoint(r?.[9])]; }
@@ -422,7 +427,7 @@ export function globalResourceRateBreakdown(S, ext) {
 	const valueOf = (key, fallback = 0) => { if (derived[key] !== undefined) return n(ext[key] ?? derived[key]); if (ext[key] === undefined) { missing.push(key); return fallback; } return n(ext[key]); };
 	const factors = [
 		{ name: 'companion141', value: 1 + valueOf('companion141') },
-		{ name: 'orbletBonus1+sushi60+alchemyW14+arcade70', value: 1 + (orbletBonus(S, 1) + valueOf('sushi60') + Math.min(50, valueOf('alchemyW14')) + valueOf('arcade70')) / 100 },
+		{ name: 'orbletBonus1+sushi60+alchemyW14+arcade70+armory70', value: 1 + (orbletBonus(S, 1) + valueOf('sushi60') + Math.min(50, valueOf('alchemyW14')) + valueOf('arcade70') + armoryBonus(S, 70)) / 100 },
 		{ name: 'TotalStatz0*armory18', value: 1 + TotalStatz(S)[0] * armoryBonus(S, 18) / 100 }, { name: 'TotalStatz1*armory50', value: 1 + TotalStatz(S)[1] * armoryBonus(S, 50) / 100 }, { name: 'TotalStatz2*armory51', value: 1 + TotalStatz(S)[2] * armoryBonus(S, 51) / 100 },
 		{ name: 'charLevel*armory52', value: 1 + Math.floor(Math.max(0, valueOf('charLevel') - 1000) / 100) * armoryBonus(S, 52) / 100 },
 		{ name: 'talent225+talent226', value: 1 + (valueOf('talent225') + valueOf('talent226')) / 100 }, { name: 'talent230Multi', value: Math.max(1, valueOf('talent230Multi', 1)) },
@@ -456,10 +461,7 @@ export function supportCollection(S) { return 200 * (1 + armoryBonus(S, 43) / 10
 export function savageCollection(S) { return 5 * (1 + armoryBonus(S, 69) / 100); }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
 export function barExpRateBase(S, bar, ext) { const derived = royalGuardianDerivedInputs(S); ext = ext || {}; let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
-// BarExpRate writes an own-map Glorified multiplier into rBarXPdn, then
-// BarExpRate_Base immediately resets that cache before it is read. Preserve
-// the effective source result, including its separate isMapPurified(bar) call.
-export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
+export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
 function _rankAssignmentCount(S, mapIdx, bar) { const assignmentType = Math.floor(n(bar)) + 3; return militiaAssignments(S).filter(assignment => assignment.type === assignmentType && assignment.mapIdx === Number(mapIdx)).length; }
 export function outpostRankContributorCount(S, mapIdx, bar) { const index = Math.floor(n(bar)); return index === 0 ? totalUnitsByType(S, mapIdx)[1] : index === 1 ? totalUnitsByType(S, mapIdx)[3] : index >= 2 && index <= 4 ? _rankAssignmentCount(S, mapIdx, index) : 0; }
 function _highestOutpostRankBar(S, mapIdx) { let highestBar = 0; for (let bar = 1; bar < 5; bar++) if (outpostRank(S, mapIdx, bar) > outpostRank(S, mapIdx, highestBar)) highestBar = bar; return highestBar; }

@@ -8,6 +8,7 @@ import { label } from '../stats/entity-names.js';
 import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 import { computeButtonBonus } from '../stats/defs/helpers.js';
+import { computeDancingCoralBonus } from '../stats/systems/w7/spelunking.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC } from '../stats/data/w7/minehead.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
@@ -40,7 +41,8 @@ export function renderDashboard() {
   const sail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
   const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const gb167 = _gb(167);
-  const base = baseDMG(lvs, gb167, sail38);
+  const dancingCoral5 = computeDancingCoralBonus(5, saveData);
+  const base = baseDMG(lvs, gb167, sail38, dancingCoral5);
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
@@ -54,6 +56,7 @@ export function renderDashboard() {
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    dancingCoral5: mhSrc.dancingCoral5,
     upgLevels: lvs, highestDmg,
   });
   const rLv = saveData.researchLevel || 0;
