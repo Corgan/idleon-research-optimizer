@@ -159,11 +159,11 @@ function _outpostROGBonus(S, type) {
 }
 function _replaceMarkers(template, value, dollar) {
 	return _sourceText(template)
-		.replace(/\+?\{%/g, `+${n(value)}%`)
+		.replace(/\{%/g, `${n(value)}%`)
 		.replace(/\{px/g, `${n(value)}px`)
-		.replace(/\}x/g, `${(1 + n(value) / 100).toFixed(2)}x`)
+		.replace(/\}x/g, `${_formatDollar(1 + n(value) / 100)}x`)
 		.replace(/\{/g, `${n(value)}`)
-		.replace(/\}/g, `${(1 + n(value) / 100).toFixed(2)}x`)
+		.replace(/\}/g, `${_formatDollar(1 + n(value) / 100)}x`)
 		.replace(/\$/g, dollar == null ? 'Source value unavailable' : typeof dollar === 'number' ? _formatDollar(dollar).replace(/\+/g, '') : String(dollar))
 		.replace(/@/g, '').replace(/\+\s*\+/g, '+').replace(/([.!?])(?=[A-Z])/g, '$1 ').replace(/:(?=\+)/g, ': ').replace(/\s+/g, ' ').trim();
 }
@@ -192,10 +192,18 @@ export function marbleDailyStreakMultiplier(S) { return 0.25 * Math.max(1, 100 -
 export function activeMarbleDropChance(S, category = 0, armoryBonus41Override) { return marbleDropChance(S, category, armoryBonus41Override) * marbleDailyStreakMultiplier(S); }
 function _armoryDollarValue(S, index, value = armoryBonus(S, index)) {
 	if (index === 0) return 25;
-	if (index === 1) return Math.round(1 + (200 + value) * outpostPurification(S, 0) / 100);
+	if (index === 1) return 1 + (200 + value) / 100;
 	if (index === 17) return barExpRateBase(S, 3) / 2;
 	if (index === 18) return TotalStatz(S)[0] * value;
-	if ([19, 20, 21, 22, 23, 24, 25, 26].includes(index)) return unitSpecEffect(S, index - 19, {}, value);
+	if ([19, 21, 23].includes(index)) return unitSpecEffect(S, index - 19, {}, value);
+	const barForArmory = { 20: 0, 22: 1, 24: 2, 25: 3, 26: 4 }[index];
+	if (barForArmory !== undefined) {
+		const derived = royalGuardianDerivedInputs(S);
+		let multiplier = 1 + orbletBonus(S, 6) / 100;
+		if (barForArmory === 4) multiplier *= 1 + n(derived.shop65) / 100;
+		if (barForArmory === n(royalG(S, 3, 7))) multiplier *= 1 + n(derived.shop77) / 100;
+		return multiplier * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][barForArmory], {}, value) / 100);
+	}
 	if (index === 37) return 1 / parchmentDropChance(S);
 	if (index === 39) return value;
 	if (index === 40) return Math.min(75, value);

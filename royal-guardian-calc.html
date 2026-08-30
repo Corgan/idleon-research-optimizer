@@ -479,16 +479,27 @@
       .currency-icon-picker button.selected { border-color: var(--gold); background: #1d3150; box-shadow: 0 0 0 1px var(--gold); }
       .currency-icon-picker img { width: 22px; height: 22px; object-fit: contain; margin: 0; }
       .currency-icon-picker + select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-      .royal-quick-tooltip { position: fixed; z-index: 1000; display: none; width: min(330px, calc(100vw - 20px)); max-height: min(460px, calc(100vh - 20px)); overflow: auto; padding: 10px; border: 1px solid #60799d; border-radius: 6px; background: #0c172b; color: var(--text); box-shadow: 0 10px 28px rgba(0,0,0,.5); pointer-events: none; font-size: .8em; }
+      .royal-quick-tooltip { position: fixed; z-index: 1000; display: none; width: min(360px, calc(100vw - 20px)); max-height: none; overflow: hidden; padding: 8px; border: 1px solid #60799d; border-radius: 6px; background: #0c172b; color: var(--text); box-shadow: 0 10px 28px rgba(0,0,0,.5); pointer-events: none; font-size: .8em; box-sizing: border-box; transform-origin: top left; }
       .royal-quick-tooltip.open { display: block; }
-      .royal-quick-tooltip h3 { margin: 0 0 6px; color: var(--cyan); }
-      .tooltip-grid { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; }
+      .royal-quick-tooltip h3 { margin: 0 0 4px; color: var(--cyan); }
+      .tooltip-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; line-height: 1.15; }
       .tooltip-grid b { color: var(--gold); text-align: right; }
-      .tooltip-units { display: flex; gap: 5px; flex-wrap: wrap; margin: 7px 0; }
-      .tooltip-unit { display: inline-flex; align-items: center; }
-      .tooltip-unit .royal-worker-icon { width: 36px; height: 52px; }
-      .tooltip-unit .worker-profession { left: 6px; width: 24px; height: 34px; }
-      .tooltip-unit .worker-shadow { left: 6px; top: 33px; width: 25px; height: 8px; }
+      .tooltip-ranks { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; margin-top: 3px; line-height: 1.15; }
+      .tooltip-ranks b { color: var(--gold); text-align: right; white-space: nowrap; }
+      .tooltip-unit-group { margin-top: 4px; }
+      .tooltip-unit-group h4 { margin: 0; color: var(--cyan); font-size: .9em; line-height: 1.15; }
+      .tooltip-units { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 3px; margin-top: 4px; }
+      .tooltip-unit { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; min-width: 0; }
+      .tooltip-unit-name { min-width: 0; color: var(--text2); font-size: .76em; line-height: 1.1; overflow-wrap: anywhere; }
+      .tooltip-unit-badge { display: inline-block; min-width: 15px; padding: 1px 3px; border: 1px solid currentColor; border-radius: 3px; color: var(--cyan); font-size: .68em; font-weight: 700; line-height: 1; text-align: center; }
+      .tooltip-unit-key { margin-top: 3px; color: var(--text2); font-size: .7em; line-height: 1.1; }
+      .tooltip-unit .royal-worker-icon { width: 28px; height: 40px; }
+      .tooltip-unit .worker-profession { left: 5px; width: 19px; height: 26px; }
+      .tooltip-unit .worker-shadow { left: 5px; top: 25px; width: 20px; height: 6px; }
+      @media (max-height: 540px) {
+        .royal-quick-tooltip { padding: 6px; font-size: .76em; }
+        .royal-quick-tooltip .tooltip-units { margin-top: 3px; }
+      }
       .royal-map-key { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--text2); font-size: .8em; }
       .royal-map-key i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; }
       .royal-map-assignment-toggle { padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
@@ -842,6 +853,15 @@
       royalQuickTooltip.id = "royal-quick-tooltip";
       royalQuickTooltip.setAttribute("role", "tooltip");
       document.body.appendChild(royalQuickTooltip);
+      let lastRoyalTooltipAnchor = null;
+      const repositionRoyalTooltip = () => {
+        if (royalQuickTooltip.classList.contains("open") && lastRoyalTooltipAnchor) {
+          positionRoyalTooltip(lastRoyalTooltipAnchor.x, lastRoyalTooltipAnchor.y);
+        }
+      };
+      window.addEventListener("resize", repositionRoyalTooltip);
+      window.visualViewport?.addEventListener("resize", repositionRoyalTooltip);
+      window.visualViewport?.addEventListener("scroll", repositionRoyalTooltip);
       const session = {
         tab: "overview",
         worldIdx: 0,
@@ -943,18 +963,34 @@
         return source && count > 0 ? `<span class="royal-worker-icon" aria-label="${esc(name)}, ${fi(count)} assigned">${atlasGlyph("transient-profession", "font-784.png", source, source.width, source.height, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
       }
       function positionRoyalTooltip(clientX, clientY) {
-        const pad = 12, width = royalQuickTooltip.offsetWidth, height = royalQuickTooltip.offsetHeight;
-        royalQuickTooltip.style.left = `${Math.max(10, Math.min(innerWidth - width - 10, clientX + pad))}px`;
-        royalQuickTooltip.style.top = `${Math.max(10, Math.min(innerHeight - height - 10, clientY + pad))}px`;
+        const margin = 10, pad = 12;
+        const viewport = window.visualViewport;
+        const viewportLeft = viewport ? viewport.offsetLeft : 0;
+        const viewportTop = viewport ? viewport.offsetTop : 0;
+        const viewportWidth = viewport ? viewport.width : innerWidth;
+        const viewportHeight = viewport ? viewport.height : innerHeight;
+        royalQuickTooltip.style.transform = "none";
+        royalQuickTooltip.style.left = "0px";
+        royalQuickTooltip.style.top = "0px";
+        const naturalWidth = royalQuickTooltip.offsetWidth;
+        const naturalHeight = royalQuickTooltip.offsetHeight;
+        const availableWidth = Math.max(0, viewportWidth - margin * 2);
+        const availableHeight = Math.max(0, viewportHeight - margin * 2);
+        const scale = Math.min(1, availableWidth / naturalWidth, availableHeight / naturalHeight);
+        const scaledWidth = naturalWidth * scale;
+        const scaledHeight = naturalHeight * scale;
+        royalQuickTooltip.style.transform = `scale(${scale})`;
+        royalQuickTooltip.style.left = `${Math.max(viewportLeft + margin, Math.min(viewportLeft + viewportWidth - margin - scaledWidth, clientX + pad))}px`;
+        royalQuickTooltip.style.top = `${Math.max(viewportTop + margin, Math.min(viewportTop + viewportHeight - margin - scaledHeight, clientY + pad))}px`;
       }
       function wireRoyalTooltips() {
         if (session.rangeFinderMode) return;
-        const hide = () => royalQuickTooltip.classList.remove("open");
+        const hide = () => { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; };
         const bind = (element, html) => {
           element.setAttribute("aria-describedby", royalQuickTooltip.id);
-          const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); positionRoyalTooltip(x, y); };
+          const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); lastRoyalTooltipAnchor = { x, y }; positionRoyalTooltip(x, y); };
           element.addEventListener("pointerenter", event => show(event.clientX, event.clientY));
-          element.addEventListener("pointermove", event => positionRoyalTooltip(event.clientX, event.clientY));
+          element.addEventListener("pointermove", event => { lastRoyalTooltipAnchor = { x: event.clientX, y: event.clientY }; positionRoyalTooltip(event.clientX, event.clientY); });
           element.addEventListener("pointerleave", hide);
           element.addEventListener("focus", () => { const rect = element.getBoundingClientRect(); show(rect.right, rect.top); });
           element.addEventListener("blur", hide);
@@ -1387,14 +1423,22 @@
         const classes = ["royal-map-outpost", row.built ? "built" : "", glorified ? "glorified" : "", purified ? "purified" : "", row.built && type === 1 ? "support" : "", row.built && type === 2 ? "savage" : "", state === "clearing" ? "clearing" : "", state === "locked" ? "locked" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
         const nodeGlyph = row.built ? { x: 3, y: 94 } : { x: 3, y: 75 };
         const outpostGlyph = [{ x: 412, y: 13 }, { x: 525, y: 4 }, { x: 525, y: 21 }][type] || { x: 412, y: 13 };
+        const assignableUnits = row.built ? R.outpostUnits(S, row.mapIdx) : [];
+        const permanentUnits = row.built ? R.permanentUnitDetails(S, row.mapIdx).filter(unit => unit.count > 0) : [];
         const transientAssignments = R.outpostTransientAssignments(S, row.mapIdx);
-        const transientSummary = transientAssignments.length ? `, assignments: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : "";
-        const workerCounts = row.built ? R.outpostUnits(S, row.mapIdx).reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + 1), new Map()) : new Map();
+        const assignableCounts = assignableUnits.reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + 1), new Map());
+        const workerCounts = permanentUnits.reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + unit.count), new Map(assignableCounts));
+        const unitSummary = [...new Set([...assignableCounts.keys(), ...permanentUnits.map(unit => unit.type)])].map(type => {
+          const fixed = permanentUnits.filter(unit => unit.type === type), fixedCount = fixed.reduce((total, unit) => total + unit.count, 0);
+          const sources = fixed.map(unit => `${esc(unit.name)}: Command Rank ${fi(unit.commandRank)}${unit.glorified ? `, Glorified ${fi(unit.glorified)}` : ""}`).join("; ");
+          return `${esc(R.movableProfessionName(type))} x${fi(workerCounts.get(type))} (assignable ${fi(assignableCounts.get(type) || 0)}, fixed ${fi(fixedCount)}${sources ? `: ${sources}` : ""})`;
+        }).join(", ");
+        const transientSummary = transientAssignments.length ? `, transient: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : "";
         const workers = [...workerCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("");
         const transientUnits = transientAssignments.map(assignment => transientUnitIcon(assignment.type, assignment.count)).join("");
         const assignmentItems = `${workers}${transientUnits}`;
         const assignments = session.assignmentIconsVisible && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
-        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${transientSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
+        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${unitSummary ? `, units: ${unitSummary}` : ""}${transientSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
       }
       function outpostQuickView(S, mapIdx) {
         const row = R.outpostEligibility(S, mapIdx);
@@ -1402,10 +1446,33 @@
           const clear = R.outpostClearMetrics(S, mapIdx), militia = R.militiaAssignmentCount(S, mapIdx);
           return `<h3>${mapName(mapIdx)}</h3><div class="tooltip-grid"><span>Status</span><b>Unconquered</b><span>Unlock progress</span><b>${f(clear.progress)} / ${f(clear.requirement)}</b><span>Remaining</span><b>${f(clear.remaining)}</b><span>Militia assigned</span><b>${fi(militia)}</b><span>Clear rate</span><b>${f(clear.ratePerHour)}/hr</b><span>ETA</span><b>${fmtHours(clear.etaHours)}</b></div>`;
         }
-        const units = R.outpostUnits(S, mapIdx), rate = R.outpostResourceRateBreakdown(S, mapIdx);
-        const ranks = [0, 1, 2, 3, 4].filter(index => R.outpostUnlockedBars(S)[index]).map(index => { const rank = R.outpostRankInfo(S, mapIdx, index); return `<span>${R.outpostRankName(index)} (${R.outpostRankContributor(index)}): rank ${fi(rank.rank)}</span><b>${f(rank.exp)} EXP · ${f(R.outpostRankExpPerHour(S, mapIdx, index))}/hr</b>`; }).join("");
+        const rate = R.outpostResourceRateBreakdown(S, mapIdx);
+        const ranks = [0, 1, 2, 3, 4].filter(index => R.outpostUnlockedBars(S)[index]).map(index => { const rank = R.outpostRankInfo(S, mapIdx, index); return `<span>${R.outpostRankName(index)} (${R.outpostRankContributor(index)}) · rank ${fi(rank.rank)}</span><b>${f(rank.exp)} EXP · ${f(R.outpostRankExpPerHour(S, mapIdx, index))}/hr</b>`; }).join("");
         const statuses = [R.outpostIsGlorified(S, mapIdx) ? "Glorified" : "", R.outpostIsPurified(S, mapIdx) ? "Purified" : ""].filter(Boolean).join(" · ");
-        return `<h3>${mapName(mapIdx)} · ${types[R.outpostType(S, mapIdx)]}</h3><div class="tooltip-grid">${statuses ? `<span>Status</span><b>${statuses}</b>` : ""}<span>Collection rate</span><b>${f(rate.value)}/hr</b><span>Range</span><b>${fi(R.outpostRange(S, mapIdx))}</b><span>Points left</span><b>${fi(R.outpostPointsLeft(S, mapIdx))}</b>${ranks}</div><div class="tooltip-units">${units.map(unit => `<span class="tooltip-unit">${unitIcon(unit.type)}</span>`).join("") || '<span class="note">No units assigned</span>'}</div>`;
+        return `<h3>${mapName(mapIdx)} · ${types[R.outpostType(S, mapIdx)]}</h3><div class="tooltip-grid">${statuses ? `<span>Status</span><b>${statuses}</b>` : ""}<span>Collection rate</span><b>${f(rate.value)}/hr</b><span>Range</span><b>${fi(R.outpostRange(S, mapIdx))}</b><span>Points left</span><b>${fi(R.outpostPointsLeft(S, mapIdx))}</b></div><div class="tooltip-ranks">${ranks}</div>${outpostTooltipUnits(S, mapIdx)}`;
+      }
+      function outpostTooltipUnits(S, mapIdx) {
+        const assignable = new Map();
+        for (const unit of R.outpostUnits(S, mapIdx)) assignable.set(unit.type, (assignable.get(unit.type) || 0) + 1);
+        const fixed = new Map();
+        for (const unit of R.permanentUnitDetails(S, mapIdx).filter(unit => unit.count > 0)) {
+          const entry = fixed.get(unit.type) || { count: 0, sources: [] };
+          entry.count += unit.count;
+          entry.sources.push(`${unit.name}: Command Rank ${fi(unit.commandRank)}${unit.glorified ? `, Glorified ${fi(unit.glorified)}` : ""}`);
+          fixed.set(unit.type, entry);
+        }
+        const transient = R.outpostTransientAssignments(S, mapIdx);
+        const assignableRows = [...assignable].map(([type, count]) => {
+          const name = R.movableProfessionName(type);
+          return `<span class="tooltip-unit" role="group" aria-label="Assignable ${esc(name)}, ${fi(count)}" title="${esc(name)}: ${fi(count)} assigned">${unitIcon(type, count)}<span class="tooltip-unit-name">${esc(name)} x${fi(count)}</span><span class="tooltip-unit-badge" aria-label="Assignable">A</span></span>`;
+        });
+        const fixedRows = [...fixed].map(([type, entry]) => {
+          const name = entry.sources.join("; ");
+          return `<span class="tooltip-unit" role="group" aria-label="Fixed permanent ${esc(name)}, ${fi(entry.count)}" title="${esc(name)}">${unitIcon(type, entry.count)}<span class="tooltip-unit-name">${esc(name)} x${fi(entry.count)}</span><span class="tooltip-unit-badge" aria-label="Fixed permanent">F</span></span>`;
+        });
+        const transientRows = transient.map(assignment => `<span class="tooltip-unit" role="group" aria-label="Transient ${esc(assignment.name)}, ${fi(assignment.count)}" title="${esc(assignment.name)}: ${fi(assignment.count)} assigned">${transientUnitIcon(assignment.type, assignment.count)}<span class="tooltip-unit-name">${esc(assignment.name)} x${fi(assignment.count)}</span><span class="tooltip-unit-badge" aria-label="Transient">T</span></span>`);
+        const rows = [...assignableRows, ...fixedRows, ...transientRows].join("") || '<span class="note">None</span>';
+        return `<div class="tooltip-unit-group"><h4>Units</h4><div class="tooltip-units">${rows}</div><div class="tooltip-unit-key" aria-label="Unit source key">A Assignable · F Fixed · T Transient</div></div>`;
       }
       function resourceQuickView(S, resourceIdx) {
         const detail = resourceDetails(S).details[resourceIdx], capacity = R.resourceCapacity(S, resourceIdx), slot = R.resourceCurrency(resourceIdx);
@@ -1457,7 +1524,7 @@
           if (unit.glorified) sources.push(`Glorified: ${fi(unit.glorified)}`);
           return `<span class="outpost-unit-detail">${unitIcon(unit.type)}<span>${unit.name} ×${fi(unit.count)}<br>${sources.join(" · ")}</span></span>`;
         }).join("");
-        return `<div class="outpost-unit-list">${rows || '<span class="note">No permanent units yet</span>'}</div><div class="small">Fixed professions; these cannot be reassigned. Next Command Rank unit: ${next.name} at rank ${fi(next.rank)}.</div>`;
+        return `<div class="outpost-unit-list">${rows || '<span class="note">No fixed permanent units yet</span>'}</div><div class="small">Fixed professions; these cannot be reassigned. Next Command Rank unit: ${next.name} at rank ${fi(next.rank)}.</div>`;
       }
       function transientUnitRole(S, mapIdx, type) {
         if (type === 4) return R.armoryLevel(S, 17) >= 1 ? `Feeds ${R.outpostRankName([0, 1, 2, 3, 4].reduce((best, bar) => R.outpostRank(S, mapIdx, bar) > R.outpostRank(S, mapIdx, best) ? bar : best, 0))} at half Military base rate` : "No peacetime rank effect";
@@ -1465,7 +1532,7 @@
       }
       function outpostTransientUnitDetails(S, mapIdx) {
         const assignments = R.outpostTransientAssignments(S, mapIdx);
-        return `<div class="outpost-unit-list">${assignments.map(assignment => `<span class="outpost-unit-detail">${transientUnitIcon(assignment.type, assignment.count)}<span>${assignment.name}${assignment.count > 1 ? ` ×${fi(assignment.count)}` : ""}<br>${transientUnitRole(S, mapIdx, assignment.type)}</span></span>`).join("") || '<span class="note">No transient units assigned</span>'}</div>`;
+        return `<div class="outpost-unit-list">${assignments.map(assignment => `<span class="outpost-unit-detail">${transientUnitIcon(assignment.type, assignment.count)}<span>${assignment.name}${assignment.count > 1 ? ` ×${fi(assignment.count)}` : ""}<br>${transientUnitRole(S, mapIdx, assignment.type)}</span></span>`).join("") || '<span class="note">No transient assignments</span>'}</div>`;
       }
       function outpostUpgradeCards(S, raw) {
         const barracks = Math.max(0, n(raw[0])), logistics = Math.max(0, n(raw[1])), education = Math.max(0, n(raw[2]));
@@ -1524,7 +1591,7 @@
           })
           .join(
             "",
-          )}</div><h3>Movable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient units</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
+          )}</div><h3>Assignable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Fixed permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient assignments</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
       }
       function resources() {
         if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
