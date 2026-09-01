@@ -9,7 +9,7 @@ import { computeCardLv } from '../systems/common/cards.js';
 import { mineheadBonusQTY } from '../systems/w7/minehead.js';
 import { createDescriptor, gridBonusFinal } from './helpers.js';
 import { gambitBonus15 } from '../systems/w5/hole.js';
-import { companionBonus } from '../data/common/companions.js';
+import { companionBonusForSave, companionLevel2 } from '../data/common/companions.js';
 import { label } from '../entity-names.js';
 
 export default createDescriptor({
@@ -24,11 +24,11 @@ export default createDescriptor({
     var items = [];
 
     // Companion 28 (RIP Tide)
-    var comp28 = saveData.companionIds.has(28) ? companionBonus(28) : 0;
+    var comp28 = companionBonusForSave(28, saveData);
     items.push({ name: label('Companion', 28), val: comp28 });
 
     // Companion 153 (Rift Stalker) = 20%
-    var comp153 = saveData.companionIds.has(153) ? 20 : 0;
+    var comp153 = saveData.companionIds.has(153) ? 20 + 10 * companionLevel2(153, saveData) : 0;
     items.push({ name: label('Companion', 153), val: comp153 });
 
     // Gambit Milestone 15 = flat 3
@@ -47,7 +47,7 @@ export default createDescriptor({
     items.push({ name: label('Grid', 111), val: gb111 });
 
     // Sailing artifact 36 (Ender Pearl)
-    var sail36 = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][36]) || 0;
+    var sail36 = Math.round(Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][36]) || 0);
     items.push({ name: 'Ender Pearl (Artifact)', val: Math.min(6, sail36) });
 
     // Card w7b11 (Pirate Deckhand)

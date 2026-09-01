@@ -33,13 +33,11 @@
       h1 {
         text-align: center;
         margin: 0;
-        padding: 12px;
         background: var(--bg2);
         border-bottom: 2px solid var(--accent);
       }
       h1 a {
         float: left;
-        color: var(--text2);
         font-size: 0.7em;
       }
       h1 span {
@@ -66,7 +64,6 @@
       }
       .tab-btn,
       .subtabs button {
-        padding: 10px 18px;
         background: transparent;
         color: var(--text2);
         border: 0;
@@ -438,6 +435,15 @@
       .royal-map-glory-glyph { left: 35.714%; top: 55%; width: 28.571%; height: 25%; z-index: 4; filter: drop-shadow(0 1px 2px rgba(3, 8, 18, .95)); }
       .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 11.2px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
       .royal-map-assignments .royal-map-glyph { filter: drop-shadow(0 1px 1px rgba(3, 8, 18, .95)) drop-shadow(0 0 3px rgba(3, 8, 18, .85)); }
+      .royal-map-ranks { position: absolute; left: 50%; bottom: calc(100% - 2px); display: flex; gap: 2px; transform: translateX(-50%); z-index: 5; pointer-events: none; }
+      .royal-map-rank { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--rank-color); border-radius: 50%; background: #07101f; color: #fff; box-shadow: 0 1px 4px rgba(3, 8, 18, .98); font-family: Verdana, Geneva, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; text-align: center; text-shadow: 0 1px 1px #000; }
+      .royal-map-rank > span { display: block; transform: translateY(-.5px); }
+      .royal-map-rank.wide { font-size: 8px; }
+      .royal-map-rank.bar-0 { --rank-color: rgb(74, 229, 74); }
+      .royal-map-rank.bar-1 { --rank-color: rgb(68, 138, 166); }
+      .royal-map-rank.bar-2 { --rank-color: rgb(249, 130, 114); }
+      .royal-map-rank.bar-3 { --rank-color: rgb(255, 214, 97); }
+      .royal-map-rank.bar-4 { --rank-color: rgb(236, 214, 133); }
       .royal-map-node-glyph { z-index: 2; }
       .royal-map-outpost-glyph { z-index: 3; }
       .royal-worker-icon { position: relative; width: 28.8px; height: 43.2px; flex: 0 0 auto; }
@@ -449,6 +455,9 @@
       .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
       .map-size-small .royal-map-counters { height: 320px; }
       .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
+      .map-size-small .royal-map-ranks { bottom: calc(100% - 1px); gap: 1px; }
+      .map-size-small .royal-map-rank { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
+      .map-size-small .royal-map-rank.wide { font-size: 6px; }
       .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
       .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
       .map-size-small .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
@@ -471,6 +480,24 @@
       .outpost-upgrade-meta { display: flex; gap: 6px; flex-wrap: wrap; }
       .outpost-upgrade-effect { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.08); color: var(--text2); font-size: .82em; }
       .outpost-upgrade-effect strong { color: var(--gold); text-align: right; }
+      .outpost-point-planner { margin: 12px 0 16px; padding: 10px; background: #101b35; border: 1px solid #40536e; border-radius: 6px; }
+      .outpost-point-planner h3 { margin: 0 0 8px; }
+      .outpost-point-planner-controls { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
+      .outpost-point-planner-controls label { display: grid; gap: 4px; color: var(--text2); font-size: .82em; }
+      .outpost-point-planner-controls select { min-width: 210px; padding: 6px; background: var(--bg2); color: var(--text); border: 1px solid #526b8f; }
+      .outpost-point-planner button { padding: 7px 12px; background: var(--accent); color: white; border: 0; border-radius: 4px; cursor: pointer; }
+      .outpost-point-planner .planner-note, .outpost-point-planner .planner-warning { color: var(--text2); font-size: .82em; }
+      .outpost-point-planner .planner-warning { color: var(--gold); }
+      .outpost-point-planner .planner-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+      .outpost-point-planner .planner-metric { padding: 6px 8px; background: #16213e; border-radius: 4px; }
+      .outpost-point-planner .planner-metric span { display: block; color: var(--text2); font-size: .72em; }
+      .outpost-point-planner .planner-metric b { color: var(--gold); font-variant-numeric: tabular-nums; }
+      .point-comparison-table { table-layout: fixed; margin-top: 10px; }
+      .point-comparison-table th:first-child { width: 34%; }
+      .point-comparison-table .point-scenario-heading th { position: static; padding-top: 10px; padding-bottom: 6px; border-top: 1px solid #40536e; background: #101b35; color: var(--cyan); }
+      .point-scenario-description { display: block; margin-top: 2px; color: var(--text2); font-size: .82em; font-weight: 400; }
+      .point-package-note { display: block; margin-top: 2px; color: var(--text2); font-size: .75em; font-weight: 400; }
+      .outpost-point-planner ol, .outpost-point-planner ul { margin: 6px 0 0; padding-left: 22px; }
       .currency-icon-picker { position: relative; display: inline-block; }
       .currency-icon-picker summary { display: flex; align-items: center; justify-content: center; min-width: 44px; height: 34px; padding: 3px 8px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text2); cursor: pointer; list-style: none; }
       .currency-icon-picker summary::-webkit-details-marker { display: none; }
@@ -502,11 +529,80 @@
       }
       .royal-map-key { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--text2); font-size: .8em; }
       .royal-map-key i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; }
-      .royal-map-assignment-toggle { padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
-      .royal-map-assignment-toggle[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
-      .royal-map-assignment-toggle:disabled { opacity: .5; cursor: not-allowed; }
+      .royal-map-view-group { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
+      .royal-map-view-group button { min-height: 28px; padding: 4px 8px; border: 0; border-radius: 3px; background: transparent; color: var(--text2); cursor: pointer; }
+      .royal-map-view-group button[aria-pressed="true"] { background: #284664; color: var(--cyan); box-shadow: inset 0 0 0 1px #52779c; }
+      .royal-map-view-group button:disabled { opacity: .5; cursor: not-allowed; }
+      .shelf-step-navigation { display: inline-flex; align-items: center; gap: 3px; padding: 2px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
+      .shelf-step-navigation button { min-height: 28px; padding: 4px 8px; border: 0; border-radius: 3px; background: transparent; color: var(--cyan); cursor: pointer; }
+      .shelf-step-navigation button:hover:not(:disabled), .shelf-step-navigation button:focus-visible { background: #284664; }
+      .shelf-step-navigation button:disabled { color: #718096; cursor: not-allowed; }
+      .shelf-step-position { min-width: 42px; color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
+      .shelf-step-navigation .go-to-step { border-left: 1px solid #40536e; border-radius: 0 3px 3px 0; color: var(--gold); }
+      .royal-map-assignment-filters { display: inline-flex; align-items: center; gap: 4px; }
+      .royal-map-assignment-filters button { min-height: 28px; padding: 3px 7px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text2); cursor: pointer; }
+      .royal-map-assignment-filters button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
       .royal-map-range-toggle { padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
       .royal-map-range-toggle[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 0 1px rgba(77, 208, 225, .25); }
+      .royal-map-state-toggle { width: 174px; min-height: 26px; padding: 3px 8px; border-radius: 999px; font-size: .9em; line-height: 1.1; }
+      .royal-map-state-toggle[aria-pressed="false"] { border-color: var(--gold); color: var(--gold); }
+      .royal-map-state-toggle[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 0 1px rgba(77, 208, 225, .25); }
+      .royal-map-state-group, .layout-result-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
+      .royal-map-state-group button, .layout-result-toggle button { min-height: 28px; padding: 4px 8px; border: 0; border-radius: 3px; background: transparent; color: var(--text2); cursor: pointer; }
+      .royal-map-state-group button[aria-pressed="true"], .layout-result-toggle button[aria-pressed="true"] { background: #284664; color: var(--cyan); box-shadow: inset 0 0 0 1px #52779c; }
+      .royal-map-state-group button:disabled, .layout-result-toggle button:disabled { opacity: .45; cursor: not-allowed; }
+      .optimizer-stale-banner { margin-bottom: 10px; padding: 10px 12px; border: 1px solid #d49b35; border-left: 4px solid var(--gold); border-radius: 5px; background: #3a2d19; color: #ffe0a3; }
+      .planner-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 7px; margin: 10px 0 14px; }
+      .planner-metric { display: grid; align-content: start; gap: 4px; min-width: 0; min-height: 62px; padding: 9px 10px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
+      .planner-metric span { color: var(--text2); font-size: .72em; line-height: 1.2; }
+      .planner-metric b { color: var(--gold); font-size: .95em; line-height: 1.25; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+      .planner-metric.wide { grid-column: 1 / -1; min-height: 0; }
+      .layout-result-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+      .layout-result-head h3 { margin: 0; }
+      .layout-change-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 5px; margin: 6px 0 10px; }
+      .layout-change { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; padding: 6px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
+      .layout-outpost-icon { position: relative; width: 30px; height: 22px; overflow: hidden; align-self: start; }
+      .layout-outpost-icon .royal-map-glyph { inset: 3px 0 0; width: 30px; height: 13px; }
+      .layout-change-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--cyan); }
+      .layout-change-title .badge { padding: 2px 5px; font-size: .7em; }
+      .layout-change-items { display: grid; gap: 3px; margin-top: 4px; }
+      .layout-change-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px; align-items: center; color: var(--text2); font-size: .76em; }
+      .layout-profession-strip { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      .layout-profession-slot { display: inline-flex; align-items: center; }
+      .layout-final-connection { display: flex; align-items: center; }
+      .layout-change-values { display: flex; align-items: center; gap: 3px; flex-wrap: nowrap; min-width: 0; }
+      .layout-change-value { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 25px; padding: 1px 4px; border: 1px solid #40536e; border-radius: 3px; background: #132745; }
+      .layout-change-value.profession { width: 25px; padding: 0; }
+      .layout-change-value.before { opacity: .68; }
+      .layout-change-value.after { border-color: #3f8f68; background: #15372d; color: #bff4d3; }
+      .layout-change-value .royal-worker-icon { width: 19px; height: 25px; }
+      .layout-change-value .worker-profession { left: 2px; width: 15px; height: 20px; }
+      .layout-change-value .worker-shadow { left: 2px; top: 18px; width: 16px; height: 5px; }
+      .layout-change-value .royal-resource-icon { width: 21px; height: 21px; flex-basis: 21px; }
+      .layout-arrow { color: var(--gold); font-weight: 700; }
+      .layout-alternatives { margin-top: 10px; }
+      .layout-alternatives summary { cursor: pointer; color: var(--cyan); }
+      .shelf-timeline { position: relative; display: grid; gap: 0; margin: 12px 0; padding-left: 25px; }
+      .shelf-timeline::before { content: ""; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: #40536e; }
+      .shelf-timeline-item { position: relative; display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; min-height: 58px; padding: 7px 9px 10px; border-bottom: 1px solid rgba(255,255,255,.07); }
+      .shelf-timeline-item::before { content: ""; position: absolute; left: -22px; top: 15px; width: 10px; height: 10px; border: 2px solid #101b35; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 2px #40536e; }
+      .shelf-timeline-item.purchase::before { background: var(--gold); }
+      .shelf-timeline-item.priority::before { background: var(--green); }
+      .shelf-timeline-item.layout::before { background: var(--blue); }
+      .shelf-timeline-item.layout { scroll-margin-top: 12px; }
+      .shelf-timeline-item.layout:focus { outline: 2px solid var(--gold); outline-offset: 2px; }
+      .shelf-timeline-item.reset::before { background: var(--accent); }
+      .shelf-timeline-item.wait::before { background: var(--text2); }
+      .shelf-timeline-time { color: var(--text2); font-size: .78em; font-variant-numeric: tabular-nums; }
+      .shelf-timeline-content { min-width: 0; }
+      .shelf-timeline-title { display: flex; align-items: center; gap: 6px; color: var(--cyan); font-weight: 700; }
+      .shelf-timeline-item.purchase .shelf-timeline-title { color: var(--gold); }
+      .shelf-map-preview { margin-left: auto; min-height: 28px; padding: 4px 8px; border-color: #52779c; color: var(--cyan); font-size: .78em; white-space: nowrap; }
+      .shelf-map-preview[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); box-shadow: inset 0 0 0 1px rgba(255, 215, 0, .2); }
+      .shelf-timeline-detail { margin-top: 3px; color: var(--text2); font-size: .82em; line-height: 1.35; }
+      .shelf-timeline-detail .royal-resource-icon { width: 22px; height: 22px; flex-basis: 22px; }
+      @media (max-width: 700px) { .shelf-timeline-item { grid-template-columns: 1fr; gap: 3px; } }
+      @media (max-width: 700px) { .layout-change { grid-template-columns: 34px minmax(0, 1fr); } .layout-outpost-icon { width: 34px; } .layout-change-item { grid-template-columns: 1fr; gap: 3px; } }
       .royal-range-circle { position: absolute; z-index: 0; display: none; aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid rgba(77, 208, 225, .9); border-radius: 50%; background: rgba(77, 208, 225, .1); box-shadow: 0 0 12px rgba(77, 208, 225, .3); pointer-events: none; }
       .royal-map.range-finder-active .royal-map-node,
       .royal-map.range-finder-active .royal-map-outpost { transition: opacity .12s, filter .12s; }
@@ -631,11 +727,13 @@
         scrollbar-color: #526b8f #101b35;
       }
       .resource-list table { table-layout: fixed; }
-      .resource-list th:nth-child(1) { width: 22%; }
-      .resource-list th:nth-child(2) { width: 10%; }
-      .resource-list th:nth-child(3) { width: 30%; }
-      .resource-list th:nth-child(4) { width: 18%; }
-      .resource-list th:nth-child(5) { width: 20%; }
+      .resource-list th:nth-child(1) { width: 18%; }
+      .resource-list th:nth-child(2) { width: 9%; }
+      .resource-list th:nth-child(3) { width: 8%; }
+      .resource-list th:nth-child(4) { width: 25%; }
+      .resource-list th:nth-child(5) { width: 12%; }
+      .resource-list th:nth-child(6) { width: 13%; }
+      .resource-list th:nth-child(7) { width: 15%; }
       .resource-selectable { cursor: pointer; }
       .resource-selectable:hover td,
       .resource-selectable.selected td { background: #ffffff12; }
@@ -787,6 +885,8 @@
         <button
           class="tab-btn"
           role="tab"
+          id="tab-overview"
+          aria-controls="content"
           aria-selected="true"
           tabindex="0"
           data-tab="overview"
@@ -795,6 +895,8 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-outposts"
+          aria-controls="content"
           aria-selected="false"
           tabindex="-1"
           data-tab="outposts"
@@ -803,6 +905,8 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-resources"
+          aria-controls="content"
           aria-selected="false"
           tabindex="-1"
           data-tab="resources"
@@ -811,6 +915,8 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-currencies"
+          aria-controls="content"
           aria-selected="false"
           tabindex="-1"
           data-tab="currencies"
@@ -819,14 +925,27 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-upgrades"
+          aria-controls="content"
           aria-selected="false"
           tabindex="-1"
           data-tab="upgrades"
         >
           Upgrades
+        </button
+        ><button
+          class="tab-btn"
+          role="tab"
+          id="tab-optimizer"
+          aria-controls="content"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="optimizer"
+        >
+          Optimizer
         </button>
       </nav>
-      <div id="content" role="tabpanel"></div>
+      <div id="content" role="tabpanel" aria-labelledby="tab-overview"></div>
     </main>
     <script type="module">
       import { saveData } from "./js/state.js";
@@ -868,7 +987,8 @@
         outpostFilter: "all",
         selectedOutpost: null,
         mapSelectionKind: null,
-        assignmentIconsVisible: true,
+        mapOverlayMode: "assignments",
+        assignmentLayers: { movable: true, permanent: true, transient: true },
         rangeFinderMode: false,
         largeMap: true,
         selectedResource: 0,
@@ -876,6 +996,31 @@
         resourceSort: "drain",
         resourceCurrency: "all",
         resourceSearch: "",
+        layoutGoal: "next-shelf",
+        optimizerSubgoal: "drain-before-reset",
+        lowAttentionIntervals: "3, 9, 12",
+        layoutCurrencyTarget: 0,
+        layoutArmoryTarget: null,
+        layoutRankMap: null,
+        layoutRankBar: 0,
+        layoutRank: 1,
+        layoutResult: null,
+        layoutRunning: false,
+        layoutProgress: null,
+        layoutError: "",
+        layoutRequestId: 0,
+        layoutWorker: null,
+        layoutResultView: "now",
+        layoutResultRevision: null,
+        saveRevision: 0,
+        shelfResult: null,
+        shelfRunning: false,
+        shelfProgress: null,
+        shelfError: "",
+        shelfStepIndex: null,
+        shelfRequestId: 0,
+        shelfWorker: null,
+        royalStateView: "current",
         currencyView: "sources",
         breakdownOutpost: null,
         currencyTarget: 0,
@@ -883,6 +1028,13 @@
         spoilersVisible: false,
         flairCategory: "all",
         flairShowMaxed: false,
+        outpostPointPlan: null,
+        outpostPointPlanKey: null,
+        outpostPointRunning: false,
+        outpostPointProgress: null,
+        outpostPointError: "",
+        outpostPointRequestId: 0,
+        outpostPointWorker: null,
       };
       const collectionBreakdownLabels = "Collection-rate breakdown currencyFactorLabel Final per-endpoint currency/hr";
       let resourceResetNote = "";
@@ -985,6 +1137,7 @@
       }
       function wireRoyalTooltips() {
         if (session.rangeFinderMode) return;
+        const S = activeRoyalState();
         const hide = () => { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; };
         const bind = (element, html) => {
           element.setAttribute("aria-describedby", royalQuickTooltip.id);
@@ -996,8 +1149,8 @@
           element.addEventListener("blur", hide);
           element.addEventListener("keydown", event => { if (event.key === "Escape") hide(); });
         };
-        document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(saveData, n(element.dataset.mapOutpost))));
-        document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => resourceQuickView(saveData, n(element.dataset.mapResource))));
+        document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(S, n(element.dataset.mapOutpost))));
+        document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => resourceQuickView(S, n(element.dataset.mapResource))));
       }
       function clearRoyalRangeFinder() {
         const map = document.querySelector(".royal-map");
@@ -1008,11 +1161,12 @@
         if (status) status.textContent = "Hover or focus an outpost or resource";
       }
       function showOutpostRange(mapIdx) {
+        const S = activeRoyalState();
         clearRoyalRangeFinder();
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-outpost="${mapIdx}"]`);
-        if (!map || !target || !R.outpostBuilt(saveData, mapIdx) || ![0, 2].includes(R.outpostType(saveData, mapIdx))) return;
-        const position = R.outpostMapPosition(mapIdx), radius = R.outpostRange(saveData, mapIdx) + 15;
-        const matches = R.reachableResourcesForOutpost(saveData, mapIdx).filter(result => result.reachable && R.resourceCurrency(result.resourceIdx) >= 0);
+        if (!map || !target || !R.outpostBuilt(S, mapIdx) || ![0, 2].includes(R.outpostType(S, mapIdx))) return;
+        const position = R.outpostMapPosition(mapIdx), radius = R.outpostRange(S, mapIdx) + 15;
+        const matches = R.reachableResourcesForOutpost(S, mapIdx).filter(result => result.reachable && R.resourceCurrency(result.resourceIdx) >= 0);
         const matchIds = new Set(matches.map(result => result.resourceIdx));
         target.classList.add("range-active");
         map.querySelectorAll("[data-map-resource]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapResource)) ? "range-match" : "range-dimmed"));
@@ -1022,10 +1176,11 @@
         if (status) status.textContent = `${mapName(mapIdx)}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in range`;
       }
       function showResourceRange(resourceIdx) {
+        const S = activeRoyalState();
         clearRoyalRangeFinder();
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-resource="${resourceIdx}"]`);
         if (!map || !target) return;
-        const matches = R.reachableOutpostsForResource(saveData, resourceIdx).filter(result => result.reachable);
+        const matches = R.reachableOutpostsForResource(S, resourceIdx).filter(result => result.reachable);
         const matchIds = new Set(matches.map(result => result.mapIdx));
         target.classList.add("range-active");
         map.querySelectorAll("[data-map-outpost]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapOutpost)) ? "range-match" : "range-dimmed"));
@@ -1071,14 +1226,15 @@
         return `<section class="range-target"><h3>Next range target</h3><div class="range-target-main">${icon}<b>${name}</b></div><div class="metric-line">Distance <b>${f(target.distance)}</b> | Current reach <b>${f(reach)}</b></div><div class="metric-line">Advanced Logistics <b>${logistics}</b></div></section>`;
       }
       function decorateRangeTargets() {
-        if (session.tab === "outposts" && session.selectedOutpost !== null && R.outpostBuilt(saveData, session.selectedOutpost)) {
-          const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextResourceRangeTarget(saveData, session.selectedOutpost), "resource"));
+        const S = activeRoyalState();
+        if (session.tab === "outposts" && session.selectedOutpost !== null && R.outpostBuilt(S, session.selectedOutpost)) {
+          const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextResourceRangeTarget(S, session.selectedOutpost), "resource"));
           const body = document.querySelector(".outpost-detail .row-body"), rankHeading = body ? [...body.querySelectorAll("h3")].find(element => element.textContent === "Rank bars") : null;
           if (body) body.insertBefore(panel, rankHeading || body.firstChild);
         }
         if (session.tab === "resources") {
           for (const inspector of document.querySelectorAll(".resource-inspector .info-panel")) {
-            const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextOutpostRangeTarget(saveData, session.selectedResource), "outpost"));
+            const panel = document.createRange().createContextualFragment(rangeTargetPanel(R.nextOutpostRangeTarget(S, session.selectedResource), "outpost"));
             const heading = [...inspector.querySelectorAll("h3")].find(element => element.textContent === "Reachable outposts");
             inspector.insertBefore(panel, heading || null);
           }
@@ -1089,6 +1245,15 @@
       }
       function fmtHours(v) {
         return Number.isFinite(v) ? `${f(v)}h` : "Unavailable";
+      }
+      function resultValue(value, formatter = f) {
+        return value === null || value === undefined || !Number.isFinite(Number(value)) ? "Unavailable" : formatter(Number(value));
+      }
+      function resultTime(value) {
+        return resultValue(value, fmtHours);
+      }
+      function resultResetValue(value, available) {
+        return available === false ? "Unavailable" : resultValue(value);
       }
       function fmtDrainHours(v, capacity = 1) {
         return !Number.isFinite(v) && capacity > 0 ? "No active drain" : fmtHours(v);
@@ -1101,9 +1266,9 @@
         const h = Math.floor(remaining / 60), m = remaining % 60;
         return days ? `${days}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
       }
-      function royalDataGate() {
-        if (R.hasCompleteRoyalData(saveData)) return "";
-        const missing = [!R.hasRoyalGData(saveData) ? "RoyalG" : "", !R.hasRoyalMapsData(saveData) ? "RoyalMaps" : ""].filter(Boolean);
+      function royalDataGate(S = activeRoyalState()) {
+        if (R.hasCompleteRoyalData(S)) return "";
+        const missing = [!R.hasRoyalGData(S) ? "RoyalG" : "", !R.hasRoyalMapsData(S) ? "RoyalMaps" : ""].filter(Boolean);
         return `<section class="section empty-state" role="status"><strong>Royal Guardian data unavailable.</strong><p>Missing required save data: ${missing.join(" and ")}.</p></section>`;
       }
       function resetNote(reset) {
@@ -1133,7 +1298,7 @@
           .trim();
       }
       function formatOrbletDescription(r, v) {
-        return R.orbletDescription(saveData, r.index, v / Math.max(1, r.bonusPerLevel));
+        return R.orbletDescription(activeRoyalState(), r.index, v / Math.max(1, r.bonusPerLevel));
       }
       function resourceDetails(S = saveData) {
         const details = O.resourceAllocationToReset(S);
@@ -1176,7 +1341,7 @@
       function currencySummary(breakdown) {
         if (breakdown.available === false) return "";
         const collectable = breakdown.collectableBeforeReset;
-        return `<div class="card-grid cols-4">${card("Balance", f(breakdown.balance))}${card("Nominal configured / hr", f(breakdown.nominalCurrencyPerHour), "Nominal current-state rate")}${card("Collectable before reset", resetValue(collectable, breakdown.resetProjectionAvailable))}${card("Active streams / nodes", `${breakdown.activeStreams} / ${breakdown.activeNodes}`)}</div>${resetNote(breakdown.reset)}`;
+        return `<div class="card-grid cols-4">${card("Balance", f(breakdown.balance))}${card("Nominal configured / hr", f(breakdown.nominalCurrencyPerHour), "Nominal current-state rate")}${card("Collectable before reset", resetValue(collectable, breakdown.resetProjectionAvailable))}${card("Active streams / nodes", `${breakdown.activeStreams} / ${breakdown.activeNodes}`)}${card("All-node daily maximum", f(breakdown.currentFullCapacity), "Full-capacity sum across every resource node; independent of current links and rates")}${card("Projected next-day maximum", resetValue(breakdown.nextResetProjectedFullCapacity, breakdown.resetProjectionAvailable), "Projected full-capacity sum across every node; a ceiling, not guaranteed one-day collection")}</div><p class="note capacity-hypothetical">Every node +1 grade: <b>${f(breakdown.allNodesPlusOneCapacity)}</b>. Hypothetical full-capacity sum only; this is not the projected next-day maximum.</p>${resetNote(breakdown.reset)}`;
       }
       function resetValue(value, projectionAvailable) {
         return projectionAvailable ? f(value) : "Unavailable";
@@ -1184,7 +1349,7 @@
       function resourceState(x) {
         if (x.remaining === 0) return "empty";
         if (x.rate === 0) return "no-stream";
-        if (x.remaining > 0 && x.rate > 0 && Number.isFinite(x.drainHours) && x.drainHours <= (resourceDetails(saveData).hoursToReset ?? -1)) return "empties-window";
+        if (x.remaining > 0 && x.rate > 0 && Number.isFinite(x.drainHours) && x.drainHours <= (resourceDetails(activeRoyalState()).hoursToReset ?? -1)) return "empties-window";
         return "active";
       }
       function resourceReachable(S, idx) {
@@ -1203,6 +1368,106 @@
       function resourceCurrencyOptions() {
         const slots = [...new Set(ROYAL_RESOURCES.map(x => x.currencySlot).filter(x => x >= 0))].sort((a, b) => a - b);
         return `<option value="all" ${session.resourceCurrency === "all" ? "selected" : ""}>All currencies</option>${slots.map(i => `<option value="${i}" ${String(session.resourceCurrency) === String(i) ? "selected" : ""}>Currency slot ${i}</option>`).join("")}`;
+      }
+      const layoutGoals = {
+        "next-shelf": "Optimize next Armory shelf",
+        "drain-before-reset": "Drain before reset",
+        "least-wasteful": "Least wasteful",
+        "command-breakpoint": "Command breakpoint",
+        purification: "Purification planner",
+        "low-attention": "Low-attention schedule",
+        "support-network": "Support network optimizer",
+        "savage-placement": "Savage placement optimizer",
+      };
+      const coreOptimizerGoals = { "next-shelf": "Next shelf", "drain-before-reset": "Drain before reset", "least-wasteful": "Least wasteful" };
+      function validOptimizedRecommendation() {
+        if (!["optimized", "post-reset"].includes(session.royalStateView)) return false;
+        const result = session.royalStateView === "post-reset" ? session.layoutResult?.postReset : session.layoutResult;
+        const state = result?.recommendation?.state;
+        return result?.available === true && validRoyalSnapshot(state);
+      }
+      function validRoyalSnapshot(state) { return !!state && Array.isArray(state.royalGData) && Array.isArray(state.royalMapsData) && state.royalGDataAvailable === true && state.royalMapsDataAvailable === true; }
+      function selectedShelfLayoutStep() {
+        const action = session.shelfResult?.timelineActions?.[session.shelfStepIndex];
+        return action?.kind === "layout-change" && validRoyalSnapshot(action.layoutState) ? action : null;
+      }
+      function shelfLayoutStepIndices() {
+        return (session.shelfResult?.timelineActions || []).reduce((indices, action, index) => {
+          if (action.kind === "layout-change" && validRoyalSnapshot(action.layoutState)) indices.push(index);
+          return indices;
+        }, []);
+      }
+      function shelfLayoutStepNumber(index) { return (session.shelfResult?.timelineActions || []).slice(0, index + 1).filter(action => action.kind === "layout-change").length; }
+      function selectShelfLayoutStep(index) {
+        session.shelfStepIndex = index;
+        session.royalStateView = selectedShelfLayoutStep() ? "shelf-step" : "current";
+        const firstMap = selectedShelfLayoutStep()?.actions?.find(action => Number.isInteger(Number(action.mapIdx)))?.mapIdx;
+        if (firstMap !== undefined) session.worldIdx = R.outpostWorld(firstMap);
+        clearOutpostPointPlan();
+        return session.royalStateView === "shelf-step";
+      }
+      function cloneRoyalArray(value) {
+        return Array.isArray(value) ? value.map(item => Array.isArray(item) ? item.slice() : item && typeof item === "object" ? { ...item } : item) : [];
+      }
+      function activeRoyalState() {
+        if (session.royalStateView === "shelf-step") {
+          const state = selectedShelfLayoutStep()?.layoutState;
+          return state ? { ...saveData, royalGData: cloneRoyalArray(state.royalGData), royalMapsData: cloneRoyalArray(state.royalMapsData), royalGDataAvailable: true, royalMapsDataAvailable: true, royalDataAvailable: true } : saveData;
+        }
+        if (session.royalStateView === "current" || !validOptimizedRecommendation()) return saveData;
+        const result = session.royalStateView === "post-reset" ? session.layoutResult.postReset : session.layoutResult;
+        const state = result.recommendation.state;
+        return { ...saveData, royalGData: cloneRoyalArray(state.royalGData), royalMapsData: cloneRoyalArray(state.royalMapsData), royalGDataAvailable: state.royalGDataAvailable, royalMapsDataAvailable: state.royalMapsDataAvailable, royalDataAvailable: state.royalDataAvailable ?? true };
+      }
+      function optimizedStateNotice(kind) {
+        if (session.royalStateView === "current") return "";
+        if (session.royalStateView === "shelf-step") return `<div class="info-panel" role="status">Viewing the selected shelf optimizer step. Account-wide save data outside the Royal layout remains current.</div>`;
+        const text = kind === "currencies"
+          ? `${session.royalStateView === "post-reset" ? "Post-reset balances include projected collection before reset. " : "Balances are the saved/current snapshot. "}Links, rates, and allocation reflect the selected optimized layout.`
+          : `${session.royalStateView === "post-reset" ? "Viewing the independently optimized post-reset projection. " : "Viewing the immediate optimized state. "}Account-wide upgrade ownership is unchanged.`;
+        return `<div class="info-panel" role="status">${text}</div>`;
+      }
+      function layoutResultStale() { return !!session.layoutResult && session.layoutResultRevision !== session.saveRevision; }
+      function staleOptimizerBanner() { return layoutResultStale() ? '<div class="optimizer-stale-banner" role="status"><b>New save loaded.</b> These optimizer results are from the previous save. Re-run the optimizer to update them.</div>' : ""; }
+      function clearLayoutResult() {
+        session.layoutResult = null;
+        session.layoutError = "";
+        session.royalStateView = "current";
+      }
+      function stopLayoutWorker() {
+        session.layoutRequestId += 1;
+        session.layoutWorker?.terminate();
+        session.layoutWorker = null;
+        session.layoutRunning = false;
+        session.layoutProgress = null;
+      }
+      function clearShelfResult() {
+        session.shelfResult = null;
+        session.shelfError = "";
+        session.shelfStepIndex = null;
+        if (session.royalStateView === "shelf-step") session.royalStateView = "current";
+      }
+      function stopShelfWorker() {
+        session.shelfRequestId += 1;
+        session.shelfWorker?.terminate();
+        session.shelfWorker = null;
+        session.shelfRunning = false;
+        session.shelfProgress = null;
+      }
+      function invalidateOptimizedState() {
+        session.royalStateView = "current";
+        clearLayoutResult();
+        stopLayoutWorker();
+        clearShelfResult();
+        stopShelfWorker();
+        clearOutpostPointPlan();
+      }
+      function preserveOptimizerResultsOnSaveRefresh() {
+        session.saveRevision += 1;
+        stopLayoutWorker();
+        stopShelfWorker();
+        clearOutpostPointPlan();
+        if (!validOptimizedRecommendation()) session.royalStateView = "current";
       }
       function currencyNavigationIndex(key, index, length) {
         if (length <= 0) return -1;
@@ -1251,17 +1516,18 @@
                     bs.length) %
                     bs.length
                 ];
-              x.focus();
               change(x);
               render();
+              if (sel === ".tab-btn") document.querySelector(`#tab-${session.tab}`)?.focus();
             }
           };
         });
       }
       function render() {
+        const S = activeRoyalState();
         royalQuickTooltip.classList.remove("open");
-        if (R.hasCompleteRoyalData(saveData) && session.tab === "resources") syncResourceSelection(saveData);
-        document.querySelector("#royal-map-host").innerHTML = R.hasCompleteRoyalData(saveData) ? persistentMap(saveData) : "";
+        if (R.hasCompleteRoyalData(S) && session.tab === "resources") syncResourceSelection(S);
+        document.querySelector("#royal-map-host").innerHTML = R.hasCompleteRoyalData(S) ? persistentMap(S) : "";
         document.querySelectorAll(".tab-btn").forEach((b) => {
           b.classList.toggle("active", b.dataset.tab === session.tab);
           b.setAttribute(
@@ -1270,27 +1536,27 @@
           );
           b.tabIndex = b.dataset.tab === session.tab ? 0 : -1;
         });
+        document.querySelector("#content").setAttribute("aria-labelledby", `tab-${session.tab}`);
         document.querySelector("#content").innerHTML =
           session.tab === "overview"
-            ? overview()
+            ? overview(S)
             : session.tab === "outposts"
-              ? outposts()
+              ? outposts(S)
               : session.tab === "resources"
-                ? resources()
+                ? resources(S)
                 : session.tab === "currencies"
-                  ? currencies()
-                  : upgrades();
-                document.querySelector(".resource-subtabs")?.closest(".section")?.remove();
-                document.querySelectorAll("[data-optimize-resource], #optimize-currency").forEach(element => element.remove());
-                document.querySelectorAll(".resource-list thead tr > :nth-child(2), .currency-list thead tr > :nth-child(2), .resource-list thead tr > :last-child").forEach(element => element.remove());
+                  ? currencies(S)
+                    : session.tab === "upgrades"
+                      ? upgrades(S)
+                      : layoutOptimizer(S);
                 decorateCurrencySelectors();
                 decorateRangeTargets();
         wire();
-                  initializeCollectionBreakdowns();
+                  initializeCollectionBreakdowns(S);
       }
       function persistentMap(S) {
         const q = R.worldOutpostRows(S, session.worldIdx).filter(row => session.spoilersVisible || row.state !== "locked");
-        return `<section class="section royal-map-section"><div class="royal-map-shell${session.largeMap ? "" : " map-size-small"}">${worldNav()}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
+        return `<section class="section royal-map-section">${staleOptimizerBanner()}<div class="royal-map-shell${session.largeMap ? "" : " map-size-small"}">${worldNav(S)}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
       }
       function syncResourceSelection(S) {
         const rows = resourceFilterRows(S, resourceDetails(S));
@@ -1322,9 +1588,9 @@
         const chips = slots.map(slot => `<span class="royal-currency-chip" title="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}" aria-label="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${f(S.royalGData?.[1]?.[slot])}</span>`).join("") || '<span class="note">No world currencies.</span>';
         return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div><div class="royal-counter-label" style="margin-top:8px">Currency balances</div><div class="royal-currency-chips">${chips}</div></aside>`;
       }
-      function overview() {
-        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        const S = saveData,
+      function overview(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        const
           rows = R.outpostRows(S),
           m = O.kingdomMetrics(S, undefined, {
             rankTarget: { aggregate: true },
@@ -1384,8 +1650,8 @@
           `${d ? `Most constrained useful node: <b>Resource ${d.resourceIdx + 1}</b>, drains in ${fmtHours(d.drainHours)}.` : "No positive resource drain is active."}`,
         ];
       }
-      function worldNav() {
-        return `<nav class="royal-world-rail" role="tablist" aria-label="Outpost worlds">${visibleWorlds(saveData).map((w) => `<button role="tab" aria-selected="${session.worldIdx === w ? "true" : "false"}" tabindex="${session.worldIdx === w ? 0 : -1}" data-world-tab="${w}">W${w + 1}${R.royalWorldUnlocked(saveData, w) ? "" : " *"}</button>`).join("")}</nav>`;
+      function worldNav(S) {
+        return `<nav class="royal-world-rail" role="tablist" aria-label="Outpost worlds">${visibleWorlds(S).map((w) => `<button role="tab" aria-selected="${session.worldIdx === w ? "true" : "false"}" tabindex="${session.worldIdx === w ? 0 : -1}" data-world-tab="${w}">W${w + 1}${R.royalWorldUnlocked(S, w) ? "" : " *"}</button>`).join("")}</nav>`;
       }
       function mapPoint(x, y) {
         return `left:${((n(x) - 75) / 811) * 100}%;top:${((n(y) - 27) / 433) * 100}%`;
@@ -1426,18 +1692,23 @@
         const assignableUnits = row.built ? R.outpostUnits(S, row.mapIdx) : [];
         const permanentUnits = row.built ? R.permanentUnitDetails(S, row.mapIdx).filter(unit => unit.count > 0) : [];
         const transientAssignments = R.outpostTransientAssignments(S, row.mapIdx);
+        const rankValues = row.built ? Array.from({ length: 5 }, (_, bar) => ({ bar, rank: R.outpostRank(S, row.mapIdx, bar) })).filter(({ bar, rank }) => R.outpostUnlockedBars(S)[bar] && rank > 0) : [];
         const assignableCounts = assignableUnits.reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + 1), new Map());
+        const permanentCounts = permanentUnits.reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + unit.count), new Map());
         const workerCounts = permanentUnits.reduce((counts, unit) => counts.set(unit.type, (counts.get(unit.type) || 0) + unit.count), new Map(assignableCounts));
         const unitSummary = [...new Set([...assignableCounts.keys(), ...permanentUnits.map(unit => unit.type)])].map(type => {
           const fixed = permanentUnits.filter(unit => unit.type === type), fixedCount = fixed.reduce((total, unit) => total + unit.count, 0);
           const sources = fixed.map(unit => `${esc(unit.name)}: Command Rank ${fi(unit.commandRank)}${unit.glorified ? `, Glorified ${fi(unit.glorified)}` : ""}`).join("; ");
           return `${esc(R.movableProfessionName(type))} x${fi(workerCounts.get(type))} (assignable ${fi(assignableCounts.get(type) || 0)}, fixed ${fi(fixedCount)}${sources ? `: ${sources}` : ""})`;
         }).join(", ");
-        const transientSummary = transientAssignments.length ? `, transient: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : "";
-        const workers = [...workerCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("");
-        const transientUnits = transientAssignments.map(assignment => transientUnitIcon(assignment.type, assignment.count)).join("");
-        const assignmentItems = `${workers}${transientUnits}`;
-        const assignments = session.assignmentIconsVisible && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
+        const transientSummary = `${transientAssignments.length ? `, transient: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : ""}${rankValues.length ? `, ranks: ${rankValues.map(({ bar, rank }) => `${R.outpostRankName(bar)} ${fi(rank)}`).join(", ")}` : ""}`;
+        const movableWorkers = session.assignmentLayers.movable ? [...assignableCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("") : "";
+        const permanentWorkers = session.assignmentLayers.permanent ? [...permanentCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("") : "";
+        const transientUnits = session.assignmentLayers.transient ? transientAssignments.map(assignment => transientUnitIcon(assignment.type, assignment.count)).join("") : "";
+        const assignmentItems = `${movableWorkers}${permanentWorkers}${transientUnits}`;
+        const assignmentIcons = session.mapOverlayMode === "assignments" && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
+        const rankBadges = rankValues.length && session.mapOverlayMode === "ranks" && !session.rangeFinderMode ? `<span class="royal-map-ranks" aria-hidden="true">${rankValues.map(({ bar, rank }) => `<span class="royal-map-rank bar-${bar}${String(rank).length > 2 ? " wide" : ""}" title="${esc(R.outpostRankName(bar))}: ${fi(rank)}"><span>${fi(rank)}</span></span>`).join("")}</span>` : "";
+        const assignments = `${assignmentIcons}${rankBadges}`;
         return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${unitSummary ? `, units: ${unitSummary}` : ""}${transientSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
       }
       function outpostQuickView(S, mapIdx) {
@@ -1482,11 +1753,20 @@
       function royalMap(S, q, m) {
         const resources = ROYAL_RESOURCES.filter((resource, index) => R.resourceWorld(index) === session.worldIdx && resource.currencySlot >= 0);
         const lines = q.filter(row => row.built).flatMap(row => R.outpostConnections(S, row.mapIdx).map(connection => mapLine(S, row.mapIdx, connection))).join("");
-        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span><button type="button" class="royal-map-assignment-toggle" data-toggle-assignments aria-pressed="${session.assignmentIconsVisible ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""} title="Show or hide map assignment icons">Assignments: ${session.assignmentIconsVisible ? "On" : "Off"}</button><button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+        const optimizedNow = session.layoutResult?.available === true && !!session.layoutResult?.recommendation?.state;
+        const optimizedPostReset = session.layoutResult?.postReset?.available === true && !!session.layoutResult?.postReset?.recommendation?.state;
+        const shelfStep = selectedShelfLayoutStep(), shelfStepLabel = shelfStep ? `Optimizer step ${shelfLayoutStepNumber(session.shelfStepIndex)}` : "Optimizer step";
+        const shelfIndices = shelfLayoutStepIndices(), shelfPosition = shelfIndices.indexOf(session.shelfStepIndex);
+        const stateOptions = [["current", "Current save", true], ...(optimizedNow ? [["optimized", "Optimized now", true], ["post-reset", "Post-reset", optimizedPostReset]] : []), ...(shelfStep ? [["shelf-step", shelfStepLabel, true]] : [])];
+        const shelfNavigation = shelfStep ? `<div class="shelf-step-navigation" role="group" aria-label="Optimizer step navigation"><button type="button" data-shelf-nav="-1" ${shelfPosition <= 0 ? "disabled" : ""} aria-label="Previous optimizer step">&larr; Previous</button><span class="shelf-step-position" aria-live="polite">${fi(shelfPosition + 1)} / ${fi(shelfIndices.length)}</span><button type="button" data-shelf-nav="1" ${shelfPosition < 0 || shelfPosition >= shelfIndices.length - 1 ? "disabled" : ""} aria-label="Next optimizer step">Next &rarr;</button><button type="button" class="go-to-step" data-go-shelf-step>Go to step</button></div>` : "";
+        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["assignments", "Assignments"], ["ranks", "Ranks"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
+        const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Movable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>` : "";
+        const stateToggle = `${stateOptions.length > 1 ? `<div class="royal-map-state-group" role="group" aria-label="Map state">${stateOptions.map(([value, label, enabled]) => `<button type="button" data-map-state="${value}" aria-pressed="${session.royalStateView === value ? "true" : "false"}" ${enabled ? "" : "disabled"}>${label}</button>`).join("")}</div>` : ""}${shelfNavigation}${mapViewToggle}${assignmentFilters}`;
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span>${stateToggle}<button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
       }
-      function outposts() {
-        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        const S = saveData,
+      function outposts(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        const
           q = R.worldOutpostRows(S, session.worldIdx).filter(x => session.spoilersVisible || x.state !== "locked"),
           rows = q.filter(
             (x) =>
@@ -1540,6 +1820,56 @@
         const educationUnlocked = R.armoryLevel(S, 57) >= 1;
         return `<div class="card-grid cols-3"><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Expanded Barracks</b><span class="badge badge-blue">Lv ${fi(barracks)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">12 points</span></div><div class="outpost-upgrade-effect"><span>Unit slots</span><strong>${fi(slots(barracks))} → ${fi(slots(barracks + 1))}</strong><span>Post-cap collection</span><strong>${fmtMultiplier(barracksMulti(barracks))}x → ${fmtMultiplier(barracksMulti(barracks + 1))}x</strong></div></article><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Advanced Logistics</b><span class="badge badge-blue">Lv ${fi(logistics)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">2 points</span></div><div class="outpost-upgrade-effect"><span>Collection bonus</span><strong>+${fi(logistics * 5)}% → +${fi((logistics + 1) * 5)}%</strong><span>Range bonus</span><strong>+${fi(rangeBonus(logistics))} → +${fi(rangeBonus(logistics + 1))}</strong></div></article><article class="card outpost-upgrade-card ${educationUnlocked ? "" : "locked"}"><div class="outpost-upgrade-head"><b>Greater Education</b><span class="badge ${educationUnlocked ? "badge-blue" : "badge-red"}">${educationUnlocked ? `Lv ${fi(education)}` : "Locked"}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">1 point</span></div><div class="outpost-upgrade-effect"><span>Listed rank EXP bonus</span><strong>${educationUnlocked ? `+${fi(education * 10)}% → +${fi((education + 1) * 10)}%` : "Armory required"}</strong></div><div class="small">${educationUnlocked ? "The current game collection formula does not consume this saved level." : `Unlock from Armory shelf ${fi(ARMORY_ORDER.indexOf(57) + 1)}.`}</div></article></div>`;
       }
+      function clearOutpostPointPlan() {
+        session.outpostPointRequestId += 1;
+        session.outpostPointWorker?.terminate();
+        session.outpostPointWorker = null;
+        session.outpostPointRunning = false;
+        session.outpostPointProgress = null;
+        session.outpostPointError = "";
+        session.outpostPointPlan = null;
+        session.outpostPointPlanKey = null;
+      }
+      function plannerProgress(progress, label) {
+        if (!progress) return "";
+        const completed = Math.max(0, n(progress.completed)), total = Math.max(1, n(progress.total));
+        const ratio = Math.max(0, Math.min(1, completed / total));
+        return `<div class="planner-progress" role="status" aria-live="polite"><span>${esc(label)}: ${esc(progress.phase || "working")} · ${fi(completed)} / ${fi(total)}</span>${bar(ratio)}</div>`;
+      }
+      function plannerNumber(value, digits = 2) {
+        return Number.isFinite(Number(value)) ? Number(value).toLocaleString("en-US", { maximumFractionDigits: digits }) : "unavailable";
+      }
+      function plannerEta(value) { return Number.isFinite(Number(value)) ? `${plannerNumber(value)} hr` : "unavailable"; }
+      function plannerActionLabel(action, mapIdx) {
+        if (action.kind === "profession") return `Assign ${R.movableProfessionName(action.type)} after Barracks`;
+        if (action.upgrade === 0) return "Buy Expanded Barracks";
+        if (action.upgrade === 1) return "Buy Advanced Logistics";
+        if (action.upgrade === 2) return "Buy Greater Education";
+        return action.kind || `Action for ${mapName(mapIdx)}`;
+      }
+      function plannerActionList(plan, mapIdx) {
+        const actions = plan?.actions || [];
+        if (!actions.length) return "<li>Save points and wait for the modeled horizon.</li>";
+        return actions.map(action => `<li>${esc(plannerActionLabel(action, mapIdx))}</li>`).join("");
+      }
+      function outpostPointPlanPanel(S, mapIdx) {
+        const key = `${mapIdx}`, plan = session.outpostPointPlanKey === key ? session.outpostPointPlan : null;
+        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package and compares theoretical fully buffed rates across all built outposts, independent of current connections and node state.</div><div class="planner-warning">Movable Barracks units cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
+        if (!plan) return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>Point Spending Planner</h3>${controls}<p class="planner-note">Analyze this outpost's three fixed packages.</p></section>`;
+        const missing = [...new Set([...(plan.missing || []), ...(plan.baseline?.invalid || []).map(item => item.reason)])];
+        const scenarioRows = (scenario, title, description, showRecommendation = false) => {
+          const rows = (plan.alternatives || []).map(item => {
+            const metrics = item.scenarios?.[scenario], perPoint = metrics?.deltaPerPoint || {}, recommended = showRecommendation && item === plan.recommendation;
+            const note = !item.available ? item.reason || "Unavailable" : scenario === "current" ? item.workerNote || "" : "";
+            return `<tr class="${recommended ? "recommended" : ""}"><td><b>${recommended ? "Recommended: " : ""}${esc(item.name)}</b>${note ? `<span class="point-package-note">${esc(note)}</span>` : ""}</td>${item.available && metrics ? `<td>${plannerNumber(perPoint.selectedNormal)}/hr</td><td>${plannerNumber(perPoint.accountNormal)}/hr</td><td>${plannerNumber(perPoint.accountSavageDrain)}/hr</td>` : '<td colspan="3">unavailable</td>'}</tr>`;
+          }).join("");
+          return `<tr class="point-scenario-heading"><th colspan="4">${esc(title)}<span class="point-scenario-description">${esc(description)}</span></th></tr>${rows}`;
+        };
+        const comparisons = scenarioRows("current", "Current assignments", "Saved professions; a new Barracks slot is modeled as a Worker.", true)
+          + scenarioRows("normalized", "No movable Workers", "Movable Worker collection is removed; fixed Command and Glorified Workers remain.")
+          + scenarioRows("allWorkers", "All movable slots as Workers", "Every occupied movable slot across all built outposts is modeled as a Worker.");
+        return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>12-point benefit comparison</h3>${controls}${missing.length ? `<div class="planner-warning">${missing.map(esc).join("; ")}</div>` : ""}<div class="table-wrap"><table class="data-table point-comparison-table"><thead><tr><th>Package</th><th>Local Normal / point</th><th>Global Normal / point</th><th>Global Savage / point</th></tr></thead><tbody>${comparisons}</tbody></table></div></section>`;
+      }
       function outpostConnectionDetails(S, connections) {
         const render = (connection, labelText) => connection.kind === "resource" ? `<span class="outpost-connection-detail">${resourceIcon(S, connection.id)}<span>${labelText}<br>Resource ${connection.id + 1}</span></span>` : `<span class="outpost-connection-detail"><span>${labelText}<br>${connection.kind === "map" ? mapName(connection.id) : "Empty"}</span></span>`;
         const current = render(connections[0] || { kind: "empty", id: -1 }, "Connection");
@@ -1580,7 +1910,7 @@
             (r) => r.reachable,
           );
         const outpostType = types[R.outpostType(S, x.mapIdx)], glorified = R.outpostIsGlorified(S, x.mapIdx), purified = R.outpostIsPurified(S, x.mapIdx);
-        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="outpost-detail-header"><div class="outpost-detail-title"><strong>${mapName(x.mapIdx)}</strong><div class="outpost-detail-pills"><span class="outpost-detail-pill">${outpostType}</span><span class="outpost-detail-pill state">${glorified ? "Glorified" : "Built"}</span>${purified ? '<span class="outpost-detail-pill purified">Purified</span>' : ""}</div></div><div class="outpost-detail-stats"><div class="outpost-detail-stat"><span>Points available</span><b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Connection range</span><b>${f(R.outpostRange(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Resource output</span><b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr</b></div></div></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}<h3>Rank bars</h3><div class="rank-grid">${[
+        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="outpost-detail-header"><div class="outpost-detail-title"><strong>${mapName(x.mapIdx)}</strong><div class="outpost-detail-pills"><span class="outpost-detail-pill">${outpostType}</span><span class="outpost-detail-pill state">${glorified ? "Glorified" : "Built"}</span>${purified ? '<span class="outpost-detail-pill purified">Purified</span>' : ""}</div></div><div class="outpost-detail-stats"><div class="outpost-detail-stat"><span>Points available</span><b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Connection range</span><b>${f(R.outpostRange(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Resource output</span><b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr</b></div></div></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}${outpostPointPlanPanel(S, x.mapIdx)}<h3>Rank bars</h3><div class="rank-grid">${[
           0, 1, 2, 3, 4,
         ]
           .map((b, i) => {
@@ -1593,16 +1923,133 @@
             "",
           )}</div><h3>Assignable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Fixed permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient assignments</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
       }
-      function resources() {
-        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        const S = saveData, m = resourceDetails(S), rows = resourceFilterRows(S, m);
+      function layoutActionLabel(action) {
+        if (action.kind === "connection") { const endpoint = action.endpoint || {}; return `${endpoint.kind === "resource" ? `Connect ${mapName(action.mapIdx)} to Resource ${endpoint.id + 1}` : endpoint.kind === "map" ? `Connect ${mapName(action.mapIdx)} to ${mapName(endpoint.id)}` : `Clear connection on ${mapName(action.mapIdx)}`} (slot ${n(action.slot) + 1})`; }
+        if (action.kind === "profession") return `${mapName(action.mapIdx)}: change slot ${n(action.slot) + 1} to ${R.movableProfessionName(action.type)}`;
+        if (action.kind === "type") return `${mapName(action.mapIdx)}: change outpost type to ${types[action.type] || "Unknown"}; links may be cleared`;
+        if (action.kind === "outpost-upgrade") return `${mapName(action.mapIdx)}: buy ${["Expanded Barracks", "Advanced Logistics", "Greater Education"][n(action.upgrade)] || "outpost upgrade"}`;
+        return action.kind || "Unknown action";
+      }
+      function layoutOutpostIcon(S, mapIdx) {
+        const source = [{ x: 412, y: 13 }, { x: 525, y: 4 }, { x: 525, y: 21 }][R.outpostType(S, mapIdx)] || { x: 412, y: 13 };
+        return `<span class="layout-outpost-icon" aria-hidden="true">${atlasGlyph("layout-outpost-glyph", "font-106.png", source, 56, 17, 600, 1024)}</span>`;
+      }
+      function layoutChangeValue(content, state, kind = "") { return `<span class="layout-change-value ${state}${kind ? ` ${kind}` : ""}">${content}</span>`; }
+      function layoutEndpoint(S, endpoint, state) {
+        if (!endpoint || endpoint.kind === "empty") return layoutChangeValue("No connection", state);
+        if (endpoint.kind === "resource") return layoutChangeValue(`${resourceIcon(S, endpoint.id)}<span>Resource ${fi(endpoint.id + 1)}</span>`, state);
+        return layoutChangeValue(mapName(endpoint.id), state);
+      }
+      function layoutChangeCards(actions, before, after, emptyMessage = "Current layout is best among evaluated plans.") {
+        if (!actions?.length || !before || !after) return emptyMessage ? `<p class="planner-note">${esc(emptyMessage)}</p>` : "";
+        const grouped = new Map();
+        for (const action of actions) { const mapIdx = n(action.mapIdx); if (!grouped.has(mapIdx)) grouped.set(mapIdx, []); grouped.get(mapIdx).push(action); }
+        return `<div class="layout-change-list">${[...grouped].map(([mapIdx, changes]) => {
+          const professionItems = R.outpostUnits(after, mapIdx).map(unit => {
+              const name = R.movableProfessionName(unit.type);
+              return `<span class="layout-profession-slot" aria-label="${esc(name)}" title="${esc(name)}">${layoutChangeValue(unitIcon(unit.type), "after", "profession")}</span>`;
+          }).join("");
+          const connectionAction = changes.find(action => action.kind === "connection");
+          const finalConnection = connectionAction ? R.outpostConnections(after, mapIdx)[n(connectionAction.slot)] : null;
+          const rateState = { ...saveData, ...after };
+          const finalRate = finalConnection?.kind === "resource" && R.outpostType(after, mapIdx) === 0 ? R.resourceProductionWithGrade(rateState, mapIdx, finalConnection.id).value : null;
+          const connectionRow = connectionAction ? `<div class="layout-final-connection" aria-label="Recommended connection">${layoutEndpoint(after, finalConnection, "after")}${finalRate === null ? "" : `<span class="layout-final-rate">${f(finalRate)}/hr</span>`}</div>` : "";
+          const professionRow = professionItems ? `<div class="layout-profession-strip" aria-label="Recommended profession configuration">${professionItems}</div>` : "";
+          const rows = changes.filter(action => action.kind !== "profession" && action.kind !== "connection").map(action => {
+            if (action.kind === "type") return `<div class="layout-change-item"><b>Outpost type</b><div class="layout-change-values">${layoutChangeValue(esc(types[R.outpostType(before, mapIdx)] || "Unknown"), "before")}<span class="layout-arrow">&rarr;</span>${layoutChangeValue(esc(types[R.outpostType(after, mapIdx)] || "Unknown"), "after")}</div></div>`;
+            if (action.kind === "outpost-upgrade") { const index = n(action.upgrade), name = ["Expanded Barracks", "Advanced Logistics", "Greater Education"][index] || "Outpost upgrade"; return `<div class="layout-change-item"><b>${esc(name)}</b><div class="layout-change-values">${layoutChangeValue(`Level ${fi(before.royalMapsData?.[mapIdx]?.[index])}`, "before")}<span class="layout-arrow">&rarr;</span>${layoutChangeValue(`Level ${fi(after.royalMapsData?.[mapIdx]?.[index])}`, "after")}</div></div>`; }
+            return `<div class="layout-change-item"><b>Change</b><span>${esc(layoutActionLabel(action))}</span></div>`;
+          }).join("");
+          return `<article class="layout-change">${layoutOutpostIcon(after, mapIdx)}<div><div class="layout-change-title"><b>${mapName(mapIdx)}</b><span class="badge badge-cyan">${fi(changes.length)} change${changes.length === 1 ? "" : "s"}</span></div><div class="layout-change-items">${professionRow}${connectionRow}${rows}</div></div></article>`;
+        }).join("")}</div>`;
+      }
+      function layoutChangeRows(result) { return layoutChangeCards(result?.recommendation?.actions || [], result?.sourceState, result?.recommendation?.state); }
+      function layoutOptions(S) {
+        const slots = O.validCurrencySlots().filter(slot => session.spoilersVisible || ROYAL_RESOURCES.some((resource, index) => resource.currencySlot === slot && R.royalWorldUnlocked(S, R.resourceWorld(resource.index ?? index))));
+        const currencyTargets = slots.map(slot => ({ slot, amount: Math.max(1, n(O.currencyIncomeToReset(S, slot).currentFullCapacity)), weight: 1 }));
+        return { horizonHours: 24, maxActions: 2, beamWidth: 4, candidateCap: 60, totalCandidateCap: 60, finalistCap: 3, currencyTarget: session.layoutCurrencyTarget, armoryTarget: session.layoutArmoryTarget, rankTarget: session.layoutRankMap === null ? null : { mapIdx: session.layoutRankMap, bar: session.layoutRankBar, rank: session.layoutRank }, currencyTargets };
+      }
+      function layoutResultPanel(S) {
+        const root = session.layoutResult, result = session.layoutResultView === "post-reset" ? root?.postReset : root, recommendation = result?.recommendation;
+        if (!result) return session.layoutError ? `<div class="planner-warning">${esc(session.layoutError)}</div>` : "";
+        if (!recommendation) return `<div class="planner-warning">No recommendation available${result.missing?.length ? `: ${result.missing.map(esc).join(", ")}` : "."}</div>`;
+        const actions = recommendation.actions || [], warnings = [...(result.missing || []), ...(recommendation.warnings || []).map(warning => warning.consequence || warning.type || String(warning))], metadata = result.metadata || {}, baseline = result.baseline || {}, metrics = recommendation.metrics || {}, goal = result.goal || session.layoutGoal, resetAvailable = result.resetProjectionAvailable !== false && baseline.resetProjectionAvailable !== false;
+        if (goal === "next-shelf") return "";
+        const alternatives = (result.alternatives || []).slice(0, 2).map(item => `<li>${esc((item.actions || []).map(layoutActionLabel).join(", ") || "No actions")}</li>`).join("");
+        const resetMetric = (label, field) => `<div class="planner-metric"><span>${label}</span><b>${resultResetValue(baseline[field], resetAvailable)} / ${resultResetValue(metrics[field], resetAvailable)}</b></div>`;
+        const selectedSlot = n(session.layoutCurrencyTarget), selectedOutput = metrics.currencyOutputs?.[selectedSlot], selectedArmorySlot = ARMORY_UPGRADES[session.layoutArmoryTarget]?.currencySlot;
+        const armorySlot = (armory, fallback) => Number.isInteger(Number(armory?.currencySlot)) ? Number(armory.currencySlot) : Number.isInteger(Number(fallback)) ? Number(fallback) : null;
+        const baselineArmorySlot = armorySlot(baseline.armory, selectedArmorySlot), recommendationArmorySlot = armorySlot(metrics.armory, selectedArmorySlot);
+        const armoryRate = (armory, slot, metric) => Number.isFinite(Number(armory?.income)) ? armory.income : Number.isFinite(Number(metric.currencyOutputs?.[slot]?.rate)) ? metric.currencyOutputs[slot].rate : null;
+        const goalMetrics = goal === "grade-gains"
+          ? `${resetMetric("Grade gains before / after", "projectedGradeGainsAtReset")}${resetMetric("Nodes emptying by reset", "nodesEmptyingByReset")}${resetMetric("Collectable currency before / after", "collectableCurrencyBeforeReset")}`
+          : goal === "drain-then-income"
+            ? `${resetMetric("Nodes emptying by reset", "nodesEmptyingByReset")}${resetMetric("Collectable currency before / after", "collectableCurrencyBeforeReset")}<div class="planner-metric"><span>Waste before / after</span><b>${resultValue(baseline.wasteMetric)} / ${resultValue(metrics.wasteMetric)}</b></div>`
+            : goal === "currency"
+              ? `<div class="planner-metric"><span>Currency slot ${selectedSlot} amount</span><b>${resultResetValue(baseline.currencyOutputs?.[selectedSlot]?.amount, resetAvailable)} / ${resultResetValue(selectedOutput?.amount, resetAvailable)}</b></div><div class="planner-metric"><span>Currency slot ${selectedSlot} rate</span><b>${resultValue(baseline.currencyOutputs?.[selectedSlot]?.rate)} / ${resultValue(selectedOutput?.rate)}</b></div><div class="planner-metric"><span>Actions</span><b>${resultValue(metrics.actions)}</b></div>`
+              : goal === "max-income"
+                ? `<div class="planner-metric"><span>Horizon currency</span><b>${resultValue(baseline.horizonCurrency)} / ${resultValue(metrics.horizonCurrency)}</b></div><div class="planner-metric"><span>Resources / hr</span><b>${resultValue(baseline.resourcesPerHour)} / ${resultValue(metrics.resourcesPerHour)}</b></div>`
+                : goal === "target-upgrade"
+                  ? `<div class="planner-metric"><span>Armory ETA</span><b>${resultTime(baseline.armoryEtaHours)} / ${resultTime(metrics.armoryEtaHours)}</b></div><div class="planner-metric"><span>Armory remaining</span><b>${resultValue(baseline.armory?.remaining)} / ${resultValue(metrics.armory?.remaining)}</b></div><div class="planner-metric"><span>Armory status</span><b>${esc(metrics.armory?.reason || result.missing?.join(", ") || "Available")}</b></div><div class="planner-metric"><span>Currency slot ${recommendationArmorySlot ?? baselineArmorySlot ?? "?"} rate</span><b>${resultValue(armoryRate(baseline.armory, baselineArmorySlot, baseline))} / ${resultValue(armoryRate(metrics.armory, recommendationArmorySlot, metrics))}</b></div>`
+                  : goal === "rank-target"
+                    ? `<div class="planner-metric"><span>Rank ETA</span><b>${resultTime(baseline.rankEtaHours)} / ${resultTime(metrics.rankEtaHours)}</b></div><div class="planner-metric"><span>Rank progress</span><b>${resultValue(baseline.rankProgress, value => `${(value * 100).toFixed(1)}%`)} / ${resultValue(metrics.rankProgress, value => `${(value * 100).toFixed(1)}%`)}</b></div><div class="planner-metric"><span>Rank status</span><b>${esc(metrics.rankReason || "Available")}</b></div>`
+                    : goal === "balanced"
+                      ? `<div class="planner-metric"><span>Minimum fulfillment ratio</span><b>${resultValue(Math.min(...Object.values(metrics.currencyOutputs || {}).map(output => n(output.amount) / Math.max(1, n(output.target)))), value => `${(value * 100).toFixed(1)}%`)}</b></div><table class="data-table"><thead><tr><th>Currency slot</th><th class="num">Amount / target</th><th class="num">Fulfillment</th></tr></thead><tbody>${Object.entries(metrics.currencyOutputs || {}).map(([slot, output]) => `<tr><td>Slot ${slot}</td><td class="num">${resultValue(output.amount)} / ${resultValue(output.target)}</td><td class="num">${resultValue(n(output.amount) / Math.max(1, n(output.target)), value => `${(value * 100).toFixed(1)}%`)}</td></tr>`).join("")}</tbody></table>`
+                      : goal === "no-waste"
+                        ? `<div class="planner-metric"><span>Required drain completed</span><b>${resultValue(metrics.requiredDrainCompleted)}</b></div><div class="planner-metric"><span>Waste</span><b>${resultValue(metrics.wasteMetric)}</b></div><div class="planner-metric"><span>Nodes emptying by reset</span><b>${resultResetValue(metrics.nodesEmptyingByReset, resetAvailable)}</b></div>`
+                        : `<div class="planner-metric"><span>Result</span><b>Unavailable</b></div>`;
+        const postAvailable = !!root?.postReset?.recommendation, modeToggle = `<div class="layout-result-toggle" role="group" aria-label="Optimizer timing"><button type="button" data-layout-result-view="now" aria-pressed="${session.layoutResultView === "now" ? "true" : "false"}">Now</button><button type="button" data-layout-result-view="post-reset" aria-pressed="${session.layoutResultView === "post-reset" ? "true" : "false"}" ${postAvailable ? "" : "disabled"}>Post-reset</button></div>`;
+        const resetNote = session.layoutResultView === "post-reset" ? '<p class="planner-note">Projected through the daily reset, assuming nodes that empty in time are collected before reset, then independently re-optimized.</p>' : "";
+        return `<section class="section"><div class="layout-result-head"><h3>${session.layoutResultView === "post-reset" ? "Post-reset recommendation" : "Immediate recommendation"}</h3>${modeToggle}</div>${resetNote}<div class="planner-metrics">${goalMetrics}</div>${warnings.length ? `<div class="planner-warning">${warnings.map(esc).join("; ")}</div>` : ""}<h3>Changes by outpost (${actions.length} action${actions.length === 1 ? "" : "s"})</h3>${layoutChangeRows(result)}<p class="planner-note">Evaluated ${fi(metadata.evaluated)} candidates through depth ${fi(metadata.reachedDepth)}; ${metadata.truncated ? "search was truncated" : "search completed"}. ${esc(metadata.approximation || "Bounded evaluation")}</p>${alternatives ? `<details class="layout-alternatives"><summary>Alternatives</summary><ul>${alternatives}</ul></details>` : ""}</section>`;
+      }
+      function shelfResultPanel() {
+        const result = session.shelfResult;
+        if (!result) return session.shelfError ? `<div class="planner-warning">${esc(session.shelfError)}</div>` : "";
+        if (!result.available) return `<div class="planner-warning">Optimizer analysis unavailable${result.missing?.length ? `: ${result.missing.map(esc).join(", ")}` : "."}</div>`;
+        const purchases = result.purchases || [], metadata = result.metadata || {};
+        const timelineItem = (action, timelineIndex) => {
+          const time = action.kind === "wait" ? `${plannerEta(action.durationHours)} wait` : plannerEta(action.timeHours);
+          if (action.kind === "armory-purchase") { const purchaseNumber = fi(action.dailyPurchasesBefore + 1), discountStatus = action.dailyDiscountActive ? `Daily discount ${purchaseNumber} / ${fi(action.dailyPurchaseLimit)}` : `Daily discount exhausted; purchase ${purchaseNumber} today`; return `<article class="shelf-timeline-item purchase"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">${currencyIcon(action.currencySlot)}Buy ${displayItemName(action.name)}</div><div class="shelf-timeline-detail">Level ${fi(action.levelBefore)} &rarr; ${fi(action.levelAfter)} for ${f(action.cost)}. Balance ${f(action.balanceBefore)} &rarr; ${f(action.balanceAfter)}. Currency rate ${f(action.currencyRate)}/hr; rate / cost ${f(action.currencyEfficiency)}. ${discountStatus}.</div></div></article>`; }
+          if (action.kind === "layout-change") { const portfolio = (action.portfolio || []).map(item => `<span class="royal-currency-chip" title="${fi(item.eligibleUpgrades)} eligible upgrade${item.eligibleUpgrades === 1 ? "" : "s"}">${currencyIcon(item.currencySlot)}${f(item.rate)}/hr</span>`).join(""); const selected = session.royalStateView === "shelf-step" && session.shelfStepIndex === timelineIndex; const preview = validRoyalSnapshot(action.layoutState) ? `<button type="button" class="shelf-map-preview" data-shelf-step="${timelineIndex}" aria-pressed="${selected ? "true" : "false"}">${selected ? "Viewing on map" : "View on map"}</button>` : ""; const changes = layoutChangeCards(action.actions, action.layoutBeforeState, action.layoutState, ""); const title = action.mode === "currency-portfolio" ? `Balance ${fi(action.portfolio?.length || 0)} eligible currencies` : action.mode === "drain-before-reset" ? "Drain maximum nodes before reset" : action.mode === "least-wasteful" ? "Minimum staffing drain layout" : "Reconfigure idle outposts for rank EXP"; return `<article class="shelf-timeline-item layout" id="shelf-layout-step-${timelineIndex}" tabindex="-1"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title"><span>${title}</span>${preview}</div><div class="shelf-timeline-detail">${esc(action.reason || "Apply the recommended layout changes.")}${portfolio ? `<div class="royal-currency-list">${portfolio}</div>` : ""}${changes}</div></div></article>`; }
+          if (action.kind === "collect") return `<article class="shelf-timeline-item collect"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Collect depleted nodes</div><div class="shelf-timeline-detail">${(action.resources || []).length ? action.resources.map(index => `${resourceIcon(saveData, index)}Resource ${fi(index + 1)}`).join(" ") : "No eligible nodes require collection."}${action.automatic ? " Required before reset by this plan." : ""}</div></div></article>`;
+          if (action.kind === "reset") return `<article class="shelf-timeline-item reset"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Daily reset</div><div class="shelf-timeline-detail">Discounted purchase count resets; all following costs and assignments are reevaluated.${action.refilledNodes ? ` ${fi(action.refilledNodes)} node${action.refilledNodes === 1 ? "" : "s"} refilled.` : ""}${action.gradeGains ? ` ${fi(action.gradeGains)} total grade increase${action.gradeGains === 1 ? "" : "s"}.` : ""}</div></div></article>`;
+          if (action.kind === "check-in") return `<article class="shelf-timeline-item collect"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Check in</div><div class="shelf-timeline-detail">Collect available production${action.complete ? " and finish this schedule." : ", then apply the next static layout."}</div></div></article>`;
+          if (action.kind === "rank-breakpoint") return `<article class="shelf-timeline-item purchase"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">${action.mode === "purification" ? "Map purified" : `Command Rank ${fi(action.targetRank)}`}</div><div class="shelf-timeline-detail">${mapName(action.mapIdx)} reaches the target${action.rewardName ? ` and unlocks a permanent ${esc(action.rewardName)}` : ""}.</div></div></article>`;
+          return `<article class="shelf-timeline-item"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Resource ${fi(action.resourceIdx + 1)} fully drained</div><div class="shelf-timeline-detail">Production from this node stops until its next refill.</div></div></article>`;
+        };
+        const timeline = (result.timelineActions || []).map(timelineItem).join("");
+        if (["command-breakpoint", "purification"].includes(result.mode)) {
+          const label = result.mode === "purification" ? "Purification" : "Command breakpoint";
+          return `<section class="section"><h3>${label} plan</h3><div class="planner-metrics"><div class="planner-metric"><span>Target</span><b>${mapName(result.target.mapIdx)}</b></div><div class="planner-metric"><span>Target rank</span><b>${fi(result.target.rank)}</b></div><div class="planner-metric"><span>ETA</span><b>${plannerEta(result.etaHours)}</b></div><div class="planner-metric"><span>Rank EXP / hr</span><b>${f(result.target.rate)}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : ""}<p class="planner-note">Relocates existing ${result.mode === "purification" ? "Priests" : "Commanders"} only within their assigned world. Resource output breaks equal-ETA ties; no outpost points are spent.</p></section>`;
+        }
+        if (result.mode) {
+          const labels = { "least-wasteful": "Least Wasteful", "drain-before-reset": "Drain Before Reset", "low-attention": "Low-Attention", "support-network": "Support Network", "savage-placement": "Savage Placement" }, label = labels[result.mode] || result.mode, metrics = result.metrics || {};
+          return `<section class="section"><h3>${label} timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Core goal</span><b>${esc(coreOptimizerGoals[result.subgoal || result.coreMode] || label)}</b></div><div class="planner-metric"><span>Nodes fully drained</span><b>${fi(result.completedNodes)}</b></div><div class="planner-metric"><span>Currency collected</span><b>${f(metrics.currencyCollected)}</b></div><div class="planner-metric"><span>Elapsed</span><b>${result.complete ? plannerEta(result.elapsedHours) : "Partial"}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No layout changes are available.</p>'}<p class="planner-note">${esc(result.metadata?.approximation || "Bounded deterministic planning; no global-optimum claim.")}</p></section>`;
+        }
+        const next = result.nextShelf ? `Shelf ${fi(result.nextShelf.orderIndex + 1)}: ${displayItemName(result.nextShelf.name)}` : "All shelves unlocked";
+        return `<section class="section"><h3>Next shelf unlock timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Result</span><b>${result.complete ? "Shelf unlock scheduled" : "Partial schedule"}</b></div><div class="planner-metric"><span>ETA</span><b>${plannerEta(result.etaHours)}</b></div><div class="planner-metric"><span>Levels required</span><b>${fi(result.levelsToNextThreshold)}</b></div><div class="planner-metric"><span>Currency strategy</span><b>${fi(metadata.currencySlotsConsidered?.length || 0)} concurrent currencies</b></div><div class="planner-metric wide"><span>Next available upgrade</span><b>${next}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No purchases are required.</p>'}<p class="planner-note">All currencies used by eligible upgrades accumulate concurrently. The planner balances their live rates, then reevaluates the next affordable purchase and full layout after every purchase or event. Evaluated ${fi(metadata.evaluated)} purchase options across ${fi(metadata.currencySlotsConsidered?.length || 0)} currency slots. ${esc(metadata.approximation || "Bounded evaluation")}</p></section>`;
+      }
+      function layoutOptimizer(S) {
+        const slots = O.validCurrencySlots().filter(slot => session.spoilersVisible || ROYAL_RESOURCES.some((resource, index) => resource.currencySlot === slot && R.royalWorldUnlocked(S, R.resourceWorld(resource.index ?? index)))), built = R.outpostRows(S).filter(row => row.built), armory = ARMORY_ORDER.slice(0, Math.min(ARMORY_ORDER.length, R.armoryUnlockedCount(S)));
+        if (session.layoutArmoryTarget === null) session.layoutArmoryTarget = armory[0] ?? null;
+        if (session.layoutRankMap === null) session.layoutRankMap = built[0]?.mapIdx ?? null;
+        const layoutControls = `<p class="planner-note">Bounded best evaluated plan: 24-hour horizon, up to 2 actions, beam width 4, and at most 60 candidates. This is not a global optimum.</p><button type="button" class="primary" id="run-layout" ${session.layoutRunning ? "disabled" : ""}>${session.layoutRunning ? "Running..." : "Run optimizer"}</button> <button type="button" id="cancel-layout" ${session.layoutRunning ? "" : "disabled"}>Cancel</button>${plannerProgress(session.layoutProgress, "Layout analysis")}`;
+        const resetSchedule = ["drain-before-reset", "least-wasteful"].includes(session.layoutGoal), timelineMode = Object.hasOwn(layoutGoals, session.layoutGoal);
+        const hasSubgoal = ["low-attention", "support-network", "savage-placement"].includes(session.layoutGoal), subgoalControl = hasSubgoal ? `<label>Core goal<select id="optimizer-subgoal">${Object.entries(coreOptimizerGoals).map(([value, text]) => `<option value="${value}" ${session.optimizerSubgoal === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>` : "", intervalControl = session.layoutGoal === "low-attention" ? `<label>Check-in intervals (hours)<input id="low-attention-intervals" value="${esc(session.lowAttentionIntervals)}" placeholder="3, 9, 12"></label>` : "";
+        const shelfControls = `<p class="planner-note">Runs the selected bounded optimizer without spending outpost points. Low-Attention intervals are consecutive windows, so 3, 9, 12 schedules check-ins at 3, 12, and 24 hours.</p><button type="button" class="primary" id="run-shelf" ${session.shelfRunning ? "disabled" : ""}>${session.shelfRunning ? "Optimizing..." : "Run optimizer"}</button> <button type="button" id="cancel-shelf" ${session.shelfRunning ? "" : "disabled"}>Cancel</button>${plannerProgress(session.shelfProgress, resetSchedule ? "Reset drain analysis" : "Optimizer analysis")}`;
+        const controls = `<div class="planner-controls layout-controls"><label>Goal<select id="layout-goal">${Object.entries(layoutGoals).map(([value, text]) => `<option value="${value}" ${session.layoutGoal === value ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>${subgoalControl}${intervalControl}</div>${timelineMode ? shelfControls : layoutControls}`;
+        return `<section class="section" aria-label="Full kingdom layout optimizer"><h2>Royal Optimizer</h2>${session.royalStateView !== "current" ? `<div class="info-panel" role="status">Viewing ${session.royalStateView === "shelf-step" ? `optimizer step ${shelfLayoutStepNumber(session.shelfStepIndex)}` : session.royalStateView === "post-reset" ? "post-reset optimized" : "immediate optimized"} state. A new run starts from the Current imported state.</div>` : ""}${controls}${timelineMode ? shelfResultPanel() : layoutResultPanel(S)}</section>`;
+      }
+      function resources(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        const m = resourceDetails(S), rows = resourceFilterRows(S, m);
         if (rows.length && !rows.some(x => x.resourceIdx === session.selectedResource)) session.selectedResource = rows[0].resourceIdx;
         const selected = m.details[session.selectedResource];
-        return `<section class="section"><nav class="subtabs resource-subtabs" role="tablist" aria-label="Resource views"><button role="tab" aria-selected="${session.resourceView === "nodes"}" tabindex="${session.resourceView === "nodes" ? 0 : -1}" data-resource-view="nodes">Nodes</button><button role="tab" aria-selected="${session.resourceView === "optimizer"}" tabindex="${session.resourceView === "optimizer" ? 0 : -1}" data-resource-view="optimizer">Optimizer</button></nav></section>${session.resourceView === "optimizer" ? optimizer() : `<section class="section">${invalidResourceWarning(m.invalid)}<div class="card-grid cols-4">${card("Collectable before reset", resetValue(m.collectableBeforeReset, m.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(m.nodesEmptyingByReset, m.resetProjectionAvailable))}${card("Projected refills at reset", resetValue(m.projectedRefillsAtReset, m.resetProjectionAvailable))}${card("Projected grade gains", resetValue(m.projectedGradeGainsAtReset, m.resetProjectionAvailable))}</div><h2>W${session.worldIdx + 1} resource nodes</h2><div class="planner-controls resource-toolbar"><label>State<select id="resource-state">${[["all", "All"], ["active", "Active streams"], ["actionable", "Actionable"], ["no-stream", "No active stream"], ["empty", "Empty"], ["empties-window", `Empties by reset`]].map(([v, t]) => `<option value="${v}" ${session.resourceState === v ? "selected" : ""}>${t}</option>`).join("")}</select></label><label>Currency<select id="resource-currency">${resourceCurrencyOptions()}</select></label><label>Sort<select id="resource-sort"><option value="drain" ${session.resourceSort === "drain" ? "selected" : ""}>Drain time</option><option value="rate" ${session.resourceSort === "rate" ? "selected" : ""}>Rate / hr</option><option value="remaining" ${session.resourceSort === "remaining" ? "selected" : ""}>Remaining</option></select></label><label>Search<input id="resource-search" type="search" placeholder="Resource N" value="${esc(session.resourceSearch)}"></label></div><div class="resource-workspace"><div class="resource-list"><table class="data-table"><thead><tr><th>Node</th><th>World</th><th>Grade</th><th>Remaining</th><th>Rate / hr</th><th>Drain</th><th>Currency</th></tr></thead><tbody>${rows.map(x => resourceRow(S, x)).join("")}</tbody></table>${rows.length ? "" : '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-mobile-list">${rows.map(x => resourceMobile(S, x)).join("") || '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-inspector">${selected && rows.length ? resourceInspector(S, selected) : '<div class="empty-state">Select a visible resource node to inspect it.</div>'}</div></div></section>`}`;
+        return `<section class="section">${invalidResourceWarning(m.invalid)}<div class="card-grid cols-4">${card("Collectable before reset", resetValue(m.collectableBeforeReset, m.resetProjectionAvailable))}${card("Nodes emptying by reset", resetValue(m.nodesEmptyingByReset, m.resetProjectionAvailable))}${card("Projected refills at reset", resetValue(m.projectedRefillsAtReset, m.resetProjectionAvailable))}${card("Projected grade gains", resetValue(m.projectedGradeGainsAtReset, m.resetProjectionAvailable))}</div><h2>W${session.worldIdx + 1} resource nodes</h2><div class="planner-controls resource-toolbar"><label>State<select id="resource-state">${[["all", "All"], ["active", "Active streams"], ["actionable", "Actionable"], ["no-stream", "No active stream"], ["empty", "Empty"], ["empties-window", `Empties by reset`]].map(([v, t]) => `<option value="${v}" ${session.resourceState === v ? "selected" : ""}>${t}</option>`).join("")}</select></label><label>Currency<select id="resource-currency">${resourceCurrencyOptions()}</select></label><label>Sort<select id="resource-sort"><option value="drain" ${session.resourceSort === "drain" ? "selected" : ""}>Drain time</option><option value="rate" ${session.resourceSort === "rate" ? "selected" : ""}>Rate / hr</option><option value="remaining" ${session.resourceSort === "remaining" ? "selected" : ""}>Remaining</option></select></label><label>Search<input id="resource-search" type="search" placeholder="Resource N" value="${esc(session.resourceSearch)}"></label></div><div class="resource-workspace"><div class="resource-list"><table class="data-table"><thead><tr><th>Node</th><th>World</th><th>Grade</th><th>Remaining</th><th>Rate / hr</th><th>Drain</th><th>Currency</th></tr></thead><tbody>${rows.map(x => resourceRow(S, x)).join("")}</tbody></table>${rows.length ? "" : '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-mobile-list">${rows.map(x => resourceMobile(S, x)).join("") || '<div class="empty-state">No resource nodes match these filters.</div>'}</div><div class="resource-inspector">${selected && rows.length ? resourceInspector(S, selected) : '<div class="empty-state">Select a visible resource node to inspect it.</div>'}</div></div></section>`;
       }
       function resourceRow(S, x) {
         const capacity = R.resourceCapacity(S, x.resourceIdx), pct = capacity ? x.remaining / capacity : 0, selected = x.resourceIdx === session.selectedResource;
-        return `<tr class="resource-selectable ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><td>${currencyIcon(x.currencySlot)}Resource ${x.resourceIdx + 1}</td><td>${fi(R.resourceGrade(S, x.resourceIdx))}</td><td><div class="resource-cell"><span>${f(x.remaining)} / ${f(capacity)} <span class="badge ${x.remaining ? "badge-green" : "badge-gold"}">${resourceStatus(S, x)}</span></span>${bar(pct)}</div></td><td>${f(x.rate)}</td><td>${fmtDrainHours(x.drainHours, x.remaining)}</td></tr>`;
+        return `<tr class="resource-selectable ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><td>${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</td><td>World ${R.resourceWorld(x.resourceIdx) + 1}</td><td>${fi(R.resourceGrade(S, x.resourceIdx))}</td><td><div class="resource-cell"><span>${f(x.remaining)} / ${f(capacity)} <span class="badge ${x.remaining ? "badge-green" : "badge-gold"}">${resourceStatus(S, x)}</span></span>${bar(pct)}</div></td><td>${f(x.rate)}</td><td>${fmtDrainHours(x.drainHours, x.remaining)}</td><td>${currencyIcon(x.currencySlot)}${resourceCurrencyLabel(x)}</td></tr>`;
       }
       function resourceMobile(S, x) {
         const capacity = R.resourceCapacity(S, x.resourceIdx), selected = x.resourceIdx === session.selectedResource;
@@ -1655,20 +2102,20 @@
         const missing = (breakdown.missing || []).map(esc).join(", ");
         return `<div class="info-panel warning-panel" role="status"><b>${title} is partial or unavailable</b><p>Some saved inputs are unavailable, so this breakdown may be incomplete.</p>${missing ? `<div>Missing inputs: ${missing}</div>` : ""}</div>`;
       }
-      function initializeCollectionBreakdowns() {
+      function initializeCollectionBreakdowns(S) {
         if (session.tab !== "currencies" || session.currencyView !== "breakdown") return;
         resetTreeCounter();
-        const global = buildGlobalCollectionTree(saveData);
+        const global = buildGlobalCollectionTree(S);
         const globalEl = document.querySelector("#global-collection-tree");
         if (globalEl) {
           globalEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(global.breakdown, "Global collection rate");
           renderBreakdownTree(global.tree, globalEl, { tooltipId: "bt-tooltip" });
         }
-        const options = R.outpostRows(saveData).filter(x => x.type === 0 || x.type === 2);
+        const options = R.outpostRows(S).filter(x => x.type === 0 || x.type === 2);
         if (!options.some(x => x.mapIdx === session.breakdownOutpost)) session.breakdownOutpost = options[0]?.mapIdx ?? null;
         const outpostEl = document.querySelector("#outpost-collection-tree");
         if (outpostEl && session.breakdownOutpost !== null) {
-          const outpost = buildOutpostCollectionTree(saveData, session.breakdownOutpost);
+          const outpost = buildOutpostCollectionTree(S, session.breakdownOutpost);
           outpostEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(outpost.breakdown, "Outpost collection rate");
           renderBreakdownTree(outpost.tree, outpostEl, { tooltipId: "bt-tooltip" });
         }
@@ -1694,17 +2141,21 @@
         const connected = node.streams.some(stream => stream.mapIdx === outpost.mapIdx && n(stream.slot) === 0) ? 1 : 0, normal = outpost.type !== 2;
         return `<article class="mobile-card"><b>${mapName(outpost.mapIdx)}</b><div>${types[outpost.type]} | Distance / Reach ${f(outpost.distance)} / ${f(outpost.range + 15)}</div><div>Connection free ${currentConnectionFree(S, outpost.mapIdx) ? "Yes" : "No"} | Connected here ${connected ? "Yes" : "No"}</div><div>${normal ? `Potential currency/hr per connection ${f(outpost.potentialCurrencyRate)}` : "Drain only / 0 currency"}</div></article>`;
       }
-      function currencyInspector(S, node) {
+      function currencyInspector(S, node, breakdown = null) {
         const streamCount = node.streams.length, connectable = currencyOutpostRows(S, node);
-        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">Resource ${node.resourceIdx + 1}</h3><div class="small">World ${node.tier + 1} | Grade ${f(node.grade)} | Grade multiplier ${fmtMultiplier(node.gradeMultiplier)}x</div></div><span class="badge badge-cyan">${currencyState(node)}</span></div><div>${f(node.remaining)} / ${f(node.capacity)}${bar(node.capacity ? node.remaining / node.capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, node.resourceIdx))}${R.resourceDrained(S, node.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Nominal currency/hr", f(node.nominalCurrencyPerHour))}${card("Total drain/hr", f(node.drainRate))}${card(`Collectable before reset`, resetValue(node.collectableBeforeReset, node.resetProjectionAvailable))}${card("Current streams", streamCount)}${card("Connectable outposts", connectable.length)}</div>${resetProjection(node)}<h3>Current streams</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Connection</th><th>Type</th><th>Currency/hr</th><th>Drain/hr</th><th>Current reach</th></tr></thead><tbody>${node.streams.map(stream => currencyStream(S, node, stream)).join("") || '<tr><td colspan="6">No current streams.</td></tr>'}</tbody></table></div><div class="mobile-cards">${node.streams.map(stream => currencyStreamCard(S, node, stream)).join("") || '<div class="note">No current streams.</div>'}</div><h3>Connectable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Connection free</th><th>Connected here</th><th>Potential / connection</th></tr></thead><tbody>${connectable.map(outpost => currencyOutpost(S, node, outpost)).join("") || '<tr><td colspan="6">No connectable outposts.</td></tr>'}</tbody></table></div><div class="mobile-cards">${connectable.map(outpost => currencyOutpostCard(S, node, outpost)).join("") || '<div class="note">No connectable outposts.</div>'}</div></div>`;
+        const capacityNode = (breakdown?.capacityNodes || []).find(candidate => candidate.resourceIdx === node.resourceIdx);
+        const capacityProjectionAvailable = breakdown?.resetProjectionAvailable === true;
+        const collectionNote = capacityNode?.refillRequiresCollection ? "Collect before reset" : "Automatic reset projection";
+        const capacityPanel = `<h3>Capacity ceiling</h3><div class="card-grid cols-2">${card("Current full capacity", capacityNode ? f(capacityNode.currentCapacity) : null, "This node's full-capacity ceiling, not configured production or collectable amount")}${card("Projected post-reset full capacity", resetValue(capacityNode?.nextResetProjectedCapacity, capacityProjectionAvailable), "Capacity ceiling after the projected reset")}${card("Projected grade at reset", resetValue(capacityNode?.projectedGradeAtReset, capacityProjectionAvailable), collectionNote)}</div>${capacityNode?.refillRequiresCollection ? '<p class="projection-note">Collect before reset for the projected refill and grade.</p>' : ""}`;
+        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">Resource ${node.resourceIdx + 1}</h3><div class="small">World ${node.tier + 1} | Grade ${f(node.grade)} | Grade multiplier ${fmtMultiplier(node.gradeMultiplier)}x</div></div><span class="badge badge-cyan">${currencyState(node)}</span></div><div>${f(node.remaining)} / ${f(node.capacity)}${bar(node.capacity ? node.remaining / node.capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, node.resourceIdx))}${R.resourceDrained(S, node.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Nominal currency/hr", f(node.nominalCurrencyPerHour))}${card("Total drain/hr", f(node.drainRate))}${card(`Collectable before reset`, resetValue(node.collectableBeforeReset, node.resetProjectionAvailable))}${card("Current streams", streamCount)}${card("Connectable outposts", connectable.length)}</div>${capacityPanel}${resetProjection(node)}<h3>Current streams</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Connection</th><th>Type</th><th>Currency/hr</th><th>Drain/hr</th><th>Current reach</th></tr></thead><tbody>${node.streams.map(stream => currencyStream(S, node, stream)).join("") || '<tr><td colspan="6">No current streams.</td></tr>'}</tbody></table></div><div class="mobile-cards">${node.streams.map(stream => currencyStreamCard(S, node, stream)).join("") || '<div class="note">No current streams.</div>'}</div><h3>Connectable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Connection free</th><th>Connected here</th><th>Potential / connection</th></tr></thead><tbody>${connectable.map(outpost => currencyOutpost(S, node, outpost)).join("") || '<tr><td colspan="6">No connectable outposts.</td></tr>'}</tbody></table></div><div class="mobile-cards">${connectable.map(outpost => currencyOutpostCard(S, node, outpost)).join("") || '<div class="note">No connectable outposts.</div>'}</div></div>`;
       }
       function currencyNodeRow(S, node) {
         const selected = node.resourceIdx === session.selectedResource;
-        return `<tr class="currency-selectable ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><td>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</td><td>${fi(node.grade)}</td><td>${f(node.remaining)} / ${f(node.capacity)}</td><td>${currencyState(node)}</td><td>${f(node.nominalCurrencyPerHour)}/hr</td></tr>`;
+        return `<tr class="currency-selectable ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><td>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</td><td>World ${R.resourceWorld(node.resourceIdx) + 1}</td><td>${fi(node.grade)}</td><td>${f(node.remaining)} / ${f(node.capacity)}</td><td>${currencyState(node)}</td><td>${f(node.nominalCurrencyPerHour)}/hr</td></tr>`;
       }
-      function currencyNodeCard(S, node) {
+      function currencyNodeCard(S, node, breakdown) {
         const selected = node.resourceIdx === session.selectedResource;
-        return `<article class="mobile-card currency-mobile-card ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><b>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</b><div><span class="badge badge-gold">${currencyState(node)}</span> | Grade ${fi(node.grade)} (${fmtMultiplier(node.gradeMultiplier)}x)</div><div>Remaining ${f(node.remaining)} / ${f(node.capacity)} | Nominal configured/hr ${f(node.nominalCurrencyPerHour)}</div>${selected ? `<div class="currency-inspector">${currencyInspector(S, node)}</div>` : ""}</article>`;
+        return `<article class="mobile-card currency-mobile-card ${selected ? "selected" : ""}" data-currency-resource="${node.resourceIdx}" tabindex="${selected ? "0" : "-1"}" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${node.resourceIdx + 1}"><b>${currencyIcon(node.currencySlot)}Resource ${node.resourceIdx + 1}</b><div><span class="badge badge-gold">${currencyState(node)}</span> | Grade ${fi(node.grade)} (${fmtMultiplier(node.gradeMultiplier)}x)</div><div>Remaining ${f(node.remaining)} / ${f(node.capacity)} | Nominal configured/hr ${f(node.nominalCurrencyPerHour)}</div>${selected ? `<div class="currency-inspector">${currencyInspector(S, node, breakdown)}</div>` : ""}</article>`;
       }
       function currencyViewTabs() {
         return `<section class="section"><nav class="subtabs currency-subtabs" role="tablist" aria-label="Currency views"><button role="tab" aria-selected="${session.currencyView === "sources" ? "true" : "false"}" tabindex="${session.currencyView === "sources" ? 0 : -1}" data-currency-view="sources">Sources</button><button role="tab" aria-selected="${session.currencyView === "breakdown" ? "true" : "false"}" tabindex="${session.currencyView === "breakdown" ? 0 : -1}" data-currency-view="breakdown">Collection Breakdown</button></nav></section>`;
@@ -1714,15 +2165,16 @@
         if (!options.some(x => x.mapIdx === session.breakdownOutpost)) session.breakdownOutpost = options[0]?.mapIdx ?? null;
         return `${currencyViewTabs()}<section class="section"><h2>Collection Breakdown</h2><div class="breakdown-grid"><div class="breakdown-panel"><h3>Global collection</h3><div class="breakdown-warning"></div><div id="global-collection-tree"></div></div><div class="breakdown-panel"><h3>Selected outpost</h3><label>Outpost<select id="breakdown-outpost">${options.map(x => `<option value="${x.mapIdx}" ${x.mapIdx === session.breakdownOutpost ? "selected" : ""}>${mapName(x.mapIdx)} (${types[x.type]})</option>`).join("")}</select></label><div class="breakdown-warning"></div><div id="outpost-collection-tree"></div>${options.length ? "" : '<div class="empty-state">No Normal or Savage collecting outposts are available.</div>'}</div></div></section>`;
       }
-      function currencies() {
-        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        const slots = O.validCurrencySlots().filter(value => session.spoilersVisible || ROYAL_RESOURCES.some(resource => resource.currencySlot === value && R.royalWorldUnlocked(saveData, R.resourceWorld(resource.index)))), slot = slots.includes(session.currencyTarget) ? session.currencyTarget : (session.currencyTarget = slots[0] ?? 0), breakdown = currencyDetails(saveData, slot), nodes = (breakdown.nodes || []).filter(node => session.spoilersVisible || R.royalWorldUnlocked(saveData, R.resourceWorld(node.resourceIdx)));
+      function currencies(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        const saveData = S;
+        const slots = O.validCurrencySlots().filter(value => session.spoilersVisible || ROYAL_RESOURCES.some(resource => resource.currencySlot === value && R.royalWorldUnlocked(S, R.resourceWorld(resource.index)))), slot = slots.includes(session.currencyTarget) ? session.currencyTarget : (session.currencyTarget = slots[0] ?? 0), breakdown = currencyDetails(S, slot), nodes = (breakdown.nodes || []).filter(node => session.spoilersVisible || R.royalWorldUnlocked(S, R.resourceWorld(node.resourceIdx)));
         if (nodes.length && !nodes.some(node => node.resourceIdx === session.selectedResource)) session.selectedResource = nodes[0].resourceIdx;
         if (nodes.length && session.mapSelectionKind === null) { session.mapSelectionKind = "resource"; session.worldIdx = R.resourceWorld(session.selectedResource); }
         const selected = nodes.find(node => node.resourceIdx === session.selectedResource) || nodes[0];
-        if (session.currencyView === "breakdown") return currencyBreakdownView(saveData);
-        const sourcePanel = `<section class="section"><h2>Currency slot ${slot} source nodes</h2>${breakdown.available === false ? '<div class="empty-state">Currency source nodes are unavailable for this save.</div>' : nodes.length ? `<div class="currency-workspace"><div class="currency-list" role="listbox" aria-label="Currency source nodes"><table class="data-table"><thead><tr><th>Resource</th><th>World</th><th>Grade</th><th>Remaining</th><th>State</th><th>Nominal configured / hr</th></tr></thead><tbody>${nodes.map(node => currencyNodeRow(saveData, node)).join("")}</tbody></table></div><div class="currency-inspector">${currencyInspector(saveData, selected)}</div></div><div class="currency-mobile-list" role="listbox" aria-label="Currency source nodes">${nodes.map(node => currencyNodeCard(saveData, node)).join("")}</div>` : '<div class="empty-state">No resource nodes produce this currency.</div>'}</section>`;
-        return `${currencyViewTabs()}<section class="section"><div class="planner-controls"><label>Currency<select id="currency-selector">${slots.map(value => `<option value="${value}" ${value === slot ? "selected" : ""}>Currency slot ${value}</option>`).join("")}</select></label><button class="primary" id="optimize-currency">Optimize before reset</button></div>${invalidResourceWarning(breakdown.invalid)}${currencyCoverageWarning(breakdown)}${currencySummary(breakdown)}<p class="note">Nominal configured output uses the fixed current node state. Projection ends at the saved daily reset; no post-reset simulation. Boundary refill and grade are projected.${breakdown.invalid?.length ? " Some saved connections are excluded from totals." : ""}</p></section>${sourcePanel}`;
+        if (session.currencyView === "breakdown") return currencyBreakdownView(S);
+        const sourcePanel = `<section class="section"><h2>Currency slot ${slot} source nodes</h2>${breakdown.available === false ? '<div class="empty-state">Currency source nodes are unavailable for this save.</div>' : nodes.length ? `<div class="currency-workspace"><div class="currency-list" role="listbox" aria-label="Currency source nodes"><table class="data-table"><thead><tr><th>Resource</th><th>World</th><th>Grade</th><th>Remaining</th><th>State</th><th>Nominal configured / hr</th></tr></thead><tbody>${nodes.map(node => currencyNodeRow(saveData, node)).join("")}</tbody></table></div><div class="currency-inspector">${currencyInspector(saveData, selected, breakdown)}</div></div><div class="currency-mobile-list" role="listbox" aria-label="Currency source nodes">${nodes.map(node => currencyNodeCard(saveData, node, breakdown)).join("")}</div>` : '<div class="empty-state">No resource nodes produce this currency.</div>'}</section>`;
+        return `${currencyViewTabs()}<section class="section">${optimizedStateNotice("currencies")}<div class="planner-controls"><label>Currency<select id="currency-selector">${slots.map(value => `<option value="${value}" ${value === slot ? "selected" : ""}>Currency slot ${value}</option>`).join("")}</select></label></div>${invalidResourceWarning(breakdown.invalid)}${currencyCoverageWarning(breakdown)}${currencySummary(breakdown)}<p class="note">Nominal configured output uses the fixed current node state. Projection ends at the saved daily reset; no post-reset simulation. Boundary refill and grade are projected.${breakdown.invalid?.length ? " Some saved connections are excluded from totals." : ""}</p></section>${sourcePanel}`;
       }
       function balances(S, k) {
         const a =
@@ -1736,12 +2188,12 @@
               : visibleMarbles.map((_, i) => R.royalMarbleOwnedDetail(S, i));
         return `<div class="context-balance">${a.map((x) => `<span>${displayItemName(x.itemName)} <b>${f(x.value)}</b></span>`).join("")}</div>`;
       }
-      function upgrades() {
-        if (!R.hasCompleteRoyalData(saveData)) return royalDataGate();
-        return `<section class="section"><nav class="subtabs" role="tablist" aria-label="Upgrade views">${["armory", "statues", "flair", "orblets"].map((v) => `<button role="tab" aria-selected="${session.upgradeView === v ? "true" : "false"}" data-upgrade="${v}">${v === "armory" ? "Armory" : v === "statues" ? "Royal Statues" : v === "flair" ? "Statue Flair" : "Orblets"}</button>`).join("")}</nav>${session.upgradeView === "armory" ? armory() : session.upgradeView === "statues" ? statues() : session.upgradeView === "flair" ? flair() : orblets()}</section>`;
+      function upgrades(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        return `<section class="section">${optimizedStateNotice("upgrades")}<nav class="subtabs" role="tablist" aria-label="Upgrade views">${["armory", "statues", "flair", "orblets"].map((v) => `<button role="tab" aria-selected="${session.upgradeView === v ? "true" : "false"}" data-upgrade="${v}">${v === "armory" ? "Armory" : v === "statues" ? "Royal Statues" : v === "flair" ? "Statue Flair" : "Orblets"}</button>`).join("")}</nav>${session.upgradeView === "armory" ? armory(S) : session.upgradeView === "statues" ? statues(S) : session.upgradeView === "flair" ? flair(S) : orblets(S)}</section>`;
       }
-      function armory() {
-        const S = saveData,
+      function armory(S) {
+        const
           rows = R.armoryRows(S), redux = R.allMasterclassCostReduxDetail(S), unlockedCount = R.armoryUnlockedCount(S);
         return `<div class="upgrade-heading"><h2>Armory</h2>${spoilerToggle()}</div><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x. ${fi(unlockedCount)} of ${fi(rows.length)} shelves reached.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Shelf</th><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
           .map((r) => {
@@ -1754,8 +2206,7 @@
             "",
             )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible; return concealed ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ???</div><div class="upgrade-spoiler-hidden">Unreached upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(u?.name)}</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ${f(r.currentLevel)} / ${f(u?.maxLevel)}</div><div>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${currencyIcon(r.cost.currencySlot)}${max ? `MAX (slot ${r.cost.currencySlot})` : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>`; }).join("")}</div>`;
       }
-      function statues() {
-        const S = saveData;
+      function statues(S) {
         return `<div class="upgrade-heading"><h2>Royal Statues</h2>${spoilerToggle()}</div>${balances(S, "statues")}<div class="table-wrap"><table class="data-table upgrade-table"><thead><tr><th>Name</th><th class="num">Level</th><th>Current effect</th><th>Next effect</th><th>Material</th><th class="num">Owned</th><th class="num">Cost</th><th class="num">Upgrade odds</th></tr></thead><tbody>${Array.from(
           { length: 7 },
           (_, i) => {
@@ -1774,9 +2225,9 @@
           },
         ).join("")}</div>`;
       }
-      function flair() {
-        if (!R.SF_unlocked(saveData) && !session.spoilersVisible) return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div><div class="empty-state upgrade-spoiler-hidden">Statue Flair is locked.</div>`;
-        const S = saveData,
+      function flair(S) {
+        if (!R.SF_unlocked(S) && !session.spoilersVisible) return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div><div class="empty-state upgrade-spoiler-hidden">Statue Flair is locked.</div>`;
+        const
           rows = Array.from({ length: 32 }, (_, i) =>
             R.statueFlairRow(S, i),
           ).filter(
@@ -1788,18 +2239,22 @@
           );
         return `<div class="upgrade-heading"><h2>Statue Flair</h2>${spoilerToggle()}</div>${balances(S, "flair")}<div class="controls"><label>Marble category<select id="flair-category"><option value="all">All</option>${visibleMarbles.map((x, i) => `<option value="${i}">${displayItemName(x.name)}</option>`).join("")}</select></label><label><input id="flair-maxed" type="checkbox" ${session.flairShowMaxed ? "checked" : ""}> Show maxed</label></div><div class="table-wrap"><table class="data-table upgrade-table"><thead><tr><th>Name</th><th class="num">Level / max</th><th class="num">Current effect</th><th class="num">Next effect</th><th>Material</th><th class="num">Owned</th><th class="num">Cost</th><th>Status</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</td><td class="num">${fi(r.level)} / ${fi(R.statueFlairMax())}</td><td class="num">${f(r.currentMultiplier)}x</td><td class="num">${r.maxed ? "MAX" : `${f(r.nextMultiplier)}x`}</td><td>${displayItemName(r.material?.name)}</td><td class="num">${fi(r.owned)}</td><td class="num">${r.maxed ? "MAX" : fi(r.cost)}</td><td>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => `<article class="mobile-card"><b>${esc(label("Statue", r.statueIdx) || `Statue ${r.statueIdx + 1}`)}</b><div>Level ${fi(r.level)} / ${fi(R.statueFlairMax())} | ${f(r.currentMultiplier)}x → ${r.maxed ? "MAX" : `${f(r.nextMultiplier)}x`}</div><div>${displayItemName(r.material?.name)} | Owned ${fi(r.owned)} | Cost ${r.maxed ? "MAX" : fi(r.cost)}</div><div>${r.maxed ? "Maxed" : r.affordable ? "Affordable" : "Not affordable"}</div></article>`).join("")}</div>`;
       }
-      function orblets() {
-        const S = saveData,
+      function orblets(S) {
+        const
           rows = R.orbletRows(S);
         return `<div class="upgrade-heading"><h2>Orblets</h2>${spoilerToggle()}</div>${balances(S, "orblets")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<tr><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Locked Orblet upgrade</td><td class="upgrade-spoiler-hidden">???</td></tr>` : `<tr><td>${displayItemName(r.name)}</td><td>${fi(r.level)} / ${fi(r.maxLevel)}</td><td>${esc(R.orbletDescription(S, r.index))}</td><td class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Orblet upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(r.name)}</b><div>Level ${fi(r.level)} / ${fi(r.maxLevel)}</div><div>${esc(R.orbletDescription(S, r.index))}</div><div class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">Cost ${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</div></article>`).join("")}</div>`;
       }
       function wire() {
-        wireTabs(".tab-btn", (b) => (session.tab = b.dataset.tab));
+        wireTabs(".tab-btn", (b) => {
+          clearOutpostPointPlan();
+          session.tab = b.dataset.tab;
+        });
         wireTabs(
           "[data-world-tab]",
           (b) => {
             session.worldIdx = n(b.dataset.worldTab);
-            if (!R.worldOutpostRows(saveData, session.worldIdx).some(x => x.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
+            clearOutpostPointPlan();
+            if (!R.worldOutpostRows(activeRoyalState(), session.worldIdx).some(x => x.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
             if (session.selectedResource !== null && R.resourceWorld(session.selectedResource) !== session.worldIdx) session.selectedResource = null;
             if ((session.mapSelectionKind === "outpost" && session.selectedOutpost === null) || (session.mapSelectionKind === "resource" && session.selectedResource === null)) session.mapSelectionKind = null;
           },
@@ -1812,11 +2267,121 @@
           "[data-currency-view]",
           (b) => (session.currencyView = b.dataset.currencyView),
         );
+        document.querySelector("#layout-goal")?.addEventListener("change", (e) => { session.layoutGoal = e.target.value; invalidateOptimizedState(); render(); });
+        document.querySelector("#optimizer-subgoal")?.addEventListener("change", (e) => { session.optimizerSubgoal = e.target.value; clearShelfResult(); render(); });
+        document.querySelector("#low-attention-intervals")?.addEventListener("change", (e) => { session.lowAttentionIntervals = e.target.value; clearShelfResult(); render(); });
+        document.querySelector("#layout-currency-target")?.addEventListener("change", (e) => { session.layoutCurrencyTarget = n(e.target.value); invalidateOptimizedState(); render(); });
+        document.querySelector("#layout-armory-target")?.addEventListener("change", (e) => { session.layoutArmoryTarget = n(e.target.value); invalidateOptimizedState(); render(); });
+        document.querySelector("#layout-rank-map")?.addEventListener("change", (e) => { session.layoutRankMap = n(e.target.value); invalidateOptimizedState(); render(); });
+        document.querySelector("#layout-rank-bar")?.addEventListener("change", (e) => { session.layoutRankBar = n(e.target.value); invalidateOptimizedState(); render(); });
+        document.querySelector("#layout-rank")?.addEventListener("change", (e) => { session.layoutRank = Math.max(1, n(e.target.value)); invalidateOptimizedState(); render(); });
+        document.querySelector("#run-layout")?.addEventListener("click", () => {
+          if (session.layoutGoal === "next-shelf") return;
+          invalidateOptimizedState();
+          const requestId = session.layoutRequestId;
+          session.layoutRunning = true;
+          session.layoutError = "";
+          render();
+          const worker = new Worker("./js/workers/royal-planner-worker.js", { type: "module" });
+          session.layoutWorker = worker;
+          worker.onmessage = (event) => {
+            if (event.data?.requestId !== session.layoutRequestId) return;
+            if (event.data.type === "progress") {
+              session.layoutProgress = event.data.progress;
+              render();
+              return;
+            } else if (event.data.type === "done") {
+              session.layoutResult = structuredClone(event.data.result);
+              session.layoutResultRevision = session.saveRevision;
+              session.layoutResultView = "now";
+              session.royalStateView = validOptimizedRecommendation() ? "optimized" : "current";
+              clearOutpostPointPlan();
+            } else {
+              session.royalStateView = "current";
+              session.layoutError = event.data.error || "Layout analysis failed.";
+            }
+            session.layoutRunning = false;
+            session.layoutProgress = null;
+            session.layoutWorker = null;
+            worker.terminate();
+            render();
+          };
+          worker.onerror = (event) => {
+            if (requestId !== session.layoutRequestId) return;
+            session.layoutRunning = false;
+            session.layoutProgress = null;
+            session.layoutWorker = null;
+            session.layoutError = event.message || "Layout worker failed.";
+            session.royalStateView = "current";
+            worker.terminate();
+            render();
+          };
+          worker.postMessage({ type: "run", operation: "layout", requestId, saveData, goal: session.layoutGoal, options: layoutOptions(saveData) });
+        });
+        document.querySelector("#cancel-layout")?.addEventListener("click", () => { invalidateOptimizedState(); render(); });
+        document.querySelector("#run-shelf")?.addEventListener("click", () => {
+          stopShelfWorker();
+          clearShelfResult();
+          const requestId = session.shelfRequestId;
+          session.shelfRunning = true;
+          render();
+          const worker = new Worker("./js/workers/royal-planner-worker.js", { type: "module" });
+          session.shelfWorker = worker;
+          worker.onmessage = (event) => {
+            if (event.data?.requestId !== session.shelfRequestId) return;
+            if (event.data.type === "progress") {
+              session.shelfProgress = event.data.progress;
+              render();
+              return;
+            }
+            if (event.data.type === "done") session.shelfResult = structuredClone(event.data.result);
+            else session.shelfError = event.data.error || "Shelf analysis failed.";
+            session.shelfRunning = false;
+            session.shelfProgress = null;
+            session.shelfWorker = null;
+            worker.terminate();
+            render();
+          };
+          worker.onerror = (event) => {
+            if (requestId !== session.shelfRequestId) return;
+            session.shelfRunning = false;
+            session.shelfProgress = null;
+            session.shelfWorker = null;
+            session.shelfError = event.message || "Shelf planner worker failed.";
+            worker.terminate();
+            render();
+          };
+          worker.postMessage({ type: "run", operation: session.layoutGoal, requestId, saveData, intervals: session.lowAttentionIntervals, subgoal: session.optimizerSubgoal, options: { operationCap: 10000, maxEvents: 5000, placementCandidateCap: 24, ext: { derivedInputs: R.royalGuardianDerivedInputs(saveData) } } });
+        });
+        document.querySelector("#cancel-shelf")?.addEventListener("click", () => { stopShelfWorker(); clearShelfResult(); render(); });
+        document.querySelectorAll("[data-shelf-step]").forEach(button => button.addEventListener("click", () => {
+          selectShelfLayoutStep(n(button.dataset.shelfStep));
+          render();
+          document.querySelector("#royal-map-host")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }));
+        document.querySelectorAll("[data-shelf-nav]").forEach(button => button.addEventListener("click", () => {
+          const indices = shelfLayoutStepIndices(), position = indices.indexOf(session.shelfStepIndex), target = indices[position + n(button.dataset.shelfNav)];
+          if (target === undefined || !selectShelfLayoutStep(target)) return;
+          render();
+        }));
+        document.querySelector("[data-go-shelf-step]")?.addEventListener("click", () => {
+          const targetId = `#shelf-layout-step-${session.shelfStepIndex}`;
+          session.tab = "optimizer";
+          render();
+          requestAnimationFrame(() => {
+            const target = document.querySelector(targetId);
+            target?.scrollIntoView({ behavior: "smooth", block: "start" });
+            target?.focus({ preventScroll: true });
+          });
+        });
+        document.querySelectorAll("[data-map-state]").forEach(button => button.addEventListener("click", () => { session.royalStateView = button.dataset.mapState; if (session.royalStateView === "shelf-step" ? !selectedShelfLayoutStep() : session.royalStateView !== "current" && !validOptimizedRecommendation()) session.royalStateView = "current"; clearOutpostPointPlan(); render(); }));
+        document.querySelectorAll("[data-layout-result-view]").forEach(button => button.addEventListener("click", () => { session.layoutResultView = button.dataset.layoutResultView; if (session.layoutResultView === "post-reset" && !session.layoutResult?.postReset?.recommendation) session.layoutResultView = "now"; render(); }));
         document.querySelectorAll("[data-world]").forEach(
           (x) =>
             (x.onclick = () => {
               session.worldIdx = n(x.dataset.world);
-              if (!R.worldOutpostRows(saveData, session.worldIdx).some(y => y.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
+              clearOutpostPointPlan();
+              if (!R.worldOutpostRows(activeRoyalState(), session.worldIdx).some(y => y.mapIdx === session.selectedOutpost)) session.selectedOutpost = null;
               if (session.selectedResource !== null && R.resourceWorld(session.selectedResource) !== session.worldIdx) session.selectedResource = null;
               if ((session.mapSelectionKind === "outpost" && session.selectedOutpost === null) || (session.mapSelectionKind === "resource" && session.selectedResource === null)) session.mapSelectionKind = null;
               session.tab = "outposts";
@@ -1830,7 +2395,7 @@
             render();
           });
         document.querySelectorAll("[data-outpost-select]").forEach(x => {
-          const select = () => { session.selectedOutpost = n(x.dataset.outpostSelect); session.mapSelectionKind = "outpost"; session.tab = "outposts"; render(); };
+          const select = () => { session.selectedOutpost = n(x.dataset.outpostSelect); clearOutpostPointPlan(); session.mapSelectionKind = "outpost"; session.tab = "outposts"; render(); };
           x.onclick = select;
           x.onkeydown = e => {
             if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); return; }
@@ -1841,6 +2406,7 @@
             if (next < 0) return;
             const target = n(options[next].dataset.outpostSelect);
             session.selectedOutpost = target;
+            clearOutpostPointPlan();
             session.mapSelectionKind = "outpost";
             session.tab = "outposts";
             render();
@@ -1865,14 +2431,19 @@
           render();
         });
         document.querySelectorAll("[data-map-outpost]").forEach(x => {
-          const select = () => { session.selectedOutpost = n(x.dataset.mapOutpost); session.mapSelectionKind = "outpost"; session.outpostFilter = "all"; session.tab = "outposts"; render(); };
+          const select = () => { session.selectedOutpost = n(x.dataset.mapOutpost); clearOutpostPointPlan(); session.mapSelectionKind = "outpost"; session.outpostFilter = "all"; session.tab = "outposts"; render(); };
           x.onclick = select;
           x.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } };
         });
-        document.querySelector("[data-toggle-assignments]")?.addEventListener("click", e => {
-          session.assignmentIconsVisible = !session.assignmentIconsVisible;
+        document.querySelectorAll("[data-map-overlay]").forEach(button => button.addEventListener("click", () => {
+          session.mapOverlayMode = button.dataset.mapOverlay;
           render();
-        });
+        }));
+        document.querySelectorAll("[data-assignment-layer]").forEach(button => button.addEventListener("click", () => {
+          const layer = button.dataset.assignmentLayer;
+          session.assignmentLayers[layer] = !session.assignmentLayers[layer];
+          render();
+        }));
         document.querySelector("[data-toggle-range-finder]")?.addEventListener("click", () => {
           session.rangeFinderMode = !session.rangeFinderMode;
           royalQuickTooltip.classList.remove("open");
@@ -1884,12 +2455,12 @@
         });
         document.querySelectorAll("[data-toggle-spoilers]").forEach(toggle => toggle.addEventListener("click", () => {
           session.spoilersVisible = !session.spoilersVisible;
-          if (!session.spoilersVisible && !R.royalWorldUnlocked(saveData, session.worldIdx)) session.worldIdx = visibleWorlds(saveData)[0] ?? 0;
+          if (!session.spoilersVisible && !R.royalWorldUnlocked(activeRoyalState(), session.worldIdx)) session.worldIdx = visibleWorlds(activeRoyalState())[0] ?? 0;
           render();
         }));
         document.querySelector("#currency-selector")?.addEventListener("change", e => {
           session.currencyTarget = n(e.target.value);
-          const first = currencyDetails(saveData, session.currencyTarget).nodes?.[0];
+          const first = currencyDetails(activeRoyalState(), session.currencyTarget).nodes?.[0];
           if (first) { session.selectedResource = first.resourceIdx; session.mapSelectionKind = "resource"; session.worldIdx = R.resourceWorld(first.resourceIdx); }
           render();
         });
@@ -1897,6 +2468,45 @@
           session.breakdownOutpost = n(e.target.value);
           render();
         });
+        document.querySelector("#analyze-outpost-points")?.addEventListener("click", () => {
+          const S = activeRoyalState();
+          const mapIdx = session.selectedOutpost;
+          if (mapIdx === null) return;
+          clearOutpostPointPlan();
+          const requestId = session.outpostPointRequestId;
+          session.outpostPointRunning = true;
+          session.outpostPointError = "";
+          session.outpostPointPlanKey = `${mapIdx}`;
+          render();
+          const worker = new Worker("./js/workers/royal-planner-worker.js", { type: "module" });
+          session.outpostPointWorker = worker;
+          worker.onmessage = (event) => {
+            if (event.data?.requestId !== session.outpostPointRequestId) return;
+            if (event.data.type === "progress") {
+              session.outpostPointProgress = event.data.progress;
+              render();
+              return;
+            }
+            if (event.data.type === "done") session.outpostPointPlan = structuredClone(event.data.result);
+            else session.outpostPointError = event.data.error || "Point analysis failed.";
+            session.outpostPointRunning = false;
+            session.outpostPointProgress = null;
+            session.outpostPointWorker = null;
+            worker.terminate();
+            render();
+          };
+          worker.onerror = (event) => {
+            if (requestId !== session.outpostPointRequestId) return;
+            session.outpostPointRunning = false;
+            session.outpostPointProgress = null;
+            session.outpostPointWorker = null;
+            session.outpostPointError = event.message || "Point planner worker failed.";
+            worker.terminate();
+            render();
+          };
+          worker.postMessage({ type: "run", operation: "outpost-points", requestId, saveData: S, mapIdx, options: {} });
+        });
+        document.querySelector("#cancel-outpost-points")?.addEventListener("click", () => { clearOutpostPointPlan(); render(); });
         document.querySelectorAll("[data-currency-resource]").forEach(x => {
           const select = (focusOwner = false) => {
             session.selectedResource = n(x.dataset.currencyResource);
@@ -1941,6 +2551,7 @@
       initSaveLoader({
         target: "#save-area",
         onLoad: (S) => {
+          preserveOptimizerResultsOnSaveRefresh();
           const x = R.worldOutpostRows(S, 0).find(
             (q) => q.built || q.state === "in-progress",
           );

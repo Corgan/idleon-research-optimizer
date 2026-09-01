@@ -10,6 +10,7 @@
 //   initSaveLoader({
 //     target: '#save-area',
 //     onLoad(saveData) { render(); },
+//     onReady(status) { /* optional startup status */ },
 //     statusText(sd) { return 'Bubble = 42%'; },  // optional extra status
 //     auth: true,  // show Google sign-in button (optional, default false)
 //   });
@@ -58,6 +59,8 @@ function _injectCSS() {
  * @param {string}   opts.target      — CSS selector for the container to inject into.
  *                                      A sibling paste-wrap div is created after it.
  * @param {function} opts.onLoad      — callback(saveData, parsedJSON) after successful load.
+ * @param {function} [opts.onReady]   — optional callback({loaded, source, reason}) once initial
+ *                                      auth/cache discovery settles; manual loads do not retrigger it.
  * @param {function} [opts.statusText]— optional (saveData) => string for extra status info.
  * @param {boolean}  [opts.skipLoad]  — if true, don't call loadSaveData; let the page handle it.
  * @param {boolean}  [opts.auth]      — if true, show Google sign-in button (requires device-auth module).
@@ -117,9 +120,11 @@ export function initSaveLoader(opts) {
       var extra = opts.statusText ? opts.statusText(saveData) : '';
       msgEl.textContent = '\u2713 Loaded!' + (extra ? ' ' + extra : '');
       if (opts.onLoad) opts.onLoad(saveData, save);
+      return true;
     } catch (e) {
       msgEl.className = 'sl-msg err';
       msgEl.textContent = '\u2717 ' + e.message;
+      return false;
     }
   }
 
@@ -148,11 +153,20 @@ export function initSaveLoader(opts) {
     var authStatus = container.querySelector('.sl-auth-status');
 
     // Check for cached save on load
-    _checkCachedSave(authStatus, doLoad);
+    var readySignaled = false;
+    function signalReady(status) {
+      if (readySignaled) return;
+      readySignaled = true;
+      if (opts.onReady) opts.onReady(status);
+    }
+
+    _checkCachedSave(authStatus, doLoad, signalReady);
 
     googleBtn.addEventListener('click', function() {
       _handleGoogleSignIn(googleBtn, authStatus, authOverlay, msgEl, doLoad);
     });
+  } else if (opts.onReady) {
+    opts.onReady({ loaded: false, source: 'manual', reason: 'auth-disabled' });
   }
 }
 
@@ -215,7 +229,7 @@ function _stopAutoRefresh() {
   if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
 }
 
-function _checkCachedSave(authStatus, doLoad, msgEl) {
+function _checkCachedSave(authStatus, doLoad, onReady) {
   Promise.all([
     import('../auth/device-auth.js'),
     import('../auth/firestore-fetch.js')
@@ -227,7 +241,12 @@ function _checkCachedSave(authStatus, doLoad, msgEl) {
 
     if (cached) {
       // Auto-load cached save immediately — works even if session expired
-      doLoad(cached.save);
+      var loaded = doLoad(cached.save);
+      onReady({
+        loaded: loaded,
+        source: 'cache',
+        reason: loaded ? 'cached-save' : 'cache-load-failed'
+      });
       if (signedIn) {
         _renderAuthStatus(authStatus, doLoad, 'Loaded (' + _ageStr(cached.timestamp) + ')');
         _startAutoRefresh(authStatus, doLoad);
@@ -237,10 +256,13 @@ function _checkCachedSave(authStatus, doLoad, msgEl) {
       }
     } else if (signedIn) {
       // Signed in but no cache — fetch now
-      _fetchAndLoad(authStatus, doLoad);
+      return _fetchAndLoad(authStatus, doLoad).then(onReady);
+    } else {
+      onReady({ loaded: false, source: 'startup', reason: 'no-save' });
     }
   }).catch(function() {
     // Auth modules not available — silently skip
+    onReady({ loaded: false, source: 'startup', reason: 'auth-cache-check-failed' });
   });
 }
 
@@ -308,7 +330,7 @@ function _handleGoogleSignIn(googleBtn, authStatus, overlay, msgEl, doLoad) {
 }
 
 function _fetchAndLoad(authStatus, doLoad, silent) {
-  Promise.all([
+  return Promise.all([
     import('../auth/device-auth.js'),
     import('../auth/firestore-fetch.js')
   ]).then(function(modules) {
@@ -316,20 +338,29 @@ function _fetchAndLoad(authStatus, doLoad, silent) {
     var store = modules[1];
 
     if (!silent) authStatus.innerHTML = '<span style="color:var(--text2)">Refreshing\u2026</span>';
-    auth.getSession().then(function(session) {
+    return auth.getSession().then(function(session) {
       if (!session) {
         _stopAutoRefresh();
         authStatus.innerHTML = '<span style="color:var(--red)">Session expired — sign in again</span>';
-        return;
+        return { loaded: false, source: 'fetch', reason: 'no-session' };
       }
       return store.fetchSave(session.uid, session.idToken).then(function(saveObj) {
         store.cacheSave(saveObj);
         _renderAuthStatus(authStatus, doLoad, 'Refreshed');
         _startAutoRefresh(authStatus, doLoad);
-        doLoad(saveObj);
+        var loaded = doLoad(saveObj);
+        return {
+          loaded: loaded,
+          source: 'fetch',
+          reason: loaded ? 'signed-in-fetch' : 'fetch-load-failed'
+        };
       });
     }).catch(function(e) {
       authStatus.innerHTML = '<span style="color:var(--red)">\u2717 ' + e.message + '</span>';
+      return { loaded: false, source: 'fetch', reason: 'fetch-failed' };
     });
+  }).catch(function(e) {
+    authStatus.innerHTML = '<span style="color:var(--red)">\u2717 ' + e.message + '</span>';
+    return { loaded: false, source: 'fetch', reason: 'auth-module-failed' };
   });
 }

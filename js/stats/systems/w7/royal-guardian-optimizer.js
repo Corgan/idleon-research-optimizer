@@ -24,6 +24,7 @@ function _encodedEndpoint(endpoint) {
 }
 function _opts(options) { return options || {}; }
 function _finiteCap(value, fallback, maximum) { return Number.isFinite(Number(value)) ? Math.max(1, Math.min(maximum, Math.floor(Number(value)))) : fallback; }
+function _resourceCapacityAtGrade(resourceIdx, grade) { const resource = ROYAL_RESOURCES[resourceIdx]; return 5 * (resource?.baseCapacity || 0) * 1.5 ** n(grade) * 5 ** Math.floor(resourceIdx / 20); }
 function _armoryUnlocked(S, index) { return R.armoryLevel(S, index) >= 1; }
 function _explicitGate(options, key) { return options?.allowLockedSimulation === true && options?.[key] === true; }
 function _world(mapIdx) { return Math.max(0, Math.floor(n(mapIdx) / 50)); }
@@ -76,6 +77,18 @@ export function cloneRoyalState(S) {
 }
 export function royalSandbox(S) { return cloneRoyalState(S); }
 
+export function decodePackedUnitDigits(packed) {
+	return String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number);
+}
+
+export function encodePackedUnitDigits(digits) {
+	const values = Array.isArray(digits) ? digits : [];
+	return Number(Array.from({ length: 9 }, (_, slot) => {
+		const digit = n(values[slot]);
+		return Number.isInteger(digit) && digit >= 0 && digit <= 9 ? String(digit) : '0';
+	}).join(''));
+}
+
 export function encodePackedUnits(units, slotCap = 9) {
 	const values = Array.isArray(units) ? units : [];
 	const cap = Math.max(0, Math.min(9, n(slotCap)));
@@ -89,6 +102,10 @@ export function encodePackedUnits(units, slotCap = 9) {
 	}).join(''));
 }
 
+function _setProfession(row, slot, type) {
+	const digits = decodePackedUnitDigits(row[11]); digits[slot] = type + 2; row[11] = encodePackedUnitDigits(digits);
+}
+
 export function validateRoyalSandbox(S, options) {
 	const errors = [];
 	if (!R.hasCompleteRoyalData(S)) errors.push(..._royalMissing(S).map(key => `${key} unavailable`));
@@ -99,7 +116,7 @@ export function validateRoyalSandbox(S, options) {
 		const row = _row(S, mapIdx); if (!row) continue;
 		const type = R.outpostType(S, mapIdx); if (!allowedTypes.has(type)) errors.push(`map ${mapIdx}: type is locked`); typeCounts[type]++;
 		const typeLimit = options?.typeLimits?.[type]; if (typeLimit !== undefined && typeCounts[type] > n(typeLimit)) errors.push(`type ${type} count exceeds allowed limit`);
-		if (R.outpostPointsLeft(S, mapIdx) < 0) errors.push(`map ${mapIdx}: negative points`);
+		if (R.outpostPointsLeft(S, mapIdx) + n(opts._outpostPointCredit) < 0) errors.push(`map ${mapIdx}: negative points`);
 		for (const unit of R.outpostUnits(S, mapIdx)) { if (unit.slot >= _slotCap(S, mapIdx, opts)) errors.push(`map ${mapIdx}: unit slot ${unit.slot} is inactive`); assigned[unit.type]++; if (!unitTypes.has(unit.type)) errors.push(`map ${mapIdx}: unit type ${unit.type} is locked`); }
 		for (const connection of R.outpostConnections(S, mapIdx)) {
 			if (connection.kind === 'empty') continue;
@@ -121,48 +138,73 @@ export function validateRoyalSandbox(S, options) {
 		if (support > Math.min(_supportLimit(S, world * 50), n(opts.supportLimit ?? Infinity))) errors.push(`world ${world}: support count exceeds allowed limit`);
 		if (savage > Math.min(_savageLimit(S, world * 50), n(opts.savageLimit ?? Infinity))) errors.push(`world ${world}: savage count exceeds allowed limit`);
 	}
-	if (!opts.allowPoolEdit) for (let type = 0; type < assigned.length; type++) if (assigned[type] > n(pool[type])) errors.push(`unit type ${type} exceeds global pool`);
+	if (!opts.allowPoolEdit && !opts._allowProfessionChange && !opts._allowBarracksActivation) for (let type = 0; type < assigned.length; type++) if (assigned[type] > n(pool[type])) errors.push(`unit type ${type} exceeds global pool`);
 	return { valid: errors.length === 0, errors };
 }
 
 export function applyRoyalMove(S, move, options) {
-	const next = cloneRoyalState(S); const row = _row(next, move?.kind === 'unit-transfer' ? move.fromMap : move?.mapIdx); options = { ..._opts(options), _unitPool: options?._unitPool || _unitPool(S, _opts(options)) };
-	if (!row) return { ok: false, state: next, errors: [`map ${move?.kind === 'unit-transfer' ? move.fromMap : move?.mapIdx} is not built`] };
+	const pristine = cloneRoyalState(S); const next = cloneRoyalState(S); const row = _row(next, move?.kind === 'unit-transfer' ? move.fromMap : move?.mapIdx); options = { ..._opts(options), _unitPool: options?._unitPool || _unitPool(S, _opts(options)) };
+	if (!row) return { ok: false, state: pristine, errors: [`map ${move?.kind === 'unit-transfer' ? move.fromMap : move?.mapIdx} is not built`] };
 	const errors = [];
-	if (move.kind === 'type') { if (!_allowedTypes(S, _opts(options)).has(n(move.type))) errors.push('outpost type is locked'); else row[10] = n(move.type); }
+	if (move.kind === 'type') {
+		const adjacent = _adjacentType(S, move.mapIdx, move, options); const targetType = adjacent.type; const displacement = targetType === undefined ? null : _typeDisplacement(S, move.mapIdx, targetType, options);
+		if (adjacent.error) errors.push(adjacent.error);
+		else if (!_allowedTypes(S, _opts(options)).has(targetType)) errors.push('outpost type is locked');
+		else if (displacement?.error) errors.push(displacement.error);
+		else {
+			const connectionLosses = [0, 1].filter(slot => row[8 + slot] !== undefined && row[8 + slot] !== null && n(row[8 + slot]) >= 0).map(slot => ({ mapIdx: move.mapIdx, slot, endpoint: _endpoint(row[8 + slot]) }));
+			if (displacement?.mapIdx !== undefined) next.royalMapsData[displacement.mapIdx][10] = 0;
+			row[10] = targetType; row[8] = -1; row[9] = -1;
+			move = { ...move, type: targetType, ...(displacement?.mapIdx !== undefined ? { displaced: { mapIdx: displacement.mapIdx, type: targetType }, displacedMapIdx: displacement.mapIdx, displacedType: targetType } : {}), clearedConnections: connectionLosses.map(loss => loss.slot), connectionLosses, connectionLoss: connectionLosses.length > 0 };
+		}
+	}
 	else if (move.kind === 'connection') {
-		if (![0, 1].includes(n(move.slot))) errors.push('endpoint slot must be 0 or 1');
+		if (n(move.slot) !== 0) errors.push('new connections may only target endpoint slot 0');
 		else {
 			const endpoint = _endpoint(move.endpoint);
 			if (endpoint.kind === 'resource') { const reason = _resourceEndpointIssue(next, move.mapIdx, endpoint, options); if (reason) errors.push(`map ${move.mapIdx}: ${reason}`); }
-			row[8 + n(move.slot)] = _encodedEndpoint(endpoint);
+			else if (endpoint.kind === 'map') { const reason = _mapEndpointIssue(next, move.mapIdx, endpoint, options); if (reason) errors.push(`map ${move.mapIdx}: ${reason}`); }
+			if (!errors.length) row[8] = _encodedEndpoint(endpoint);
 		}
 	}
+	else if (move.kind === 'profession') {
+		const slot = n(move.slot); const cap = _slotCap(next, move.mapIdx, options); const digits = decodePackedUnitDigits(row[11]);
+		const currentRaw = digits[slot]; const unlocked = _unitTypes(next, options); let type = move.type === undefined ? undefined : n(move.type);
+		if (!Number.isInteger(slot) || slot < 0 || slot >= cap) errors.push('profession slot is inactive');
+		else if (currentRaw < 2 || currentRaw > 5) errors.push('profession slot is unoccupied');
+		else if (type === undefined && move.cycle !== false) type = unlocked[(unlocked.indexOf(currentRaw - 2) + 1) % unlocked.length];
+		if (type === undefined || !unlocked.includes(type)) errors.push('profession is locked');
+		else _setProfession(row, slot, type);
+	}
 	else if (move.kind === 'unit-transfer') {
-		const fromRow = _row(next, move.fromMap); const toRow = _row(next, move.toMap); const fromCap = _slotCap(next, move.fromMap, options); const toCap = _slotCap(next, move.toMap, options);
-		const fromUnit = R.outpostUnits(next, move.fromMap).find(unit => unit.slot === n(move.fromSlot)); const toUnit = R.outpostUnits(next, move.toMap).find(unit => unit.slot === n(move.toSlot));
-		if (!fromRow || !toRow) errors.push('unit transfer endpoint is not built');
-		else if (n(move.fromSlot) >= fromCap || n(move.toSlot) >= toCap) errors.push('unit transfer slot is inactive');
-		else if (!fromUnit || toUnit) errors.push('unit transfer requires an occupied source and empty target');
-		else if (!_unitTypes(next, options).includes(fromUnit.type)) errors.push('unit type is locked');
-		else {
-			const fromUnits = R.outpostUnits(next, move.fromMap).map(unit => ({ ...unit }));
-			const toUnits = R.outpostUnits(next, move.toMap).map(unit => ({ ...unit }));
-			fromUnits.find(unit => unit.slot === n(move.fromSlot)).type = -1;
-			toUnits.push({ slot: n(move.toSlot), type: fromUnit.type });
-			fromRow[11] = encodePackedUnits(fromUnits, 9); toRow[11] = encodePackedUnits(toUnits, 9);
-		}
+		errors.push('unit transfers are unsupported; units are stationary per outpost');
 	}
 	else if (move.kind === 'units') {
 		row[11] = encodePackedUnits(move.units, move.slotCap === undefined ? 9 : move.slotCap);
 		if (!options.allowPoolEdit && !_sameUnitCounts(_assignedUnits(S), _assignedUnits(next))) errors.push('units move must preserve the global unit pool');
 	}
+	else if (move.kind === 'outpost-upgrade') {
+		const kind = n(move.upgrade ?? move.level); const costs = [12, 2, 1];
+		const availablePoints = R.outpostPointsLeft(S, move.mapIdx) + n(options?._outpostPointCredit);
+		if (![0, 1, 2].includes(kind)) errors.push('outpost upgrade kind must be 0, 1, or 2');
+		else if (!_outpostUpgradeGate(S) && !_explicitGate(options, 'outpostUpgrade')) errors.push('outpost upgrade tool is locked');
+		else if (kind === 2 && !_armoryUnlocked(S, 57) && !_explicitGate(options, 'thirdOutpostUpgrade')) errors.push('third outpost upgrade is locked');
+		else if (availablePoints < costs[kind]) errors.push('not enough outpost points');
+		else {
+			const previousLevel = n(row[kind]); row[kind] = Math.floor(previousLevel) + 1;
+			if (kind === 0) {
+				const oldCap = Math.min(6, 1 + previousLevel); const newCap = Math.min(6, 1 + row[0]);
+				if (newCap > oldCap) { const digits = decodePackedUnitDigits(row[11]); if (digits[oldCap] === 1) { digits[oldCap] = 2; row[11] = encodePackedUnitDigits(digits); } }
+			}
+		}
+	}
 	else if (move.kind === 'levels') { const levels = move.levels || []; if (!_outpostUpgradeGate(S) && !_explicitGate(options, 'outpostUpgrade')) errors.push('outpost upgrade tool is locked'); else if (n(levels[2]) !== n(row[2]) && !_armoryUnlocked(S, 57) && !_explicitGate(options, 'thirdOutpostUpgrade')) errors.push('third outpost upgrade is locked'); else { row[0] = Math.max(0, Math.floor(n(levels[0]))); row[1] = Math.max(0, Math.floor(n(levels[1]))); row[2] = Math.max(0, Math.floor(n(levels[2]))); } }
 	else if (move.kind === 'resource') { if (!options?.simulationBudget && !options?.simulationResources) errors.push('resource changes require a simulation budget or resources'); else { if (!Array.isArray(next.royalGData[5])) next.royalGData[5] = []; next.royalGData[5][n(move.resourceIdx)] = Math.max(0, n(move.grade)); } }
 	else errors.push(`unknown move kind ${move?.kind}`);
 	if (!errors.length && (move.kind === 'unit-transfer' || (move.kind === 'units' && !options.allowPoolEdit)) && !_poolAllows(next, options._unitPool)) errors.push('unit assignments exceed global pool');
-	const validation = errors.length ? { valid: false, errors } : validateRoyalSandbox(next, { ...options, _ignoreResourceGeometry: true });
-	return { ok: validation.valid, state: next, errors: validation.errors, partial: move.kind === 'units' && options.allowPoolEdit === true, executable: !(move.kind === 'units' && options.allowPoolEdit === true) };
+	const validation = errors.length ? { valid: false, errors } : validateRoyalSandbox(next, { ...options, _ignoreResourceGeometry: true, _allowProfessionChange: move.kind === 'profession', _allowBarracksActivation: move.kind === 'outpost-upgrade' && n(move.upgrade ?? move.level) === 0 });
+	if (!validation.valid) return { ok: false, state: pristine, errors: validation.errors, partial: move.kind === 'units' && options.allowPoolEdit === true, executable: false };
+	return { ok: true, state: next, errors: [], partial: move.kind === 'units' && options.allowPoolEdit === true, executable: !['levels', 'unit-transfer'].includes(move.kind) && !(move.kind === 'units' && options.allowPoolEdit === true), move: move.kind === 'type' ? move : undefined };
 }
 export function diffRoyalSandbox(before, after) {
 	const moves = [];
@@ -208,6 +250,40 @@ function _resourceEndpointIssue(S, mapIdx, endpoint, ext) {
 	if (!R.resourceReachable(S, mapIdx, endpoint.id, ext)) return 'resource endpoint is out of range';
 	return undefined;
 }
+function _mapEndpointIssue(S, mapIdx, endpoint, ext) {
+	if (!_mapGate(S) && !_explicitGate(ext, 'mapConnections')) return 'map connection tool is locked';
+	if (R.outpostType(S, mapIdx) !== 1) return 'map endpoint requires a support outpost';
+	if (!R.outpostBuilt(S, endpoint.id)) return 'map endpoint is unbuilt';
+	if (R.outpostWorld(mapIdx) !== R.outpostWorld(endpoint.id)) return 'map endpoint is cross-world';
+	if (endpoint.id === mapIdx) return 'map endpoint cannot self-link';
+	if (!R.outpostReachable(S, mapIdx, endpoint.id, ext)) return 'map endpoint is out of range';
+}
+function _typeDisplacement(S, mapIdx, type, options) {
+	const configuredLimit = options?.typeLimits?.[type] ?? (type === 1 ? _supportLimit(S, mapIdx) : type === 2 ? _savageLimit(S, mapIdx) : undefined);
+	if (configuredLimit === undefined || !Number.isFinite(Number(configuredLimit))) return null;
+	const limit = Math.floor(n(configuredLimit));
+	if (limit <= 0) return { error: 'outpost type has no available capacity' };
+	const worldStart = _world(mapIdx) * 50;
+	let count = 0;
+	for (let candidate = worldStart; candidate < worldStart + 50; candidate++) {
+		if (!R.outpostBuilt(S, candidate) || R.outpostType(S, candidate) !== type) continue;
+		count++;
+		if (count >= limit) return { mapIdx: candidate, type };
+	}
+	return null;
+}
+function _adjacentType(S, mapIdx, move, options) {
+	const unlocked = [..._allowedTypes(S, options)].sort((a, b) => a - b);
+	const current = R.outpostType(S, mapIdx); const currentIndex = unlocked.indexOf(current);
+	if (currentIndex < 0) return { error: 'current outpost type is not unlocked' };
+	const direction = move?.direction === undefined ? undefined : Number(move.direction);
+	if (direction !== undefined && ![-1, 1].includes(direction)) return { error: 'outpost type direction must be -1 or 1' };
+	const target = move?.type === undefined ? undefined : Number(move.type);
+	const targetIndex = target === undefined ? currentIndex + direction : unlocked.indexOf(target);
+	if (!Number.isInteger(targetIndex) || Math.abs(targetIndex - currentIndex) !== 1) return { error: 'outpost type must change by one adjacent step' };
+	if (direction !== undefined && targetIndex !== currentIndex + direction) return { error: 'outpost type target does not match direction' };
+	return { type: unlocked[targetIndex] };
+}
 function _savedResourceEndpointIssue(S, mapIdx, endpoint) {
 	if (_validResourceTarget(endpoint.id) < 0 || !ROYAL_RESOURCES[endpoint.id]) return 'resource endpoint is invalid';
 	if (R.outpostType(S, mapIdx) === 1) return 'resource endpoint requires a collecting outpost';
@@ -217,13 +293,12 @@ export function normalizeInvalidResourceConnections(S, ext) {
 	for (let mapIdx = 0; mapIdx < (state.royalMapsData || []).length; mapIdx++) {
 		if (!R.outpostBuilt(state, mapIdx)) continue;
 		for (let slot = 0; slot < 2; slot++) {
-			const rawEndpoint = _rawResourceEndpoint(state, mapIdx, slot); if (rawEndpoint.malformed) { invalid.push({ mapIdx, slot, rawValue: rawEndpoint.rawValue, reason: 'resource endpoint value is malformed' }); state.royalMapsData[mapIdx][8 + slot] = -1; moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove malformed saved connection' }); continue; } const endpoint = rawEndpoint.endpoint;
-			if (endpoint.kind === 'map' && R.outpostType(state, mapIdx) !== 1) { const reason = 'map endpoint requires a support outpost'; invalid.push({ mapIdx, slot, targetMapIdx: endpoint.id, reason }); state.royalMapsData[mapIdx][8 + slot] = -1; moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove invalid saved connection' }); continue; }
+			const rawEndpoint = _rawResourceEndpoint(state, mapIdx, slot); if (rawEndpoint.malformed) { invalid.push({ mapIdx, slot, rawValue: rawEndpoint.rawValue, reason: 'resource endpoint value is malformed' }); if (slot === 0) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove malformed saved connection' }); continue; } const endpoint = rawEndpoint.endpoint;
+			if (endpoint.kind === 'map' && R.outpostType(state, mapIdx) !== 1) { const reason = 'map endpoint requires a support outpost'; invalid.push({ mapIdx, slot, targetMapIdx: endpoint.id, reason }); if (slot === 0) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove invalid saved connection' }); continue; }
 			if (endpoint.kind !== 'resource') continue;
 			const reason = _savedResourceEndpointIssue(state, mapIdx, endpoint); if (!reason) continue;
 			invalid.push({ mapIdx, slot, resourceIdx: endpoint.id, reason });
-			state.royalMapsData[mapIdx][8 + slot] = -1;
-			moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove invalid saved connection' });
+			if (slot === 0) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 }, reason: 'Remove invalid saved connection' });
 		}
 	}
 	return { state, moves, invalid };
@@ -306,6 +381,15 @@ export function resourceAllocationToReset(S, options) {
 function _currencyBreakdownUnavailable(currencySlot, hours, reason, available = false) {
 	return { currencySlot, valid: false, available, balance: 0, hours, projection: 'Fixed current node state; no refill or grade rollover', nominalCurrencyPerHour: 0, collectableWithinWindow: 0, activeStreams: 0, activeNodes: 0, nodes: [], invalid: [], partial: true, missing: [reason] };
 }
+function _currencyCapacityUnavailable() { return { currentFullCapacity: 0, nextResetProjectedFullCapacity: null, allNodesPlusOneCapacity: 0, capacityNodes: [] }; }
+function _currencyCapacityProjection(S, currencySlot, resetAllocation, projectionAvailable) {
+	const capacityNodes = ROYAL_RESOURCES.map((resource, resourceIdx) => ({ resource, resourceIdx })).filter(({ resource }) => resource.currencySlot === currencySlot).map(({ resourceIdx }) => {
+		const currentGrade = R.resourceGrade(S, resourceIdx); const currentCapacity = _resourceCapacityAtGrade(resourceIdx, currentGrade); const detail = resetAllocation?.details?.[resourceIdx];
+		const gradeGainAtReset = projectionAvailable ? (detail?.gradeGainAtReset || 0) : null; const projectedGradeAtReset = projectionAvailable ? (detail?.projectedGradeAtReset ?? currentGrade) : null;
+		return { resourceIdx, currentGrade, currentCapacity, projectedGradeAtReset, nextResetProjectedCapacity: projectionAvailable ? _resourceCapacityAtGrade(resourceIdx, projectedGradeAtReset) : null, allNodesPlusOneCapacity: _resourceCapacityAtGrade(resourceIdx, currentGrade + 1), gradeGainAtReset, refillBoundary: projectionAvailable ? (detail?.refillBoundary || 'none') : null, refillRequiresCollection: projectionAvailable ? !!detail?.refillRequiresCollection : false };
+	});
+	return { currentFullCapacity: capacityNodes.reduce((sum, node) => sum + node.currentCapacity, 0), nextResetProjectedFullCapacity: projectionAvailable ? capacityNodes.reduce((sum, node) => sum + node.nextResetProjectedCapacity, 0) : null, allNodesPlusOneCapacity: capacityNodes.reduce((sum, node) => sum + node.allNodesPlusOneCapacity, 0), capacityNodes };
+}
 export function currencyIncomeBreakdown(S, currencySlot, options) {
 	options = _opts(options); const hours = Math.max(0, n(options.hours ?? 24)); const ext = options.ext || {};
 	if (!Number.isInteger(currencySlot) || !validCurrencySlots().includes(currencySlot)) return _currencyBreakdownUnavailable(currencySlot, hours, 'currency slot is invalid');
@@ -333,13 +417,14 @@ export function currencyIncomeBreakdown(S, currencySlot, options) {
 }
 export function currencyIncomeToReset(S, currencySlot, options) {
 	options = _opts(options); const reset = R.royalResetTiming(S); const royalMissing = _royalMissing(S);
-	if (royalMissing.length) return { ..._currencyBreakdownUnavailable(currencySlot, null, royalMissing[0]), resetProjectionAvailable: false, reset, resetLabel: 'before reset', collectableBeforeReset: null, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null };
+	if (royalMissing.length) return { ..._currencyBreakdownUnavailable(currencySlot, null, royalMissing[0]), ..._currencyCapacityUnavailable(), resetProjectionAvailable: false, reset, resetLabel: 'before reset', collectableBeforeReset: null, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null };
 	const projectionAvailable = reset.available;
 	const breakdown = currencyIncomeBreakdown(S, currencySlot, { ...options, hours: projectionAvailable ? reset.hoursRemaining : 0 });
-	if (!breakdown.valid) return { ...breakdown, resetProjectionAvailable: false, reset, resetLabel: 'before reset', hoursToReset: projectionAvailable ? reset.hoursRemaining : null, collectableBeforeReset: null, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null };
+	if (!breakdown.valid) return { ...breakdown, ..._currencyCapacityUnavailable(), resetProjectionAvailable: false, reset, resetLabel: 'before reset', hoursToReset: projectionAvailable ? reset.hoursRemaining : null, collectableBeforeReset: null, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null };
 	const allocation = resourceAllocationToReset(S, options); const resetDetails = new Map(allocation.details.filter(detail => detail.currencySlot === currencySlot).map(detail => [detail.resourceIdx, detail]));
 	const nodes = breakdown.nodes.map(node => { const detail = resetDetails.get(node.resourceIdx); return projectionAvailable ? { ...node, collectableBeforeReset: node.collectableWithinWindow, emptiesByReset: detail?.emptiesByReset || false, initiallyDrained: detail?.initiallyDrained || false, initiallyEmpty: detail?.initiallyEmpty || false, refillsAtReset: detail?.refillsAtReset || false, refillAtReset: detail?.refillAtReset || false, refillRequiresCollection: detail?.refillRequiresCollection || false, refillBoundary: detail?.refillBoundary || 'none', gradeGainAtReset: detail?.gradeGainAtReset || 0, projectedGradeAtReset: detail?.projectedGradeAtReset ?? node.grade, resetProjectionAvailable: true } : { ...node, collectableBeforeReset: null, emptiesByReset: null, initiallyDrained: node.drained, initiallyEmpty: node.alreadyEmpty, refillsAtReset: false, refillAtReset: false, refillRequiresCollection: false, refillBoundary: null, gradeGainAtReset: null, projectedGradeAtReset: null, resetProjectionAvailable: false }; });
-	return projectionAvailable ? { ...breakdown, resetProjectionAvailable: true, reset, resetLabel: 'before reset', hoursToReset: reset.hoursRemaining, collectableBeforeReset: nodes.reduce((sum, node) => sum + node.collectableBeforeReset, 0), nodes, projectedRefillsAtReset: nodes.filter(node => node.refillsAtReset).length, projectedGradeGainsAtReset: nodes.reduce((sum, node) => sum + node.gradeGainAtReset, 0), projection: 'Projection through daily reset; projected-to-empty nodes refill only if collection commits the drained sentinel before reset; post-reset collection is not simulated' } : { ...breakdown, resetProjectionAvailable: false, partial: true, reset, resetLabel: 'before reset', hoursToReset: null, collectableBeforeReset: null, nodes, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null, missing: [...new Set([...(breakdown.missing || []), ...reset.missing])], projection: 'Reset-boundary projection unavailable; current node state preserved without reset claims' };
+	const capacity = _currencyCapacityProjection(S, currencySlot, allocation, projectionAvailable);
+	return projectionAvailable ? { ...breakdown, ...capacity, resetProjectionAvailable: true, reset, resetLabel: 'before reset', hoursToReset: reset.hoursRemaining, collectableBeforeReset: nodes.reduce((sum, node) => sum + node.collectableBeforeReset, 0), nodes, projectedRefillsAtReset: nodes.filter(node => node.refillsAtReset).length, projectedGradeGainsAtReset: nodes.reduce((sum, node) => sum + node.gradeGainAtReset, 0), projection: 'Projection through daily reset; projected-to-empty nodes refill only if collection commits the drained sentinel before reset; post-reset collection is not simulated' } : { ...breakdown, ...capacity, resetProjectionAvailable: false, partial: true, reset, resetLabel: 'before reset', hoursToReset: null, collectableBeforeReset: null, nodes, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null, missing: [...new Set([...(breakdown.missing || []), ...reset.missing])], projection: 'Reset-boundary projection unavailable; current node state preserved without reset claims' };
 }
 export function armoryTargetEta(S, target, ext, options) {
 	const targetIndex = n(target?.index ?? target); const orderIndex = ARMORY_ORDER.indexOf(targetIndex); const cost = R.armoryUpgradeCost(S, orderIndex >= 0 ? orderIndex : targetIndex, ext);
@@ -357,13 +442,24 @@ export function rankObjective(S, target, ext) {
 	const reason = selectedMissing ? `map ${targets[0].mapIdx} is not built` : unavailable ? details[0].reason : undefined;
 	return { value: details.reduce((sum, value) => sum + value.rate, 0), details, aggregate: !!normalized?.aggregate, bar: normalized?.aggregate ? undefined : targets[0]?.bar, available: !unavailable, unavailable, reason };
 }
+function _currencyPortfolioMetrics(S, ext, options) {
+	const resources = resourceIncomeByCurrency(S, ext); const activeIncome = {};
+	for (const detail of resources.details || []) if (detail.currencyRate > 0 && R.resourceRemaining(S, detail.resourceIdx) > 0) activeIncome[detail.currencySlot] = (activeIncome[detail.currencySlot] || 0) + detail.currencyRate;
+	const currencyPortfolio = options.currencyPortfolio.map(item => { const currencySlot = n(item.currencySlot ?? item.slot); const targetCost = Math.max(1e-9, n(item.targetCost ?? item.cost)); const rate = n(activeIncome[currencySlot]); const weight = Math.max(1e-9, n(item.weight) || 1); return { currencySlot, targetCost, rate, weight, normalizedRate: rate / targetCost }; });
+	return { resourcesPerHour: Object.values(activeIncome).reduce((sum, value) => sum + value, 0), resourceIncome: activeIncome, currencyPortfolio, currencyPortfolioActive: currencyPortfolio.filter(item => item.rate > 1e-9).length, currencyPortfolioScore: currencyPortfolio.reduce((sum, item) => sum + item.weight * Math.log1p(item.normalizedRate), 0), rankExpPerHour: 0, range: 0, armoryEtaHours: null, partial: !!resources.partial, missing: resources.missing || [] };
+}
 export function kingdomMetrics(S, ext, options) {
 	options = _opts(options); const resources = resourceIncomeByCurrency(S, ext); const allocation = resourceAllocationMetrics(S, { ...options, ext }); const ranks = rankObjective(S, options.rankTarget || { aggregate: true }, ext);
+	const activeCurrencyIncome = {}; for (const detail of allocation.details || []) if (detail.remaining > 0 && detail.currencyRate > 0) activeCurrencyIncome[detail.currencySlot] = (activeCurrencyIncome[detail.currencySlot] || 0) + detail.currencyRate;
+	const currencyPortfolio = (Array.isArray(options.currencyPortfolio) ? options.currencyPortfolio : []).map(item => { const currencySlot = n(item.currencySlot ?? item.slot); const targetCost = Math.max(1e-9, n(item.targetCost ?? item.cost)); const rate = n(activeCurrencyIncome[currencySlot]); const weight = Math.max(1e-9, n(item.weight) || 1); return { currencySlot, targetCost, rate, weight, normalizedRate: rate / targetCost }; });
+	const currencyPortfolioActive = currencyPortfolio.filter(item => item.rate > 1e-9).length; const currencyPortfolioScore = currencyPortfolio.reduce((sum, item) => sum + item.weight * Math.log1p(item.normalizedRate), 0);
 	const range = (S?.royalMapsData || []).reduce((sum, row, mapIdx) => sum + (R.outpostBuilt(S, mapIdx) ? R.outpostRange(S, mapIdx, ext) : 0), 0);
 	const armory = options.armoryTarget === undefined ? null : armoryTargetEta(S, options.armoryTarget, ext, options);
 	const resourceTarget = _validResourceTarget(options.resourceTarget); const currencyTarget = _validCurrencyTarget(options.currencyTarget);
 	const resetAllocation = resourceAllocationToReset(S, options); const resetCurrency = currencyTarget >= 0 ? currencyIncomeToReset(S, currencyTarget, options) : null;
-	return { available: R.hasCompleteRoyalData(S), resourcesPerHour: resources.total, resourceIncome: resources.income, rankExpPerHour: ranks.value, range, armoryEtaHours: armory?.etaHours ?? null, armory, resources, ranks, resourceAllocation: allocation, collectedWithinWindow: allocation.collectedWithinWindow, nodesEmptiedWithinWindow: allocation.nodesEmptiedWithinWindow, slowestDrainHours: allocation.slowestDrainHours, selectedResourceDrainHours: resourceTarget >= 0 ? allocation.details[resourceTarget]?.drainHours ?? null : null, selectedCurrencyPerHour: currencyTarget >= 0 ? allocation.incomeByCurrency[currencyTarget] || 0 : null, resetAllocation, resetCurrency, reset: resetAllocation.reset, collectableBeforeReset: resetAllocation.collectableBeforeReset, nodesEmptyingByReset: resetAllocation.nodesEmptyingByReset, selectedCurrencyBeforeReset: resetCurrency?.collectableBeforeReset ?? null };
+	const missing = [...new Set([...(resources.missing || []), ...(allocation.missing || []), ...(ranks.missing || []), ...(resetAllocation.missing || []), ...(resetCurrency?.missing || []), ...(armory?.missing || [])])];
+	const partial = !!(resources.partial || allocation.partial || ranks.partial || resetAllocation.partial || resetCurrency?.partial || armory?.partial || missing.length);
+	return { available: R.hasCompleteRoyalData(S), resourcesPerHour: resources.total, resourceIncome: resources.income, currencyPortfolio, currencyPortfolioActive, currencyPortfolioScore, rankExpPerHour: ranks.value, range, armoryEtaHours: armory?.etaHours ?? null, armory, resources, ranks, resourceAllocation: allocation, collectedWithinWindow: allocation.collectedWithinWindow, nodesEmptiedWithinWindow: allocation.nodesEmptiedWithinWindow, slowestDrainHours: allocation.slowestDrainHours, selectedResourceDrainHours: resourceTarget >= 0 ? allocation.details[resourceTarget]?.drainHours ?? null : null, selectedCurrencyPerHour: currencyTarget >= 0 ? allocation.incomeByCurrency[currencyTarget] || 0 : null, resetAllocation, resetCurrency, reset: resetAllocation.reset, collectableBeforeReset: resetAllocation.collectableBeforeReset, nodesEmptyingByReset: resetAllocation.nodesEmptyingByReset, selectedCurrencyBeforeReset: resetCurrency?.collectableBeforeReset ?? null, partial, missing };
 }
 
 function _candidateMoves(S, options) {
@@ -371,21 +467,42 @@ function _candidateMoves(S, options) {
 	for (const mapIdx of maps) {
 		const moves = [];
 		const row = _row(S, mapIdx); const levels = [n(row[0]), n(row[1]), n(row[2])];
-		if (_outpostUpgradeGate(S) || _explicitGate(options, 'outpostUpgrade')) for (let level = 0; level < 3; level++) for (const delta of [-1, 1]) { const next = levels.slice(); next[level] += delta; if (next[level] >= 0 && (level !== 2 || _armoryUnlocked(S, 57) || _explicitGate(options, 'thirdOutpostUpgrade'))) moves.push({ kind: 'levels', mapIdx, levels: next }); }
-		for (const type of _allowedTypes(S, options)) if (type !== R.outpostType(S, mapIdx)) moves.push({ kind: 'type', mapIdx, type });
-		for (let slot = 0; slot < 2; slot++) {
-			if ([0, 2].includes(R.outpostType(S, mapIdx)) && _resourceGate(S)) for (const resourceIdx of _resourceCandidateIndices(options, mapIdx)) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'resource', id: resourceIdx } });
-			if (R.outpostType(S, mapIdx) === 1 && _mapGate(S)) for (const targetMap of maps) if (targetMap !== mapIdx && R.outpostWorld(targetMap) === R.outpostWorld(mapIdx) && royalMapEligible(targetMap)) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'map', id: targetMap } });
-			moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 } });
-		}
+		if (_outpostUpgradeGate(S) || _explicitGate(options, 'outpostUpgrade')) for (let level = 0; level < 3; level++) if ((level !== 2 || _armoryUnlocked(S, 57) || _explicitGate(options, 'thirdOutpostUpgrade')) && R.outpostPointsLeft(S, mapIdx) >= [12, 2, 1][level]) moves.push({ kind: 'outpost-upgrade', mapIdx, upgrade: level });
+		const unlockedTypes = [..._allowedTypes(S, options)].sort((a, b) => a - b); const currentType = R.outpostType(S, mapIdx); const currentTypeIndex = unlockedTypes.indexOf(currentType);
+		for (const direction of [-1, 1]) if (currentTypeIndex >= 0 && unlockedTypes[currentTypeIndex + direction] !== undefined) moves.push({ kind: 'type', mapIdx, direction, type: unlockedTypes[currentTypeIndex + direction], clearsConnections: R.outpostConnections(S, mapIdx).some(connection => connection.kind !== 'empty') });
+		const slot = 0;
+		if ([0, 2].includes(R.outpostType(S, mapIdx)) && _resourceGate(S)) for (const resourceIdx of _resourceCandidateIndices(options, mapIdx)) if (R.resourceReachable(S, mapIdx, resourceIdx, options) && _encodedEndpoint({ kind: 'resource', id: resourceIdx }) !== n(row[8])) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'resource', id: resourceIdx } });
+		if (R.outpostType(S, mapIdx) === 1 && _mapGate(S)) for (const targetMap of maps) if (targetMap !== mapIdx && R.outpostWorld(targetMap) === R.outpostWorld(mapIdx) && royalMapEligible(targetMap) && R.outpostReachable(S, mapIdx, targetMap, options) && _encodedEndpoint({ kind: 'map', id: targetMap }) !== n(row[8])) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'map', id: targetMap } });
+		if (n(row[8]) !== -1) moves.push({ kind: 'connection', mapIdx, slot, endpoint: { kind: 'empty', id: -1 } });
 		const current = _unitsWithPositions(S, mapIdx);
-		for (const targetMap of maps) for (const target of _unitsWithPositions(S, targetMap).filter(unit => unit.slot < _slotCap(S, targetMap, options) && unit.type < 0)) for (const source of current.filter(unit => unit.slot < _slotCap(S, mapIdx, options) && unit.type >= 0)) if (targetMap !== mapIdx || target.slot !== source.slot) moves.push({ kind: 'unit-transfer', fromMap: mapIdx, fromSlot: source.slot, toMap: targetMap, toSlot: target.slot });
+		for (const unit of current.filter(unit => unit.slot < _slotCap(S, mapIdx, options) && unit.type >= 0)) for (const type of _unitTypes(S, options)) if (type !== unit.type) moves.push({ kind: 'profession', mapIdx, slot: unit.slot, type });
 		buckets.push(moves);
 	}
 	const moves = []; let added = true; for (let index = 0; added; index++) { added = false; for (const bucket of buckets) if (bucket[index]) { moves.push(bucket[index]); added = true; } }
-	return moves.slice(0, _finiteCap(options?.candidateCap, DEFAULTS.candidateCap, 5000));
+	const objective = options?.objective;
+	const filtered = objective ? moves.filter(move => _objectiveMoveAllowed(S, move, objective, options)) : moves;
+	const rawLimit = _finiteCap(options?.candidateCap, DEFAULTS.candidateCap, 5000);
+	const pool = objective ? filtered.slice(0, rawLimit) : filtered;
+	return pool.map(move => { const result = applyRoyalMove(S, move, options); if (options?._validationStats) options._validationStats.applications++; return { move, result }; }).filter(item => item.result.ok && item.result.executable).slice(0, rawLimit);
 }
-export function generateRoyalCandidates(S, options) { const opts = _opts(options); return _candidateMoves(S, opts).slice(0, _finiteCap(opts.candidateCap, DEFAULTS.candidateCap, 5000)); }
+function _objectiveMoveAllowed(S, move, objective, options) {
+	if (objective === 'rank-target' || objective === 'rank-purification') {
+		if (move.kind === 'profession') return [1, 3].includes(n(move.type));
+		if (move.kind === 'connection') return move.endpoint?.kind === 'map' || move.endpoint?.kind === 'resource';
+		return move.kind === 'type' || (move.kind === 'outpost-upgrade' && move.upgrade === 0);
+	}
+	if (['grade-gains', 'drain-then-income', 'currency', 'currency-income', 'currency-portfolio', 'currency-before-reset', 'max-income', 'resources', 'resource-income', 'collect-window', 'collect-before-reset', 'empty-by-reset', 'empty-most-window', 'no-waste'].includes(objective)) {
+		if (move.kind === 'profession') return [0, 2].includes(n(move.type));
+		if (move.kind === 'connection') return move.endpoint?.kind === 'resource';
+		return move.kind === 'type' || (move.kind === 'outpost-upgrade' && [0, 1].includes(n(move.upgrade)));
+	}
+	if (objective === 'balanced') {
+		if (move.kind === 'profession') return [0, 1, 2, 3].includes(n(move.type));
+		return move.kind === 'connection' ? move.endpoint?.kind === 'resource' : move.kind === 'type' || move.kind === 'outpost-upgrade';
+	}
+	return true;
+}
+export function generateRoyalCandidates(S, options) { const opts = _opts(options); const candidates = _candidateMoves(S, opts).slice(0, _finiteCap(opts.candidateCap, DEFAULTS.candidateCap, 5000)); return opts.returnResults === true ? candidates : candidates.map(item => item.move); }
 
 function _dominates(a, b) {
 	const aEta = a.metrics.armoryEtaHours ?? Infinity; const bEta = b.metrics.armoryEtaHours ?? Infinity;
@@ -406,6 +523,7 @@ function _compareValue(a, b) {
 function _objectiveVector(metrics, objective) {
 	if (objective === 'rank-purification') return [metrics.rankExpPerHour];
 	if (objective === 'armory-target') return [metrics.armoryEtaHours === 0 ? Infinity : -(metrics.armoryEtaHours === Infinity ? Infinity : metrics.armoryEtaHours)];
+	if (objective === 'currency-portfolio') return [metrics.currencyPortfolioActive, metrics.currencyPortfolioScore];
 	if (objective === 'balanced') return [metrics.resourcesPerHour + metrics.rankExpPerHour + metrics.range];
 	if (objective === 'collect-window') return [metrics.collectedWithinWindow];
 	if (objective === 'empty-most-window') return [metrics.nodesEmptiedWithinWindow, metrics.collectedWithinWindow, -metrics.slowestDrainHours, -metrics.resourceAllocation.drainSumHours];
@@ -422,6 +540,7 @@ function _compareObjectives(a, b, objective) {
 	return 0;
 }
 function _unavailableObjective(objective, message) { return { objective, available: false, candidates: [], best: null, error: message, metadata: { bounded: true, iterations: 0, candidatesEvaluated: 0, truncated: false, error: message } }; }
+function _optimizerMetrics(S, ext, options, objective) { return objective === 'currency-portfolio' ? _currencyPortfolioMetrics(S, ext, options) : kingdomMetrics(S, ext, options); }
 
 export function optimizeRoyalGuardian(S, objective = 'resources', options) {
 	const requestedObjective = objective; const normalizedObjective = objective === 'resource-income' ? 'resources' : objective;
@@ -429,18 +548,19 @@ export function optimizeRoyalGuardian(S, objective = 'resources', options) {
 	const royalMissing = _royalMissing(S);
 	if (royalMissing.length) return { objective, available: false, candidates: [], best: null, metadata: { bounded: true, iterations: 0, candidatesEvaluated: 0, truncated: false, approximation: 'Royal data unavailable', missing: royalMissing } };
 	if (normalizedObjective === 'armory-target' && options.armoryTarget === undefined) return _unavailableObjective(requestedObjective, 'armory-target requires options.armoryTarget');
+	if (normalizedObjective === 'currency-portfolio' && (!Array.isArray(options.currencyPortfolio) || !options.currencyPortfolio.length)) return _unavailableObjective(requestedObjective, 'currency-portfolio requires options.currencyPortfolio');
 	if (normalizedObjective === 'resource-drain' && _validResourceTarget(options.resourceTarget) < 0) return _unavailableObjective(requestedObjective, 'resource-drain requires a valid options.resourceTarget');
 	if (normalizedObjective === 'currency-income' && _validCurrencyTarget(options.currencyTarget) < 0) return _unavailableObjective(requestedObjective, 'currency-income requires a valid options.currencyTarget');
 	if (normalizedObjective === 'currency-before-reset' && _validCurrencyTarget(options.currencyTarget) < 0) return _unavailableObjective(requestedObjective, 'currency-before-reset requires a valid options.currencyTarget');
-	const initialMetrics = kingdomMetrics(S, ext, options);
+	const initialMetrics = _optimizerMetrics(S, ext, options, normalizedObjective);
 	if (['collect-before-reset', 'empty-by-reset', 'currency-before-reset'].includes(normalizedObjective) && !initialMetrics.resetAllocation.resetProjectionAvailable) return { ..._unavailableObjective(requestedObjective, 'reset timing unavailable'), metadata: { ..._unavailableObjective(requestedObjective, 'reset timing unavailable').metadata, missing: initialMetrics.resetAllocation.missing } };
 	if (normalizedObjective === 'armory-target' && !initialMetrics.armory.available) return { ..._unavailableObjective(requestedObjective, 'armory target is unavailable'), metadata: { ..._unavailableObjective(requestedObjective, 'armory target is unavailable').metadata, missing: initialMetrics.armory.missing } };
 	if (normalizedObjective === 'rank-purification' && !initialMetrics.ranks.available) return _unavailableObjective(requestedObjective, initialMetrics.ranks.reason || 'rank target is unavailable');
 	const normalized = normalizeInvalidResourceConnections(S, ext); const repairMoves = normalized.moves;
-	let beam = [{ state: normalized.state, moves: repairMoves.slice(), metrics: kingdomMetrics(normalized.state, ext, options) }]; let archive = [beam[0]]; let evaluated = 0; let truncated = false; let iterations = 0;
+	let beam = [{ state: normalized.state, moves: repairMoves.slice(), metrics: _optimizerMetrics(normalized.state, ext, options, normalizedObjective) }]; let archive = [beam[0]]; let evaluated = 0; let truncated = false; let iterations = 0;
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		iterations++;
-		const pool = []; for (const item of beam) for (const move of _candidateMoves(item.state, options)) { if (evaluated >= candidateCap) { truncated = true; break; } const result = applyRoyalMove(item.state, move, options); if (!result.ok) continue; const metrics = kingdomMetrics(result.state, ext, options); pool.push({ state: result.state, moves: item.moves.concat(move), metrics }); evaluated++; }
+		const pool = []; for (const item of beam) for (const { move, result } of _candidateMoves(item.state, options)) { if (evaluated >= candidateCap) { truncated = true; break; } if (!result.ok) continue; const metrics = _optimizerMetrics(result.state, ext, options, normalizedObjective); pool.push({ state: result.state, moves: item.moves.concat(move), metrics }); evaluated++; }
 		if (!pool.length) break; for (const item of pool) archive = _archiveAdd(archive, item, normalizedObjective); pool.sort((a, b) => _compareObjectives(b.metrics, a.metrics, normalizedObjective) || JSON.stringify(a.moves).localeCompare(JSON.stringify(b.moves))); beam = pool.slice(0, beamWidth); if (pool.length > beamWidth) truncated = true;
 		if (evaluated >= candidateCap) break;
 	}

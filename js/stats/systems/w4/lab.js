@@ -26,7 +26,7 @@ import { computeShinyBonusS } from './breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { hasBonusMajor } from '../w5/divinity.js';
 import { computeAllTalentLVz, maxTalentBonus } from '../common/talent.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonus, companionBonusForSave } from '../../data/common/companions.js';
 import { chipBonusValue } from '../../data/w4/chips.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { gridBonusPerLv } from '../../data/w7/research.js';
@@ -67,7 +67,7 @@ function _greenStackCount(saveData) {
 }
 
 function gridAllMulti(saveData) {
-  var comp55 = saveData.companionIds && saveData.companionIds.has(55) ? companionBonus(55) : 0;
+  var comp55 = companionBonusForSave(55, saveData);
   var divinityLv = Number(saveData.lv0AllData && saveData.lv0AllData[0] && saveData.lv0AllData[0][14]) || 0;
   var comp0 = saveData.companionIds && saveData.companionIds.has(0) && divinityLv >= 2 ? companionBonus(0) : 0;
   var grid173Lv = (saveData.gridLevels && saveData.gridLevels[173]) || 0;

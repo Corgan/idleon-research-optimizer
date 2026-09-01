@@ -151,7 +151,7 @@ function _kingdomSovereigntyNextUnit(S) {
 	const worlds = [1, 2, 1, 2, 1, 2, 3, 1, 2, 3, 1, 2, 3, 3, 4, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 4, 4, 4];
 	return `${['Commander', 'Knight', 'Priest'][types[level]]} for World ${worlds[level]}`;
 }
-function _outpostROGBonus(S, type) {
+export function outpostROGBonus(S, type) {
 	const selected = Math.floor(n(royalG(S, 3, 2)));
 	if (selected !== type || type < 0 || type > 3) return 1;
 	const progress = Math.max(1, TotalStatz(S)[4] - 6);
@@ -217,7 +217,7 @@ function _armoryDollarValue(S, index, value = armoryBonus(S, index)) {
 	if ([60, 61, 62, 63, 64, 65, 66, 67].includes(index)) return unitSpecEffect(S, 4);
 	if (index === 68) return _kingdomSovereigntyNextUnit(S);
 	if (index === 71) return armoryLevel(S, 71) >= 1 ? ` You now get +1 additional PTS every ${Math.max(1, 11 - armoryLevel(S, 71))} Ranks` : '';
-	if (index === 79) { const type = Math.max(0, Math.min(3, Math.floor(n(royalG(S, 3, 2))))); return `${_formatDollar(_outpostROGBonus(S, type))}x ${['Construction Build Rate', 'Research EXP Gain', 'Spelunking Stamina Regen', 'Minehead Currency Gain'][type]}`; }
+	if (index === 79) { const type = Math.max(0, Math.min(3, Math.floor(n(royalG(S, 3, 2))))); return `${_formatDollar(outpostROGBonus(S, type))}x ${['Construction Build Rate', 'Research EXP Gain', 'Spelunking Stamina Regen', 'Minehead Currency Gain'][type]}`; }
 	return null;
 }
 export function armoryDescription(S, index, value = armoryBonus(S, index)) { return _replaceMarkers(ARMORY_UPGRADES[index]?.description, value, _armoryDollarValue(S, index, value)); }
@@ -279,25 +279,26 @@ export function armoryUnlockedCount(S) {
 	const unlocked = ARMORY_UPGRADES.reduce((count, upgrade) => count + (total >= n(upgrade.researchOrder) ? 1 : 0), 0);
 	return Math.round(Math.min(unlocked, ARMORY_ORDER.length));
 }
-export function allMasterclassCostReduxPrefix(S) {
-	const threshold = n(optionsListData?.[480]);
+export function allMasterclassCostReduxPrefix(S, options = {}) {
+	const threshold = options.optionsList480 !== undefined ? n(options.optionsList480) : S?.olaData?.[480] !== undefined ? n(S.olaData[480]) : n(optionsListData?.[480]);
 	const legend = legendPTSbonus(23, S);
 	const bundle = S?.bundlesData?.bon_p ? 1 : 0;
 	return threshold < legend ? (bundle ? 0.05 : 0.2) : (bundle ? 0.25 : 1);
 }
-export function allMasterclassCostRedux(S) {
-	const prefix = allMasterclassCostReduxPrefix(S);
+export function allMasterclassCostRedux(S, options = {}) {
+	const prefix = allMasterclassCostReduxPrefix(S, options);
 	const bargain = 1 / (1 + orbletBonus(S, 7) / 100);
 	return prefix * bargain;
 }
-export function allMasterclassCostReduxDetail(S) {
-	const prefix = allMasterclassCostReduxPrefix(S); const bargain = 1 / (1 + orbletBonus(S, 7) / 100);
-	return { value: prefix * bargain, prefix, bargain, reductionPercent: (1 - prefix * bargain) * 100 };
+export function allMasterclassCostReduxDetail(S, options = {}) {
+	const purchaseCounter = options.optionsList480 !== undefined ? n(options.optionsList480) : S?.olaData?.[480] !== undefined ? n(S.olaData[480]) : n(optionsListData?.[480]);
+	const dailyPurchaseLimit = legendPTSbonus(23, S); const prefix = allMasterclassCostReduxPrefix(S, options); const bargain = 1 / (1 + orbletBonus(S, 7) / 100);
+	return { value: prefix * bargain, prefix, bargain, reductionPercent: (1 - prefix * bargain) * 100, purchaseCounter, dailyPurchaseLimit, dailyDiscountActive: purchaseCounter < dailyPurchaseLimit };
 }
-export function armoryUpgradeCost(S, orderIndex) {
+export function armoryUpgradeCost(S, orderIndex, options = {}) {
 	const index = ARMORY_ORDER[orderIndex] ?? orderIndex; const upgrade = ARMORY_UPGRADES[index];
 	if (!upgrade) return { value: Infinity, factors: [], missing: ['armory row'] };
-	const level = armoryLevel(S, index); const redux = allMasterclassCostRedux(S); const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
+	const level = armoryLevel(S, index); const redux = allMasterclassCostRedux(S, options); const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
 	if (index === 46 && level < 3) return { value: 2, factors: [{ name: 'source special case', value: 2 }], index, level, currencySlot };
 	if (index === 58 && level < 1) return { value: 3, factors: [{ name: 'source special case', value: 3 }], index, level, currencySlot };
 	const factors = [{ name: 'base', value: 25 }, { name: 'Masterclass reduction', value: redux }, { name: 'order growth', value: 1.24 ** orderIndex }, { name: 'order coefficient', value: 3 + 5 * orderIndex }, { name: 'base cost coefficient', value: upgrade.baseCost }, { name: 'level growth', value: upgrade.costGrowth ** level }];
@@ -431,7 +432,7 @@ export function TotalStatz(S) {
 }
 export const totalStatz = TotalStatz;
 export function globalResourceRateBreakdown(S, ext) {
-	ext = ext || {}; const missing = []; const derived = royalGuardianDerivedInputs(S);
+	ext = ext || {}; const missing = []; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S);
 	const valueOf = (key, fallback = 0) => { if (derived[key] !== undefined) return n(ext[key] ?? derived[key]); if (ext[key] === undefined) { missing.push(key); return fallback; } return n(ext[key]); };
 	const factors = [
 		{ name: 'companion141', value: 1 + valueOf('companion141') },
@@ -468,7 +469,7 @@ export function resourceProductionWithGrade(S, mapIdx, resourceIdx, ext) { const
 export function supportCollection(S) { return 200 * (1 + armoryBonus(S, 43) / 100); }
 export function savageCollection(S) { return 5 * (1 + armoryBonus(S, 69) / 100); }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
-export function barExpRateBase(S, bar, ext) { const derived = royalGuardianDerivedInputs(S); ext = ext || {}; let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
+export function barExpRateBase(S, bar, ext) { ext = ext || {}; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S); let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
 export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
 function _rankAssignmentCount(S, mapIdx, bar) { const assignmentType = Math.floor(n(bar)) + 3; return militiaAssignments(S).filter(assignment => assignment.type === assignmentType && assignment.mapIdx === Number(mapIdx)).length; }
 export function outpostRankContributorCount(S, mapIdx, bar) { const index = Math.floor(n(bar)); return index === 0 ? totalUnitsByType(S, mapIdx)[1] : index === 1 ? totalUnitsByType(S, mapIdx)[3] : index >= 2 && index <= 4 ? _rankAssignmentCount(S, mapIdx, index) : 0; }

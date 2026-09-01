@@ -17,11 +17,12 @@ import { cookingMealMulti } from '../systems/common/cooking.js';
 
 import { exoticBonusQTY40 } from '../systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../systems/mc/grimoire.js';
-import { legendPTSbonus } from '../systems/w7/spelunking.js';
+import { legendPTSbonus, shopUpgBonus } from '../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../systems/w7/sushi.js';
+import { outpostROGBonus } from '../systems/w7/royal-guardian.js';
 import { createDescriptor, gridBonusFinal, computeButtonBonus, computeKillroyBonus } from './helpers.js';
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
-import { companionBonus } from '../data/common/companions.js';
+import { companionBonusForSave, companionLevel2 } from '../data/common/companions.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
@@ -81,6 +82,9 @@ export default createDescriptor({
     items.push({ name: 'Coralcave Crab Card', val: Math.min(clvW7a11, 10) });
     items.push({ name: 'Seaweed Serpent Card', val: Math.min(3 * clvW7b8, 20) });
 
+    var paperHardhat = shopUpgBonus(63, saveData);
+    items.push({ name: 'Paper Hardhat', val: paperHardhat });
+
     // 6. Prehistoric Set (game caps at 50)
     var ola379 = String(saveData.olaData[379] || '');
     items.push({ name: 'Prehistoric Set', val: ola379.includes('PREHISTORIC_SET') ? Math.min(50, equipSetBonus('PREHISTORIC_SET')) : 0 });
@@ -117,7 +121,7 @@ export default createDescriptor({
     // BonusMultiCook(72): per-meal mastery bonus = 1 + CookMaster[0][72]/(CookMaster[0][72]+5)
     var masteryLv72 = Number(saveData.cookMasterData && saveData.cookMasterData[0] && saveData.cookMasterData[0][72]) || 0;
     var mealMastery = 1 + masteryLv72 / (masteryLv72 + 5);
-    var cm = cookingMealMulti(saveData);
+    var cm = cookingMealMulti(saveData, ctx.charIdx);
     var meal = mealMastery * cm.val * ribBon * mealLv * 0.01;
     items.push({ name: 'Meal (Giga Chip)', val: meal,
       children: mealLv > 0 ? [
@@ -173,7 +177,7 @@ export default createDescriptor({
       ] : null });
 
     // ABM (Grid AllBonusMulti) — applied inside every gridBonusFinal call
-    var _comp55 = saveData.companionIds.has(55) ? 15 : 0;
+    var _comp55 = companionBonusForSave(55, saveData);
     var _comp0 = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
     var _cbGA = (saveData.weeklyBossData ? cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData) : 0);
     var _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
@@ -243,12 +247,15 @@ export default createDescriptor({
     multItems.push({ name: label('Killroy', 5), val: 1 + killroy5raw / 100, fmt: 'x' });
 
     var comp52owned = saveData.companionIds.has(52);
-    var comp52val = comp52owned ? companionBonus(52) : 0;
+    var comp52val = companionBonusForSave(52, saveData);
     multItems.push({ name: label('Companion', 52, ' (1.5x)'), val: 1 + comp52val, fmt: 'x', note: comp52owned ? 'Owned' : 'Not owned' });
 
     var comp153owned = saveData.companionIds.has(153);
-    var comp153val = comp153owned ? companionBonus(153) : 0;
-    multItems.push({ name: label('Companion', 153, ' (2x)'), val: 1 + comp153val, fmt: 'x', note: comp153owned ? 'Owned' : 'Not owned' });
+    var comp153val = companionBonusForSave(153, saveData) + companionLevel2(153, saveData);
+    multItems.push({ name: label('Companion', 153, ' (2x / 3x enhanced)'), val: 1 + comp153val, fmt: 'x', note: comp153owned ? (companionLevel2(153, saveData) ? 'Enhanced' : 'Owned') : 'Not owned' });
+
+    var comp54Enhanced = companionLevel2(54, saveData);
+    multItems.push({ name: label('Companion', 54, ' (enhanced)'), val: 1 + 0.15 * comp54Enhanced, fmt: 'x', note: comp54Enhanced ? 'Enhanced' : 'Not enhanced' });
 
     var rog0val = rogBonusQTY(0, saveData.cachedUniqueSushi);
     multItems.push({ name: label('RoG', 0), val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
@@ -265,6 +272,9 @@ export default createDescriptor({
     var _fBon2_16 = Math.round(_fMb * _fLv2_16 * 1);
     if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'Level ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ', Marble Level ' + _fMlv2_16 : '') });
 
+    var royalResearch = outpostROGBonus(saveData, 1);
+    multItems.push({ name: 'Royal Guardian: Research Focus', val: Math.max(1, royalResearch), fmt: 'x', note: saveData.royalGDataAvailable === false ? 'RoyalG unavailable' : 'Research focus selection' });
+
     // ---- Build result ----
     var additiveItems = [];
     for (var i = 0; i < items.length; i++) {
@@ -275,6 +285,7 @@ export default createDescriptor({
     var fullMultiplier = (1 + totalAdd / 100) * trueMultiplier;
     var missingMetadata = [];
     if (saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
+    if (saveData.royalGDataAvailable === false) missingMetadata.push('RoyalG');
 
     return {
       val: fullMultiplier,

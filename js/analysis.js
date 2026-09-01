@@ -186,15 +186,17 @@ export async function computeObsUnlockPriority(onProgress, state, saveCtx) {
   const maxRoll = Math.floor(100 + sharpEyeLv + ((saveCtx.rog && saveCtx.rog[30]) || 0));
   const smartEyePerFail = smartEyeLv, smartEyeCap = 25*smartEyeLv;
   const rollsPerDay = Math.round(3 + obsLv + 3*(saveCtx.evShop[35]||0) + ((saveCtx.rog && saveCtx.rog[2]) || 0));
+  const rollsRemaining = Math.max(0, Math.floor(Number(saveCtx.observationRollsRemaining) || 0));
   const results = [], undiscovered = [];
-  for (let t=0;t<OCC_DATA.length;t++) if ((occ[t]||0)<1) undiscovered.push(t);
+  const occurrencesAvailable = computeOccurrencesToBeFound(rLv, occ);
+  for (let t=0;t<occurrencesAvailable;t++) if ((occ[t]||0)<1) undiscovered.push(t);
   const totalUndiscovered = undiscovered.length;
   let processed = 0;
   for (const t of undiscovered) {
     const name = OCC_DATA[t].name.replace(/_/g,' ');
     const rollThreshold = OCC_DATA[t].rollReq, requiredRLv = OCC_DATA[t].roll;
     let pFailAll = 1, simFails = failedRolls;
-    for (let r=0;r<rollsPerDay;r++) {
+    for (let r=0;r<rollsRemaining;r++) {
       const minRoll = Math.floor(1 + Math.min(simFails*smartEyePerFail, smartEyeCap));
       const range = maxRoll - minRoll + 1;
       if (range <= 0) { pFailAll=0; break; }
@@ -233,12 +235,12 @@ export async function computeObsUnlockPriority(onProgress, state, saveCtx) {
     const expGain = canUseNow ? newRate - currentTotal : 0;
     const score = expectedDays > 0 && isFinite(expectedDays) ? expGain / expectedDays : 0;
     results.push({ idx:t, name, rollThreshold, requiredRLv, canUseNow,
-      maxRoll, rollsPerDay, failedRolls,
+      maxRoll, rollsPerDay, rollsRemaining, failedRolls,
       pUnlockToday, expectedDays, expGain, newRate, score });
     processed++;
     if (onProgress) onProgress(processed, totalUndiscovered);
   }
   results.sort((a,b)=>{ if (a.canUseNow!==b.canUseNow) return a.canUseNow?-1:1; return b.score-a.score; });
-  return { results, currentTotal, maxRoll, rollsPerDay, failedRolls, smartEyeLv, smartEyeCap };
+  return { results, currentTotal, maxRoll, rollsPerDay, rollsRemaining, failedRolls, smartEyeLv, smartEyeCap };
 }
 

@@ -4,7 +4,7 @@
 import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { arcadeShopParams } from '../../data/w2/arcade.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 
 export function arcadeBonus(idx, saveData) {
   var params = arcadeShopParams(idx);
@@ -14,7 +14,7 @@ export function arcadeBonus(idx, saveData) {
   var type = params[0], base = params[1], denom = params[2];
   var raw = type === 'add' ? (denom !== 0 ? ((base + denom) / denom + 0.5 * (lv - 1)) / (base / denom) * lv * base : base * lv) : base * lv / (lv + denom);
   var maxedM = lv === 101 ? 2 : 1;
-  var comp27M = (saveData.companionIds && saveData.companionIds.has(27)) ? 2 : 1;
+  var comp27M = companionBonusForSave(27, saveData) === 1 ? 2 : 1;
   var val = maxedM * comp27M * raw;
   return treeResult(val, [
     { name: 'Raw (lv=' + lv + ')', val: raw, fmt: 'raw' },
@@ -33,7 +33,7 @@ export var arcade = {
     var result = arcadeBonus(id, saveData);
     var val = Number(result) || 0;
     var maxedM = lv === 101 ? 2 : 1;
-    var comp27M = (saveData.companionIds && saveData.companionIds.has(27)) ? 2 : 1;
+    var comp27M = companionBonusForSave(27, saveData) === 1 ? 2 : 1;
     return node(label('Arcade', id), val, [
       node('Level', lv, null, { fmt: 'raw' }),
       node('Raw Value', val / maxedM / comp27M, null, { fmt: 'raw' }),

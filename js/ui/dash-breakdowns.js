@@ -24,7 +24,7 @@ import { cookingMealMulti } from '../stats/systems/common/cooking.js';
 import { computeSummWinBonus } from '../stats/systems/w6/summoning.js';
 import { exoticBonusQTY40 } from '../stats/systems/w6/farming.js';
 import { grimoireUpgBonus22 } from '../stats/systems/mc/grimoire.js';
-import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
+import { legendPTSbonus, shopUpgBonus } from '../stats/systems/w7/spelunking.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import { buildTree } from '../stats/tree-builder.js';
@@ -33,6 +33,8 @@ import { fmtExact, fmtVal } from '../renderers/format.js';
 import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { computeButtonBonus, computeKillroyBonus } from '../stats/defs/helpers.js';
 import { label } from '../stats/entity-names.js';
+import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
+import { outpostROGBonus } from '../stats/systems/w7/royal-guardian.js';
 
 // ===== Tree node helpers =====
 // _bNode imported from stats/node-helpers.js
@@ -64,7 +66,8 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
     { idx: 50, name: 'Pts Every Ten' },
     { idx: 90, name: 'Observationalistic' },
     { idx: 110, name: 'All Night Studying' },
-    { idx: 31, name: 'Smart Eye' }
+    { idx: 31, name: 'Smart Eye' },
+    { idx: 51, name: 'Sharp Eye' }
   ];
   for (const sq of gridExpSquares) {
     addChildren.push(_gbNode(sq.idx, 'Grid ' + gridCoord(sq.idx) + ': ' + sq.name, { fmt: '%' }));
@@ -129,9 +132,13 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const clvW7b1 = computeCardLv('w7b1', saveData);
   const clvW7b4 = computeCardLv('w7b4', saveData);
   const clvW7a11 = computeCardLv('w7a11', saveData);
+  const clvW7b8 = computeCardLv('w7b8', saveData);
   addChildren.push(_bNode(label('Card', 'w7b1'), Math.min(clvW7b1, 10), null, { fmt: '%' }));
-  addChildren.push(_bNode(label('Card', 'w7b4'), Math.min(2 * clvW7b4, 10), null, { fmt: '%' }));
+  addChildren.push(_bNode(label('Card', 'w7b4'), Math.min(2 * clvW7b4, 15), null, { fmt: '%' }));
   addChildren.push(_bNode(label('Card', 'w7a11'), Math.min(clvW7a11, 10), null, { fmt: '%' }));
+  addChildren.push(_bNode(label('Card', 'w7b8'), Math.min(3 * clvW7b8, 20), null, { fmt: '%' }));
+
+  addChildren.push(_bNode('Paper Hardhat', shopUpgBonus(63, saveData), null, { fmt: '%' }));
 
   // Prehistoric Set
   const _prehistoricSet = String(saveData.olaData[379] || '').includes('PREHISTORIC_SET') ? 50 : 0;
@@ -164,6 +171,8 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const ribT = saveData.ribbonData[100] || 0;
   const ribBon = dSaveCtx.ribbon100;
   const cm = cookingMealMulti(saveData);
+  const masteryLv72 = Number(saveData.cookMasterData?.[0]?.[72]) || 0;
+  const mealMastery = 1 + masteryLv72 / (masteryLv72 + 5);
 
   // WinBonus(26) decomposition
   const swb = computeSummWinBonus(saveData);
@@ -192,14 +201,14 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
       _bNode(label('Emperor', 8), empBon8, null, { fmt: '%' }),
       _bNode(label('Smithing', 'GODSHARD_SET'), godshardSet, null, { fmt: '%' })
     ], { fmt: 'x' })
-  ], { fmt: 'x' });
+  ], { fmt: 'x', note: 'Active-character GODSHARD set contribution is unavailable in exported Research save data.' });
 
   const hasEmpSet = String(saveData.olaData[379] || '').includes('EMPEROR_SET');
   const empTermVal = hasEmpSet ? Math.floor(ribT / 4) * (EMPEROR_SET_BONUS_VAL / 4) : 0;
 
   const ribBase = ribT > 0 ? Math.floor(5 * ribT + Math.floor(ribT / 2) * (4 + 6.5 * Math.floor(ribT / 5))) : 0;
 
-  addChildren.push(_bNode(label('Meal', 72), ribBon * mealLv * 0.01 * cm.val, [
+  addChildren.push(_bNode(label('Meal', 72), mealMastery * ribBon * mealLv * 0.01 * cm.val, [
     _bNode('Meal Value', 0.01 * mealLv, [
       _bNode('Base', 0.01, null, { fmt: '%' }),
       _bNode('Levels', mealLv, null, { fmt: 'x' })
@@ -208,6 +217,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
       _bNode('Ribbon Base (T' + ribT + ')', ribBase, null, { fmt: '%', note: 'floor(5T + floor(T/2) x (4 + 6.5 x floor(T/5)))' }),
       _bNode('Emperor Set', empTermVal, null, { fmt: '%' })
     ], { fmt: 'x' }),
+    _bNode('Meal Mastery', mealMastery, null, { fmt: 'x', note: 'Level ' + masteryLv72 }),
     _bNode('Meal Multi', cm.val, [
       _bNode('Cooking Multi', 1 + (cm.mfb116 + cm.shinyS20) / 100, [
         _bNode(label('Mainframe', 116), cm.mfb116, null, { fmt: '%' }),
@@ -286,10 +296,10 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   // ---- Multiplicative ----
   const takinNotesVal = getGridBonusFinal(70);
 
-  const comp52val = saveData.companionIds.has(52) ? 0.5 : 0;
+  const comp52val = companionBonusForSave(52, saveData);
   const jellyNode = _bNode(label('Companion', 52), 1 + comp52val, null, { fmt: 'x', note: comp52val > 0 ? 'Owned' : 'Not owned' });
 
-  const comp153val = saveData.companionIds.has(153) ? 1 : 0;
+  const comp153val = companionBonusForSave(153, saveData) + companionLevel2(153, saveData);
   const nightmareNode = _bNode(label('Companion', 153), 1 + comp153val, null, { fmt: 'x', note: comp153val > 0 ? 'Owned' : 'Not owned' });
 
   const rog0val = saveData.cachedUniqueSushi > 0 ? 1 : 0;
@@ -305,8 +315,15 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const dream14val = dCtx.dream14 || 0;
   const nonstopNode = _bNode(label('Dream', 14), 1 + 3 * dream14val / 100, null, { fmt: 'x', note: dream14val > 0 ? 'LV ' + dream14val : 'Not unlocked' });
 
+  const comp54Level2 = companionLevel2(54, saveData);
+  const comp54Node = _bNode(label('Companion', 54, ' enhanced'), 1 + 0.15 * comp54Level2, null, { fmt: 'x', note: comp54Level2 ? 'Enhanced' : 'Not enhanced' });
+  const cglunkoNode = _bNode('Cglunko: Glunko Research', 1 + (dCtx.cglunko11 || 0) / 100, null, { fmt: 'x' });
+  const fountainNode = _bNode('Fountain: Pen N Paper', 1 + (dCtx.fountain2_16 || 0) / 100, null, { fmt: 'x' });
+  const royalResearch = Math.max(1, outpostROGBonus(saveData, 1));
+  const royalNode = _bNode('Royal Guardian: Research Focus', royalResearch, null, { fmt: 'x', note: saveData.royalGDataAvailable === false ? 'RoyalG unavailable' : '' });
+
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * (1 + 3 * dream14val / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100);
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * (1 + 3 * dream14val / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.15 * comp54Level2)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * royalResearch;
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -319,9 +336,13 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   rootChildren.push(nonstopNode);
   rootChildren.push(jellyNode);
   rootChildren.push(nightmareNode);
+  rootChildren.push(comp54Node);
   rootChildren.push(rog0Node);
   rootChildren.push(buttonNode);
   rootChildren.push(killroyNode);
+  rootChildren.push(cglunkoNode);
+  rootChildren.push(fountainNode);
+  rootChildren.push(royalNode);
   rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
 
   return _bNode('Total EXP/hr', rate.total, rootChildren, { fmt: '/hr' });

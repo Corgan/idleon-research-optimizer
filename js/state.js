@@ -21,6 +21,7 @@ export const saveData = {
   magData: [],
   shapePositions: [],
   stateR7: new Array(20).fill(0),
+  stateR7Available: false,
   mineheadUpgLevels: [],
   researchLevel: 0,
   magMaxPerSlot: 1,
@@ -73,11 +74,14 @@ export const saveData = {
   labJewelConnected: [],
   labMainBonusFull: [],
   companionIds: new Set(),
+  enhancedCompanionIds: new Set(),
   companionDataAvailable: false,
   extBonusOverrides: {},
   serverVarResXP: 1.01,
   serverVarMineHP: 1,
   serverVarMineCost: 1,
+  serverVarDivCostAfter3: 0,
+  serverVarDivCostAfter3Available: false,
   activeVoteIdx: -1,
   activeVoteDataAvailable: false,
   timeAwayData: {},
@@ -93,10 +97,11 @@ export const saveData = {
   cachedExtPctExSticker: 0,
   cachedButtonBonus0: 0,
   cachedBtnBaseNoGrid: 0,
-  cachedKillroy5: 0,
+  cachedKillroy5: 1,
   cachedDream14: 0,
   cachedCglunko11: 0,
   cachedFountain2_16: 0,
+  cachedRoyalResearch: 1,
   guildData: [],
   cyTalentPointsData: [],
   prayOwnedData: [],
@@ -155,6 +160,8 @@ export function assignState(u) {
   for (const k in u) {
     if (k === 'companionIds') {
       saveData.companionIds = u.companionIds instanceof Set ? u.companionIds : new Set(u.companionIds || []);
+    } else if (k === 'enhancedCompanionIds') {
+      saveData.enhancedCompanionIds = u.enhancedCompanionIds instanceof Set ? u.enhancedCompanionIds : new Set(u.enhancedCompanionIds || []);
     } else if (k === 'shapeTiers') {
       saveData.shapeTiers.above = u.shapeTiers.above || [];
       saveData.shapeTiers.below = u.shapeTiers.below || [];
@@ -172,6 +179,7 @@ export function snapshotState() {
   for (const k of _SIM_CLONE_KEYS) snap[k] = saveData[k].slice();
   snap.magData = saveData.magData.map(m => ({ x: m.x, y: m.y, slot: m.slot, type: m.type }));
   snap.companionIds = Array.from(saveData.companionIds);
+  snap.enhancedCompanionIds = Array.from(saveData.enhancedCompanionIds);
   snap.shapeTiers = { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() };
   // Rename for worker compat
   snap._covLUT = saveData._covLUTCache;
@@ -184,6 +192,8 @@ export function restoreState(s) {
   for (const k in s) {
     if (k === 'companionIds') {
       saveData.companionIds = new Set(s.companionIds || []);
+    } else if (k === 'enhancedCompanionIds') {
+      saveData.enhancedCompanionIds = new Set(s.enhancedCompanionIds || []);
     } else if (k === 'shapeTiers') {
       saveData.shapeTiers.above = s.shapeTiers.above || [];
       saveData.shapeTiers.below = [...(s.shapeTiers.below || []), ...(s.shapeTiers.disabled || [])];
@@ -197,6 +207,7 @@ export function restoreState(s) {
   }
   // Defaults for optional fields (backwards compat with older snapshots)
   if (!saveData.shapePositions) saveData.shapePositions = [];
+  if (!Object.prototype.hasOwnProperty.call(s, 'enhancedCompanionIds')) saveData.enhancedCompanionIds = new Set();
   if (!saveData.stateR7) saveData.stateR7 = new Array(20).fill(0);
   if (!saveData.olaData) saveData.olaData = [];
   if (!saveData.towerData) saveData.towerData = [];

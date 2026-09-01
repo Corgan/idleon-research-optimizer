@@ -7,7 +7,7 @@ import { MERITOC_BASE } from '../../data/w7/meritoc.js';
 import { eventShopOwned } from '../../../game-helpers.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { legendPTSbonus } from './spelunking.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 import { rogBonusQTY } from './sushi.js';
 import { klaData } from '../../../save/data.js';
 
@@ -23,12 +23,12 @@ function _meritocParts(optionIdx, saveData, charIdx) {
   if (baseVal <= 0) return { val: 0, noBase: true };
   var canVote = Number(saveData.olaData[472]) === 1;
   var clamWork3 = (Number(saveData.olaData[464]) || 0) > 3 ? 1 : 0;
-  var comp39 = (saveData.companionIds && saveData.companionIds.has(39)) ? companionBonus(39) : 0;
+  var comp39 = companionBonusForSave(39, saveData);
   var legend24 = legendPTSbonus(24, saveData);
   var arcade59 = arcadeBonus(59, saveData);
   var eventShop23 = eventShopOwned(23, saveData.cachedEventShopStr);
   var rog51 = rogBonusQTY(51, saveData.cachedUniqueSushi);
-  var comp161 = (saveData.companionIds && saveData.companionIds.has(161)) ? companionBonus(161) : 0;
+  var comp161 = companionBonusForSave(161, saveData);
   var addSum = 5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23 + rog51;
   var multi = (canVote ? 1 : 0.25) + addSum / 100;
   var val = baseVal * (1 + comp161 / 100) * multi;

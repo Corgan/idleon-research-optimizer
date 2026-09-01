@@ -49,7 +49,7 @@ export function pruneSpendable(spendable, gl, so, md, il, occ, rLv, ctx) {
     const idx = spendable[i];
     const origLv = gl[idx] || 0;
     gl[idx] = origLv + 1;
-    const trialABM = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
+    const trialABM = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0, ctx.companion55Value);
     const rate = simTotalExpWith(gl, so, md, il, occ, rLv, { ...ctx, abm: trialABM });
     gl[idx] = origLv;
     scored.push({ idx, delta: rate - baseExpHr });
@@ -88,7 +88,7 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
     for (let rank = 1; rank <= maxLv; rank++) {
       if (rank <= origLv) continue; // already at or past this rank
       gl[idx] = rank;
-      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0) };
+      const testCtx = { ...ctx, abm: calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0, ctx.companion55Value) };
 
       // Check 1: does research EXP rate change?
       const testExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, testCtx);
@@ -344,7 +344,7 @@ function _exhaustiveSpendAtLevel(s, ctx) {
   // Score each combo by simTotalExpWith (immediate EXP/hr rate)
   let bestCombo = null, bestRate = -Infinity;
   for (let ci = 0; ci < combos.length; ci++) {
-    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
+    const trialABM = calcAllBonusMultiWith(combos[ci].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0, ctx.companion55Value);
     const rate = simTotalExpWith(combos[ci].gl, so, md, il, occ, rLv, { ...ctx, abm: trialABM });
     if (rate > bestRate) { bestRate = rate; bestCombo = combos[ci]; }
   }
@@ -477,7 +477,7 @@ export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
   let scoredCombos = combos;
   if (combos.length > MAX_BEAM_COMBOS) {
     for (let pi = 0; pi < combos.length; pi++) {
-      const trialABM = calcAllBonusMultiWith(combos[pi].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
+      const trialABM = calcAllBonusMultiWith(combos[pi].gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0, ctx.companion55Value);
       combos[pi]._qr = simTotalExpWith(combos[pi].gl, so, md, il, occ, rLv, Object.assign({}, ctx, { abm: trialABM }));
     }
     combos.sort(function(a, b) { return b._qr - a._qr; });

@@ -272,7 +272,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const comp153bonus = (_saveCtx.companionHas153 ? 10 : 0) + ((_saveCtx.rog && _saveCtx.rog[3]) || 0) + ((_saveCtx.rog && _saveCtx.rog[13]) || 0) + (_saveCtx.sailingArt37 || 0);
+    const comp153bonus = (_saveCtx.companionHas153 ? 10 : 0) + (_saveCtx.companion153Level2 ? 5 : 0) + ((_saveCtx.rog && _saveCtx.rog[3]) || 0) + ((_saveCtx.rog && _saveCtx.rog[13]) || 0) + (_saveCtx.sailingArt37 || 0);
     const sq50 = _saveCtx.gridLevels[50] || 0;
     const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, comp153bonus);
     const futureEarned = target.type === 'level'
@@ -333,7 +333,7 @@ export async function runParallelOptimizer(target, progressCb, opts) {
       const _occ = _saveCtx.occFound;
       const _rLv = _saveCtx.researchLevel;
       for (var ci = 0; ci < combos.length; ci++) {
-        var trialABM = calcAllBonusMultiWith(combos[ci].gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, (_ctx.rog && _ctx.rog[53]) || 0);
+        var trialABM = calcAllBonusMultiWith(combos[ci].gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, (_ctx.rog && _ctx.rog[53]) || 0, _ctx.companion55Value);
         combos[ci]._qr = simTotalExpWith(combos[ci].gl, _so, _md, _il, _occ, _rLv, Object.assign({}, _ctx, { abm: trialABM }));
       }
       combos.sort(function(a, b) { return b._qr - a._qr; });

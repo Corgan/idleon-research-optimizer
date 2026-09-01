@@ -20,6 +20,7 @@ import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { buildRogArray } from '../stats/systems/w7/sushi.js';
 import { saveData } from '../state.js';
 import { saveGlobalTime, tournamentDay, optionsListData } from './data.js';
+import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -42,6 +43,9 @@ export function buildSaveContext() {
     companionHas54: saveData.companionIds.has(54),
     companionHas0:  saveData.companionIds.has(0),
     companionHas153: saveData.companionIds.has(153),
+    companion54Level2: companionLevel2(54, saveData),
+    companion153Level2: companionLevel2(153, saveData),
+    companion55Value: companionBonusForSave(55, saveData),
     cachedComp0DivOk: saveData.cachedComp0DivOk,
 
     // Cached scalars used by makeCtx
@@ -69,6 +73,7 @@ export function buildSaveContext() {
     dream14: saveData.cachedDream14,
     cglunko11: saveData.cachedCglunko11,
     fountain2_16: saveData.cachedFountain2_16,
+    royalResearch: saveData.cachedRoyalResearch,
 
     // Sushi RoG bonuses (full precomputed array)
     rog: buildRogArray(saveData.cachedUniqueSushi),
@@ -88,6 +93,8 @@ export function buildSaveContext() {
     magMaxPerSlot: saveData.magMaxPerSlot,
     shapePositions: saveData.shapePositions,
     cachedFailedRolls: saveData.cachedFailedRolls,
+    glimboTrades: (saveData.research?.[12] || []).reduce((sum, value) => sum + Math.round(Math.max(0, Number(value) || 0)), 0),
+    observationRollsRemaining: Number(saveData.research?.[7]?.[2]) || 0,
 
     // Shape cache (mutable - updated in-place during sim)
     shapeTiers: saveData.shapeTiers,
@@ -120,13 +127,14 @@ export function makeSimCtx(gl, sc) {
     const hasComp55 = sc.companionHas55;
     const hasComp0DivOk = sc.companionHas0 && sc.cachedComp0DivOk;
     return {
-      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll, (sc.rog && sc.rog[53]) || 0),
+      abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, sc.cbGridAll, (sc.rog && sc.rog[53]) || 0, sc.companion55Value),
       c52:            sc.comp52TrueMulti,
       stickerFixed:   sc.cachedStickerFixed,
       boonyCount:     sc.cachedBoonyCount,
       evShop37:       sc.cachedEvShop37,
       extPctExSticker:sc.cachedExtPctExSticker,
       hasComp55,
+      companion55Value: sc.companion55Value,
       hasComp0DivOk,
       hasComp54:      sc.companionHas54,
       companionHas153: sc.companionHas153,
@@ -140,10 +148,12 @@ export function makeSimCtx(gl, sc) {
       serverVarResXP: sc.serverVarResXP,
       button0:        sc.button0 || 0,
       btnBaseNoGrid:  sc.btnBaseNoGrid || 0,
-      killroy5:       sc.killroy5 || 0,
+      killroy5:       sc.killroy5 ?? 1,
       dream14:        sc.dream14 || 0,
       cglunko11:      sc.cglunko11 || 0,
       fountain2_16:   sc.fountain2_16 || 0,
+      companion54Level2: sc.companion54Level2 || 0,
+      royalResearch: sc.royalResearch || 1,
     };
   }
 
@@ -157,13 +167,14 @@ export function makeSimCtx(gl, sc) {
   const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
   const _rog = buildRogArray(saveData.cachedUniqueSushi);
   return {
-    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll, _rog[53] || 0),
+    abm: calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, _cbGridAll, _rog[53] || 0, companionBonusForSave(55, saveData)),
     c52:            saveData.comp52TrueMulti,
     stickerFixed:   saveData.cachedStickerFixed,
     boonyCount:     saveData.cachedBoonyCount,
     evShop37:       saveData.cachedEvShop37,
     extPctExSticker:saveData.cachedExtPctExSticker,
     hasComp55,
+    companion55Value: companionBonusForSave(55, saveData),
     hasComp0DivOk,
     hasComp54:      saveData.companionIds.has(54),
     companionHas153: saveData.companionIds.has(153),
@@ -178,9 +189,11 @@ export function makeSimCtx(gl, sc) {
     dream14:        saveData.cachedDream14 || 0,
     button0:        saveData.cachedButtonBonus0 || 0,
     btnBaseNoGrid:  saveData.cachedBtnBaseNoGrid || 0,
-    killroy5:       saveData.cachedKillroy5 || 0,
+    killroy5:       saveData.cachedKillroy5 ?? 1,
     cglunko11:      saveData.cachedCglunko11 || 0,
     fountain2_16:   saveData.cachedFountain2_16 || 0,
+    companion54Level2: companionLevel2(54, saveData),
+    royalResearch: saveData.cachedRoyalResearch || 1,
   };
 }
 

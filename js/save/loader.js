@@ -15,7 +15,8 @@ import { rogBonusQTY, buildRogArray, computeUniqueSushi } from '../stats/systems
 import { stickerBase } from '../stats/data/w7/research.js';
 import { computeMagnifiersOwnedWith, magMaxForLevel, gbWith } from '../sim-math.js';
 import { computeTomeScore } from '../stats/systems/w4/tome-score.js';
-import { companionBonus } from '../stats/data/common/companions.js';
+import { companionBonus, companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
+import { outpostROGBonus } from '../stats/systems/w7/royal-guardian.js';
 import resExpDesc from '../stats/defs/research-exp.js';
 import afkGainsDesc from '../stats/defs/research-afk-gains.js';
 import { buildTree } from '../stats/tree-builder.js';
@@ -54,15 +55,17 @@ export function loadSaveData(raw) {
   const save = raw.data ? raw.data : raw;
   const companionRaw = raw.companion;
 
-  const R = typeof save.Research === 'string' ? JSON.parse(save.Research) : save.Research;
+  const parsedResearch = typeof save.Research === 'string' ? JSON.parse(save.Research) : save.Research;
+  const R = Array.isArray(parsedResearch) ? parsedResearch : [];
+  const researchRows = R.map(row => Array.isArray(row) ? row : []);
   assignState({ research: R });
-  assignState({ gridLevels: R[0].slice() });
-  assignState({ shapeOverlay: R[1].slice() });
-  assignState({ occFound: R[2].slice() });
-  assignState({ insightLvs: R[4].slice() });
-  assignState({ insightProgress: R[3].slice() });
-  assignState({ stateR7: R[7].slice() });
-  assignState({ mineheadUpgLevels: R[8] ? R[8].slice() : [] });
+  assignState({ gridLevels: researchRows[0].slice() });
+  assignState({ shapeOverlay: researchRows[1].slice() });
+  assignState({ occFound: researchRows[2].slice() });
+  assignState({ insightLvs: researchRows[4].slice() });
+  assignState({ insightProgress: researchRows[3].slice() });
+  assignState({ stateR7: researchRows[7].slice(), stateR7Available: Array.isArray(R[7]) });
+  assignState({ mineheadUpgLevels: researchRows[8].slice() });
 
   // Parse additional save data
   const olaRaw = parseSaveKey(save, 'OptLacc') || [];
@@ -321,6 +324,7 @@ export function loadSaveData(raw) {
 
   // Companion ownership from it.json plus account-level Pet Bonus Tokens.
   const companionIds = new Set();
+  const enhancedCompanionIds = new Set();
   const companionListRaw = companionRaw && companionRaw.l;
   const companionList = Array.isArray(companionListRaw)
     ? companionListRaw
@@ -330,8 +334,12 @@ export function loadSaveData(raw) {
   const companionDataAvailable = Array.isArray(companionList);
   if (companionDataAvailable) {
     for (const entry of companionList) {
-      const id = parseInt(String(entry).split(',')[0]);
-      if (!isNaN(id)) companionIds.add(id);
+      const fields = String(entry).split(',');
+      const id = parseInt(fields[0]);
+      if (!isNaN(id)) {
+        companionIds.add(id);
+        if ((Number(fields[4]) || 0) >= 1) enhancedCompanionIds.add(id);
+      }
     }
   }
   const tokenStr = String(olaRaw[606] || '');
@@ -348,7 +356,7 @@ export function loadSaveData(raw) {
       }
     }
   }
-  assignState({ companionIds: companionIds, companionDataAvailable: companionDataAvailable });
+  assignState({ companionIds: companionIds, enhancedCompanionIds: enhancedCompanionIds, companionDataAvailable: companionDataAvailable });
 
   // Per-character quest completion
   const questComplete = [];
@@ -357,9 +365,13 @@ export function loadSaveData(raw) {
   }
   assignState({ questCompleteData: questComplete });
 
-  if (raw.serverVars?.A_ResXP != null) assignState({ serverVarResXP: Number(raw.serverVars.A_ResXP) || 1.01 });
-  if (raw.serverVars?.A_MineHP != null) assignState({ serverVarMineHP: Number(raw.serverVars.A_MineHP) || 1 });
-  if (raw.serverVars?.A_MineCost != null) assignState({ serverVarMineCost: Number(raw.serverVars.A_MineCost) || 1 });
+  assignState({
+    serverVarResXP: raw.serverVars?.A_ResXP != null ? Number(raw.serverVars.A_ResXP) || 1.01 : 1.01,
+    serverVarMineHP: raw.serverVars?.A_MineHP != null ? Number(raw.serverVars.A_MineHP) || 1 : 1,
+    serverVarMineCost: raw.serverVars?.A_MineCost != null ? Number(raw.serverVars.A_MineCost) || 1 : 1,
+    serverVarDivCostAfter3: raw.serverVars?.DivCostAfter3 != null ? Number(raw.serverVars.DivCostAfter3) || 0 : 0,
+    serverVarDivCostAfter3Available: raw.serverVars?.DivCostAfter3 != null && Number.isFinite(Number(raw.serverVars.DivCostAfter3)),
+  });
   const activeVoteRaw = raw.serverVars?.voteCategories?.[0];
   const activeVote = Number(activeVoteRaw);
   assignState({
@@ -419,15 +431,15 @@ export function loadSaveData(raw) {
 
   // Parse magnifiers - game iterates ALL of Research[5] without truncation
   const magArr = [];
-  for (let i = 0; i < R[5].length; i += 4) {
-    magArr.push({ x: R[5][i], y: R[5][i + 1], slot: R[5][i + 2], type: R[5][i + 3] });
+  for (let i = 0; i < researchRows[5].length; i += 4) {
+    magArr.push({ x: researchRows[5][i], y: researchRows[5][i + 1], slot: researchRows[5][i + 2], type: researchRows[5][i + 3] });
   }
   assignState({ magData: magArr });
 
   // Parse shapes (groups of 4)
   const spArr = [];
-  for (let i = 0; i < R[6].length; i += 4) {
-    spArr.push({ x: R[6][i], y: R[6][i + 1], rot: R[6][i + 2], unk: R[6][i + 3] });
+  for (let i = 0; i < researchRows[6].length; i += 4) {
+    spArr.push({ x: researchRows[6][i], y: researchRows[6][i + 1], rot: researchRows[6][i + 2], unk: researchRows[6][i + 3] });
   }
   assignState({ shapePositions: spArr });
 
@@ -451,7 +463,7 @@ export function loadSaveData(raw) {
 
 /** Recompute allBonusMulti, sticker, research-exp, comp52, AFK rate from current saveData. */
 export function recomputeDerivedBonuses() {
-  const _comp55val = saveData.companionIds.has(55) ? 15 : 0;
+  const _comp55val = companionBonusForSave(55, saveData);
   const _comp0val = saveData.companionIds.has(0) && saveData.cachedComp0DivOk && (saveData.gridLevels[173] || 0) > 0 ? 5 : 0;
   const _cbGridAll = cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData);
   const _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
@@ -496,7 +508,8 @@ export function recomputeDerivedBonuses() {
   assignState({
     externalResearchPct: _researchAdditivePct,
     cachedExtPctExSticker: _researchAdditivePct - _stickerVal - _gridAdd,
-    comp52TrueMulti: (1 + (saveData.companionIds.has(52) ? 0.5 : 0)) * (1 + (saveData.companionIds.has(153) ? 1 : 0)),
+    comp52TrueMulti: (1 + companionBonusForSave(52, saveData)) * (1 + companionBonusForSave(153, saveData) + companionLevel2(153, saveData)),
+    cachedRoyalResearch: Math.max(1, outpostROGBonus(saveData, 1)),
   });
 
   // Button_Bonuses(0): presses rotate through 9 slots, slot 0 rate = 2
@@ -504,7 +517,7 @@ export function recomputeDerivedBonuses() {
   var _btnPresses = Number(saveData.olaData[594]) || 0;
   var _btn0 = 0, _btnBase = 0;
   if (_btnPresses > 0) {
-    var _c147 = saveData.companionIds.has(147) ? companionBonus(147) : 0;
+    var _c147 = companionBonusForSave(147, saveData);
     var _g125 = gbWith(saveData.gridLevels, saveData.shapeOverlay, 125, { abm: saveData.allBonusMulti });
     var _baseMulti = 1 + _c147 / 100;
     var _btnMULTI = _baseMulti * (1 + _g125 / 100);
@@ -517,7 +530,7 @@ export function recomputeDerivedBonuses() {
   // KillroyBonuses(5): 1 + OLA[469] / (150 + OLA[469]) * 0.8
   // Game uses (1 + KB(5)/100) in ResearchEXPmulti, so we store the full KB return value
   var _ola469 = Number(saveData.olaData[469]) || 0;
-  assignState({ cachedKillroy5: _ola469 > 0 ? 1 + _ola469 / (150 + _ola469) * 0.8 : 0 });
+  assignState({ cachedKillroy5: 1 + _ola469 / (150 + _ola469) * 0.8 });
 
   // Nonstop Studies: DreamUpg[12] → Dream[14] (offset +2). Coeff = 3.
   assignState({ cachedDream14: Number(dreamData[14]) || 0 });

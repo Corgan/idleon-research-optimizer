@@ -10,6 +10,7 @@ import {
 } from '../game-data.js';
 import { cloudBonus } from '../game-helpers.js';
 import { rogBonusQTY } from './systems/w7/sushi.js';
+import { companionBonusForSave } from './data/common/companions.js';
 
 export function _bNode(label, val, children, opts) {
   return { label, val: val || 0, children: children || null, fmt: opts?.fmt || 'raw', note: opts?.note || '', tag: opts?.tag || '' };
@@ -27,7 +28,7 @@ export function _gbNode(S, idx, label, opts) {
   const shapeMult = 1 + shapePct / 100;
   const final = base * shapeMult * S.allBonusMulti;
   const coord = gridCoord(idx);
-  const comp55val = S.companionIds.has(55) ? 15 : 0;
+  const comp55val = companionBonusForSave(55, S);
   const comp0owned = S.companionIds.has(0);
   const comp0val = comp0owned && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
   const cbGA = S.weeklyBossData ? cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData) : 0;

@@ -9,3 +9,9 @@ import { CompanionDB } from '../game/customlists.js';
 //  3. Any sub-system that references it (e.g. systems/w7/meritoc.js, defs/voting-multi.js)
 //  4. entity-names.js if a display name is needed
 export function companionBonus(idx) { return Number(CompanionDB[idx]?.[2]) || 0; }
+export function companionEnhancedBonus(idx) { return Number(CompanionDB[idx]?.[11]) || 0; }
+export function companionLevel2(idx, saveData) { return saveData?.enhancedCompanionIds?.has(idx) ? 1 : 0; }
+export function companionBonusForSave(idx, saveData) {
+	if (!saveData?.companionIds?.has(idx)) return 0;
+	return companionLevel2(idx, saveData) ? companionEnhancedBonus(idx) : companionBonus(idx);
+}

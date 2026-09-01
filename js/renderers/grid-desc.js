@@ -9,7 +9,7 @@ import { gridBonusMode2 } from '../sim-math.js';
 function _gridBonusMode2(nodeIdx, curBonus, lvOverride, sc) {
   const gl31 = lvOverride != null && nodeIdx === 31 ? lvOverride : (sc.gridLevels[31] || 0);
   const ola500 = sc.optionsListData500 != null ? sc.optionsListData500 : optionsListData?.[500];
-  return gridBonusMode2(nodeIdx, curBonus, gl31, sc.insightLvs, sc.occFound, sc.cachedBoonyCount, ola500);
+  return gridBonusMode2(nodeIdx, curBonus, gl31, sc.insightLvs, sc.occFound, sc.cachedBoonyCount, ola500, sc.glimboTrades);
 }
 
 // Format description with all game placeholders resolved

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Coral God Rank Planner</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --bg2: #16213e;
+  --bg3: #0f3460;
+  --accent: #e94560;
+  --text: #eee;
+  --text2: #c0c0d4;
+  --gold: #ffd700;
+  --green: #4caf50;
+  --blue: #2196f3;
+  --purple: #bb86fc;
+  --cyan: #4dd0e1;
+  --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+h1 {
+  text-align: center;
+  padding: 12px;
+  background: var(--bg2);
+  border-bottom: 2px solid var(--accent);
+  font-size: 1.4em;
+}
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.section h2 {
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 1.15em;
+  border-bottom: 1px solid #333;
+  padding-bottom: 6px;
+}
+.section h3 {
+  margin: 12px 0 8px;
+  color: var(--cyan);
+  font-size: 1em;
+}
+.card-grid {
+  display: grid;
+  gap: 10px;
+}
+.card-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card-grid.cols-5 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.card {
+  background: var(--bg3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #444;
+}
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82em;
+}
+.data-table th {
+  text-align: left;
+  padding: 5px 6px;
+  color: var(--text2);
+  border-bottom: 1px solid #333;
+  font-weight: 600;
+  background: var(--bg2);
+}
+.data-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  vertical-align: top;
+}
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .good { color: var(--green); font-weight: 700; }
+.data-table .warn { color: var(--gold); font-weight: 700; }
+.badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: .72em;
+  font-weight: 700;
+}
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-blue { background: rgba(33,150,243,.15); color: var(--blue); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+.badge-purple { background: rgba(187,134,252,.15); color: var(--purple); }
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .8em;
+  color: var(--text2);
+}
+input, select {
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: var(--bg3);
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: .9em;
+}
+input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.table-scroll { overflow-x: auto; }
+.pill-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.pill {
+  display: inline-block;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--text2);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: .78em;
+}
+strong { color: var(--gold); }
+</style>
+</head>
+<body>
+<h1 style="display:flex;align-items:baseline;">
+  <a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a>
+  <span style="flex:1;">&#x1F420; <span>Idleon</span> Coral God Rank Planner</span>
+  <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a>
+</h1>
+
+<div id="save-area"></div>
+
+<div class="main" id="main-content">
+  <div style="color:var(--text2);text-align:center;padding:60px 0;">Checking saved login/save data...</div>
+</div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import {
+  coralKidLevel,
+  coralKidUpgradeCost,
+  coralKidUpgradeEffect,
+  coralKidMetrics,
+  coralGodRankInputs,
+  offeringCost,
+  offeringStats,
+  optimizeCoralGodRank,
+} from './js/stats/systems/w5/coral-god-rank.js';
+
+var plannerInputs = null;
+var pageSaveLoaded = false;
+
+function fmtNum(value) {
+  if (value == null || Number.isNaN(Number(value))) return '0';
+  return fmtVal(Number(value));
+}
+function fmtPct(value) {
+  return ((Number(value) || 0) * 100).toFixed(1) + '%';
+}
+function fmtChance(value) {
+  var v = Number(value) || 0;
+  if (!isFinite(v) || v <= 0) return '0%';
+  if (v >= 1) return '100%';
+  if (v >= 0.01) return (v * 100).toFixed(2) + '%';
+  return '1 in ' + fmtNum(Math.round(1 / v));
+}
+function fmtTimeHours(hours) {
+  var h = Number(hours) || 0;
+  if (h < 1) return (h * 60).toFixed(0) + 'm';
+  if (h < 24) return h.toFixed(1) + 'h';
+  return (h / 24).toFixed(1) + 'd';
+}
+function escHtml(value) {
+  return String(value).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  onLoad: function () {
+    pageSaveLoaded = true;
+    plannerInputs = null;
+    render();
+  },
+  onReady: function (status) {
+    if (status.loaded || pageSaveLoaded) return;
+    document.getElementById('main-content').innerHTML = '<div class="section"><h2>Coral God Rank Planner</h2><p style="color:var(--text2);">Load a save or sign in with Google to begin.</p></div>';
+  },
+  statusText: function () {
+    return 'Coral God Rank ready';
+  }
+});
+
+function getDefaultInputs() {
+  var base = coralGodRankInputs(saveData || {}, { assumeUnlocked: true });
+  return {
+    goal: 'balanced',
+    budget: base.budget || 0,
+    maxLevels: 25,
+    beamSize: 100,
+    godRank: base.godRank || 0,
+    y4: base.y4 == null ? 0 : base.y4,
+    divCostAfter3: base.divCostAfter3 == null ? 0 : base.divCostAfter3,
+    reefUpgradeCount: base.reefUpgradeCount || 0,
+    mineFloor: base.mineFloor == null ? 0 : base.mineFloor,
+    vault76Bonus: base.vault76Bonus == null ? 0 : base.vault76Bonus,
+    tier: base.tier || 0,
+    assumeUnlocked: true,
+    planningConfidence: 0.9,
+  };
+}
+
+function _card(title, value, subtitle) {
+  return '<div class="card"><div class="card-title">' + escHtml(title) + '</div><div class="card-val">' + escHtml(value) + '</div><div class="card-sub">' + escHtml(subtitle) + '</div></div>';
+}
+
+function _renderControls() {
+  var defaults = plannerInputs || (plannerInputs = getDefaultInputs());
+  return `
+    <div class="section">
+      <h2>Planner Controls</h2>
+      <div class="controls">
+        <label>
+          Goal
+          <select id="goal-select">
+            <option value="balanced" ${defaults.goal === 'balanced' ? 'selected' : ''}>Balanced</option>
+            <option value="divinity-points">Divinity Points</option>
+            <option value="divinity-exp">Divinity EXP</option>
+            <option value="class-exp">Class EXP</option>
+            <option value="minor-links">Minor Links</option>
+            <option value="blessing-cap">Blessing Cap</option>
+            <option value="daily-reef-coral">Daily Reef Coral</option>
+          </select>
+        </label>
+        <label>
+          Budget
+          <input id="budget-input" type="number" min="0" step="1000" value="${defaults.budget}">
+        </label>
+        <label>
+          Max levels
+          <input id="max-levels-input" type="number" min="0" step="1" value="${defaults.maxLevels}">
+        </label>
+        <label>
+          Beam size
+          <input id="beam-size-input" type="number" min="1" step="10" value="${defaults.beamSize}">
+        </label>
+        <label>
+          God rank
+          <input id="god-rank-input" type="number" min="0" step="1" value="${defaults.godRank}">
+        </label>
+        <label>
+          Y4 %
+          <input id="y4-input" type="number" min="0" step="1" value="${defaults.y4}">
+        </label>
+        <label>
+          DivCostAfter3 %
+          <input id="divcost-input" type="number" min="0" step="1" value="${defaults.divCostAfter3}">
+        </label>
+        <label>
+          Reef upgrades
+          <input id="reef-input" type="number" min="0" step="1" value="${defaults.reefUpgradeCount}">
+        </label>
+        <label>
+          Minehead floor
+          <input id="mine-floor-input" type="number" min="0" step="1" value="${defaults.mineFloor}">
+        </label>
+        <label>
+          Vault 76 bonus %
+          <input id="vault-input" type="number" min="0" step="1" value="${defaults.vault76Bonus}">
+        </label>
+        <label>
+          Offer tier
+          <input id="tier-input" type="number" min="0" max="5" step="1" value="${defaults.tier}">
+        </label>
+        <label>
+          Confidence
+          <input id="confidence-input" type="number" min="0.1" max="0.99" step="0.01" value="${defaults.planningConfidence}">
+        </label>
+        <div style="display:flex;align-items:end;justify-content:flex-start;min-height:40px">
+          <span class="inline-check"><input id="assume-unlocked" type="checkbox" ${defaults.assumeUnlocked ? 'checked' : ''}> <label for="assume-unlocked" style="display:inline">Assume unlocked</label></span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function _renderUpgradeRows(data) {
+  var rows = '';
+  for (var idx = 0; idx < 6; idx++) {
+    var level = coralKidLevel(idx, saveData || {}, { assumeUnlocked: true });
+    var cost = coralKidUpgradeCost(idx, level);
+    var effect = coralKidUpgradeEffect(idx, level);
+    rows += '<tr>'
+      + '<td>' + idx + '</td>'
+      + '<td>' + coralKidUpgradeEffect(idx, 1) + '</td>'
+      + '<td class="num">' + level + '</td>'
+      + '<td class="num">' + fmtNum(effect) + '</td>'
+      + '<td class="num">' + fmtNum(cost) + '</td>'
+      + '</tr>';
+  }
+  return rows;
+}
+
+function _renderResults() {
+  var planOptions = {
+    budget: plannerInputs.budget,
+    maxLevels: plannerInputs.maxLevels,
+    beamSize: plannerInputs.beamSize,
+    godRank: plannerInputs.godRank,
+    y4: plannerInputs.y4,
+    divCostAfter3: plannerInputs.divCostAfter3,
+    reefUpgradeCount: plannerInputs.reefUpgradeCount,
+    mineFloor: plannerInputs.mineFloor,
+    vault76Bonus: plannerInputs.vault76Bonus,
+    tier: plannerInputs.tier,
+    planningConfidence: plannerInputs.planningConfidence,
+    assumeUnlocked: plannerInputs.assumeUnlocked,
+    goal: plannerInputs.goal,
+  };
+
+  var current = coralKidMetrics(saveData || {}, {
+    levels: [0,0,0,0,0,0],
+    godRank: planOptions.godRank,
+    reefUpgradeCount: planOptions.reefUpgradeCount,
+    blessingBase: 100,
+    mineFloor: planOptions.mineFloor,
+    vault76Bonus: planOptions.vault76Bonus,
+  });
+
+  var plan = optimizeCoralGodRank(saveData || {}, planOptions.goal, planOptions);
+  var offer = offeringStats(0, saveData || {}, {
+    godRank: planOptions.godRank,
+    divCostAfter3: planOptions.divCostAfter3,
+    y4: planOptions.y4,
+    tier: planOptions.tier,
+  });
+
+  var metrics = [
+    ['Divinity Points', plan.final.divinityPoints, plan.current.divinityPoints, 'x'],
+    ['Divinity EXP', plan.final.divinityExp, plan.current.divinityExp, 'x'],
+    ['Class EXP', plan.final.classExp, plan.current.classExp, 'x'],
+    ['Minor Links', plan.final.minorLinks, plan.current.minorLinks, 'x'],
+    ['Blessing Cap', plan.final.blessingCap, plan.current.blessingCap, 'base'],
+    ['Daily Reef Coral', plan.final.dailyReefCoral, plan.current.dailyReefCoral, 'x'],
+  ];
+
+  var metricRows = metrics.map(function (entry) {
+    var label = entry[0];
+    var finalVal = entry[1];
+    var initialVal = entry[2];
+    var mode = entry[3];
+    var showFinal = mode === 'base' ? fmtNum(finalVal) : fmtPct(finalVal);
+    var showInitial = mode === 'base' ? fmtNum(initialVal) : fmtPct(initialVal);
+    var delta = mode === 'base' ? (finalVal - initialVal) : ((finalVal / initialVal) - 1);
+    return '<tr><td>' + label + '</td><td class="num">' + showInitial + '</td><td class="num good">' + showFinal + '</td><td class="num">' + (delta >= 0 ? '+' : '') + (mode === 'base' ? fmtNum(delta) : fmtPct(delta)) + '</td></tr>';
+  }).join('');
+
+  var actionsRows = (plan.actions || []).length ? (plan.actions.map(function (action) {
+    if (action.type === 'coral-kid') {
+      return '<tr><td>Coral Kid</td><td>Upgrade ' + action.index + '</td><td class="num">' + action.level + '</td><td class="num">' + fmtNum(action.cost) + '</td></tr>';
+    }
+    return '<tr><td>God offering</td><td>Rank ' + action.fromRank + ' → ' + action.toRank + '</td><td class="num">' + action.attempts + '</td><td class="num">' + fmtNum(action.maxPaidSpend) + '</td></tr>';
+  }).join('')) : '<tr><td colspan="4">No actions available for the selected budget/constraints.</td></tr>';
+
+  return `
+    <div class="section">
+      <h2>Summary</h2>
+      <div class="card-grid cols-5">
+        ${_card('Budget', fmtNum(plan.budget), 'Target spend cap')}
+        ${_card('Spent', fmtNum(plan.spent), 'Allocated by the plan')}
+        ${_card('Remaining', fmtNum(plan.remaining), 'Budget left after plan')}
+        ${_card('Best goal', plan.goal, 'Selected objective')}
+        ${_card('Confidence', (plan.metadata && plan.metadata.wholePlanConfidence != null ? fmtPct(plan.metadata.wholePlanConfidence) : 'n/a'), 'Whole-plan confidence')}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Projected coral state</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr><th>Metric</th><th>Current</th><th>Projected</th><th>Δ</th></tr>
+          </thead>
+          <tbody>${metricRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Plan actions</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Type</th><th>Target</th><th>Qty</th><th>Cost</th></tr></thead>
+          <tbody>${actionsRows}</tbody>
+        </table>
+      </div>
+      <div class="pill-group">
+        ${(plan.partial || []).length ? (plan.partial.map(function (tag) { return '<span class="pill">' + escHtml(tag) + '</span>'; }).join('')) : '<span class="pill">No missing inputs</span>'}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Offering fit</h2>
+      <div class="card-grid cols-3">
+        ${_card('Success / attempt', fmtChance(offer.totalSuccessChancePerAttempt), 'Probability of a successful offering')}
+        ${_card('Expected spend', fmtNum(offer.expectedSpendForOneSuccess || 0), 'Per successful outcome')}
+        ${_card('Tier', String(planOptions.tier), 'Value used in the offer model')}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Current Coral Kid levels</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Index</th><th>Upgrade</th><th>Level</th><th>Effect</th><th>Next cost</th></tr></thead>
+          <tbody>${_renderUpgradeRows()}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function _readPlannerInputs() {
+  plannerInputs = {
+    goal: document.getElementById('goal-select').value,
+    budget: Number(document.getElementById('budget-input').value || 0),
+    maxLevels: Number(document.getElementById('max-levels-input').value || 25),
+    beamSize: Number(document.getElementById('beam-size-input').value || 100),
+    godRank: Number(document.getElementById('god-rank-input').value || 0),
+    y4: Number(document.getElementById('y4-input').value || 0),
+    divCostAfter3: Number(document.getElementById('divcost-input').value || 0),
+    reefUpgradeCount: Number(document.getElementById('reef-input').value || 0),
+    mineFloor: Number(document.getElementById('mine-floor-input').value || 0),
+    vault76Bonus: Number(document.getElementById('vault-input').value || 0),
+    tier: Number(document.getElementById('tier-input').value || 0),
+    planningConfidence: Number(document.getElementById('confidence-input').value || 0.9),
+    assumeUnlocked: document.getElementById('assume-unlocked').checked,
+  };
+}
+
+function render() {
+  var root = document.getElementById('main-content');
+  if (!pageSaveLoaded) {
+    root.innerHTML = '<div class="section"><h2>Coral God Rank Planner</h2><p style="color:var(--text2);">Load a save to compute Coral Kid and God Rank actions.</p></div>';
+    return;
+  }
+
+  root.innerHTML = _renderControls() + _renderResults();
+
+  document.querySelectorAll('#main-content select, #main-content input').forEach(function (control) {
+    control.addEventListener('change', function () {
+      _readPlannerInputs();
+      render();
+    });
+  });
+}
+
+if (pageSaveLoaded) {
+  render();
+}
+</script>
+</body>
+</html>

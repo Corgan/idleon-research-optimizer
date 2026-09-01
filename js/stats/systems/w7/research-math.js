@@ -73,7 +73,7 @@ export function countMagsOfType(md, type, slot) {
 
 /** Compute Grid_Bonus mode 2 (total/scaled values for $ and ^ placeholders).
  *  Pure function — callers adapt their data source to these primitives. */
-export function gridBonusMode2(nodeIdx, curBonus, gl31, il, occ, boonyCount, opts500) {
+export function gridBonusMode2(nodeIdx, curBonus, gl31, il, occ, boonyCount, opts500, glimboTrades = 0) {
   switch (nodeIdx) {
     case 31: return 25 * gl31;
     case 67: case 68: case 107: return curBonus * boonyCount;
@@ -86,7 +86,7 @@ export function gridBonusMode2(nodeIdx, curBonus, gl31, il, occ, boonyCount, opt
       return curBonus * f;
     }
     case 151: return Number(opts500) || 0;
-    case 168: return curBonus;
+    case 168: return curBonus * Math.floor((Number(glimboTrades) || 0) / 100);
     default: return curBonus;
   }
 }
@@ -276,7 +276,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -313,7 +313,7 @@ export function advanceResearchLevel(rExp, rLv, svrxp) {
 }
 
 /**
- * Advance insight levels for all monocle-targeted observations.
+ * Apply one Research collection event to all monocle-targeted observations.
  * Mutates il[] and ip[] in place. Returns true if any level-up occurred.
  * Optional onLevelUp(obsIdx) callback fires for each individual level-up.
  */
@@ -323,14 +323,13 @@ export function advanceInsightLevels(monoSlots, md, il, ip, gl, so, ctx, jumpHrs
     const iRate = insightExpRate(obsIdx, md, il, gl, so, ctx);
     if (iRate <= 0) continue;
     ip[obsIdx] = (ip[obsIdx] || 0) + iRate * jumpHrs;
-    let req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
-    while (ip[obsIdx] >= req - 1e-9) {
+    const req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
+    if (ip[obsIdx] >= req - 1e-9) {
       ip[obsIdx] -= req;
       if (ip[obsIdx] < 0) ip[obsIdx] = 0;
       il[obsIdx] = (il[obsIdx] || 0) + 1;
       changed = true;
       if (onLevelUp) onLevelUp(obsIdx);
-      req = insightExpReqAt(obsIdx, il[obsIdx] || 0);
     }
   }
   return changed;
@@ -427,7 +426,7 @@ export function computeGridPointsEarned(rLv, sq50, bonusPts) {
  */
 export function computeGridPointsSpent(gl) {
   let total = 0;
-  for (const idx of GRID_INDICES) total += gl[idx] || 0;
+  for (let idx = 0; idx < gl.length; idx++) total += gl[idx] || 0;
   return total;
 }
 
@@ -440,6 +439,7 @@ export function computeGridPointsSpent(gl) {
 export function gridPointsAvail(gl, rLv, saveCtx) {
   var sq50 = gl[50] || 0;
   var bonusPts = (saveCtx && saveCtx.companionHas153 ? 10 : 0) +
+    (saveCtx && saveCtx.companion153Level2 ? 5 : 0) +
     ((saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0) +
     ((saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0) +
     ((saveCtx && saveCtx.sailingArt37) || 0);
@@ -453,15 +453,15 @@ export function gridPointsAvail(gl, rLv, saveCtx) {
  * Compute allBonusMulti from explicit companion booleans.
  * Pure - no globals.
  */
-export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll, rog53) {
-  const comp55val = hasComp55 ? 15 : 0;
+export function calcAllBonusMultiWith(gl, hasComp55, hasComp0DivOk, cbGridAll, rog53, comp55Value) {
+  const comp55val = hasComp55 ? (Number(comp55Value) || 15) : 0;
   const comp0val = hasComp0DivOk && (gl[173] || 0) > 0 ? 5 : 0;
   return 1 + (comp55val + comp0val + (cbGridAll || 0) + (rog53 || 0)) / 100;
 }
 
 /** Recompute ctx.abm from gl. Mutates ctx in place. */
 export function refreshAbm(ctx, gl) {
-  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0);
+  ctx.abm = calcAllBonusMultiWith(gl, ctx.hasComp55, ctx.hasComp0DivOk, ctx.cbGridAll, (ctx.rog && ctx.rog[53]) || 0, ctx.companion55Value);
 }
 
 // ----- Magnifiers owned -----

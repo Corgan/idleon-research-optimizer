@@ -108,13 +108,6 @@ export function dtStepSim(state) {
     const _adv = advanceResearchLevel(rExp, rLv, ctx.serverVarResXP);
     rExp = _adv.rExp; rLv = _adv.rLv; const rLeveledUp = _adv.changed;
 
-    // Auto-unlock obs
-    if (rLeveledUp) {
-      for (let oi = 0; oi < OCC_DATA.length; oi++) {
-        if ((occ[oi] || 0) < 1 && OCC_DATA[oi].roll <= rLv) occ[oi] = 1;
-      }
-    }
-
     if (rLeveledUp || insightLeveledUp) {
       curExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
       const eventType = rLeveledUp && insightLeveledUp ? 'level+insight'

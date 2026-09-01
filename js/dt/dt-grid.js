@@ -56,7 +56,7 @@ export function dtSetShapeOpacity(val) {
 
 // DT-aware version of gridBonusMode2 (reads from edit state, not globals)
 function _dtGridBonusMode2(nodeIdx, curBonus, s) {
-  return gridBonusMode2(nodeIdx, curBonus, s.gl[31] || 0, s.il, s.occ, s.saveCtx.cachedBoonyCount, optionsListData?.[500]);
+  return gridBonusMode2(nodeIdx, curBonus, s.gl[31] || 0, s.il, s.occ, s.saveCtx.cachedBoonyCount, optionsListData?.[500], s.saveCtx.glimboTrades);
 }
 
 // ===== UNIFIED GRID + SHAPE CANVAS =====
@@ -468,7 +468,7 @@ function _dtShowGridTip(e, idx) {
   const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
   const coord = String.fromCharCode(65 + row) + (col + 1);
   const _ctx = s.ctx || makeSimCtx(s.gl);
-  const abm = calcAllBonusMultiWith(s.gl, _ctx.hasComp55, _ctx.hasComp0DivOk);
+  const abm = calcAllBonusMultiWith(s.gl, _ctx.hasComp55, _ctx.hasComp0DivOk, _ctx.cbGridAll, (_ctx.rog && _ctx.rog[53]) || 0, _ctx.companion55Value);
 
   let html = `<span style="color:var(--cyan);font-weight:700;font-size:1.1em">${coord}</span> `;
   html += `<span style="color:var(--gold);font-weight:600">${name}</span><br>`;

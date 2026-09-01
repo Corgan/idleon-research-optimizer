@@ -44,9 +44,9 @@ async function exportState() {
   const state = {
     _format: 'research-optimizer-state', _version: 2,
     gridLevels: saveData.gridLevels, shapeOverlay: saveData.shapeOverlay, occFound: saveData.occFound, insightLvs: saveData.insightLvs, insightProgress: saveData.insightProgress, magData: saveData.magData, shapePositions: saveData.shapePositions,
-    stateR7: saveData.stateR7, researchLevel: saveData.researchLevel, magMaxPerSlot: saveData.magMaxPerSlot, magnifiersOwned: saveData.magnifiersOwned,
+    stateR7: saveData.stateR7, stateR7Available: saveData.stateR7Available, researchLevel: saveData.researchLevel, magMaxPerSlot: saveData.magMaxPerSlot, magnifiersOwned: saveData.magnifiersOwned,
     externalResearchPct: saveData.externalResearchPct, comp52TrueMulti: saveData.comp52TrueMulti, allBonusMulti: saveData.allBonusMulti,
-    companionIds: [...saveData.companionIds], totalTomePoints: saveData.totalTomePoints, serverVarResXP: saveData.serverVarResXP, serverVarMineHP: saveData.serverVarMineHP,
+    companionIds: [...saveData.companionIds], enhancedCompanionIds: [...saveData.enhancedCompanionIds], totalTomePoints: saveData.totalTomePoints, serverVarResXP: saveData.serverVarResXP, serverVarMineHP: saveData.serverVarMineHP, serverVarDivCostAfter3: saveData.serverVarDivCostAfter3, serverVarDivCostAfter3Available: saveData.serverVarDivCostAfter3Available,
     cachedEventShopStr: saveData.cachedEventShopStr, cachedResearchExp: saveData.cachedResearchExp, cachedSpelunkyUpg7: saveData.cachedSpelunkyUpg7, cachedFailedRolls: saveData.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: saveData.cachedComp0DivOk,
     cachedStickerFixed: saveData.cachedStickerFixed, cachedBoonyCount: saveData.cachedBoonyCount, cachedEvShop37: saveData.cachedEvShop37, cachedExtPctExSticker: saveData.cachedExtPctExSticker,
     cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5, cachedDream14: saveData.cachedDream14, cachedCglunko11: saveData.cachedCglunko11, cachedFountain2_16: saveData.cachedFountain2_16,
@@ -116,17 +116,18 @@ function importState(raw) {
   assignState({ insightProgress: raw.insightProgress || new Array(80).fill(0) });
   assignState({ magData: raw.magData || [] });
   assignState({ shapePositions: raw.shapePositions || [] });
-  assignState({ stateR7: raw.stateR7 || new Array(20).fill(0) });
+  assignState({ stateR7: raw.stateR7 || new Array(20).fill(0), stateR7Available: raw.stateR7Available === true });
   assignState({ researchLevel: raw.researchLevel || 0 });
   assignState({ magMaxPerSlot: raw.magMaxPerSlot || 1 });
   assignState({ magnifiersOwned: raw.magnifiersOwned || 0 });
   assignState({ externalResearchPct: raw.externalResearchPct || 0 });
   assignState({ comp52TrueMulti: raw.comp52TrueMulti || 1 });
   assignState({ allBonusMulti: raw.allBonusMulti || 1 });
-  assignState({ companionIds: new Set(raw.companionIds || []) });
+  assignState({ companionIds: new Set(raw.companionIds || []), enhancedCompanionIds: new Set(raw.enhancedCompanionIds || []) });
   assignState({ totalTomePoints: raw.totalTomePoints || 0 });
   assignState({ serverVarResXP: raw.serverVarResXP || 1.01 });
   assignState({ serverVarMineHP: raw.serverVarMineHP || 1 });
+  assignState({ serverVarDivCostAfter3: Number(raw.serverVarDivCostAfter3) || 0, serverVarDivCostAfter3Available: raw.serverVarDivCostAfter3Available === true });
   assignState({ cachedEventShopStr: raw.cachedEventShopStr || '' });
   assignState({ cachedResearchExp: raw.cachedResearchExp || 0 });
   assignState({ cachedSpelunkyUpg7: raw.cachedSpelunkyUpg7 || 0 });
@@ -230,7 +231,7 @@ function updateSaveFormatUI() {
 }
 
 export function applySupplements() {
-  assignState({ companionIds: new Set() });
+  assignState({ companionIds: new Set(), enhancedCompanionIds: new Set() });
   document.querySelectorAll('.comp-toggle').forEach(cb => {
     if (cb.checked) saveData.companionIds.add(Number(cb.dataset.id));
   });

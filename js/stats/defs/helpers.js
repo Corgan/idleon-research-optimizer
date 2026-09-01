@@ -1,7 +1,7 @@
 // ===== SHARED DESCRIPTOR HELPERS =====
 
 import { gbWith } from '../../sim-math.js';
-import { companionBonus } from '../data/common/companions.js';
+import { companionBonus, companionBonusForSave } from '../data/common/companions.js';
 import { buffsActiveData } from '../../save/data.js';
 import { talent } from '../systems/common/talent.js';
 
@@ -92,7 +92,7 @@ export function computeButtonBonus(slotIdx, saveData) {
   var fullCycles = Math.floor(presses / 45);
   var rem = presses % 45;
   var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
-  var comp147 = saveData.companionIds.has(147) ? companionBonus(147) : 0;
+  var comp147 = companionBonusForSave(147, saveData);
   var grid125 = gridBonusFinal(saveData, 125);
   var multi = (1 + comp147 / 100) * (1 + grid125 / 100);
   return hits * (BUTTON_RATES[slotIdx] || 0) * multi;
@@ -115,7 +115,6 @@ export function computeKillroyBonus(idx, saveData) {
   var cfg = KB_CONFIG[idx];
   if (!cfg) return 0;
   var ola = Number(saveData.olaData[cfg.ola]) || 0;
-  if (ola <= 0) return 0;
   var raw = ola / (cfg.d + ola) * cfg.s;
   return cfg.additive ? raw : 1 + raw;
 }
