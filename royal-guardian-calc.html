@@ -795,6 +795,8 @@
       .breakdown-reference { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 10px; border: 1px solid #526b8f; border-radius: 5px; background: #132745; color: var(--cyan); cursor: pointer; text-align: left; }
       .breakdown-reference:hover, .breakdown-reference:focus-visible { border-color: var(--accent); color: var(--text); }
       .breakdown-reference b { color: var(--gold); }
+      .bt-row[data-bt-action] .bt-label { color: var(--cyan); }
+      .bt-row[data-bt-action]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
       .breakdown-stack { display: grid; gap: 10px; }
       .breakdown-context { color: var(--text2); font-size: .8em; margin: 5px 0 10px; }
       .breakdown-context code { color: var(--cyan); }
@@ -1058,6 +1060,7 @@
         breakdownCategory: "collection",
         breakdownUnit: "worker",
         breakdownUnitStat: "collection",
+        globalRankBar: 0,
         outpostDetailView: "summary",
         outpostBreakdownCategory: "collection",
         outpostRankBar: 0,
@@ -1824,8 +1827,9 @@
         const units = R.globalUnitBreakdowns(S).rules, selectedUnit = units.find(unit => unit.id === session.breakdownUnit) || units[0];
         if (!selectedUnit.stats.some(stat => stat.id === session.breakdownUnitStat)) session.breakdownUnitStat = selectedUnit.stats[0].id;
         const unitTabs = session.breakdownCategory === "units" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Unit types">${units.map(unit => `<button role="tab" aria-selected="${unit.id === selectedUnit.id ? "true" : "false"}" tabindex="${unit.id === selectedUnit.id ? 0 : -1}" data-breakdown-unit="${unit.id}">${esc(unit.name)}</button>`).join("")}</nav><nav class="subtabs detail-subtabs" role="tablist" aria-label="Unit stats">${selectedUnit.stats.map(stat => `<button role="tab" aria-selected="${stat.id === session.breakdownUnitStat ? "true" : "false"}" tabindex="${stat.id === session.breakdownUnitStat ? 0 : -1}" data-breakdown-unit-stat="${stat.id}">${esc(stat.label)}</button>`).join("")}</nav>` : "";
+        const rankTabs = session.breakdownCategory === "rank-exp" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Global rank bars">${[0, 1, 2, 3, 4].map(bar => `<button role="tab" aria-selected="${session.globalRankBar === bar ? "true" : "false"}" tabindex="${session.globalRankBar === bar ? 0 : -1}" data-global-rank-bar="${bar}">${R.outpostRankName(bar).replace(" Rank", "")}</button>`).join("")}</nav>` : "";
         const back = session.breakdownReturn ? `<button type="button" class="breakdown-reference" data-breakdown-return><span>Back to ${esc(session.breakdownReturn.label)}</span><b>&larr;</b></button>` : "";
-        return `<section class="section"><h2>Global Breakdowns</h2>${back}<nav class="subtabs detail-subtabs" role="tablist" aria-label="Breakdown categories">${categories.map(([value, text]) => `<button role="tab" aria-selected="${session.breakdownCategory === value ? "true" : "false"}" tabindex="${session.breakdownCategory === value ? 0 : -1}" data-breakdown-category="${value}">${text}</button>`).join("")}</nav>${unitTabs}<div class="breakdown-panel"><div class="breakdown-warning"></div><div id="global-breakdown-tree"></div></div></section>`;
+        return `<section class="section"><h2>Global Breakdowns</h2>${back}<nav class="subtabs detail-subtabs" role="tablist" aria-label="Breakdown categories">${categories.map(([value, text]) => `<button role="tab" aria-selected="${session.breakdownCategory === value ? "true" : "false"}" tabindex="${session.breakdownCategory === value ? 0 : -1}" data-breakdown-category="${value}">${text}</button>`).join("")}</nav>${unitTabs}${rankTabs}<div class="breakdown-panel"><div class="breakdown-warning"></div><div id="global-breakdown-tree"></div></div></section>`;
       }
       function outposts(S) {
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
@@ -2147,8 +2151,8 @@
         "TotalStatz2*armory51": "Purified outposts",
         "charLevel*armory52": "Royal character level",
         "unitSpec0*totalUnits0": "Worker units",
-        "talent225+talent226": "Talents 225 + 226",
-        talent230Multi: "Talent 230",
+        "talent225+talent226": "Royal collection talents",
+        talent230Multi: "Royal collection multiplier talent",
         "TotalStatz3*armory53": "Kingdom currency logs",
         zenith10: "Zenith Market",
         mapLevel0Cap: "Expanded Barracks cap",
@@ -2166,15 +2170,26 @@
       }
       function buildGlobalCollectionTree(S) {
         const breakdown = R.globalResourceRateBreakdown(S);
-        return { breakdown, tree: { label: "Global Collection Multiplier", val: breakdown.value, fmt: "x", children: (breakdown.factors || []).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x", children: (x.components || []).map(collectionComponentNode) })) } };
+          return { breakdown, tree: { label: "Global Collection Multiplier", val: breakdown.value, fmt: "x", children: (breakdown.factors || []).map(x => ({ label: x.label || collectionFactorLabel(x.name), val: x.value, fmt: "x", children: (x.components || []).map(collectionComponentNode) })) } };
       }
       function buildOutpostCollectionTree(S, mapIdx) {
         const breakdown = R.outpostResourceRateBreakdown(S, mapIdx);
         const factors = breakdown.factors || [];
+        const units = R.outpostUnitBreakdown(S, mapIdx), workers = units.permanent[0], assignableWorkers = units.assignable.filter(unit => unit.type === 0), supportLinks = R.outpostSupportLinks(S, mapIdx), supportPerLink = R.globalSupportBreakdown(S).value;
         return { breakdown, tree: { label: `${mapName(mapIdx)} PRE-GRADE Collection Rate`, val: breakdown.value, fmt: "rate", children: [
           { label: "Base collection", val: factors[0]?.value || 0, fmt: "rate" },
-          { label: "Global Collection Multiplier", val: breakdown.global?.value || factors[1]?.value || 0, fmt: "x" },
-          ...factors.slice(2).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x" })),
+          { label: "Global Collection Multiplier", val: breakdown.global?.value || factors[1]?.value || 0, fmt: "x", action: { category: "collection" } },
+          ...factors.slice(2).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x", action: x.name === "unitSpec0*totalUnits0" ? { category: "units", unit: "worker", stat: "collection" } : undefined, children: x.name === "unitSpec0*totalUnits0" ? [
+            { label: "Effective Worker count", val: units.totals[0], children: [
+              { label: "Assignable (stationed)", val: assignableWorkers.length, note: units.savePath, children: assignableWorkers.map(unit => ({ label: `Slot ${unit.slot + 1}`, val: 1, note: units.savePath })) },
+              { label: "Fixed permanent", val: workers.count, children: [{ label: "Command Rank permanent", val: workers.commandRank }, { label: "Glorified permanent", val: workers.glorified }] },
+              { label: "Transient assignments", val: 0 },
+            ] },
+            { label: "Collection per Worker", val: R.unitSpecEffect(S, 0), fmt: "%" },
+          ] : x.name === "supportCollection" ? [
+            { label: "Connected Support outposts", val: supportLinks.length, children: supportLinks.map(link => ({ label: `${mapName(link.mapIdx)}${link.legacy ? " (Legacy saved link)" : ""}`, val: supportPerLink, fmt: "%", note: link.savePath })) },
+            { label: "Bonus per link", val: supportPerLink, fmt: "%" },
+          ] : undefined })),
         ] } };
       }
       function effectDetailChildren(detail) {
@@ -2191,32 +2206,25 @@
           return { breakdown: { available: true }, tree: { label: "Global Range Rules", val: value.base + value.orblet.bonus, children: [
             { label: "Base range", val: value.base },
             { label: "Orblet range", val: value.orblet.bonus, fmt: "+", children: effectDetailChildren(value.orblet) },
-            { label: "Advanced Logistics curve", val: value.logistics.numerator, children: [{ label: "Numerator", val: value.logistics.numerator }, { label: "Denominator offset", val: value.logistics.denominatorOffset }, { label: "Local saved level", val: 0, note: value.logistics.saveField }] },
-            { label: "Military Rank coefficient", val: value.military.armory.bonus, fmt: "+", children: effectDetailChildren(value.military.armory) },
             { label: "Maximum range", val: value.cap },
             { label: "Resource-link allowance", val: value.allowances.resource, fmt: "+" },
             { label: "Outpost-link allowance", val: value.allowances.outpost, fmt: "+" },
           ] } };
         }
         if (session.breakdownCategory === "rank-exp") {
-          const value = R.globalRankExpBreakdown(S);
-          return { breakdown: { available: true }, tree: { label: "Global Rank EXP Rules", val: value.bars.reduce((sum, bar) => sum + bar.baseRate, 0), fmt: "rate", children: value.bars.map(bar => ({ label: bar.name, val: bar.baseRate, fmt: "rate", children: [
+          const value = R.globalRankExpBreakdown(S), bar = value.bars[session.globalRankBar] || value.bars[0];
+          return { breakdown: { available: true }, tree: { label: `${bar.name} EXP per contributor`, val: bar.baseRate, fmt: "rate", children: [
             { label: "Orblet EXP multiplier", val: 1 + value.orblet.bonus / 100, fmt: "x", children: effectDetailChildren(value.orblet) },
             { label: "Purity Shop bonus", val: bar.purityShopActive ? value.shop65 : 0, fmt: "%" },
             { label: "Selected-bar Shop bonus", val: bar.selectedShopActive ? value.shop77 : 0, fmt: "%" },
             { label: `${bar.contributor} effect`, val: R.globalUnitBreakdowns(S).rules.find(unit => unit.id === bar.unit)?.stats[0]?.value || 0, fmt: "%" },
-            { label: `Purified source map ${bar.purifiedSourceMap}`, val: bar.purifiedMultiplier, fmt: "x", note: "The current source calls isMapPurified(bar), so bar 0-4 reads map ID 0-4 rather than the selected outpost." },
-          ] })) } };
+          ] } };
         }
         if (session.breakdownCategory === "points") {
           const value = R.globalPointBreakdown(S);
           return { breakdown: { available: true }, tree: { label: "Global Outpost Point Rules", val: value.base, children: [
             { label: "Base points", val: value.base },
             { label: "Per-world bonuses", val: value.worlds.reduce((sum, world) => sum + world.armory.bonus, 0), fmt: "+", children: value.worlds.map(world => ({ label: `W${world.worldIdx + 1} Armory bonus`, val: world.armory.bonus, fmt: "+", children: effectDetailChildren(world.armory) })) },
-            { label: "Trading Rank points per rank", val: value.tradingRankPoints },
-            { label: "Periodic Trading Rank divisor", val: value.rankBonus.divisor, children: effectDetailChildren(value.rankBonus.armory) },
-            { label: "Glorified points", val: value.glorifiedPoints, fmt: "+" },
-            { label: "Upgrade costs", val: value.costs.reduce((sum, cost) => sum + cost.pointsPerLevel, 0), children: value.costs.map(cost => ({ label: cost.name, val: cost.pointsPerLevel })) },
           ] } };
         }
         if (session.breakdownCategory === "units") {
@@ -2248,20 +2256,13 @@
         const unitRules = R.globalUnitBreakdowns(S).rules, selectedUnit = unitRules.find(unit => unit.id === session.breakdownUnit) || unitRules[0];
         if (!selectedUnit.stats.some(stat => stat.id === session.breakdownUnitStat)) session.breakdownUnitStat = selectedUnit.stats[0].id;
         const unitTabs = session.outpostBreakdownCategory === "units" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Outpost unit types">${unitRules.map(unit => `<button role="tab" aria-selected="${unit.id === selectedUnit.id ? "true" : "false"}" tabindex="${unit.id === selectedUnit.id ? 0 : -1}" data-breakdown-unit="${unit.id}">${esc(unit.name)}</button>`).join("")}</nav><nav class="subtabs detail-subtabs" role="tablist" aria-label="Outpost unit stats">${selectedUnit.stats.map(stat => `<button role="tab" aria-selected="${stat.id === session.breakdownUnitStat ? "true" : "false"}" tabindex="${stat.id === session.breakdownUnitStat ? 0 : -1}" data-breakdown-unit-stat="${stat.id}">${esc(stat.label)}</button>`).join("")}</nav>` : "";
-        let references = "";
-        if (session.outpostBreakdownCategory === "collection") references = breakdownReference("Global collection multiplier", `${f(R.globalResourceRateBreakdown(S).value)}x`, "collection") + breakdownReference("Worker effect per unit", `${f(R.unitSpecEffect(S, 0))}%`, "units", "worker", "collection");
-        if (session.outpostBreakdownCategory === "range") references = breakdownReference("Global range rules", "Open", "range") + breakdownReference("Guard range per unit", f(R.unitSpecEffect(S, 2)), "units", "guard", "range");
-        if (session.outpostBreakdownCategory === "rank-exp") { const bar = R.globalRankExpBreakdown(S).bars[session.outpostRankBar]; references = breakdownReference("Global rank EXP rules", "Open", "rank-exp") + breakdownReference(`${bar.contributor} effect`, "Open", "units", bar.unit, R.globalUnitBreakdowns(S).rules.find(unit => unit.id === bar.unit)?.stats[0]?.id || ""); }
-        if (session.outpostBreakdownCategory === "points") references = breakdownReference("Global and per-world point rules", "Open", "points");
-        if (session.outpostBreakdownCategory === "units") references = breakdownReference("Unit effects and availability rules", "Open", "units", session.breakdownUnit, session.breakdownUnitStat);
-        if (session.outpostBreakdownCategory === "clearing") references = breakdownReference("Militia clearing effect", "Open", "units", "militia", "clearing");
-        return `${categoryTabs}${rankTabs}${unitTabs}${references}<div class="breakdown-panel"><div class="outpost-detail-tree"></div></div>`;
+        return `${categoryTabs}${rankTabs}${unitTabs}<div class="breakdown-panel"><div class="outpost-detail-tree"></div></div>`;
       }
       function outpostDetailTree(S, mapIdx) {
         if (session.outpostBreakdownCategory === "collection") return buildOutpostCollectionTree(S, mapIdx).tree;
-        if (session.outpostBreakdownCategory === "range") { const value = R.outpostRangeBreakdown(S, mapIdx); return { label: `${mapName(mapIdx)} Range`, val: value.value, children: [{ label: "Global base and Orblet", val: value.global.base + value.global.orblet.bonus }, { label: "Guard contribution", val: value.guardRange, fmt: "+", children: [{ label: "Guard count", val: value.guards }, { label: "Range per Guard", val: value.perGuard }] }, { label: "Military Rank contribution", val: value.militaryRange, fmt: "+", children: [{ label: "Military Rank", val: value.militaryRank }, { label: "Range per rank", val: value.militaryPerRank }] }, { label: "Advanced Logistics", val: value.logisticsRange, fmt: "+", children: [{ label: "Saved level", val: value.logisticsLevel, note: `RoyalMaps[${mapIdx}][1]` }] }, { label: "Uncapped range", val: value.uncapped }, { label: "Final floor and cap", val: value.value }, { label: "Resource-link reach", val: value.resourceReach }, { label: "Outpost-link reach", val: value.outpostReach }] }; }
-        if (session.outpostBreakdownCategory === "rank-exp") { const value = R.outpostRankBarBreakdown(S, mapIdx, session.outpostRankBar); return { label: `${value.globalBar.name} EXP / hr`, val: value.value, fmt: "rate", children: [{ label: "Global rate per contributor", val: value.globalBar.baseRate, fmt: "rate" }, { label: "Glorified", val: value.glorifiedMultiplier, fmt: "x", note: `RoyalMaps[${mapIdx}][12]` }, { label: `Purified source map ${value.globalBar.purifiedSourceMap}`, val: value.globalBar.purifiedMultiplier, fmt: "x", note: "Source behavior is bar-index scoped, not selected-outpost scoped." }, { label: "Intel Rank", val: value.intelMultiplier, fmt: "x", children: [{ label: "Rank", val: value.intelRank }] }, { label: "Support links", val: value.supportMultiplier, fmt: "x", children: [{ label: "Support count", val: value.supports }] }, { label: "Contributors", val: value.directRate, fmt: "rate", children: [{ label: "Count", val: value.contributors }, { label: "Rate per contributor", val: value.ratePerContributor, fmt: "rate" }] }, { label: "Militia feed", val: value.militiaFeed, fmt: "rate" }, { label: "Current EXP", val: value.info.exp, note: `RoyalMaps[${mapIdx}][${3 + value.bar}]` }, { label: "Next requirement", val: value.info.nextReq }, { label: "ETA", val: value.etaHours }] }; }
-        if (session.outpostBreakdownCategory === "points") { const value = R.outpostPointBreakdown(S, mapIdx); return { label: `${mapName(mapIdx)} Points Remaining`, val: value.value, children: [{ label: "Base points", val: value.base }, { label: `W${value.worldIdx + 1} bonus`, val: value.worldBonus.armory.bonus, fmt: "+" }, { label: "Trading Rank", val: value.tradingRank, fmt: "+" }, { label: "Periodic rank bonus", val: value.rankBonus, fmt: "+" }, { label: "Glorified", val: value.glorified, fmt: "+", note: `RoyalMaps[${mapIdx}][12]` }, { label: "Points earned", val: value.earned }, { label: "Points spent", val: -value.spent, fmt: "+", children: value.spending.map(cost => ({ label: `${cost.name} Lv ${cost.level}`, val: -cost.spent, fmt: "+", note: cost.savePath })) }] }; }
+        if (session.outpostBreakdownCategory === "range") { const value = R.outpostRangeBreakdown(S, mapIdx), guards = value.units.permanent[2], assignableGuards = value.units.assignable.filter(unit => unit.type === 2); return { label: `${mapName(mapIdx)} Range`, val: value.value, children: [{ label: "Global base and Orblet", val: value.global.base + value.global.orblet.bonus, action: { category: "range" } }, { label: "Guard contribution", val: value.guardRange, fmt: "+", action: { category: "units", unit: "guard", stat: "range" }, children: [{ label: "Effective Guard count", val: value.guards, children: [{ label: "Assignable (stationed)", val: assignableGuards.length, note: value.units.savePath }, { label: "Fixed permanent", val: guards.count, children: [{ label: "Command Rank permanent", val: guards.commandRank }, { label: "Glorified permanent", val: guards.glorified }] }, { label: "Transient assignments", val: 0 }] }, { label: "Range per Guard", val: value.perGuard }] }, { label: "Military Rank contribution", val: value.militaryRange, fmt: "+", children: [{ label: "Military Rank", val: value.militaryRank }, { label: "Range per rank", val: value.militaryPerRank }, ...effectDetailChildren(value.militaryArmory)] }, { label: "Advanced Logistics", val: value.logisticsRange, fmt: "+", children: [{ label: "Saved level", val: value.logistics.level, note: value.logistics.savePath }, { label: "Curve numerator", val: value.logistics.numerator }, { label: "Curve denominator offset", val: value.logistics.denominatorOffset }] }, { label: "Uncapped range", val: value.uncapped }, { label: "Final floor and cap", val: value.value }, { label: "Resource-link reach", val: value.resourceReach }, { label: "Outpost-link reach", val: value.outpostReach }] }; }
+        if (session.outpostBreakdownCategory === "rank-exp") { const value = R.outpostRankBarBreakdown(S, mapIdx, session.outpostRankBar), supportLinks = R.outpostSupportLinks(S, mapIdx); return { label: `${value.globalBar.name} EXP / hr`, val: value.value, fmt: "rate", children: [{ label: "Global rate per contributor", val: value.globalBar.baseRate, fmt: "rate", action: { category: "rank-exp", rankBar: value.bar } }, { label: "Glorified", val: value.glorifiedMultiplier, fmt: "x", note: `RoyalMaps[${mapIdx}][12]` }, { label: `Purified source map ${value.purifiedSourceMap}`, val: value.purifiedMultiplier, fmt: "x", note: "Source behavior is bar-index scoped, not selected-outpost scoped." }, { label: "Intel Rank", val: value.intelMultiplier, fmt: "x", children: [{ label: "Rank", val: value.intelRank }, ...effectDetailChildren(value.intelArmory)] }, { label: "Support links", val: value.supportMultiplier, fmt: "x", children: [{ label: "Connected Support outposts", val: supportLinks.length, children: supportLinks.map(link => ({ label: `${mapName(link.mapIdx)}${link.legacy ? " (Legacy saved link)" : ""}`, val: value.support.value, fmt: "%", note: link.savePath })) }, { label: "Bonus per link", val: value.support.value, fmt: "%" }] }, { label: "Contributors", val: value.directRate, fmt: "rate", action: { category: "units", unit: value.globalBar.unit, stat: R.globalUnitBreakdowns(S).rules.find(unit => unit.id === value.globalBar.unit)?.stats[0]?.id || "" }, children: [{ label: "Count", val: value.contributors }, { label: "Rate per contributor", val: value.ratePerContributor, fmt: "rate" }] }, { label: "Militia feed", val: value.militiaFeed, fmt: "rate" }, { label: "Current EXP", val: value.info.exp, note: `RoyalMaps[${mapIdx}][${3 + value.bar}]` }, { label: "Next requirement", val: value.info.nextReq }, { label: "ETA", val: value.etaHours }] }; }
+        if (session.outpostBreakdownCategory === "points") { const value = R.outpostPointBreakdown(S, mapIdx), globalAction = { category: "points" }; return { label: `${mapName(mapIdx)} Points Remaining`, val: value.value, children: [{ label: "Base points", val: value.base, action: globalAction }, { label: `W${value.worldIdx + 1} bonus`, val: value.worldBonus.armory.bonus, fmt: "+", action: globalAction }, { label: "Trading Rank", val: value.tradingRank, fmt: "+", children: [{ label: "Points per rank", val: value.tradingRankPoints }] }, { label: "Periodic rank bonus", val: value.rankBonus, fmt: "+", children: [{ label: "Rank divisor", val: value.rankBonusRule.divisor }, ...effectDetailChildren(value.rankBonusRule.armory)] }, { label: "Glorified", val: value.glorified, fmt: "+", note: `RoyalMaps[${mapIdx}][12]`, children: [{ label: "Points when active", val: value.glorifiedPoints }] }, { label: "Points earned", val: value.earned }, { label: "Points spent", val: -value.spent, fmt: "+", children: value.spending.map(cost => ({ label: `${cost.name} Lv ${cost.level}`, val: -cost.spent, fmt: "+", note: cost.savePath, children: [{ label: "Points per level", val: cost.pointsPerLevel }] })) }] }; }
         if (session.outpostBreakdownCategory === "units") {
           const value = R.outpostUnitBreakdown(S, mapIdx), rules = value.rules.rules, rule = rules.find(candidate => candidate.id === session.breakdownUnit) || rules[0], stat = rule.stats.find(candidate => candidate.id === session.breakdownUnitStat) || rule.stats[0], movableIds = ['worker', 'trader', 'guard', 'surveyor'], movableType = movableIds.indexOf(rule.id), transientType = ['militia', 'commander', 'knight', 'priest'].indexOf(rule.id) + 4;
           const assignable = movableType >= 0 ? value.assignable.filter(unit => unit.type === movableType) : [], permanent = movableType >= 0 ? value.permanent[movableType] : null, transient = transientType >= 4 ? value.transient.find(unit => unit.type === transientType)?.count || 0 : 0, count = movableType >= 0 ? value.totals[movableType] : transient;
@@ -2271,10 +2272,10 @@
           if (rule.id === 'surveyor') contribution = R.outpostRankBarBreakdown(S, mapIdx, 1).directRate;
           if (transientType >= 5) contribution = R.outpostRankBarBreakdown(S, mapIdx, transientType - 3).directRate;
           if (rule.id === 'militia' && stat.id === 'military-feed') contribution = [0, 1, 2, 3, 4].map(bar => R.outpostRankBarBreakdown(S, mapIdx, bar)).find(bar => bar.militiaFeedActive)?.militiaFeed || 0;
-          const countChildren = movableType >= 0 ? [{ label: "Assignable", val: assignable.length, children: assignable.map(unit => ({ label: `Slot ${unit.slot + 1}`, val: unit.raw, note: value.savePath })) }, { label: "Command Rank permanent", val: permanent.commandRank }, { label: "Glorified permanent", val: permanent.glorified }] : [{ label: "Transient assignments", val: transient, note: `RoyalG assignment arrays for W${R.outpostWorld(mapIdx) + 1}` }];
-          return { label: `${mapName(mapIdx)} ${rule.name}: ${stat.label}`, val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined, children: [{ label: "Effective count", val: count, children: countChildren }, { label: "Global effect per unit", val: stat.value, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined }, { label: "Local contribution", val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined }] };
+          const countChildren = movableType >= 0 ? [{ label: "Assignable (stationed)", val: assignable.length, children: assignable.map(unit => ({ label: `Slot ${unit.slot + 1}`, val: 1, note: value.savePath })) }, { label: "Fixed permanent", val: permanent.count, children: [{ label: "Command Rank permanent", val: permanent.commandRank }, { label: "Glorified permanent", val: permanent.glorified }] }, { label: "Transient assignments", val: 0 }] : [{ label: "Transient assignments", val: transient, note: `RoyalG assignment arrays for W${R.outpostWorld(mapIdx) + 1}` }];
+          return { label: `${mapName(mapIdx)} ${rule.name}: ${stat.label}`, val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined, children: [{ label: "Effective count", val: count, children: countChildren }, { label: "Global effect per unit", val: stat.value, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined, action: { category: "units", unit: rule.id, stat: stat.id } }, { label: "Local contribution", val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined }] };
         }
-        const value = R.outpostClearMetrics(S, mapIdx); return { label: `${mapName(mapIdx)} Clearing`, val: value.ratePerHour, fmt: "rate", children: [{ label: "Militia assignments", val: value.assignments }, { label: "Effect per Militia", val: R.unitSpecEffect(S, 4), fmt: "rate" }, { label: "Progress", val: value.progress, note: `RoyalMaps[${mapIdx}][0]` }, { label: "Requirement", val: value.requirement }, { label: "Remaining", val: value.remaining }, { label: "ETA", val: value.etaHours }] };
+        const value = R.outpostClearMetrics(S, mapIdx); return { label: `${mapName(mapIdx)} Clearing`, val: value.ratePerHour, fmt: "rate", children: [{ label: "Militia assignments", val: value.assignments, children: [{ label: "Transient assignments", val: value.assignments, note: `RoyalG assignment arrays for W${R.outpostWorld(mapIdx) + 1}` }] }, { label: "Effect per Militia", val: R.unitSpecEffect(S, 4), fmt: "rate", action: { category: "units", unit: "militia", stat: "clearing" } }, { label: "Progress", val: value.progress, note: `RoyalMaps[${mapIdx}][0]` }, { label: "Requirement", val: value.requirement }, { label: "Remaining", val: value.remaining }, { label: "ETA", val: value.etaHours }] };
       }
       function linkBreakdownTree(link) {
         return { label: `${mapName(link.mapIdx)} to Resource ${link.resourceIdx + 1}`, val: link.drainRate, fmt: "rate", children: [{ label: "Raw saved endpoint", val: Number(link.rawValue) || 0, note: link.savePath }, { label: "Distance", val: link.distance }, { label: "Effective resource reach", val: link.effectiveReach }, { label: "Reach margin", val: link.margin, fmt: "+" }, { label: "Outpost pre-grade rate", val: link.preGrade.value, fmt: "rate" }, { label: "Resource grade multiplier", val: link.gradeMultiplier, fmt: "x", children: [{ label: "Saved grade", val: link.grade, note: link.gradeSavePath }] }, { label: "Graded stream rate", val: link.gradedRate, fmt: "rate" }, { label: "Savage multiplier", val: link.savage ? link.savageMultiplier : 1, fmt: "x" }, { label: "Final drain rate", val: link.drainRate, fmt: "rate" }, { label: "Final currency rate", val: link.currencyRate, fmt: "rate" }] };
@@ -2314,6 +2315,17 @@
         const missing = (breakdown.missing || []).map(esc).join(", ");
         return `<div class="info-panel warning-panel" role="status"><b>${title} is partial or unavailable</b><p>Some saved inputs are unavailable, so this breakdown may be incomplete.</p>${missing ? `<div>Missing inputs: ${missing}</div>` : ""}</div>`;
       }
+      function openGlobalBreakdown(action) {
+        if (!action?.category) return;
+        session.breakdownReturn = { label: session.tab === "outposts" ? mapName(session.selectedOutpost) : session.tab === "resources" ? `Resource ${session.selectedResource + 1}` : "previous view", tab: session.tab, outpostDetailView: session.outpostDetailView, resourceDetailView: session.resourceDetailView, outpostBreakdownCategory: session.outpostBreakdownCategory, outpostRankBar: session.outpostRankBar };
+        session.breakdownCategory = action.category;
+        if (action.unit) session.breakdownUnit = action.unit;
+        if (action.stat) session.breakdownUnitStat = action.stat;
+        if (action.rankBar !== undefined) session.globalRankBar = n(action.rankBar);
+        session.tab = "breakdowns";
+        location.hash = `breakdown-${session.breakdownCategory}${session.breakdownCategory === "units" ? `-${session.breakdownUnit}-${session.breakdownUnitStat}` : ""}`;
+        render();
+      }
       function initializeCollectionBreakdowns(S) {
         if (session.tab !== "currencies" || session.currencyView !== "breakdown") return;
         resetTreeCounter();
@@ -2329,7 +2341,7 @@
         if (outpostEl && session.breakdownOutpost !== null) {
           const outpost = buildOutpostCollectionTree(S, session.breakdownOutpost);
           outpostEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(outpost.breakdown, "Outpost collection rate");
-          renderBreakdownTree(outpost.tree, outpostEl, { tooltipId: "bt-tooltip" });
+          renderBreakdownTree(outpost.tree, outpostEl, { tooltipId: "bt-tooltip", onAction: openGlobalBreakdown });
         }
       }
       function initializeBreakdownTrees(S) {
@@ -2341,7 +2353,7 @@
           host.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(result.breakdown, "Global breakdown");
           renderBreakdownTree(result.tree, host, { tooltipId: "bt-tooltip" });
         }
-        if (session.tab === "outposts" && session.outpostDetailView === "breakdown" && session.selectedOutpost !== null) for (const host of document.querySelectorAll(".outpost-detail-tree")) renderBreakdownTree(outpostDetailTree(S, session.selectedOutpost), host, { tooltipId: "bt-tooltip" });
+        if (session.tab === "outposts" && session.outpostDetailView === "breakdown" && session.selectedOutpost !== null) for (const host of document.querySelectorAll(".outpost-detail-tree")) renderBreakdownTree(outpostDetailTree(S, session.selectedOutpost), host, { tooltipId: "bt-tooltip", onAction: openGlobalBreakdown });
         if (session.tab === "resources" && session.resourceDetailView === "breakdown") for (const host of document.querySelectorAll(".resource-node-tree")) renderBreakdownTree(resourceNodeTree(S, session.selectedResource), host, { tooltipId: "bt-tooltip" });
         if (session.tab === "outposts" && session.outpostDetailView === "links" && session.selectedOutpost !== null) { const link = R.resourceLinkBreakdown(S, session.selectedOutpost, session.selectedLinkSlot); if (link.available) for (const host of document.querySelectorAll(".resource-link-tree")) renderBreakdownTree(linkBreakdownTree(link), host, { tooltipId: "bt-tooltip" }); }
         if (session.tab === "resources" && session.resourceDetailView === "links" && session.selectedLinkMap !== null) { const link = R.resourceLinkBreakdown(S, session.selectedLinkMap, session.selectedLinkSlot); if (link.available) for (const host of document.querySelectorAll(".resource-link-tree")) renderBreakdownTree(linkBreakdownTree(link), host, { tooltipId: "bt-tooltip" }); }
@@ -2509,6 +2521,10 @@
           (b) => (session.breakdownUnitStat = b.dataset.breakdownUnitStat),
         );
         wireTabs(
+          "[data-global-rank-bar]",
+          (b) => (session.globalRankBar = n(b.dataset.globalRankBar)),
+        );
+        wireTabs(
           "[data-outpost-detail-view]",
           (b) => (session.outpostDetailView = b.dataset.outpostDetailView),
         );
@@ -2525,17 +2541,11 @@
           (b) => (session.outpostRankBar = n(b.dataset.outpostRankBar)),
         );
         document.querySelectorAll("[data-breakdown-link]").forEach(button => button.addEventListener("click", () => {
-          session.breakdownReturn = { label: session.tab === "outposts" ? mapName(session.selectedOutpost) : session.tab === "resources" ? `Resource ${session.selectedResource + 1}` : "previous view", tab: session.tab, outpostDetailView: session.outpostDetailView, resourceDetailView: session.resourceDetailView, outpostBreakdownCategory: session.outpostBreakdownCategory };
-          session.breakdownCategory = button.dataset.breakdownLink;
-          if (button.dataset.breakdownLinkUnit) session.breakdownUnit = button.dataset.breakdownLinkUnit;
-          if (button.dataset.breakdownLinkStat) session.breakdownUnitStat = button.dataset.breakdownLinkStat;
-          session.tab = "breakdowns";
-          location.hash = `breakdown-${session.breakdownCategory}${session.breakdownCategory === "units" ? `-${session.breakdownUnit}-${session.breakdownUnitStat}` : ""}`;
-          render();
+          openGlobalBreakdown({ category: button.dataset.breakdownLink, unit: button.dataset.breakdownLinkUnit, stat: button.dataset.breakdownLinkStat });
         }));
         document.querySelector("[data-breakdown-return]")?.addEventListener("click", () => {
           const target = session.breakdownReturn; if (!target) return;
-          session.tab = target.tab; session.outpostDetailView = target.outpostDetailView; session.resourceDetailView = target.resourceDetailView; session.outpostBreakdownCategory = target.outpostBreakdownCategory; session.breakdownReturn = null; history.replaceState(null, "", location.pathname + location.search); render();
+          session.tab = target.tab; session.outpostDetailView = target.outpostDetailView; session.resourceDetailView = target.resourceDetailView; session.outpostBreakdownCategory = target.outpostBreakdownCategory; session.outpostRankBar = target.outpostRankBar ?? session.outpostRankBar; session.breakdownReturn = null; history.replaceState(null, "", location.pathname + location.search); render();
         });
         document.querySelectorAll("[data-select-link-map]").forEach(button => button.addEventListener("click", () => { session.selectedLinkMap = n(button.dataset.selectLinkMap); session.selectedLinkSlot = n(button.dataset.selectLinkSlot); render(); }));
         document.querySelectorAll("[data-go-resource]").forEach(button => button.addEventListener("click", () => { session.selectedResource = n(button.dataset.goResource); session.selectedLinkMap = n(button.dataset.goResourceLinkMap); session.selectedLinkSlot = n(button.dataset.goResourceLinkSlot); session.worldIdx = R.resourceWorld(session.selectedResource); session.resourceState = "all"; session.resourceDetailView = "links"; session.mapSelectionKind = "resource"; session.tab = "resources"; render(); }));

@@ -419,6 +419,7 @@ export function renderBreakdownTree(root, container, opts) {
   const prefix = 'bt' + (_btTreeCounter++) + '-';
   let idCounter = 0;
   const ttId = opts.tooltipId || 'tooltip';
+  const actions = new Map();
 
   function fmtNodeVal(node) {
     const v = Number(node.val) || 0;    if (node.fmt === 'full') return fmtExact(v);    if (node.fmt === '/hr') return fmtVal(v) + '/hr <span style="color:var(--text2);font-size:.85em">('+fmtExact(v)+')</span>';
@@ -463,8 +464,10 @@ export function renderBreakdownTree(root, container, opts) {
     let cls = 'bt-row';
     if (depth === 0) cls += ' bt-root';
     const noteAttr = node.note ? ' data-bt-note="' + node.note.replace(/"/g, '&quot;') + '"' : '';
+    const actionAttr = node.action == null ? '' : ' data-bt-action="' + id + '" role="button" tabindex="0"';
+    if (node.action != null) actions.set(id, { action: node.action, node: node });
     const tagHtml = node.tag ? ' <span class="bt-tag ' + node.tag + '">[' + node.tag + ']</span>' : '';
-    let html = '<div class="' + cls + '"' + noteAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
+    let html = '<div class="' + cls + '"' + noteAttr + actionAttr + ' style="padding-left:' + pad + 'px;" data-depth="' + depth + '">';
     html += arrow;
     html += '<span class="bt-label">' + node.label + tagHtml + '</span>';
     html += '<span class="bt-val" style="color:' + valColor(node) + '">' + fmtNodeVal(node) + '</span>';
@@ -515,6 +518,11 @@ export function renderBreakdownTree(root, container, opts) {
     const row = e.target.closest('.bt-row');
     if (!row) return;
     const arrow = row.querySelector('.bt-arrow');
+    if (!e.target.closest('.bt-arrow') && row.dataset.btAction && typeof opts.onAction === 'function') {
+      const entry = actions.get(row.dataset.btAction);
+      if (entry) opts.onAction(entry.action, entry.node);
+      return;
+    }
     if (!arrow) return;
     const targetId = arrow.dataset.id;
     const childDiv = document.getElementById(targetId);
@@ -522,6 +530,15 @@ export function renderBreakdownTree(root, container, opts) {
     const open = childDiv.style.display !== 'none';
     childDiv.style.display = open ? 'none' : '';
     arrow.textContent = open ? '\u25b8' : '\u25be';
+  };
+  container.onkeydown = function(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest('.bt-row[data-bt-action]');
+    if (!row || typeof opts.onAction !== 'function') return;
+    const entry = actions.get(row.dataset.btAction);
+    if (!entry) return;
+    e.preventDefault();
+    opts.onAction(entry.action, entry.node);
   };
 
   const expandBtn = container.querySelector('.bt-expand-all');
