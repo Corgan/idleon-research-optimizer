@@ -352,6 +352,8 @@
       .royal-currency-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px; background: #132745; border: 1px solid #40536e; border-radius: 4px; color: var(--text); font-size: .72em; }
       .royal-partial { display: block; color: var(--gold); font-size: .82em; white-space: normal; overflow-wrap: anywhere; }
       .royal-map-layer { position: absolute; inset: 0; }
+      .royal-map-upgrade-layer { z-index: 20; pointer-events: none; }
+      .royal-map-upgrade-anchor { position: absolute; width: 6.905%; aspect-ratio: 56 / 20; transform: translate(-48.2%, -40%); pointer-events: none; }
       .royal-map-line {
         position: absolute;
         height: 1.386%;
@@ -444,6 +446,11 @@
       .royal-map-rank.bar-2 { --rank-color: rgb(249, 130, 114); }
       .royal-map-rank.bar-3 { --rank-color: rgb(255, 214, 97); }
       .royal-map-rank.bar-4 { --rank-color: rgb(236, 214, 133); }
+      .royal-map-upgrades { position: absolute; left: 48.2%; bottom: calc(100% - 2px); display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateX(-50%); pointer-events: none; }
+      .royal-map-upgrade-points { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 24px; padding: 2px 5px; border: 1px solid #7d8796; border-radius: 3px; background: rgba(7, 16, 31, .94); color: #58e36b; box-shadow: 0 1px 4px rgba(3, 8, 18, .98); font-family: Verdana, Geneva, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+      .royal-map-point-diamond { width: 6px; height: 6px; background: #58e36b; border: 1px solid #d8ffe0; box-shadow: 0 1px 3px #000; transform: rotate(45deg); }
+      .royal-map-upgrade-levels { display: flex; gap: 2px; }
+      .royal-map-upgrade { --rank-color: #9ca3af; width: 17px; height: 17px; border-width: 1px; background: #18202d; font-size: 9px; }
       .royal-map-node-glyph { z-index: 2; }
       .royal-map-outpost-glyph { z-index: 3; }
       .royal-worker-icon { position: relative; width: 28.8px; height: 43.2px; flex: 0 0 auto; }
@@ -456,8 +463,13 @@
       .map-size-small .royal-map-counters { height: 320px; }
       .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
       .map-size-small .royal-map-ranks { bottom: calc(100% - 1px); gap: 1px; }
+      .map-size-small .royal-map-upgrades { bottom: calc(100% - 1px); gap: 2px; }
+      .map-size-small .royal-map-upgrade-points { gap: 3px; min-width: 19px; padding: 2px 4px; font-size: 8px; }
+      .map-size-small .royal-map-point-diamond { width: 4px; height: 4px; }
+      .map-size-small .royal-map-upgrade-levels { gap: 1px; }
       .map-size-small .royal-map-rank { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
       .map-size-small .royal-map-rank.wide { font-size: 6px; }
+      .map-size-small .royal-map-upgrade { width: 12px; height: 12px; font-size: 7px; }
       .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
       .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
       .map-size-small .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
@@ -780,6 +792,13 @@
       .breakdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .breakdown-panel { min-width: 0; padding: 10px; background: #101b35; border: 1px solid #40536e; border-radius: 8px; }
       .breakdown-panel label { display: grid; gap: 5px; color: var(--text2); margin-bottom: 10px; }
+      .breakdown-reference { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 10px; border: 1px solid #526b8f; border-radius: 5px; background: #132745; color: var(--cyan); cursor: pointer; text-align: left; }
+      .breakdown-reference:hover, .breakdown-reference:focus-visible { border-color: var(--accent); color: var(--text); }
+      .breakdown-reference b { color: var(--gold); }
+      .breakdown-stack { display: grid; gap: 10px; }
+      .breakdown-context { color: var(--text2); font-size: .8em; margin: 5px 0 10px; }
+      .breakdown-context code { color: var(--cyan); }
+      .detail-subtabs { margin: 0 0 10px; border: 1px solid #40536e; border-radius: 5px; }
       .bt-controls { margin-bottom: 8px; display: flex; gap: 6px; }
       .bt-controls .btn-sm { padding: 4px 10px; background: var(--bg3); color: var(--text2); border: 1px solid #4a607e; border-radius: 4px; cursor: pointer; font-size: .8em; }
       .bt-tree { font-size: .85em; }
@@ -936,6 +955,17 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-breakdowns"
+          aria-controls="content"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="breakdowns"
+        >
+          Breakdowns
+        </button
+        ><button
+          class="tab-btn"
+          role="tab"
           id="tab-optimizer"
           aria-controls="content"
           aria-selected="false"
@@ -1025,6 +1055,16 @@
         breakdownOutpost: null,
         currencyTarget: 0,
         upgradeView: "armory",
+        breakdownCategory: "collection",
+        breakdownUnit: "worker",
+        breakdownUnitStat: "collection",
+        outpostDetailView: "summary",
+        outpostBreakdownCategory: "collection",
+        outpostRankBar: 0,
+        resourceDetailView: "summary",
+        selectedLinkMap: null,
+        selectedLinkSlot: 0,
+        breakdownReturn: null,
         spoilersVisible: false,
         flairCategory: "all",
         flairShowMaxed: false,
@@ -1054,6 +1094,7 @@
               })[c],
           );
       const types = ["Normal", "Support", "Savage"],
+        outpostUpgradeNames = ["Expanded Barracks", "Advanced Logistics", "Greater Education"],
         worlds = Array.from({ length: 7 }, (_, i) => i),
         visibleMarbles = ROYAL_MARBLES.slice(0, 7);
       function safeRawValue(value) {
@@ -1548,11 +1589,14 @@
                   ? currencies(S)
                     : session.tab === "upgrades"
                       ? upgrades(S)
-                      : layoutOptimizer(S);
+                      : session.tab === "breakdowns"
+                        ? globalBreakdowns(S)
+                        : layoutOptimizer(S);
                 decorateCurrencySelectors();
-                decorateRangeTargets();
+                decorateDetailBreakdowns(S);
+                if ((session.tab !== "outposts" || session.outpostDetailView === "summary") && (session.tab !== "resources" || session.resourceDetailView === "summary")) decorateRangeTargets();
         wire();
-                  initializeCollectionBreakdowns(S);
+                  initializeBreakdownTrees(S);
       }
       function persistentMap(S) {
         const q = R.worldOutpostRows(S, session.worldIdx).filter(row => session.spoilersVisible || row.state !== "locked");
@@ -1708,8 +1752,18 @@
         const assignmentItems = `${movableWorkers}${permanentWorkers}${transientUnits}`;
         const assignmentIcons = session.mapOverlayMode === "assignments" && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
         const rankBadges = rankValues.length && session.mapOverlayMode === "ranks" && !session.rangeFinderMode ? `<span class="royal-map-ranks" aria-hidden="true">${rankValues.map(({ bar, rank }) => `<span class="royal-map-rank bar-${bar}${String(rank).length > 2 ? " wide" : ""}" title="${esc(R.outpostRankName(bar))}: ${fi(rank)}"><span>${fi(rank)}</span></span>`).join("")}</span>` : "";
+        const upgradeLevels = row.built ? [0, 1, 2].map(index => Math.max(0, Math.floor(n(S.royalMapsData?.[row.mapIdx]?.[index])))) : [];
+        const upgradeSummary = row.built ? `, upgrades: ${outpostUpgradeNames.map((name, index) => `${name} ${fi(upgradeLevels[index])}`).join(", ")}, ${fi(R.outpostPointsLeft(S, row.mapIdx))} points left` : "";
         const assignments = `${assignmentIcons}${rankBadges}`;
-        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${unitSummary ? `, units: ${unitSummary}` : ""}${transientSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
+        return `<button class="${classes}" data-map-outpost="${row.mapIdx}" style="${mapPoint(position.x, position.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="${mapName(row.mapIdx)} outpost, ${status}${unitSummary ? `, units: ${unitSummary}` : ""}${transientSummary}${upgradeSummary}">${atlasGlyph("royal-map-node-glyph", "font-106.png", nodeGlyph, 23, 18, 600, 1024)}${row.built ? atlasGlyph("royal-map-outpost-glyph", "font-106.png", outpostGlyph, 56, 17, 600, 1024) : ""}${glorified ? atlasGlyph("royal-map-glory-glyph", "font-106.png", { x: 519, y: 47 }, 16, 5, 600, 1024) : ""}${assignments}</button>`;
+      }
+      function mapUpgradeOverlay(S, row) {
+        if (!row.built || session.mapOverlayMode !== "upgrades" || session.rangeFinderMode) return "";
+        const position = R.outpostMapPosition(row.mapIdx);
+        if (!position) return "";
+        const levels = [0, 1, 2].map(index => Math.max(0, Math.floor(n(S.royalMapsData?.[row.mapIdx]?.[index]))));
+        const points = R.outpostPointsLeft(S, row.mapIdx);
+        return `<span class="royal-map-upgrade-anchor" style="${mapPoint(position.x, position.y)}" aria-hidden="true"><span class="royal-map-upgrades"><span class="royal-map-upgrade-points"><span>${fi(points)}</span><i class="royal-map-point-diamond"></i></span><span class="royal-map-upgrade-levels">${levels.map((level, index) => `<span class="royal-map-rank royal-map-upgrade${String(level).length > 2 ? " wide" : ""}" title="${outpostUpgradeNames[index]}: ${fi(level)}"><span>${fi(level)}</span></span>`).join("")}</span></span></span>`;
       }
       function outpostQuickView(S, mapIdx) {
         const row = R.outpostEligibility(S, mapIdx);
@@ -1759,10 +1813,19 @@
         const shelfIndices = shelfLayoutStepIndices(), shelfPosition = shelfIndices.indexOf(session.shelfStepIndex);
         const stateOptions = [["current", "Current save", true], ...(optimizedNow ? [["optimized", "Optimized now", true], ["post-reset", "Post-reset", optimizedPostReset]] : []), ...(shelfStep ? [["shelf-step", shelfStepLabel, true]] : [])];
         const shelfNavigation = shelfStep ? `<div class="shelf-step-navigation" role="group" aria-label="Optimizer step navigation"><button type="button" data-shelf-nav="-1" ${shelfPosition <= 0 ? "disabled" : ""} aria-label="Previous optimizer step">&larr; Previous</button><span class="shelf-step-position" aria-live="polite">${fi(shelfPosition + 1)} / ${fi(shelfIndices.length)}</span><button type="button" data-shelf-nav="1" ${shelfPosition < 0 || shelfPosition >= shelfIndices.length - 1 ? "disabled" : ""} aria-label="Next optimizer step">Next &rarr;</button><button type="button" class="go-to-step" data-go-shelf-step>Go to step</button></div>` : "";
-        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["assignments", "Assignments"], ["ranks", "Ranks"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
+        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
         const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Movable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>` : "";
         const stateToggle = `${stateOptions.length > 1 ? `<div class="royal-map-state-group" role="group" aria-label="Map state">${stateOptions.map(([value, label, enabled]) => `<button type="button" data-map-state="${value}" aria-pressed="${session.royalStateView === value ? "true" : "false"}" ${enabled ? "" : "disabled"}>${label}</button>`).join("")}</div>` : ""}${shelfNavigation}${mapViewToggle}${assignmentFilters}`;
-        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span>${stateToggle}<button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div><div class="royal-map-layer royal-map-upgrade-layer">${q.map(row => mapUpgradeOverlay(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span>${stateToggle}<button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+      }
+      function globalBreakdowns(S) {
+        if (!R.hasCompleteRoyalData(S)) return royalDataGate();
+        const categories = [["collection", "Collection"], ["range", "Range"], ["rank-exp", "Rank EXP"], ["points", "Points"], ["units", "Units"], ["support", "Support"], ["savage", "Savage"]];
+        const units = R.globalUnitBreakdowns(S).rules, selectedUnit = units.find(unit => unit.id === session.breakdownUnit) || units[0];
+        if (!selectedUnit.stats.some(stat => stat.id === session.breakdownUnitStat)) session.breakdownUnitStat = selectedUnit.stats[0].id;
+        const unitTabs = session.breakdownCategory === "units" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Unit types">${units.map(unit => `<button role="tab" aria-selected="${unit.id === selectedUnit.id ? "true" : "false"}" tabindex="${unit.id === selectedUnit.id ? 0 : -1}" data-breakdown-unit="${unit.id}">${esc(unit.name)}</button>`).join("")}</nav><nav class="subtabs detail-subtabs" role="tablist" aria-label="Unit stats">${selectedUnit.stats.map(stat => `<button role="tab" aria-selected="${stat.id === session.breakdownUnitStat ? "true" : "false"}" tabindex="${stat.id === session.breakdownUnitStat ? 0 : -1}" data-breakdown-unit-stat="${stat.id}">${esc(stat.label)}</button>`).join("")}</nav>` : "";
+        const back = session.breakdownReturn ? `<button type="button" class="breakdown-reference" data-breakdown-return><span>Back to ${esc(session.breakdownReturn.label)}</span><b>&larr;</b></button>` : "";
+        return `<section class="section"><h2>Global Breakdowns</h2>${back}<nav class="subtabs detail-subtabs" role="tablist" aria-label="Breakdown categories">${categories.map(([value, text]) => `<button role="tab" aria-selected="${session.breakdownCategory === value ? "true" : "false"}" tabindex="${session.breakdownCategory === value ? 0 : -1}" data-breakdown-category="${value}">${text}</button>`).join("")}</nav>${unitTabs}<div class="breakdown-panel"><div class="breakdown-warning"></div><div id="global-breakdown-tree"></div></div></section>`;
       }
       function outposts(S) {
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
@@ -1854,7 +1917,7 @@
       }
       function outpostPointPlanPanel(S, mapIdx) {
         const key = `${mapIdx}`, plan = session.outpostPointPlanKey === key ? session.outpostPointPlan : null;
-        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package and compares theoretical fully buffed rates across all built outposts, independent of current connections and node state.</div><div class="planner-warning">Assignable Barracks slots cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
+        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package. Current assignments uses saved resource links and each linked node's current grade; the other listings compare pre-grade outpost rates.</div><div class="planner-warning">Assignable Barracks slots cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
         if (!plan) return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>Point Spending Planner</h3>${controls}<p class="planner-note">Analyze this outpost's three fixed packages.</p></section>`;
         const missing = [...new Set([...(plan.missing || []), ...(plan.baseline?.invalid || []).map(item => item.reason)])];
         const scenarioRows = (scenario, title, description, showRecommendation = false) => {
@@ -1865,9 +1928,10 @@
           }).join("");
           return `<tr class="point-scenario-heading"><th colspan="4">${esc(title)}<span class="point-scenario-description">${esc(description)}</span></th></tr>${rows}`;
         };
-        const comparisons = scenarioRows("current", "Current assignments", "Saved professions; a new Barracks slot is modeled as a Worker.", true)
-          + scenarioRows("normalized", "No assignable Workers", "Assignable Worker collection is removed; fixed Command and Glorified Workers remain.")
-          + scenarioRows("allWorkers", "All assignable slots as Workers", "Every occupied assignable slot across all built outposts is modeled as a Worker.");
+        const comparisons = scenarioRows("current", "Current assignments", "Saved professions and resource links; rates use each linked node's current grade. A new Barracks slot is modeled as a Worker.", true)
+          + scenarioRows("currentUngraded", "Current assignments without linked node", "Saved professions, with connection and linked-node grade excluded; rates are pre-grade.")
+          + scenarioRows("normalized", "No assignable Workers", "Pre-grade: linked nodes are excluded. Assignable Worker collection is removed; fixed Command and Glorified Workers remain.")
+          + scenarioRows("allWorkers", "All assignable slots as Workers", "Pre-grade: linked nodes are excluded. Every occupied assignable slot across all built outposts is modeled as a Worker.");
         return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>12-point benefit comparison</h3>${controls}${missing.length ? `<div class="planner-warning">${missing.map(esc).join("; ")}</div>` : ""}<div class="table-wrap"><table class="data-table point-comparison-table"><thead><tr><th>Package</th><th>Local Normal / point</th><th>Global Normal / point</th><th>Global Savage / point</th></tr></thead><tbody>${comparisons}</tbody></table></div></section>`;
       }
       function outpostConnectionDetails(S, connections) {
@@ -2092,9 +2156,17 @@
       function collectionFactorLabel(name) {
         return collectionFactorLabels[name] || String(name || "Rate factor").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[+*_]/g, " / ");
       }
+      function collectionComponentNode(component) {
+        const children = [];
+        if (component.rawValue !== undefined && component.rawValue !== component.value) children.push({ label: "Raw value", val: component.rawValue, note: component.savePath || component.source });
+        if (component.level !== undefined) children.push({ label: "Saved level", val: component.level, note: component.savePath });
+        if (component.bonusPerLevel !== undefined) children.push({ label: "Bonus per level", val: component.bonusPerLevel });
+        if (component.children) children.push(...component.children.map(collectionComponentNode));
+        return { label: collectionFactorLabel(component.name), val: component.value, note: component.savePath || component.source, children };
+      }
       function buildGlobalCollectionTree(S) {
         const breakdown = R.globalResourceRateBreakdown(S);
-        return { breakdown, tree: { label: "Global Collection Multiplier", val: breakdown.value, fmt: "x", children: (breakdown.factors || []).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x" })) } };
+        return { breakdown, tree: { label: "Global Collection Multiplier", val: breakdown.value, fmt: "x", children: (breakdown.factors || []).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x", children: (x.components || []).map(collectionComponentNode) })) } };
       }
       function buildOutpostCollectionTree(S, mapIdx) {
         const breakdown = R.outpostResourceRateBreakdown(S, mapIdx);
@@ -2104,6 +2176,138 @@
           { label: "Global Collection Multiplier", val: breakdown.global?.value || factors[1]?.value || 0, fmt: "x" },
           ...factors.slice(2).map(x => ({ label: collectionFactorLabel(x.name), val: x.value, fmt: "x" })),
         ] } };
+      }
+      function effectDetailChildren(detail) {
+        return [
+          { label: "Saved level", val: detail.level, note: detail.savePath },
+          { label: "Bonus per level", val: detail.bonusPerLevel },
+          { label: "Current bonus", val: detail.bonus, fmt: "+" },
+        ];
+      }
+      function globalBreakdownTree(S) {
+        if (session.breakdownCategory === "collection") return buildGlobalCollectionTree(S);
+        if (session.breakdownCategory === "range") {
+          const value = R.globalRangeBreakdown(S);
+          return { breakdown: { available: true }, tree: { label: "Global Range Rules", val: value.base + value.orblet.bonus, children: [
+            { label: "Base range", val: value.base },
+            { label: "Orblet range", val: value.orblet.bonus, fmt: "+", children: effectDetailChildren(value.orblet) },
+            { label: "Advanced Logistics curve", val: value.logistics.numerator, children: [{ label: "Numerator", val: value.logistics.numerator }, { label: "Denominator offset", val: value.logistics.denominatorOffset }, { label: "Local saved level", val: 0, note: value.logistics.saveField }] },
+            { label: "Military Rank coefficient", val: value.military.armory.bonus, fmt: "+", children: effectDetailChildren(value.military.armory) },
+            { label: "Maximum range", val: value.cap },
+            { label: "Resource-link allowance", val: value.allowances.resource, fmt: "+" },
+            { label: "Outpost-link allowance", val: value.allowances.outpost, fmt: "+" },
+          ] } };
+        }
+        if (session.breakdownCategory === "rank-exp") {
+          const value = R.globalRankExpBreakdown(S);
+          return { breakdown: { available: true }, tree: { label: "Global Rank EXP Rules", val: value.bars.reduce((sum, bar) => sum + bar.baseRate, 0), fmt: "rate", children: value.bars.map(bar => ({ label: bar.name, val: bar.baseRate, fmt: "rate", children: [
+            { label: "Orblet EXP multiplier", val: 1 + value.orblet.bonus / 100, fmt: "x", children: effectDetailChildren(value.orblet) },
+            { label: "Purity Shop bonus", val: bar.purityShopActive ? value.shop65 : 0, fmt: "%" },
+            { label: "Selected-bar Shop bonus", val: bar.selectedShopActive ? value.shop77 : 0, fmt: "%" },
+            { label: `${bar.contributor} effect`, val: R.globalUnitBreakdowns(S).rules.find(unit => unit.id === bar.unit)?.stats[0]?.value || 0, fmt: "%" },
+            { label: `Purified source map ${bar.purifiedSourceMap}`, val: bar.purifiedMultiplier, fmt: "x", note: "The current source calls isMapPurified(bar), so bar 0-4 reads map ID 0-4 rather than the selected outpost." },
+          ] })) } };
+        }
+        if (session.breakdownCategory === "points") {
+          const value = R.globalPointBreakdown(S);
+          return { breakdown: { available: true }, tree: { label: "Global Outpost Point Rules", val: value.base, children: [
+            { label: "Base points", val: value.base },
+            { label: "Per-world bonuses", val: value.worlds.reduce((sum, world) => sum + world.armory.bonus, 0), fmt: "+", children: value.worlds.map(world => ({ label: `W${world.worldIdx + 1} Armory bonus`, val: world.armory.bonus, fmt: "+", children: effectDetailChildren(world.armory) })) },
+            { label: "Trading Rank points per rank", val: value.tradingRankPoints },
+            { label: "Periodic Trading Rank divisor", val: value.rankBonus.divisor, children: effectDetailChildren(value.rankBonus.armory) },
+            { label: "Glorified points", val: value.glorifiedPoints, fmt: "+" },
+            { label: "Upgrade costs", val: value.costs.reduce((sum, cost) => sum + cost.pointsPerLevel, 0), children: value.costs.map(cost => ({ label: cost.name, val: cost.pointsPerLevel })) },
+          ] } };
+        }
+        if (session.breakdownCategory === "units") {
+          const value = R.globalUnitBreakdowns(S), unit = value.rules.find(candidate => candidate.id === session.breakdownUnit) || value.rules[0], stat = unit.stats.find(candidate => candidate.id === session.breakdownUnitStat) || unit.stats[0];
+          return { breakdown: { available: true }, tree: { label: `${unit.name}: ${stat.label}`, val: stat.value, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined, children: [
+            { label: "Base effect", val: stat.base, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined },
+            { label: "Armory effect", val: stat.armory.bonus, fmt: "+", children: effectDetailChildren(stat.armory) },
+            { label: "Final effect per unit", val: stat.value, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined },
+            ...(unit.kind === "movable" ? [{ label: "Permanent schedule starts", val: value.permanentSchedule.startsAtCommandRank, note: value.permanentSchedule.order.join(" → ") }] : []),
+          ] } };
+        }
+        if (session.breakdownCategory === "support") {
+          const value = R.globalSupportBreakdown(S);
+          return { breakdown: { available: true }, tree: { label: "Support Bonus Per Link", val: value.value, fmt: "%", children: [{ label: "Base support", val: value.basePercent, fmt: "%" }, { label: "Armory multiplier bonus", val: value.armory.bonus, fmt: "%", children: effectDetailChildren(value.armory) }] } };
+        }
+        const value = R.globalSavageBreakdown(S);
+        return { breakdown: { available: true }, tree: { label: "Savage Drain Multiplier", val: value.value, fmt: "x", children: [{ label: "Base multiplier", val: value.baseMultiplier, fmt: "x" }, { label: "Armory multiplier bonus", val: value.armory.bonus, fmt: "%", children: effectDetailChildren(value.armory) }, { label: "Currency multiplier", val: value.currencyMultiplier, fmt: "x" }] } };
+      }
+      function breakdownReference(labelText, value, category, unit = "", stat = "") {
+        return `<button type="button" class="breakdown-reference" data-breakdown-link="${category}" ${unit ? `data-breakdown-link-unit="${unit}"` : ""} ${stat ? `data-breakdown-link-stat="${stat}"` : ""}><span>${esc(labelText)}</span><b>${value}</b></button>`;
+      }
+      function detailViewTabs(scope, current, values) {
+        return `<nav class="subtabs detail-subtabs" role="tablist" aria-label="${esc(scope)} detail views">${values.map(([value, text]) => `<button role="tab" aria-selected="${current === value ? "true" : "false"}" tabindex="${current === value ? 0 : -1}" data-${scope}-detail-view="${value}">${text}</button>`).join("")}</nav>`;
+      }
+      function outpostBreakdownMarkup(S, mapIdx) {
+        const categories = [["collection", "Collection"], ["range", "Range"], ["rank-exp", "Rank EXP"], ["points", "Points"], ["units", "Units"], ["clearing", "Clearing"]];
+        const categoryTabs = `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Outpost breakdown categories">${categories.map(([value, text]) => `<button role="tab" aria-selected="${session.outpostBreakdownCategory === value ? "true" : "false"}" tabindex="${session.outpostBreakdownCategory === value ? 0 : -1}" data-outpost-breakdown-category="${value}">${text}</button>`).join("")}</nav>`;
+        const rankTabs = session.outpostBreakdownCategory === "rank-exp" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Rank bars">${[0, 1, 2, 3, 4].map(bar => `<button role="tab" aria-selected="${session.outpostRankBar === bar ? "true" : "false"}" tabindex="${session.outpostRankBar === bar ? 0 : -1}" data-outpost-rank-bar="${bar}">${R.outpostRankName(bar).replace(" Rank", "")}</button>`).join("")}</nav>` : "";
+        const unitRules = R.globalUnitBreakdowns(S).rules, selectedUnit = unitRules.find(unit => unit.id === session.breakdownUnit) || unitRules[0];
+        if (!selectedUnit.stats.some(stat => stat.id === session.breakdownUnitStat)) session.breakdownUnitStat = selectedUnit.stats[0].id;
+        const unitTabs = session.outpostBreakdownCategory === "units" ? `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Outpost unit types">${unitRules.map(unit => `<button role="tab" aria-selected="${unit.id === selectedUnit.id ? "true" : "false"}" tabindex="${unit.id === selectedUnit.id ? 0 : -1}" data-breakdown-unit="${unit.id}">${esc(unit.name)}</button>`).join("")}</nav><nav class="subtabs detail-subtabs" role="tablist" aria-label="Outpost unit stats">${selectedUnit.stats.map(stat => `<button role="tab" aria-selected="${stat.id === session.breakdownUnitStat ? "true" : "false"}" tabindex="${stat.id === session.breakdownUnitStat ? 0 : -1}" data-breakdown-unit-stat="${stat.id}">${esc(stat.label)}</button>`).join("")}</nav>` : "";
+        let references = "";
+        if (session.outpostBreakdownCategory === "collection") references = breakdownReference("Global collection multiplier", `${f(R.globalResourceRateBreakdown(S).value)}x`, "collection") + breakdownReference("Worker effect per unit", `${f(R.unitSpecEffect(S, 0))}%`, "units", "worker", "collection");
+        if (session.outpostBreakdownCategory === "range") references = breakdownReference("Global range rules", "Open", "range") + breakdownReference("Guard range per unit", f(R.unitSpecEffect(S, 2)), "units", "guard", "range");
+        if (session.outpostBreakdownCategory === "rank-exp") { const bar = R.globalRankExpBreakdown(S).bars[session.outpostRankBar]; references = breakdownReference("Global rank EXP rules", "Open", "rank-exp") + breakdownReference(`${bar.contributor} effect`, "Open", "units", bar.unit, R.globalUnitBreakdowns(S).rules.find(unit => unit.id === bar.unit)?.stats[0]?.id || ""); }
+        if (session.outpostBreakdownCategory === "points") references = breakdownReference("Global and per-world point rules", "Open", "points");
+        if (session.outpostBreakdownCategory === "units") references = breakdownReference("Unit effects and availability rules", "Open", "units", session.breakdownUnit, session.breakdownUnitStat);
+        if (session.outpostBreakdownCategory === "clearing") references = breakdownReference("Militia clearing effect", "Open", "units", "militia", "clearing");
+        return `${categoryTabs}${rankTabs}${unitTabs}${references}<div class="breakdown-panel"><div class="outpost-detail-tree"></div></div>`;
+      }
+      function outpostDetailTree(S, mapIdx) {
+        if (session.outpostBreakdownCategory === "collection") return buildOutpostCollectionTree(S, mapIdx).tree;
+        if (session.outpostBreakdownCategory === "range") { const value = R.outpostRangeBreakdown(S, mapIdx); return { label: `${mapName(mapIdx)} Range`, val: value.value, children: [{ label: "Global base and Orblet", val: value.global.base + value.global.orblet.bonus }, { label: "Guard contribution", val: value.guardRange, fmt: "+", children: [{ label: "Guard count", val: value.guards }, { label: "Range per Guard", val: value.perGuard }] }, { label: "Military Rank contribution", val: value.militaryRange, fmt: "+", children: [{ label: "Military Rank", val: value.militaryRank }, { label: "Range per rank", val: value.militaryPerRank }] }, { label: "Advanced Logistics", val: value.logisticsRange, fmt: "+", children: [{ label: "Saved level", val: value.logisticsLevel, note: `RoyalMaps[${mapIdx}][1]` }] }, { label: "Uncapped range", val: value.uncapped }, { label: "Final floor and cap", val: value.value }, { label: "Resource-link reach", val: value.resourceReach }, { label: "Outpost-link reach", val: value.outpostReach }] }; }
+        if (session.outpostBreakdownCategory === "rank-exp") { const value = R.outpostRankBarBreakdown(S, mapIdx, session.outpostRankBar); return { label: `${value.globalBar.name} EXP / hr`, val: value.value, fmt: "rate", children: [{ label: "Global rate per contributor", val: value.globalBar.baseRate, fmt: "rate" }, { label: "Glorified", val: value.glorifiedMultiplier, fmt: "x", note: `RoyalMaps[${mapIdx}][12]` }, { label: `Purified source map ${value.globalBar.purifiedSourceMap}`, val: value.globalBar.purifiedMultiplier, fmt: "x", note: "Source behavior is bar-index scoped, not selected-outpost scoped." }, { label: "Intel Rank", val: value.intelMultiplier, fmt: "x", children: [{ label: "Rank", val: value.intelRank }] }, { label: "Support links", val: value.supportMultiplier, fmt: "x", children: [{ label: "Support count", val: value.supports }] }, { label: "Contributors", val: value.directRate, fmt: "rate", children: [{ label: "Count", val: value.contributors }, { label: "Rate per contributor", val: value.ratePerContributor, fmt: "rate" }] }, { label: "Militia feed", val: value.militiaFeed, fmt: "rate" }, { label: "Current EXP", val: value.info.exp, note: `RoyalMaps[${mapIdx}][${3 + value.bar}]` }, { label: "Next requirement", val: value.info.nextReq }, { label: "ETA", val: value.etaHours }] }; }
+        if (session.outpostBreakdownCategory === "points") { const value = R.outpostPointBreakdown(S, mapIdx); return { label: `${mapName(mapIdx)} Points Remaining`, val: value.value, children: [{ label: "Base points", val: value.base }, { label: `W${value.worldIdx + 1} bonus`, val: value.worldBonus.armory.bonus, fmt: "+" }, { label: "Trading Rank", val: value.tradingRank, fmt: "+" }, { label: "Periodic rank bonus", val: value.rankBonus, fmt: "+" }, { label: "Glorified", val: value.glorified, fmt: "+", note: `RoyalMaps[${mapIdx}][12]` }, { label: "Points earned", val: value.earned }, { label: "Points spent", val: -value.spent, fmt: "+", children: value.spending.map(cost => ({ label: `${cost.name} Lv ${cost.level}`, val: -cost.spent, fmt: "+", note: cost.savePath })) }] }; }
+        if (session.outpostBreakdownCategory === "units") {
+          const value = R.outpostUnitBreakdown(S, mapIdx), rules = value.rules.rules, rule = rules.find(candidate => candidate.id === session.breakdownUnit) || rules[0], stat = rule.stats.find(candidate => candidate.id === session.breakdownUnitStat) || rule.stats[0], movableIds = ['worker', 'trader', 'guard', 'surveyor'], movableType = movableIds.indexOf(rule.id), transientType = ['militia', 'commander', 'knight', 'priest'].indexOf(rule.id) + 4;
+          const assignable = movableType >= 0 ? value.assignable.filter(unit => unit.type === movableType) : [], permanent = movableType >= 0 ? value.permanent[movableType] : null, transient = transientType >= 4 ? value.transient.find(unit => unit.type === transientType)?.count || 0 : 0, count = movableType >= 0 ? value.totals[movableType] : transient;
+          let contribution = count * stat.value;
+          if (rule.id === 'worker') contribution = 1 + contribution / 100;
+          if (rule.id === 'trader') contribution = R.outpostRankBarBreakdown(S, mapIdx, 0).directRate;
+          if (rule.id === 'surveyor') contribution = R.outpostRankBarBreakdown(S, mapIdx, 1).directRate;
+          if (transientType >= 5) contribution = R.outpostRankBarBreakdown(S, mapIdx, transientType - 3).directRate;
+          if (rule.id === 'militia' && stat.id === 'military-feed') contribution = [0, 1, 2, 3, 4].map(bar => R.outpostRankBarBreakdown(S, mapIdx, bar)).find(bar => bar.militiaFeedActive)?.militiaFeed || 0;
+          const countChildren = movableType >= 0 ? [{ label: "Assignable", val: assignable.length, children: assignable.map(unit => ({ label: `Slot ${unit.slot + 1}`, val: unit.raw, note: value.savePath })) }, { label: "Command Rank permanent", val: permanent.commandRank }, { label: "Glorified permanent", val: permanent.glorified }] : [{ label: "Transient assignments", val: transient, note: `RoyalG assignment arrays for W${R.outpostWorld(mapIdx) + 1}` }];
+          return { label: `${mapName(mapIdx)} ${rule.name}: ${stat.label}`, val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined, children: [{ label: "Effective count", val: count, children: countChildren }, { label: "Global effect per unit", val: stat.value, fmt: stat.unit === '%' ? '%' : stat.unit === '/hr' ? "rate" : undefined }, { label: "Local contribution", val: contribution, fmt: stat.unit === '/hr' || stat.id.includes('exp') || stat.id === 'military-feed' ? "rate" : rule.id === 'worker' ? "x" : undefined }] };
+        }
+        const value = R.outpostClearMetrics(S, mapIdx); return { label: `${mapName(mapIdx)} Clearing`, val: value.ratePerHour, fmt: "rate", children: [{ label: "Militia assignments", val: value.assignments }, { label: "Effect per Militia", val: R.unitSpecEffect(S, 4), fmt: "rate" }, { label: "Progress", val: value.progress, note: `RoyalMaps[${mapIdx}][0]` }, { label: "Requirement", val: value.requirement }, { label: "Remaining", val: value.remaining }, { label: "ETA", val: value.etaHours }] };
+      }
+      function linkBreakdownTree(link) {
+        return { label: `${mapName(link.mapIdx)} to Resource ${link.resourceIdx + 1}`, val: link.drainRate, fmt: "rate", children: [{ label: "Raw saved endpoint", val: Number(link.rawValue) || 0, note: link.savePath }, { label: "Distance", val: link.distance }, { label: "Effective resource reach", val: link.effectiveReach }, { label: "Reach margin", val: link.margin, fmt: "+" }, { label: "Outpost pre-grade rate", val: link.preGrade.value, fmt: "rate" }, { label: "Resource grade multiplier", val: link.gradeMultiplier, fmt: "x", children: [{ label: "Saved grade", val: link.grade, note: link.gradeSavePath }] }, { label: "Graded stream rate", val: link.gradedRate, fmt: "rate" }, { label: "Savage multiplier", val: link.savage ? link.savageMultiplier : 1, fmt: "x" }, { label: "Final drain rate", val: link.drainRate, fmt: "rate" }, { label: "Final currency rate", val: link.currencyRate, fmt: "rate" }] };
+      }
+      function resourceNodeTree(S, resourceIdx) { const value = R.resourceNodeBreakdown(S, resourceIdx); return { label: `Resource ${resourceIdx + 1} Node`, val: value.remaining, children: [{ label: "Grade", val: value.grade, note: value.gradeSavePath }, { label: "Production grade multiplier", val: value.gradeMultiplier, fmt: "x" }, { label: "Capacity", val: value.capacity, children: [{ label: "Base capacity", val: value.baseCapacity }, { label: "Base multiplier", val: value.baseMultiplier, fmt: "x" }, { label: "Grade capacity multiplier", val: value.gradeCapacityMultiplier, fmt: "x" }, { label: "World multiplier", val: value.tierMultiplier, fmt: "x" }] }, { label: "Raw consumed progress", val: value.rawProgress, note: value.progressSavePath }, { label: "Collected", val: value.collected }, { label: "Remaining", val: value.remaining }, { label: "Incoming drain rate", val: value.drainRate, fmt: "rate" }, { label: "Currency rate", val: value.currencyRate, fmt: "rate" }, { label: "Current links", val: value.links.length }] };
+      }
+      function outpostLinkMarkup(S, mapIdx) {
+        const links = [0, 1].map(slot => R.resourceLinkBreakdown(S, mapIdx, slot)).filter(link => link.available);
+        if (!links.length) return '<div class="empty-state">This outpost has no current resource link.</div>';
+        if (!links.some(link => link.slot === session.selectedLinkSlot)) session.selectedLinkSlot = links[0].slot;
+        const selected = links.find(link => link.slot === session.selectedLinkSlot) || links[0];
+        return `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Current outpost links">${links.map(link => `<button role="tab" aria-selected="${link.slot === selected.slot ? "true" : "false"}" data-select-link-map="${mapIdx}" data-select-link-slot="${link.slot}">${link.legacy ? "Legacy saved link" : "Current link"}</button>`).join("")}</nav><button type="button" class="breakdown-reference" data-go-resource="${selected.resourceIdx}" data-go-resource-link-map="${mapIdx}" data-go-resource-link-slot="${selected.slot}"><span>Resource ${selected.resourceIdx + 1} node</span><b>Open</b></button><div class="breakdown-panel"><div class="resource-link-tree"></div></div>`;
+      }
+      function resourceDetailMarkup(S, resourceIdx) {
+        if (session.resourceDetailView === "breakdown") return `${breakdownReference("Global collection multiplier", `${f(R.globalResourceRateBreakdown(S).value)}x`, "collection")}<div class="breakdown-panel"><div class="resource-node-tree"></div></div>`;
+        const value = R.resourceNodeBreakdown(S, resourceIdx), links = value.links;
+        if (!links.length) return '<div class="empty-state">This resource has no current links.</div>';
+        if (!links.some(link => link.mapIdx === session.selectedLinkMap && link.slot === session.selectedLinkSlot)) { session.selectedLinkMap = links[0].mapIdx; session.selectedLinkSlot = links[0].slot; }
+        const selected = links.find(link => link.mapIdx === session.selectedLinkMap && link.slot === session.selectedLinkSlot) || links[0];
+        return `<nav class="subtabs detail-subtabs" role="tablist" aria-label="Current resource links">${links.map(link => `<button role="tab" aria-selected="${link === selected ? "true" : "false"}" data-select-link-map="${link.mapIdx}" data-select-link-slot="${link.slot}">${mapName(link.mapIdx)}${link.legacy ? " (Legacy)" : ""}</button>`).join("")}</nav><button type="button" class="breakdown-reference" data-go-outpost="${selected.mapIdx}" data-go-outpost-link-slot="${selected.slot}"><span>${mapName(selected.mapIdx)} outpost</span><b>Open</b></button><div class="breakdown-panel"><div class="resource-link-tree"></div></div>`;
+      }
+      function decorateDetailBreakdowns(S) {
+        if (session.tab === "outposts" && session.selectedOutpost !== null) {
+          const detail = document.querySelector(".outpost-detail"), card = detail?.querySelector(".outpost-row");
+          if (detail && card) {
+            detail.insertBefore(document.createRange().createContextualFragment(detailViewTabs("outpost", session.outpostDetailView, [["summary", "Summary"], ["breakdown", "Breakdowns"], ["links", "Current Links"]])), card);
+            if (session.outpostDetailView !== "summary") { const body = card.querySelector(".row-body"); if (body) body.innerHTML = session.outpostDetailView === "breakdown" ? outpostBreakdownMarkup(S, session.selectedOutpost) : outpostLinkMarkup(S, session.selectedOutpost); }
+          }
+        }
+        if (session.tab === "resources") for (const panel of document.querySelectorAll(".resource-inspector .info-panel")) {
+          panel.insertBefore(document.createRange().createContextualFragment(detailViewTabs("resource", session.resourceDetailView, [["summary", "Summary"], ["breakdown", "Breakdown"], ["links", "Current Links"]])), panel.firstChild);
+          if (session.resourceDetailView !== "summary") panel.innerHTML = `${detailViewTabs("resource", session.resourceDetailView, [["summary", "Summary"], ["breakdown", "Breakdown"], ["links", "Current Links"]])}<h3>${resourceIcon(S, session.selectedResource)}Resource ${session.selectedResource + 1}</h3>${resourceDetailMarkup(S, session.selectedResource)}`;
+        }
       }
       function breakdownWarning(breakdown, title) {
         if (!breakdown || (!breakdown.partial && breakdown.available !== false)) return "";
@@ -2127,6 +2331,20 @@
           outpostEl.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(outpost.breakdown, "Outpost collection rate");
           renderBreakdownTree(outpost.tree, outpostEl, { tooltipId: "bt-tooltip" });
         }
+      }
+      function initializeBreakdownTrees(S) {
+        initializeCollectionBreakdowns(S);
+        resetTreeCounter();
+        if (session.tab === "breakdowns") {
+          const result = globalBreakdownTree(S), host = document.querySelector("#global-breakdown-tree");
+          if (!host) return;
+          host.parentElement.querySelector(".breakdown-warning").innerHTML = breakdownWarning(result.breakdown, "Global breakdown");
+          renderBreakdownTree(result.tree, host, { tooltipId: "bt-tooltip" });
+        }
+        if (session.tab === "outposts" && session.outpostDetailView === "breakdown" && session.selectedOutpost !== null) for (const host of document.querySelectorAll(".outpost-detail-tree")) renderBreakdownTree(outpostDetailTree(S, session.selectedOutpost), host, { tooltipId: "bt-tooltip" });
+        if (session.tab === "resources" && session.resourceDetailView === "breakdown") for (const host of document.querySelectorAll(".resource-node-tree")) renderBreakdownTree(resourceNodeTree(S, session.selectedResource), host, { tooltipId: "bt-tooltip" });
+        if (session.tab === "outposts" && session.outpostDetailView === "links" && session.selectedOutpost !== null) { const link = R.resourceLinkBreakdown(S, session.selectedOutpost, session.selectedLinkSlot); if (link.available) for (const host of document.querySelectorAll(".resource-link-tree")) renderBreakdownTree(linkBreakdownTree(link), host, { tooltipId: "bt-tooltip" }); }
+        if (session.tab === "resources" && session.resourceDetailView === "links" && session.selectedLinkMap !== null) { const link = R.resourceLinkBreakdown(S, session.selectedLinkMap, session.selectedLinkSlot); if (link.available) for (const host of document.querySelectorAll(".resource-link-tree")) renderBreakdownTree(linkBreakdownTree(link), host, { tooltipId: "bt-tooltip" }); }
       }
       function currencyState(node) {
         return node.state === "active" ? "Active" : node.state === "drained" ? "Drained" : node.state === "empty" ? "Empty" : "Inactive";
@@ -2275,6 +2493,53 @@
           "[data-currency-view]",
           (b) => (session.currencyView = b.dataset.currencyView),
         );
+        wireTabs(
+          "[data-breakdown-category]",
+          (b) => (session.breakdownCategory = b.dataset.breakdownCategory),
+        );
+        wireTabs(
+          "[data-breakdown-unit]",
+          (b) => {
+            session.breakdownUnit = b.dataset.breakdownUnit;
+            session.breakdownUnitStat = R.globalUnitBreakdowns(activeRoyalState()).rules.find(unit => unit.id === session.breakdownUnit)?.stats[0]?.id || "collection";
+          },
+        );
+        wireTabs(
+          "[data-breakdown-unit-stat]",
+          (b) => (session.breakdownUnitStat = b.dataset.breakdownUnitStat),
+        );
+        wireTabs(
+          "[data-outpost-detail-view]",
+          (b) => (session.outpostDetailView = b.dataset.outpostDetailView),
+        );
+        wireTabs(
+          "[data-resource-detail-view]",
+          (b) => (session.resourceDetailView = b.dataset.resourceDetailView),
+        );
+        wireTabs(
+          "[data-outpost-breakdown-category]",
+          (b) => (session.outpostBreakdownCategory = b.dataset.outpostBreakdownCategory),
+        );
+        wireTabs(
+          "[data-outpost-rank-bar]",
+          (b) => (session.outpostRankBar = n(b.dataset.outpostRankBar)),
+        );
+        document.querySelectorAll("[data-breakdown-link]").forEach(button => button.addEventListener("click", () => {
+          session.breakdownReturn = { label: session.tab === "outposts" ? mapName(session.selectedOutpost) : session.tab === "resources" ? `Resource ${session.selectedResource + 1}` : "previous view", tab: session.tab, outpostDetailView: session.outpostDetailView, resourceDetailView: session.resourceDetailView, outpostBreakdownCategory: session.outpostBreakdownCategory };
+          session.breakdownCategory = button.dataset.breakdownLink;
+          if (button.dataset.breakdownLinkUnit) session.breakdownUnit = button.dataset.breakdownLinkUnit;
+          if (button.dataset.breakdownLinkStat) session.breakdownUnitStat = button.dataset.breakdownLinkStat;
+          session.tab = "breakdowns";
+          location.hash = `breakdown-${session.breakdownCategory}${session.breakdownCategory === "units" ? `-${session.breakdownUnit}-${session.breakdownUnitStat}` : ""}`;
+          render();
+        }));
+        document.querySelector("[data-breakdown-return]")?.addEventListener("click", () => {
+          const target = session.breakdownReturn; if (!target) return;
+          session.tab = target.tab; session.outpostDetailView = target.outpostDetailView; session.resourceDetailView = target.resourceDetailView; session.outpostBreakdownCategory = target.outpostBreakdownCategory; session.breakdownReturn = null; history.replaceState(null, "", location.pathname + location.search); render();
+        });
+        document.querySelectorAll("[data-select-link-map]").forEach(button => button.addEventListener("click", () => { session.selectedLinkMap = n(button.dataset.selectLinkMap); session.selectedLinkSlot = n(button.dataset.selectLinkSlot); render(); }));
+        document.querySelectorAll("[data-go-resource]").forEach(button => button.addEventListener("click", () => { session.selectedResource = n(button.dataset.goResource); session.selectedLinkMap = n(button.dataset.goResourceLinkMap); session.selectedLinkSlot = n(button.dataset.goResourceLinkSlot); session.worldIdx = R.resourceWorld(session.selectedResource); session.resourceState = "all"; session.resourceDetailView = "links"; session.mapSelectionKind = "resource"; session.tab = "resources"; render(); }));
+        document.querySelectorAll("[data-go-outpost]").forEach(button => button.addEventListener("click", () => { session.selectedOutpost = n(button.dataset.goOutpost); session.selectedLinkMap = session.selectedOutpost; session.selectedLinkSlot = n(button.dataset.goOutpostLinkSlot); session.worldIdx = R.outpostWorld(session.selectedOutpost); session.outpostFilter = "all"; session.outpostDetailView = "links"; session.mapSelectionKind = "outpost"; session.tab = "outposts"; render(); }));
         document.querySelector("#layout-goal")?.addEventListener("change", (e) => { session.layoutGoal = e.target.value; invalidateOptimizedState(); render(); });
         document.querySelector("#optimizer-subgoal")?.addEventListener("change", (e) => { session.optimizerSubgoal = e.target.value; clearShelfResult(); render(); });
         document.querySelector("#low-attention-intervals")?.addEventListener("change", (e) => { session.lowAttentionIntervals = e.target.value; clearShelfResult(); render(); });
@@ -2559,12 +2824,14 @@
       initSaveLoader({
         target: "#save-area",
         onLoad: (S) => {
+          const firstLoad = session.saveRevision === 0;
           preserveOptimizerResultsOnSaveRefresh();
-          const x = R.worldOutpostRows(S, 0).find(
-            (q) => q.built || q.state === "in-progress",
-          );
-          session.worldIdx = x?.worldIdx ?? 0;
-          session.selectedOutpost = x?.mapIdx ?? null;
+          if (firstLoad && session.mapSelectionKind === null && session.selectedOutpost === null) {
+            const initialOutpost = R.worldOutpostRows(S, session.worldIdx).find(
+              (row) => row.built || row.state === "in-progress",
+            );
+            session.selectedOutpost = initialOutpost?.mapIdx ?? null;
+          }
           render();
         },
         auth: true,

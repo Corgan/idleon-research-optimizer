@@ -272,6 +272,7 @@ export function statueConfidenceAttempts(S, idx, confidence, ext) { return confi
 
 export function armoryLevel(S, index) { return royalG(S, 2, index); }
 export function armoryBonus(S, index) { return armoryLevel(S, index) * (ARMORY_UPGRADES[index]?.bonusPerLevel || 0); }
+export function armoryEffectDetail(S, index) { const upgrade = ARMORY_UPGRADES[index]; const level = armoryLevel(S, index); const bonusPerLevel = n(upgrade?.bonusPerLevel); return { index, name: upgrade?.name || `Armory ${index}`, level, bonusPerLevel, bonus: level * bonusPerLevel, savePath: `RoyalG[2][${index}]` }; }
 export function armoryTotalLevels(S) { return arr(S, 2).reduce((sum, value) => sum + n(value), 0); }
 export function armoryUnlockOrder() { return ARMORY_ORDER.slice(); }
 export function armoryUnlockedCount(S) {
@@ -309,6 +310,7 @@ export function armoryRows(S) { return ARMORY_ORDER.map((index, orderIndex) => (
 export function orbletLevel(S, index) { return royalG(S, 23, index); }
 export function orbletCost(S, index) { const u = ORBLET_MARKET[index]; if (!u) return Infinity; const value = orbletLevel(S, index) + u.baseCost * u.costGrowth ** orbletLevel(S, index); return value < 1e6 ? Math.floor(value) : value; }
 export function orbletBonus(S, index) { return Math.floor(orbletLevel(S, index) * (ORBLET_MARKET[index]?.bonusPerLevel || 0)); }
+export function orbletEffectDetail(S, index) { const upgrade = ORBLET_MARKET[index]; const level = orbletLevel(S, index); const bonusPerLevel = n(upgrade?.bonusPerLevel); return { index, name: upgrade?.name || `Orblet ${index}`, level, bonusPerLevel, bonus: Math.floor(level * bonusPerLevel), savePath: `RoyalG[23][${index}]` }; }
 export function orbletNextBonus(S, index) { const u = ORBLET_MARKET[index]; return !u || orbletLevel(S, index) >= orbletMax(index) ? null : Math.floor((orbletLevel(S, index) + 1) * u.bonusPerLevel); }
 export function orbletPrerequisite(index) { return ORBLET_MARKET[index]?.metadata; }
 export function orbletMax(index) { return ORBLET_MARKET[index]?.maxLevel || 0; }
@@ -335,6 +337,17 @@ export function outpostRankContributor(bar) { return ['Trader', 'Surveyor', 'Com
 export function movableProfessionName(type) { return ['Worker', 'Trader', 'Guard', 'Surveyor'][Math.floor(n(type))] || `Profession ${Math.floor(n(type)) + 1}`; }
 export function outpostPointsLeft(S, mapIdx) { const r = row(S, mapIdx); if (!r || r.length <= 3) return 0; const rank = outpostRank(S, mapIdx, 0); const level71 = armoryLevel(S, 71); let points = 2 + armoryBonus(S, 9 + Math.floor(mapIdx / 50)) + rank; if (level71 >= 1) points += Math.floor(rank / (11 - level71)); if (n(r[12]) > 0) points += 10; return points - n(r[0]) * 12 - n(r[1]) * 2 - n(r[2]); }
 export function outpostPointCost(type) { return type === 'major' ? 12 : type === 'minor' ? 2 : 1; }
+export function globalPointBreakdown(S) {
+	const armory71 = armoryEffectDetail(S, 71);
+	return { base: 2, worlds: Array.from({ length: 7 }, (_, worldIdx) => ({ worldIdx, armory: armoryEffectDetail(S, 9 + worldIdx) })), tradingRankPoints: 1, rankBonus: { armory: armory71, enabled: armory71.level >= 1, divisor: 11 - armory71.level }, glorifiedPoints: 10, costs: [{ upgrade: 0, name: 'Expanded Barracks', pointsPerLevel: 12 }, { upgrade: 1, name: 'Advanced Logistics', pointsPerLevel: 2 }, { upgrade: 2, name: 'Greater Education', pointsPerLevel: 1 }] };
+}
+export function outpostPointBreakdown(S, mapIdx) {
+	const r = row(S, mapIdx); if (!r || r.length <= 3) return { available: false, mapIdx, value: 0, terms: [] };
+	const global = globalPointBreakdown(S); const worldIdx = Math.floor(n(mapIdx) / 50); const rank = outpostRank(S, mapIdx, 0); const rankBonus = global.rankBonus.enabled ? Math.floor(rank / global.rankBonus.divisor) : 0; const glorified = outpostIsGlorified(S, mapIdx) ? global.glorifiedPoints : 0;
+	const spending = global.costs.map(cost => ({ ...cost, level: n(r[cost.upgrade]), spent: n(r[cost.upgrade]) * cost.pointsPerLevel, savePath: `RoyalMaps[${mapIdx}][${cost.upgrade}]` }));
+	const earned = global.base + global.worlds[worldIdx].armory.bonus + rank + rankBonus + glorified; const spent = spending.reduce((sum, value) => sum + value.spent, 0);
+	return { available: true, mapIdx, worldIdx, global, base: global.base, worldBonus: global.worlds[worldIdx], tradingRank: rank, rankBonus, glorified, earned, spending, spent, value: earned - spent };
+}
 export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => armoryLevel(S, idx) >= 1); }
 
 export function decodePackedUnits(packed) { const digits = String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number); const units = digits.map((digit, slot) => ({ slot, type: digit >= 2 && digit <= 5 ? digit - 2 : -1, raw: digit })).filter(unit => unit.type >= 0); return units; }
@@ -344,6 +357,23 @@ export function passiveUnits(S, mapIdx, type) { return commandRankPassiveUnits(S
 export function permanentUnitDetails(S, mapIdx) { return [0, 1, 2, 3].map(type => { const commandRank = commandRankPassiveUnits(S, mapIdx, type); const glorified = type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0; return { type, name: movableProfessionName(type), commandRank, glorified, count: commandRank + glorified }; }); }
 export function nextCommandRankUnit(S, mapIdx) { const currentRank = Math.max(0, outpostRank(S, mapIdx, 2)); const rank = currentRank < 4 ? 4 : currentRank + 1; const type = (rank - 4) % 4; return { rank, type, name: movableProfessionName(type) }; }
 export function totalUnitsByType(S, mapIdx) { const totals = outpostUnits(S, mapIdx).reduce((counts, unit) => { counts[unit.type]++; return counts; }, [0, 0, 0, 0]); return totals.map((value, type) => value + passiveUnits(S, mapIdx, type)); }
+export function globalUnitBreakdowns(S, ext) {
+	const rules = [
+		{ id: 'worker', name: 'Worker', kind: 'movable', stats: [{ id: 'collection', label: 'Collection', base: 50, armory: armoryEffectDetail(S, 19), value: unitSpecEffect(S, 0, ext), unit: '%' }] },
+		{ id: 'trader', name: 'Trader', kind: 'movable', stats: [{ id: 'trading-exp', label: 'Trading EXP', base: 0, armory: armoryEffectDetail(S, 20), value: unitSpecEffect(S, 1, ext), unit: '%' }] },
+		{ id: 'guard', name: 'Guard', kind: 'movable', stats: [{ id: 'range', label: 'Range', base: 25, armory: armoryEffectDetail(S, 21), value: unitSpecEffect(S, 2, ext), unit: 'range' }] },
+		{ id: 'surveyor', name: 'Surveyor', kind: 'movable', stats: [{ id: 'intel-exp', label: 'Intel EXP', base: 0, armory: armoryEffectDetail(S, 22), value: unitSpecEffect(S, 3, ext), unit: '%' }] },
+		{ id: 'militia', name: 'Militia', kind: 'transient', stats: [{ id: 'clearing', label: 'Clearing', base: 4000, armory: armoryEffectDetail(S, 23), value: unitSpecEffect(S, 4, ext), unit: '/hr' }, { id: 'military-feed', label: 'Military EXP Feed', base: 0.5, armory: armoryEffectDetail(S, 17), value: armoryLevel(S, 17) >= 1 ? 0.5 : 0, unit: 'Military base rate' }] },
+		{ id: 'commander', name: 'Commander', kind: 'transient', stats: [{ id: 'command-exp', label: 'Command EXP', base: 0, armory: armoryEffectDetail(S, 24), value: unitSpecEffect(S, 5, ext), unit: '%' }] },
+		{ id: 'knight', name: 'Knight', kind: 'transient', stats: [{ id: 'military-exp', label: 'Military EXP', base: 0, armory: armoryEffectDetail(S, 25), value: unitSpecEffect(S, 6, ext), unit: '%' }] },
+		{ id: 'priest', name: 'Priest', kind: 'transient', stats: [{ id: 'purity-exp', label: 'Purity EXP', base: 0, armory: armoryEffectDetail(S, 26), value: unitSpecEffect(S, 7, ext), unit: '%' }] },
+	];
+	return { rules, permanentSchedule: { startsAtCommandRank: 4, order: ['Worker', 'Trader', 'Guard', 'Surveyor'], repeatsEvery: 4 }, glorifiedWorker: 1 };
+}
+export function outpostUnitBreakdown(S, mapIdx, ext) {
+	const assignable = outpostUnits(S, mapIdx); const permanent = permanentUnitDetails(S, mapIdx); const totals = totalUnitsByType(S, mapIdx); const transient = outpostTransientAssignments(S, mapIdx);
+	return { mapIdx, packed: n(row(S, mapIdx)?.[11]), savePath: `RoyalMaps[${mapIdx}][11]`, assignable, permanent, transient, totals, rules: globalUnitBreakdowns(S, ext) };
+}
 export function parseConnectionEndpoint(value) { if (value === undefined || value === null || value === '' || (typeof value === 'string' && value.trim() === '')) return { kind: 'empty', id: -1 }; const endpoint = Number(value); if (!Number.isFinite(endpoint) || endpoint < 0) return { kind: 'empty', id: -1 }; return endpoint >= 1000 ? { kind: 'map', id: endpoint - 1000 } : { kind: 'resource', id: endpoint }; }
 export function outpostConnections(S, mapIdx) { const r = row(S, mapIdx); return [parseConnectionEndpoint(r?.[8]), parseConnectionEndpoint(r?.[9])]; }
 export function outpostSupports(S, mapIdx) { return outpostConnections(S, mapIdx).some(connection => connection.kind !== 'empty'); }
@@ -353,6 +383,12 @@ function _rangeWithoutLogistics(S, mapIdx, ext) { return 80 + orbletBonus(S, 8) 
 export function outpostRangeAtLogisticsLevel(S, mapIdx, level, ext) { const logistics = Math.max(0, Math.floor(n(level))); return Math.floor(Math.min(999, _rangeWithoutLogistics(S, mapIdx, ext) + 250 * logistics / (logistics + 100))); }
 export function outpostRange(S, mapIdx, ext) { return outpostRangeAtLogisticsLevel(S, mapIdx, row(S, mapIdx)?.[1], ext); }
 export function connectionRange(S, mapIdx, ext) { return outpostRange(S, mapIdx, ext); }
+export function globalRangeBreakdown(S) { return { base: 80, orblet: orbletEffectDetail(S, 8), logistics: { numerator: 250, denominatorOffset: 100, saveField: 'RoyalMaps[map][1]' }, military: { armory: armoryEffectDetail(S, 74), rankField: 'RoyalMaps[map][6]' }, cap: 999, allowances: { resource: 15, outpost: 8 }, guardReference: { unit: 'guard', stat: 'range' } }; }
+export function outpostRangeBreakdown(S, mapIdx, ext) {
+	const r = row(S, mapIdx); if (!r || !outpostBuilt(S, mapIdx)) return { available: false, mapIdx, value: 0 };
+	const global = globalRangeBreakdown(S); const units = outpostUnitBreakdown(S, mapIdx, ext); const guards = units.totals[2]; const perGuard = unitSpecEffect(S, 2, ext); const guardRange = guards * perGuard; const militaryRank = outpostRank(S, mapIdx, 3); const militaryPerRank = global.military.armory.bonus; const militaryRange = militaryRank * militaryPerRank; const logisticsLevel = Math.max(0, Math.floor(n(r[1]))); const logisticsRange = 250 * logisticsLevel / (logisticsLevel + 100); const uncapped = global.base + global.orblet.bonus + guardRange + militaryRange + logisticsRange;
+	return { available: true, mapIdx, global, units, guards, perGuard, guardRange, militaryRank, militaryPerRank, militaryRange, logisticsLevel, logisticsRange, uncapped, capped: Math.min(global.cap, uncapped), value: Math.floor(Math.min(global.cap, uncapped)), resourceReach: Math.floor(Math.min(global.cap, uncapped)) + global.allowances.resource, outpostReach: Math.floor(Math.min(global.cap, uncapped)) + global.allowances.outpost };
+}
 export function logisticsUpgradesToReach(S, mapIdx, distance, extraReach = 15, ext) {
 	const currentLevel = Math.max(0, Math.floor(n(row(S, mapIdx)?.[1]))); const requiredRange = Math.ceil(Number(distance) - n(extraReach)); const currentRange = outpostRange(S, mapIdx, ext);
 	if (!Number.isFinite(Number(distance))) return { possible: false, currentLevel, currentRange, levelsNeeded: null, targetLevel: null, requiredRange: Infinity, reason: 'distance unavailable' };
@@ -434,13 +470,19 @@ export const totalStatz = TotalStatz;
 export function globalResourceRateBreakdown(S, ext) {
 	ext = ext || {}; const missing = []; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S);
 	const valueOf = (key, fallback = 0) => { if (derived[key] !== undefined) return n(ext[key] ?? derived[key]); if (ext[key] === undefined) { missing.push(key); return fallback; } return n(ext[key]); };
+	const totals = TotalStatz(S); const companion141 = valueOf('companion141'); const sushi60 = valueOf('sushi60'); const alchemyW14 = valueOf('alchemyW14'); const arcade70 = valueOf('arcade70'); const charLevel = valueOf('charLevel'); const talent225 = valueOf('talent225'); const talent226 = valueOf('talent226'); const talent230Multi = valueOf('talent230Multi', 1); const zenith10 = valueOf('zenith10');
+	const armoryComponent = index => { const detail = armoryEffectDetail(S, index); return { name: `Armory ${index}`, value: detail.bonus, level: detail.level, bonusPerLevel: detail.bonusPerLevel, savePath: detail.savePath }; };
 	const factors = [
-		{ name: 'companion141', value: 1 + valueOf('companion141') },
-		{ name: 'orbletBonus1+sushi60+alchemyW14+arcade70+armory70', value: 1 + (orbletBonus(S, 1) + valueOf('sushi60') + Math.min(50, valueOf('alchemyW14')) + valueOf('arcade70') + armoryBonus(S, 70)) / 100 },
-		{ name: 'TotalStatz0*armory18', value: 1 + TotalStatz(S)[0] * armoryBonus(S, 18) / 100 }, { name: 'TotalStatz1*armory50', value: 1 + TotalStatz(S)[1] * armoryBonus(S, 50) / 100 }, { name: 'TotalStatz2*armory51', value: 1 + TotalStatz(S)[2] * armoryBonus(S, 51) / 100 },
-		{ name: 'charLevel*armory52', value: 1 + Math.floor(Math.max(0, valueOf('charLevel') - 1000) / 100) * armoryBonus(S, 52) / 100 },
-		{ name: 'talent225+talent226', value: 1 + (valueOf('talent225') + valueOf('talent226')) / 100 }, { name: 'talent230Multi', value: Math.max(1, valueOf('talent230Multi', 1)) },
-		{ name: 'TotalStatz3*armory53', value: 1 + TotalStatz(S)[3] * armoryBonus(S, 53) / 100 }, { name: 'zenith10', value: 1 + valueOf('zenith10') / 100 },
+		{ name: 'companion141', value: 1 + companion141, components: [{ name: 'Companion 141 bonus', value: companion141, source: 'Companion token ownership' }] },
+		{ name: 'orbletBonus1+sushi60+alchemyW14+arcade70+armory70', value: 1 + (orbletBonus(S, 1) + sushi60 + Math.min(50, alchemyW14) + arcade70 + armoryBonus(S, 70)) / 100, components: [{ name: 'Orblet 1', value: orbletBonus(S, 1), ...orbletEffectDetail(S, 1) }, { name: 'Sushi 60', value: sushi60 }, { name: 'Alchemy W14 capped at 50', value: Math.min(50, alchemyW14), rawValue: alchemyW14 }, { name: 'Arcade 70', value: arcade70 }, armoryComponent(70)] },
+		{ name: 'TotalStatz0*armory18', value: 1 + totals[0] * armoryBonus(S, 18) / 100, components: [{ name: 'Total resource grades', value: totals[0], source: 'RoyalG[5]' }, armoryComponent(18)] },
+		{ name: 'TotalStatz1*armory50', value: 1 + totals[1] * armoryBonus(S, 50) / 100, components: [{ name: 'Total outpost upgrade levels', value: totals[1], source: 'RoyalMaps[][0..2]' }, armoryComponent(50)] },
+		{ name: 'TotalStatz2*armory51', value: 1 + totals[2] * armoryBonus(S, 51) / 100, components: [{ name: 'Purified outposts', value: totals[2], source: 'Purity Rank >= 1' }, armoryComponent(51)] },
+		{ name: 'charLevel*armory52', value: 1 + Math.floor(Math.max(0, charLevel - 1000) / 100) * armoryBonus(S, 52) / 100, components: [{ name: 'Royal character level', value: charLevel }, { name: 'Hundreds above 1000', value: Math.floor(Math.max(0, charLevel - 1000) / 100) }, armoryComponent(52)] },
+		{ name: 'talent225+talent226', value: 1 + (talent225 + talent226) / 100, components: [{ name: 'Talent 225', value: talent225 }, { name: 'Talent 226', value: talent226 }] },
+		{ name: 'talent230Multi', value: Math.max(1, talent230Multi), components: [{ name: 'Talent 230 multiplier', value: talent230Multi }] },
+		{ name: 'TotalStatz3*armory53', value: 1 + totals[3] * armoryBonus(S, 53) / 100, components: [{ name: 'Currency log sum', value: totals[3], children: Array.from({ length: 8 }, (_, worldIdx) => ({ name: `W${worldIdx + 1} currency log`, value: getLOG(royalG(S, 1, 10 * worldIdx)), rawValue: royalG(S, 1, 10 * worldIdx), savePath: `RoyalG[1][${10 * worldIdx}]` })) }, armoryComponent(53)] },
+		{ name: 'zenith10', value: 1 + zenith10 / 100, components: [{ name: 'Zenith Market 10', value: zenith10 }] },
 	];
 	const royalDataAvailable = hasRoyalGData(S);
 	const allMissing = [...new Set([...missing, ...derived.missing, ...(royalDataAvailable ? [] : ['RoyalG'])])];
@@ -468,9 +510,15 @@ export function resourceProduction(S, mapIdx, ext) { return outpostResourceRateB
 export function resourceProductionWithGrade(S, mapIdx, resourceIdx, ext) { const result = outpostResourceRateBreakdown(S, mapIdx, ext); result.value *= 1 + resourceGrade(S, resourceIdx) * 25 / 100; return result; }
 export function supportCollection(S) { return 200 * (1 + armoryBonus(S, 43) / 100); }
 export function savageCollection(S) { return 5 * (1 + armoryBonus(S, 69) / 100); }
+export function globalSupportBreakdown(S) { const armory = armoryEffectDetail(S, 43); return { basePercent: 200, armory, value: supportCollection(S) }; }
+export function globalSavageBreakdown(S) { const armory = armoryEffectDetail(S, 69); return { baseMultiplier: 5, armory, value: savageCollection(S), currencyMultiplier: 0 }; }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
 export function barExpRateBase(S, bar, ext) { ext = ext || {}; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S); let value = 1 + orbletBonus(S, 6) / 100; if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
-export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarIndexMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarIndexMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
+export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarSourceMap = outpostRank(S, bar, 4) >= 1; return barExpRateBase(S, bar, ext) * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarSourceMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
+export function globalRankExpBreakdown(S, ext) {
+	ext = ext || {}; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S); const selectedBar = n(royalG(S, 3, 7)); const unitIds = ['trader', 'surveyor', 'commander', 'knight', 'priest'];
+	return { orblet: orbletEffectDetail(S, 6), shop65: n(ext.shop65 ?? derived.shop65), shop77: n(ext.shop77 ?? derived.shop77), selectedBar, intelArmory: armoryEffectDetail(S, 72), support: globalSupportBreakdown(S), bars: [0, 1, 2, 3, 4].map(bar => ({ bar, name: outpostRankName(bar), contributor: outpostRankContributor(bar), unit: unitIds[bar], baseRate: barExpRateBase(S, bar, ext), purityShopActive: bar === 4, selectedShopActive: bar === selectedBar, purifiedSourceMap: bar, purified: outpostIsPurified(S, bar), purifiedMultiplier: outpostIsPurified(S, bar) ? 3 : 1 })) };
+}
 function _rankAssignmentCount(S, mapIdx, bar) { const assignmentType = Math.floor(n(bar)) + 3; return militiaAssignments(S).filter(assignment => assignment.type === assignmentType && assignment.mapIdx === Number(mapIdx)).length; }
 export function outpostRankContributorCount(S, mapIdx, bar) { const index = Math.floor(n(bar)); return index === 0 ? totalUnitsByType(S, mapIdx)[1] : index === 1 ? totalUnitsByType(S, mapIdx)[3] : index >= 2 && index <= 4 ? _rankAssignmentCount(S, mapIdx, index) : 0; }
 function _highestOutpostRankBar(S, mapIdx) { let highestBar = 0; for (let bar = 1; bar < 5; bar++) if (outpostRank(S, mapIdx, bar) > outpostRank(S, mapIdx, highestBar)) highestBar = bar; return highestBar; }
@@ -481,6 +529,10 @@ export function outpostRankExpPerHour(S, mapIdx, bar, ext) {
 	value += barExpRate(S, index, mapIdx, ext) * outpostRankContributorCount(S, mapIdx, index);
 	if (armoryLevel(S, 17) >= 1 && index === _highestOutpostRankBar(S, mapIdx)) value += barExpRate(S, 3, mapIdx, ext) * militiaAssignmentCount(S, mapIdx) / 2;
 	return value;
+}
+export function outpostRankBarBreakdown(S, mapIdx, bar, ext) {
+	const index = Math.floor(n(bar)); const global = globalRankExpBreakdown(S, ext); const globalBar = global.bars[index]; const glorifiedMultiplier = outpostIsGlorified(S, mapIdx) ? 2 : 1; const intelRank = outpostRank(S, mapIdx, 1); const intelMultiplier = 1 + intelRank * global.intelArmory.bonus / 100; const supports = supportCount(S, mapIdx); const supportMultiplier = 1 + global.support.value * supports / 100; const contributors = outpostRankContributorCount(S, mapIdx, index); const ratePerContributor = globalBar.baseRate * glorifiedMultiplier * globalBar.purifiedMultiplier * intelMultiplier * supportMultiplier; const directRate = ratePerContributor * contributors; const militia = militiaAssignmentCount(S, mapIdx); const highestBar = _highestOutpostRankBar(S, mapIdx); const militiaFeedActive = armoryLevel(S, 17) >= 1 && index === highestBar; const militiaFeed = militiaFeedActive ? barExpRate(S, 3, mapIdx, ext) * militia / 2 : 0; const info = outpostRankInfo(S, mapIdx, index);
+	return { mapIdx, bar: index, global, globalBar, glorified: outpostIsGlorified(S, mapIdx), glorifiedMultiplier, intelRank, intelMultiplier, supports, supportMultiplier, contributors, ratePerContributor, directRate, militia, militiaFeedActive, militiaFeed, value: directRate + militiaFeed, info, etaHours: directRate + militiaFeed > 0 ? Math.max(0, info.nextReq - info.exp) / (directRate + militiaFeed) : Infinity };
 }
 export function outpostRankExpBreakdown(S, mapIdx, ext) {
 	const missing = new Set();
@@ -512,6 +564,19 @@ export function nextResourceRangeTarget(S, mapIdx, ext) {
 export function nextOutpostRangeTarget(S, resourceIdx, ext) {
 	const next = reachableOutpostsForResource(S, resourceIdx, ext).find(value => !value.reachable);
 	return next ? { ...next, plan: logisticsUpgradesToReach(S, next.mapIdx, next.distance, 15, ext) } : null;
+}
+export function resourceLinkBreakdown(S, mapIdx, slot = 0, ext) {
+	const index = Math.max(0, Math.min(1, Math.floor(n(slot)))); const rawValue = row(S, mapIdx)?.[8 + index]; const endpoint = parseConnectionEndpoint(rawValue); const legacy = index === 1;
+	if (endpoint.kind !== 'resource' || !ROYAL_RESOURCES[endpoint.id]) return { available: false, mapIdx, slot: index, legacy, rawValue, endpoint, savePath: `RoyalMaps[${mapIdx}][${8 + index}]` };
+	const resourceIdx = endpoint.id; const range = outpostRangeBreakdown(S, mapIdx, ext); const distance = resourceDistance(mapIdx, resourceIdx); const effectiveReach = range.value + 15; const preGrade = outpostResourceRateBreakdown(S, mapIdx, ext); const grade = resourceGrade(S, resourceIdx); const gradeMultiplier = 1 + grade * 0.25; const gradedRate = preGrade.value * gradeMultiplier; const type = outpostType(S, mapIdx); const savage = type === 2; const savageMultiplier = savageCollection(S); const drainRate = savage ? gradedRate * savageMultiplier : gradedRate;
+	return { available: true, mapIdx, resourceIdx, slot: index, legacy, rawValue, endpoint, savePath: `RoyalMaps[${mapIdx}][${8 + index}]`, outpostType: type, distance, range, effectiveReach, margin: effectiveReach - distance, reachable: distance <= effectiveReach, preGrade, grade, gradeSavePath: `RoyalG[5][${resourceIdx}]`, gradeMultiplier, gradedRate, savage, savageMultiplier, drainRate, currencyRate: savage ? 0 : gradedRate, currencySlot: resourceCurrency(resourceIdx) };
+}
+export function resourceNodeBreakdown(S, resourceIdx, ext) {
+	const index = Math.floor(n(resourceIdx)); const resource = ROYAL_RESOURCES[index]; if (!resource) return { available: false, resourceIdx: index };
+	const grade = resourceGrade(S, index); const tierMultiplier = 5 ** Math.floor(index / 20); const gradeCapacityMultiplier = 1.5 ** grade; const capacity = resourceCapacity(S, index); const rawProgress = resourceRawProgress(S, index); const collected = resourceCollected(S, index); const remaining = resourceRemaining(S, index); const links = [];
+	for (let mapIdx = 0; mapIdx < (S?.royalMapsData || []).length; mapIdx++) for (let slot = 0; slot < 2; slot++) { const detail = resourceLinkBreakdown(S, mapIdx, slot, ext); if (detail.available && detail.resourceIdx === index) links.push(detail); }
+	const drainRate = links.reduce((sum, link) => sum + link.drainRate, 0); const currencyRate = links.reduce((sum, link) => sum + link.currencyRate, 0);
+	return { available: true, resourceIdx: index, baseCapacity: n(resource.baseCapacity), baseMultiplier: 5, grade, gradeSavePath: `RoyalG[5][${index}]`, gradeMultiplier: 1 + grade * 0.25, gradeCapacityMultiplier, tierMultiplier, capacity, rawProgress, progressSavePath: `RoyalG[4][${index}]`, drained: resourceDrained(S, index), collected, remaining, links, drainRate, currencyRate, drainHours: resourceDrainHours(S, index, drainRate), currencySlot: resourceCurrency(index) };
 }
 export function royalWorldUnlocked(S, worldIdx) { const world = Math.floor(n(worldIdx)); if (world < 0 || world > 6) return false; if (world === 0) return true; let unlocked = 1; for (let index = 2; index <= 7; index++) unlocked += Math.min(1, Math.max(0, armoryBonus(S, index))); return unlocked >= world + 1; }
 export function outpostState(S, mapIdx) { const index = Math.floor(n(mapIdx)); const saved = S?.royalMapsData?.[index]; const progress = Array.isArray(saved) ? Math.max(0, n(saved[0])) : 0; if (outpostBuilt(S, index)) return { state: 'built', progress }; if (Array.isArray(saved) && saved.length <= 2 && progress > 0) return { state: 'in-progress', progress }; return { state: royalMapEligible(index) && Array.isArray(MapDetails[index]) && royalWorldUnlocked(S, Math.floor(index / 50)) ? 'eligible' : 'locked', progress }; }

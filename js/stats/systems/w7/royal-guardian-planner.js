@@ -556,17 +556,27 @@ function _evaluateDeferredBarracks(S, mapIdx, goal, options, purchases, professi
 }
 function _candidateKey(purchases, profession) { return JSON.stringify({ purchases, profession }); }
 
-function _pointRateMetrics(S, mapIdx, options) {
+function _pointRateMetrics(S, mapIdx, options, linkedGrades = false) {
 	const metrics = { selectedNormal: 0, accountNormal: 0, selectedSavageDrain: 0, accountSavageDrain: 0, normalByCurrency: {} };
 	const missing = new Set(); let partial = false;
 	for (let index = 0; index < (S?.royalMapsData || []).length; index++) {
 		if (!R.outpostBuilt(S, index) || R.outpostType(S, index) === 1) continue;
-		const production = R.outpostResourceRateBreakdown(S, index, options.ext); const selected = index === mapIdx;
+		const selected = index === mapIdx; const type = R.outpostType(S, index);
+		if (linkedGrades) {
+			for (let slot = 0; slot < 2; slot++) {
+				const link = R.resourceLinkBreakdown(S, index, slot, options.ext); if (!link.available) continue;
+				partial ||= link.preGrade.partial; for (const source of link.preGrade.missing || []) missing.add(source);
+				if (type === 2) { metrics.accountSavageDrain += link.drainRate; if (selected) metrics.selectedSavageDrain += link.drainRate; }
+				else { metrics.accountNormal += link.gradedRate; metrics.normalByCurrency[link.currencySlot] = (metrics.normalByCurrency[link.currencySlot] || 0) + link.gradedRate; if (selected) metrics.selectedNormal += link.gradedRate; }
+			}
+			continue;
+		}
+		const production = R.outpostResourceRateBreakdown(S, index, options.ext);
 		partial ||= production.partial; for (const source of production.missing || []) missing.add(source);
-		if (R.outpostType(S, index) === 2) { const drain = production.value * R.savageCollection(S); metrics.accountSavageDrain += drain; if (selected) metrics.selectedSavageDrain += drain; }
+		if (type === 2) { const drain = production.value * R.savageCollection(S); metrics.accountSavageDrain += drain; if (selected) metrics.selectedSavageDrain += drain; }
 		else { metrics.accountNormal += production.value; if (selected) metrics.selectedNormal += production.value; }
 	}
-	return { ...metrics, invalid: [], partial, missing: [...missing] };
+	return { ...metrics, linkedGrades, invalid: [], partial, missing: [...missing] };
 }
 function _pointProfessionState(S, mode) {
 	const state = O.cloneRoyalState(S);
@@ -642,7 +652,8 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 		return { recommendation: null, alternatives: [], baseline: null, metadata: { comparison: true, candidatesEvaluated: 0, candidatesReturned: 0 }, partial: true, missing };
 	}
 	const scenarioBaselines = {
-		current: _pointRateMetrics(S, index, opts),
+		current: _pointRateMetrics(S, index, opts, true),
+		currentUngraded: _pointRateMetrics(S, index, opts),
 		normalized: _pointRateMetrics(_pointProfessionState(S, 'no-workers'), index, opts),
 		allWorkers: _pointRateMetrics(_pointProfessionState(S, 'all-workers'), index, opts),
 	};
@@ -658,7 +669,8 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 		const beforeUnits = R.outpostUnits(S, index); let state = O.cloneRoyalState(S);
 		for (const action of actions) { const result = O.applyRoyalMove(state, action, { ...opts.optimizerOptions, _outpostPointCredit: pointCredit }); if (!result.ok) return _pointUnavailable(spec.name, actions, result.errors?.join('; ') || 'upgrade rejected'); state = result.state; }
 		const scenarios = {
-			current: _pointScenarioMetrics(scenarioBaselines.current, _pointRateMetrics(state, index, opts)),
+			current: _pointScenarioMetrics(scenarioBaselines.current, _pointRateMetrics(state, index, opts, true)),
+			currentUngraded: _pointScenarioMetrics(scenarioBaselines.currentUngraded, _pointRateMetrics(state, index, opts)),
 			normalized: _pointScenarioMetrics(scenarioBaselines.normalized, _pointRateMetrics(_pointProfessionState(state, 'no-workers'), index, opts)),
 			allWorkers: _pointScenarioMetrics(scenarioBaselines.allWorkers, _pointRateMetrics(_pointProfessionState(state, 'all-workers'), index, opts)),
 		};
@@ -669,7 +681,7 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 	const available = alternatives.filter(item => item.available);
 	available.sort((a, b) => b.deltaPerPoint.accountNormal - a.deltaPerPoint.accountNormal || b.deltaPerPoint.selectedNormal - a.deltaPerPoint.selectedNormal || packages.findIndex(item => item.name === a.name) - packages.findIndex(item => item.name === b.name));
 	const recommendation = available[0] || null; _reportProgress(options, 'finalize', 3, 3, { evaluated: alternatives.length });
-	return { recommendation, alternatives, baseline, scenarioBaselines, metadata: { comparison: true, fixedPoints: 12, assumedPoints: 12, candidatesEvaluated: alternatives.length, candidatesReturned: alternatives.length, baselineSimulations: 0, derivedInputEvaluations: opts._derivedInputEvaluations, order: packages.map(item => item.name), scenarios: ['current', 'normalized', 'allWorkers'], approximation: 'theoretical fully buffed outpost rates with an assumed 12-point budget; connections, node grades, and drain state are excluded' }, partial: baseline.partial, missing: [...new Set([...baseline.missing, ...baseline.invalid.map(item => item.reason)])] };
+	return { recommendation, alternatives, baseline, scenarioBaselines, metadata: { comparison: true, fixedPoints: 12, assumedPoints: 12, candidatesEvaluated: alternatives.length, candidatesReturned: alternatives.length, baselineSimulations: 0, derivedInputEvaluations: opts._derivedInputEvaluations, order: packages.map(item => item.name), scenarios: ['current', 'currentUngraded', 'normalized', 'allWorkers'], approximation: 'current assignments use saved resource links and current node grades; comparison scenarios use theoretical pre-grade outpost rates and exclude node drain state' }, partial: baseline.partial, missing: [...new Set([...baseline.missing, ...baseline.invalid.map(item => item.reason)])] };
 }
 
 const KINGDOM_GOALS = ['grade-gains', 'drain-then-income', 'currency', 'max-income', 'target-upgrade', 'next-shelf', 'rank-target', 'balanced', 'no-waste'];

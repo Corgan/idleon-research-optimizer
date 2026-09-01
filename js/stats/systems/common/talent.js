@@ -140,8 +140,7 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   var superBit47 = superBitType(47, saveData.gamingData[12]);
   var lvBonusTerm = superBit47 ? Math.max(0, Math.floor((currentPlayerLv - 500) / 100)) : 0;
 
-  var total = Math.floor(
-    spelunkBonus + tal149 + tal374 + tal539 + achieve291
+  var ordinaryTotal = tal149 + tal374 + tal539 + achieve291
     + Math.floor(famBonus68)
     + comp1
     + Math.ceil(divMinor)
@@ -150,12 +149,12 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
     + grimoire39
     + kattlekrukSet
     + arcane57
-    + lvBonusTerm
-  );
+    + lvBonusTerm;
+  var total = Math.floor(spelunkBonus + ordinaryTotal);
   if (talentIdx >= 225 && talentIdx <= 239) {
     var royalCap = (Number(saveData.royalGData?.[2]?.[55]) || 0)
       * (Number(ARMORY_UPGRADES[55]?.bonusPerLevel) || 0);
-    total = Math.floor(Math.min(royalCap, total));
+    total = Math.floor(spelunkBonus + Math.min(royalCap, ordinaryTotal));
   }
   return total;
 }
@@ -317,15 +316,14 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
     ], { fmt: 'raw' }));
   }
 
-  var total = Math.floor(
-    spelunkBonus + tal149 + tal374 + tal539 + achieve291
+  var ordinaryTotal = tal149 + tal374 + tal539 + achieve291
     + famFloor + comp1v + divCeil + dream12v + ola232bonus2
-    + grimoire39v + kattlekrukSetV + arcane57v + lvBonusTerm2
-  );
+    + grimoire39v + kattlekrukSetV + arcane57v + lvBonusTerm2;
+  var total = Math.floor(spelunkBonus + ordinaryTotal);
   if (talentIdx >= 225 && talentIdx <= 239) {
     var royalCap2 = (Number(saveData.royalGData?.[2]?.[55]) || 0)
       * (Number(ARMORY_UPGRADES[55]?.bonusPerLevel) || 0);
-    total = Math.floor(Math.min(royalCap2, total));
+    total = Math.floor(spelunkBonus + Math.min(royalCap2, ordinaryTotal));
   }
 
   return { total: total, children: children };
