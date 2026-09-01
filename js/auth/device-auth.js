@@ -126,7 +126,7 @@ export function isSignedIn() {
  */
 export function signOut() {
   if (_cancelPoll) { _cancelPoll(); _cancelPoll = null; }
-  try { localStorage.removeItem(LS_KEY); } catch (e) { /* ignore */ }
+  try { sessionStorage.removeItem(LS_KEY); } catch (e) { /* ignore */ }
 }
 
 // ── Internal: poll Google token endpoint ──────────────────────────────
@@ -209,13 +209,13 @@ function _refreshFirebaseToken(refreshToken) {
 // ── Internal: localStorage persistence ────────────────────────────────
 function _saveSession(session) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(session));
+    sessionStorage.setItem(LS_KEY, JSON.stringify(session));
   } catch (e) { /* quota exceeded or unavailable */ }
 }
 
 function _loadSession() {
   try {
-    var raw = localStorage.getItem(LS_KEY);
+    var raw = sessionStorage.getItem(LS_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch (e) { return null; }
 }
