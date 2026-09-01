@@ -663,7 +663,7 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 			allWorkers: _pointScenarioMetrics(scenarioBaselines.allWorkers, _pointRateMetrics(_pointProfessionState(state, 'all-workers'), index, opts)),
 		};
 		const result = { name: spec.name, package: spec.name, available: true, reason: null, actions, points: 12, ...scenarios.current, scenarios, levels: { before: { barracks: n(_mapRow(S, index)?.[0]), logistics: n(_mapRow(S, index)?.[1]), education: n(_mapRow(S, index)?.[2]) }, after: { barracks: n(_mapRow(state, index)?.[0]), logistics: n(_mapRow(state, index)?.[1]), education: n(_mapRow(state, index)?.[2]) } } };
-		if (spec.upgrade === 0) { const afterUnits = R.outpostUnits(state, index); result.workerAdded = afterUnits.length > beforeUnits.length; result.workerAddedType = result.workerAdded ? 0 : null; result.workerNote = result.workerAdded ? 'Added Worker to the new movable slot.' : 'No Worker added; movable Barracks units are capped at 6.'; }
+		if (spec.upgrade === 0) { const afterUnits = R.outpostUnits(state, index); result.workerAdded = afterUnits.length > beforeUnits.length; result.workerAddedType = result.workerAdded ? 0 : null; result.workerNote = result.workerAdded ? 'Added Worker to the new assignable slot.' : 'No Worker added; assignable Barracks slots are capped at 6.'; }
 		_reportProgress(options, 'scenario', packageIndex + 1, 3, { package: spec.name }); return result;
 	});
 	const available = alternatives.filter(item => item.available);

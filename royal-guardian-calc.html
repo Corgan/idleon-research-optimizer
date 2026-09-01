@@ -1854,7 +1854,7 @@
       }
       function outpostPointPlanPanel(S, mapIdx) {
         const key = `${mapIdx}`, plan = session.outpostPointPlanKey === key ? session.outpostPointPlan : null;
-        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package and compares theoretical fully buffed rates across all built outposts, independent of current connections and node state.</div><div class="planner-warning">Movable Barracks units cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
+        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package and compares theoretical fully buffed rates across all built outposts, independent of current connections and node state.</div><div class="planner-warning">Assignable Barracks slots cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
         if (!plan) return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>Point Spending Planner</h3>${controls}<p class="planner-note">Analyze this outpost's three fixed packages.</p></section>`;
         const missing = [...new Set([...(plan.missing || []), ...(plan.baseline?.invalid || []).map(item => item.reason)])];
         const scenarioRows = (scenario, title, description, showRecommendation = false) => {
@@ -1866,8 +1866,8 @@
           return `<tr class="point-scenario-heading"><th colspan="4">${esc(title)}<span class="point-scenario-description">${esc(description)}</span></th></tr>${rows}`;
         };
         const comparisons = scenarioRows("current", "Current assignments", "Saved professions; a new Barracks slot is modeled as a Worker.", true)
-          + scenarioRows("normalized", "No movable Workers", "Movable Worker collection is removed; fixed Command and Glorified Workers remain.")
-          + scenarioRows("allWorkers", "All movable slots as Workers", "Every occupied movable slot across all built outposts is modeled as a Worker.");
+          + scenarioRows("normalized", "No assignable Workers", "Assignable Worker collection is removed; fixed Command and Glorified Workers remain.")
+          + scenarioRows("allWorkers", "All assignable slots as Workers", "Every occupied assignable slot across all built outposts is modeled as a Worker.");
         return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>12-point benefit comparison</h3>${controls}${missing.length ? `<div class="planner-warning">${missing.map(esc).join("; ")}</div>` : ""}<div class="table-wrap"><table class="data-table point-comparison-table"><thead><tr><th>Package</th><th>Local Normal / point</th><th>Global Normal / point</th><th>Global Savage / point</th></tr></thead><tbody>${comparisons}</tbody></table></div></section>`;
       }
       function outpostConnectionDetails(S, connections) {
