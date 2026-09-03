@@ -479,15 +479,21 @@ export function planNextArmoryShelf(S, options = {}) {
 		const strategy = _shelfLayoutStrategy(plan, candidates, options); metadata.layoutEvaluations++; if (strategy.mode === 'rank') metadata.rankFallbacks++;
 		if (strategy.moves.length) { const layoutBeforeState = _royalSnapshot(_save(plan)); _setSave(plan, O.cloneRoyalState(strategy.state)); metadata.layoutChanges += strategy.moves.length; _push(plan, { kind: 'layout-change', mode: strategy.mode, currencySlot: strategy.mode === 'currency-portfolio' ? strategy.candidate.currencySlot : null, portfolio: strategy.portfolio?.map(_clone) || [], actions: strategy.moves.map(_clone), layoutBeforeState, layoutState: _royalSnapshot(strategy.state), reason: strategy.mode === 'currency-portfolio' ? `Focus currency slot ${strategy.candidate.currencySlot}; use the minimum Guards needed for range, fill remaining slots with Workers, and clear other reachable nodes by shortest projected drain time.` : 'No eligible upgrade currency has productive reachable nodes; assign stranded occupied slots to Trader or Surveyor rank EXP.' }); }
 		const candidate = strategy.mode === 'currency-portfolio' ? strategy.candidate : _armoryShelfCandidates(plan)[0];
-		const productiveResource = !!_nextDepletion(royalPlanRates(plan));
-		if (options.bankedTimePostReset === true && !productiveResource && plan.nextResetHours !== null && plan.nextResetHours > plan.elapsedHours + EPSILON) {
-			const banked = _bankIdleTimeAcrossReset(plan, plan.nextResetHours - plan.elapsedHours, options); metadata.events++; metadata.resetEvents++; metadata.layoutChanges += banked.layoutChanges; metadata.bankedPostResetHours += banked.durationHours; metadata.bankedPostResetCurrency += banked.currency; metadata.bankingPhases++;
-			resetsWithoutAffordableIncome = banked.currency > EPSILON ? 0 : resetsWithoutAffordableIncome + 1; if (resetsWithoutAffordableIncome > 1) { reason = 'unachievable with current currency income'; break; } continue;
-		}
 		if (candidate.hours <= EPSILON) {
 			purchases.push(_applyArmoryShelfPurchase(plan, candidate)); resetsWithoutAffordableIncome = 0;
 			_reportProgress(options, 'schedule', purchases.length, Math.max(1, purchaseCap), { evaluated: metadata.evaluated });
 			continue;
+		}
+		if (options.bankedTimePostReset === true && plan.nextResetHours !== null && plan.nextResetHours > plan.elapsedHours + EPSILON) {
+			const hoursLeft = plan.nextResetHours - plan.elapsedHours; const beforeDrain = O.cloneRoyalState(_save(plan)); const pinnedTypes = {};
+			for (let mapIdx = 0; mapIdx < (beforeDrain.royalMapsData || []).length; mapIdx++) if (R.outpostBuilt(beforeDrain, mapIdx)) pinnedTypes[mapIdx] = R.outpostType(beforeDrain, mapIdx);
+			const drainState = _resetDrainLayout(beforeDrain, 'drain-before-reset', hoursLeft, options.ext, pinnedTypes); const drainActions = _resetLayoutActions(beforeDrain, drainState);
+			if (drainActions.length) { _setSave(plan, drainState); metadata.layoutChanges += drainActions.length; _push(plan, { kind: 'layout-change', mode: 'drain-before-reset', actions: drainActions, layoutBeforeState: _royalSnapshot(beforeDrain), layoutState: _royalSnapshot(drainState), reason: 'No upgrade is currently affordable; maximize resource completions and grade gains before banking the idle remainder.' }); }
+			const depletion = _nextDepletion(royalPlanRates(plan)); const drainsBeforeReset = depletion && depletion.hours <= hoursLeft + BOUNDARY_EPSILON;
+			if (!drainsBeforeReset) {
+				const banked = _bankIdleTimeAcrossReset(plan, hoursLeft, options); metadata.events++; metadata.resetEvents++; metadata.layoutChanges += banked.layoutChanges; metadata.bankedPostResetHours += banked.durationHours; metadata.bankedPostResetCurrency += banked.currency; metadata.bankingPhases++;
+				resetsWithoutAffordableIncome = banked.currency > EPSILON ? 0 : resetsWithoutAffordableIncome + 1; if (resetsWithoutAffordableIncome > 1) { reason = 'unachievable with current currency income'; break; } continue;
+			}
 		}
 		if (plan.nextResetHours === null) { reason = 'missing TimeAway.ShopRestock'; _missing(plan, ['TimeAway.ShopRestock']); break; }
 		plan.options.targetArmory = { index: candidate.index, currencySlot: candidate.currencySlot };
