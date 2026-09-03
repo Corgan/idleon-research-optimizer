@@ -535,7 +535,7 @@ export function outpostRankContributorCount(S, mapIdx, bar) { const index = Math
 function _highestOutpostRankBar(S, mapIdx) { let highestBar = 0; for (let bar = 1; bar < 5; bar++) if (outpostRank(S, mapIdx, bar) > outpostRank(S, mapIdx, highestBar)) highestBar = bar; return highestBar; }
 export function outpostRankExpPerHour(S, mapIdx, bar, ext) {
 	const index = Math.floor(n(bar));
-	if (!outpostBuilt(S, mapIdx) || !outpostUnlockedBars(S)[index]) return 0;
+	if (!outpostBuilt(S, mapIdx)) return 0;
 	let value = 0;
 	value += barExpRate(S, index, mapIdx, ext) * outpostRankContributorCount(S, mapIdx, index);
 	if (armoryLevel(S, 17) >= 1 && index === _highestOutpostRankBar(S, mapIdx)) value += barExpRate(S, 3, mapIdx, ext) * militiaAssignmentCount(S, mapIdx) / 2;

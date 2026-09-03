@@ -232,12 +232,13 @@ function _resetMapChoices(S, mapIdx, hoursLeft, ext, mode, pinnedTypes = {}) {
 	return choices;
 }
 function _resetDrainLayout(S, mode, hoursLeft, ext, pinnedTypes = {}) {
-	let state = O.cloneRoyalState(S); const maps = new Set();
+	let state = O.cloneRoyalState(S); const maps = new Set(); const originalResourceConnections = new Map();
 	for (let mapIdx = 0; mapIdx < (state.royalMapsData || []).length; mapIdx++) {
 		if (pinnedTypes[mapIdx] === 1) continue;
 		if (!R.outpostBuilt(state, mapIdx)) continue;
 		maps.add(mapIdx);
-		if (R.outpostConnections(state, mapIdx)[0].kind === 'resource') { const result = O.applyRoyalMove(state, { kind: 'connection', mapIdx, slot: 0, endpoint: { kind: 'empty', id: -1 } }, { ext }); if (result.ok && result.executable) state = result.state; }
+		const connection = R.outpostConnections(state, mapIdx)[0];
+		if (connection.kind === 'resource') { originalResourceConnections.set(mapIdx, connection); const result = O.applyRoyalMove(state, { kind: 'connection', mapIdx, slot: 0, endpoint: { kind: 'empty', id: -1 } }, { ext }); if (result.ok && result.executable) state = result.state; }
 	}
 	while (maps.size) {
 		const allChoices = [...maps].flatMap(mapIdx => _resetMapChoices(state, mapIdx, hoursLeft, ext, mode, pinnedTypes)); if (!allChoices.length) break;
@@ -253,10 +254,8 @@ function _resetDrainLayout(S, mode, hoursLeft, ext, pinnedTypes = {}) {
 		if (!candidates.length) break;
 		const selected = candidates[0]; state = selected.state; maps.delete(selected.mapIdx);
 	}
-	if (mode === 'least-wasteful') {
-		for (const mapIdx of maps) if (R.outpostConnections(state, mapIdx)[0].kind !== 'empty') { const result = O.applyRoyalMove(state, { kind: 'connection', mapIdx, slot: 0, endpoint: { kind: 'empty', id: -1 } }, { ext }); if (result.ok && result.executable) state = result.state; }
-	}
 	const rankFallback = _assignIdleOutpostsToRanks(state, ext, { idleRankMoveCap: Infinity });
+	for (const mapIdx of maps) { const endpoint = originalResourceConnections.get(mapIdx); if (endpoint) rankFallback.state.royalMapsData[mapIdx][8] = endpoint.id; }
 	return rankFallback.state;
 }
 function _projectRefilledState(S) {

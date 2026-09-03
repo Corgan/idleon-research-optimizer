@@ -500,7 +500,7 @@ export function armoryTargetEta(S, target, ext, options) {
 export function rankObjective(S, target, ext) {
 	const normalized = target?.purification ? { ...target, bar: 4 } : target;
 	const targets = normalized?.aggregate ? [0, 1, 2, 3, 4].flatMap(bar => (S?.royalMapsData || []).map((_, mapIdx) => ({ mapIdx, bar })).filter(value => R.outpostBuilt(S, value.mapIdx))) : [{ mapIdx: n(normalized?.mapIdx ?? normalized?.map), bar: n(normalized?.bar ?? 0) }];
-	const details = targets.filter(value => _row(S, value.mapIdx)).map(value => ({ ...value, unlocked: _barUnlocked(S, value.bar), rate: _barUnlocked(S, value.bar) ? R.outpostRankExpPerHour(S, value.mapIdx, value.bar, ext) : 0, reason: _barUnlocked(S, value.bar) ? undefined : `bar ${value.bar} requires Armory${BAR_ARMORY[value.bar]}` }));
+	const details = targets.filter(value => _row(S, value.mapIdx)).map(value => ({ ...value, unlocked: _barUnlocked(S, value.bar), rate: R.outpostRankExpPerHour(S, value.mapIdx, value.bar, ext), reason: _barUnlocked(S, value.bar) ? undefined : `bar ${value.bar} requires Armory${BAR_ARMORY[value.bar]}` }));
 	const selectedMissing = !normalized?.aggregate && !details.length;
 	const unavailable = selectedMissing || (!normalized?.aggregate && details[0] && !details[0].unlocked);
 	const reason = selectedMissing ? `map ${targets[0].mapIdx} is not built` : unavailable ? details[0].reason : undefined;
