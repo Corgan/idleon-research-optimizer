@@ -378,6 +378,70 @@ export function resourceAllocationToReset(S, options) {
 	});
 	return { ...allocation, available: true, resetProjectionAvailable: true, reset, resetLabel: 'before reset', hoursToReset: reset.hoursRemaining, collectableBeforeReset: allocation.collectedWithinWindow, nodesEmptyingByReset: allocation.nodesEmptiedWithinWindow, projectedRefillsAtReset: details.filter(detail => detail.refillsAtReset).length, projectedGradeGainsAtReset: details.reduce((sum, detail) => sum + detail.gradeGainAtReset, 0), details, projection: 'Projection through daily reset; projected-to-empty nodes refill only if collection commits the drained sentinel before reset; post-reset collection is not simulated' };
 }
+function _bankedProfessionAssignment(units, guardCount, workerCount) {
+	const desired = new Map(); const remaining = { 0: workerCount, 1: units.length - guardCount - workerCount, 2: guardCount };
+	for (const type of [0, 1, 2]) for (const unit of units) if (!desired.has(unit.slot) && unit.type === type && remaining[type] > 0) { desired.set(unit.slot, type); remaining[type]--; }
+	for (const type of [2, 0, 1]) for (const unit of units) if (!desired.has(unit.slot) && remaining[type] > 0) { desired.set(unit.slot, type); remaining[type]--; }
+	return units.map(unit => ({ mapIdx: null, slot: unit.slot, fromType: unit.type, toType: desired.get(unit.slot) }));
+}
+function _bankedOutpostCandidates(S, resourceIdx, streams, projectedGrade, ext) {
+	const mapIdx = streams[0].mapIdx; const units = R.outpostUnits(S, mapIdx).sort((left, right) => left.slot - right.slot); const multiplicity = streams.length;
+	const currentWorkerCount = units.filter(unit => unit.type === 0).length; const currentTraderCount = units.filter(unit => unit.type === 1).length;
+	const traderUnlocked = _unitTypes(S, {}).includes(1); const guardUnlocked = _unitTypes(S, {}).includes(2); const candidates = [];
+	if (!traderUnlocked) return { mapIdx, candidates, reason: 'Trader profession is locked' };
+	for (let guardCount = 0; guardCount <= (guardUnlocked ? units.length : 0); guardCount++) for (let workerCount = 0; workerCount <= units.length - guardCount; workerCount++) {
+		const assignments = _bankedProfessionAssignment(units, guardCount, workerCount).map(change => ({ ...change, mapIdx })); const changes = assignments.filter(change => change.fromType !== change.toType); const state = cloneRoyalState(S);
+		if (!Array.isArray(state.royalGData[5])) state.royalGData[5] = [];
+		state.royalGData[5][resourceIdx] = projectedGrade;
+		for (const change of assignments) _setProfession(state.royalMapsData[mapIdx], change.slot, change.toType);
+		if (!R.resourceReachable(state, mapIdx, resourceIdx, ext)) continue;
+		const baseRate = R.resourceProductionWithGrade(state, mapIdx, resourceIdx, ext).value; const savage = R.outpostType(state, mapIdx) === 2;
+		const rate = multiplicity * (savage ? R.savageCollection(state) * baseRate : baseRate);
+		candidates.push({ mapIdx, rate, currentWorkerCount, currentTraderCount, workerCount, guardCount, traderCount: units.length - guardCount - workerCount, units: assignments.map(change => ({ slot: change.slot, type: change.toType })), changes });
+	}
+	return { mapIdx, candidates, reason: candidates.length ? null : 'No legal Worker/Trader/Guard assignment preserves this connection' };
+}
+function _bankedStaffingRecommendation(S, detail, hoursToPop, ext) {
+	const grouped = new Map(); for (const stream of detail.streams) { const streams = grouped.get(stream.mapIdx) || []; streams.push(stream); grouped.set(stream.mapIdx, streams); }
+	if (!grouped.size) return { available: false, reason: 'No connected outposts', changes: [], outposts: [] };
+	const candidateGroups = [...grouped.values()].map(streams => _bankedOutpostCandidates(S, detail.resourceIdx, streams, detail.projectedGrade, ext));
+	const unavailable = candidateGroups.find(group => !group.candidates.length); if (unavailable) return { available: false, mapIdx: unavailable.mapIdx, reason: unavailable.reason, changes: [], outposts: [] };
+	let states = [{ rate: 0, workers: 0, traders: 0, guards: 0, changes: [], outposts: [] }];
+	for (const group of candidateGroups) {
+		const byWorkers = new Map();
+		for (const state of states) for (const candidate of group.candidates) {
+			const combined = { rate: state.rate + candidate.rate, workers: state.workers + candidate.workerCount, traders: state.traders + candidate.traderCount, guards: state.guards + candidate.guardCount, changes: [...state.changes, ...candidate.changes], outposts: [...state.outposts, candidate] };
+			const current = byWorkers.get(combined.workers); if (!current || combined.rate > current.rate || (combined.rate === current.rate && combined.changes.length < current.changes.length)) byWorkers.set(combined.workers, combined);
+		}
+		states = [...byWorkers.values()];
+	}
+	const availableDrain = detail.refillsAtReset ? detail.projectedCapacity : detail.resetEligible ? 0 : detail.remaining; const activeHours = detail.activeHours;
+	const scored = states.map(state => ({ ...state, gain: Math.min(availableDrain, state.rate * activeHours) })).sort((left, right) => right.gain - left.gain || left.workers - right.workers || left.changes.length - right.changes.length || left.rate - right.rate);
+	const best = scored[0]; const currentWorkers = [...grouped.keys()].reduce((sum, mapIdx) => sum + R.outpostUnits(S, mapIdx).filter(unit => unit.type === 0).length, 0);
+	return { available: true, reason: null, currentGain: detail.bankedGain, recommendedGain: best.gain, currentRate: detail.projectedRate, recommendedRate: best.rate, currentWorkers, recommendedWorkers: best.workers, recommendedTraders: best.traders, requiredGuards: best.guards, workerHours: best.workers * hoursToPop, traderHours: best.traders * hoursToPop, changes: best.changes, outposts: best.outposts };
+}
+export function bankedResourceProjection(S, options) {
+	options = _opts(options); const reset = R.royalResetTiming(S); const royalMissing = _royalMissing(S);
+	const mode = options.mode === 'current' ? 'current' : 'post-reset'; const hoursAfterReset = mode === 'post-reset' ? Math.max(0, n(options.hoursAfterReset)) : 0;
+	const currentBankedHours = Math.max(0, n(S?.royalGData?.[3]?.[0]) / 3600); const resetRequired = mode === 'post-reset';
+	if (royalMissing.length || (resetRequired && !reset.available)) return { available: false, resetProjectionAvailable: false, partial: true, reset, mode, currentBankedHours, postResetBankedHours: null, hoursToReset: reset.available ? reset.hoursRemaining : null, hoursAfterReset, hoursToPop: null, bankedHoursAtPop: null, bankedGain: null, currencyGain: null, projectedRefillsAtReset: null, projectedGradeGainsAtReset: null, details: [], invalid: [], missing: [...new Set([...royalMissing, ...(resetRequired ? reset.missing || [] : [])])], projection: 'Post-reset banked-time projection unavailable without the saved daily reset countdown' };
+	const hoursToReset = reset.available ? reset.hoursRemaining : null; const postResetBankedHours = reset.available ? currentBankedHours + reset.hoursRemaining : null;
+	const hoursToPop = mode === 'post-reset' ? reset.hoursRemaining + hoursAfterReset : 0; const bankedHoursAtPop = currentBankedHours + hoursToPop;
+	const allocation = resourceAllocationMetrics(S, { ...options, hours: bankedHoursAtPop });
+	const replenish = R.armoryBonus(S, 70) >= 1; const gradeIncrease = R.armoryBonus(S, 0) >= 1;
+	const projected = allocation.details.map(detail => {
+		const currentGrade = R.resourceGrade(S, detail.resourceIdx); const currentCapacity = R.resourceCapacity(S, detail.resourceIdx);
+		const resetEligible = detail.drained; const refillsAtReset = mode === 'post-reset' && resetEligible && replenish; const gradeGainAtReset = refillsAtReset && gradeIncrease ? 1 : 0;
+		const projectedGrade = currentGrade + gradeGainAtReset; const projectedCapacity = refillsAtReset ? _resourceCapacityAtGrade(detail.resourceIdx, projectedGrade) : currentCapacity;
+		const gradeFactor = 1 + currentGrade * 0.25; const projectedRate = refillsAtReset ? detail.rate / gradeFactor * (1 + projectedGrade * 0.25) : detail.rate;
+		const activeHours = bankedHoursAtPop; const bankedGain = refillsAtReset ? Math.min(projectedCapacity, projectedRate * activeHours) : resetEligible ? 0 : detail.collectedWithinWindow;
+		const projectedCollected = refillsAtReset ? bankedGain : Math.min(projectedCapacity, R.resourceCollected(S, detail.resourceIdx) + bankedGain);
+		const projectedRemaining = Math.max(0, projectedCapacity - projectedCollected); const currencyShare = detail.rate > 0 ? detail.currencyRate / detail.rate : 0;
+		return { ...detail, currentGrade, currentCapacity, resetEligible, refillsAtReset, gradeGainAtReset, projectedGrade, projectedCapacity, projectedRate, activeHours, bankedGain, currencyGain: bankedGain * currencyShare, projectedCollected, projectedRemaining, readyAtPop: projectedRemaining <= 0, resetProjectionAvailable: true };
+	});
+	const details = projected.map(detail => ({ ...detail, staffingRecommendation: _bankedStaffingRecommendation(S, detail, bankedHoursAtPop, options.ext || {}) }));
+	return { ...allocation, available: true, resetProjectionAvailable: true, reset, mode, currentBankedHours, postResetBankedHours, hoursToReset, hoursAfterReset, hoursToPop, bankedHoursAtPop, bankedGain: details.reduce((sum, detail) => sum + detail.bankedGain, 0), currencyGain: details.reduce((sum, detail) => sum + detail.currencyGain, 0), projectedRefillsAtReset: details.filter(detail => detail.refillsAtReset).length, projectedGradeGainsAtReset: details.reduce((sum, detail) => sum + detail.gradeGainAtReset, 0), details, projection: mode === 'current' ? 'Current saved banked-time projection with no reset or grade rollover' : 'Post-reset projection uses current banked time plus time to reset plus the selected delay; only nodes already saved as drained refill and gain grade at reset' };
+}
 function _currencyBreakdownUnavailable(currencySlot, hours, reason, available = false) {
 	return { currencySlot, valid: false, available, balance: 0, hours, projection: 'Fixed current node state; no refill or grade rollover', nominalCurrencyPerHour: 0, collectableWithinWindow: 0, activeStreams: 0, activeNodes: 0, nodes: [], invalid: [], partial: true, missing: [reason] };
 }

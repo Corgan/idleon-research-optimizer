@@ -387,6 +387,41 @@
         width: 50%;
         height: 50%;
       }
+      .royal-map-resource-status {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% - 8px);
+        z-index: 3;
+        min-width: max-content;
+        padding: 2px 4px;
+        transform: translateX(-50%);
+        border: 1px solid #52657d;
+        border-radius: 2px;
+        background: rgba(7, 16, 31, .94);
+        color: #fff;
+        box-shadow: 0 1px 3px rgba(3, 8, 18, .95);
+        font-family: Verdana, Geneva, sans-serif;
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: 0;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      .royal-map-resource-status.empty { color: #a6afbd; }
+      .royal-map-resource-status.ready { border-color: var(--green); color: #8cf397; }
+      .royal-map-resource-status.empty,
+      .royal-map-resource-status.ready {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 12px;
+      }
       .royal-map-outpost {
         width: 2.836%;
         aspect-ratio: 23 / 18;
@@ -470,6 +505,7 @@
       .map-size-small .royal-map-rank { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
       .map-size-small .royal-map-rank.wide { font-size: 6px; }
       .map-size-small .royal-map-upgrade { width: 12px; height: 12px; font-size: 7px; }
+      .map-size-small .royal-map-resource-status { padding: 1px 3px; font-size: 7px; }
       .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
       .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
       .map-size-small .royal-worker-icon .worker-shadow { left: 2px; top: 17px; width: 14px; height: 5px; }
@@ -539,8 +575,16 @@
         .royal-quick-tooltip { padding: 6px; font-size: .76em; }
         .royal-quick-tooltip .tooltip-units { margin-top: 3px; }
       }
-      .royal-map-key { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--text2); font-size: .8em; }
+      .royal-map-key { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--text2); font-size: .8em; }
+      .royal-map-key > span { display: inline-flex; align-items: center; }
       .royal-map-key i { display: inline-block; width: 9px; height: 9px; margin-right: 4px; }
+      .royal-map-resource-key { display: inline-flex; align-items: center; gap: 4px; }
+      .royal-map-resource-key b { font-size: 1.15em; line-height: 1; }
+      .royal-map-resource-key .empty { color: #a6afbd; }
+      .royal-map-resource-key .ready { color: #8cf397; }
+      .royal-map-resource-key .banked { color: var(--gold); }
+      .royal-map-banked-control { display: inline-flex; align-items: center; gap: 5px; color: var(--text2); }
+      .royal-map-banked-control input { width: 72px; min-height: 28px; padding: 3px 6px; border: 1px solid #40536e; border-radius: 4px; background: #101b35; color: var(--text); font: inherit; }
       .royal-map-view-group { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #40536e; border-radius: 5px; background: #101b35; }
       .royal-map-view-group button { min-height: 28px; padding: 4px 8px; border: 0; border-radius: 3px; background: transparent; color: var(--text2); cursor: pointer; }
       .royal-map-view-group button[aria-pressed="true"] { background: #284664; color: var(--cyan); box-shadow: inset 0 0 0 1px #52779c; }
@@ -1020,6 +1064,8 @@
         selectedOutpost: null,
         mapSelectionKind: null,
         mapOverlayMode: "assignments",
+        bankedProjectionMode: "current",
+        bankedHoursAfterReset: 0,
         assignmentLayers: { movable: true, permanent: true, transient: true },
         rangeFinderMode: false,
         largeMap: true,
@@ -1030,6 +1076,7 @@
         resourceSearch: "",
         layoutGoal: "next-shelf",
         optimizerSubgoal: "drain-before-reset",
+        optimizerBankedTimePostReset: false,
         lowAttentionIntervals: "3, 9, 12",
         layoutCurrencyTarget: 0,
         layoutArmoryTarget: null,
@@ -1349,6 +1396,9 @@
         resourceResetNote = resetNote(details.reset);
         return details;
       }
+      function bankedResourceDetails(S = saveData) {
+        return O.bankedResourceProjection(S, { mode: session.bankedProjectionMode, hoursAfterReset: session.bankedHoursAfterReset });
+      }
       function currencyDetails(S, slot) {
         return O.currencyIncomeToReset(S, slot);
       }
@@ -1445,8 +1495,6 @@
       function selectShelfLayoutStep(index) {
         session.shelfStepIndex = index;
         session.royalStateView = selectedShelfLayoutStep() ? "shelf-step" : "current";
-        const firstMap = selectedShelfLayoutStep()?.actions?.find(action => Number.isInteger(Number(action.mapIdx)))?.mapIdx;
-        if (firstMap !== undefined) session.worldIdx = R.outpostWorld(firstMap);
         clearOutpostPointPlan();
         return session.royalStateView === "shelf-step";
       }
@@ -1603,7 +1651,8 @@
       }
       function persistentMap(S) {
         const q = R.worldOutpostRows(S, session.worldIdx).filter(row => session.spoilersVisible || row.state !== "locked");
-        return `<section class="section royal-map-section">${staleOptimizerBanner()}<div class="royal-map-shell${session.largeMap ? "" : " map-size-small"}">${worldNav(S)}<div class="royal-map-area">${royalMap(S, q, resourceDetails(S))}</div>${royalMapCounters(S, q)}</div></section>`;
+        const mapResources = session.mapOverlayMode === "banked" ? bankedResourceDetails(S) : resourceDetails(S);
+        return `<section class="section royal-map-section">${staleOptimizerBanner()}<div class="royal-map-shell${session.largeMap ? "" : " map-size-small"}">${worldNav(S)}<div class="royal-map-area">${royalMap(S, q, mapResources)}</div>${royalMapCounters(S, q)}</div></section>`;
       }
       function syncResourceSelection(S) {
         const rows = resourceFilterRows(S, resourceDetails(S));
@@ -1720,9 +1769,22 @@
       }
       function mapResource(S, m, resource) {
         const grade = Math.max(0, Math.min(49, Math.floor(n(R.resourceGrade(S, resource.index)))));
-        const state = resourceState(m.details[resource.index] || { remaining: 0, rate: 0 });
+        const detail = m.details[resource.index] || { remaining: 0, rate: 0 };
+        const banked = session.mapOverlayMode === "banked";
+        const bankedAvailable = !banked || m.resetProjectionAvailable === true;
+        const state = banked ? !bankedAvailable ? "unavailable" : n(detail.projectedRemaining) <= 0 ? "empty" : "active" : resourceState(detail);
+        const ready = !banked && R.resourceDrained(S, resource.index);
+        const empty = !banked && !ready && n(detail.remaining) <= 0;
+        const capacity = banked && bankedAvailable ? n(detail.projectedCapacity) : R.resourceCapacity(S, resource.index);
+        const status = banked && !bankedAvailable
+          ? "Banked projection unavailable"
+          : banked
+          ? `${f(detail.bankedGain)} banked; ${f(detail.projectedRemaining)} / ${f(capacity)} remaining at grade ${fi(detail.projectedGrade)}${detail.refillsAtReset ? "; refilled at reset" : "; no reset"}`
+          : ready ? "Ready to reset" : empty ? "Empty" : `${f(detail.remaining)} / ${f(capacity)}`;
+        const visibleStatus = banked ? bankedAvailable ? f(detail.bankedGain) : "Unavailable" : ready || empty ? "&#10003;" : status;
+        const statusBadge = ["resources", "banked"].includes(session.mapOverlayMode) && !session.rangeFinderMode ? `<span class="royal-map-resource-status${banked ? " banked" : ready ? " ready" : empty ? " empty" : ""}" title="${status}" aria-hidden="true">${visibleStatus}</span>` : "";
         const selected = session.mapSelectionKind === "resource" && resource.index === session.selectedResource;
-        return `<button class="royal-map-node${selected ? " selected" : ""}" data-map-resource="${resource.index}" style="${mapPoint(resource.x, resource.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="Resource ${resource.index + 1}, currency slot ${resource.currencySlot}, grade ${grade}, ${state}"><img src="./assets/royal-guardian/RGresB${grade}.png" alt=""><img src="./assets/royal-guardian/RGres${resource.currencySlot}.png" alt=""></button>`;
+        return `<button class="royal-map-node${selected ? " selected" : ""}" data-map-resource="${resource.index}" style="${mapPoint(resource.x, resource.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="Resource ${resource.index + 1}, currency slot ${resource.currencySlot}, grade ${grade}, ${state}, ${status}">${statusBadge}<img src="./assets/royal-guardian/RGresB${grade}.png" alt=""><img src="./assets/royal-guardian/RGres${resource.currencySlot}.png" alt=""></button>`;
       }
       function mapOutpost(S, row) {
         const position = R.outpostMapPosition(row.mapIdx);
@@ -1802,7 +1864,21 @@
         const rows = [...assignableRows, ...fixedRows, ...transientRows].join("") || '<span class="note">None</span>';
         return `<div class="tooltip-unit-group"><h4>Units</h4><div class="tooltip-units">${rows}</div><div class="tooltip-unit-key" aria-label="Unit source key">A Assignable · F Fixed · T Transient</div></div>`;
       }
+      function bankedStaffingTooltip(S, recommendation) {
+        if (!recommendation?.available) return `<div class="tooltip-unit-group"><h4>Drain staffing</h4><div class="note">${recommendation?.mapIdx !== undefined ? `${esc(mapName(recommendation.mapIdx))}: ` : ""}${esc(recommendation?.reason || "No recommendation available")}</div></div>`;
+        const actions = recommendation.changes.map(change => ({ kind: "profession", mapIdx: change.mapIdx, slot: change.slot, type: change.toType }));
+        const after = O.cloneRoyalState(S);
+        for (const outpost of recommendation.outposts) if (after.royalMapsData?.[outpost.mapIdx]) after.royalMapsData[outpost.mapIdx][11] = O.encodePackedUnits(outpost.units);
+        const cards = layoutChangeCards(actions, S, after, "");
+        return `<div class="tooltip-unit-group"><h4>Drain staffing</h4><div class="tooltip-grid"><span>Projected drain</span><b>${f(recommendation.currentGain)} &rarr; ${f(recommendation.recommendedGain)}</b><span>Assignable Workers</span><b>${fi(recommendation.currentWorkers)} &rarr; ${fi(recommendation.recommendedWorkers)}</b><span>Trader time retained</span><b>${fmtHours(recommendation.traderHours)}</b><span>Required Guards</span><b>${fi(recommendation.requiredGuards)}</b></div>${cards || '<div class="note">Current reassignable units already meet the maximum-drain, minimum-Worker target.</div>'}</div>`;
+      }
       function resourceQuickView(S, resourceIdx) {
+        if (session.mapOverlayMode === "banked") {
+          const projection = bankedResourceDetails(S), detail = projection.details[resourceIdx];
+          if (!projection.available) return `<h3>${currencyIcon(R.resourceCurrency(resourceIdx))}Resource ${resourceIdx + 1}</h3><div class="note">Banked projection unavailable: ${esc((projection.missing || []).join(", ") || "reset timing missing")}</div>`;
+          const timing = projection.mode === "post-reset" ? `<span>Saved banked time</span><b>${fmtHours(projection.currentBankedHours)}</b><span>Time until reset</span><b>${fmtHours(projection.hoursToReset)}</b><span>Added after reset</span><b>${fmtHours(projection.hoursAfterReset)}</b>` : `<span>Saved banked time</span><b>${fmtHours(projection.currentBankedHours)}</b>`;
+          return `<h3>${currencyIcon(R.resourceCurrency(resourceIdx))}Resource ${resourceIdx + 1}</h3><div class="tooltip-grid">${timing}<span>Total banked at pop</span><b>${fmtHours(projection.bankedHoursAtPop)}</b><span>Banked gain</span><b>${f(detail?.bankedGain)}</b><span>Remaining at pop</span><b>${f(detail?.projectedRemaining)} / ${f(detail?.projectedCapacity)}</b><span>Grade at pop</span><b>${fi(detail?.projectedGrade)}</b><span>Reset handling</span><b>${detail?.refillsAtReset ? "Refilled" : "No reset"}</b></div>${bankedStaffingTooltip(S, detail?.staffingRecommendation)}`;
+        }
         const detail = resourceDetails(S).details[resourceIdx], capacity = R.resourceCapacity(S, resourceIdx), slot = R.resourceCurrency(resourceIdx);
         const cycle = R.nextResourceCycleMetrics(S, resourceIdx, detail?.rate);
         return `<h3>${currencyIcon(slot)}Resource ${resourceIdx + 1}</h3><div class="tooltip-grid"><span>Amount / cap</span><b>${f(detail?.remaining)} / ${f(capacity)}</b><span>Collection rate</span><b>${f(detail?.rate)}/hr</b><span>Currency rate</span><b>${f(detail?.currencyRate)}/hr</b><span>Grade</span><b>${fi(R.resourceGrade(S, resourceIdx))}</b><span>Current remaining drain</span><b>${fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining)}</b><span>Active streams</span><b>${fi(detail?.streams?.length)}</b></div>`;
@@ -1816,10 +1892,12 @@
         const shelfIndices = shelfLayoutStepIndices(), shelfPosition = shelfIndices.indexOf(session.shelfStepIndex);
         const stateOptions = [["current", "Current save", true], ...(optimizedNow ? [["optimized", "Optimized now", true], ["post-reset", "Post-reset", optimizedPostReset]] : []), ...(shelfStep ? [["shelf-step", shelfStepLabel, true]] : [])];
         const shelfNavigation = shelfStep ? `<div class="shelf-step-navigation" role="group" aria-label="Optimizer step navigation"><button type="button" data-shelf-nav="-1" ${shelfPosition <= 0 ? "disabled" : ""} aria-label="Previous optimizer step">&larr; Previous</button><span class="shelf-step-position" aria-live="polite">${fi(shelfPosition + 1)} / ${fi(shelfIndices.length)}</span><button type="button" data-shelf-nav="1" ${shelfPosition < 0 || shelfPosition >= shelfIndices.length - 1 ? "disabled" : ""} aria-label="Next optimizer step">Next &rarr;</button><button type="button" class="go-to-step" data-go-shelf-step>Go to step</button></div>` : "";
-        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
+        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["resources", "Resources"], ["banked", "Banked Time"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
         const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Movable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>` : "";
-        const stateToggle = `${stateOptions.length > 1 ? `<div class="royal-map-state-group" role="group" aria-label="Map state">${stateOptions.map(([value, label, enabled]) => `<button type="button" data-map-state="${value}" aria-pressed="${session.royalStateView === value ? "true" : "false"}" ${enabled ? "" : "disabled"}>${label}</button>`).join("")}</div>` : ""}${shelfNavigation}${mapViewToggle}${assignmentFilters}`;
-        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div><div class="royal-map-layer royal-map-upgrade-layer">${q.map(row => mapUpgradeOverlay(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span>${stateToggle}<button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
+        const resourceKey = session.mapOverlayMode === "resources" ? `<span class="royal-map-resource-key">Resources: <b class="empty">&#10003;</b> Empty <b class="ready">&#10003;</b> Ready to reset</span>` : "";
+        const bankedControl = session.mapOverlayMode === "banked" ? `<div class="royal-map-view-group" role="group" aria-label="Banked time baseline">${[["current", "Current"], ["post-reset", "Post-reset"]].map(([value, label]) => `<button type="button" data-banked-mode="${value}" aria-pressed="${session.bankedProjectionMode === value ? "true" : "false"}">${label}</button>`).join("")}</div>${session.bankedProjectionMode === "post-reset" ? `<label class="royal-map-banked-control">+ <input id="banked-hours-after-reset" type="number" min="0" step="0.5" value="${session.bankedHoursAfterReset}" aria-label="Additional hours after reset before opening Royal Guardian"> hr</label>` : ""}<span class="royal-map-resource-key">Total banked at pop: <b class="banked">${m.available ? fmtHours(m.bankedHoursAtPop) : "Unavailable"}</b></span>` : "";
+        const stateToggle = `${stateOptions.length > 1 ? `<div class="royal-map-state-group" role="group" aria-label="Map state">${stateOptions.map(([value, label, enabled]) => `<button type="button" data-map-state="${value}" aria-pressed="${session.royalStateView === value ? "true" : "false"}" ${enabled ? "" : "disabled"}>${label}</button>`).join("")}</div>` : ""}${shelfNavigation}${mapViewToggle}${assignmentFilters}${bankedControl}`;
+        return `<div class="royal-map-scroll"><div class="royal-map${session.rangeFinderMode ? " range-finder-active" : ""}" style="background-image:url('./assets/royal-guardian/UImap${session.worldIdx + 1}.png')"><div class="royal-map-layer">${lines}</div><div class="royal-range-circle" aria-hidden="true"></div><div class="royal-map-layer">${resources.map(resource => mapResource(S, m, resource)).join("")}${q.map(row => mapOutpost(S, row)).join("")}</div><div class="royal-map-layer royal-map-upgrade-layer">${q.map(row => mapUpgradeOverlay(S, row)).join("")}</div></div></div><div class="royal-map-key"><span><i style="background:var(--gold)"></i>Selected</span><span><i style="background:var(--green)"></i>Normal connection</span><span><i style="background:var(--blue)"></i>Map connection</span>${resourceKey}${stateToggle}<button type="button" class="royal-map-range-toggle" data-toggle-range-finder aria-pressed="${session.rangeFinderMode ? "true" : "false"}" title="Show which resources and outposts are within connection range">Range finder: ${session.rangeFinderMode ? "On" : "Off"}</button>${mapSizeToggle()}${spoilerToggle()}<span class="royal-range-status" data-range-status aria-live="polite">${session.rangeFinderMode ? "Hover or focus an outpost or resource" : "Click a node or outpost for details"}</span></div>`;
       }
       function globalBreakdowns(S) {
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
@@ -2086,9 +2164,10 @@
         const timelineItem = (action, timelineIndex) => {
           const time = action.kind === "wait" ? `${plannerEta(action.durationHours)} wait` : plannerEta(action.timeHours);
           if (action.kind === "armory-purchase") { const purchaseNumber = fi(action.dailyPurchasesBefore + 1), discountStatus = action.dailyDiscountActive ? `Daily discount ${purchaseNumber} / ${fi(action.dailyPurchaseLimit)}` : `Daily discount exhausted; purchase ${purchaseNumber} today`; return `<article class="shelf-timeline-item purchase"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">${currencyIcon(action.currencySlot)}Buy ${displayItemName(action.name)}</div><div class="shelf-timeline-detail">Level ${fi(action.levelBefore)} &rarr; ${fi(action.levelAfter)} for ${f(action.cost)}. Balance ${f(action.balanceBefore)} &rarr; ${f(action.balanceAfter)}. Currency rate ${f(action.currencyRate)}/hr; rate / cost ${f(action.currencyEfficiency)}. ${discountStatus}.</div></div></article>`; }
-          if (action.kind === "layout-change") { const rates = layoutCurrencyRateChips(action); const selected = session.royalStateView === "shelf-step" && session.shelfStepIndex === timelineIndex; const preview = validRoyalSnapshot(action.layoutState) ? `<button type="button" class="shelf-map-preview" data-shelf-step="${timelineIndex}" aria-pressed="${selected ? "true" : "false"}">${selected ? "Viewing on map" : "View on map"}</button>` : ""; const changes = layoutChangeCards(action.actions, action.layoutBeforeState, action.layoutState, ""); const title = action.mode === "currency-portfolio" ? `Balance ${fi(action.portfolio?.length || 0)} eligible currencies` : action.mode === "drain-before-reset" ? "Drain maximum nodes before reset" : action.mode === "least-wasteful" ? "Minimum staffing drain layout" : "Reconfigure idle outposts for rank EXP"; return `<article class="shelf-timeline-item layout" id="shelf-layout-step-${timelineIndex}" tabindex="-1"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title"><span>${title}</span>${preview}</div><div class="shelf-timeline-detail">${esc(action.reason || "Apply the recommended layout changes.")}${rates}${changes}</div></div></article>`; }
+          if (action.kind === "layout-change") { const rates = layoutCurrencyRateChips(action); const selected = session.royalStateView === "shelf-step" && session.shelfStepIndex === timelineIndex; const preview = validRoyalSnapshot(action.layoutState) ? `<button type="button" class="shelf-map-preview" data-shelf-step="${timelineIndex}" aria-pressed="${selected ? "true" : "false"}">${selected ? "Viewing on map" : "View on map"}</button>` : ""; const changes = layoutChangeCards(action.actions, action.layoutBeforeState, action.layoutState, ""); const title = action.mode === "currency-portfolio" ? `Balance ${fi(action.portfolio?.length || 0)} eligible currencies` : action.mode === "drain-before-reset" ? "Drain maximum nodes before reset" : action.mode === "least-wasteful" ? "Minimum staffing drain layout" : action.mode === "banked-post-reset" ? "Post-reset currency layout" : "Reconfigure idle outposts for rank EXP"; return `<article class="shelf-timeline-item layout" id="shelf-layout-step-${timelineIndex}" tabindex="-1"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title"><span>${title}</span>${preview}</div><div class="shelf-timeline-detail">${esc(action.reason || "Apply the recommended layout changes.")}${rates}${changes}</div></div></article>`; }
           if (action.kind === "collect") return `<article class="shelf-timeline-item collect"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Collect depleted nodes</div><div class="shelf-timeline-detail">${(action.resources || []).length ? action.resources.map(index => `${resourceIcon(saveData, index)}Resource ${fi(index + 1)}`).join(" ") : "No eligible nodes require collection."}${action.automatic ? " Required before reset by this plan." : ""}</div></div></article>`;
           if (action.kind === "reset") return `<article class="shelf-timeline-item reset"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Daily reset</div><div class="shelf-timeline-detail">Discounted purchase count resets; all following costs and assignments are reevaluated.${action.refilledNodes ? ` ${fi(action.refilledNodes)} node${action.refilledNodes === 1 ? "" : "s"} refilled.` : ""}${action.gradeGains ? ` ${fi(action.gradeGains)} total grade increase${action.gradeGains === 1 ? "" : "s"}.` : ""}</div></div></article>`;
+          if (action.kind === "banked-time") return `<article class="shelf-timeline-item collect"><div class="shelf-timeline-time">At reset</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Open banked post-reset time</div><div class="shelf-timeline-detail">Apply ${plannerEta(action.durationHours)} banked after the final depletion for ${f(action.currency)} immediate post-reset currency.</div></div></article>`;
           if (action.kind === "check-in") return `<article class="shelf-timeline-item collect"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Check in</div><div class="shelf-timeline-detail">Collect available production${action.complete ? " and finish this schedule." : ", then apply the next static layout."}</div></div></article>`;
           if (action.kind === "rank-breakpoint") return `<article class="shelf-timeline-item purchase"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">${action.mode === "purification" ? "Map purified" : `Command Rank ${fi(action.targetRank)}`}</div><div class="shelf-timeline-detail">${mapName(action.mapIdx)} reaches the target${action.rewardName ? ` and unlocks a permanent ${esc(action.rewardName)}` : ""}.</div></div></article>`;
           return `<article class="shelf-timeline-item"><div class="shelf-timeline-time">${time}</div><div class="shelf-timeline-content"><div class="shelf-timeline-title">Resource ${fi(action.resourceIdx + 1)} fully drained</div><div class="shelf-timeline-detail">Production from this node stops until its next refill.</div></div></article>`;
@@ -2100,10 +2179,12 @@
         }
         if (result.mode) {
           const labels = { "least-wasteful": "Least Wasteful", "drain-before-reset": "Drain Before Reset", "low-attention": "Low-Attention", "support-network": "Support Network", "savage-placement": "Savage Placement" }, label = labels[result.mode] || result.mode, metrics = result.metrics || {};
-          return `<section class="section"><h3>${label} timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Core goal</span><b>${esc(coreOptimizerGoals[result.subgoal || result.coreMode] || label)}</b></div><div class="planner-metric"><span>Nodes fully drained</span><b>${fi(result.completedNodes)}</b></div><div class="planner-metric"><span>Currency collected</span><b>${f(metrics.currencyCollected)}</b></div><div class="planner-metric"><span>Elapsed</span><b>${result.complete ? plannerEta(result.elapsedHours) : "Partial"}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No layout changes are available.</p>'}<p class="planner-note">${esc(result.metadata?.approximation || "Bounded deterministic planning; no global-optimum claim.")}</p></section>`;
+          const bankedMetrics = result.metadata?.banksIdleTimePostReset ? `<div class="planner-metric"><span>Banked after final drain</span><b>${plannerEta(metrics.bankedPostResetHours)}</b></div><div class="planner-metric"><span>Immediate post-reset currency</span><b>${f(metrics.bankedPostResetCurrency)}</b></div>` : "";
+          return `<section class="section"><h3>${label} timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Core goal</span><b>${esc(coreOptimizerGoals[result.subgoal || result.coreMode] || label)}</b></div><div class="planner-metric"><span>Nodes fully drained</span><b>${fi(result.completedNodes)}</b></div><div class="planner-metric"><span>Currency collected</span><b>${f(metrics.currencyCollected)}</b></div>${bankedMetrics}<div class="planner-metric"><span>Elapsed</span><b>${result.complete ? plannerEta(result.elapsedHours) : "Partial"}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No layout changes are available.</p>'}<p class="planner-note">${esc(result.metadata?.approximation || "Bounded deterministic planning; no global-optimum claim.")}</p></section>`;
         }
         const next = result.nextShelf ? `Shelf ${fi(result.nextShelf.orderIndex + 1)}: ${displayItemName(result.nextShelf.name)}` : "All shelves unlocked";
-        return `<section class="section"><h3>Next shelf unlock timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Result</span><b>${result.complete ? "Shelf unlock scheduled" : "Partial schedule"}</b></div><div class="planner-metric"><span>ETA</span><b>${plannerEta(result.etaHours)}</b></div><div class="planner-metric"><span>Levels required</span><b>${fi(result.levelsToNextThreshold)}</b></div><div class="planner-metric"><span>Currency strategy</span><b>${fi(metadata.currencySlotsConsidered?.length || 0)} concurrent currencies</b></div><div class="planner-metric wide"><span>Next available upgrade</span><b>${next}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No purchases are required.</p>'}<p class="planner-note">All currencies used by eligible upgrades accumulate concurrently. The planner balances their live rates, then reevaluates the next affordable purchase and full layout after every purchase or event. Evaluated ${fi(metadata.evaluated)} purchase options across ${fi(metadata.currencySlotsConsidered?.length || 0)} currency slots. ${esc(metadata.approximation || "Bounded evaluation")}</p></section>`;
+        const bankedMetrics = metadata.banksIdleTimePostReset ? `<div class="planner-metric"><span>Banked after final drain</span><b>${plannerEta(metadata.bankedPostResetHours)}</b></div><div class="planner-metric"><span>Immediate post-reset currency</span><b>${f(metadata.bankedPostResetCurrency)}</b></div>` : "";
+        return `<section class="section"><h3>Next shelf unlock timeline</h3><div class="planner-metrics"><div class="planner-metric"><span>Result</span><b>${result.complete ? "Shelf unlock scheduled" : "Partial schedule"}</b></div><div class="planner-metric"><span>ETA</span><b>${plannerEta(result.etaHours)}</b></div><div class="planner-metric"><span>Levels required</span><b>${fi(result.levelsToNextThreshold)}</b></div><div class="planner-metric"><span>Currency strategy</span><b>${fi(metadata.currencySlotsConsidered?.length || 0)} concurrent currencies</b></div>${bankedMetrics}<div class="planner-metric wide"><span>Next available upgrade</span><b>${next}</b></div></div>${timeline ? `<div class="shelf-timeline">${timeline}</div>` : '<p class="planner-note">No purchases are required.</p>'}<p class="planner-note">All currencies used by eligible upgrades accumulate concurrently. The planner balances their live rates, then reevaluates the next affordable purchase and full layout after every purchase or event. Evaluated ${fi(metadata.evaluated)} purchase options across ${fi(metadata.currencySlotsConsidered?.length || 0)} currency slots. ${esc(metadata.approximation || "Bounded evaluation")}</p></section>`;
       }
       function layoutOptimizer(S) {
         const slots = O.validCurrencySlots().filter(slot => session.spoilersVisible || ROYAL_RESOURCES.some((resource, index) => resource.currencySlot === slot && R.royalWorldUnlocked(S, R.resourceWorld(resource.index ?? index)))), built = R.outpostRows(S).filter(row => row.built), armory = ARMORY_ORDER.slice(0, Math.min(ARMORY_ORDER.length, R.armoryUnlockedCount(S)));
@@ -2111,9 +2192,9 @@
         if (session.layoutRankMap === null) session.layoutRankMap = built[0]?.mapIdx ?? null;
         const layoutControls = `<p class="planner-note">Bounded best evaluated plan: 24-hour horizon, up to 2 actions, beam width 4, and at most 60 candidates. This is not a global optimum.</p><button type="button" class="primary" id="run-layout" ${session.layoutRunning ? "disabled" : ""}>${session.layoutRunning ? "Running..." : "Run optimizer"}</button> <button type="button" id="cancel-layout" ${session.layoutRunning ? "" : "disabled"}>Cancel</button>${plannerProgress(session.layoutProgress, "Layout analysis")}`;
         const resetSchedule = ["drain-before-reset", "least-wasteful"].includes(session.layoutGoal), timelineMode = Object.hasOwn(layoutGoals, session.layoutGoal);
-        const hasSubgoal = ["low-attention", "support-network", "savage-placement"].includes(session.layoutGoal), subgoalControl = hasSubgoal ? `<label>Core goal<select id="optimizer-subgoal">${Object.entries(coreOptimizerGoals).map(([value, text]) => `<option value="${value}" ${session.optimizerSubgoal === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>` : "", intervalControl = session.layoutGoal === "low-attention" ? `<label>Check-in intervals (hours)<input id="low-attention-intervals" value="${esc(session.lowAttentionIntervals)}" placeholder="3, 9, 12"></label>` : "";
+        const hasSubgoal = ["low-attention", "support-network", "savage-placement"].includes(session.layoutGoal), subgoalControl = hasSubgoal ? `<label>Core goal<select id="optimizer-subgoal">${Object.entries(coreOptimizerGoals).map(([value, text]) => `<option value="${value}" ${session.optimizerSubgoal === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>` : "", intervalControl = session.layoutGoal === "low-attention" ? `<label>Check-in intervals (hours)<input id="low-attention-intervals" value="${esc(session.lowAttentionIntervals)}" placeholder="3, 9, 12"></label>` : "", bankedTimeControl = `<button type="button" class="upgrade-spoiler-toggle" data-toggle-optimizer-banked-time aria-pressed="${session.optimizerBankedTimePostReset ? "true" : "false"}" title="After the final resource depletion, collect immediately and apply any remaining pre-reset time to refilled nodes">Banked time post-reset: ${session.optimizerBankedTimePostReset ? "Included" : "Excluded"}</button>`;
         const shelfControls = `<p class="planner-note">Runs the selected bounded optimizer without spending outpost points. Low-Attention intervals are consecutive windows, so 3, 9, 12 schedules check-ins at 3, 12, and 24 hours.</p><button type="button" class="primary" id="run-shelf" ${session.shelfRunning ? "disabled" : ""}>${session.shelfRunning ? "Optimizing..." : "Run optimizer"}</button> <button type="button" id="cancel-shelf" ${session.shelfRunning ? "" : "disabled"}>Cancel</button>${plannerProgress(session.shelfProgress, resetSchedule ? "Reset drain analysis" : "Optimizer analysis")}`;
-        const controls = `<div class="planner-controls layout-controls"><label>Goal<select id="layout-goal">${Object.entries(layoutGoals).map(([value, text]) => `<option value="${value}" ${session.layoutGoal === value ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>${subgoalControl}${intervalControl}</div>${timelineMode ? shelfControls : layoutControls}`;
+        const controls = `<div class="planner-controls layout-controls"><label>Goal<select id="layout-goal">${Object.entries(layoutGoals).map(([value, text]) => `<option value="${value}" ${session.layoutGoal === value ? "selected" : ""}>${esc(text)}</option>`).join("")}</select></label>${subgoalControl}${intervalControl}${bankedTimeControl}</div>${timelineMode ? shelfControls : layoutControls}`;
         return `<section class="section" aria-label="Full kingdom layout optimizer"><h2>Royal Optimizer</h2>${session.royalStateView !== "current" ? `<div class="info-panel" role="status">Viewing ${session.royalStateView === "shelf-step" ? `optimizer step ${shelfLayoutStepNumber(session.shelfStepIndex)}` : session.royalStateView === "post-reset" ? "post-reset optimized" : "immediate optimized"} state. A new run starts from the Current imported state.</div>` : ""}${controls}${timelineMode ? shelfResultPanel() : layoutResultPanel(S)}</section>`;
       }
       function resources(S) {
@@ -2553,6 +2634,7 @@
         document.querySelector("#layout-goal")?.addEventListener("change", (e) => { session.layoutGoal = e.target.value; invalidateOptimizedState(); render(); });
         document.querySelector("#optimizer-subgoal")?.addEventListener("change", (e) => { session.optimizerSubgoal = e.target.value; clearShelfResult(); render(); });
         document.querySelector("#low-attention-intervals")?.addEventListener("change", (e) => { session.lowAttentionIntervals = e.target.value; clearShelfResult(); render(); });
+        document.querySelector("[data-toggle-optimizer-banked-time]")?.addEventListener("click", () => { session.optimizerBankedTimePostReset = !session.optimizerBankedTimePostReset; clearShelfResult(); render(); });
         document.querySelector("#layout-currency-target")?.addEventListener("change", (e) => { session.layoutCurrencyTarget = n(e.target.value); invalidateOptimizedState(); render(); });
         document.querySelector("#layout-armory-target")?.addEventListener("change", (e) => { session.layoutArmoryTarget = n(e.target.value); invalidateOptimizedState(); render(); });
         document.querySelector("#layout-rank-map")?.addEventListener("change", (e) => { session.layoutRankMap = n(e.target.value); invalidateOptimizedState(); render(); });
@@ -2634,7 +2716,7 @@
             worker.terminate();
             render();
           };
-          worker.postMessage({ type: "run", operation: session.layoutGoal, requestId, saveData, intervals: session.lowAttentionIntervals, subgoal: session.optimizerSubgoal, options: { operationCap: 10000, maxEvents: 5000, placementCandidateCap: 24, ext: { derivedInputs: R.royalGuardianDerivedInputs(saveData) } } });
+          worker.postMessage({ type: "run", operation: session.layoutGoal, requestId, saveData, intervals: session.lowAttentionIntervals, subgoal: session.optimizerSubgoal, options: { operationCap: 10000, maxEvents: 5000, placementCandidateCap: 24, bankedTimePostReset: session.optimizerBankedTimePostReset, ext: { derivedInputs: R.royalGuardianDerivedInputs(saveData) } } });
         });
         document.querySelector("#cancel-shelf")?.addEventListener("click", () => { stopShelfWorker(); clearShelfResult(); render(); });
         document.querySelectorAll("[data-shelf-step]").forEach(button => button.addEventListener("click", () => {
@@ -2722,6 +2804,14 @@
           session.mapOverlayMode = button.dataset.mapOverlay;
           render();
         }));
+        document.querySelectorAll("[data-banked-mode]").forEach(button => button.addEventListener("click", () => {
+          session.bankedProjectionMode = button.dataset.bankedMode;
+          render();
+        }));
+        document.querySelector("#banked-hours-after-reset")?.addEventListener("change", event => {
+          session.bankedHoursAfterReset = Math.max(0, n(event.target.value));
+          render();
+        });
         document.querySelectorAll("[data-assignment-layer]").forEach(button => button.addEventListener("click", () => {
           const layer = button.dataset.assignmentLayer;
           session.assignmentLayers[layer] = !session.assignmentLayers[layer];

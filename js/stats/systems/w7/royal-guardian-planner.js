@@ -173,7 +173,7 @@ function _shelfLayoutStrategy(plan, candidates, options) {
 	return { mode: 'rank', state, moves, candidate: candidates[0], portfolio };
 }
 function _shelfTimeline(events) {
-	const visible = new Set(['armory-purchase', 'layout-change', 'collect', 'reset', 'depletion', 'check-in', 'rank-breakpoint']); const refills = events.filter(item => item.kind === 'refill'); const timeline = [];
+	const visible = new Set(['armory-purchase', 'layout-change', 'collect', 'reset', 'banked-time', 'depletion', 'check-in', 'rank-breakpoint']); const refills = events.filter(item => item.kind === 'refill'); const timeline = [];
 	for (const source of events.filter(item => visible.has(item.kind))) { const event = source.kind === 'reset' ? { ...source, refills: refills.filter(item => Math.abs(n(item.timeHours) - n(source.timeHours)) <= EPSILON).map(_clone) } : source; if (event.kind === 'reset') { event.refilledNodes = event.refills.length; event.gradeGains = event.refills.reduce((sum, item) => sum + n(item.gradeGain), 0); } timeline.push(_clone(event)); }
 	return timeline;
 }
@@ -259,27 +259,55 @@ function _resetDrainLayout(S, mode, hoursLeft, ext, pinnedTypes = {}) {
 	const rankFallback = _assignIdleOutpostsToRanks(state, ext, { idleRankMoveCap: Infinity });
 	return rankFallback.state;
 }
+function _projectRefilledState(S) {
+	const state = O.cloneRoyalState(S); const refill = R.armoryBonus(state, 70) >= 1; const grade = R.armoryBonus(state, 0) >= 1;
+	if (!refill) return state;
+	state.royalGData[4] ||= []; state.royalGData[5] ||= [];
+	for (let index = 0; index < ROYAL_RESOURCES.length; index++) if (_releasedResource(index) && n(state.royalGData[4][index]) === -1) { state.royalGData[4][index] = 0; if (grade) state.royalGData[5][index] = n(state.royalGData[5][index]) + 1; }
+	return state;
+}
+function _bankIdleTimeAcrossReset(plan, hours, options = {}) {
+	const durationHours = Math.max(0, n(hours)); if (durationHours <= EPSILON) return { applied: false, durationHours: 0, currency: 0, layoutChanges: 0 };
+	applyRoyalPlanAction(plan, { kind: 'collect', all: true, automatic: true });
+	const before = O.cloneRoyalState(_save(plan)); const projected = _projectRefilledState(before); const pinnedTypes = {};
+	for (let mapIdx = 0; mapIdx < (projected.royalMapsData || []).length; mapIdx++) if (R.outpostBuilt(projected, mapIdx)) pinnedTypes[mapIdx] = options.pinnedTypes?.[mapIdx] ?? (R.outpostType(projected, mapIdx) === 1 ? 1 : 0);
+	const projectedLayout = _resetDrainLayout(projected, 'drain-before-reset', durationHours, options.ext, pinnedTypes); const prepared = O.cloneRoyalState(before);
+	prepared.royalMapsData = _clone(projectedLayout.royalMapsData); const actions = _resetLayoutActions(before, prepared);
+	if (actions.length) { _setSave(plan, prepared); _push(plan, { kind: 'layout-change', mode: 'banked-post-reset', actions, layoutBeforeState: _royalSnapshot(before), layoutState: _royalSnapshot(prepared), reason: 'At the final collection, preserve pinned and Support outposts and prepare Normal production for the banked post-reset window.' }); }
+	_save(plan).royalGData[3] ||= []; _save(plan).royalGData[3][0] = durationHours * 3600;
+	_advanceTime(plan, durationHours); _processReset(plan);
+	const balancesBefore = (_save(plan).royalGData?.[1] || []).map(n); const resetElapsed = plan.elapsedHours;
+	_advanceTime(plan, durationHours); plan.elapsedHours = resetElapsed;
+	const balancesAfter = (_save(plan).royalGData?.[1] || []).map(n); const currency = balancesAfter.reduce((sum, value, slot) => sum + Math.max(0, value - n(balancesBefore[slot])), 0);
+	_save(plan).royalGData[3][0] = 0; _push(plan, { kind: 'banked-time', durationHours, currency });
+	return { applied: true, durationHours, currency, layoutChanges: actions.length };
+}
 export function planResetDrainSchedule(S, mode = 'drain-before-reset', options = {}) {
 	const supported = ['drain-before-reset', 'least-wasteful']; const initial = O.cloneRoyalState(_clone(S || {})); const reset = R.royalResetTiming(initial);
 	if (!supported.includes(mode)) return { available: false, mode, timelineActions: [], finalState: initial, partial: true, missing: [`unsupported reset schedule mode: ${mode}`] };
 	if (!R.hasCompleteRoyalData(initial) || !reset.available) return { available: false, mode, timelineActions: [], finalState: initial, partial: true, missing: [..._kingdomMissing(initial), ...(reset.missing || [])] };
-	const opts = _planningOptions(initial, options); const plan = createRoyalPlanState(initial, { ...opts, horizonHours: reset.hoursRemaining, maxEvents: options.maxEvents ?? 5000, autoCollectBeforeReset: true }); const completed = new Set(); let layouts = 0; let iterations = 0;
+	const opts = _planningOptions(initial, options); const plan = createRoyalPlanState(initial, { ...opts, horizonHours: reset.hoursRemaining, maxEvents: options.maxEvents ?? 5000, autoCollectBeforeReset: true }); const completed = new Set(); let layouts = 0; let iterations = 0; let bankedPostResetHours = 0; let bankedPostResetCurrency = 0;
 	_reportProgress(options, 'setup', 0, Math.max(EPSILON, reset.hoursRemaining));
 	while (plan.elapsedHours < reset.hoursRemaining - EPSILON && iterations < plan.maxEvents) {
 		iterations++;
 		const before = O.cloneRoyalState(_save(plan)); const hoursLeft = reset.hoursRemaining - plan.elapsedHours; const layout = _resetDrainLayout(before, mode, hoursLeft, opts.ext, opts.pinnedTypes || {}); const actions = _resetLayoutActions(before, layout);
 		if (actions.length) { _setSave(plan, layout); layouts++; _push(plan, { kind: 'layout-change', mode, actions, layoutBeforeState: _royalSnapshot(before), layoutState: _royalSnapshot(layout), reason: mode === 'least-wasteful' ? 'Complete the most nodes with the least excess staffing; move unused outposts to rank EXP.' : 'Complete the most nodes before reset; use remaining capacity for the highest currency gain.' }); }
 		const rates = royalPlanRates(plan); const remainingBefore = new Map(rates.resources.filter(detail => detail.remaining > EPSILON).map(detail => [detail.resourceIdx, detail.remaining])); const depletion = _nextDepletion(rates); const advance = Math.min(hoursLeft, depletion?.hours ?? Infinity);
-		if (!Number.isFinite(advance) || advance >= hoursLeft - EPSILON) { _advanceTime(plan, hoursLeft); break; }
+		if (!Number.isFinite(advance) || advance >= hoursLeft - EPSILON) {
+			if (options.bankedTimePostReset === true && !depletion && hoursLeft > EPSILON) {
+				const banked = _bankIdleTimeAcrossReset(plan, hoursLeft, opts); bankedPostResetHours = banked.durationHours; bankedPostResetCurrency = banked.currency; layouts += banked.layoutChanges; break;
+			}
+			_advanceTime(plan, hoursLeft); break;
+		}
 		_advanceTime(plan, advance);
 		for (const [resourceIdx] of remainingBefore) if (R.resourceRemaining(_save(plan), resourceIdx) <= EPSILON) { completed.add(resourceIdx); _push(plan, { kind: 'depletion', resourceIdx, committed: false }); }
 		_reportProgress(options, 'schedule', plan.elapsedHours, Math.max(EPSILON, reset.hoursRemaining), { completedNodes: completed.size, layouts });
 	}
 	if (iterations >= plan.maxEvents && plan.elapsedHours < reset.hoursRemaining - EPSILON) { plan.truncated = true; plan.partial = true; _push(plan, { kind: 'event-cap', maxEvents: plan.maxEvents }); }
-	if (!plan.truncated) { applyRoyalPlanAction(plan, { kind: 'collect', all: true, automatic: true }); _processReset(plan); }
+	if (!plan.truncated && bankedPostResetHours <= EPSILON) { applyRoyalPlanAction(plan, { kind: 'collect', all: true, automatic: true }); _processReset(plan); }
 	const timelineActions = _shelfTimeline(plan.events); const finalState = _clone(_save(plan)); const allocation = O.resourceAllocationMetrics(finalState, { hours: 0, ext: opts.ext });
 	_reportProgress(options, 'finalize', Math.max(EPSILON, reset.hoursRemaining), Math.max(EPSILON, reset.hoursRemaining), { completedNodes: completed.size, layouts });
-	return _jsonSafe({ available: true, mode, complete: !plan.truncated, elapsedHours: plan.elapsedHours, completedNodes: completed.size, timelineActions, finalState, stateNotApplied: true, partial: plan.partial || plan.truncated, missing: plan.missing.slice(), metrics: { completedNodes: completed.size, layoutChanges: layouts, currencyCollected: _sumCurrency(plan.ledger.totals.currency), rankExpPerHour: O.rankObjective(finalState, { aggregate: true }, opts.ext).value, activeStreamsAfterReset: allocation.details.filter(detail => detail.remaining > 0 && detail.rate > 0).length }, metadata: { bounded: true, deterministic: true, eventDriven: true, reevaluatesAfterEachDepletion: true, allowsTypeChanges: true, spendsOutpostPoints: false, iterations, maxEvents: plan.maxEvents, derivedInputEvaluations: opts._derivedInputEvaluations, approximation: 'deterministic resource-centric greedy scheduling; no global-optimum claim' } });
+	return _jsonSafe({ available: true, mode, complete: !plan.truncated, elapsedHours: plan.elapsedHours, completedNodes: completed.size, timelineActions, finalState, stateNotApplied: true, partial: plan.partial || plan.truncated, missing: plan.missing.slice(), metrics: { completedNodes: completed.size, layoutChanges: layouts, currencyCollected: _sumCurrency(plan.ledger.totals.currency), bankedPostResetHours, bankedPostResetCurrency, rankExpPerHour: O.rankObjective(finalState, { aggregate: true }, opts.ext).value, activeStreamsAfterReset: allocation.details.filter(detail => detail.remaining > 0 && detail.rate > 0).length }, metadata: { bounded: true, deterministic: true, eventDriven: true, reevaluatesAfterEachDepletion: true, banksIdleTimePostReset: options.bankedTimePostReset === true, allowsTypeChanges: true, spendsOutpostPoints: false, iterations, maxEvents: plan.maxEvents, derivedInputEvaluations: opts._derivedInputEvaluations, approximation: 'deterministic resource-centric greedy scheduling; no global-optimum claim' } });
 }
 function _relocateTransientAssignments(S, assignmentType, targetMap) {
 	const state = O.cloneRoyalState(S); const worldIdx = R.outpostWorld(targetMap); const types = state.royalGData?.[6 + 2 * worldIdx] || []; const maps = state.royalGData?.[7 + 2 * worldIdx] || []; const actions = [];
@@ -332,32 +360,34 @@ function _lowAttentionPurchases(plan, startUnlocked, options) {
 	return count;
 }
 function _advanceLowAttentionWindow(plan, duration, completed) {
-	const end = plan.elapsedHours + duration;
+	const end = plan.elapsedHours + duration; const banking = { hours: 0, currency: 0, phases: 0, layoutChanges: 0 };
 	while (plan.elapsedHours < end - EPSILON) {
 		const rates = royalPlanRates(plan); const remainingBefore = new Map(rates.resources.filter(detail => detail.remaining > EPSILON).map(detail => [detail.resourceIdx, detail.remaining])); const depletion = _nextDepletion(rates); const resetHours = plan.nextResetHours === null ? Infinity : Math.max(0, plan.nextResetHours - plan.elapsedHours); const advance = Math.min(end - plan.elapsedHours, depletion?.hours ?? Infinity, resetHours);
 		if (!Number.isFinite(advance)) break;
+		if (plan.options.bankedTimePostReset === true && !depletion && resetHours > EPSILON && resetHours <= end - plan.elapsedHours + BOUNDARY_EPSILON) { const banked = _bankIdleTimeAcrossReset(plan, resetHours, plan.options); banking.hours += banked.durationHours; banking.currency += banked.currency; banking.phases++; banking.layoutChanges += banked.layoutChanges; continue; }
 		_advanceTime(plan, advance);
 		for (const [resourceIdx] of remainingBefore) if (R.resourceRemaining(_save(plan), resourceIdx) <= EPSILON && !completed.has(resourceIdx)) { completed.add(resourceIdx); _push(plan, { kind: 'depletion', resourceIdx, committed: false }); }
 		if (resetHours <= advance + BOUNDARY_EPSILON) _processReset(plan);
 		if (advance <= EPSILON && resetHours > BOUNDARY_EPSILON) break;
 	}
+	return banking;
 }
 export function planLowAttention(S, intervals, subgoal = 'drain-before-reset', options = {}) {
 	const schedule = _checkInIntervals(intervals); const supported = ['next-shelf', 'drain-before-reset', 'least-wasteful']; const initial = O.cloneRoyalState(_clone(S || {}));
 	if (!supported.includes(subgoal)) return { available: false, mode: 'low-attention', subgoal, timelineActions: [], finalState: initial, partial: true, missing: [`unsupported low-attention subgoal: ${subgoal}`] };
 	if (!schedule.length) return { available: false, mode: 'low-attention', subgoal, timelineActions: [], finalState: initial, partial: true, missing: ['At least one positive check-in interval is required'] };
 	if (!R.hasCompleteRoyalData(initial)) return { available: false, mode: 'low-attention', subgoal, timelineActions: [], finalState: initial, partial: true, missing: _kingdomMissing(initial) };
-	const opts = _planningOptions(initial, { ...options, subgoal }); const totalHours = schedule.reduce((sum, value) => sum + value, 0); const plan = createRoyalPlanState(initial, { ...opts, horizonHours: totalHours, maxEvents: options.maxEvents ?? 5000, autoCollectBeforeReset: false }); const completed = new Set(); const startUnlocked = R.armoryUnlockedCount(initial); let purchases = 0;
+	const opts = _planningOptions(initial, { ...options, subgoal }); const totalHours = schedule.reduce((sum, value) => sum + value, 0); const plan = createRoyalPlanState(initial, { ...opts, horizonHours: totalHours, maxEvents: options.maxEvents ?? 5000, autoCollectBeforeReset: false }); const completed = new Set(); const startUnlocked = R.armoryUnlockedCount(initial); let purchases = 0; const banking = { hours: 0, currency: 0, phases: 0, layoutChanges: 0 };
 	_reportProgress(options, 'setup', 0, totalHours);
 	for (let checkIn = 0; checkIn < schedule.length; checkIn++) {
 		if (checkIn > 0) { applyRoyalPlanAction(plan, { kind: 'collect', all: true, automatic: false }); _push(plan, { kind: 'check-in', checkIn, nextIntervalHours: schedule[checkIn] }); }
 		purchases += _lowAttentionPurchases(plan, startUnlocked, opts); const before = O.cloneRoyalState(_save(plan)); const layout = _lowAttentionLayout(plan, subgoal, schedule[checkIn], opts); const actions = _resetLayoutActions(before, layout);
 		if (actions.length) { _setSave(plan, layout); _push(plan, { kind: 'layout-change', mode: 'low-attention', subgoal, checkIn, intervalHours: schedule[checkIn], actions, layoutBeforeState: _royalSnapshot(before), layoutState: _royalSnapshot(layout), reason: `Keep this ${subgoal} layout unchanged for the next ${schedule[checkIn]} hours.` }); }
-		_advanceLowAttentionWindow(plan, schedule[checkIn], completed); _reportProgress(options, 'schedule', plan.elapsedHours, totalHours, { checkIn: checkIn + 1, checkIns: schedule.length, completedNodes: completed.size });
+		const windowBanking = _advanceLowAttentionWindow(plan, schedule[checkIn], completed); for (const key of Object.keys(banking)) banking[key] += windowBanking[key]; _reportProgress(options, 'schedule', plan.elapsedHours, totalHours, { checkIn: checkIn + 1, checkIns: schedule.length, completedNodes: completed.size });
 	}
 	applyRoyalPlanAction(plan, { kind: 'collect', all: true, automatic: false }); _push(plan, { kind: 'check-in', checkIn: schedule.length, complete: true }); purchases += _lowAttentionPurchases(plan, startUnlocked, opts);
 	_reportProgress(options, 'finalize', totalHours, totalHours, { completedNodes: completed.size, purchases });
-	return _jsonSafe({ available: true, complete: true, mode: 'low-attention', subgoal, intervals: schedule, elapsedHours: plan.elapsedHours, completedNodes: completed.size, purchases, timelineActions: _shelfTimeline(plan.events), finalState: _clone(_save(plan)), stateNotApplied: true, partial: plan.partial, missing: plan.missing.slice(), metrics: { completedNodes: completed.size, currencyCollected: _sumCurrency(plan.ledger.totals.currency), purchases, checkIns: schedule.length + 1 }, metadata: { bounded: true, deterministic: true, staticBetweenCheckIns: true, collectionOnlyAtCheckIns: true, purchasesOnlyAtCheckIns: true, spendsOutpostPoints: false, derivedInputEvaluations: opts._derivedInputEvaluations } });
+	return _jsonSafe({ available: true, complete: true, mode: 'low-attention', subgoal, intervals: schedule, elapsedHours: plan.elapsedHours, completedNodes: completed.size, purchases, timelineActions: _shelfTimeline(plan.events), finalState: _clone(_save(plan)), stateNotApplied: true, partial: plan.partial, missing: plan.missing.slice(), metrics: { completedNodes: completed.size, currencyCollected: _sumCurrency(plan.ledger.totals.currency), bankedPostResetHours: banking.hours, bankedPostResetCurrency: banking.currency, purchases, checkIns: schedule.length + 1 }, metadata: { bounded: true, deterministic: true, staticBetweenCheckIns: options.bankedTimePostReset !== true, collectionOnlyAtCheckIns: options.bankedTimePostReset !== true, purchasesOnlyAtCheckIns: true, banksIdleTimePostReset: options.bankedTimePostReset === true, bankingPhases: banking.phases, bankedLayoutChanges: banking.layoutChanges, spendsOutpostPoints: false, derivedInputEvaluations: opts._derivedInputEvaluations } });
 }
 function _placementTypeState(S, mapIdx, targetType, ext) {
 	let state = O.cloneRoyalState(S);
@@ -417,14 +447,18 @@ export function planNextArmoryShelf(S, options = {}) {
 	const requestedCap = options.maxPurchases === undefined ? levelsToNextThreshold : Math.max(0, Math.floor(n(options.maxPurchases)));
 	const purchaseCap = Math.min(levelsToNextThreshold, requestedCap, Math.max(1, Math.floor(n(options.operationCap) || 10000)));
 	_reportProgress(options, 'setup', 0, Math.max(1, purchaseCap));
-	const metadata = { bounded: true, deterministic: true, approximation: 'fixed-depth event-aware scheduler with deterministic all-outpost reconnection, local profession reassignment, multi-currency portfolio scoring, and rank fallback; no global-optimum claim', objective: 'unlock the next shelf while reconnecting every Normal outpost to a reachable eligible-currency resource without spending outpost points', automaticCurrencyPriority: true, concurrentCurrencyAccumulation: true, reconnectionsOnly: true, professionPolicy: 'minimum Guards for reach, remaining movable units as Workers, stranded units as Trader or Surveyor', secondaryDrainPriority: 'shortest projected drain time', currencySlotsConsidered: [], reevaluatesAfterEachPurchase: true, reevaluatesAfterEachEvent: true, layoutEvaluations: 0, layoutChanges: 0, rankFallbacks: 0, excludedPurchaseIndices: [68], excludedReasons: { 68: 'Kingdom Sovereignty changes account assignments and outpost effects; excluded until modeled.' }, caps: { purchaseCap, operationCap: Math.max(1, Math.floor(n(options.operationCap) || 10000)), maxEvents: controls.maxEvents, layoutCurrencyCap: options.layoutCurrencyCap === undefined ? null : Math.max(1, Math.min(64, Math.floor(n(options.layoutCurrencyCap)))), layoutCandidateCap: null }, evaluated: 0, events: 0, resetEvents: 0, depletionEvents: 0, collectionEvents: 0, truncated: purchaseCap < levelsToNextThreshold };
+	const metadata = { bounded: true, deterministic: true, approximation: 'fixed-depth event-aware scheduler with deterministic all-outpost reconnection, local profession reassignment, multi-currency portfolio scoring, and rank fallback; no global-optimum claim', objective: 'unlock the next shelf while reconnecting every Normal outpost to a reachable eligible-currency resource without spending outpost points', automaticCurrencyPriority: true, concurrentCurrencyAccumulation: true, reconnectionsOnly: true, professionPolicy: 'minimum Guards for reach, remaining movable units as Workers, stranded units as Trader or Surveyor', secondaryDrainPriority: 'shortest projected drain time', currencySlotsConsidered: [], reevaluatesAfterEachPurchase: true, reevaluatesAfterEachEvent: true, banksIdleTimePostReset: options.bankedTimePostReset === true, bankedPostResetHours: 0, bankedPostResetCurrency: 0, bankingPhases: 0, layoutEvaluations: 0, layoutChanges: 0, rankFallbacks: 0, excludedPurchaseIndices: [68], excludedReasons: { 68: 'Kingdom Sovereignty changes account assignments and outpost effects; excluded until modeled.' }, caps: { purchaseCap, operationCap: Math.max(1, Math.floor(n(options.operationCap) || 10000)), maxEvents: controls.maxEvents, layoutCurrencyCap: options.layoutCurrencyCap === undefined ? null : Math.max(1, Math.min(64, Math.floor(n(options.layoutCurrencyCap)))), layoutCandidateCap: null }, evaluated: 0, events: 0, resetEvents: 0, depletionEvents: 0, collectionEvents: 0, truncated: purchaseCap < levelsToNextThreshold };
 	const finish = result => { _reportProgress(options, 'finalize', Math.max(1, purchaseCap), Math.max(1, purchaseCap), { evaluated: metadata.evaluated }); return _jsonSafe(result); };
 	const unavailable = (missing, reason) => finish({ available: false, complete: false, startUnlocked, nextUnlocked: startUnlocked, nextShelf: null, purchasesNeeded: null, levelsToNextThreshold: null, shelvesUnlocked: 0, etaHours: null, purchases: [], alternatives: [], finalState: initial, stateNotApplied: true, partial: true, missing: [...new Set(missing)], metadata: { ...metadata, reason } });
 	if (!R.hasCompleteRoyalData(initial)) return unavailable([...(R.hasRoyalGData(initial) ? [] : ['RoyalG']), ...(R.hasRoyalMapsData(initial) ? [] : ['RoyalMaps'])], 'complete Royal data required');
-	if (startUnlocked >= R.armoryUnlockOrder().length) return finish({ available: true, complete: true, startUnlocked, nextUnlocked: startUnlocked, nextShelf: null, purchasesNeeded: 0, levelsToNextThreshold, shelvesUnlocked: 0, etaHours: 0, purchases: [], alternatives: [], finalState: initial, stateNotApplied: true, partial: false, missing: [], metadata });
+	if (startUnlocked >= R.armoryUnlockOrder().length) {
+		const banked = options.bankedTimePostReset === true ? planResetDrainSchedule(initial, 'drain-before-reset', { ...options, onProgress: undefined }) : null;
+		if (banked?.available) { metadata.bankedPostResetHours = n(banked.metrics?.bankedPostResetHours); metadata.bankedPostResetCurrency = n(banked.metrics?.bankedPostResetCurrency); metadata.bankingPhases = metadata.bankedPostResetHours > EPSILON ? 1 : 0; }
+		return finish({ available: true, complete: true, startUnlocked, nextUnlocked: startUnlocked, nextShelf: null, purchasesNeeded: 0, levelsToNextThreshold, shelvesUnlocked: 0, etaHours: banked?.elapsedHours ?? 0, purchases: [], alternatives: [], requiredActions: (banked?.timelineActions || []).filter(event => ['collect', 'reset'].includes(event.kind)), timelineActions: banked?.timelineActions || [], finalState: banked?.finalState || initial, stateNotApplied: true, partial: banked?.partial || false, missing: banked?.missing || [], metadata });
+	}
 	const plan = createRoyalPlanState(initial, { ...options, ...controls, horizonHours: PLANNER_LIMITS.horizonHours[1], optionsList480: resolved480, autoCollectBeforeReset: options.autoCollectBeforeReset !== false });
 	plan.horizonHours = Number.MAX_SAFE_INTEGER; plan.done = false;
-	const purchases = []; let reason = null; let resetsWithoutAffordableIncome = 0;
+	const purchases = []; let reason = null; let resetsWithoutAffordableIncome = 0; let terminalBankTimeline = [];
 	while (purchases.length < purchaseCap && R.armoryUnlockedCount(_save(plan)) === startUnlocked) {
 		if (plan.nextResetHours !== null && plan.nextResetHours <= plan.elapsedHours + EPSILON) {
 			const result = advanceRoyalPlan(plan); metadata.events++; metadata.resetEvents++;
@@ -432,11 +466,24 @@ export function planNextArmoryShelf(S, options = {}) {
 			continue;
 		}
 		const candidates = _armoryShelfCandidates(plan); metadata.evaluated += candidates.length;
-		if (!candidates.length) { reason = R.armoryLevel(_save(plan), 68) < (ARMORY_UPGRADES[68]?.maxLevel ?? 0) ? 'required purchase is excluded: Kingdom Sovereignty' : 'no eligible Armory upgrades remain'; break; }
+		if (!candidates.length) {
+			reason = R.armoryLevel(_save(plan), 68) < (ARMORY_UPGRADES[68]?.maxLevel ?? 0) ? 'required purchase is excluded: Kingdom Sovereignty' : 'no eligible Armory upgrades remain';
+			if (options.bankedTimePostReset === true && plan.nextResetHours !== null && plan.nextResetHours > plan.elapsedHours + EPSILON) {
+				const source = O.cloneRoyalState(_save(plan)); source.timeAwayData = { ...(source.timeAwayData || {}), ShopRestock: (plan.nextResetHours - plan.elapsedHours) * 3600 };
+				const banked = planResetDrainSchedule(source, 'drain-before-reset', { ...options, onProgress: undefined });
+				if (banked.available) { const offset = plan.elapsedHours; terminalBankTimeline = (banked.timelineActions || []).map(event => ({ ...event, timeHours: n(event.timeHours) + offset })); _setSave(plan, banked.finalState); plan.elapsedHours += n(banked.elapsedHours); metadata.bankedPostResetHours += n(banked.metrics?.bankedPostResetHours); metadata.bankedPostResetCurrency += n(banked.metrics?.bankedPostResetCurrency); if (n(banked.metrics?.bankedPostResetHours) > EPSILON) metadata.bankingPhases++; }
+			}
+			break;
+		}
 		metadata.currencySlotsConsidered = [...new Set([...metadata.currencySlotsConsidered, ...candidates.map(item => item.currencySlot)])].sort((a, b) => a - b);
 		const strategy = _shelfLayoutStrategy(plan, candidates, options); metadata.layoutEvaluations++; if (strategy.mode === 'rank') metadata.rankFallbacks++;
 		if (strategy.moves.length) { const layoutBeforeState = _royalSnapshot(_save(plan)); _setSave(plan, O.cloneRoyalState(strategy.state)); metadata.layoutChanges += strategy.moves.length; _push(plan, { kind: 'layout-change', mode: strategy.mode, currencySlot: strategy.mode === 'currency-portfolio' ? strategy.candidate.currencySlot : null, portfolio: strategy.portfolio?.map(_clone) || [], actions: strategy.moves.map(_clone), layoutBeforeState, layoutState: _royalSnapshot(strategy.state), reason: strategy.mode === 'currency-portfolio' ? `Focus currency slot ${strategy.candidate.currencySlot}; use the minimum Guards needed for range, fill remaining slots with Workers, and clear other reachable nodes by shortest projected drain time.` : 'No eligible upgrade currency has productive reachable nodes; assign stranded occupied slots to Trader or Surveyor rank EXP.' }); }
 		const candidate = strategy.mode === 'currency-portfolio' ? strategy.candidate : _armoryShelfCandidates(plan)[0];
+		const productiveResource = !!_nextDepletion(royalPlanRates(plan));
+		if (options.bankedTimePostReset === true && !productiveResource && plan.nextResetHours !== null && plan.nextResetHours > plan.elapsedHours + EPSILON) {
+			const banked = _bankIdleTimeAcrossReset(plan, plan.nextResetHours - plan.elapsedHours, options); metadata.events++; metadata.resetEvents++; metadata.layoutChanges += banked.layoutChanges; metadata.bankedPostResetHours += banked.durationHours; metadata.bankedPostResetCurrency += banked.currency; metadata.bankingPhases++;
+			resetsWithoutAffordableIncome = banked.currency > EPSILON ? 0 : resetsWithoutAffordableIncome + 1; if (resetsWithoutAffordableIncome > 1) { reason = 'unachievable with current currency income'; break; } continue;
+		}
 		if (candidate.hours <= EPSILON) {
 			purchases.push(_applyArmoryShelfPurchase(plan, candidate)); resetsWithoutAffordableIncome = 0;
 			_reportProgress(options, 'schedule', purchases.length, Math.max(1, purchaseCap), { evaluated: metadata.evaluated });
@@ -453,7 +500,7 @@ export function planNextArmoryShelf(S, options = {}) {
 	}
 	const finalState = _clone(_save(plan)); const nextUnlocked = R.armoryUnlockedCount(finalState); const complete = nextUnlocked > startUnlocked;
 	if (!complete && !reason) reason = purchaseCap < levelsToNextThreshold ? 'purchase cap reached before the shelf unlocked' : 'next shelf could not be unlocked';
-	const next = _armoryShelfCandidates(plan)[0]; const requiredActions = plan.events.filter(event => ['collect', 'reset', 'refill'].includes(event.kind)).map(_clone); const timelineActions = _shelfTimeline(plan.events);
+	const next = _armoryShelfCandidates(plan)[0]; const timelineActions = [..._shelfTimeline(plan.events), ...terminalBankTimeline]; const requiredActions = timelineActions.filter(event => ['collect', 'reset'].includes(event.kind)).map(_clone);
 	metadata.collectionEvents = requiredActions.filter(event => event.kind === 'collect' || event.kind === 'refill').length;
 	return finish({ available: true, complete, startUnlocked, nextUnlocked, nextShelf: next ? { index: next.index, orderIndex: next.orderIndex, name: next.name, currencySlot: next.currencySlot, cost: next.cost } : null, purchasesNeeded: purchases.length, levelsToNextThreshold, shelvesUnlocked: nextUnlocked - startUnlocked, etaHours: complete ? plan.elapsedHours : null, purchases, alternatives: [], assumptions: { autoCollectBeforeReset: plan.options.autoCollectBeforeReset === true, dailyPurchaseCounterResets: true }, requiredActions, timelineActions, finalState, stateNotApplied: true, partial: !complete || plan.partial, missing: plan.missing.slice(), metadata: { ...metadata, reason: complete ? null : reason, finalBalances: (finalState.royalGData?.[1] || []).slice(), totalLevels: R.armoryTotalLevels(finalState), resetTiming: R.royalResetTiming(finalState) } });
 }
