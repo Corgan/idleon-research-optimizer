@@ -301,6 +301,7 @@
       .royal-map-scroll {
         min-width: 0;
         overflow: hidden;
+        padding-top: 20px;
         background: #0b1428;
         border: 1px solid #40536e;
         border-radius: 6px;
@@ -330,11 +331,11 @@
         min-width: 960px;
         max-width: 960px;
         aspect-ratio: 811 / 433;
-        overflow: hidden;
+        overflow: visible;
         background: #0b1428 center / cover no-repeat;
       }
       .royal-map-counters {
-        height: 513px;
+        height: 533px;
         min-width: 0;
         overflow: hidden;
         padding: 8px;
@@ -422,6 +423,8 @@
         border-radius: 50%;
         font-size: 12px;
       }
+      .royal-map-resource-grade { position: absolute; left: 50%; bottom: calc(100% - 2px); z-index: 3; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 2px solid #58e36b; border-radius: 50%; background: #07101f; color: #fff; box-shadow: 0 1px 4px rgba(3, 8, 18, .98); transform: translateX(-50%); font-family: Verdana, Geneva, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; text-align: center; text-shadow: 0 1px 1px #000; pointer-events: none; }
+      .royal-map-resource-grade > span { display: block; transform: translateY(-.5px); }
       .royal-map-outpost {
         width: 2.836%;
         aspect-ratio: 23 / 18;
@@ -495,7 +498,7 @@
       .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
       .royal-map-shell.map-size-small { grid-template-columns: 48px 600px 210px; max-width: 900px; }
       .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
-      .map-size-small .royal-map-counters { height: 320px; }
+      .map-size-small .royal-map-counters { height: 340px; }
       .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
       .map-size-small .royal-map-ranks { bottom: calc(100% - 1px); gap: 1px; }
       .map-size-small .royal-map-upgrades { bottom: calc(100% - 1px); gap: 2px; }
@@ -505,6 +508,7 @@
       .map-size-small .royal-map-rank { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
       .map-size-small .royal-map-rank.wide { font-size: 6px; }
       .map-size-small .royal-map-upgrade { width: 12px; height: 12px; font-size: 7px; }
+      .map-size-small .royal-map-resource-grade { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
       .map-size-small .royal-map-resource-status { padding: 1px 3px; font-size: 7px; }
       .map-size-small .royal-worker-icon { width: 18px; height: 27px; }
       .map-size-small .royal-worker-icon .worker-profession { left: 2px; width: 13px; height: 18px; }
@@ -1783,8 +1787,9 @@
           : ready ? "Ready to reset" : empty ? "Empty" : `${f(detail.remaining)} / ${f(capacity)}`;
         const visibleStatus = banked ? bankedAvailable ? f(detail.bankedGain) : "Unavailable" : ready || empty ? "&#10003;" : status;
         const statusBadge = ["resources", "banked"].includes(session.mapOverlayMode) && !session.rangeFinderMode ? `<span class="royal-map-resource-status${banked ? " banked" : ready ? " ready" : empty ? " empty" : ""}" title="${status}" aria-hidden="true">${visibleStatus}</span>` : "";
+        const gradeBadge = session.mapOverlayMode === "grades" && !session.rangeFinderMode ? `<span class="royal-map-resource-grade" aria-hidden="true"><span>${grade}</span></span>` : "";
         const selected = session.mapSelectionKind === "resource" && resource.index === session.selectedResource;
-        return `<button class="royal-map-node${selected ? " selected" : ""}" data-map-resource="${resource.index}" style="${mapPoint(resource.x, resource.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="Resource ${resource.index + 1}, currency slot ${resource.currencySlot}, grade ${grade}, ${state}, ${status}">${statusBadge}<img src="./assets/royal-guardian/RGresB${grade}.png" alt=""><img src="./assets/royal-guardian/RGres${resource.currencySlot}.png" alt=""></button>`;
+        return `<button class="royal-map-node${selected ? " selected" : ""}" data-map-resource="${resource.index}" style="${mapPoint(resource.x, resource.y)}" aria-pressed="${selected ? "true" : "false"}" aria-label="Resource ${resource.index + 1}, currency slot ${resource.currencySlot}, grade ${grade}, ${state}, ${status}">${statusBadge}${gradeBadge}<img src="./assets/royal-guardian/RGresB${grade}.png" alt=""><img src="./assets/royal-guardian/RGres${resource.currencySlot}.png" alt=""></button>`;
       }
       function mapOutpost(S, row) {
         const position = R.outpostMapPosition(row.mapIdx);
@@ -1892,7 +1897,7 @@
         const shelfIndices = shelfLayoutStepIndices(), shelfPosition = shelfIndices.indexOf(session.shelfStepIndex);
         const stateOptions = [["current", "Current save", true], ...(optimizedNow ? [["optimized", "Optimized now", true], ["post-reset", "Post-reset", optimizedPostReset]] : []), ...(shelfStep ? [["shelf-step", shelfStepLabel, true]] : [])];
         const shelfNavigation = shelfStep ? `<div class="shelf-step-navigation" role="group" aria-label="Optimizer step navigation"><button type="button" data-shelf-nav="-1" ${shelfPosition <= 0 ? "disabled" : ""} aria-label="Previous optimizer step">&larr; Previous</button><span class="shelf-step-position" aria-live="polite">${fi(shelfPosition + 1)} / ${fi(shelfIndices.length)}</span><button type="button" data-shelf-nav="1" ${shelfPosition < 0 || shelfPosition >= shelfIndices.length - 1 ? "disabled" : ""} aria-label="Next optimizer step">Next &rarr;</button><button type="button" class="go-to-step" data-go-shelf-step>Go to step</button></div>` : "";
-        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["resources", "Resources"], ["banked", "Banked Time"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
+        const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["resources", "Resources"], ["banked", "Banked Time"], ["grades", "Grades"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
         const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Movable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>` : "";
         const resourceKey = session.mapOverlayMode === "resources" ? `<span class="royal-map-resource-key">Resources: <b class="empty">&#10003;</b> Empty <b class="ready">&#10003;</b> Ready to reset</span>` : "";
         const bankedControl = session.mapOverlayMode === "banked" ? `<div class="royal-map-view-group" role="group" aria-label="Banked time baseline">${[["current", "Current"], ["post-reset", "Post-reset"]].map(([value, label]) => `<button type="button" data-banked-mode="${value}" aria-pressed="${session.bankedProjectionMode === value ? "true" : "false"}">${label}</button>`).join("")}</div>${session.bankedProjectionMode === "post-reset" ? `<label class="royal-map-banked-control">+ <input id="banked-hours-after-reset" type="number" min="0" step="0.5" value="${session.bankedHoursAfterReset}" aria-label="Additional hours after reset before opening Royal Guardian"> hr</label>` : ""}<span class="royal-map-resource-key">Total banked at pop: <b class="banked">${m.available ? fmtHours(m.bankedHoursAtPop) : "Unavailable"}</b></span>` : "";
