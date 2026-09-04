@@ -335,9 +335,10 @@
         background: #0b1428 center / cover no-repeat;
       }
       .royal-map-counters {
-        height: 533px;
+        height: auto;
+        min-height: 533px;
         min-width: 0;
-        overflow: hidden;
+        overflow: visible;
         padding: 8px;
         background: #101b35;
         border: 1px solid #40536e;
@@ -498,7 +499,7 @@
       .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
       .royal-map-shell.map-size-small { grid-template-columns: 48px 600px 210px; max-width: 900px; }
       .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
-      .map-size-small .royal-map-counters { height: 340px; }
+      .map-size-small .royal-map-counters { height: auto; min-height: 340px; }
       .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
       .map-size-small .royal-map-ranks { bottom: calc(100% - 1px); gap: 1px; }
       .map-size-small .royal-map-upgrades { bottom: calc(100% - 1px); gap: 2px; }
@@ -1685,8 +1686,15 @@
         const marble = R.royalMarbleOwnedDetail(S, session.worldIdx);
         const orblet = R.orbletOwnedDetail(S);
         const slots = [...new Set(ROYAL_RESOURCES.filter(x => R.resourceWorld(x.index ?? ROYAL_RESOURCES.indexOf(x)) === session.worldIdx).map(x => n(x.currencySlot)).filter(x => x >= 0))].sort((a, b) => a - b);
+        const worldDetails = details.filter(detail => R.resourceWorld(detail.resourceIdx) === session.worldIdx);
+        const currencyChips = (valueFor, title) => slots.map(slot => `<span class="royal-currency-chip" title="${title} Currency slot ${slot}" aria-label="${title} currency slot ${slot}: ${valueFor(slot)}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${valueFor(slot)}</span>`).join("") || '<span class="note">No world currencies.</span>';
         const chips = slots.map(slot => `<span class="royal-currency-chip" title="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}" aria-label="Currency slot ${slot}: ${f(S.royalGData?.[1]?.[slot])}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${f(S.royalGData?.[1]?.[slot])}</span>`).join("") || '<span class="note">No world currencies.</span>';
-        return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div><div class="royal-counter-label" style="margin-top:8px">Currency balances</div><div class="royal-currency-chips">${chips}</div></aside>`;
+        const remainingChips = currencyChips(slot => f(worldDetails.filter(detail => detail.currencySlot === slot).reduce((sum, detail) => sum + n(detail.remaining), 0)), "Remaining in nodes");
+        const projectedUnavailable = allocation.resetProjectionAvailable === false;
+        const projectedChips = projectedUnavailable
+          ? (slots.map(slot => `<span class="royal-currency-chip" title="Projected at next reset for currency slot ${slot}: reset timing unavailable" aria-label="Projected at next reset currency slot ${slot}: Unavailable"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">Unavailable</span>`).join("") || '<span class="note">No world currencies.</span>')
+          : currencyChips(slot => f(worldDetails.filter(detail => detail.currencySlot === slot).reduce((sum, detail) => sum + n(detail.projectedRemainingAtReset), 0)), "Projected at next reset");
+        return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div><div class="royal-counter-label" style="margin-top:8px">Currency balances</div><div class="royal-currency-chips">${chips}</div><div class="royal-counter-label" title="Current remaining resource amounts for this world's currency nodes" aria-label="Remaining in nodes">Remaining in nodes</div><div class="royal-currency-chips">${remainingChips}</div><div class="royal-counter-label" title="Projected-to-empty nodes require collection before reset to refill and grade; this is not guaranteed income or a capacity ceiling" aria-label="Projected at next reset">Projected at next reset</div><div class="royal-currency-chips">${projectedChips}</div></aside>`;
       }
       function overview(S) {
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
