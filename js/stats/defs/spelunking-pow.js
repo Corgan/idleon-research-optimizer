@@ -13,6 +13,7 @@ import { computePaletteBonus, shopUpgBonus, chapterBonus, computeDancingCoralBon
 import { cardLv } from '../systems/common/cards.js';
 import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeMSABonus, computeSlabboBonus } from '../systems/w4/gaming.js';
+import { spelunkPowTaskLevel } from '../data/w7/tasks.js';
 
 export default createDescriptor({
   id: 'spelunking-pow',
@@ -61,6 +62,7 @@ export default createDescriptor({
     var shop3 = shopUpgBonus(3, s);
     var stickerBonus6 = safe(computeStickerBonus, 6, s);
     var paletteBonus13 = safe(computePaletteBonus, 13, s);
+    var taskPowLevel = spelunkPowTaskLevel(s);
 
     var powMulti = (1 + winBonus27 / 100) * (1 + rog20 / 100) * (1 + bb6 / 100) * gemMulti
       * chapterComps * (1 + shop1 / 100) * (1 + dancingCoral1 / 100)
@@ -70,6 +72,7 @@ export default createDescriptor({
       * (1 + shopUpgBonus(46, s) / 100)
       * (1 + (safe(computeExoticBonus, 42, s) + Math.min(4 * safe(cardLv, 'w7a5', s), 30)) / 100)
       * (1 + (shopUpgBonus(14, s) + shopUpgBonus(15, s) + shopUpgBonus(16, s) + shopUpgBonus(17, s)) / 100);
+    var taskPowMulti = 1 + 15 * taskPowLevel / 100;
 
     // Outside a delve, GenINFO[107][4] is 0 and SpelunkyDNpow remains exactly 1.
     var elixirMod = 1;
@@ -80,7 +83,7 @@ export default createDescriptor({
     if (ola478 < 8) {
       val = 2;
     } else {
-      val = powBase * powMulti * elixirMod;
+      val = powBase * powMulti * taskPowMulti * elixirMod;
     }
 
     if (val !== val || val == null) val = 2;
@@ -90,6 +93,8 @@ export default createDescriptor({
       note: 'Upgrade bonus ' + shop0 });
     if (ola478 >= 8) {
       children.push({ name: 'POW Multi', val: powMulti, fmt: 'x' });
+      children.push({ name: 'W7 Task: Spelunk POW', val: taskPowMulti, fmt: 'x',
+        note: 'Level ' + taskPowLevel });
       if (elixirMod !== 1) children.push({ name: 'Elixir Modifier', val: elixirMod, fmt: 'x' });
     } else {
       children.push({ name: 'Spelunking Not Fully Unlocked', val: 2, fmt: 'raw', note: 'Unlock progress ' + ola478 + ' / 8' });

@@ -56,6 +56,7 @@ export function renderDashboard() {
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     dancingCoral5: mhSrc.dancingCoral5,
     upgLevels: lvs, highestDmg,
   });
@@ -203,6 +204,7 @@ export function renderCurrencyTab() {
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     upgLevels: lvs, highestDmg,
   });
 
@@ -221,6 +223,7 @@ export function renderCurrencyTab() {
 
 function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12 = 0) {
   const eventShop44 = mhSrc.eventShop44 || 0;
+  const taskCurrencyMulti = mhSrc.taskCurrencyMulti || 1;
   const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
   const upg5 = upgradeQTY(5, lvs[5]);
   const upg22 = upgradeQTY(22, lvs[22]);
@@ -319,9 +322,12 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const eventShopNode = _bNode('Event Shop 44', eventShopMult, null, {
     fmt: 'x', note: eventShop44 ? '2nd Wedding Cake owned' : 'Not owned',
   });
+  const taskNode = _bNode('W7 Task: Minehead Currency', taskCurrencyMulti, null, {
+    fmt: 'x', note: `Task level ${mhSrc.taskCurrencyLevel || 0}`,
+  });
 
   return _bNode('Mine Currency/hr', cph, [
     gb129node, eventShopNode, gb148node, rogNode, comp143node, bossNode,
-    upgNode, buttonNode, atomNode, passiveNode,
+    upgNode, buttonNode, atomNode, taskNode, passiveNode,
   ], { fmt: '/hr' });
 }

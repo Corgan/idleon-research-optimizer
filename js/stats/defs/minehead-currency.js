@@ -77,6 +77,8 @@ export default createDescriptor({
 
     var eventShop44 = sources.eventShop44;
     children.push({ name: 'Event Shop: Minehead Currency', val: 1 + eventShop44, fmt: 'x' });
+    children.push({ name: 'W7 Task: Minehead Currency', val: sources.taskCurrencyMulti, fmt: 'x',
+      note: 'Level ' + sources.taskCurrencyLevel });
 
     // 9. × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
     var grid147 = gridBonusFinal(saveData, 147);
@@ -104,6 +106,7 @@ export default createDescriptor({
       rogBonus12: rog12,
       buttonBonus1: bb1,
       eventShop44: eventShop44,
+      taskCurrencyLevel: sources.taskCurrencyLevel,
       dancingCoral5: sources.dancingCoral5,
       upgLevels: upgLevels,
       highestDmg: highestDmg,

@@ -11,6 +11,7 @@
 import {
   calcAllBonusMultiWith,
   computeGridPointsEarned,
+  gridPointBonus,
   computeGridPointsSpent,
   computeShapesOwnedAt,
   simTotalExpWith,
@@ -21,6 +22,7 @@ import { buildRogArray } from '../stats/systems/w7/sushi.js';
 import { saveData } from '../state.js';
 import { saveGlobalTime, tournamentDay, optionsListData } from './data.js';
 import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
+import { researchGridPointsTaskLevel } from '../stats/data/w7/tasks.js';
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -78,6 +80,7 @@ export function buildSaveContext() {
     // Sushi RoG bonuses (full precomputed array)
     rog: buildRogArray(saveData.cachedUniqueSushi),
     sailingArt37: saveData.cachedSailingArt37,
+    researchGridPointsTaskLevel: researchGridPointsTaskLevel(saveData),
     cachedUniqueSushi: saveData.cachedUniqueSushi,
 
     // Mutable-array defaults (used as fallbacks in unifiedSim when config
@@ -207,7 +210,8 @@ export function computeShapesOwned(rLv, gl, _saveCtx) {
 }
 
 export function computeGridPointsAvailable(rLv, gl, bonusPts) {
-  return Math.max(0, computeGridPointsEarned(rLv, gl[50] || 0, bonusPts) - computeGridPointsSpent(gl));
+  const bonus = bonusPts && typeof bonusPts === 'object' ? gridPointBonus(bonusPts) : bonusPts;
+  return Math.max(0, computeGridPointsEarned(rLv, gl[50] || 0, bonus) - computeGridPointsSpent(gl));
 }
 
 export function simTotalExp(opts, _saveCtx) {

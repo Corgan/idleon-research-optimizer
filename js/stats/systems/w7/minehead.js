@@ -13,6 +13,7 @@ import { getLOG } from '../../../formulas.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { gbWith } from '../../../sim-math.js';
 import { computeDancingCoralBonus } from './spelunking.js';
+import { mineheadCurrencyTaskLevel } from '../../data/w7/tasks.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -52,6 +53,7 @@ export function computeMineheadCurrSources(saveData, charIdx) {
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
   var eventShop44 = eventShopOwned(44, saveData.cachedEventShopStr);
   var dancingCoral5 = computeDancingCoralBonus(5, saveData);
+  var taskCurrencyLevel = mineheadCurrencyTaskLevel(saveData);
   var arcade62tree = arcadeBonus(62, saveData);
   var arcade62val = (arcade62tree && arcade62tree.val) || 0;
   var arcade62lv = saveData.arcadeUpgData[62] || 0;
@@ -78,6 +80,8 @@ export function computeMineheadCurrSources(saveData, charIdx) {
   }
   return {
     comp143: comp143, atom13: atom13, eventShop44: eventShop44, dancingCoral5: dancingCoral5,
+    taskCurrencyLevel: taskCurrencyLevel,
+    taskCurrencyMulti: 1 + 10 * taskCurrencyLevel / 100,
     arcade62: arcade62val, arcade62lv: arcade62lv,
     mealMineCurr: mealMineCurr, mealLv: mealLv, mealRibBon: mealRibBon, mealRibT: mealRibT,
     mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26, mealComp162: mealComp162,
@@ -291,6 +295,7 @@ export function currencyPerHour(opts) {
   var rogBonus12 = opts.rogBonus12 || 0;
   var eventShop44 = opts.eventShop44 || 0;
   var dancingCoral5 = opts.dancingCoral5 || 0;
+  var taskCurrencyLevel = opts.taskCurrencyLevel || 0;
   var upgLevels = opts.upgLevels;
   var highestDmg = opts.highestDmg || 1;
 
@@ -311,7 +316,8 @@ export function currencyPerHour(opts) {
   var buttonMulti = 1 + (opts.buttonBonus1 || 0) / 100;
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
-  return base * eventShopMulti * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti;
+  var taskCurrencyMulti = 1 + 10 * taskCurrencyLevel / 100;
+  return base * eventShopMulti * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti * taskCurrencyMulti;
 }
 
 // ===== WIGGLE =====

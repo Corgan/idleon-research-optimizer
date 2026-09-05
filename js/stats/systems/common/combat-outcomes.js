@@ -24,6 +24,7 @@ import { computeStatueBonusGiven } from './stats.js';
 import { computeChipBonus } from '../w4/lab.js';
 import { computeBUpg } from '../w5/hole.js';
 import { computeBigFishBonus } from '../w7/spelunking.js';
+import { w7RespawnTaskLevel } from '../../data/w7/tasks.js';
 import { achieveStatus } from './achievement.js';
 import { shrine } from '../w3/construction.js';
 import { computeStarSignBonus } from './starSign.js';
@@ -240,6 +241,8 @@ export function effectiveRespawnTime(charIdx, ctx, target, opts) {
   else if (worldIdx === 5) worldBonus += 2 * achieveStatus(308, saveData) + (Number(tasks[2]?.[5]?.[1]) || 0);
   else if (worldIdx === 6) worldBonus = 0.65 * (common + 2 * achieveStatus(308, saveData))
     + computeBigFishBonus(0, saveData);
+  var w7TaskBonus = worldIdx === 6 ? w7RespawnTaskLevel(saveData) : 0;
+  worldBonus += w7TaskBonus;
 
   var base = Number(target.monster && target.monster.RespawnTime) || 0;
   var respawn = base / (1 + worldBonus / 100);
@@ -252,6 +255,7 @@ export function effectiveRespawnTime(charIdx, ctx, target, opts) {
     base: base,
     commonBonusPct: common,
     worldBonusPct: worldBonus,
+    w7TaskBonusPct: w7TaskBonus,
     portalMultiplier: portalMultiplier,
   };
 }

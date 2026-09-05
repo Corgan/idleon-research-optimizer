@@ -244,6 +244,37 @@ export function currencyPerSlot(slotIdx, sushiData, currencyMulti, knowledgeTota
   return slotDN * currencyMulti * currencyPerTier(tier);
 }
 
+function _normalizeComboScore(score) {
+  var safeScore = Number(score);
+  if (!Number.isFinite(safeScore)) return 0;
+  return Math.max(0, safeScore);
+}
+
+/** Combo Meter multiplier from the persisted Sushi[4][8] score. */
+export function computeComboMultiplier(score) {
+  var safeScore = _normalizeComboScore(score);
+  var excess = Math.max(0, safeScore - 1500);
+  return 1 + Math.min(10, Math.pow(safeScore, 0.3))
+    + (excess / (20000 + excess)) * 90;
+}
+
+/** Combo Meter upgrade state for display; rate math uses the persisted score. */
+export function comboMeterUnlocked(upgLevels) {
+  return upgradeQTY(39, upgLevels) > 0;
+}
+
+/** Normalized Combo Meter values shared by rate breakdowns and display surfaces. */
+export function comboMeterDetails(sushiData, upgLevels) {
+  var score = _normalizeComboScore(sushiData?.[4]?.[8]);
+  var unlocked = comboMeterUnlocked(upgLevels);
+  return {
+    score: score,
+    multiplier: computeComboMultiplier(score),
+    unlocked: unlocked,
+    note: unlocked ? 'Unlocked' : 'Locked',
+  };
+}
+
 /**
  * Currency multiplier (applied to all slots).
  */
@@ -257,6 +288,7 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
   var hasBundleV = externalSources?.hasBundleV ? 1 : 0;
   var gamingSuperBit67 = externalSources?.gamingSuperBit67 || 0;
   var buttonBonus2 = externalSources?.buttonBonus2 || 0;
+  var comboMulti = computeComboMultiplier(sushiData?.[4]?.[8]);
 
   var surchargeSum = upgradeQTY(30, upgLevels) + upgradeQTY(31, upgLevels)
     + upgradeQTY(32, upgLevels) + upgradeQTY(33, upgLevels) + upgradeQTY(34, upgLevels)
@@ -274,7 +306,8 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
     * (1 + (upgradeQTY(41, upgLevels) + upgradeQTY(43, upgLevels)) / 100)
     * (1 + overtunedMulti / 100)
     * (1 + atom14 / 100)
-    * (1 + 100 * sailing39 / 100);
+    * (1 + 100 * sailing39 / 100)
+    * comboMulti;
 }
 
 /**

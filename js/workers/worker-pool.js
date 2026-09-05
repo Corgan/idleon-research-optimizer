@@ -7,6 +7,7 @@ import {
 } from '../game-data.js';
 import {
   computeGridPointsEarned,
+  gridPointBonus,
   simTotalExpWith,
   calcAllBonusMultiWith,
 } from '../sim-math.js';
@@ -272,9 +273,9 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const comp153bonus = (_saveCtx.companionHas153 ? 10 : 0) + (_saveCtx.companion153Level2 ? 5 : 0) + ((_saveCtx.rog && _saveCtx.rog[3]) || 0) + ((_saveCtx.rog && _saveCtx.rog[13]) || 0) + (_saveCtx.sailingArt37 || 0);
+    const comp153bonus = gridPointBonus(_saveCtx);
     const sq50 = _saveCtx.gridLevels[50] || 0;
-    const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, comp153bonus);
+    const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, _saveCtx);
     const futureEarned = target.type === 'level'
       ? Math.max(0, computeGridPointsEarned(target.value, sq50, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, sq50, comp153bonus))
       : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, sq50, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, sq50, comp153bonus));

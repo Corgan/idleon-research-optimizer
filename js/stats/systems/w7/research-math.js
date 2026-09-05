@@ -421,6 +421,15 @@ export function computeGridPointsEarned(rLv, sq50, bonusPts) {
   return Math.floor(rLv + (bonusPts || 0) + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
 }
 
+export function gridPointBonus(saveCtx) {
+  return (saveCtx && saveCtx.companionHas153 ? 10 : 0) +
+    (saveCtx && saveCtx.companion153Level2 ? 5 : 0) +
+    ((saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0) +
+    ((saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0) +
+    ((saveCtx && saveCtx.sailingArt37) || 0) +
+    ((saveCtx && saveCtx.researchGridPointsTaskLevel) || 0);
+}
+
 /**
  * Compute total grid points spent from a grid levels array.
  */
@@ -438,11 +447,7 @@ export function computeGridPointsSpent(gl) {
  */
 export function gridPointsAvail(gl, rLv, saveCtx) {
   var sq50 = gl[50] || 0;
-  var bonusPts = (saveCtx && saveCtx.companionHas153 ? 10 : 0) +
-    (saveCtx && saveCtx.companion153Level2 ? 5 : 0) +
-    ((saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0) +
-    ((saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0) +
-    ((saveCtx && saveCtx.sailingArt37) || 0);
+  var bonusPts = gridPointBonus(saveCtx);
   var earned = computeGridPointsEarned(rLv, sq50, bonusPts);
   return Math.max(0, earned - computeGridPointsSpent(gl));
 }

@@ -24,6 +24,7 @@ import {
   computeOrangeFireSum, fireplaceEffectBase, slotEffectBase,
   currencyPerSlot, computeCurrencyMulti, totalBucksPerHr,
   computeOvertunedMulti, slotsOwned, countActiveSlots,
+  comboMeterDetails,
   maxCookTier, freeShakerChance, saffronHrs,
   perfectoOdds, knowledgeXPReq, knowledgeXPBase, knowledgeXPMulti,
   fireplaceEffectByType,
@@ -206,6 +207,7 @@ function _renderOverview() {
   const cookTier = maxCookTier(ul);
   const bucksHr = totalBucksPerHr(sd, ul, us, kt, ext);
   const currMulti = computeCurrencyMulti(ul, sd, us, kt, ext);
+  const combo = comboMeterDetails(sd, ul);
 
   const fpBase = fireplaceEffectBase(kt, Number(sd?.[4]?.[2]) || 0);
   const orangeFire = computeOrangeFireSum(sd, fpBase);
@@ -237,6 +239,7 @@ function _renderOverview() {
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Max Cook Tier</div><div style="font-size:1.4em;font-weight:700;">T${cookTier + 1}</div></div>
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Bucks/hr</div><div style="font-size:1.4em;font-weight:700;color:var(--green);">${_fmt(bucksHr)}</div></div>
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Currency Multi</div><div style="font-size:1.4em;font-weight:700;">${_mult(currMulti)}</div></div>
+      <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Combo Meter</div><div style="font-size:1.4em;font-weight:700;color:var(--gold);">${_fmt(combo.score)} / ${_mult(combo.multiplier)}</div><div style="color:var(--text2);font-size:.75em;">${combo.note}</div></div>
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Fuel Gen/hr</div><div style="font-size:1.4em;font-weight:700;color:var(--accent);">${_fmt(fuelGen)}</div></div>
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Fuel Capacity</div><div style="font-size:1.4em;font-weight:700;">${_fmt(fuelCap)}</div></div>
       <div class="opt-card"><div style="color:var(--text2);font-size:.8em;">Bucks in Bank</div><div style="font-size:1.4em;font-weight:700;color:var(--green);">${_fmt(bucks)}</div></div>
@@ -428,6 +431,7 @@ function _renderCurrency() {
   const hourlyWage41 = upgradeQTY(41, ul);
   const tierVision43 = upgradeQTY(43, ul);
   const sailing39 = 100 * (ext.sailing39 || 0);
+  const combo = comboMeterDetails(sd, ul);
 
   const surchargeNode = _bNode('Customer Surcharges I-V', surchargeSum, [
     _bNode(label('Sushi', 30), surcharge30, null, { fmt: '%', note: `Lv ${Number(ul[30]) || 0}` }),
@@ -466,6 +470,7 @@ function _renderCurrency() {
     _bNode(label('Button', 2), 1 + (ext.buttonBonus2 || 0) / 100, null, { fmt: 'x' }),
     _bNode(label('Atom', 14), 1 + ext.atom14 / 100, null, { fmt: 'x' }),
     _bNode(label('Artifact', 39), 1 + sailing39 / 100, null, { fmt: 'x' }),
+    _bNode('Combo Meter', combo.multiplier, null, { fmt: 'x', note: combo.note + '; Score ' + _fmt(combo.score) }),
   ], { fmt: 'x' });
 
   const slotBucks = [];

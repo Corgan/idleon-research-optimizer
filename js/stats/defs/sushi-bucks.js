@@ -15,7 +15,7 @@ import {
   knowledgeBonusTotals, computeOrangeFireSum, fireplaceEffectBase,
   fuelGenPerHr, fuelCapacity, slotsOwned, countActiveSlots,
   upgradeQTY, computeOvertunedMulti,
-  currencyPerSlot, slotEffectBase,
+  currencyPerSlot, slotEffectBase, comboMeterDetails,
 } from '../systems/w7/sushi.js';
 
 function _gatherExternal(S) {
@@ -49,6 +49,7 @@ export default createDescriptor({
     var us = saveData.cachedUniqueSushi || 0;
     var kt = knowledgeBonusTotals(sd);
     var ext = _gatherExternal(saveData);
+    var combo = comboMeterDetails(sd, ul);
 
     var bucks = totalBucksPerHr(sd, ul, us, kt, ext);
     var multi = computeCurrencyMulti(ul, sd, us, kt, ext);
@@ -73,6 +74,7 @@ export default createDescriptor({
       { name: 'Overtuned', val: overtunedMulti, fmt: 'raw' },
       { name: label('Atom', 14), val: ext.atom14, fmt: 'raw' },
       { name: label('Artifact', 39), val: 100 * (ext.sailing39 || 0), fmt: 'raw' },
+      { name: 'Combo Meter', val: combo.multiplier, fmt: 'x', note: combo.note + '; Score ' + combo.score },
     ];
     children.push({ name: 'Currency Multi', val: multi, children: multiCh, fmt: 'x' });
 

@@ -42,6 +42,11 @@ import { superBitType } from '../../../game-helpers.js';
 import { formulaEval } from '../../../formulas.js';
 import { computeArtifactBonus } from '../w5/sailing.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
+import { spelunkMaxStaminaTaskLevel } from '../../data/w7/tasks.js';
+
+export function spelunkMaxStaminaTaskBonus(saveData) {
+  return 20 * spelunkMaxStaminaTaskLevel(saveData);
+}
 
 // SuperBit → palette index pairs for doubling
 var PALETTE_SUPERBIT_PAIRS = [
@@ -162,6 +167,19 @@ export function shopUpgBonus(idx, saveData) {
   else if (idx === 38) value = 20 + value;
   else if (idx === 44 || idx === 45 || idx === 46) value *= grandDiscoveries;
   return value;
+}
+
+function _supplySwapBonus(value) {
+  var bonus = Number(value);
+  return Number.isFinite(bonus) && bonus > 0 ? bonus : 0;
+}
+
+export function amberSupplySwapGainMultiplier(supplySwapBonus) {
+  return 1 + 14 * _supplySwapBonus(supplySwapBonus);
+}
+
+export function amberSupplySwapDropDivisor(supplySwapBonus) {
+  return 1 + 9 * _supplySwapBonus(supplySwapBonus);
 }
 
 export function computeDancingCoralBonus(idx, saveData) {

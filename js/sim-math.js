@@ -12,7 +12,7 @@ export {
   deathNoteRank,
   simTotalExpWith, researchExpReq, advanceResearchLevel,
   advanceInsightLevels, hrsToNextInsightLv, simForwardProjection,
-  computeGridPointsEarned, computeGridPointsSpent, gridPointsAvail,
+  computeGridPointsEarned, gridPointBonus, computeGridPointsSpent, gridPointsAvail,
   calcAllBonusMultiWith, refreshAbm,
   computeMagnifiersOwnedWith, computeShapesOwnedAt,
 } from './stats/systems/w7/research-math.js';
