@@ -182,6 +182,10 @@ export function amberSupplySwapDropDivisor(supplySwapBonus) {
   return 1 + 9 * _supplySwapBonus(supplySwapBonus);
 }
 
+export function amberSupplySwapSecondaryDropDivisor(supplySwapBonus) {
+  return 1 + 19 * _supplySwapBonus(supplySwapBonus);
+}
+
 export function computeDancingCoralBonus(idx, saveData) {
   var base = Number(Spelunky[24] && Spelunky[24][idx]) || 0;
   var towerLv = Number(saveData.towerData && saveData.towerData[18 + idx]) || 0;

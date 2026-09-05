@@ -10,12 +10,10 @@
 
 import {
   calcAllBonusMultiWith,
-  computeGridPointsEarned,
-  gridPointBonus,
-  computeGridPointsSpent,
   computeShapesOwnedAt,
   simTotalExpWith,
 } from '../sim-math.js';
+import { computeGridPointsBreakdown } from '../stats/systems/w7/research-math.js';
 import { buildEventShopArray, buildSuperBitArray, buildEmporiumArray, ribbonBonusAt, cloudBonus } from '../game-helpers.js';
 import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { buildRogArray } from '../stats/systems/w7/sushi.js';
@@ -210,8 +208,11 @@ export function computeShapesOwned(rLv, gl, _saveCtx) {
 }
 
 export function computeGridPointsAvailable(rLv, gl, bonusPts) {
-  const bonus = bonusPts && typeof bonusPts === 'object' ? gridPointBonus(bonusPts) : bonusPts;
-  return Math.max(0, computeGridPointsEarned(rLv, gl[50] || 0, bonus) - computeGridPointsSpent(gl));
+  return computeGridPointsBreakdown(rLv, gl, bonusPts).finalFree;
+}
+
+export function getGridPointsBreakdown(rLv, gl, bonusPts) {
+  return computeGridPointsBreakdown(rLv, gl, bonusPts);
 }
 
 export function simTotalExp(opts, _saveCtx) {

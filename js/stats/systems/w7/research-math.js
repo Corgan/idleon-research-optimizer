@@ -421,13 +421,20 @@ export function computeGridPointsEarned(rLv, sq50, bonusPts) {
   return Math.floor(rLv + (bonusPts || 0) + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
 }
 
+function gridPointSources(saveCtx) {
+  const taskLevel = Number(saveCtx && saveCtx.researchGridPointsTaskLevel);
+  return [
+    { label: 'Companion 153', value: saveCtx && saveCtx.companionHas153 ? 10 : 0 },
+    { label: 'Companion 153 Level 2', value: saveCtx && saveCtx.companion153Level2 ? 5 : 0 },
+    { label: 'RoG 3', value: (saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0 },
+    { label: 'RoG 13', value: (saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0 },
+    { label: 'Sailing Artifact 37', value: (saveCtx && saveCtx.sailingArt37) || 0 },
+    { label: 'W7 Task Research Points', level: Number.isFinite(taskLevel) ? taskLevel : 0, perLevel: 1, value: Number.isFinite(taskLevel) ? taskLevel : 0 },
+  ];
+}
+
 export function gridPointBonus(saveCtx) {
-  return (saveCtx && saveCtx.companionHas153 ? 10 : 0) +
-    (saveCtx && saveCtx.companion153Level2 ? 5 : 0) +
-    ((saveCtx && saveCtx.rog && saveCtx.rog[3]) || 0) +
-    ((saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0) +
-    ((saveCtx && saveCtx.sailingArt37) || 0) +
-    ((saveCtx && saveCtx.researchGridPointsTaskLevel) || 0);
+  return gridPointSources(saveCtx).reduce((total, source) => total + source.value, 0);
 }
 
 /**
@@ -440,16 +447,35 @@ export function computeGridPointsSpent(gl) {
 }
 
 /**
+ * Return the earned, spent, and free grid-point terms used by the dashboard.
+ */
+export function computeGridPointsBreakdown(rLv, gl, saveCtx) {
+  const sq50 = gl[50] || 0;
+  const sources = typeof saveCtx === 'object' && saveCtx !== null
+    ? gridPointSources(saveCtx)
+    : [{ label: 'Flat Bonus', value: saveCtx || 0 }];
+  const bonusPts = sources.reduce((total, source) => total + source.value, 0);
+  const everyTen = Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50);
+  const totalEarned = computeGridPointsEarned(rLv, sq50, bonusPts);
+  const totalSpent = computeGridPointsSpent(gl);
+  return {
+    researchLevel: rLv,
+    ptsEveryTen: everyTen,
+    sources,
+    totalEarned,
+    totalSpent,
+    finalFree: Math.max(0, totalEarned - totalSpent),
+  };
+}
+
+/**
  * Compute available (unspent) grid points.
  * @param {Int32Array|number[]} gl - Grid levels
  * @param {number} rLv - Research level
  * @param {object} [saveCtx] - Save context with bonus fields
  */
 export function gridPointsAvail(gl, rLv, saveCtx) {
-  var sq50 = gl[50] || 0;
-  var bonusPts = gridPointBonus(saveCtx);
-  var earned = computeGridPointsEarned(rLv, sq50, bonusPts);
-  return Math.max(0, earned - computeGridPointsSpent(gl));
+  return computeGridPointsBreakdown(rLv, gl, saveCtx).finalFree;
 }
 
 // ----- All-bonus multiplier -----

@@ -30,7 +30,7 @@ import { buildTree } from '../stats/tree-builder.js';
 import { getCatalog } from '../stats/registry.js';
 import {
   buildSaveContext,
-  computeGridPointsAvailable,
+  getGridPointsBreakdown,
   getResearchCurrentExp,
   makeSimCtx,
   simTotalExp,
@@ -39,6 +39,7 @@ import { sameShapeCell } from '../optimizers/shapes-geo.js';
 import { fmtExact, fmtTime, fmtVal } from '../renderers/format.js';
 import { moveTooltip, attachTooltip } from './tooltip.js';
 import { formatDesc } from '../renderers/grid-desc.js';
+import { _bNode } from '../stats/node-helpers.js';
 import {
   buildExpBreakdownTree,
   buildAFKBreakdownTree,
@@ -239,6 +240,7 @@ export function renderDashboard(saveCtx) {
   const expReq = getResearchExpRequired();
   const expCur = getResearchCurrentExp(_dSaveCtx);
   const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
+  const gridPoints = getGridPointsBreakdown(saveData.researchLevel, saveData.gridLevels, _dSaveCtx);
   sumDiv.innerHTML = `
     <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:12px;">
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${saveData.researchLevel}</div></div>
@@ -247,14 +249,16 @@ export function renderDashboard(saveCtx) {
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(_afkRateVal * 100).toFixed(1)}%</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magnifiersOwned}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magMaxPerSlot}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${computeGridPointsAvailable(saveData.researchLevel, saveData.gridLevels, _dSaveCtx)} free</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Grid Points</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${gridPoints.finalFree} free</div></div>
     </div>
     <div style="max-width:420px;margin:8px auto 4px;padding:0 12px;">
       <div style="height:22px;background:#1a1a2e;border-radius:11px;overflow:hidden;border:1px solid #333;">
         <div style="height:100%;width:${expReq > 0 ? Math.min(100, expCur / expReq * 100) : 0}%;background:linear-gradient(90deg,#e0e0e0,#fff);border-radius:11px;transition:width .3s;"></div>
       </div>
       <div style="text-align:center;font-size:.8em;font-weight:600;color:#fff;margin-top:4px;">Exp ${fmtVal(expCur)} / ${fmtVal(expReq)}</div>
-    </div>`;
+    </div>
+    <div id="dash-grid-points-breakdown"></div>`;
+  renderBreakdownTree(buildGridPointsBreakdownTree(gridPoints), document.getElementById('dash-grid-points-breakdown'));
 
   // Grid - DOM-based with shape overlays, coordinate names, tooltips
   const gridDiv = document.getElementById('dash-grid');
@@ -454,4 +458,18 @@ export function renderDashboard(saveCtx) {
     const insightTree = buildInsightBreakdownTree(_dSaveCtx, _dCtx);
     renderBreakdownTree(insightTree, insightDiv);
   }
+}
+
+export function buildGridPointsBreakdownTree(gridPoints) {
+  return _bNode('Grid Points', gridPoints.finalFree, [
+    _bNode('Total Earned', gridPoints.totalEarned, [
+      _bNode('Research Level', gridPoints.researchLevel),
+      _bNode('Pts Every Ten', gridPoints.ptsEveryTen),
+      ...gridPoints.sources.map((source) => _bNode(
+        source.label + (source.level !== undefined ? ' (Level ' + source.level + ', +' + source.perLevel + ' point/level)' : ''),
+        source.value
+      )),
+    ]),
+    _bNode('Total Spent', gridPoints.totalSpent),
+  ]);
 }

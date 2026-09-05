@@ -204,6 +204,7 @@ export function renderCurrencyTab() {
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    dancingCoral5: mhSrc.dancingCoral5,
     taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     upgLevels: lvs, highestDmg,
   });
@@ -229,7 +230,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const upg22 = upgradeQTY(22, lvs[22]);
   const upg28raw = upgradeQTY(28, lvs[28]);
   const upg28 = upg28raw * logDmg;
-  const upgAddSum = upg5 + upg22 + upg28 + mhSrc.arcade62;
+  const upgAddSum = upg5 + upg22 + upg28 + mhSrc.arcade62 + mhSrc.dancingCoral5;
   const comp143mult = Math.max(1, Math.min(2, mhSrc.comp143));
   const bqMult = Math.min(3, 1 + bqty6 / 100);
   const atomMult = 1 + mhSrc.atom13 / 100;
@@ -264,6 +265,9 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   ], { fmt: '%' }));
   upgChildren.push(_bNode(label('Arcade', 62), mhSrc.arcade62, null, {
     fmt: '%', note: `Arcade 62, Lv ${mhSrc.arcade62lv}, decay(25, 100)`,
+  }));
+  upgChildren.push(_bNode('Dancing Coral 5: Minehead Currency', mhSrc.dancingCoral5, null, {
+    fmt: '%', note: 'Spelunky[24][5], Tower 23',
   }));
   const upgNode = _bNode('Upgrade & Arcade Bonus', 1 + upgAddSum / 100, upgChildren, { fmt: 'x' });
 

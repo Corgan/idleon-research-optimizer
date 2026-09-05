@@ -58,13 +58,16 @@ export default createDescriptor({
     var research76 = (saveData.research && saveData.research[7] && Number(saveData.research[7][6])) || 0;
     var upg28 = mhUpgradeQTY(28, saveData) * getLOG(research76);
     var arcade62 = sources.arcade62;
-    var additive6 = upg5 + upg22 + upg28 + arcade62;
+    var dancingCoral5 = sources.dancingCoral5;
+    var additive6 = upg5 + upg22 + upg28 + arcade62 + dancingCoral5;
     children.push({ name: 'Minehead Upgrades and Arcade', val: 1 + additive6 / 100, fmt: 'x',
       children: [
         { name: label('Minehead', 5), val: upg5, fmt: 'raw' },
         { name: label('Minehead', 22), val: upg22, fmt: 'raw' },
         { name: label('Minehead', 28), val: upg28, fmt: 'raw', note: 'scaled by Research progress' },
         { name: label('Arcade', 62), val: arcade62, fmt: 'raw' },
+        { name: 'Dancing Coral 5: Minehead Currency', val: dancingCoral5, fmt: 'raw',
+          note: 'Spelunky[24][5], Tower 23' },
       ] });
 
     // 7. × (1+Button_Bonuses(1)/100)
