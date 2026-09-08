@@ -2073,10 +2073,11 @@
           0, 1, 2, 3, 4,
         ]
           .map((b, i) => {
-            const z = R.outpostRankInfo(S, x.mapIdx, b),
+            const rankBreakdown = R.outpostRankBarBreakdown(S, x.mapIdx, b),
+              z = rankBreakdown.info,
               locked = !R.outpostUnlockedBars(S)[b];
-            const contributors = R.outpostRankContributorCount(S, x.mapIdx, b);
-            return `<div class="rank ${locked ? "locked" : ""}"><b>${R.outpostRankName(b)}</b><small>${R.outpostRankContributor(b)} EXP · ${fi(contributors)} contributor${contributors === 1 ? "" : "s"}</small>${locked ? '<small><span class="badge badge-red">Locked</span></small>' : ""}<small>Rank ${fi(z.rank)} | ${f(z.exp)} / ${f(z.nextReq)} EXP</small>${bar(z.progress)}<small>${f(R.outpostRankExpPerHour(S, x.mapIdx, b))}/hr</small></div>`;
+            const eta = Number.isFinite(rankBreakdown.etaHours) ? fmtResetDuration(rankBreakdown.etaHours) : "No active EXP";
+            return `<div class="rank ${locked ? "locked" : ""}"><b>${R.outpostRankName(b)}</b><small>${R.outpostRankContributor(b)} EXP · ${fi(rankBreakdown.contributors)} contributor${rankBreakdown.contributors === 1 ? "" : "s"}</small>${locked ? '<small><span class="badge badge-red">Locked</span></small>' : ""}<small>Rank ${fi(z.rank)} | ${f(z.exp)} / ${f(z.nextReq)} EXP</small>${bar(z.progress)}<small>${f(rankBreakdown.value)}/hr</small><small>Next rank: ${eta}</small></div>`;
           })
           .join(
             "",
