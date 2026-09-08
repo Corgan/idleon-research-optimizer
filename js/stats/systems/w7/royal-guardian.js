@@ -420,7 +420,16 @@ export function resourceGrade(S, index) { return royalG(S, 5, index); }
 export function resourceRawProgress(S, index) { return Number(arr(S, 4)[index] ?? 0); }
 // Compatibility accessor: returns the saved progress, including the -1 drained sentinel.
 export function resourceQuantity(S, index) { return resourceRawProgress(S, index); }
-export function resourceCapacity(S, index) { const resource = ROYAL_RESOURCES[index]; return 5 * (resource?.baseCapacity || 0) * 1.5 ** resourceGrade(S, index) * 5 ** Math.floor(index / 20); }
+export function resourceCapacityAtGrade(index, grade) {
+	const numericGrade = Number(grade);
+	const normalizedGrade = Number.isFinite(numericGrade) ? Math.max(0, Math.floor(numericGrade)) : 0;
+	const resource = ROYAL_RESOURCES[index];
+	return 5 * (resource?.baseCapacity || 0) * 1.5 ** normalizedGrade * 5 ** Math.floor(index / 20);
+}
+export function resourceCapacity(S, index) {
+	const resource = ROYAL_RESOURCES[index];
+	return 5 * (resource?.baseCapacity || 0) * 1.5 ** resourceGrade(S, index) * 5 ** Math.floor(index / 20);
+}
 export function resourceCollected(S, index) { const raw = resourceRawProgress(S, index); return raw < 0 ? resourceCapacity(S, index) : Math.max(0, Math.min(resourceCapacity(S, index), raw)); }
 export function resourceGradeBonus(S, index) { return resourceGrade(S, index) * 25; }
 export function resourceRemaining(S, index) { return Math.max(0, resourceCapacity(S, index) - resourceCollected(S, index)); }

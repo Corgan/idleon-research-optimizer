@@ -804,10 +804,23 @@
       .inspector-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
       .inspector-head h3 { margin-top: 0; }
       .resource-inspector .data-table { margin-top: 8px; }
+      .resource-capacity-card {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+      .resource-capacity-header, .resource-capacity-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+      .resource-capacity-header > *, .resource-capacity-footer > * { min-width: 0; }
+      .resource-capacity-controls { display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px; gap: 6px; align-items: center; min-width: 0; }
+      .resource-capacity-controls button { width: 32px; min-width: 32px; height: 32px; padding: 0; font-size: 1.15em; line-height: 1; }
+      .resource-capacity-card input[type="range"] { width: 100%; accent-color: var(--accent); }
+      .resource-capacity-card output { color: var(--gold); font-size: 1.15em; font-weight: 700; }
+      .resource-capacity-footer { color: var(--text2); font-size: .82em; }
+      .resource-capacity-footer .resource-capacity-grade { color: var(--text2); }
       .resource-mobile-list { display: none; gap: 8px; }
+      .resource-mobile-entry { display: none; min-width: 0; }
       .resource-mobile-card { cursor: pointer; }
       .resource-mobile-card.selected { border-color: var(--accent); }
-      .resource-mobile-card .resource-inspector { max-height: none; overflow: visible; margin-top: 10px; }
       .resource-toolbar { margin-bottom: 12px; }
       .context-balance {
         display: flex;
@@ -922,7 +935,8 @@
         .resource-list { display: none; }
         .resource-mobile-list { display: grid; }
         .resource-workspace > .resource-inspector { display: none; }
-        .resource-mobile-card .resource-inspector { display: block; padding: 8px; }
+        .resource-mobile-entry { display: grid; gap: 0; }
+        .resource-mobile-entry > .resource-inspector { display: block; width: 100%; max-height: none; overflow: visible; margin-top: 0; padding: 8px; box-sizing: border-box; }
         .currency-workspace { display: block; }
         .outpost-workspace { display: block; }
         .outpost-list { max-height: 360px; margin-bottom: 12px; }
@@ -1075,6 +1089,9 @@
         rangeFinderMode: false,
         largeMap: true,
         selectedResource: 0,
+        resourceCapacityGrade: 0,
+        resourceCapacityWindowStart: 0,
+        resourceCapacityInitialized: false,
         resourceState: "active",
         resourceSort: "drain",
         resourceCurrency: "all",
@@ -2224,14 +2241,41 @@
       }
       function resourceMobile(S, x) {
         const capacity = R.resourceCapacity(S, x.resourceIdx), selected = x.resourceIdx === session.selectedResource;
-        return `<article class="mobile-card resource-mobile-card ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><b>${currencyIcon(x.currencySlot)}Resource ${x.resourceIdx + 1}</b><div><span class="badge badge-gold">${resourceStatus(S, x)}</span> | Grade ${fi(R.resourceGrade(S, x.resourceIdx))}</div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div>Rate/hr ${f(x.rate)} | Drain ${fmtDrainHours(x.drainHours, x.remaining)}</div>${selected ? `<div class="resource-inspector">${resourceInspector(S, x)}</div>` : ""}</article>`;
+        return `<div class="resource-mobile-entry"><article class="mobile-card resource-mobile-card ${selected ? "selected" : ""}" data-resource="${x.resourceIdx}" tabindex="0" role="option" aria-selected="${selected ? "true" : "false"}" aria-label="Select Resource ${x.resourceIdx + 1}"><b>${currencyIcon(x.currencySlot)}Resource ${x.resourceIdx + 1}</b><div><span class="badge badge-gold">${resourceStatus(S, x)}</span> | Grade ${fi(R.resourceGrade(S, x.resourceIdx))}</div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div>Rate/hr ${f(x.rate)} | Drain ${fmtDrainHours(x.drainHours, x.remaining)}</div></article>${selected ? `<div class="resource-inspector">${resourceInspector(S, x)}</div>` : ""}</div>`;
+      }
+      function resourceCapacityWindowStartForGrade(grade) {
+        grade = Math.round(n(grade));
+        return grade <= 0 ? 0 : Math.floor(grade / 50) * 50;
+      }
+      function syncResourceCapacityControls(S, resourceIdx) {
+        const rangeStart = Math.max(0, Math.round(n(session.resourceCapacityWindowStart)));
+        const rangeMax = rangeStart + 50;
+        const grade = Math.max(rangeStart, Math.min(rangeMax, Math.round(n(session.resourceCapacityGrade))));
+        session.resourceCapacityWindowStart = rangeStart;
+        session.resourceCapacityGrade = grade;
+        document.querySelectorAll(`[data-resource-capacity-slider="${resourceIdx}"]`).forEach(copy => {
+          copy.min = String(rangeStart);
+          copy.max = String(rangeMax);
+          copy.step = "1";
+          copy.value = String(grade);
+        });
+        document.querySelectorAll(`[data-resource-capacity-grade="${resourceIdx}"]`).forEach(copy => { copy.textContent = `Grade ${fi(grade)}`; });
+        document.querySelectorAll(`[data-resource-capacity-value="${resourceIdx}"]`).forEach(copy => { copy.textContent = f(R.resourceCapacityAtGrade(resourceIdx, grade)); });
+        document.querySelectorAll(`[data-resource-capacity-range-label="${resourceIdx}"]`).forEach(copy => { copy.textContent = `Range ${fi(rangeStart)}-${fi(rangeMax)}`; });
+        document.querySelectorAll(`[data-resource-capacity-previous-range="${resourceIdx}"]`).forEach(button => { button.disabled = rangeStart <= 0; });
+        document.querySelectorAll(`[data-resource-capacity-next-range="${resourceIdx}"]`).forEach(button => { button.disabled = false; });
       }
       function resourceInspector(S, x) {
-        const capacity = R.resourceCapacity(S, x.resourceIdx), links = resourceReachable(S, x.resourceIdx), cycle = R.nextResourceCycleMetrics(S, x.resourceIdx, x.rate);
+        if (!session.resourceCapacityInitialized) {
+          session.resourceCapacityGrade = Math.max(0, Math.round(n(R.resourceGrade(S, x.resourceIdx))));
+          session.resourceCapacityWindowStart = resourceCapacityWindowStartForGrade(session.resourceCapacityGrade);
+          session.resourceCapacityInitialized = true;
+        }
+        const capacity = R.resourceCapacity(S, x.resourceIdx), projectedCapacity = R.resourceCapacityAtGrade(x.resourceIdx, session.resourceCapacityGrade), links = resourceReachable(S, x.resourceIdx), cycle = R.nextResourceCycleMetrics(S, x.resourceIdx, x.rate);
         const nextCycle = cycle.nextCycleAvailable
           ? `${card("Next full cycle drain", fmtDrainHours(cycle.nextDrainHours, cycle.nextCapacity), `Grade ${fi(cycle.nextGrade)} | ${f(cycle.nextCapacity)} capacity | ${f(cycle.nextRate)}/hr`)}<div class="resource-cycle-status"><span class="resource-cycle-pill">Auto-refill on</span><span>Drained nodes refill at daily reset.${cycle.resourceGradeIncreaseUnlocked ? " Each refill also adds +1 grade." : " Grade remains unchanged until Resource Grades is unlocked."}</span></div>`
           : `${card("Full node (current grade)", fmtDrainHours(cycle.hypotheticalFullDrainHours, cycle.hypotheticalFullCapacity), `${f(cycle.hypotheticalFullCapacity)} capacity | ${f(cycle.hypotheticalFullRate)}/hr`)}<div class="resource-cycle-status"><span class="resource-cycle-pill">Auto-refill off</span><span>Resource Replenish is locked, so no automatic next cycle is projected.</span></div>`;
-        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, x.resourceIdx))}${R.resourceDrained(S, x.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}</div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Connection free</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${currentConnectionFree(S, y.mapIdx) ? "Yes" : "No"}</td><td>${currentConnectionToResource(S, y.mapIdx, x.resourceIdx) ? "Yes" : "No"}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div></div>`;
+        return `<div class="info-panel"><div class="inspector-head"><div><h3 aria-live="polite">${resourceIcon(S, x.resourceIdx)}Resource ${x.resourceIdx + 1}</h3><div class="small">World ${R.resourceWorld(x.resourceIdx) + 1} | Grade ${fi(R.resourceGrade(S, x.resourceIdx))} | ${resourceCurrencyLabel(x)}</div></div><span class="badge badge-cyan">${resourceStatus(S, x)}</span></div><div>${f(x.remaining)} / ${f(capacity)}${bar(capacity ? x.remaining / capacity : 0)}</div><div class="small">Saved consumed progress: ${f(R.resourceRawProgress(S, x.resourceIdx))}${R.resourceDrained(S, x.resourceIdx) ? " (drained sentinel)" : ""}</div><div class="card-grid cols-2">${card("Rate/hr", f(x.rate))}${card("Current remaining drain", fmtDrainHours(cycle.currentDrainHours, cycle.currentRemaining))}${nextCycle}${card(`Collectable before reset`, resetValue(x.collectableBeforeReset, x.resetProjectionAvailable))}${card("Active streams", fi(x.streams.length))}<article class="card resource-capacity-card" data-resource-capacity-card="${x.resourceIdx}"><div class="resource-capacity-header"><b>Projected capacity</b><output data-resource-capacity-value="${x.resourceIdx}" aria-live="polite" aria-label="Projected capacity value">${f(projectedCapacity)}</output></div><div class="resource-capacity-controls"><button type="button" data-resource-capacity-previous-range="${x.resourceIdx}" aria-label="Previous 50-grade range" title="Previous 50-grade range">&#x2039;</button><input type="range" min="${session.resourceCapacityWindowStart}" max="${session.resourceCapacityWindowStart + 50}" step="1" value="${session.resourceCapacityGrade}" data-resource-capacity-slider="${x.resourceIdx}" aria-label="Projected capacity grade for Resource ${x.resourceIdx + 1}"><button type="button" data-resource-capacity-next-range="${x.resourceIdx}" aria-label="Next 50-grade range" title="Next 50-grade range">&#x203A;</button></div><div class="resource-capacity-footer"><span class="resource-capacity-grade" data-resource-capacity-grade="${x.resourceIdx}" aria-live="polite">Grade ${fi(session.resourceCapacityGrade)}</span><span data-resource-capacity-range-label="${x.resourceIdx}">Range ${fi(session.resourceCapacityWindowStart)}-${fi(session.resourceCapacityWindowStart + 50)}</span></div></article></div>${resetProjection(x)}<h3>Current streams</h3>${x.streams.map(stream => `<div class="metric-line">${mapName(stream.mapIdx)} <b>${f(stream.rate)}/hr</b></div>`).join("") || '<div class="note">No active streams.</div>'}<h3>Reachable outposts</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Outpost</th><th>Type</th><th>Distance / Reach</th><th>Connection free</th><th>Connected here</th></tr></thead><tbody>${links.map(y => `<tr><td>${mapName(y.mapIdx)}</td><td>${types[R.outpostType(S, y.mapIdx)]}</td><td>${f(y.distance)} / ${f(y.range + 15)}</td><td>${currentConnectionFree(S, y.mapIdx) ? "Yes" : "No"}</td><td>${currentConnectionToResource(S, y.mapIdx, x.resourceIdx) ? "Yes" : "No"}</td></tr>`).join("") || '<tr><td colspan="5">No reachable normal outposts.</td></tr>'}</tbody></table></div></div>`;
       }
       const collectionFactorLabels = {
         base: "Base collection",
@@ -2795,6 +2839,28 @@
         for (const [id, key] of [["resource-state", "resourceState"], ["resource-currency", "resourceCurrency"], ["resource-sort", "resourceSort"]])
           document.querySelector(`#${id}`)?.addEventListener("change", e => { session[key] = e.target.value; render(); });
         document.querySelector("#resource-search")?.addEventListener("input", e => { session.resourceSearch = e.target.value; render(); });
+        document.querySelectorAll("[data-resource-capacity-slider]").forEach(slider => {
+          slider.addEventListener("click", event => event.stopPropagation());
+          slider.addEventListener("keydown", event => event.stopPropagation());
+          slider.addEventListener("input", event => {
+            const resourceIdx = n(slider.dataset.resourceCapacitySlider);
+            session.resourceCapacityGrade = Math.round(n(event.target.value));
+            syncResourceCapacityControls(activeRoyalState(), resourceIdx);
+          });
+        });
+        document.querySelectorAll("[data-resource-capacity-previous-range], [data-resource-capacity-next-range]").forEach(button => {
+          button.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            const resourceIdx = n(button.dataset.resourceCapacityPreviousRange ?? button.dataset.resourceCapacityNextRange);
+            const next = button.dataset.resourceCapacityNextRange !== undefined;
+            session.resourceCapacityWindowStart = next ? session.resourceCapacityWindowStart + 50 : Math.max(0, session.resourceCapacityWindowStart - 50);
+            session.resourceCapacityGrade = next
+              ? Math.max(session.resourceCapacityGrade, session.resourceCapacityWindowStart)
+              : Math.min(session.resourceCapacityGrade, session.resourceCapacityWindowStart + 50);
+            syncResourceCapacityControls(activeRoyalState(), resourceIdx);
+          });
+        });
         document.querySelectorAll("[data-resource]").forEach(x => {
           const select = () => { session.selectedResource = n(x.dataset.resource); session.mapSelectionKind = "resource"; render(); };
           x.onclick = select;
