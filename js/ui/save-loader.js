@@ -46,6 +46,9 @@ function _injectCSS() {
     '.sl-auth-status{font-size:.82em;color:var(--text2);display:flex;align-items:center;gap:6px}',
     '.sl-cached-btn{background:#333;border:1px solid #555;color:var(--text2);font-size:.78em}',
     '.sl-cached-btn:hover{background:#444;color:var(--text)}',
+    '.sl-auto-refresh-btn{background:transparent;border:1px solid #555;color:var(--text2);font-size:.75em;padding:2px 8px}',
+    '.sl-auto-refresh-btn:hover{border-color:var(--cyan);color:var(--cyan)}',
+    '.sl-auto-refresh-btn.paused{border-color:var(--gold);color:var(--gold)}',
     '.sl-signout{background:transparent;border:1px solid #555;color:var(--text2);font-size:.75em;padding:2px 8px}',
     '.sl-signout:hover{border-color:var(--red);color:var(--red)}',
   ].join('\n');
@@ -165,6 +168,14 @@ export function initSaveLoader(opts) {
     googleBtn.addEventListener('click', function() {
       _handleGoogleSignIn(googleBtn, authStatus, authOverlay, msgEl, doLoad);
     });
+
+    window.addEventListener('storage', function(event) {
+      if (event.key !== AUTO_REFRESH_PREF_KEY || !authStatus.querySelector('.sl-refresh-btn')) return;
+      var enabled = _autoRefreshEnabled();
+      _renderAuthStatus(authStatus, doLoad, enabled ? 'Auto-refresh enabled' : 'Manual refresh only');
+      if (enabled) _startAutoRefresh(authStatus, doLoad);
+      else _stopAutoRefresh();
+    });
   } else if (opts.onReady) {
     opts.onReady({ loaded: false, source: 'manual', reason: 'auth-disabled' });
   }
@@ -173,18 +184,39 @@ export function initSaveLoader(opts) {
 // ── Auth helpers (lazy-import the auth modules) ────────────────────────
 
 var AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+var AUTO_REFRESH_PREF_KEY = 'idleon_auto_refresh';
 var _refreshTimer = null;
 var _countdownTimer = null;
 var _countdownEnd = 0;
 
-/** Build the signed-in status bar: age label + Refresh (with countdown) + Sign out */
+function _autoRefreshEnabled() {
+  try { return localStorage.getItem(AUTO_REFRESH_PREF_KEY) !== 'manual'; }
+  catch (e) { return true; }
+}
+
+function _setAutoRefreshEnabled(enabled) {
+  try { localStorage.setItem(AUTO_REFRESH_PREF_KEY, enabled ? 'auto' : 'manual'); }
+  catch (e) { /* localStorage unavailable */ }
+}
+
+/** Build the signed-in status bar: age label + refresh controls + Sign out */
 function _renderAuthStatus(authStatus, doLoad, ageLabel) {
+  var autoRefresh = _autoRefreshEnabled();
   var parts = '<span style="color:var(--green)">\u2713 ' + (ageLabel || 'Signed in') + '</span>' +
     '<button class="sl-btn sl-btn-sm sl-cached-btn sl-refresh-btn">Refresh</button>' +
+    '<button class="sl-btn sl-auto-refresh-btn' + (autoRefresh ? '' : ' paused') + '">' +
+      (autoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh') + '</button>' +
     '<button class="sl-btn sl-signout sl-signout-btn">Sign out</button>';
   authStatus.innerHTML = parts;
   authStatus.querySelector('.sl-refresh-btn').addEventListener('click', function() {
     _fetchAndLoad(authStatus, doLoad);
+  });
+  authStatus.querySelector('.sl-auto-refresh-btn').addEventListener('click', function() {
+    var enabled = !_autoRefreshEnabled();
+    _setAutoRefreshEnabled(enabled);
+    _renderAuthStatus(authStatus, doLoad, enabled ? 'Auto-refresh enabled' : 'Manual refresh only');
+    if (enabled) _startAutoRefresh(authStatus, doLoad);
+    else _stopAutoRefresh();
   });
   authStatus.querySelector('.sl-signout-btn').addEventListener('click', function() {
     _stopAutoRefresh();
@@ -209,6 +241,11 @@ function _ageStr(ts) {
 
 function _startAutoRefresh(authStatus, doLoad) {
   _stopAutoRefresh();
+  if (!_autoRefreshEnabled()) {
+    var manualBtn = authStatus.querySelector('.sl-refresh-btn');
+    if (manualBtn) manualBtn.textContent = 'Refresh';
+    return;
+  }
   _countdownEnd = Date.now() + AUTO_REFRESH_MS;
   _refreshTimer = setInterval(function() {
     _fetchAndLoad(authStatus, doLoad, true);
@@ -296,18 +333,8 @@ function _handleGoogleSignIn(googleBtn, authStatus, overlay, msgEl, doLoad) {
         // Fetch save from Firestore
         return store.fetchSave(session.uid, session.idToken).then(function(saveObj) {
           store.cacheSave(saveObj);
-          authStatus.innerHTML =
-            '<span style="color:var(--green)">\u2713 Signed in</span>' +
-            '<button class="sl-btn sl-btn-sm sl-cached-btn sl-refresh-btn">Refresh</button>' +
-            '<button class="sl-btn sl-signout sl-signout-btn">Sign out</button>';
-          authStatus.querySelector('.sl-refresh-btn').addEventListener('click', function() {
-            _fetchAndLoad(authStatus, doLoad);
-          });
-          authStatus.querySelector('.sl-signout-btn').addEventListener('click', function() {
-            auth.signOut();
-            store.clearCachedSave();
-            authStatus.innerHTML = '';
-          });
+          _renderAuthStatus(authStatus, doLoad, 'Signed in');
+          _startAutoRefresh(authStatus, doLoad);
           doLoad(saveObj);
         });
       }).catch(function(e) {
