@@ -10,6 +10,8 @@ import { eventShopOwned } from '../../game-helpers.js';
 import { label } from '../entity-names.js';
 import { safe, rval, safeTree, createDescriptor } from './helpers.js';
 import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
+import { companions } from '../systems/common/companions.js';
+import { jellyCompletionBonus } from '../systems/w7/jelly-operator.js';
 
 export default createDescriptor({
   id: 'crystal-spawn',
@@ -30,6 +32,8 @@ export default createDescriptor({
     var _brCrys = safe(computeBoxReward, ci, 'CrystalSpawn');
     var boxCrystal = (typeof _brCrys === 'object') ? (_brCrys.val || 0) : Number(_brCrys) || 0;
     var shrine6 = rval(shrine, 6, ctx);
+    var companion171 = Number(companions(171, s)) || 0;
+    var jelly8 = jellyCompletionBonus(8, s);
     var _stampCryT = safeTree(computeStampBonusOfTypeX, 'CrySpawn', s);
     var stampCry = _stampCryT.val;
     var _cardBonus14T = safeTree(computeCardBonusByType, 14, ci, s);
@@ -37,7 +41,7 @@ export default createDescriptor({
 
     var raw = evShop42
       + (1 + talent26 / 100)
-      * (1 + (boxCrystal + shrine6) / 100)
+      * (1 + (boxCrystal + shrine6 + companion171 + jelly8) / 100)
       * (1 + talent619 / 100)
       * (1 + stampCry / 100)
       * (1 + cardBonus14 / 100);
@@ -55,6 +59,8 @@ export default createDescriptor({
         { name: label('Talent', 619), val: talent619, fmt: 'raw' },
         { name: 'Box Rewards: Crystal Mob Spawn Chance', val: boxCrystal, fmt: 'raw' },
         { name: label('Shrine', 6), val: shrine6, fmt: 'raw' },
+        { name: label('Companion', 171), val: companion171, fmt: 'raw' },
+        { name: 'Jelly obstruction 9', val: jelly8, fmt: 'raw' },
         { name: 'Stamps: Crystal Mob Spawn Chance', val: stampCry, fmt: 'raw', children: _stampCryT.children },
         { name: 'Cards: Crystal Mob Spawn Chance', val: cardBonus14, fmt: 'raw', children: _cardBonus14T.children },
       ]},

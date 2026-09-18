@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idleon Jelly Operator Optimizer</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text1:#eee;--text2:#aeb3c8;--gold:#ffd166;--green:#55d68b;--red:#ff6b6b;--cyan:#4dd0e1;--purple:#bb86fc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,sans-serif}button,select,input{font:inherit}
+h1{display:flex;align-items:baseline;margin:0;padding:12px 18px;background:var(--bg2);border-bottom:2px solid var(--accent);font-size:1.4rem}.home{font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:14px}
+.main{max-width:1500px;margin:auto;padding:16px}.tabs{display:flex;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid #334}.tab{padding:10px 18px;color:var(--text2);cursor:pointer;font-weight:700;border-bottom:2px solid transparent}.tab.active{color:var(--accent);border-color:var(--accent)}
+.tab-content{display:none}.tab-content.active{display:block}.section{background:var(--bg2);padding:16px;border-radius:8px;margin:14px 0}.section h2{font-size:1.12rem;color:var(--accent);margin:0 0 12px;border-bottom:1px solid #334;padding-bottom:7px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.card{background:var(--bg3);padding:11px;border-radius:7px;border:1px solid #40506d}.label{font-size:.76rem;color:var(--text2)}.value{font-size:1.35rem;color:var(--gold);font-weight:750}.sub{font-size:.72rem;color:var(--text2);margin-top:2px}
+.grid-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.jelly-grid{display:grid;grid-template-columns:repeat(18,37px);grid-auto-rows:37px;gap:0;background:#0a1020;padding:4px;border-radius:6px;width:max-content;min-width:0;position:relative}.grid-wrap{overflow:visible;max-width:none}
+.slot{width:37px;height:37px;min-width:0;background:#171c2e;border:1px solid #262d43;border-radius:2px;position:relative;font-size:.42rem;color:#fff;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 2px #000}.slot.locked{opacity:.24}.slot.obstruction{background:#4b2638;border-color:#a74462;opacity:1}.slot.cell{border-radius:0}.slot.join-l{border-left-color:transparent}.slot.join-r{border-right-color:transparent}.slot.join-u{border-top-color:transparent}.slot.join-d{border-bottom-color:transparent}.slot.round-tl{border-top-left-radius:2px}.slot.round-tr{border-top-right-radius:2px}.slot.round-bl{border-bottom-left-radius:2px}.slot.round-br{border-bottom-right-radius:2px}.slot.core{z-index:1}.slot.proximity::after{content:"";position:absolute;z-index:5;right:2px;bottom:2px;width:5px;height:5px;background:#7cff72;border:1px solid #173b14;border-radius:50%}.cell-sprite,.obstruction-sprite{position:absolute;max-width:none;object-fit:contain;pointer-events:none;user-select:none;image-rendering:pixelated;image-rendering:crisp-edges}.cell-sprite{z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.7))}.obstruction-sprite{z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.85))}
+.t0{background:#96767b;border-color:#f8eadc}.t1{background:#487154;border-color:#edf9b3}.t2{background:#ab4a42;border-color:#ffcc97}.t3{background:#8e4ba1;border-color:#ffb7cf}.t4{background:#536ab8;border-color:#aefeff}.t5{background:#7c5fd7;border-color:#f3cdff}.t6{background:#a86d36;border-color:#fffeae}.t7{background:#687080;border-color:#e9fcff}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.legend span{padding:3px 8px;border:1px solid rgba(255,255,255,.35);border-radius:4px;font-size:.74rem;color:#fff;font-weight:700;text-shadow:0 1px 2px #000}.upgrade-tip{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.tooltip-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:4px;border:1px solid #60708d;border-radius:50%;color:var(--cyan);font-size:.68rem;font-weight:800;line-height:1;cursor:help;vertical-align:middle}.js-tooltip{position:fixed;display:none;z-index:1000;max-width:340px;padding:8px 10px;background:#101b35;color:var(--text);border:1px solid #60708d;border-radius:6px;box-shadow:0 5px 18px rgba(0,0,0,.45);font-size:.78rem;line-height:1.4;white-space:pre-line;pointer-events:none}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.control{display:flex;flex-direction:column;gap:4px;color:var(--text2);font-size:.78rem}.control select,.control input{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:4px;padding:7px}
+.primary{background:var(--accent);color:#fff;border:0;border-radius:5px;padding:8px 16px;font-weight:750;cursor:pointer}.primary:disabled{opacity:.5}.note{color:var(--text2);font-size:.8rem;line-height:1.45}.good{color:var(--green)}.bad{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;color:var(--text2);border-bottom:1px solid #445;padding:6px;position:sticky;top:0;background:var(--bg2)}td{padding:6px;border-bottom:1px solid #ffffff0c}.num{text-align:right;font-variant-numeric:tabular-nums}.table-scroll{overflow:auto;max-height:650px}
+.move{display:inline-block;margin:3px;padding:4px 7px;background:#0d2947;border-radius:4px;font-size:.75rem}
+.progress-panel{margin-top:12px;padding:10px;background:#101a32;border:1px solid #42506c;border-radius:6px}.bar-outer{height:10px;border-radius:5px;background:#333;overflow:hidden;margin:7px 0}.bar-fill{height:100%;background:var(--green);transition:width .12s linear}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.cancel{background:#4b2638;color:var(--text);border:1px solid #a74462;border-radius:5px;padding:5px 10px;cursor:pointer}
+.view-tools{display:flex;justify-content:flex-end;padding:8px 0}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
+.sim-workspace{display:grid;grid-template-columns:minmax(190px,240px) minmax(560px,1fr);gap:14px;align-items:start}.sim-palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.sim-cell-pick,.sim-action,.plot-toggle{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:6px;cursor:pointer}.sim-cell-pick{display:flex;align-items:center;gap:7px;padding:6px;text-align:left;font-size:.76rem}.sim-cell-pick img{width:32px;height:32px;object-fit:contain;flex:none}.sim-cell-pick.active,.sim-action.active,.plot-toggle.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.sim-cell-pick:disabled{opacity:.35;cursor:not-allowed}.sim-board{touch-action:none}.sim-board .slot:not(.locked):not(.obstruction){cursor:crosshair}.sim-board .cell-sprite{pointer-events:auto;cursor:grab}.sim-board .cell-sprite:active{cursor:grabbing}.sim-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sim-action{padding:6px 10px;font-size:.76rem}.plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:220px;overflow:auto;padding:4px}.plot-toggle{padding:5px;font-size:.7rem}.sim-message{margin-top:8px;padding:7px 9px;border-radius:5px;background:#101a32;color:var(--text2);font-size:.78rem}.sim-message.bad{background:#4b2638;color:#ffb3c1}.sim-result-status{font-weight:800}.sim-result-status.good{color:#78e08f}.sim-result-status.bad{color:#ff7f96}
+.planner-controls{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(140px,.7fr)) repeat(2,minmax(180px,.8fr)) auto;gap:14px;align-items:stretch;padding:13px;background:#101a32;border:1px solid #42506c;border-radius:8px}.planner-controls .control{justify-content:center}.check-control{display:flex;align-items:center;gap:9px;padding:8px 10px;background:#162544;border:1px solid #40536e;border-radius:6px;color:var(--text);font-size:.78rem;cursor:pointer}.check-control input{width:17px;height:17px;flex:none}.check-control strong{display:block}.check-control small{display:block;color:var(--text2);margin-top:2px}.planner-controls .primary{align-self:center;min-height:42px;padding-inline:20px}.planner-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:14px}.planner-cards .card{padding:14px;min-height:112px}.planner-table{margin-top:12px}
+.breakdown-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}.breakdown-panel{min-width:0;padding:10px;background:#101b35;border:1px solid #40536e;border-radius:8px}.breakdown-panel h3{margin:0 0 8px;color:var(--cyan);font-size:.95rem}.bt-controls{margin-bottom:8px;display:flex;gap:6px}.bt-controls .btn-sm{padding:4px 10px;background:var(--bg3);color:var(--text2);border:1px solid #4a607e;border-radius:4px;cursor:pointer;font-size:.8em}.bt-tree{font-size:.85em}.bt-row{display:flex;align-items:center;gap:6px;padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04);min-height:26px;cursor:pointer}.bt-row:hover{background:rgba(255,255,255,.07)}.bt-children{background:rgba(0,0,0,.12);border-left:2px solid rgba(255,255,255,.08)}.bt-root{font-weight:700;font-size:1.05em;padding-top:6px;padding-bottom:6px;border-bottom:2px solid #445}.bt-arrow{cursor:pointer;color:var(--text2);font-size:1em;width:14px;text-align:center;user-select:none;flex-shrink:0}.bt-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bt-val{font-weight:600;text-align:right;flex-shrink:0;white-space:nowrap;margin-left:auto;font-variant-numeric:tabular-nums}.bt-tooltip{position:fixed;display:none;z-index:10;max-width:320px;padding:8px;background:#101b35;color:var(--text);border:1px solid #4a607e;border-radius:4px;font-size:.8em}
+@media(max-width:1100px){.breakdown-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1250px){.planner-controls{grid-template-columns:repeat(3,minmax(180px,1fr))}.planner-controls .primary{align-self:stretch}}
+@media(max-width:900px){.sim-workspace{grid-template-columns:1fr}.sim-palette{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}}
+@media(max-width:1400px){.grid-pair{grid-template-columns:1fr}}
+@media(max-width:700px){.main{padding:8px}.breakdown-grid,.planner-controls{grid-template-columns:1fr}.section{padding:10px}.bt-label{white-space:normal;overflow-wrap:anywhere}}
+</style>
+</head>
+<body>
+<h1><a class="home" href="index.html">Home</a><span>Jelly Operator Optimizer</span></h1>
+<div id="save-area"></div>
+<main class="main" id="main-content"><p class="note" style="text-align:center;padding:40px">Load a save to inspect and optimize Jelly Operator.</p></main>
+<div id="jelly-js-tooltip" class="js-tooltip" role="tooltip" aria-hidden="true"></div>
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
+import { CELL_NAMES, JELLY_COLS, JELLY_OBSTRUCTION_SLOTS, JELLY_SIZE, jellyRewards, jellyRewardTarget, jellySlotPlots, jellyUpgradeData, jellyUpgradeOrder } from './js/stats/data/w7/jelly-operator.js';
+import * as J from './js/stats/systems/w7/jelly-operator.js';
+
+const FEVER_MODES=[
+  {name:'COLD',bonus:'+1% all damage each elapsed second'},
+  {name:'RASH',bonus:'2.00x all damage'},
+  {name:'SEPSIS',bonus:'2.00x Bloodcell gains'},
+  {name:'NAUSEA',bonus:'2.00x EXP gains for all cells'},
+  {name:'RABIES',bonus:'1.50x all damage and 1.25x all speed'},
+  {name:'PLAGUE',bonus:'1.40x all speed'},
+];
+const JELLY_CELL_PITCH=37;
+const JELLY_GRID_PADDING=4;
+const JELLY_RENDER_SCALE=1;
+const JELLY_OBSTRUCTION_SIZE=50*3*JELLY_RENDER_SCALE; // The game renders the 50px source at 300%.
+const CELL_SPRITE_SIZES=[[36,36],[73,36],[36,109],[110,110],[73,73],[36,36],[147,147],[184,183]];
+
+let optimized = null;
+let upgradeAnalysis = null;
+let currentPolicy = null;
+let simulator = null;
+let purchaseControls={objective:'clear',purchases:10,trials:8,reoptimize:false,budget:true};
+let activeTab = 'overview';
+let jellyWorker = null;
+let workerRequestId = 0;
+let workerProgress = null;
+let workerError = '';
+let spoilersVisible = false;
+initSaveLoader({
+  target:'#save-area',
+  auth:true,
+  onLoad:()=>{
+    stopJellyWorker();
+    optimized=null;
+    upgradeAnalysis=null;
+    currentPolicy=null;
+    simulator=makeSimulatorState();
+    workerError='';
+    const layout=J.jellyLayoutFromSave(saveData);
+    render();
+    startJellyWorker('policy',{layout,options:{objective:'clear',trials:24,screeningTrials:3,seed:randomSeed()}});
+  },
+});
+
+function fmt(value){return fmtVal(Number(value)||0)}
+function pct(value){return ((Number(value)||0)*100).toFixed(2)+'%'}
+function signed(value,digits=2){const number=Number(value)||0;return `${number>=0?'+':''}${number.toFixed(digits)}`}
+function signedPct(value){return signed((Number(value)||0)*100)+'%'}
+function esc(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function tooltipIcon(text,label='More information'){return `<span class="tooltip-icon" tabindex="0" role="img" aria-label="${esc(label)}" data-tooltip="${esc(text)}">i</span>`}
+function card(label,value,sub='',tooltip=''){
+  return `<div class="card"><div class="label">${esc(label)}${tooltip?tooltipIcon(tooltip,`${label} details`):''}</div><div class="value">${value}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
+}
+function feverModeName(index){return FEVER_MODES[index]?.name||`Fever ${index+1}`}
+function feverizerTooltip(){
+  const unlocked=Math.min(FEVER_MODES.length,J.jellyUpgradeLevel(saveData,16));
+  const visible=spoilersVisible?FEVER_MODES.length:unlocked;
+  if(visible<=0)return 'No Fever modes unlocked yet.';
+  const heading=spoilersVisible?'Fever modes by upgrade level:':'Unlocked Fever modes:';
+  return heading+'\n'+FEVER_MODES.slice(0,visible).map((mode,index)=>`Level ${index+1}: ${mode.name} - ${mode.bonus}`).join('\n');
+}
+function stronkroidTooltip(){
+  return 'One activation per operation. Stronkroid lasts 300 frames (5 seconds). In the simulator, use -1 to disable it or 0 to activate immediately.';
+}
+function positionJsTooltip(tip,x,y){
+  const margin=10,offset=12;
+  tip.style.left='0px';
+  tip.style.top='0px';
+  const rect=tip.getBoundingClientRect();
+  tip.style.left=Math.max(margin,Math.min(x+offset,window.innerWidth-rect.width-margin))+'px';
+  tip.style.top=Math.max(margin,Math.min(y+offset,window.innerHeight-rect.height-margin))+'px';
+}
+function wireJsTooltips(){
+  const tip=document.getElementById('jelly-js-tooltip');
+  if(!tip||document.body.dataset.jellyTooltipsWired)return;
+  document.body.dataset.jellyTooltipsWired='true';
+  let active=null;
+  const show=(target,x,y)=>{
+    active=target;
+    tip.textContent=target.dataset.tooltip||'';
+    tip.style.display='block';
+    tip.setAttribute('aria-hidden','false');
+    positionJsTooltip(tip,x,y);
+  };
+  const hide=()=>{
+    active=null;
+    tip.style.display='none';
+    tip.setAttribute('aria-hidden','true');
+  };
+  document.addEventListener('mouseover',event=>{
+    const target=event.target.closest?.('[data-tooltip]');
+    if(!target||target.contains(event.relatedTarget))return;
+    show(target,event.clientX,event.clientY);
+  });
+  document.addEventListener('mousemove',event=>{
+    if(active)positionJsTooltip(tip,event.clientX,event.clientY);
+  });
+  document.addEventListener('mouseout',event=>{
+    const target=event.target.closest?.('[data-tooltip]');
+    if(target===active&&!target.contains(event.relatedTarget))hide();
+  });
+  document.addEventListener('focusin',event=>{
+    const target=event.target.closest?.('[data-tooltip]');
+    if(!target)return;
+    const rect=target.getBoundingClientRect();
+    show(target,rect.left+rect.width/2,rect.bottom);
+  });
+  document.addEventListener('focusout',event=>{
+    if(event.target.closest?.('[data-tooltip]')===active)hide();
+  });
+}
+function spoilerToggle(){return `<button type="button" class="spoiler-toggle" data-toggle-spoilers aria-pressed="${spoilersVisible?'true':'false'}">Spoilers: ${spoilersVisible?'Shown':'Hidden'}</button>`}
+function toggleSpoilersPreservingScroll(){
+  const page={x:window.scrollX,y:window.scrollY};
+  const scrolls=Array.from(document.querySelectorAll('#main-content .table-scroll,#main-content .grid-wrap')).map(element=>({top:element.scrollTop,left:element.scrollLeft}));
+  spoilersVisible=!spoilersVisible;
+  render();
+  requestAnimationFrame(()=>{
+    Array.from(document.querySelectorAll('#main-content .table-scroll,#main-content .grid-wrap')).forEach((element,index)=>{
+      if(!scrolls[index])return;
+      element.scrollTop=scrolls[index].top;
+      element.scrollLeft=scrolls[index].left;
+    });
+    window.scrollTo(page.x,page.y);
+  });
+}
+function gameDescription(description,value){
+  const amount=Number(value)||0;
+  return String(description||'')
+    .replace(/}/g,(1+amount/100).toFixed(2))
+    .replace(/[{$]/g,fmt(amount))
+    .replace(/@/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function rewardEffectText(reward){
+  const description=String(reward.description||''),value=Number(reward.value)||0;
+  if(/Nothing yet/i.test(description))return 'No effect';
+  if(reward.index===0)return `${(1+value/100).toFixed(2)}x Research EXP; +2 Jelly slots`;
+  if(reward.index===1)return `${(1+value/100).toFixed(2)}x Rank EXP; +2 Jelly slots`;
+  if(reward.index===8)return `+${fmt(value)}% Crystal chance; ${(1+value/100).toFixed(2)}x Minehead currency`;
+  if(/^Unlocks/i.test(description))return 'Unlock';
+  if(/slot unlock|Golden Tile|weekly Exotic|Regal Mob|Research Point|Talent PTS|Cooking Mastery|Max LV|maximum possible roll/i.test(description))return `+${fmt(value)}`;
+  if(/0\.01x higher/i.test(description))return `+${(value/100).toFixed(2)}x`;
+  if(/0\.1% Chance/i.test(description))return `+${(value/10).toFixed(1)}%`;
+  if(/}x/i.test(description))return `${(1+value/100).toFixed(2)}x`;
+  if(/%/i.test(description))return `+${fmt(value)}%`;
+  return `+${fmt(value)}`;
+}
+function randomSeed(){
+  const values=new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return values[0]||1;
+}
+function roidTimingText(timing,standardTime){
+  if(timing==='none'||timing==null||!Number.isFinite(Number(timing)))return 'Do not use';
+  const seconds=Number(timing);
+  if(seconds<=0)return 'Use immediately';
+  if(Math.abs(seconds-standardTime)<0.01)return `Use at Critical start (${standardTime.toFixed(0)}s)`;
+  if(seconds<standardTime)return `Use ${seconds.toFixed(0)}s after start`;
+  return `Use ${seconds.toFixed(0)}s after start`;
+}
+function workerProgressHtml(operation){
+  if(!workerProgress||workerProgress.operation!==operation)return '';
+  const completed=Number(workerProgress.completed)||0,total=Math.max(1,Number(workerProgress.total)||1);
+  const percent=Math.max(0,Math.min(100,completed/total*100));
+  return `<div class="progress-panel"><div class="progress-row"><strong>${esc(workerProgress.phase||'Working...')}</strong><span>${percent.toFixed(1)}%</span></div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div><div class="progress-row"><span class="note">Running in a worker thread; the calculator remains responsive.</span><button class="cancel" data-cancel-worker>Cancel</button></div></div>`;
+}
+function stopJellyWorker(){
+  workerRequestId++;
+  jellyWorker?.terminate();
+  jellyWorker=null;
+  workerProgress=null;
+}
+function updateWorkerProgress(){
+  const panel=document.querySelector('.progress-panel');
+  if(!panel||!workerProgress)return;
+  const completed=Number(workerProgress.completed)||0,total=Math.max(1,Number(workerProgress.total)||1);
+  const percent=Math.max(0,Math.min(100,completed/total*100));
+  const strong=panel.querySelector('strong'),value=panel.querySelector('.progress-row span'),fill=panel.querySelector('.bar-fill');
+  if(strong)strong.textContent=workerProgress.phase||'Working...';
+  if(value)value.textContent=percent.toFixed(1)+'%';
+  if(fill)fill.style.width=percent+'%';
+}
+function startJellyWorker(operation,payload){
+  stopJellyWorker();
+  const requestId=++workerRequestId;
+  workerProgress={operation,phase:'Starting...',completed:0,total:1};
+  workerError='';
+  render();
+  const worker=new Worker('./js/workers/jelly-operator-worker.js',{type:'module'});
+  jellyWorker=worker;
+  worker.onmessage=event=>{
+    const message=event.data||{};
+    if(message.requestId!==requestId)return;
+    if(message.type==='progress'){
+      workerProgress={operation,...message.progress};
+      updateWorkerProgress();
+      return;
+    }
+    worker.terminate();
+    jellyWorker=null;
+    workerProgress=null;
+    if(message.type==='error'){
+      workerError=message.error||'Jelly worker failed.';
+    }else if(operation==='policy'){
+      currentPolicy=message.result;
+    }else if(operation==='layout'){
+      optimized=message.result;
+    }else if(operation==='purchases'){
+      upgradeAnalysis=message.result;
+    }else if(operation==='simulate'){
+      simulator.result=message.result;
+    }
+    render();
+  };
+  worker.onerror=event=>{
+    if(requestId!==workerRequestId)return;
+    worker.terminate();
+    jellyWorker=null;
+    workerProgress=null;
+    workerError=event.message||'Jelly worker failed.';
+    render();
+  };
+  worker.postMessage({type:'run',operation,requestId,saveData,...payload});
+}
+function obstructionSlots(){return new Set(JELLY_OBSTRUCTION_SLOTS)}
+
+function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstruction,options={}){
+  const boardSave=options.save||saveData;
+  const interactive=Boolean(options.interactive);
+  const unlocked=J.jellyUnlockedSlots(boardSave), occupied=J.jellyLayoutOccupancy(layout), cores=new Map(Object.entries(layout).map(([a,t])=>[Number(a),Number(t)]));
+  let html=`<div><h3>${esc(title)}</h3><div class="grid-wrap"><div class="jelly-grid${interactive?' sim-board':''}"${interactive?' data-sim-board':''}>`;
+  const blocked=obstructionSlots();
+  for(let i=0;i<JELLY_SIZE;i++){
+    const cell=occupied.get(i), type=cell?.type, classes=['slot'];
+    if(blocked.has(i))classes.push('obstruction');
+    else if(!unlocked.has(i))classes.push('locked');
+    if(cell){
+      classes.push('cell','t'+type);
+      const sameCell=slot=>occupied.get(slot)?.anchor===cell.anchor;
+      const left=i%JELLY_COLS>0&&sameCell(i-1);
+      const right=i%JELLY_COLS<JELLY_COLS-1&&sameCell(i+1);
+      const up=i>=JELLY_COLS&&sameCell(i-JELLY_COLS);
+      const down=i<JELLY_SIZE-JELLY_COLS&&sameCell(i+JELLY_COLS);
+      if(left)classes.push('join-l');
+      if(right)classes.push('join-r');
+      if(up)classes.push('join-u');
+      if(down)classes.push('join-d');
+      if(!left&&!up)classes.push('round-tl');
+      if(!right&&!up)classes.push('round-tr');
+      if(!left&&!down)classes.push('round-bl');
+      if(!right&&!down)classes.push('round-br');
+    }
+    if(cores.has(i))classes.push('core');
+    if([43,44,45,46,60,65,78,83,96,101,114,119,133,134,135,136].includes(i))classes.push('proximity');
+    const slotTitle=blocked.has(i)?`Slot ${i} - obstruction`:cell?`Slot ${i} - ${CELL_NAMES[type]} core ${cell.anchor}`:`Slot ${i}`;
+    html+=`<div class="${classes.join(' ')}" title="${esc(slotTitle)}"${interactive?` data-sim-slot="${i}"`:''}></div>`;
+  }
+  for(const [rawAnchor,rawType] of Object.entries(layout||{})){
+    const anchor=Number(rawAnchor),type=Number(rawType),slots=J.jellyFootprintSlots(anchor,type);
+    if(!slots?.length||type<0||type>7)continue;
+    const xs=slots.map(slot=>slot%JELLY_COLS),ys=slots.map(slot=>Math.floor(slot/JELLY_COLS));
+    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    const [nativeWidth,nativeHeight]=CELL_SPRITE_SIZES[type],width=nativeWidth*JELLY_RENDER_SCALE,height=nativeHeight*JELLY_RENDER_SCALE;
+    const areaWidth=(maxX-minX+1)*JELLY_CELL_PITCH,areaHeight=(maxY-minY+1)*JELLY_CELL_PITCH;
+    const left=JELLY_GRID_PADDING+minX*JELLY_CELL_PITCH+(areaWidth-width)/2;
+    const top=JELLY_GRID_PADDING+minY*JELLY_CELL_PITCH+(areaHeight-height)/2;
+    html+=`<img class="cell-sprite" src="./assets/jelly-operator/JellyUnit${type}.png" alt="${esc(CELL_NAMES[type])} at slot ${anchor}" draggable="${interactive?'true':'false'}"${interactive?` data-sim-anchor="${anchor}" data-sim-type="${type}"`:''} style="left:${left}px;top:${top}px;width:${width}px;height:${height}px">`;
+  }
+  const obstruction=Math.max(0,Math.min(71,Math.floor(Number(obstructionIndex)||0)));
+  const obstructionName=jellyRewards()[obstruction]?.name||`Obstruction ${obstruction+1}`;
+  const obstructionLeft=JELLY_GRID_PADDING+7*JELLY_CELL_PITCH+(4*JELLY_CELL_PITCH-JELLY_OBSTRUCTION_SIZE)/2;
+  const obstructionTop=JELLY_GRID_PADDING+3*JELLY_CELL_PITCH+(4*JELLY_CELL_PITCH-JELLY_OBSTRUCTION_SIZE)/2;
+  html+=`<img class="obstruction-sprite" src="./assets/jelly-operator/JellyOp${obstruction}.png" alt="${esc(obstructionName)}" draggable="false" style="left:${obstructionLeft}px;top:${obstructionTop}px;width:${JELLY_OBSTRUCTION_SIZE}px;height:${JELLY_OBSTRUCTION_SIZE}px">`;
+  return html+'</div></div></div>';
+}
+
+function legendHtml(){
+  const owned=J.jellyUnitsOwned(saveData);
+  return '<div class="legend">'+CELL_NAMES.slice(0,8).map((name,type)=>type<owned||spoilersVisible?`<span class="t${type}">${esc(name)}</span>`:'<span class="spoiler-hidden">???</span>').join('')+'</div>';
+}
+
+function makeSimulatorState(){
+  const progress=J.jellyProgress(saveData);
+  const feverCount=Math.max(0,Math.min(FEVER_MODES.length,J.jellyUpgradeLevel(saveData,16)));
+  return {
+    layout:J.jellyLayoutFromSave(saveData),
+    obstruction:Math.max(0,Math.min(71,progress.obstruction)),
+    plots:new Set((saveData.research?.[18]||[]).map(Number).filter(Number.isFinite)),
+    fever:feverCount>0?Math.min(feverCount-1,progress.fever):0,
+    roidTiming:-1,
+    revivePolicy:'immunoid-first',
+    selectedType:0,
+    result:null,
+    message:'Sandbox initialized from the current save.',
+    messageBad:false,
+  };
+}
+function ensureSimulator(){
+  if(!simulator)simulator=makeSimulatorState();
+  return simulator;
+}
+function simulatorSave(){
+  const state=ensureSimulator();
+  const S=structuredClone(saveData);
+  if(!Array.isArray(S.research))S.research=[];
+  while(S.research.length<=18)S.research.push([]);
+  S.research[7]=Array.isArray(S.research[7])?S.research[7].slice():[];
+  S.research[7][9]=state.obstruction;
+  S.research[14]=Array(JELLY_SIZE).fill(-1);
+  for(const [anchor,type] of Object.entries(state.layout))S.research[14][Number(anchor)]=Number(type);
+  S.research[18]=Array.from(state.plots).sort((a,b)=>a-b);
+  return S;
+}
+function normalizeSimulatorLayout(message){
+  const state=ensureSimulator(),S=simulatorSave();
+  let next={},removed=0;
+  for(const [rawAnchor,rawType] of Object.entries(state.layout).sort((a,b)=>Number(a[0])-Number(b[0]))){
+    const placed=J.jellyPlaceCell(next,Number(rawAnchor),Number(rawType),S);
+    if(placed)next=placed;
+    else removed++;
+  }
+  state.layout=next;
+  state.result=null;
+  state.message=removed?`${message} Removed ${removed} cell${removed===1?'':'s'} that no longer fit unlocked slots.`:message;
+  state.messageBad=false;
+}
+function simulatorResultHtml(){
+  const r=ensureSimulator().result;
+  if(!r)return '';
+  if(!r.valid)return `<div class="section"><h2>Simulated run</h2><p class="sim-message bad">${esc(r.reason||'The sandbox layout is invalid.')}</p></div>`;
+  const status=r.success?'Cleared':r.endedBy==='simulation-cap'?'Simulation cap reached':'Failed';
+  const contribution=r.contribution.filter(row=>row.hits||row.shots).map(row=>`<tr><td>${esc(row.name)}</td><td class="num">${row.shots}</td><td class="num">${row.hits}</td><td class="num">${fmt(row.damage)}</td><td class="num">${fmt(row.bloodcells)}</td><td class="num">${fmt(row.exp)}</td></tr>`).join('');
+  const deaths=r.deathLog.map(row=>`<span class="move">${row.time.toFixed(2)}s: ${row.focused?'Focused ':''}${row.disabledAnchor?'anchor':'footprint'} slot ${row.slot}${row.revived?' - revived':''}</span>`).join('');
+  return `<div class="section"><h2>Simulated run</h2>
+    <div class="cards">
+      ${card('Outcome',`<span class="sim-result-status ${r.success?'good':'bad'}">${status}</span>`,`${r.time.toFixed(2)} sec; ${esc(String(r.endedBy).replace(/-/g,' '))}`)}
+      ${card('Damage',`${fmt(r.damage)} / ${fmt(r.hp)}`,pct(r.damagePct))}
+      ${card('Bloodcells earned',fmt(r.bloodcells),`Attempt change: ${r.attemptDelta>=0?'+':''}${r.attemptDelta}`)}
+      ${card('Cell EXP earned',fmt(r.cellExp),`${r.hits} hits from ${r.shots} shots`)}
+      ${card('Critical survival',`${r.criticalTime.toFixed(2)} sec`,`${r.deaths} deaths; ${r.revivesUsed} revives`)}
+      ${card('Amoeba weakening',`${r.amoebaStacks} stacks`,`${r.amoebaStacksAtCriticalStart} at Critical start`)}
+      ${card('Immunoid focus',`${r.immunoidFocusTime.toFixed(2)} sec`,`${r.immunoidHits} focused attacks`)}
+      ${card('Stronkroid',r.roidUsed?roidTimingText(r.roidStart,r.standardTime):'Not used','',stronkroidTooltip())}
+    </div>
+    <h3>Cell contribution</h3>
+    <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contribution||'<tr><td colspan="6">No projectiles landed.</td></tr>'}</tbody></table></div>
+    ${deaths?`<h3>Critical target timeline</h3><div>${deaths}</div>`:''}
+    <p class="note">${esc(r.note)} This is one fresh randomized operation, matching the in-game opening cooldown and timer-phase randomness.</p>
+  </div>`;
+}
+function simulatorHtml(){
+  const state=ensureSimulator(),progress=J.jellyProgress(saveData);
+  const maxStage=spoilersVisible?72:Math.max(1,Math.min(72,progress.obstruction+1));
+  if(state.obstruction>=maxStage){
+    state.obstruction=maxStage-1;
+    normalizeSimulatorLayout('Future stages were hidden with Spoilers off.');
+  }
+  const S=simulatorSave(),owned=J.jellyUnitsOwned(S);
+  if(state.selectedType>=owned)state.selectedType=Math.max(0,owned-1);
+  const stageOptions=Array.from({length:maxStage},(_,index)=>{
+    const reward=jellyRewards()[index];
+    const label=spoilersVisible||index<=progress.obstruction?`${index+1}. ${reward?.name||'Obstruction'}`:`Stage ${index+1}`;
+    return `<option value="${index}" ${state.obstruction===index?'selected':''}>${esc(label)}</option>`;
+  }).join('');
+  const palette=CELL_NAMES.slice(0,8).map((name,type)=>{
+    const available=type<owned;
+    if(!available&&!spoilersVisible)return '';
+    return `<button type="button" class="sim-cell-pick ${state.selectedType===type?'active':''}" data-sim-type="${type}" draggable="${available?'true':'false'}" ${available?'':'disabled'}><img src="./assets/jelly-operator/JellyUnit${type}.png" alt=""><span>${available?esc(name):'???'}</span></button>`;
+  }).join('');
+  const plots=jellySlotPlots().map(plot=>`<button type="button" class="plot-toggle ${state.plots.has(plot.plotId)?'active':''}" data-sim-plot="${plot.plotId}" aria-pressed="${state.plots.has(plot.plotId)}">Section ${plot.plotId+1}<br>${plot.width*plot.height} slots</button>`).join('');
+  const feverCount=Math.max(0,Math.min(FEVER_MODES.length,J.jellyUpgradeLevel(S,16)));
+  const feverOptions=feverCount?FEVER_MODES.slice(0,feverCount).map((mode,index)=>`<option value="${index}" ${state.fever===index?'selected':''}>${mode.name} - ${mode.bonus}</option>`).join(''):'<option value="0">Feverizer locked</option>';
+  const roidUnlocked=J.jellyUpgradeLevel(S,29)>0,reviveUnlocked=J.jellyUpgradeLevel(S,35)>0;
+  return `<div class="section"><h2>Interactive operation simulator</h2>
+    <p class="note">This sandbox never changes the imported save. Drag cells or select a cell and click the board. Right-click a placed cell, or select Remove, to clear it. Placements use the game's exact footprints, overlap replacement, unlocked-slot checks, and Virus cap.</p>
+    <div class="controls">
+      <label class="control">Stage<select id="sim-stage">${stageOptions}</select></label>
+      <label class="control">Fever<select id="sim-fever" ${feverCount?'':'disabled'}>${feverOptions}</select></label>
+      ${roidUnlocked?`<label class="control"><span>Stronkroid activation second${tooltipIcon(stronkroidTooltip(),'Stronkroid timing details')}</span><input id="sim-roid" type="number" min="-1" max="${J.jellyBossTime(state.obstruction)}" step="1" value="${state.roidTiming}"></label>`:''}
+      ${reviveUnlocked?`<label class="control">Automatic revival strategy<select id="sim-revive">
+        ${[['none','Do not revive'],['immunoid-first','Immunoid first'],['anchor-first','Cell anchors first'],['dps-first','Highest-DPS anchors first']].map(([value,label])=>`<option value="${value}" ${state.revivePolicy===value?'selected':''}>${label}</option>`).join('')}
+      </select></label>`:''}
+      <button type="button" class="primary" id="sim-run" ${workerProgress?.operation==='simulate'?'disabled':''}>Simulate one operation</button>
+    </div>
+    ${workerProgressHtml('simulate')}
+    <div class="sim-actions">
+      <button type="button" class="sim-action" id="sim-load-save">Reset from save</button>
+      <button type="button" class="sim-action" id="sim-clear-board">Clear cells</button>
+      <button type="button" class="sim-action ${state.selectedType===-1?'active':''}" id="sim-remove-mode">Remove mode</button>
+      <button type="button" class="sim-action" id="sim-use-save-sections">Use save sections</button>
+      <button type="button" class="sim-action" id="sim-clear-sections">Lock all purchased sections</button>
+      <button type="button" class="sim-action" id="sim-all-sections">Unlock all sections</button>
+    </div>
+    <div class="sim-workspace">
+      <div><h3>Cell palette</h3><div class="sim-palette">${palette}</div></div>
+      <div>${gridHtml(state.layout,'Sandbox board',state.obstruction,{save:S,interactive:true})}</div>
+    </div>
+    <h3>Board sections</h3>
+    <p class="note">Section toggles are hypothetical and do not spend or enforce plot tokens. Stage 2 and Stage 3 still grant their two automatic center-adjacent slots exactly as in-game.</p>
+    <div class="plot-grid">${plots}</div>
+    ${state.message?`<div class="sim-message ${state.messageBad?'bad':''}">${esc(state.message)}</div>`:''}
+  </div>${simulatorResultHtml()}`;
+}
+
+function simulatorSlotFromPointer(board,event){
+  const rect=board.getBoundingClientRect(),style=getComputedStyle(board);
+  const padX=parseFloat(style.paddingLeft)||0,padY=parseFloat(style.paddingTop)||0;
+  const innerWidth=rect.width-padX-(parseFloat(style.paddingRight)||0);
+  const innerHeight=rect.height-padY-(parseFloat(style.paddingBottom)||0);
+  const x=event.clientX-rect.left-padX,y=event.clientY-rect.top-padY;
+  if(x<0||y<0||x>=innerWidth||y>=innerHeight)return null;
+  const column=Math.floor(x/(innerWidth/JELLY_COLS));
+  const row=Math.floor(y/(innerHeight/(JELLY_SIZE/JELLY_COLS)));
+  return column+row*JELLY_COLS;
+}
+function simulatorChanged(message,bad=false){
+  if(workerProgress?.operation==='simulate')stopJellyWorker();
+  const state=ensureSimulator();
+  state.result=null;
+  state.message=message;
+  state.messageBad=bad;
+}
+function placeSimulatorCell(type,slot,sourceAnchor=null){
+  const state=ensureSimulator(),S=simulatorSave();
+  if(type===-1){
+    const owner=J.jellyLayoutOccupancy(state.layout).get(slot);
+    if(!owner){
+      simulatorChanged('There is no cell at that slot to remove.',true);
+    }else{
+      state.layout=J.jellyRemoveCell(state.layout,owner.anchor);
+      simulatorChanged(`Removed ${CELL_NAMES[owner.type]} from slot ${owner.anchor}.`);
+    }
+    render();
+    return;
+  }
+  const base=sourceAnchor==null?state.layout:J.jellyRemoveCell(state.layout,sourceAnchor);
+  const placed=J.jellyPlaceCell(base,slot,type,S);
+  if(!placed){
+    simulatorChanged(`Cannot place ${CELL_NAMES[type]} at slot ${slot}: its footprint is locked, out of bounds, obstructed, or exceeds the Virus limit.`,true);
+  }else{
+    state.layout=placed;
+    simulatorChanged(`${sourceAnchor==null?'Placed':'Moved'} ${CELL_NAMES[type]} to anchor slot ${slot}.`);
+  }
+  render();
+}
+function wireSimulator(){
+  const state=ensureSimulator(),root=document.querySelector('#tab-simulator');
+  if(!root)return;
+  const stage=root.querySelector('#sim-stage');
+  if(stage)stage.onchange=()=>{
+    state.obstruction=Number(stage.value);
+    normalizeSimulatorLayout(`Selected stage ${state.obstruction+1}.`);
+    render();
+  };
+  const fever=root.querySelector('#sim-fever');
+  if(fever)fever.onchange=()=>{
+    state.fever=Number(fever.value);
+    simulatorChanged(`Selected ${feverModeName(state.fever)} Fever.`);
+    render();
+  };
+  const roid=root.querySelector('#sim-roid');
+  if(roid)roid.onchange=()=>{
+    state.roidTiming=Math.max(-1,Math.min(J.jellyBossTime(state.obstruction),Number(roid.value)||0));
+    simulatorChanged(state.roidTiming<0?'Stronkroid disabled.':`Stronkroid will activate at ${state.roidTiming} seconds.`);
+    render();
+  };
+  const revive=root.querySelector('#sim-revive');
+  if(revive)revive.onchange=()=>{
+    state.revivePolicy=revive.value;
+    simulatorChanged(`Revival strategy set to ${revive.options[revive.selectedIndex].text}.`);
+    render();
+  };
+  root.querySelector('#sim-load-save').onclick=()=>{
+    if(workerProgress?.operation==='simulate')stopJellyWorker();
+    simulator=makeSimulatorState();
+    simulator.message='Sandbox reset from the current save.';
+    render();
+  };
+  root.querySelector('#sim-clear-board').onclick=()=>{
+    state.layout={};
+    simulatorChanged('Removed every cell from the sandbox board.');
+    render();
+  };
+  root.querySelector('#sim-remove-mode').onclick=()=>{
+    state.selectedType=-1;
+    simulatorChanged('Remove mode selected. Click any occupied footprint.');
+    render();
+  };
+  root.querySelector('#sim-use-save-sections').onclick=()=>{
+    state.plots=new Set((saveData.research?.[18]||[]).map(Number).filter(Number.isFinite));
+    normalizeSimulatorLayout('Restored board sections from the current save.');
+    render();
+  };
+  root.querySelector('#sim-clear-sections').onclick=()=>{
+    state.plots.clear();
+    normalizeSimulatorLayout('Locked every purchased board section.');
+    render();
+  };
+  root.querySelector('#sim-all-sections').onclick=()=>{
+    state.plots=new Set(jellySlotPlots().map(plot=>plot.plotId));
+    normalizeSimulatorLayout('Unlocked every board section for this sandbox.');
+    render();
+  };
+  root.querySelectorAll('[data-sim-plot]').forEach(button=>button.onclick=()=>{
+    const plotId=Number(button.dataset.simPlot);
+    if(state.plots.has(plotId))state.plots.delete(plotId);
+    else state.plots.add(plotId);
+    normalizeSimulatorLayout(`${state.plots.has(plotId)?'Unlocked':'Locked'} section ${plotId+1}.`);
+    render();
+  });
+  root.querySelectorAll('.sim-cell-pick').forEach(button=>{
+    button.onclick=()=>{
+      state.selectedType=Number(button.dataset.simType);
+      simulatorChanged(`${CELL_NAMES[state.selectedType]} selected. Click an unlocked slot or drag it onto the board.`);
+      render();
+    };
+    button.ondragstart=event=>{
+      event.dataTransfer.effectAllowed='copy';
+      event.dataTransfer.setData('application/x-jelly-type',button.dataset.simType);
+      event.dataTransfer.setData('text/plain',button.dataset.simType);
+    };
+  });
+  const board=root.querySelector('[data-sim-board]');
+  if(board){
+    board.addEventListener('dragstart',event=>{
+      const sprite=event.target.closest('[data-sim-anchor]');
+      if(!sprite)return;
+      event.dataTransfer.effectAllowed='move';
+      event.dataTransfer.setData('application/x-jelly-type',sprite.dataset.simType);
+      event.dataTransfer.setData('application/x-jelly-anchor',sprite.dataset.simAnchor);
+      event.dataTransfer.setData('text/plain',sprite.dataset.simType);
+    });
+    board.addEventListener('dragover',event=>{
+      event.preventDefault();
+      event.dataTransfer.dropEffect=event.dataTransfer.getData('application/x-jelly-anchor')?'move':'copy';
+    });
+    board.addEventListener('drop',event=>{
+      event.preventDefault();
+      const slot=simulatorSlotFromPointer(board,event);
+      if(slot==null)return;
+      const typeRaw=event.dataTransfer.getData('application/x-jelly-type')||event.dataTransfer.getData('text/plain');
+      const type=Number(typeRaw),anchorRaw=event.dataTransfer.getData('application/x-jelly-anchor');
+      if(!Number.isInteger(type)||type<0||type>7){
+        simulatorChanged('The dragged item was not a valid Jelly cell.',true);
+        render();
+        return;
+      }
+      placeSimulatorCell(type,slot,anchorRaw===''?null:Number(anchorRaw));
+    });
+    board.addEventListener('click',event=>{
+      const slot=simulatorSlotFromPointer(board,event);
+      if(slot!=null)placeSimulatorCell(state.selectedType,slot);
+    });
+    board.addEventListener('contextmenu',event=>{
+      event.preventDefault();
+      const slot=simulatorSlotFromPointer(board,event);
+      if(slot!=null)placeSimulatorCell(-1,slot);
+    });
+  }
+  root.querySelector('#sim-run').onclick=()=>{
+    const S=simulatorSave(),validation=J.jellyValidateLayout(state.layout,S);
+    if(!validation.valid){
+      simulatorChanged(validation.reason||'The sandbox layout is invalid.',true);
+      render();
+      return;
+    }
+    state.message='Running one exact 60 FPS operation with fresh randomness.';
+    state.messageBad=false;
+    startJellyWorker('simulate',{
+      layout:state.layout,
+      saveData:S,
+      options:{
+        obstruction:state.obstruction,
+        fever:state.fever,
+        seed:randomSeed(),
+        useRoid:state.roidTiming>=0,
+        roidTiming:state.roidTiming>=0?state.roidTiming:'none',
+        revivePolicy:J.jellyUpgradeLevel(S,35)>0?state.revivePolicy:'none',
+      },
+    });
+  };
+}
+
+function summaryCards(layout,op){
+  const p=J.jellyProgress(saveData), fever=op?.fever??p.fever, m=J.jellyLayoutMetrics(layout,saveData,{fever});
+  return `<div class="cards">
+    ${card('Current obstruction',`${p.obstruction+1} / 72`,fmt(J.jellyBossHp(p.obstruction))+' HP')}
+    ${card('Clear probability',op?pct(op.clearProbability):'Calculating...',op?(op.successCount?`Median ${op.medianTime.toFixed(2)} sec across ${op.trials} trials`:`${pct(op.meanDamage/J.jellyBossHp(p.obstruction))} mean boss damage`):'Worker simulation in progress')}
+    ${card('Steady DPS',fmt(m.dps),`${m.cells.length} placed cells`)}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells',fmt(p.bloodcells),`Daily: ${fmt(J.jellyDailyBloodcells(saveData))}`):''}
+    ${card('Attempts banked',fmt(p.tries),`Daily floor: ${fmt(J.jellyDailyTries(saveData))}`)}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,12)>0?card('Best DPS',fmt(p.bestDps),`${J.jellyBestDpsMultiplier(saveData).toFixed(3)}x Bloodcells`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell levels',fmt(J.jellyTotalCellLevel(saveData)),`EXP multiplier: ${J.jellyCellExpMultiplier(saveData,fever).toFixed(2)}x`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,9)>0?card('Slot unlocks left',fmt(J.jellySlotPurchasesLeft(saveData)),`${J.jellyUnlockedSlots(saveData).size} grid slots available`):''}
+  </div>`;
+}
+
+function render(){
+  const root=document.querySelector('#main-content');
+  if(!J.hasJellyData(saveData)){root.innerHTML='<div class="section"><h2>Jelly data unavailable</h2><p class="note">This save does not contain Research[14] and Research[17]. Export a save after loading the September 18, 2026 build.</p></div>';return}
+  const saved=J.jellyLayoutFromSave(saveData);
+  root.innerHTML=`<div class="tabs">
+    ${[['overview','Overview'],['layout','Layout'],['simulator','Simulator'],['upgrades','Upgrades'],['bonuses','Bonuses'],['breakdowns','Breakdowns'],['planner','Purchase Planner'],['optimizer','Optimizer']].map(([id,label])=>`<div class="tab ${id===activeTab?'active':''}" data-tab="${id}">${label}</div>`).join('')}
+  </div><div class="view-tools">${spoilerToggle()}</div>${workerError?`<div class="section"><p class="bad">${esc(workerError)}</p></div>`:''}
+  <div id="tab-overview" class="tab-content ${activeTab==='overview'?'active':''}">
+    <div class="section"><h2>Account snapshot</h2>${summaryCards(saved,currentPolicy)}</div>
+    <div class="section"><h2>Operation estimate</h2>${currentPolicy?operationHtml(saved,currentPolicy):'<p class="note">Calculating the current operation policy and Monte Carlo estimate.</p>'+workerProgressHtml('policy')}</div>
+  </div>
+  <div id="tab-layout" class="tab-content ${activeTab==='layout'?'active':''}">
+    <div class="section"><h2>Saved layout</h2>${legendHtml()}${gridHtml(saved,'Current save')}${layoutStats(saved,currentPolicy?.fever??J.jellyProgress(saveData).fever)}</div>
+  </div>
+  <div id="tab-simulator" class="tab-content ${activeTab==='simulator'?'active':''}">${simulatorHtml()}</div>
+  <div id="tab-upgrades" class="tab-content ${activeTab==='upgrades'?'active':''}">${upgradesHtml()}</div>
+  <div id="tab-bonuses" class="tab-content ${activeTab==='bonuses'?'active':''}">${bonusesHtml()}</div>
+  <div id="tab-breakdowns" class="tab-content ${activeTab==='breakdowns'?'active':''}">${breakdownsHtml(saved)}</div>
+  <div id="tab-planner" class="tab-content ${activeTab==='planner'?'active':''}">${purchasePlannerHtml()}</div>
+  <div id="tab-optimizer" class="tab-content ${activeTab==='optimizer'?'active':''}">${optimizerHtml(saved)}</div>`;
+  root.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{activeTab=tab.dataset.tab;render()});
+  root.querySelectorAll('[data-toggle-spoilers]').forEach(button=>button.onclick=toggleSpoilersPreservingScroll);
+  root.querySelectorAll('[data-cancel-worker]').forEach(button=>button.onclick=()=>{stopJellyWorker();workerError='Operation cancelled.';render()});
+  const run=root.querySelector('#run-optimizer');
+  if(run)run.onclick=()=>{
+    startJellyWorker('layout',{options:{
+        layout:saved,
+        objective:root.querySelector('#objective').value,
+        obstruction:Number(root.querySelector('#obstruction').value)-1,
+        beamWidth:Number(root.querySelector('#beam').value),
+        iterations:Number(root.querySelector('#iterations').value),
+        refinementRounds:Number(root.querySelector('#refinement-rounds').value),
+        simulationTrials:Number(root.querySelector('#trials').value),
+        seed:randomSeed(),
+      }});
+  };
+  const analyze=root.querySelector('#analyze-upgrades');
+  const syncPurchaseControls=()=>{
+    const objective=root.querySelector('#upgrade-objective');
+    if(!objective)return;
+    purchaseControls={
+      objective:objective.value,
+      purchases:Math.max(1,Math.min(50,Number(root.querySelector('#upgrade-purchases').value)||10)),
+      trials:Math.max(4,Math.min(128,Number(root.querySelector('#upgrade-trials').value)||8)),
+      reoptimize:root.querySelector('#upgrade-reoptimize').checked,
+      budget:root.querySelector('#upgrade-budget').checked,
+    };
+  };
+  root.querySelectorAll('#upgrade-objective,#upgrade-purchases,#upgrade-trials,#upgrade-reoptimize,#upgrade-budget').forEach(control=>{
+    control.onchange=syncPurchaseControls;
+    control.oninput=syncPurchaseControls;
+  });
+  if(analyze)analyze.onclick=()=>{
+    syncPurchaseControls();
+    startJellyWorker('purchases',{options:{
+        layout:saved,
+        objective:purchaseControls.objective,
+        purchases:purchaseControls.purchases,
+        trials:purchaseControls.trials,
+        seed:randomSeed(),
+        reoptimize:purchaseControls.reoptimize,
+        respectBudget:purchaseControls.budget,
+      }});
+  };
+  if(activeTab==='simulator')wireSimulator();
+  if(activeTab==='breakdowns')initializeBreakdownTrees(saved);
+}
+
+function operationHtml(layout,op){
+  const r=op.representative;
+  const contributions=r.contribution.filter(row=>row.hits||row.shots).map(row=>`<tr><td>${esc(row.name)}</td><td class="num">${row.shots}</td><td class="num">${row.hits}</td><td class="num">${fmt(row.damage)}</td><td class="num">${fmt(row.bloodcells)}</td><td class="num">${fmt(row.exp)}</td></tr>`).join('');
+  const deaths=r.deathLog.slice(0,12).map(row=>`<span class="move">${row.time.toFixed(2)}s: ${row.focused?'Focused ':''}${row.disabledAnchor?'anchor':'footprint'} slot ${row.slot}${row.revived?' — revived':''}</span>`).join('');
+  const policyParts=[];
+  if(J.jellyUpgradeLevel(saveData,16)>0)policyParts.push(`Selected Fever: ${feverModeName(op.fever)}`);
+  if(spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0)policyParts.push(roidTimingText(op.roidTiming,r.standardTime).toLowerCase());
+  if(spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0)policyParts.push(`${op.revivePolicy} revival`);
+  return `<div class="cards">
+    ${card('Boss HP',fmt(r.hp),`Normal phase: ${r.standardTime} sec`)}
+    ${card('Clear probability',pct(op.clearProbability),`${op.successCount} / ${op.trials} seeded trials`)}
+    ${card('Clear time',op.successCount?`${op.medianTime.toFixed(2)} sec`:'No clears',op.successCount?`90th percentile ${op.p90Time.toFixed(2)} sec`:pct(op.meanDamage/r.hp)+' mean damage')}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical phase',`${op.meanCriticalTime.toFixed(2)} sec mean`,r.criticalUnlocked?'Critical Condition active':'Fails when normal timer expires'):''}
+    ${card('Bloodcells',fmt(op.meanBloodcells),'Mean per attempt, including live Best DPS growth')}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell EXP',fmt(op.meanCellExp),`Mean; ${r.hits} hits in representative trial`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Boss attacks',op.meanDeaths.toFixed(2)+' mean deaths',`${op.meanRevives.toFixed(2)} mean revives used`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,4)>0?card('Immunoid focus',`${r.immunoidFocusTime.toFixed(2)} sec`,`${r.immunoidHits} focused hits in representative trial`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,28)>0?card('Amoeba weakening',`${r.amoebaStacks} stacks`,`${r.amoebaStacksAtCriticalStart} at Critical start; +${r.amoebaStacks-r.amoebaStacksAtCriticalStart} during Critical`):''}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Stronkroid timing',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
+  </div>
+  <h3>Representative trial contribution</h3>
+  <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contributions}</tbody></table></div>
+  ${deaths?`<h3>Critical target timeline</h3><div>${deaths}</div>`:''}
+  <p class="note" style="margin-bottom:0">${spoilersVisible?esc(op.note):'Monte Carlo simulation uses automatically selected unlocked operation policies.'} ${policyParts.length?esc(policyParts.join(', '))+'. ':''}The one-second operation timer has an unsaved phase, so each trial samples its starting offset.</p>`;
+}
+
+function objectiveOptions(selected){
+  const options=[
+    ['clear','Highest clear chance, then fastest',true],
+    ['bloodcells','Most Bloodcells per attempt',spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0],
+    ['exp','Most Cell EXP per attempt',spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0],
+    ['dps','Highest operation damage',true],
+    ['survival','Longest Critical survival',spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0],
+  ];
+  return options.filter(row=>row[2]).map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
+}
+
+function layoutStats(layout,fever){
+  const m=J.jellyLayoutMetrics(layout,saveData,{fever});
+  return `<div class="cards" style="margin-top:12px">
+    ${card('Damage passive',m.damagePassive.toFixed(3)+'x','Unlocked damage-passive cells')}
+    ${card('Speed passive',m.speedPassive.toFixed(3)+'x','Unlocked speed-passive cells')}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,5)>0?card('Virus multiplier',m.virusMultiplier.toFixed(3)+'x',m.infectedSlots+' infected footprint slots'):''}
+    ${card('Attack rate',fmt(m.attacksPerSecond)+'/sec','Before projectile travel')}
+  </div>`;
+}
+
+function upgradesHtml(){
+  const order=jellyUpgradeOrder();
+  let rows='';
+  order.slice(0,40).forEach((id,orderIdx)=>{
+    const data=jellyUpgradeData(id),display=J.jellyUpgradeDisplay(saveData,id),level=J.jellyUpgradeLevel(saveData,id),cost=J.jellyUpgradeCost(saveData,orderIdx),status=J.jellyUpgradeStatus(saveData,orderIdx);
+    const concealed=!spoilersVisible&&level<=0&&(!status.levelVisible||!status.prerequisiteMet);
+    if(concealed){
+      rows+=`<tr><td>${orderIdx+1}</td><td class="spoiler-hidden"><strong>???</strong><div class="sub">Unreached upgrade</div></td><td class="num spoiler-hidden">???</td><td class="num spoiler-hidden">???</td><td class="spoiler-hidden">???</td><td class="num spoiler-hidden">???</td></tr>`;
+      return;
+    }
+    const name=id===16
+      ? `<strong class="upgrade-tip" tabindex="0" data-tooltip="${esc(feverizerTooltip())}">${esc(data.name)}</strong>`
+      : `<strong>${esc(data.name)}</strong>`;
+    rows+=`<tr><td>${orderIdx+1}</td><td>${name}<div class="sub">${esc(display.description)}</div></td><td class="num">${level}${data.maxLevel<999?'/'+data.maxLevel:''}</td><td class="num">${esc(display.effectText)}</td><td>${esc(display.perLevelText)}</td><td class="num">${fmt(cost)}</td></tr>`;
+  });
+  return `<div class="section"><h2>Upgrade reference</h2><p class="note">Descriptions are the game-authored JellyUPG text with the same live numeric substitutions used by the game. The Current effect column uses the modeled runtime formula.</p><div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function purchasePlannerHtml(){
+  let result='<p class="note">Simulates multiple purchases in sequence. After each selected level, costs, prerequisites, formulas, operation policy, and optional layout optimization are recalculated before choosing the next level. Results are aggregated by upgrade rather than exposing the internal step list.</p>';
+  if(upgradeAnalysis){
+    const baseline=upgradeAnalysis.baseline,final=upgradeAnalysis.final;
+    const rows=upgradeAnalysis.rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong><div class="sub">${esc(row.description)}</div></td><td class="num">${row.purchases}</td><td class="num">${row.startingLevel} → ${row.finalLevel}</td><td class="num">${fmt(row.totalCost)}</td><td class="num">${esc(row.effectText)}</td></tr>`).join('');
+    const timeSaved=baseline.meanTime&&final.meanTime?baseline.meanTime-final.meanTime:0;
+    result=`<div class="cards planner-cards">
+      ${card('Purchases modeled',`${upgradeAnalysis.completedPurchases} / ${upgradeAnalysis.requestedPurchases}`,upgradeAnalysis.completedPurchases<upgradeAnalysis.requestedPurchases?'Stopped when no eligible purchase remained':'Full requested horizon completed')}
+      ${card('Total Bloodcell cost',fmt(upgradeAnalysis.totalCost),upgradeAnalysis.respectBudget?`${fmt(upgradeAnalysis.remainingBloodcells)} remaining from current save`:'Hypothetical budget')}
+      ${card('Clear probability',`${pct(baseline.clearProbability)} → ${pct(final.clearProbability)}`,signedPct(final.clearProbability-baseline.clearProbability))}
+      ${card('Mean damage',`${fmt(baseline.meanDamage)} → ${fmt(final.meanDamage)}`,signed(final.meanDamage-baseline.meanDamage))}
+      ${card('Bloodcells / attempt',`${fmt(baseline.meanBloodcells)} → ${fmt(final.meanBloodcells)}`,signed(final.meanBloodcells-baseline.meanBloodcells))}
+      ${card('Cell EXP / attempt',`${fmt(baseline.meanCellExp)} → ${fmt(final.meanCellExp)}`,signed(final.meanCellExp-baseline.meanCellExp))}
+      ${card('Critical survival',`${baseline.meanCriticalTime.toFixed(2)}s → ${final.meanCriticalTime.toFixed(2)}s`,signed(final.meanCriticalTime-baseline.meanCriticalTime)+' sec')}
+      ${card('Mean clear time',baseline.meanTime&&final.meanTime?`${baseline.meanTime.toFixed(2)}s → ${final.meanTime.toFixed(2)}s`:'Not cleared in both states',timeSaved?signed(timeSaved)+' sec saved':'')}
+    </div><p class="note">${esc(upgradeAnalysis.note)} Every unlocked operation policy is reselected for each comparison.</p>
+    <div class="table-scroll planner-table"><table><thead><tr><th>Upgrade</th><th class="num">Levels bought</th><th class="num">Level total</th><th class="num">Total cost</th><th class="num">Planned effect</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No eligible purchases were available.</td></tr>'}</tbody></table></div>`;
+  }
+  return `<div class="section"><h2>Cost-effective purchase planner</h2>
+    <div class="planner-controls">
+      <label class="control">Objective<select id="upgrade-objective">${objectiveOptions(purchaseControls.objective)}</select></label>
+      <label class="control">Purchases ahead<input id="upgrade-purchases" type="number" min="1" max="50" value="${purchaseControls.purchases}"></label>
+      <label class="control">Trials per comparison<input id="upgrade-trials" type="number" min="4" max="128" value="${purchaseControls.trials}"></label>
+      <label class="check-control"><input id="upgrade-reoptimize" type="checkbox" ${purchaseControls.reoptimize?'checked':''}><span><strong>Reoptimize layout</strong><small>Search again after each purchase</small></span></label>
+      <label class="check-control"><input id="upgrade-budget" type="checkbox" ${purchaseControls.budget?'checked':''}><span><strong>Respect Bloodcells</strong><small>Stop at the current saved balance</small></span></label>
+      <button class="primary" id="analyze-upgrades" ${workerProgress?.operation==='purchases'?'disabled':''}>Plan purchases</button>
+    </div>${workerProgressHtml('purchases')}${result}</div>`;
+}
+
+function bonusesHtml(){
+  const obstruction=J.jellyProgress(saveData).obstruction;
+  if(!spoilersVisible&&J.jellyUpgradeLevel(saveData,39)<=0)return '<div class="section"><h2>Obstruction rewards</h2><p class="spoiler-hidden">Operational Bonuses is not unlocked yet.</p></div>';
+  const rows=jellyRewards().map(r=>{
+    const active=obstruction>r.index;
+    if(!active&&!spoilersVisible)return `<tr><td>${r.index+1}</td><td class="spoiler-hidden">???</td><td class="spoiler-hidden">Unreached reward</td><td class="spoiler-hidden">Clear this obstruction to reveal its bonus.</td><td class="num spoiler-hidden">???</td></tr>`;
+    return `<tr><td>${r.index+1}</td><td>${esc(r.name)}</td><td>${esc(jellyRewardTarget(r.index))}</td><td>${esc(gameDescription(r.description,r.value))}</td><td class="num">${esc(rewardEffectText(r))}</td></tr>`;
+  }).join('');
+  return `<div class="section"><h2>72 obstruction rewards</h2><p class="note">A reward activates after its obstruction is cleared. Multiplier markers are converted to their actual resulting multiplier, percentage rewards include %, and flat unlocks or points remain flat values.</p><div class="table-scroll"><table><thead><tr><th>#</th><th>Obstruction</th><th>Target system</th><th>Corrected account bonus</th><th class="num">Effect</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function factorVisible(factor){
+  if(spoilersVisible)return true;
+  if(factor.unlockId!=null&&J.jellyUpgradeLevel(saveData,factor.unlockId)<=0)return false;
+  if(factor.rewardIndex!=null&&J.jellyProgress(saveData).obstruction<=factor.rewardIndex)return false;
+  return true;
+}
+function factorTreeNode(factor){
+  if(!factorVisible(factor))return null;
+  return {
+    label:esc(factor.label),
+    val:factor.value,
+    fmt:factor.unit==='x'?'x':factor.unit==='%'?'%':undefined,
+    children:(factor.children||[]).map(factorTreeNode).filter(Boolean),
+  };
+}
+function multiplierTree(label,breakdown){
+  return {
+    label:esc(label),
+    val:breakdown.value,
+    fmt:'x',
+    children:(breakdown.factors||[]).map(factorTreeNode).filter(Boolean),
+  };
+}
+function breakdownPanel(id,title,breakdown,lockedText){
+  if(breakdown.available===false&&!spoilersVisible)return `<div class="breakdown-panel"><h3>${esc(title)}</h3><p class="spoiler-hidden">${esc(lockedText)}</p></div>`;
+  return `<div class="breakdown-panel"><h3>${esc(title)}</h3><div id="${id}"></div></div>`;
+}
+function breakdownsHtml(layout){
+  const fever=currentPolicy?.fever??J.jellyProgress(saveData).fever;
+  const feverUnlocked=J.jellyUpgradeLevel(saveData,16)>0;
+  const feverContext=feverUnlocked
+    ? `<p class="note"><strong>Fever context:</strong> ${esc(feverModeName(fever))} (${currentPolicy?'automatically selected for the current layout':'selected in the save'}).${fever===0?' COLD is dynamic: the tree shows its 1.00x operation-start value and identifies the +1% damage gained each elapsed second.':''}</p>`
+    : '';
+  const damage=J.jellyCellDamageBreakdown(saveData,{fever});
+  const speed=J.jellyCellSpeedBreakdown(saveData,fever);
+  const exp=J.jellyCellExpBreakdown(saveData,fever);
+  const bloodcells=J.jellyBloodcellBreakdown(saveData,fever);
+  const layoutBreakdown=J.jellyLayoutBreakdown(layout,saveData,{fever});
+  const owned=J.jellyUnitsOwned(saveData);
+  const cellRows=CELL_NAMES.slice(0,8).map((name,type)=>{
+    if(type>=owned&&!spoilersVisible)return '';
+    const cells=layoutBreakdown.metrics?.cells?.filter(cell=>cell.type===type)||[];
+    const attacks=cells.reduce((sum,cell)=>sum+cell.attacksPerSecond,0);
+    const dps=cells.reduce((sum,cell)=>sum+cell.dps,0);
+    const hit=cells.length?cells.reduce((sum,cell)=>sum+cell.damage,0)/cells.length:0;
+    return `<tr><td>${esc(name)}</td><td class="num">${cells.length}</td><td class="num">${fmt(hit)}</td><td class="num">${fmt(attacks)}/sec</td><td class="num">${fmt(dps)}</td></tr>`;
+  }).join('');
+  return `<div class="section"><h2>Formula breakdowns</h2><p class="note">Account multipliers are shown separately from saved-layout passives. Dynamic operation-only effects are handled by the simulator rather than folded into the steady snapshot.</p>${feverContext}
+    <div class="breakdown-grid">
+      ${breakdownPanel('jelly-damage-tree','Cell Damage',damage,'Cell Damage is not available.')}
+      ${breakdownPanel('jelly-speed-tree','Cell Speed',speed,'Cell Speed is not available.')}
+      ${breakdownPanel('jelly-exp-tree','Cell EXP per hit',exp,'Cell EXP unlocks with Cell Biology.')}
+      ${breakdownPanel('jelly-bloodcell-tree','Bloodcells per damage',bloodcells,'Bloodcell gain unlocks with Bloodcell Coagulation.')}
+      ${layoutBreakdown.available?'<div class="breakdown-panel"><h3>Layout Damage</h3><div id="jelly-layout-damage-tree"></div></div>':''}
+      ${layoutBreakdown.available?'<div class="breakdown-panel"><h3>Layout Speed</h3><div id="jelly-layout-speed-tree"></div></div>':''}
+    </div>
+    <div id="jelly-bt-tooltip" class="bt-tooltip"></div>
+  </div>
+  ${layoutBreakdown.available?`<div class="section"><h2>Per-cell output</h2><div class="cards">
+    ${card('Total steady DPS',fmt(layoutBreakdown.metrics.dps),`${fmt(layoutBreakdown.metrics.attacksPerSecond)} attacks/sec`)}
+    ${card('Damage passive',layoutBreakdown.metrics.damagePassive.toFixed(3)+'x')}
+    ${card('Speed passive',layoutBreakdown.metrics.speedPassive.toFixed(3)+'x')}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,5)>0?card('Virus multiplier',layoutBreakdown.metrics.virusMultiplier.toFixed(3)+'x',`${layoutBreakdown.metrics.infectedSlots} infected slots`):''}
+  </div><div class="table-scroll"><table><thead><tr><th>Cell type</th><th class="num">Placed</th><th class="num">Average hit</th><th class="num">Attack rate</th><th class="num">DPS</th></tr></thead><tbody>${cellRows}</tbody></table></div></div>`:''}`;
+}
+function initializeBreakdownTrees(layout){
+  const fever=currentPolicy?.fever??J.jellyProgress(saveData).fever;
+  const damage=J.jellyCellDamageBreakdown(saveData,{fever});
+  const speed=J.jellyCellSpeedBreakdown(saveData,fever);
+  const exp=J.jellyCellExpBreakdown(saveData,fever);
+  const bloodcells=J.jellyBloodcellBreakdown(saveData,fever);
+  const layoutBreakdown=J.jellyLayoutBreakdown(layout,saveData,{fever});
+  resetTreeCounter();
+  const trees=[
+    ['jelly-damage-tree',multiplierTree('Cell Damage',damage)],
+    ['jelly-speed-tree',multiplierTree('Cell Speed',speed)],
+    ['jelly-exp-tree',multiplierTree('Cell EXP per hit',exp)],
+    ['jelly-bloodcell-tree',multiplierTree('Bloodcells per damage',bloodcells)],
+    ['jelly-layout-damage-tree',{label:'Layout Damage Multiplier',val:layoutBreakdown.layoutDamageMultiplier||0,fmt:'x',children:(layoutBreakdown.damageFactors||[]).map(factorTreeNode).filter(Boolean)}],
+    ['jelly-layout-speed-tree',{label:'Layout Speed Multiplier',val:layoutBreakdown.layoutSpeedMultiplier||0,fmt:'x',children:(layoutBreakdown.speedFactors||[]).map(factorTreeNode).filter(Boolean)}],
+  ];
+  for(const [id,tree] of trees){
+    const host=document.getElementById(id);
+    if(host)renderBreakdownTree(tree,host,{tooltipId:'jelly-bt-tooltip'});
+  }
+}
+
+function optimizerHtml(saved){
+  const p=J.jellyProgress(saveData);
+  let result='';
+  if(optimized){
+    const savedM=J.jellyLayoutMetrics(saved,saveData,{fever:optimized.fever});
+    const op=optimized.operation, r=op.representative;
+    const savedOccupied=Array.from(J.jellyLayoutOccupancy(saved).keys()).sort((a,b)=>a-b);
+    const optimizedOccupied=Array.from(J.jellyLayoutOccupancy(optimized.layout).keys()).sort((a,b)=>a-b);
+    const sameCoverage=savedOccupied.length===optimizedOccupied.length&&savedOccupied.every((slot,index)=>slot===optimizedOccupied[index]);
+    const sameCounts=savedM.rawCounts.every((count,type)=>count===optimized.metrics.rawCounts[type]);
+    const anchorOnlyNote=sameCoverage&&sameCounts
+      ? '<p class="note"><strong>Anchor-only micro-adjustment:</strong> cell counts and occupied slots are unchanged. Its only possible value comes from projectile travel and anchor/footprint-sensitive local effects.</p>'
+      : '';
+    result=`<div class="section"><h2>Recommendation</h2>
+      <div class="cards">
+        ${card('Saved DPS',fmt(savedM.dps))}
+        ${card('Optimized DPS',fmt(optimized.metrics.dps),savedM.dps>0?`+${pct(optimized.metrics.dps/savedM.dps-1)}`:'')}
+        ${card('Clear probability',pct(op.clearProbability),op.successCount?`Median ${op.medianTime.toFixed(2)} sec`:`${pct(op.meanDamage/r.hp)} mean damage`)}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical survival',`${op.meanCriticalTime.toFixed(2)} sec`,`${op.meanDeaths.toFixed(2)} deaths; ${op.meanRevives.toFixed(2)} revives`):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells / attempt',fmt(op.meanBloodcells)):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell EXP / attempt',fmt(op.meanCellExp)):''}
+        ${card('Candidates evaluated',fmt(optimized.evaluated),`${optimized.moves.length} anchor changes`)}
+        ${card('Search coverage','Empty-board hybrid',`${optimized.search?.constructionRounds||0} build + ${optimized.search?.refinementRounds||0} local rounds; ${optimized.search?.finalists||0} finalists`)}
+        ${J.jellyUpgradeLevel(saveData,16)>0?card('Selected Fever',feverModeName(op.fever),(spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0)?`${esc(op.revivePolicy)} revival`:''):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Use Stronkroid',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
+      </div>
+      ${legendHtml()}<div class="grid-pair">${gridHtml(saved,'Current save')}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction)}</div>
+      ${anchorOnlyNote}
+      <h3>Concrete changes</h3><div>${optimized.moves.length?optimized.moves.map(m=>`<span class="move">${m.action==='place'?'Place':'Remove'} ${esc(m.name)} at slot ${m.anchor}</span>`).join(''):'No changes improve this objective.'}</div>
+      <p class="note">${spoilersVisible?esc(op.note):'Finalists are fully simulated with every operation mechanic unlocked in the loaded save.'} Search uses a fast survival-aware proxy before fully simulating the strongest layouts.</p>
+    </div>`;
+  }
+  return `<div class="section"><h2>Layout search</h2>
+    <div class="controls">
+      <label class="control">Objective<select id="objective">
+        ${objectiveOptions(optimized?.objective||'clear')}
+      </select></label>
+      <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${p.obstruction+1}"></label>
+      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="32"></label>
+      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="45"></label>
+      <label class="control">Exhaustive local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="8"></label>
+      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="256" value="32"></label>
+      <button class="primary" id="run-optimizer" ${workerProgress?.operation==='layout'?'disabled':''}>Run optimizer</button>
+    </div>
+    ${workerProgressHtml('layout')}
+    <p class="note"><strong>Empty-board build rounds</strong> starts with no cells and adds every legal placement from every retained layout. Half of the beam is reserved for distinct cell-count compositions so Amoeba/Immunoid-heavy, Ribosome-heavy, and no-Ribosome families are not immediately pruned. <strong>Exhaustive local rounds</strong> then evaluate every legal one-placement and one-removal neighbor around the survivors. Both phases stop early when their retained beam no longer changes.</p>
+    <p class="note">The bounded search places unlimited Petri Dish cells, resolves footprint replacement exactly, respects unlocked plots and current placement limits, and models every mechanic unlocked in the loaded save.${spoilersVisible?' With spoilers shown, controls and labels for unreached mechanics are also visible.':''}</p>
+  </div>${result}`;
+}
+
+wireJsTooltips();
+if(J.hasJellyData(saveData))render();
+</script>
+</body>
+</html>
