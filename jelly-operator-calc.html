@@ -670,7 +670,9 @@ function render(){
         obstruction:Number(root.querySelector('#obstruction').value)-1,
         beamWidth:Number(root.querySelector('#beam').value),
         iterations:Number(root.querySelector('#iterations').value),
+        savedRefinementRounds:Number(root.querySelector('#saved-refinement-rounds').value),
         refinementRounds:Number(root.querySelector('#refinement-rounds').value),
+        finalistCount:Number(root.querySelector('#finalists').value),
         simulationTrials:Number(root.querySelector('#trials').value),
         seed:randomSeed(),
       }});
@@ -904,7 +906,7 @@ function optimizerHtml(saved){
   let result='';
   if(optimized){
     const savedM=J.jellyLayoutMetrics(saved,saveData,{fever:optimized.fever});
-    const op=optimized.operation, r=op.representative;
+    const op=optimized.operation, savedOp=optimized.savedOperation, r=op.representative;
     const savedOccupied=Array.from(J.jellyLayoutOccupancy(saved).keys()).sort((a,b)=>a-b);
     const optimizedOccupied=Array.from(J.jellyLayoutOccupancy(optimized.layout).keys()).sort((a,b)=>a-b);
     const sameCoverage=savedOccupied.length===optimizedOccupied.length&&savedOccupied.every((slot,index)=>slot===optimizedOccupied[index]);
@@ -916,19 +918,21 @@ function optimizerHtml(saved){
       <div class="cards">
         ${card('Saved DPS',fmt(savedM.dps))}
         ${card('Optimized DPS',fmt(optimized.metrics.dps),savedM.dps>0?`+${pct(optimized.metrics.dps/savedM.dps-1)}`:'')}
+        ${savedOp?card('Saved clear probability',pct(savedOp.clearProbability),savedOp.successCount?`Median ${savedOp.medianTime.toFixed(2)} sec`:`${pct(savedOp.meanDamage/savedOp.representative.hp)} mean damage`):''}
         ${card('Clear probability',pct(op.clearProbability),op.successCount?`Median ${op.medianTime.toFixed(2)} sec`:`${pct(op.meanDamage/r.hp)} mean damage`)}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical survival',`${op.meanCriticalTime.toFixed(2)} sec`,`${op.meanDeaths.toFixed(2)} deaths; ${op.meanRevives.toFixed(2)} revives`):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells / attempt',fmt(op.meanBloodcells)):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell EXP / attempt',fmt(op.meanCellExp)):''}
         ${card('Candidates evaluated',fmt(optimized.evaluated),`${optimized.moves.length} anchor changes`)}
-        ${card('Search coverage','Empty-board hybrid',`${optimized.search?.constructionRounds||0} build + ${optimized.search?.refinementRounds||0} local rounds; ${optimized.search?.finalists||0} finalists`)}
+        ${card('Search coverage','Hybrid multi-fidelity',`${optimized.search?.compositionSeeds||0} composition seeds; ${optimized.search?.constructionRounds||0} build + ${optimized.search?.savedRefinementRounds||0} saved-relocation + ${optimized.search?.refinementRounds||0} merged-local rounds; ${optimized.search?.screeningCandidates||0} screened at ${optimized.search?.screeningTrials||0} trials; ${optimized.search?.finalists||0} full finalists`)}
         ${J.jellyUpgradeLevel(saveData,16)>0?card('Selected Fever',feverModeName(op.fever),(spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0)?`${esc(op.revivePolicy)} revival`:''):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Use Stronkroid',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
       </div>
       ${legendHtml()}<div class="grid-pair">${gridHtml(saved,'Current save')}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction)}</div>
       ${anchorOnlyNote}
+      <p class="note"><strong>Operation policy matters:</strong> this comparison assumes the selected Fever, the listed Stronkroid timing, and the listed manual revival priority. Copying only the board while leaving different in-game operation settings is not the simulated recommendation.</p>
       <h3>Concrete changes</h3><div>${optimized.moves.length?optimized.moves.map(m=>`<span class="move">${m.action==='place'?'Place':'Remove'} ${esc(m.name)} at slot ${m.anchor}</span>`).join(''):'No changes improve this objective.'}</div>
-      <p class="note">${spoilersVisible?esc(op.note):'Finalists are fully simulated with every operation mechanic unlocked in the loaded save.'} Search uses a fast survival-aware proxy before fully simulating the strongest layouts.</p>
+      <p class="note">${spoilersVisible?esc(op.note):'Finalists are fully simulated with every operation mechanic unlocked in the loaded save.'} The current save is always included as a fully simulated finalist, so a recommendation is returned only when it beats that baseline under the selected objective.</p>
     </div>`;
   }
   return `<div class="section"><h2>Layout search</h2>
@@ -937,14 +941,16 @@ function optimizerHtml(saved){
         ${objectiveOptions(optimized?.objective||'clear')}
       </select></label>
       <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${p.obstruction+1}"></label>
-      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="32"></label>
-      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="45"></label>
-      <label class="control">Exhaustive local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="8"></label>
-      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="256" value="32"></label>
+      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="6"></label>
+      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="8"></label>
+      <label class="control">Saved-board relocation rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="2"></label>
+      <label class="control">Merged local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="2"></label>
+      <label class="control">Fully simulated finalists<input id="finalists" type="number" min="1" max="64" value="4"></label>
+      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="256" value="8"></label>
       <button class="primary" id="run-optimizer" ${workerProgress?.operation==='layout'?'disabled':''}>Run optimizer</button>
     </div>
     ${workerProgressHtml('layout')}
-    <p class="note"><strong>Empty-board build rounds</strong> starts with no cells and adds every legal placement from every retained layout. Half of the beam is reserved for distinct cell-count compositions so Amoeba/Immunoid-heavy, Ribosome-heavy, and no-Ribosome families are not immediately pruned. <strong>Exhaustive local rounds</strong> then evaluate every legal one-placement and one-removal neighbor around the survivors. Both phases stop early when their retained beam no longer changes.</p>
+    <p class="note"><strong>Composition seeds</strong> first pack objective-ranked, balanced, and single-type count families under the requested build depth. <strong>Empty-board build rounds</strong> expand those families. <strong>Saved-board relocation rounds</strong> directly move existing cells without requiring a temporarily worse remove-then-place intermediate. <strong>Merged local rounds</strong> evaluate legal placement and removal around both search families. A paired low-trial screen then promotes structurally diverse boards, generates relocation/swap feedback candidates around its leaders, and reserves full policy optimization for the finalists. For a slower thorough pass, try 12 beam / 20 build / 3 relocation / 4 local / 8 finalists / 16 trials.</p>
     <p class="note">The bounded search places unlimited Petri Dish cells, resolves footprint replacement exactly, respects unlocked plots and current placement limits, and models every mechanic unlocked in the loaded save.${spoilersVisible?' With spoilers shown, controls and labels for unreached mechanics are also visible.':''}</p>
   </div>${result}`;
 }
