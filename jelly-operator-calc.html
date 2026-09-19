@@ -12,12 +12,13 @@ h1{display:flex;align-items:baseline;margin:0;padding:12px 18px;background:var(-
 .tab-content{display:none}.tab-content.active{display:block}.section{background:var(--bg2);padding:16px;border-radius:8px;margin:14px 0}.section h2{font-size:1.12rem;color:var(--accent);margin:0 0 12px;border-bottom:1px solid #334;padding-bottom:7px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.card{background:var(--bg3);padding:11px;border-radius:7px;border:1px solid #40506d}.label{font-size:.76rem;color:var(--text2)}.value{font-size:1.35rem;color:var(--gold);font-weight:750}.sub{font-size:.72rem;color:var(--text2);margin-top:2px}
 .grid-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.jelly-grid{display:grid;grid-template-columns:repeat(18,37px);grid-auto-rows:37px;gap:0;background:#0a1020;padding:4px;border-radius:6px;width:max-content;min-width:0;position:relative}.grid-wrap{overflow:visible;max-width:none}
-.slot{width:37px;height:37px;min-width:0;background:#171c2e;border:1px solid #262d43;border-radius:2px;position:relative;font-size:.42rem;color:#fff;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 2px #000}.slot.locked{opacity:.24}.slot.obstruction{background:#4b2638;border-color:#a74462;opacity:1}.slot.cell{border-radius:0}.slot.join-l{border-left-color:transparent}.slot.join-r{border-right-color:transparent}.slot.join-u{border-top-color:transparent}.slot.join-d{border-bottom-color:transparent}.slot.round-tl{border-top-left-radius:2px}.slot.round-tr{border-top-right-radius:2px}.slot.round-bl{border-bottom-left-radius:2px}.slot.round-br{border-bottom-right-radius:2px}.slot.core{z-index:1}.slot.proximity::after{content:"";position:absolute;z-index:5;right:2px;bottom:2px;width:5px;height:5px;background:#7cff72;border:1px solid #173b14;border-radius:50%}.cell-sprite,.obstruction-sprite{position:absolute;max-width:none;object-fit:contain;pointer-events:none;user-select:none;image-rendering:pixelated;image-rendering:crisp-edges}.cell-sprite{z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.7))}.obstruction-sprite{z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.85))}
+.slot{width:37px;height:37px;min-width:0;background:#171c2e;border:1px solid #262d43;border-radius:2px;position:relative;font-size:.42rem;color:#fff;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 2px #000}.slot.locked{opacity:.24}.slot.obstruction{background:#4b2638;border-color:#a74462;opacity:1}.slot.cell{border-radius:0}.slot.contribution::before{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;background:rgba(255,209,102,calc(.08 + var(--heat,0)*.42))}.slot.join-l{border-left-color:transparent}.slot.join-r{border-right-color:transparent}.slot.join-u{border-top-color:transparent}.slot.join-d{border-bottom-color:transparent}.slot.round-tl{border-top-left-radius:2px}.slot.round-tr{border-top-right-radius:2px}.slot.round-bl{border-bottom-left-radius:2px}.slot.round-br{border-bottom-right-radius:2px}.slot.core{z-index:1}.slot.proximity::after{content:"";position:absolute;z-index:5;right:2px;bottom:2px;width:5px;height:5px;background:#7cff72;border:1px solid #173b14;border-radius:50%}.cell-sprite,.obstruction-sprite{position:absolute;max-width:none;object-fit:contain;pointer-events:none;user-select:none;image-rendering:pixelated;image-rendering:crisp-edges}.cell-sprite{z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.7))}.obstruction-sprite{z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.85))}
 .t0{background:#96767b;border-color:#f8eadc}.t1{background:#487154;border-color:#edf9b3}.t2{background:#ab4a42;border-color:#ffcc97}.t3{background:#8e4ba1;border-color:#ffb7cf}.t4{background:#536ab8;border-color:#aefeff}.t5{background:#7c5fd7;border-color:#f3cdff}.t6{background:#a86d36;border-color:#fffeae}.t7{background:#687080;border-color:#e9fcff}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}.legend span{padding:3px 8px;border:1px solid rgba(255,255,255,.35);border-radius:4px;font-size:.74rem;color:#fff;font-weight:700;text-shadow:0 1px 2px #000}.upgrade-tip{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.tooltip-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:4px;border:1px solid #60708d;border-radius:50%;color:var(--cyan);font-size:.68rem;font-weight:800;line-height:1;cursor:help;vertical-align:middle}.js-tooltip{position:fixed;display:none;z-index:1000;max-width:340px;padding:8px 10px;background:#101b35;color:var(--text);border:1px solid #60708d;border-radius:6px;box-shadow:0 5px 18px rgba(0,0,0,.45);font-size:.78rem;line-height:1.4;white-space:pre-line;pointer-events:none}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.control{display:flex;flex-direction:column;gap:4px;color:var(--text2);font-size:.78rem}.control select,.control input{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:4px;padding:7px}
 .primary{background:var(--accent);color:#fff;border:0;border-radius:5px;padding:8px 16px;font-weight:750;cursor:pointer}.primary:disabled{opacity:.5}.note{color:var(--text2);font-size:.8rem;line-height:1.45}.good{color:var(--green)}.bad{color:var(--red)}
 table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;color:var(--text2);border-bottom:1px solid #445;padding:6px;position:sticky;top:0;background:var(--bg2)}td{padding:6px;border-bottom:1px solid #ffffff0c}.num{text-align:right;font-variant-numeric:tabular-nums}.table-scroll{overflow:auto;max-height:650px}
 .move{display:inline-block;margin:3px;padding:4px 7px;background:#0d2947;border-radius:4px;font-size:.75rem}
+.optimizer-diagnostics{margin-top:14px;padding:10px 12px;background:#101a32;border:1px solid #42506c;border-radius:7px}.optimizer-diagnostics>summary{cursor:pointer;color:var(--cyan);font-weight:750}.optimizer-diagnostics[open]>summary{margin-bottom:12px}
 .progress-panel{margin-top:12px;padding:10px;background:#101a32;border:1px solid #42506c;border-radius:6px}.bar-outer{height:10px;border-radius:5px;background:#333;overflow:hidden;margin:7px 0}.bar-fill{height:100%;background:var(--green);transition:width .12s linear}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.cancel{background:#4b2638;color:var(--text);border:1px solid #a74462;border-radius:5px;padding:5px 10px;cursor:pointer}
 .view-tools{display:flex;justify-content:flex-end;padding:8px 0}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
 .sim-workspace{display:grid;grid-template-columns:minmax(190px,240px) minmax(560px,1fr);gap:14px;align-items:start}.sim-palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.sim-cell-pick,.sim-action,.plot-toggle{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:6px;cursor:pointer}.sim-cell-pick{display:flex;align-items:center;gap:7px;padding:6px;text-align:left;font-size:.76rem}.sim-cell-pick img{width:32px;height:32px;object-fit:contain;flex:none}.sim-cell-pick.active,.sim-action.active,.plot-toggle.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.sim-cell-pick:disabled{opacity:.35;cursor:not-allowed}.sim-board{touch-action:none}.sim-board .slot:not(.locked):not(.obstruction){cursor:crosshair}.sim-board .cell-sprite{pointer-events:auto;cursor:grab}.sim-board .cell-sprite:active{cursor:grabbing}.sim-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sim-action{padding:6px 10px;font-size:.76rem}.plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:220px;overflow:auto;padding:4px}.plot-toggle{padding:5px;font-size:.7rem}.sim-message{margin-top:8px;padding:7px 9px;border-radius:5px;background:#101a32;color:var(--text2);font-size:.78rem}.sim-message.bad{background:#4b2638;color:#ffb3c1}.sim-result-status{font-weight:800}.sim-result-status.good{color:#78e08f}.sim-result-status.bad{color:#ff7f96}
@@ -33,7 +34,7 @@ table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;col
 <body>
 <h1><a class="home" href="index.html">Home</a><span>Jelly Operator Optimizer</span></h1>
 <div id="save-area"></div>
-<main class="main" id="main-content"><p class="note" style="text-align:center;padding:40px">Load a save to inspect and optimize Jelly Operator.</p></main>
+<main class="main" id="main-content"><p class="note" style="text-align:center;padding:40px">Load a save.</p></main>
 <div id="jelly-js-tooltip" class="js-tooltip" role="tooltip" aria-hidden="true"></div>
 <script type="module">
 import { saveData } from './js/state.js';
@@ -62,6 +63,7 @@ let upgradeAnalysis = null;
 let currentPolicy = null;
 let simulator = null;
 let purchaseControls={objective:'clear',purchases:10,trials:8,reoptimize:false,budget:true};
+let optimizerControls={objective:'clear',obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,finalistCount:8,simulationTrials:256};
 let activeTab = 'overview';
 let jellyWorker = null;
 let workerRequestId = 0;
@@ -139,7 +141,7 @@ function wireJsTooltips(){
   });
   document.addEventListener('mouseout',event=>{
     const target=event.target.closest?.('[data-tooltip]');
-    if(target===active&&!target.contains(event.relatedTarget))hide();
+    if(target&&target===active&&!target.contains(event.relatedTarget))hide();
   });
   document.addEventListener('focusin',event=>{
     const target=event.target.closest?.('[data-tooltip]');
@@ -205,8 +207,10 @@ function roidTimingText(timing,standardTime){
 function workerProgressHtml(operation){
   if(!workerProgress||workerProgress.operation!==operation)return '';
   const completed=Number(workerProgress.completed)||0,total=Math.max(1,Number(workerProgress.total)||1);
-  const percent=Math.max(0,Math.min(100,completed/total*100));
-  return `<div class="progress-panel"><div class="progress-row"><strong>${esc(workerProgress.phase||'Working...')}</strong><span>${percent.toFixed(1)}%</span></div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div><div class="progress-row"><span class="note">Running in a worker thread; the calculator remains responsive.</span><button class="cancel" data-cancel-worker>Cancel</button></div></div>`;
+  const localPercent=Math.max(0,Math.min(100,completed/total*100));
+  const overall=Number(workerProgress.overallPercent);
+  const percent=Math.max(0,Math.min(100,Number.isFinite(overall)?overall:localPercent));
+  return `<div class="progress-panel"><div class="progress-row"><strong>${esc(workerProgress.phase||'Working...')}</strong><span>${percent.toFixed(1)}%</span></div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div><div class="progress-row"><span class="note">Overall progress</span><button class="cancel" data-cancel-worker>Cancel</button></div></div>`;
 }
 function stopJellyWorker(){
   workerRequestId++;
@@ -218,7 +222,9 @@ function updateWorkerProgress(){
   const panel=document.querySelector('.progress-panel');
   if(!panel||!workerProgress)return;
   const completed=Number(workerProgress.completed)||0,total=Math.max(1,Number(workerProgress.total)||1);
-  const percent=Math.max(0,Math.min(100,completed/total*100));
+  const localPercent=Math.max(0,Math.min(100,completed/total*100));
+  const overall=Number(workerProgress.overallPercent);
+  const percent=Math.max(0,Math.min(100,Number.isFinite(overall)?overall:localPercent));
   const strong=panel.querySelector('strong'),value=panel.querySelector('.progress-row span'),fill=panel.querySelector('.bar-fill');
   if(strong)strong.textContent=workerProgress.phase||'Working...';
   if(value)value.textContent=percent.toFixed(1)+'%';
@@ -236,7 +242,9 @@ function startJellyWorker(operation,payload){
     const message=event.data||{};
     if(message.requestId!==requestId)return;
     if(message.type==='progress'){
-      workerProgress={operation,...message.progress};
+      const previous=Number(workerProgress?.overallPercent)||0;
+      const next=Number(message.progress?.overallPercent);
+      workerProgress={operation,...message.progress,overallPercent:Number.isFinite(next)?Math.max(previous,next):previous};
       updateWorkerProgress();
       return;
     }
@@ -272,6 +280,8 @@ function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstru
   const boardSave=options.save||saveData;
   const interactive=Boolean(options.interactive);
   const unlocked=J.jellyUnlockedSlots(boardSave), occupied=J.jellyLayoutOccupancy(layout), cores=new Map(Object.entries(layout).map(([a,t])=>[Number(a),Number(t)]));
+  const contributions=new Map((options.contributions||[]).map(row=>[Number(row.anchor),row]));
+  const maxContribution=Math.max(0,...Array.from(contributions.values(),row=>Number(row.marginalDps)||0));
   let html=`<div><h3>${esc(title)}</h3><div class="grid-wrap"><div class="jelly-grid${interactive?' sim-board':''}"${interactive?' data-sim-board':''}>`;
   const blocked=obstructionSlots();
   for(let i=0;i<JELLY_SIZE;i++){
@@ -280,6 +290,8 @@ function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstru
     else if(!unlocked.has(i))classes.push('locked');
     if(cell){
       classes.push('cell','t'+type);
+      const contribution=contributions.get(cell.anchor);
+      if(contribution)classes.push('contribution');
       const sameCell=slot=>occupied.get(slot)?.anchor===cell.anchor;
       const left=i%JELLY_COLS>0&&sameCell(i-1);
       const right=i%JELLY_COLS<JELLY_COLS-1&&sameCell(i+1);
@@ -297,7 +309,10 @@ function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstru
     if(cores.has(i))classes.push('core');
     if([43,44,45,46,60,65,78,83,96,101,114,119,133,134,135,136].includes(i))classes.push('proximity');
     const slotTitle=blocked.has(i)?`Slot ${i} - obstruction`:cell?`Slot ${i} - ${CELL_NAMES[type]} core ${cell.anchor}`:`Slot ${i}`;
-    html+=`<div class="${classes.join(' ')}" title="${esc(slotTitle)}"${interactive?` data-sim-slot="${i}"`:''}></div>`;
+    const contribution=cell?contributions.get(cell.anchor):null;
+    const heat=contribution&&maxContribution>0?Math.max(0,contribution.marginalDps/maxContribution):0;
+    const contributionTitle=contribution?` - marginal ${fmt(contribution.marginalDps)} DPS (${pct(contribution.marginalPct)})`:'';
+    html+=`<div class="${classes.join(' ')}" title="${esc(slotTitle+contributionTitle)}"${contribution?` style="--heat:${heat.toFixed(4)}"`:''}${interactive?` data-sim-slot="${i}"`:''}></div>`;
   }
   for(const [rawAnchor,rawType] of Object.entries(layout||{})){
     const anchor=Number(rawAnchor),type=Number(rawType),slots=J.jellyFootprintSlots(anchor,type);
@@ -389,7 +404,7 @@ function simulatorResultHtml(){
     <h3>Cell contribution</h3>
     <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contribution||'<tr><td colspan="6">No projectiles landed.</td></tr>'}</tbody></table></div>
     ${deaths?`<h3>Critical target timeline</h3><div>${deaths}</div>`:''}
-    <p class="note">${esc(r.note)} This is one fresh randomized operation, matching the in-game opening cooldown and timer-phase randomness.</p>
+    <p class="note">One randomized operation.</p>
   </div>`;
 }
 function simulatorHtml(){
@@ -416,7 +431,7 @@ function simulatorHtml(){
   const feverOptions=feverCount?FEVER_MODES.slice(0,feverCount).map((mode,index)=>`<option value="${index}" ${state.fever===index?'selected':''}>${mode.name} - ${mode.bonus}</option>`).join(''):'<option value="0">Feverizer locked</option>';
   const roidUnlocked=J.jellyUpgradeLevel(S,29)>0,reviveUnlocked=J.jellyUpgradeLevel(S,35)>0;
   return `<div class="section"><h2>Interactive operation simulator</h2>
-    <p class="note">This sandbox never changes the imported save. Drag cells or select a cell and click the board. Right-click a placed cell, or select Remove, to clear it. Placements use the game's exact footprints, overlap replacement, unlocked-slot checks, and Virus cap.</p>
+    <p class="note">Local sandbox. Drag to place; right-click to remove.</p>
     <div class="controls">
       <label class="control">Stage<select id="sim-stage">${stageOptions}</select></label>
       <label class="control">Fever<select id="sim-fever" ${feverCount?'':'disabled'}>${feverOptions}</select></label>
@@ -440,7 +455,7 @@ function simulatorHtml(){
       <div>${gridHtml(state.layout,'Sandbox board',state.obstruction,{save:S,interactive:true})}</div>
     </div>
     <h3>Board sections</h3>
-    <p class="note">Section toggles are hypothetical and do not spend or enforce plot tokens. Stage 2 and Stage 3 still grant their two automatic center-adjacent slots exactly as in-game.</p>
+    <p class="note">Section toggles are hypothetical.</p>
     <div class="plot-grid">${plots}</div>
     ${state.message?`<div class="sim-message ${state.messageBad?'bad':''}">${esc(state.message)}</div>`:''}
   </div>${simulatorResultHtml()}`;
@@ -648,7 +663,7 @@ function render(){
   </div><div class="view-tools">${spoilerToggle()}</div>${workerError?`<div class="section"><p class="bad">${esc(workerError)}</p></div>`:''}
   <div id="tab-overview" class="tab-content ${activeTab==='overview'?'active':''}">
     <div class="section"><h2>Account snapshot</h2>${summaryCards(saved,currentPolicy)}</div>
-    <div class="section"><h2>Operation estimate</h2>${currentPolicy?operationHtml(saved,currentPolicy):'<p class="note">Calculating the current operation policy and Monte Carlo estimate.</p>'+workerProgressHtml('policy')}</div>
+    <div class="section"><h2>Operation estimate</h2>${currentPolicy?operationHtml(saved,currentPolicy):'<p class="note">Calculating…</p>'+workerProgressHtml('policy')}</div>
   </div>
   <div id="tab-layout" class="tab-content ${activeTab==='layout'?'active':''}">
     <div class="section"><h2>Saved layout</h2>${legendHtml()}${gridHtml(saved,'Current save')}${layoutStats(saved,currentPolicy?.fever??J.jellyProgress(saveData).fever)}</div>
@@ -663,17 +678,30 @@ function render(){
   root.querySelectorAll('[data-toggle-spoilers]').forEach(button=>button.onclick=toggleSpoilersPreservingScroll);
   root.querySelectorAll('[data-cancel-worker]').forEach(button=>button.onclick=()=>{stopJellyWorker();workerError='Operation cancelled.';render()});
   const run=root.querySelector('#run-optimizer');
+  const syncOptimizerControls=()=>{
+    const objective=root.querySelector('#objective');
+    if(!objective)return;
+    optimizerControls={
+      objective:objective.value,
+      obstruction:Math.max(0,Math.min(71,Number(root.querySelector('#obstruction').value)-1)),
+      beamWidth:Number(root.querySelector('#beam').value),
+      iterations:Number(root.querySelector('#iterations').value),
+      savedRefinementRounds:Number(root.querySelector('#saved-refinement-rounds').value),
+      refinementRounds:Number(root.querySelector('#refinement-rounds').value),
+      searchStarts:Number(root.querySelector('#search-starts').value),
+      finalistCount:Number(root.querySelector('#finalists').value),
+      simulationTrials:Number(root.querySelector('#trials').value),
+    };
+  };
+  root.querySelectorAll('#objective,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#finalists,#trials').forEach(control=>{
+    control.onchange=syncOptimizerControls;
+    control.oninput=syncOptimizerControls;
+  });
   if(run)run.onclick=()=>{
+    syncOptimizerControls();
     startJellyWorker('layout',{options:{
         layout:saved,
-        objective:root.querySelector('#objective').value,
-        obstruction:Number(root.querySelector('#obstruction').value)-1,
-        beamWidth:Number(root.querySelector('#beam').value),
-        iterations:Number(root.querySelector('#iterations').value),
-        savedRefinementRounds:Number(root.querySelector('#saved-refinement-rounds').value),
-        refinementRounds:Number(root.querySelector('#refinement-rounds').value),
-        finalistCount:Number(root.querySelector('#finalists').value),
-        simulationTrials:Number(root.querySelector('#trials').value),
+        ...optimizerControls,
         seed:randomSeed(),
       }});
   };
@@ -732,7 +760,7 @@ function operationHtml(layout,op){
   <h3>Representative trial contribution</h3>
   <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contributions}</tbody></table></div>
   ${deaths?`<h3>Critical target timeline</h3><div>${deaths}</div>`:''}
-  <p class="note" style="margin-bottom:0">${spoilersVisible?esc(op.note):'Monte Carlo simulation uses automatically selected unlocked operation policies.'} ${policyParts.length?esc(policyParts.join(', '))+'. ':''}The one-second operation timer has an unsaved phase, so each trial samples its starting offset.</p>`;
+  <p class="note" style="margin-bottom:0">${policyParts.length?esc(policyParts.join(', '))+'. ':''}${op.trials} trials.</p>`;
 }
 
 function objectiveOptions(selected){
@@ -771,11 +799,11 @@ function upgradesHtml(){
       : `<strong>${esc(data.name)}</strong>`;
     rows+=`<tr><td>${orderIdx+1}</td><td>${name}<div class="sub">${esc(display.description)}</div></td><td class="num">${level}${data.maxLevel<999?'/'+data.maxLevel:''}</td><td class="num">${esc(display.effectText)}</td><td>${esc(display.perLevelText)}</td><td class="num">${fmt(cost)}</td></tr>`;
   });
-  return `<div class="section"><h2>Upgrade reference</h2><p class="note">Descriptions are the game-authored JellyUPG text with the same live numeric substitutions used by the game. The Current effect column uses the modeled runtime formula.</p><div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  return `<div class="section"><h2>Upgrade reference</h2><div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function purchasePlannerHtml(){
-  let result='<p class="note">Simulates multiple purchases in sequence. After each selected level, costs, prerequisites, formulas, operation policy, and optional layout optimization are recalculated before choosing the next level. Results are aggregated by upgrade rather than exposing the internal step list.</p>';
+  let result='<p class="note">Sequential purchase simulation.</p>';
   if(upgradeAnalysis){
     const baseline=upgradeAnalysis.baseline,final=upgradeAnalysis.final;
     const rows=upgradeAnalysis.rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong><div class="sub">${esc(row.description)}</div></td><td class="num">${row.purchases}</td><td class="num">${row.startingLevel} → ${row.finalLevel}</td><td class="num">${fmt(row.totalCost)}</td><td class="num">${esc(row.effectText)}</td></tr>`).join('');
@@ -789,7 +817,7 @@ function purchasePlannerHtml(){
       ${card('Cell EXP / attempt',`${fmt(baseline.meanCellExp)} → ${fmt(final.meanCellExp)}`,signed(final.meanCellExp-baseline.meanCellExp))}
       ${card('Critical survival',`${baseline.meanCriticalTime.toFixed(2)}s → ${final.meanCriticalTime.toFixed(2)}s`,signed(final.meanCriticalTime-baseline.meanCriticalTime)+' sec')}
       ${card('Mean clear time',baseline.meanTime&&final.meanTime?`${baseline.meanTime.toFixed(2)}s → ${final.meanTime.toFixed(2)}s`:'Not cleared in both states',timeSaved?signed(timeSaved)+' sec saved':'')}
-    </div><p class="note">${esc(upgradeAnalysis.note)} Every unlocked operation policy is reselected for each comparison.</p>
+    </div>
     <div class="table-scroll planner-table"><table><thead><tr><th>Upgrade</th><th class="num">Levels bought</th><th class="num">Level total</th><th class="num">Total cost</th><th class="num">Planned effect</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No eligible purchases were available.</td></tr>'}</tbody></table></div>`;
   }
   return `<div class="section"><h2>Cost-effective purchase planner</h2>
@@ -811,7 +839,7 @@ function bonusesHtml(){
     if(!active&&!spoilersVisible)return `<tr><td>${r.index+1}</td><td class="spoiler-hidden">???</td><td class="spoiler-hidden">Unreached reward</td><td class="spoiler-hidden">Clear this obstruction to reveal its bonus.</td><td class="num spoiler-hidden">???</td></tr>`;
     return `<tr><td>${r.index+1}</td><td>${esc(r.name)}</td><td>${esc(jellyRewardTarget(r.index))}</td><td>${esc(gameDescription(r.description,r.value))}</td><td class="num">${esc(rewardEffectText(r))}</td></tr>`;
   }).join('');
-  return `<div class="section"><h2>72 obstruction rewards</h2><p class="note">A reward activates after its obstruction is cleared. Multiplier markers are converted to their actual resulting multiplier, percentage rewards include %, and flat unlocks or points remain flat values.</p><div class="table-scroll"><table><thead><tr><th>#</th><th>Obstruction</th><th>Target system</th><th>Corrected account bonus</th><th class="num">Effect</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  return `<div class="section"><h2>72 obstruction rewards</h2><div class="table-scroll"><table><thead><tr><th>#</th><th>Obstruction</th><th>Target system</th><th>Corrected account bonus</th><th class="num">Effect</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function factorVisible(factor){
@@ -845,7 +873,7 @@ function breakdownsHtml(layout){
   const fever=currentPolicy?.fever??J.jellyProgress(saveData).fever;
   const feverUnlocked=J.jellyUpgradeLevel(saveData,16)>0;
   const feverContext=feverUnlocked
-    ? `<p class="note"><strong>Fever context:</strong> ${esc(feverModeName(fever))} (${currentPolicy?'automatically selected for the current layout':'selected in the save'}).${fever===0?' COLD is dynamic: the tree shows its 1.00x operation-start value and identifies the +1% damage gained each elapsed second.':''}</p>`
+    ? `<p class="note">Fever: ${esc(feverModeName(fever))}${fever===0?' · COLD starts at 1.00x':''}</p>`
     : '';
   const damage=J.jellyCellDamageBreakdown(saveData,{fever});
   const speed=J.jellyCellSpeedBreakdown(saveData,fever);
@@ -861,7 +889,7 @@ function breakdownsHtml(layout){
     const hit=cells.length?cells.reduce((sum,cell)=>sum+cell.damage,0)/cells.length:0;
     return `<tr><td>${esc(name)}</td><td class="num">${cells.length}</td><td class="num">${fmt(hit)}</td><td class="num">${fmt(attacks)}/sec</td><td class="num">${fmt(dps)}</td></tr>`;
   }).join('');
-  return `<div class="section"><h2>Formula breakdowns</h2><p class="note">Account multipliers are shown separately from saved-layout passives. Dynamic operation-only effects are handled by the simulator rather than folded into the steady snapshot.</p>${feverContext}
+  return `<div class="section"><h2>Formula breakdowns</h2>${feverContext}
     <div class="breakdown-grid">
       ${breakdownPanel('jelly-damage-tree','Cell Damage',damage,'Cell Damage is not available.')}
       ${breakdownPanel('jelly-speed-tree','Cell Speed',speed,'Cell Speed is not available.')}
@@ -903,55 +931,104 @@ function initializeBreakdownTrees(layout){
 
 function optimizerHtml(saved){
   const p=J.jellyProgress(saveData);
+  if(optimizerControls.obstruction==null)optimizerControls.obstruction=p.obstruction;
   let result='';
   if(optimized){
     const savedM=J.jellyLayoutMetrics(saved,saveData,{fever:optimized.fever});
-    const op=optimized.operation, savedOp=optimized.savedOperation, r=op.representative;
+    const op=optimized.operation, savedOp=optimized.savedOperation, blindOp=optimized.blindOperation, immunoidOp=optimized.immunoidOperation, r=op.representative;
+    const clearInterval=target=>target?`${pct(target.clearProbabilityLow)}–${pct(target.clearProbabilityHigh)}`:'—';
+    const objectiveValue=target=>{
+      if(!target)return '—';
+      if(optimized.objective==='clear')return pct(target.clearProbability);
+      if(optimized.objective==='bloodcells')return fmt(target.meanBloodcells);
+      if(optimized.objective==='exp')return fmt(target.meanCellExp);
+      if(optimized.objective==='survival')return `${target.meanCriticalTime.toFixed(2)} sec`;
+      return fmt(target.meanDamage);
+    };
+    const objectiveComparison=()=>{
+      if(!blindOp||!savedOp)return null;
+      return `${objectiveValue(blindOp)} blind vs ${objectiveValue(savedOp)} saved`;
+    };
     const savedOccupied=Array.from(J.jellyLayoutOccupancy(saved).keys()).sort((a,b)=>a-b);
     const optimizedOccupied=Array.from(J.jellyLayoutOccupancy(optimized.layout).keys()).sort((a,b)=>a-b);
     const sameCoverage=savedOccupied.length===optimizedOccupied.length&&savedOccupied.every((slot,index)=>slot===optimizedOccupied[index]);
     const sameCounts=savedM.rawCounts.every((count,type)=>count===optimized.metrics.rawCounts[type]);
     const anchorOnlyNote=sameCoverage&&sameCounts
-      ? '<p class="note"><strong>Anchor-only micro-adjustment:</strong> cell counts and occupied slots are unchanged. Its only possible value comes from projectile travel and anchor/footprint-sensitive local effects.</p>'
+      ? '<p class="note">Same cells and occupied slots; anchors differ.</p>'
       : '';
+    const archetypeRows=(optimized.archetypeResults||[]).filter(row=>row.type<J.jellyUnitsOwned(saveData)).map(row=>`<tr>
+      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${row.operation?objectiveValue(row.operation):'—'}</td>
+      <td class="num">${row.operation?clearInterval(row.operation):'—'}</td>
+    </tr>`).join('');
+    const contributionRows=(optimized.anchorContributions||[]).map(row=>`<tr>
+      <td>${row.anchor}</td><td>${esc(row.name)}</td><td class="num">${fmt(row.directDps)}</td><td class="num">${fmt(row.marginalDps)}</td><td class="num">${pct(row.marginalPct)}</td>
+    </tr>`).join('');
+    const countArchetypeRows=(optimized.countArchetypeResults||[]).filter(row=>row.type<J.jellyUnitsOwned(saveData)&&row.operation).map(row=>`<tr>
+      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${objectiveValue(row.operation)}</td><td class="num">${clearInterval(row.operation)}</td>
+    </tr>`).join('');
+    const breakpointRanges=(optimized.immunoidBreakpoint?.ranges||[]).map(range=>range.start===range.end?String(range.start+1):`${range.start+1}–${range.end+1}`).join(', ');
+    const worstProxy=optimized.proxyAudit?.underRanked?.[0];
+    const clearGain=savedOp?op.clearProbability-savedOp.clearProbability:0;
+    const changeGroups=Array.from(optimized.moves.reduce((groups,move)=>{
+      const key=`${move.action}|${move.type}`;
+      const row=groups.get(key)||{action:move.action,name:move.name,anchors:[]};
+      row.anchors.push(move.anchor);
+      groups.set(key,row);
+      return groups;
+    },new Map()).values()).sort((a,b)=>a.action.localeCompare(b.action)||a.name.localeCompare(b.name));
+    const changePlan=changeGroups.map(group=>`<div class="move"><strong>${group.action==='remove'?'Remove':'Place'} ${esc(group.name)}:</strong> slots ${group.anchors.sort((a,b)=>a-b).join(', ')}</div>`).join('');
     result=`<div class="section"><h2>Recommendation</h2>
       <div class="cards">
-        ${card('Saved DPS',fmt(savedM.dps))}
-        ${card('Optimized DPS',fmt(optimized.metrics.dps),savedM.dps>0?`+${pct(optimized.metrics.dps/savedM.dps-1)}`:'')}
         ${savedOp?card('Saved clear probability',pct(savedOp.clearProbability),savedOp.successCount?`Median ${savedOp.medianTime.toFixed(2)} sec`:`${pct(savedOp.meanDamage/savedOp.representative.hp)} mean damage`):''}
-        ${card('Clear probability',pct(op.clearProbability),op.successCount?`Median ${op.medianTime.toFixed(2)} sec`:`${pct(op.meanDamage/r.hp)} mean damage`)}
+        ${card('Recommended clear probability',pct(op.clearProbability),`${clearInterval(op)} 95% interval`)}
+        ${savedOp?card('Improvement',`${clearGain>=0?'+':''}${(clearGain*100).toFixed(2)} points`,op.successCount?`Median clear ${op.medianTime.toFixed(2)} sec`:`${pct(op.meanDamage/r.hp)} mean damage`):''}
+        ${J.jellyUpgradeLevel(saveData,16)>0?card('Fever',feverModeName(op.fever)):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Stronkroid',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0?card('Revival priority',esc(op.revivePolicy)):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical survival',`${op.meanCriticalTime.toFixed(2)} sec`,`${op.meanDeaths.toFixed(2)} deaths; ${op.meanRevives.toFixed(2)} revives`):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells / attempt',fmt(op.meanBloodcells)):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell EXP / attempt',fmt(op.meanCellExp)):''}
-        ${card('Candidates evaluated',fmt(optimized.evaluated),`${optimized.moves.length} anchor changes`)}
-        ${card('Search coverage','Hybrid multi-fidelity',`${optimized.search?.compositionSeeds||0} composition seeds; ${optimized.search?.constructionRounds||0} build + ${optimized.search?.savedRefinementRounds||0} saved-relocation + ${optimized.search?.refinementRounds||0} merged-local rounds; ${optimized.search?.screeningCandidates||0} screened at ${optimized.search?.screeningTrials||0} trials; ${optimized.search?.finalists||0} full finalists`)}
-        ${J.jellyUpgradeLevel(saveData,16)>0?card('Selected Fever',feverModeName(op.fever),(spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0)?`${esc(op.revivePolicy)} revival`:''):''}
-        ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Use Stronkroid',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
       </div>
       ${legendHtml()}<div class="grid-pair">${gridHtml(saved,'Current save')}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction)}</div>
       ${anchorOnlyNote}
-      <p class="note"><strong>Operation policy matters:</strong> this comparison assumes the selected Fever, the listed Stronkroid timing, and the listed manual revival priority. Copying only the board while leaving different in-game operation settings is not the simulated recommendation.</p>
-      <h3>Concrete changes</h3><div>${optimized.moves.length?optimized.moves.map(m=>`<span class="move">${m.action==='place'?'Place':'Remove'} ${esc(m.name)} at slot ${m.anchor}</span>`).join(''):'No changes improve this objective.'}</div>
-      <p class="note">${spoilersVisible?esc(op.note):'Finalists are fully simulated with every operation mechanic unlocked in the loaded save.'} The current save is always included as a fully simulated finalist, so a recommendation is returned only when it beats that baseline under the selected objective.</p>
+      <h3>Changes</h3><div>${optimized.moves.length?changePlan:'No changes improve this objective.'}</div>
+      <details class="optimizer-diagnostics"><summary>Search details</summary>
+        <div class="cards">
+          ${card('Steady DPS',`${fmt(savedM.dps)} → ${fmt(optimized.metrics.dps)}`,savedM.dps>0?`+${pct(optimized.metrics.dps/savedM.dps-1)}`:'')}
+          ${blindOp?card('Blind search vs saved',objectiveComparison(),optimized.search?.savedDiscoveredByConstruction?'Exact saved geometry found':'Saved geometry not independently found'):''}
+          ${J.jellyUpgradeLevel(saveData,4)>0?card('Best Immunoid finalist',immunoidOp?objectiveValue(immunoidOp):'None',immunoidOp?`${J.jellyLayoutMetrics(optimized.immunoidLayout,saveData,{fever:immunoidOp.fever}).rawCounts[4]} Immunoid`:'None'):''}
+          ${optimized.immunoidBreakpoint?card('Immunoid breakpoint',breakpointRanges||'None',optimized.immunoidBreakpoint.currentPreferred?'Favored here':'Not favored here'):''}
+          ${card('Surrogate rank audit',(optimized.proxyAudit?.rankCorrelation??1).toFixed(3),worstProxy&&worstProxy.rankDelta>0?`Largest under-rank: ${worstProxy.rankDelta}`:'No under-ranked finalist')}
+          ${card('Search',`${optimized.search?.searchStarts||1} starts`,`${fmt(optimized.evaluated)} candidates · ${optimized.search?.eliteArchiveSize||0} niches`)}
+          ${card('Neighborhood',`${optimized.search?.neighborhoodCandidates||0} checked`,`${optimized.search?.neighborhoodPromoted||0} promoted`)}
+          ${optimized.adaptiveConfirmation?.triggered?card('Confirmation',`${optimized.adaptiveConfirmation.confirmedTrials} trials`,`${optimized.adaptiveConfirmation.validationTrials||0} validation trials`):''}
+        </div>
+        <h3>Cell-type finalists</h3>
+        <div class="table-scroll"><table><thead><tr><th>Required type</th><th class="num">Count</th><th class="num">Objective</th><th class="num">Clear 95% interval</th></tr></thead><tbody>${archetypeRows}</tbody></table></div>
+        <h3>Count finalists</h3>
+        <div class="table-scroll"><table><thead><tr><th>Cell type</th><th class="num">Count</th><th class="num">Objective</th><th class="num">Clear 95% interval</th></tr></thead><tbody>${countArchetypeRows}</tbody></table></div>
+        <h3>Anchor contributions</h3>
+        <div class="table-scroll"><table><thead><tr><th>Anchor</th><th>Cell</th><th class="num">Direct DPS</th><th class="num">Marginal DPS</th><th class="num">Share</th></tr></thead><tbody>${contributionRows}</tbody></table></div>
+      </details>
     </div>`;
   }
   return `<div class="section"><h2>Layout search</h2>
     <div class="controls">
       <label class="control">Objective<select id="objective">
-        ${objectiveOptions(optimized?.objective||'clear')}
+        ${objectiveOptions(optimizerControls.objective)}
       </select></label>
-      <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${p.obstruction+1}"></label>
-      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="6"></label>
-      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="8"></label>
-      <label class="control">Saved-board relocation rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="2"></label>
-      <label class="control">Merged local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="2"></label>
-      <label class="control">Fully simulated finalists<input id="finalists" type="number" min="1" max="64" value="4"></label>
-      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="256" value="8"></label>
+      <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${optimizerControls.obstruction+1}"></label>
+      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="${optimizerControls.beamWidth}"></label>
+      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="${optimizerControls.iterations}"></label>
+      <label class="control">Saved-board relocation rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.savedRefinementRounds}"></label>
+      <label class="control">Merged local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.refinementRounds}"></label>
+      <label class="control">Independent starts<input id="search-starts" type="number" min="1" max="12" value="${optimizerControls.searchStarts}"></label>
+      <label class="control">Fully simulated finalists<input id="finalists" type="number" min="1" max="64" value="${optimizerControls.finalistCount}"></label>
+      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="1000" value="${optimizerControls.simulationTrials}"></label>
       <button class="primary" id="run-optimizer" ${workerProgress?.operation==='layout'?'disabled':''}>Run optimizer</button>
     </div>
     ${workerProgressHtml('layout')}
-    <p class="note"><strong>Composition seeds</strong> first pack objective-ranked, balanced, and single-type count families under the requested build depth. <strong>Empty-board build rounds</strong> expand those families. <strong>Saved-board relocation rounds</strong> directly move existing cells without requiring a temporarily worse remove-then-place intermediate. <strong>Merged local rounds</strong> evaluate legal placement and removal around both search families. A paired low-trial screen then promotes structurally diverse boards, generates relocation/swap feedback candidates around its leaders, and reserves full policy optimization for the finalists. For a slower thorough pass, try 12 beam / 20 build / 3 relocation / 4 local / 8 finalists / 16 trials.</p>
-    <p class="note">The bounded search places unlimited Petri Dish cells, resolves footprint replacement exactly, respects unlocked plots and current placement limits, and models every mechanic unlocked in the loaded save.${spoilersVisible?' With spoilers shown, controls and labels for unreached mechanics are also visible.':''}</p>
+    <p class="note">Higher values search longer. Thorough: 12 / 20 / 3 / 4 / 8 starts / 8 finalists / 256 trials.</p>
   </div>${result}`;
 }
 
