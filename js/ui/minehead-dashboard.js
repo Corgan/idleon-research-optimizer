@@ -9,6 +9,7 @@ import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-d
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
 import { computeButtonBonus } from '../stats/defs/helpers.js';
 import { computeDancingCoralBonus } from '../stats/systems/w7/spelunking.js';
+import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC } from '../stats/data/w7/minehead.js';
 import {
   upgradeQTY, upgCost, upgLvReq, gridDims, totalTiles,
@@ -42,7 +43,7 @@ export function renderDashboard() {
   const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const gb167 = _gb(167);
   const dancingCoral5 = computeDancingCoralBonus(5, saveData);
-  const base = baseDMG(lvs, gb167, sail38, dancingCoral5);
+  const base = baseDMG(lvs, gb167, sail38, dancingCoral5, jellyRewardBonus(saveData, 9));
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
@@ -52,10 +53,14 @@ export function renderDashboard() {
   const rogB12 = rogBonusQTY(12, uniqueSushi);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
-    comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
+    comp143: mhSrc.comp143, comp143Level2: mhSrc.comp143Level2,
+    bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    royalCurrencyMulti: mhSrc.royalCurrencyMulti,
+    jellyCurrency8: mhSrc.jellyCurrency8,
+    bundleJ: mhSrc.bundleJ,
     taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     dancingCoral5: mhSrc.dancingCoral5,
     upgLevels: lvs, highestDmg,
@@ -200,10 +205,14 @@ export function renderCurrencyTab() {
   const mhSrc = computeMineheadCurrSources(saveData);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
-    comp143: mhSrc.comp143, bonusQTY6: bqty6, atom13: mhSrc.atom13,
+    comp143: mhSrc.comp143, comp143Level2: mhSrc.comp143Level2,
+    bonusQTY6: bqty6, atom13: mhSrc.atom13,
     mealMineCurr: mhSrc.mealMineCurr, arcade62: mhSrc.arcade62,
     rogBonus12: rogB12, buttonBonus1: computeButtonBonus(1, saveData),
     eventShop44: mhSrc.eventShop44,
+    royalCurrencyMulti: mhSrc.royalCurrencyMulti,
+    jellyCurrency8: mhSrc.jellyCurrency8,
+    bundleJ: mhSrc.bundleJ,
     dancingCoral5: mhSrc.dancingCoral5,
     taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     upgLevels: lvs, highestDmg,
@@ -231,7 +240,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const upg28raw = upgradeQTY(28, lvs[28]);
   const upg28 = upg28raw * logDmg;
   const upgAddSum = upg5 + upg22 + upg28 + mhSrc.arcade62 + mhSrc.dancingCoral5;
-  const comp143mult = Math.max(1, Math.min(2, mhSrc.comp143));
+  const comp143mult = Math.max(1, Math.min(2, mhSrc.comp143) + mhSrc.comp143Level2);
   const bqMult = Math.min(3, 1 + bqty6 / 100);
   const atomMult = 1 + mhSrc.atom13 / 100;
 
@@ -318,6 +327,11 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const rogNode = _bNode(label('RoG', 12), rogMult, null, {
     fmt: 'x', note: rogB12 > 0 ? `+${rogB12}% (50% when unlocked)` : 'Not unlocked',
   });
+  const royalNode = _bNode('Royal Guardian: Minehead Currency', mhSrc.royalCurrencyMulti, null, { fmt: 'x' });
+  const jellyNode = _bNode('Jelly Operator: Minehead Currency', 1 + mhSrc.jellyCurrency8 / 100, null, { fmt: 'x' });
+  const bundleNode = _bNode('Jelly Operator Bundle', 1 + mhSrc.bundleJ, null, {
+    fmt: 'x', note: mhSrc.bundleJ ? 'ban_j owned' : 'Not owned',
+  });
 
   var bb1 = computeButtonBonus(1, saveData);
   var buttonNode = _bNode(label('Button', 1), 1 + bb1 / 100, null, { fmt: 'x' });
@@ -331,7 +345,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   });
 
   return _bNode('Mine Currency/hr', cph, [
-    gb129node, eventShopNode, gb148node, rogNode, comp143node, bossNode,
+    gb129node, eventShopNode, gb148node, royalNode, rogNode, jellyNode, bundleNode, comp143node, bossNode,
     upgNode, buttonNode, atomNode, taskNode, passiveNode,
   ], { fmt: '/hr' });
 }

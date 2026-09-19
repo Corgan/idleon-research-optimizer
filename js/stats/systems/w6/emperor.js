@@ -6,6 +6,7 @@ import { emperorBonType, emperorBonVal } from '../../data/common/emperor.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { label } from '../../entity-names.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 export function computeEmperorBon(bonusIdx, saveData) {
   var emperorCount = Number(saveData.olaData && saveData.olaData[369]) || 0;
@@ -14,7 +15,8 @@ export function computeEmperorBon(bonusIdx, saveData) {
     var slot = r % 48;
     if (emperorBonType(slot) === bonusIdx) sum += emperorBonVal(bonusIdx);
   }
-  var mult = 1 + (arcaneUpgBonus(48, saveData) + arcadeBonus(51, saveData)) / 100;
+  var mult = 1 + (arcaneUpgBonus(48, saveData) + arcadeBonus(51, saveData)
+    + jellyRewardBonus(saveData, 28)) / 100;
   return Math.floor(sum * mult);
 }
 
@@ -33,7 +35,8 @@ export var emperor = {
     }
     var arcane48 = arcaneUpgBonus(48, saveData);
     var arcade51val = arcadeBonus(51, saveData);
-    var mult = 1 + (arcane48 + arcade51val) / 100;
+    var jelly28 = jellyRewardBonus(saveData, 28);
+    var mult = 1 + (arcane48 + arcade51val + jelly28) / 100;
     var val = Math.floor(sum * mult);
     if (val <= 0) return node(label('Emperor', id), 0, null, { note: 'emperor ' + id });
     return node(label('Emperor', id), val, [
@@ -42,6 +45,7 @@ export var emperor = {
       node('Raw Sum', sum, null, { fmt: 'raw' }),
       node(label('Arcane', 48), arcane48, null, { fmt: 'raw' }),
       node(label('Arcade', 51), arcade51val, null, { fmt: 'raw' }),
+      node('Jelly Reward 28', jelly28, null, { fmt: 'raw' }),
       node('Multi', mult, null, { fmt: 'x' }),
     ], { fmt: '+', note: 'emperor ' + id });
   },

@@ -3,11 +3,10 @@
 
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave, companionLevel2 } from '../../data/common/companions.js';
 
 export function companions(idx, saveData) {
-  if (!saveData.companionIds || !saveData.companionIds.has(idx)) return 0;
-  return companionBonus(idx);
+  return companionBonusForSave(idx, saveData);
 }
 
 export function petBonusTokensOwned(saveData) {
@@ -19,12 +18,15 @@ export var companion = {
   resolve: function(id, ctx) {
     var name = label('Companion', id);
     var owned = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(id) : false;
-    var bonusVal = companionBonus(id);
+    var bonusVal = companionBonusForSave(id, ctx.saveData);
     var val = owned ? bonusVal : 0;
     if (!owned) return node(name, 0, [node('Not owned', 0, null, { fmt: 'raw' })]);
     return node(name, val, [
       node('Owned', 1, null, { fmt: 'raw' }),
       node('Bonus', bonusVal, null, { fmt: '+' }),
+      ...(companionLevel2(id, ctx.saveData)
+        ? [node('Pet+', 1, null, { fmt: 'raw' })]
+        : []),
     ], { fmt: '+' });
   },
 };
@@ -35,7 +37,7 @@ export var compMulti = {
     var divisor = args ? args[1] : 1;
     var name = label('Companion', id);
     var owned = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(id) : false;
-    var bonusVal = owned ? companionBonus(id) : 0;
+    var bonusVal = owned ? companionBonusForSave(id, ctx.saveData) : 0;
     var raw = divisor > 1 ? bonusVal / divisor : bonusVal;
     var val = Math.max(1, Math.min(cap, 1 + raw));
     return node(name, val, [

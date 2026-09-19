@@ -28,6 +28,8 @@ import { computeEmperorBon } from './emperor.js';
 import { computeStatueBonusGiven } from '../common/stats.js';
 import { legendPTSbonus, computePaletteBonus } from '../../systems/w7/spelunking.js';
 import { rogBonusQTY } from '../../systems/w7/sushi.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { bubbleValByKey, computeVialByKey } from '../../systems/w2/alchemy.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { cloudBonus } from '../../../game-helpers.js';
@@ -422,6 +424,8 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var rogPct = 0;
   try { rogPct = rogBonusQTY(32, s.cachedUniqueSushi || 0) || 0; } catch(e) {}
   var rogMulti = 1 + rogPct / 100;
+  var jellyStealthPct = jellyRewardBonus(s, 16);
+  var jellyStealthMulti = 1 + jellyStealthPct / 100;
 
   // Shh! (NLbonuses 23)
   var nk23 = _nlBonus(23, nd);
@@ -429,7 +433,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
 
   // Companion 163 (w5b5b): 40x Ninja Stealth
   // Game: (1 + 39 * Companions(163)), CompanionDB[163][2] = 1 when owned
-  var comp163 = s.companionIds && s.companionIds.has(163) ? 1 : 0;
+  var comp163 = companionBonusForSave(163, s);
   var comp163Multi = 1 + 39 * comp163;
 
   // Core multiplier: everything except ally and funeral
@@ -437,7 +441,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
     * factor4 * factor17 * factor20
     * factorAlchStar * factorStatue * factorCards * factorAchieve
     * factorGemstone * factorVoting * factorLamp * factorBUpg
-    * fractalMulti * emperorMulti * rogMulti * shhMulti * comp163Multi;
+    * fractalMulti * emperorMulti * rogMulti * jellyStealthMulti * shhMulti * comp163Multi;
 
   return {
     baseStealth: baseStealth,

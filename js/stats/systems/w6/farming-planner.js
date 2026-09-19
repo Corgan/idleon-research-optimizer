@@ -33,6 +33,7 @@ import { computeEmperorBon } from './emperor.js';
 import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
 import { GRIMOIRE_NO_MULTI } from '../../data/game-constants.js';
 import { eventShopOwned, emporiumBonus, superBitType, cloudBonus } from '../../../game-helpers.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { exoticUpgrade, marketUpgrade, seedFamily, seedFamilyCount } from '../../data/w5/farming.js';
 
 var GMO_THRESHOLDS = [200, 1000, 2500, 10000, 100000];
@@ -1067,7 +1068,8 @@ export function exoticPurchaseLimits(saveData) {
   var event43 = eventShopOwned(43, saveData.cachedEventShopStr);
   var allowed = Math.round(4 + minehead8 + 8 * event43
     + rogBonusQTY(33, saveData.cachedUniqueSushi || 0)
-    + 3 * cloudBonus(66, saveData.weeklyBossData));
+    + 3 * cloudBonus(66, saveData.weeklyBossData)
+    + jellyRewardBonus(saveData, 34));
   var freePercent = Math.min(80, 30 * event43) + Math.min(25, 25 * minehead8);
   var week = exoticWeekInfo(saveData).week;
   var savedWeek = Number(optionsListData[481]) || 0;

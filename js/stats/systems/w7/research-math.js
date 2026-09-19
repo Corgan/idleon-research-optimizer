@@ -129,7 +129,11 @@ export function insightExpRate(obsIdx, md, il, gl, so, ctx) {
   const kalMap = buildKalMap(md);
   const kalBase = getKaleiMultiBase(gl, so, ctx);
   const kalMulti = 1 + (kalMap[obsIdx] || 0) * kalBase;
-  return 3 * count * (1 + insightBonus / 100) * (1 + 35 * emp46 / 100) * kalMulti;
+  return 3 * count
+    * (1 + insightBonus / 100)
+    * (1 + 35 * emp46 / 100)
+    * (1 + (ctx.jellyInsightPct || 0) / 100)
+    * kalMulti;
 }
 
 /** Whether insight levels affect EXP (gd93 or gd94 > 0). */
@@ -139,7 +143,11 @@ export function insightAffectsExp(gl, so, ctx) {
 
 /** Kaleidoscope base multiplier from grid bonuses + EmporiumBonus(46). */
 export function getKaleiMultiBase(gl, so, ctx) {
-  return (30 + gbWith(gl, so, 52, ctx) + gbWith(gl, so, 72, ctx) + 6 * ((ctx.emp && ctx.emp[46]) || 0)) / 100;
+  return (30
+    + gbWith(gl, so, 52, ctx)
+    + gbWith(gl, so, 72, ctx)
+    + 6 * ((ctx.emp && ctx.emp[46]) || 0)
+    + (ctx.jellyKaleiPct || 0)) / 100;
 }
 
 // ----- Magnifier slot cap -----
@@ -276,7 +284,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * Math.max(1, ctx.royalResearch || 1);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -430,6 +438,8 @@ function gridPointSources(saveCtx) {
     { label: 'RoG 13', value: (saveCtx && saveCtx.rog && saveCtx.rog[13]) || 0 },
     { label: 'Sailing Artifact 37', value: (saveCtx && saveCtx.sailingArt37) || 0 },
     { label: 'W7 Task Research Points', level: Number.isFinite(taskLevel) ? taskLevel : 0, perLevel: 1, value: Number.isFinite(taskLevel) ? taskLevel : 0 },
+    { label: 'Jelly Reward 4', value: (saveCtx && saveCtx.jellyGridPoint4) || 0 },
+    { label: 'Jelly Reward 57', value: (saveCtx && saveCtx.jellyGridPoint57) || 0 },
   ];
 }
 

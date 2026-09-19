@@ -28,6 +28,7 @@ import { GOLD_FOOD_EFFECT_NAMES, GOLD_FOOD_INFO, EMPORIUM_FOOD_SLOTS } from '../
 import { ACHIEVE_STATUS } from '../../data/game/hardcoded.js';
 import { votingBonusValue } from '../../data/common/voting.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 // Moved-out system functions (were previously defined here)
 import { companions } from './companions.js';
 import { cardLv } from './cards.js';
@@ -83,6 +84,8 @@ export function gfoodBonusMULTI(charIdx, opts, saveData) {
     Math.min(5 * cardLv('anni5Event1', saveData), 50) +
     companions(155, saveData) +
     10000 * companion174 +
+    jellyRewardBonus(saveData, 10) +
+    jellyRewardBonus(saveData, 51) +
     vaultUpgBonus(86, saveData);
   return setMul * (famBonus + rest / 100);
 }
@@ -404,7 +407,7 @@ export function computeGFoodInputs(charIdx, dnsmCache, saveData) {
       var masteryMulti = bonusMultiCook(masteryLv);
       var ribbonIdx = 28 + 64;
       var emperorSetBonus = Number(getSetBonus('EMPEROR_SET', charIdx));
-      var ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData, emperorSetBonus);
+      var ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData, emperorSetBonus, jellyRewardBonus(saveData, 60));
       inputs.mealBonusZGoldFood = masteryMulti * cm.val * ribbon * mealLv * 2;
 
       var cookCh = [];

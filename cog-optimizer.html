@@ -460,6 +460,7 @@ import { judgeCog, findMaxConLevel, perfectCogStats, cogStatTier, parseSmallCog,
 import { optimizeAsync } from './js/cogs/cog-optimizer.js';
 var COG_WORKER = null;
 import { fmtVal } from './js/renderers/format.js';
+import { jellyRewardBonus } from './js/stats/data/w7/jelly-operator.js';
 
 /* ========== STATE ========== */
 var COG_ORDER = null, COG_MAP = null;
@@ -474,7 +475,7 @@ var ACTIVE_STAT_OVERLAY = 'conexp';
 var CURRENT_INSIGHTS = null;
 var FLUO_FLAGGY_MULT = 1; // Fluorescent Flaggies gem shop: 1 + 50*GemItemsPurchased[118]/100
 var DAILY_CRYSTAL_ROLLS = 1; // 1 + Math.round(Cog_Lover_level * 2)
-var GRID69_TIER_UP_PCT = 0; // Grid node 69 "Adequate Sized, Actually": level * 50% chance for +1 tiny cog tier
+var GRID69_TIER_UP_PCT = 0; // Grid 69 + Jelly reward 29; values above 100% can add two tiers.
 function dailyRollsForTier(tier) { return tier >= 4 ? DAILY_CRYSTAL_ROLLS : 50; }
 function smallCogEffectiveOneInN(baseLevel) {
   // With grid 69, there's a GRID69_TIER_UP_PCT% chance that a cog rolled at (baseLevel-1) gets bumped to baseLevel.
@@ -484,15 +485,17 @@ function smallCogEffectiveOneInN(baseLevel) {
   // For odds display: effective P(>= L) = P_base(>= L) + p * P_base(exactly L-1)
   // Simplified: oneInN for level L accounting for tier-up
   if (baseLevel <= 0) return 1;
-  var p = GRID69_TIER_UP_PCT / 100;
-  var pBase = Math.pow(0.5, baseLevel); // P(>= baseLevel) without boost
-  var pPrev = baseLevel >= 1 ? Math.pow(0.5, baseLevel) : 0; // P(exactly baseLevel-1) = 0.5^baseLevel
-  var pEff = pBase + p * pPrev;
+  var boost = Math.max(0, Math.min(2, GRID69_TIER_UP_PCT / 100));
+  var p0 = Math.max(0, 1 - boost);
+  var p2 = Math.max(0, boost - 1);
+  var p1 = 1 - p0 - p2;
+  function tail(level) { return level <= 0 ? 1 : Math.pow(0.5, level); }
+  var pEff = p0 * tail(baseLevel) + p1 * tail(baseLevel - 1) + p2 * tail(baseLevel - 2);
   return pEff > 0 ? Math.round(1 / pEff) : 1;
 }
 function smallCogMinObtainableTier() {
   // At 100% tier-up, tier 0 is impossible (always bumped to 1+)
-  return GRID69_TIER_UP_PCT >= 100 ? 1 : 0;
+  return GRID69_TIER_UP_PCT >= 200 ? 2 : GRID69_TIER_UP_PCT >= 100 ? 1 : 0;
 }
 
 
@@ -527,7 +530,7 @@ function loadFromParsed(parsed) {
     DAILY_CRYSTAL_ROLLS = 1 + Math.round(cogLoverLv * 2);
     // Grid node 69: "Adequate Sized, Actually" - level * 50% chance for +1 tiny cog tier
     var gridLevels = saveData.gridLevels || [];
-    GRID69_TIER_UP_PCT = Math.min((Number(gridLevels[69]) || 0) * 50, 100);
+    GRID69_TIER_UP_PCT = Math.min((Number(gridLevels[69]) || 0) * 50 + jellyRewardBonus(saveData, 29), 200);
     CURRENT_TOTALS = computeBoardTotals(CURRENT_BOARD);
     SAVE_TOTALS = CURRENT_TOTALS;
     IS_OPTIMIZED = false; IS_PERFECT = false; OPT_RESULT = null; SHELF_PAGE = 0;

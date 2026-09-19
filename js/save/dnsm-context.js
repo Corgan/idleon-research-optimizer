@@ -22,6 +22,7 @@ import { label } from '../stats/entity-names.js';
 import { ribbonBonusAt } from './helpers.js';
 import { computeAllTalentLVz } from '../stats/systems/common/talent.js';
 import { cookingMealMulti } from '../stats/systems/common/cooking.js';
+import { companionBonusForSave } from '../stats/data/common/companions.js';
 
 import { SHIMMERON_BUBBLE, WARRIORS_RULE_BUBBLE } from '../stats/data/w2/alchemy.js';
 import { CLASS_TREES, FAMILY_BONUS_33, TALENT_144 } from '../stats/data/common/talent.js';
@@ -180,10 +181,10 @@ export function computeDNSM(charIdx = 0) {
 
   // === companionBon ===
   {
-    const GFOOD_COMPANION_VALUES = { 48: 5, 155: 2500 };
     const bon = {};
-    for (const [idx, val] of Object.entries(GFOOD_COMPANION_VALUES)) {
-      if (saveData.companionIds.has(Number(idx))) bon[idx] = val;
+    for (const idx of [48, 155]) {
+      const value = companionBonusForSave(idx, saveData);
+      if (value) bon[idx] = value;
     }
     dnsm.companionBon = bon;
   }
@@ -307,7 +308,7 @@ export function computeDNSM(charIdx = 0) {
     if (mealLv > 0) {
       const cm = cookingMealMulti(saveData);
       const ribbonIdx = 28 + 64;
-      const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData);
+      const ribbon = ribbonBonusAt(ribbonIdx, saveData.ribbonData, optionsListData[379], saveData.weeklyBossData, undefined, jellyRewardBonus(saveData, 60));
       dnsm.mealBonusZGoldFood = cm.val * ribbon * mealLv * 2;
 
       var cookCh = [];

@@ -26,13 +26,14 @@ import { computeShinyBonusS } from './breeding.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { hasBonusMajor } from '../w5/divinity.js';
 import { computeAllTalentLVz, maxTalentBonus } from '../common/talent.js';
-import { companionBonus, companionBonusForSave } from '../../data/common/companions.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 import { chipBonusValue } from '../../data/w4/chips.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { gridBonusPerLv } from '../../data/w7/research.js';
 import { talentParams } from '../../data/common/talent.js';
 import { formulaEval } from '../../../formulas.js';
 import { rogBonusQTY } from '../w7/sushi.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 // Total green mushroom kills across all characters (for mainframeBonus 9)
 function _totalMushGKills() {
@@ -69,7 +70,7 @@ function _greenStackCount(saveData) {
 function gridAllMulti(saveData) {
   var comp55 = companionBonusForSave(55, saveData);
   var divinityLv = Number(saveData.lv0AllData && saveData.lv0AllData[0] && saveData.lv0AllData[0][14]) || 0;
-  var comp0 = saveData.companionIds && saveData.companionIds.has(0) && divinityLv >= 2 ? companionBonus(0) : 0;
+  var comp0 = divinityLv >= 2 ? companionBonusForSave(0, saveData) : 0;
   var grid173Lv = (saveData.gridLevels && saveData.gridLevels[173]) || 0;
   var cb71 = cloudBonus(71, saveData.weeklyBossData);
   var cb72 = cloudBonus(72, saveData.weeklyBossData);
@@ -199,7 +200,7 @@ function computeMealBonusLinePct(saveData) {
   var eelLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][40]) || 0;
   if (eelLv <= 0) return 0;
   var cookMulti = computeCookingMealMulti(saveData);
-  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData && saveData.olaData[379], saveData.weeklyBossData);
+  var ribbon = ribbonBonusAt(28 + 40, saveData.ribbonData, saveData.olaData && saveData.olaData[379], saveData.weeklyBossData, undefined, jellyRewardBonus(saveData, 60));
   return cookMulti * ribbon * eelLv * 1;
 }
 

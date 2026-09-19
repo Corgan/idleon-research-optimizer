@@ -43,7 +43,7 @@ export function buildEmporiumArray(ninjaData102_9) {
   return arr;
 }
 
-export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData, activeEmperorSetBonus) {
+export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData, activeEmperorSetBonus, jellyRibbonBonus) {
   const t = ribbonData[index] || 0;
   if (t <= 0) return 1;
   const emperorSetBonus = activeEmperorSetBonus == null
@@ -51,7 +51,8 @@ export function ribbonBonusAt(index, ribbonData, olaStr379, weeklyBossData, acti
     : Number(activeEmperorSetBonus) || 0;
   const empTerm = Math.floor(t / 4) * (emperorSetBonus / 4);
   const cb73 = weeklyBossData ? Math.floor(t / 10) * cloudBonus(73, weeklyBossData) : 0;
-  return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm + cb73) / 100;
+  const jellyTerm = Math.floor(t / 20) * (Number(jellyRibbonBonus) || 0);
+  return 1 + (Math.floor(5 * t + Math.floor(t / 2) * (4 + 6.5 * Math.floor(t / 5))) + empTerm + cb73 + jellyTerm) / 100;
 }
 
 // CloudBonus(n): returns 1 if dream challenge n is completed, 0 otherwise.

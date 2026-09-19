@@ -56,6 +56,7 @@ import { friend } from '../systems/common/friend.js';
 import { computePaletteBonus } from '../systems/w7/spelunking.js';
 import { tome } from '../systems/w4/tome.js';
 import { mineheadBonusQTY } from '../systems/w7/minehead.js';
+import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 import { ITEMS } from '../data/game/items.js';
 import { equipOrderData, equipQtyData, inventoryOrderData, emmData, obolNamesData, obolMapsData, obolFamilyNames, obolFamilyMaps } from '../../save/data.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
@@ -863,7 +864,10 @@ export default createDescriptor({
         mhWepPowDmgPCT = _mhBon4 * (_baseWP + _affixWP);
       }
     } catch(e) {}
-    ddl2 *= (1 + mhBonusQTY0 / 100) * (1 + mhWepPowDmgPCT / 100);
+    var jellyDamage37 = jellyRewardBonus(s, 37);
+    ddl2 *= (1 + mhBonusQTY0 / 100)
+      * (1 + mhWepPowDmgPCT / 100)
+      * (1 + jellyDamage37 / 100);
 
     // WeeklyBoss.g bonus
     try {

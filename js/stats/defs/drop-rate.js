@@ -4,6 +4,7 @@
 import { createDescriptor } from './helpers.js';
 import { drBonus as cglunkoDropRate } from '../systems/w5/cglunko.js';
 import { computeDungeonDropRate, isDungeonMap } from '../systems/w2/dungeon.js';
+import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 
 export default createDescriptor({
   id: 'drop-rate',
@@ -163,6 +164,8 @@ export default createDescriptor({
         dr *= (1 + v / 100);               // percentage → multiplier
       }
     }
+    var jelly14 = jellyRewardBonus(ctx.saveData, 14);
+    dr *= 1 + jelly14 / 100;
 
     // Build tree
     var postMult = base > 0 ? dr / base : 1;
@@ -172,6 +175,7 @@ export default createDescriptor({
     if (pf[1]) allPostItems.push(pf[1]);
     if (pm[1]) allPostItems.push(pm[1]);
     for (var postIdx = 2; postIdx < pm.length; postIdx++) allPostItems.push(pm[postIdx]);
+    allPostItems.push({ name: 'Jelly Reward 14', val: jelly14, fmt: '+', note: 'Gold Bangle' });
 
     var children = [
       { name: 'Drop Rate from Total LUK', val: lukVal,

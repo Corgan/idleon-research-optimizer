@@ -44,8 +44,11 @@ export default createDescriptor({
     children.push({ name: label('RoG', 12), val: 1 + rog12 / 100, fmt: 'x' });
 
     // 4. × max(1, min(2, Comp143))
-    var comp143 = Math.max(1, Math.min(2, sources.comp143));
+    var comp143 = Math.max(1, Math.min(2, sources.comp143) + sources.comp143Level2);
     children.push({ name: label('Companion', 143), val: comp143, fmt: 'x' });
+    children.push({ name: 'Royal Guardian: Minehead Currency', val: sources.royalCurrencyMulti, fmt: 'x' });
+    children.push({ name: 'Jelly Operator: Minehead Currency', val: 1 + sources.jellyCurrency8 / 100, fmt: 'x' });
+    children.push({ name: 'Jelly Operator Bundle', val: 1 + sources.bundleJ, fmt: 'x' });
 
     // 5. × min(3, 1+BonusQTY(6)/100) — floor bonus
     var bonusQTY6 = mineheadBonusQTY(6, mineFloor);
@@ -102,6 +105,7 @@ export default createDescriptor({
       gridBonus147: grid147,
       gridBonus166: grid166,
       comp143: sources.comp143,
+      comp143Level2: sources.comp143Level2,
       bonusQTY6: bonusQTY6,
       atom13: atom13,
       mealMineCurr: mealMineCurr,
@@ -109,6 +113,9 @@ export default createDescriptor({
       rogBonus12: rog12,
       buttonBonus1: bb1,
       eventShop44: eventShop44,
+      royalCurrencyMulti: sources.royalCurrencyMulti,
+      jellyCurrency8: sources.jellyCurrency8,
+      bundleJ: sources.bundleJ,
       taskCurrencyLevel: sources.taskCurrencyLevel,
       dancingCoral5: sources.dancingCoral5,
       upgLevels: upgLevels,

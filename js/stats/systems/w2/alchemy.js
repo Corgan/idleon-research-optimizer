@@ -14,6 +14,8 @@ import { paletteParams } from '../../data/w4/gaming.js';
 import { exoticParams } from '../../data/w5/farming.js';
 import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 export function sigilBonus(sigilIdx, saveData, charIdx) {
   var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
@@ -103,10 +105,10 @@ function getPrismaBonusMult(saveData) {
   var exotic48 = exLv > 0 ? ex48.base * exLv / (ex48.denom + exLv) : 0;
   var legend36 = legendPTSbonus(36, saveData);
   // Companions(88) = rift4 companion: +Prisma Bubble bonus multi
-  var comp88 = saveData.companionIds && saveData.companionIds.has(88) ? 1 : 0;
+  var comp88 = companionBonusForSave(88, saveData);
   // SushiStuff("RoG_BonusQTY", 23, 0)
   var sushiRoG23 = rogBonusQTY(23, saveData.cachedUniqueSushi || 0);
-  var sum = arcane45 + arcade54 + sushiRoG23 + hasW6Trophy + palette28
+  var sum = arcane45 + arcade54 + sushiRoG23 + jellyRewardBonus(saveData, 36) + hasW6Trophy + palette28
     + 0.2 * purpleSigils + exotic48 + legend36 + 50 * comp88;
   return Math.min(4, 2 + sum / 100);
 }
@@ -167,12 +169,14 @@ export var alchemy = {
       var exLv = Number((saveData.farmUpgData && saveData.farmUpgData[_ex48.farmSlot]) || 0);
       var exotic48 = exLv > 0 ? _ex48.base * exLv / (_ex48.denom + exLv) : 0;
       var legend36 = legendPTSbonus(36, saveData);
-      var comp88 = saveData.companionIds && saveData.companionIds.has(88) ? 1 : 0;
+      var comp88 = companionBonusForSave(88, saveData);
+      var jelly36 = jellyRewardBonus(saveData, 36);
 
       children.push(node('Prisma Bonus', prismaMult, [
         node(label('Arcane', 45), arcane45, null, { fmt: 'raw' }),
         node(label('Arcade', 54), arcade54val, null, { fmt: 'raw' }),
         node(label('RoG', 23), sushiRoG23, null, { fmt: 'raw' }),
+        node('Jelly Reward 36', jelly36, null, { fmt: 'raw' }),
         node('W6 Trophy', hasW6Trophy, null, { fmt: 'raw' }),
         node(label('Palette', 28), palette28, palLv > 0 ? [
           node('Palette Lv', palLv, null, { fmt: 'raw' }),

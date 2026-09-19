@@ -5,7 +5,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 import { OWL_BASE } from '../../data/game-constants.js';
 
 export var owl = {
@@ -19,7 +19,7 @@ export var owl = {
     var legend26 = legendPTSbonus(26, ctx.saveData);
     var legendMulti = 1 + legend26 / 100;
     // CompanionDB[51] = w6c2b "3x bonuses from Orion, Poppy, and Bubba"
-    var comp51 = ctx.saveData.companionIds && ctx.saveData.companionIds.has(51) ? companionBonus(51) : 0;
+    var comp51 = companionBonusForSave(51, ctx.saveData);
 
     var ola262 = Number((optionsListData && optionsListData[262]) || 0);
     function owlMF(t) { return ola262 > t ? (t === 9 ? ola262 - 9 : 1) : 0; }

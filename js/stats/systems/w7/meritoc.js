@@ -10,6 +10,7 @@ import { legendPTSbonus } from './spelunking.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
 import { rogBonusQTY } from './sushi.js';
 import { klaData } from '../../../save/data.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 function _meritocParts(optionIdx, saveData, charIdx) {
   if (!saveData || !saveData.olaData) return { val: 0, inactive: true };
@@ -28,14 +29,15 @@ function _meritocParts(optionIdx, saveData, charIdx) {
   var arcade59 = arcadeBonus(59, saveData);
   var eventShop23 = eventShopOwned(23, saveData.cachedEventShopStr);
   var rog51 = rogBonusQTY(51, saveData.cachedUniqueSushi);
+  var jelly33 = jellyRewardBonus(saveData, 33);
   var comp161 = companionBonusForSave(161, saveData);
-  var addSum = 5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23 + rog51;
+  var addSum = 5 * clamWork3 + comp39 + legend24 + arcade59 + 20 * eventShop23 + rog51 + jelly33;
   var multi = (canVote ? 1 : 0.25) + addSum / 100;
   var val = baseVal * (1 + comp161 / 100) * multi;
   return {
     val: val, baseVal: baseVal, canVote: canVote, multi: multi,
     clamWork3: clamWork3, comp39: comp39, legend24: legend24, arcade59: arcade59,
-    eventShop23: eventShop23, rog51: rog51, comp161: comp161,
+    eventShop23: eventShop23, rog51: rog51, jelly33: jelly33, comp161: comp161,
   };
 }
 
@@ -62,6 +64,7 @@ export var meritoc = {
     if (p.arcade59 > 0) multiCh.push(node(label('Arcade', 59), p.arcade59, null, { fmt: 'raw' }));
     if (p.eventShop23 > 0) multiCh.push(node(label('Event', 23), 20 * p.eventShop23, null, { fmt: 'raw' }));
     if (p.rog51 > 0) multiCh.push(node(label('RoG', 51), p.rog51, null, { fmt: 'raw' }));
+    if (p.jelly33 > 0) multiCh.push(node('Jelly Reward 33', p.jelly33, null, { fmt: 'raw' }));
     var ch = [
       node('Base', p.baseVal, null, { fmt: 'raw' }),
       node(p.canVote ? 'Can Vote' : 'Cannot Vote', p.multi, multiCh, { fmt: 'x' }),

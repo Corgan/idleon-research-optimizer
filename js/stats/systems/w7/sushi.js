@@ -13,6 +13,7 @@ import { legendPTSbonus } from '../w7/spelunking.js';
 import { companions } from '../common/companions.js';
 import { optionsListData } from '../../../save/data.js';
 import { getLOG } from '../../../formulas.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 // ===== ROG & UNIQUE SUSHI =====
 
@@ -98,27 +99,25 @@ export function slotUpgIdx(slot) {
  * Cost to buy the next level of a given slot (0-44).
  * Game formula: UpgCost(slot)
  */
-export function upgCost(slot, upgLevels, knowledgeTotals) {
+export function upgCost(slot, upgLevels, knowledgeTotals, saveData) {
   var upgIdx = SLOT_TO_UPG[slot];
   var upg = SUSHI_UPG[upgIdx];
   if (!upg) return Infinity;
   var costDN = upg[4] !== 0 ? Math.max(0.1, upg[4]) : 1;
   var t = slot;
   var wholesaleReduction = 1 / (1 + upgradeQTY(36, upgLevels) / 100);
-  var rogCheaper = Math.max(0.1, 1 - Math.max(_rogBonusQTYLocal(26, upgLevels), _rogBonusQTYLocal(44, upgLevels)) / 100);
+  var uniqueSushi = Number(saveData && saveData.cachedUniqueSushi) || 0;
+  var rogCheaper = Math.max(0.1, 1 - Math.max(rogBonusQTY(26, uniqueSushi), rogBonusQTY(44, uniqueSushi)) / 100);
   var knowledgeCheaper = 1 / (1 + (knowledgeTotals?.[6] || 0) / 100);
+  var jellyCheaper = 1 / (1 + jellyRewardBonus(saveData, 18) / 100);
   var costBase = upg[2];
   var currentLv = Number(upgLevels[upgIdx]) || 0;
   return costDN
     * (5 + t + Math.pow(Math.max(0, t - 1), 2))
     * Math.pow(1.5 + Math.max(0, t - 3) / 16, Math.max(0, t - 4))
     * Math.pow(1.3, Math.max(0, t - 20))
-    * wholesaleReduction * rogCheaper * knowledgeCheaper
+    * wholesaleReduction * rogCheaper * knowledgeCheaper * jellyCheaper
     * Math.pow(costBase, currentLv);
-}
-
-function _rogBonusQTYLocal(idx, upgLevels) {
-  return 0;
 }
 
 // ===== KNOWLEDGE =====

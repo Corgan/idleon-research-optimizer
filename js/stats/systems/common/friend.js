@@ -4,15 +4,16 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { optionsListData } from '../../../save/data.js';
-import { FRIEND_DR, COMPANION_BONUS } from '../../data/game-constants.js';
+import { FRIEND_DR } from '../../data/game-constants.js';
 import { eventShopOwned } from '../../../game-helpers.js';
+import { companionBonusForSave, companionLevel2 } from '../../data/common/companions.js';
 
 // Per-type FriendBonusQTY scales from game source
 var FRIEND_SCALE = { 0: 100, 1: 30, 2: 50, 3: 25, 4: 30, 5: 40, 6: 10 };
 
 function computeFriendBonusSlots(saveData) {
-  var comp44 = saveData.companionIds && saveData.companionIds.has(44) ? 1 : 0;
-  var comp30 = saveData.companionIds && saveData.companionIds.has(30) ? 1 : 0;
+  var comp44 = companionBonusForSave(44, saveData);
+  var comp30 = companionBonusForSave(30, saveData);
   var evShop22 = eventShopOwned(22, saveData.cachedEventShopStr || '');
   return Math.round(Math.min(20, 2 + comp44 + 2 * comp30 + evShop22));
 }
@@ -45,10 +46,14 @@ export var friend = {
     var children = [];
     if (lastChild) children.push(lastChild);
     // Companion 30 doubles friend bonuses (FriendBonusXtraMulti = 1 + Companions(30))
-    var comp30 = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(30) : false;
-    if (comp30) {
-      total *= COMPANION_BONUS[30];
-      children.push(node(label('Companion', 30), COMPANION_BONUS[30], null, { fmt: 'x' }));
+    var comp30 = companionBonusForSave(30, ctx.saveData);
+    var comp44Level2 = companionLevel2(44, ctx.saveData);
+    var companionMulti = 1 + comp30 + 0.25 * comp44Level2;
+    if (companionMulti > 1) {
+      total *= companionMulti;
+      if (comp30 > 0) children.push(node(label('Companion', 30), 100 * comp30, null, { fmt: 'raw' }));
+      if (comp44Level2) children.push(node(label('Companion', 44, ' Pet+'), 25, null, { fmt: 'raw' }));
+      children.push(node('Companion Multiplier', companionMulti, null, { fmt: 'x' }));
     }
     return node('Friend Bonus', total, children, { fmt: '+', note: 'friend ' + id });
   },

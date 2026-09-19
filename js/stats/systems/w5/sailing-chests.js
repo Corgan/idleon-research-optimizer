@@ -43,6 +43,7 @@ import { bonTOT as fountainBonTOT } from './fountain.js';
 import { eventShopOwned, superBitType } from '../../../game-helpers.js';
 import { getLOG } from '../../../formulas.js';
 import { achieveStatus } from '../common/achievement.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 export var CHEST_TIER_NAMES = ['Tier 0', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'];
 export var CHEST_LOOT_MULTIS = [1, 1.85, Math.pow(1.85, 2), Math.pow(1.85, 3), Math.pow(1.85, 4), 20];
@@ -698,6 +699,7 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
   var purpleSlugs = eventShopOwned(48, saveData.cachedEventShopStr);
   var sushi = rogBonusQTY(7, saveData.cachedUniqueSushi || 0);
   var win = computeWinBonus(3, {}, saveData);
+  var jelly = jellyRewardBonus(saveData, 19);
   var davey = daveyJonesBonus(boatIdx, saveData, options);
   var lab = mainframeBonus(14, saveData);
   var lore = computeLoreEpisodeBonus(3, saveData);
@@ -713,6 +715,7 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
     * Math.max(1, Math.min(2, 1 + 2 * companion154)) * Math.max(1, killroy)
     * (1 + minehead / 100) * (1 + grid106 / 100) * (1 + vial / 100)
     * Math.max(1, Math.pow(1.5, purpleSlugs)) * (1 + sushi / 100) * (1 + win / 100)
+    * (1 + jelly / 100)
     * davey * (1 + lab / 100) * (1 + lore / 100) * (1 + pristine / 100)
     * (1 + vote / 100) * (1 + companion43) * (1 + monument / 100)
     * (1 + exotic / 100) * (1 + palette / 100) * spelunk;
@@ -722,7 +725,7 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
     arcade32: arcade32, arcade66: arcade66, hole55: hole55, sticker: sticker,
     grid109: grid109, vault63: vault63, star: star, companion154: companion154,
     killroy: killroy, minehead: minehead, grid106: grid106, vial: vial,
-    purpleSlugs: purpleSlugs, sushi: sushi, win: win, davey: davey, lab: lab,
+    purpleSlugs: purpleSlugs, sushi: sushi, win: win, jelly: jelly, davey: davey, lab: lab,
     lore: lore, pristine: pristine, vote: vote, companion43: companion43,
     monument: monument, exotic: exotic, palette: palette, spelunk: spelunk } };
 }

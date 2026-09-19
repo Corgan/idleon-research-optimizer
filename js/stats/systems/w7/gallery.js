@@ -12,7 +12,7 @@ import { mineheadBonusQTY } from './minehead.js';
 import { rogBonusQTY } from './sushi.js';
 import { legendPTSbonus } from './spelunking.js';
 import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave, companionLevel2 } from '../../data/common/companions.js';
 import { GALLERY_TROPH_CHIP_MULTI } from '../../data/game-constants.js';
 import { bubbleBonusY13 } from '../w2/alchemy.js';
 
@@ -54,7 +54,7 @@ export function galleryBonusMulti(saveData, charIdx, dnsmCache) {
     : bubbleBonusY13(saveData);
   var y13capped = Math.min(20, y13);
   var cardLv = Math.min(computeCardLv('w7a11', saveData), 10);
-  var comp49 = saveData.companionIds && saveData.companionIds.has(49) ? companionBonus(49) : 0;
+  var comp49 = companionBonusForSave(49, saveData);
   var sushiRoG54 = rogBonusQTY(54, saveData.cachedUniqueSushi || 0);
   var clamWork7 = (Number(optionsListData[464]) || 0) > 7 ? 1 : 0;
   var ola467 = Number(optionsListData[467]) || 0;
@@ -82,7 +82,7 @@ export function hatrackBonusMulti(saveData) {
   var evStr = saveData.cachedEventShopStr || '';
   var evShop30 = eventShopOwned(30, evStr);
   var sushiRoG36 = rogBonusQTY(36, saveData.cachedUniqueSushi || 0);
-  var comp31 = saveData.companionIds && saveData.companionIds.has(31) ? companionBonus(31) : 0;
+  var comp31 = companionBonusForSave(31, saveData);
   var sum = hatCount + comp31 + 10 * evShop30 + mhq21 + sushiRoG36;
   var val = 1 + sum / 100;
   var ch = [];
@@ -98,7 +98,7 @@ export function hatrackBonusMulti(saveData) {
 // Game: PodiumsOwned_Lv4/Lv3/Lv2 from _customBlock_Gallery.
 function podiumsOwnedLv4(saveData) {
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
-  var comp28 = saveData.companionIds && saveData.companionIds.has(28) ? 1 : 0;
+  var comp28 = Math.min(1, companionBonusForSave(28, saveData)) + companionLevel2(28, saveData);
   var evStr = saveData.cachedEventShopStr || '';
   var evShop29 = eventShopOwned(29, evStr);
   return Math.round(Math.min(1, comp28) + evShop29 + Math.min(1, Math.floor(sail33 / 6)));
@@ -113,7 +113,7 @@ function podiumsOwnedLv3(saveData) {
 function podiumsOwnedLv2(saveData) {
   var gem40 = Number((saveData.gemItemsData && saveData.gemItemsData[40]) || 0);
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
-  var comp42 = saveData.companionIds && saveData.companionIds.has(42) ? 1 : 0;
+  var comp42 = companionBonusForSave(42, saveData);
   // ClamWorkBonus(0): OLA[464] > 0 ? 1 : 0
   var clamWork0 = (Number(optionsListData[464]) || 0) > 0 ? 1 : 0;
   // KillroyBonuses(3): OLA[467] / (200 + OLA[467]) * 10

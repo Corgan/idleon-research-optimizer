@@ -22,6 +22,7 @@ import { talent } from '../common/talent.js';
 import { STAMP_DATA } from '../../data/w1/stamp.js';
 import { ITEMS } from '../../data/game/items.js';
 import { emporiumBonus } from '../../../game-helpers.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 // Number2Letter mapping for stamp key encoding: cat → letter
 // Game's Number2Letter: [0]='_', [1]='a', [2]='b', [3]='c'
@@ -83,10 +84,11 @@ function computeStampDoublerSources(saveData, charIdx) {
 
   // Source 10: SushiStuff("RoG_BonusQTY", 17, 0)
   var sushiRoG17 = rogBonusQTY(17, saveData.cachedUniqueSushi || 0);
+  var jelly50 = jellyRewardBonus(saveData, 50) / 100;
 
   var innerSum = atom12 + prist20 + compass76 + emperorSet + evShop18
     + palette23 + exotic49 + spelunk43;
-  var total = 100 + innerSum + legend36 + sushiRoG17;
+  var total = 100 + innerSum + legend36 + sushiRoG17 + jelly50;
 
   var children = [
     node('Base Doubler', 100, null, { fmt: 'raw' }),
@@ -106,6 +108,7 @@ function computeStampDoublerSources(saveData, charIdx) {
     node('Spelunk[4][3]', spelunk43, null, { fmt: '+' }),
     node(label('Legend', 36), legend36, null, { fmt: '+' }),
     node(label('Sushi', 17), sushiRoG17, null, { fmt: '+' }),
+    node('Jelly Reward 50', jelly50, null, { fmt: '+' }),
   ];
 
   return { total: total, children: children };

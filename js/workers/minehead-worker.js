@@ -27,6 +27,8 @@ onmessage = function(e) {
         svarHP: d.svarHP || 1,
         maxTurns: d.maxTurns || 200,
         mineReduction: d.mineReduction || 0,
+        jellyDamage9: d.jellyDamage9 || 0,
+        jellyGoldTiles45: d.jellyGoldTiles45 || 0,
       });
       postMessage({ type: 'done', id: d.id, result });
     } catch (err) {
@@ -45,6 +47,8 @@ onmessage = function(e) {
         seed: d.seed,
         svarHP: d.svarHP || 1,
         maxTurns: d.maxTurns || 200,
+        jellyDamage9: d.jellyDamage9 || 0,
+        jellyGoldTiles45: d.jellyGoldTiles45 || 0,
       });
       postMessage({ type: 'done', id: d.id, result, params: d.params });
     } catch (err) {

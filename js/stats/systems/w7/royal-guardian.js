@@ -176,7 +176,7 @@ function _etcBonusValue(S, id) {
 }
 export function parchmentDropChance(S) {
 	if (armoryLevel(S, 37) < 1) return 0.001;
-	return 0.001 * (1 + (armoryBonus(S, 38) + orbletBonus(S, 9) + n(companions(172, S))) / 100);
+	return 0.001 * (1 + (armoryBonus(S, 38) + orbletBonus(S, 9) + n(companions(172, S)) + jellyCompletionBonus(40, S)) / 100);
 }
 export function parchmentDoubleChance(S) { return armoryBonus(S, 39) / 100; }
 export function parchmentRecycleChance(S) { return Math.min(0.75, armoryBonus(S, 40) / 100); }

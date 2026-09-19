@@ -21,6 +21,7 @@ import { saveData } from '../state.js';
 import { saveGlobalTime, tournamentDay, optionsListData } from './data.js';
 import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
 import { researchGridPointsTaskLevel } from '../stats/data/w7/tasks.js';
+import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -33,6 +34,10 @@ export function buildSaveContext() {
   const ninjaData102_9 = saveData.ninjaData?.[102]?.[9];
   const olaStr379 = saveData.olaData[379];
   const mineFloor = saveData.stateR7[4] || 0;
+  const jellyResearchMulti = [0, 23, 46, 54].reduce(
+    (multi, index) => multi * (1 + jellyRewardBonus(saveData, index) / 100),
+    1
+  );
 
   return {
     // Server variable for research EXP curve
@@ -63,7 +68,7 @@ export function buildSaveContext() {
     sb: buildSuperBitArray(gamingData12),
     emp: buildEmporiumArray(ninjaData102_9),
     cbGridAll: cloudBonus(71, saveData.weeklyBossData) + cloudBonus(72, saveData.weeklyBossData) + cloudBonus(76, saveData.weeklyBossData),
-    ribbon100: ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData),
+    ribbon100: ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData, undefined, jellyRewardBonus(saveData, 60)),
     mhq: buildMhqArray(mineFloor),
 
     // Button & Killroy research multipliers
@@ -74,6 +79,12 @@ export function buildSaveContext() {
     cglunko11: saveData.cachedCglunko11,
     fountain2_16: saveData.cachedFountain2_16,
     royalResearch: saveData.cachedRoyalResearch,
+    jellyResearchMulti,
+    jellyInsightPct: jellyRewardBonus(saveData, 7),
+    jellyKaleiPct: jellyRewardBonus(saveData, 25),
+    jellyGridPoint4: jellyRewardBonus(saveData, 4),
+    jellyGridPoint57: jellyRewardBonus(saveData, 57),
+    jellyObservationMaxRoll: jellyRewardBonus(saveData, 12),
 
     // Sushi RoG bonuses (full precomputed array)
     rog: buildRogArray(saveData.cachedUniqueSushi),
@@ -155,6 +166,9 @@ export function makeSimCtx(gl, sc) {
       fountain2_16:   sc.fountain2_16 || 0,
       companion54Level2: sc.companion54Level2 || 0,
       royalResearch: sc.royalResearch || 1,
+      jellyResearchMulti: sc.jellyResearchMulti || 1,
+      jellyInsightPct: sc.jellyInsightPct || 0,
+      jellyKaleiPct: sc.jellyKaleiPct || 0,
     };
   }
 
@@ -195,6 +209,12 @@ export function makeSimCtx(gl, sc) {
     fountain2_16:   saveData.cachedFountain2_16 || 0,
     companion54Level2: companionLevel2(54, saveData),
     royalResearch: saveData.cachedRoyalResearch || 1,
+    jellyResearchMulti: [0, 23, 46, 54].reduce(
+      (multi, index) => multi * (1 + jellyRewardBonus(saveData, index) / 100),
+      1
+    ),
+    jellyInsightPct: jellyRewardBonus(saveData, 7),
+    jellyKaleiPct: jellyRewardBonus(saveData, 25),
   };
 }
 

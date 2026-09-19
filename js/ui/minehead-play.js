@@ -10,6 +10,7 @@ import {
 } from '../stats/systems/w7/minehead.js';
 import { generateGrid, _placeGoldens } from '../minehead/sim.js';
 import { computeDancingCoralBonus } from '../stats/systems/w7/spelunking.js';
+import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 import { inferStrategy } from '../minehead/strategy-inferrer.js';
 import { mhState, saveInferred, saveDecisions, clearInferred, mineReduction, _fmt } from './minehead-helpers.js';
 
@@ -25,7 +26,7 @@ export function renderPlayfield() {
   const mines = minesOnFloor(floor, mineReduction());
   const hp = floorHP(floor, svarHP);
   const maxLives = maxHPYou(lvs);
-  const maxGoldens = goldTilesTotal(lvs);
+  const maxGoldens = goldTilesTotal(lvs, jellyRewardBonus(saveData, 45));
   const maxBlocks = blocksTotal(lvs);
   const maxInstas = instaRevealsTotal(lvs);
   const crownOdds = bluecrownOdds(lvs);
@@ -75,6 +76,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
   const wepPowDmgPCT = 0;
   const playSail38 = Number(saveData.sailingData?.[3]?.[38]) || 0;
   const dancingCoral5 = computeDancingCoralBonus(5, saveData);
+  const jellyDamage9 = jellyRewardBonus(saveData, 9);
 
   const _gbCtx = { abm: saveData.allBonusMulti || 1 };
   const _gb166_1 = saveData.gridLevels?.[166] || 0;
@@ -206,7 +208,7 @@ function _initPlayGame(container, cols, rows, numTiles, mines, bossHP, maxLives,
 
   function _calcTurnDmg() {
     if (turnValues.length === 0) return 0;
-    return currentOutgoingDMG(turnValues, crownSets, lives <= 1, lvs, gridBonus167, gridBonus146, wepPowDmgPCT, playSail38, dancingCoral5);
+    return currentOutgoingDMG(turnValues, crownSets, lives <= 1, lvs, gridBonus167, gridBonus146, wepPowDmgPCT, playSail38, dancingCoral5, jellyDamage9);
   }
 
   function _newGame() {

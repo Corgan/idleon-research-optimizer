@@ -12,6 +12,7 @@ import {
   holesMeasBase, holesMeasType, holesMonBonus,
 } from '../stats/data/w5/hole.js';
 import { dancingCoralBase, stickerBase } from '../stats/data/w7/research.js';
+import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { DN_MOB_DATA } from '../stats/data/w7/deathNote.js';
 import { gbWith, deathNoteRank } from '../sim-math.js';
@@ -214,7 +215,7 @@ export function computeExternalBonuses() {
   // 8. MealBonusesS  Giga_Chip (Meals[0][72], base 0.01, MealINFO[72][5]="ResearchXP")
   const mealLv = S.mealsData?.[0]?.[72] || 0;
   const ribT = S.ribbonData[100] || 0;
-  const ribBon = ribbonBonusAt(100, S.ribbonData, _olaStr379, S.weeklyBossData);
+  const ribBon = ribbonBonusAt(100, S.ribbonData, _olaStr379, S.weeklyBossData, undefined, jellyRewardBonus(S, 60));
   const mealBase = ribBon * mealLv * 0.01;
   // CookingMealBonusMultioo = (1 + (MainframeBonus(116) + ShinyBonusS(20))/100) x (1 + WinBonus(26)/100)
   const mfb116 = mainframeBonus(116);
@@ -362,4 +363,3 @@ export function computeAFKGainsRate() {
 
   return { rate, pct: rate * 100, sum, parts };
 }
-

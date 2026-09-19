@@ -329,7 +329,7 @@ function _renderUpgrades() {
     const maxLv = upg[1];
     const bonus = upg[3] * lv;
     const maxed = lv >= maxLv && maxLv < 9999;
-    const costNext = (unlocked && !maxed) ? upgCost(slot, ul, kt) : null;
+    const costNext = (unlocked && !maxed) ? upgCost(slot, ul, kt, saveData) : null;
     const deficit = costNext !== null ? costNext - bucks : null;
     const hoursNeeded = deficit !== null && deficit > 0 && bucksHr > 0 ? deficit / bucksHr : 0;
     const daysNeeded = deficit !== null && deficit > 0 && dailyTotal > 0 ? deficit / dailyTotal : 0;
@@ -648,7 +648,7 @@ function _renderBestUpgrade() {
     while (simUl.length <= ui) simUl.push(0);
     simUl[ui] = lv + 1;
     const simKt = knowledgeBonusTotals(sd);
-    const cost = upgCost(slot, ul, kt);
+    const cost = upgCost(slot, ul, kt, saveData);
 
     // Bucks/hr gain
     const newBucks = totalBucksPerHr(sd, simUl, us, simKt, ext);
@@ -701,7 +701,7 @@ function _renderBestUpgrade() {
         const prevLv = slot > 0 ? (simUl[SLOT_TO_UPG[slot - 1]] || 0) : 1;
         if (prevLv === 0 && lv === 0) continue;
 
-        const cost = upgCost(slot, simUl, kt);
+        const cost = upgCost(slot, simUl, kt, saveData);
         if (cost > remaining || cost <= 0) continue;
 
         const simUl2 = [...simUl];
@@ -1033,5 +1033,4 @@ function _renderTable(target) {
     </div>
   `;
 }
-
 

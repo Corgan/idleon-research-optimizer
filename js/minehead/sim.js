@@ -395,6 +395,7 @@ export function simulateGame({
   floor, upgLevels,
   strategy = tunableStrategy(),
   gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0, sailing38 = 0, dancingCoral5 = 0,
+  jellyDamage9 = 0, jellyGoldTiles45 = 0,
   svarHP = 1, maxTurns = 200, rng = Math.random, mineReduction = 0,
 }) {
   const { cols, rows } = gridDims(upgLevels[2]);
@@ -404,12 +405,12 @@ export function simulateGame({
   let livesLeft = maxHPYou(upgLevels);
 
   // Per-game resources
-  let goldensRemaining = goldTilesTotal(upgLevels);
+  let goldensRemaining = goldTilesTotal(upgLevels, jellyGoldTiles45);
   let blocksLeft = blocksTotal(upgLevels);
   let instaLeft = instaRevealsTotal(upgLevels);
   const crownOdds = bluecrownOdds(upgLevels);
   const jpTileCount = jackpotTiles(upgLevels);
-  const goldUpgTotal = goldTilesTotal(upgLevels);
+  const goldUpgTotal = goldTilesTotal(upgLevels, jellyGoldTiles45);
   const hasRevival = upgradeQTY(19, upgLevels[19]) >= 1;
   const maxWiggles = wiggleMaxPerGame(gridBonus166_1);
 
@@ -573,7 +574,7 @@ export function simulateGame({
       const perTilePct = bonusDMGperTilePCT(upgLevels, gridBonus146);
       const turnDmgNow = turnValues.length > 0
         ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5)
+            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9)
         : 0;
 
       const decision = strategy({
@@ -692,7 +693,7 @@ export function simulateGame({
     if (turnOutcome !== 'mine' && turnValues.length > 0) {
       const dmg = currentOutgoingDMG(
         turnValues, crownSets, livesLeft <= 1,
-        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5,
+        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9,
       );
       if (dmg > 0) {
         if (totalCommits === 0) firstTurnDmg = dmg;
@@ -715,7 +716,7 @@ export function simulateGame({
         dmgThisTurn: turnOutcome === 'mine' ? 0
           : (turnValues.length > 0
             ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5)
+                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9)
             : 0),
         livesLeft,
         totalDmg,

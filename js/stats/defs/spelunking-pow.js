@@ -14,6 +14,7 @@ import { cardLv } from '../systems/common/cards.js';
 import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeMSABonus, computeSlabboBonus } from '../systems/w4/gaming.js';
 import { spelunkPowTaskLevel } from '../data/w7/tasks.js';
+import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 
 export default createDescriptor({
   id: 'spelunking-pow',
@@ -32,6 +33,8 @@ export default createDescriptor({
     // POW_multi: massive multiplicative chain
     var winBonus27 = rval(winBonus, 27, ctx);
     var rog20 = rogBonusQTY(20, s.cachedUniqueSushi || 0);
+    var jelly38 = jellyRewardBonus(s, 38);
+    var jelly21 = jellyRewardBonus(s, 21);
     var bb6 = computeButtonBonus(6, s);
     var gemPurchase43 = Number(s.gemItemsData && s.gemItemsData[43]) || 0;
     var gemMulti = Math.max(1, Math.pow(2, gemPurchase43));
@@ -64,7 +67,9 @@ export default createDescriptor({
     var paletteBonus13 = safe(computePaletteBonus, 13, s);
     var taskPowLevel = spelunkPowTaskLevel(s);
 
-    var powMulti = (1 + winBonus27 / 100) * (1 + rog20 / 100) * (1 + bb6 / 100) * gemMulti
+    var powMulti = (1 + winBonus27 / 100) * (1 + rog20 / 100)
+      * (1 + jelly38 / 100) * (1 + jelly21 / 100)
+      * (1 + bb6 / 100) * gemMulti
       * chapterComps * (1 + shop1 / 100) * (1 + dancingCoral1 / 100)
       * (1 + addGroup1 / 100) * (1 + shop2 / 100)
       * (1 + ola500 / 100) * (1 + shop3 / 100)

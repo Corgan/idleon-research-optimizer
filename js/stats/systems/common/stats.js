@@ -59,6 +59,7 @@ import { isExalted, computeStampDoublerSources } from '../w1/stamp.js';
 import { artifactBase } from '../../data/w5/sailing.js';
 import { cosmoUpgBase } from '../../data/w5/hole.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { AlchemyDescription } from '../../data/game/customlists.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { guildBonusParams } from '../../data/common/guild.js';
@@ -1381,7 +1382,7 @@ export function computeMealBonus(effectKey, saveData, charIdx) {
     var ribIdx = 28 + mi;
     var masteryLv = Number(mastery[mi]) || 0;
     var masteryMulti = bonusMultiCook(masteryLv);
-    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData, emperorSet);
+    var ribMeal = ribbonBonusAt(ribIdx, s.ribbonData, String((s.olaData && s.olaData[379]) || ''), s.weeklyBossData, emperorSet, jellyRewardBonus(s, 60));
     var contrib = masteryMulti * cookMulti * ribMeal * mealLv * bonusPerLv;
     total += contrib;
     children.push(node('Meal ' + mi + ' (' + (MealINFO[mi][0] || '').replace(/_/g, ' ') + ')', contrib, null,

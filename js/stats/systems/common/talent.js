@@ -20,7 +20,7 @@ import { getSetBonus } from '../w3/setBonus.js';
 import { hasBonusMajor } from '../w5/divinity.js';
 import { label, entityName } from '../../entity-names.js';
 import { CLASS_TREES, talentParams, familyBonusParams } from '../../data/common/talent.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 import { bubbleParams } from '../../data/w2/alchemy.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
 import { godMinorX1 } from '../../data/w5/divinity.js';
@@ -106,7 +106,7 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   }
 
   // Companions(1): Rift Slug = +talent levels if owned
-  var comp1 = saveData.companionIds.has(1) ? companionBonus(1) : 0;
+  var comp1 = companionBonusForSave(1, saveData);
 
   // Divinity minor bonus 2 (Arctis)
   var _y2bp = bubbleParams(3, 21);
@@ -259,7 +259,7 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   }
 
   // Companion 1 (Rift Slug)
-  var comp1v = saveData.companionIds.has(1) ? companionBonus(1) : 0;
+  var comp1v = companionBonusForSave(1, saveData);
   if (comp1v > 0) children.push(node(label('Companion', 1), comp1v, null, { fmt: 'raw' }));
 
   // Divinity minor 2 (Arctis)

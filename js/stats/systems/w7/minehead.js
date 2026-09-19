@@ -10,10 +10,12 @@ import { arcadeBonus } from '../w2/arcade.js';
 import { cookingMealMulti } from '../common/cooking.js';
 import { computeMealBonus } from '../common/stats.js';
 import { getLOG } from '../../../formulas.js';
-import { companionBonus } from '../../data/common/companions.js';
+import { companionBonusForSave, companionLevel2 } from '../../data/common/companions.js';
 import { gbWith } from '../../../sim-math.js';
 import { computeDancingCoralBonus } from './spelunking.js';
 import { mineheadCurrencyTaskLevel } from '../../data/w7/tasks.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
+import { outpostROGBonus } from './royal-guardian.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -37,7 +39,7 @@ export function computeButtonBonus(slotIdx, saveData) {
   var fullCycles = Math.floor(presses / 45);
   var rem = presses % 45;
   var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
-  var comp147 = saveData.companionIds && saveData.companionIds.has(147) ? companionBonus(147) : 0;
+  var comp147 = companionBonusForSave(147, saveData);
   var grid125 = gbWith(saveData.gridLevels || [], saveData.shapeOverlay || [], 125, {
     abm: Number(saveData.allBonusMulti) || 1,
     c52: Number(saveData.comp52TrueMulti) || 1,
@@ -49,7 +51,8 @@ export function computeButtonBonus(slotIdx, saveData) {
 
 export function computeMineheadCurrSources(saveData, charIdx) {
   charIdx = Number(charIdx) || 0;
-  var comp143 = saveData.companionIds.has(143) ? companionBonus(143) : 0;
+  var comp143 = companionBonusForSave(143, saveData);
+  var comp143Level2 = companionLevel2(143, saveData);
   var atom13 = Number(saveData.atomsData && saveData.atomsData[13]) || 0;
   var eventShop44 = eventShopOwned(44, saveData.cachedEventShopStr);
   var dancingCoral5 = computeDancingCoralBonus(5, saveData);
@@ -69,7 +72,7 @@ export function computeMineheadCurrSources(saveData, charIdx) {
   var mealRibT = 0;
   if (mealLv > 0) {
     mealRibT = saveData.ribbonData[101] || 0;
-    mealRibBon = ribbonBonusAt(101, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
+    mealRibBon = ribbonBonusAt(101, saveData.ribbonData, olaStr379, saveData.weeklyBossData, undefined, jellyRewardBonus(saveData, 60));
     var cm = cookingMealMulti(saveData);
     mealCookMulti = cm.val;
     mealMfb116 = cm.mfb116;
@@ -79,7 +82,11 @@ export function computeMineheadCurrSources(saveData, charIdx) {
     mealMineCurr = Number(computeMealBonus('MineCurr', saveData, charIdx).val) || 0;
   }
   return {
-    comp143: comp143, atom13: atom13, eventShop44: eventShop44, dancingCoral5: dancingCoral5,
+    comp143: comp143, comp143Level2: comp143Level2,
+    atom13: atom13, eventShop44: eventShop44, dancingCoral5: dancingCoral5,
+    royalCurrencyMulti: Math.max(1, outpostROGBonus(saveData, 3)),
+    jellyCurrency8: jellyRewardBonus(saveData, 8),
+    bundleJ: saveData.bundlesData && saveData.bundlesData.ban_j ? 1 : 0,
     taskCurrencyLevel: taskCurrencyLevel,
     taskCurrencyMulti: 1 + 10 * taskCurrencyLevel / 100,
     arcade62: arcade62val, arcade62lv: arcade62lv,
@@ -157,8 +164,8 @@ export function totalTiles(gridExpLv) {
   return d.cols * d.rows;
 }
 
-export function goldTilesTotal(upgLevels) {
-  return upgradeQTY(8, upgLevels[8]);
+export function goldTilesTotal(upgLevels, jellyGoldTiles45) {
+  return Math.round(upgradeQTY(8, upgLevels[8]) + (Number(jellyGoldTiles45) || 0));
 }
 
 export function blocksTotal(upgLevels) {
@@ -204,10 +211,11 @@ export function minesOnFloor(floor, reduction) {
 
 // ===== DAMAGE PIPELINE =====
 
-export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5) {
+export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (sailing38 === undefined) sailing38 = 0;
   if (dancingCoral5 === undefined) dancingCoral5 = 0;
+  if (jellyDamage9 === undefined) jellyDamage9 = 0;
   var flat = 1 + upgradeQTY(0, upgLevels[0])
                + upgradeQTY(7, upgLevels[7])
                + upgradeQTY(25, upgLevels[25])
@@ -217,7 +225,7 @@ export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5) {
                     + upgradeQTY(27, upgLevels[27])) / 100;
   var gridMulti = 1 + gridBonus167 / 100;
   var sailMulti = 1 + 50 * sailing38 / 100;
-  return flat * pctMega * gridMulti * sailMulti;
+  return flat * pctMega * gridMulti * sailMulti * (1 + jellyDamage9 / 100);
 }
 
 export function bonusDMGperTilePCT(upgLevels, gridBonus146) {
@@ -245,12 +253,13 @@ export function jackpotTiles(upgLevels) {
 
 export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
                                     upgLevels, gridBonus167, gridBonus146,
-                                    wepPowDmgPCT, sailing38, dancingCoral5) {
+                                    wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (gridBonus146 === undefined) gridBonus146 = 0;
   if (wepPowDmgPCT === undefined) wepPowDmgPCT = 0;
   if (sailing38 === undefined) sailing38 = 0;
   if (dancingCoral5 === undefined) dancingCoral5 = 0;
+  if (jellyDamage9 === undefined) jellyDamage9 = 0;
   var addSum = 0;
   var multiProd = 1;
   var tileCount = 0;
@@ -269,7 +278,7 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
     tileCount++;
   }
 
-  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5);
+  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9);
   dmg *= multiProd;
   dmg *= (1 + wepPowDmgPCT / 100);
   dmg *= (1 + tileCount * bonusDMGperTilePCT(upgLevels, gridBonus146) / 100);
@@ -288,12 +297,16 @@ export function currencyPerHour(opts) {
   var gridBonus147 = opts.gridBonus147 || 0;
   var gridBonus166 = opts.gridBonus166 || 0;
   var comp143 = opts.comp143 || 1;
+  var comp143Level2 = opts.comp143Level2 || 0;
   var bonusQTY6 = opts.bonusQTY6 || 0;
   var atom13 = opts.atom13 || 0;
   var mealMineCurr = opts.mealMineCurr || 0;
   var arcade62 = opts.arcade62 || 0;
   var rogBonus12 = opts.rogBonus12 || 0;
   var eventShop44 = opts.eventShop44 || 0;
+  var royalCurrencyMulti = opts.royalCurrencyMulti || 1;
+  var jellyCurrency8 = opts.jellyCurrency8 || 0;
+  var bundleJ = opts.bundleJ || 0;
   var dancingCoral5 = opts.dancingCoral5 || 0;
   var taskCurrencyLevel = opts.taskCurrencyLevel || 0;
   var upgLevels = opts.upgLevels;
@@ -303,7 +316,7 @@ export function currencyPerHour(opts) {
   var eventShopMulti = 1 + 100 * eventShop44 / 100;
   var multi148 = 1 + gridBonus148 / 100;
   var rogMulti = 1 + rogBonus12 / 100;
-  var compMulti = Math.max(1, Math.min(2, comp143));
+  var compMulti = Math.max(1, Math.min(2, comp143) + comp143Level2);
   var bqMulti = Math.min(3, 1 + bonusQTY6 / 100);
 
   var logDmg = highestDmg > 0 ? getLOG(highestDmg) : 0;
@@ -317,7 +330,11 @@ export function currencyPerHour(opts) {
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
   var taskCurrencyMulti = 1 + 10 * taskCurrencyLevel / 100;
-  return base * eventShopMulti * multi148 * rogMulti * compMulti * bqMulti * farmPCT * buttonMulti * atomMulti * passiveMulti * taskCurrencyMulti;
+  var jellyMulti = 1 + jellyCurrency8 / 100;
+  var bundleMulti = 1 + bundleJ;
+  return base * eventShopMulti * multi148 * royalCurrencyMulti * rogMulti * jellyMulti
+    * bundleMulti * taskCurrencyMulti * compMulti * bqMulti * farmPCT
+    * buttonMulti * atomMulti * passiveMulti;
 }
 
 // ===== WIGGLE =====

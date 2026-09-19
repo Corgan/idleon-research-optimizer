@@ -11,6 +11,14 @@ import { mhState, mineReduction, getInferredParams, loadInferred, _fmt } from '.
 import { renderDashboard, renderCurrencyTab } from './minehead-dashboard.js';
 import { renderPlayfield } from './minehead-play.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
+import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
+
+function _mineheadJellyOpts() {
+  return {
+    jellyDamage9: jellyRewardBonus(saveData, 9),
+    jellyGoldTiles45: jellyRewardBonus(saveData, 45),
+  };
+}
 
 let _activeSubtab = 'mh-dashboard';
 
@@ -133,6 +141,7 @@ function _showInferredCard(floor, upgLevels, svarHP) {
   const infR = evaluateTunableParams({
     params: infP, floor, upgLevels, nTrials: 2000,
     seed: 42 + floor, svarHP, mineReduction: mineReduction(),
+    ..._mineheadJellyOpts(),
   });
   const profile = mhState.inferResult?.profile || '';
   const agreement = mhState.inferResult?.agreement ? (mhState.inferResult.agreement * 100).toFixed(1) + '% match' : '';
@@ -602,7 +611,7 @@ function _runOptimize(lvs, floor, svarHP) {
 }
 
 function _dispatchOptTask(worker, task, floor, upgLevels, nTrials, seed, svarHP) {
-  worker.postMessage({ type: 'optimize', id: task.id, floor, upgLevels: [...upgLevels], params: task.params, nTrials, seed, svarHP });
+  worker.postMessage({ type: 'optimize', id: task.id, floor, upgLevels: [...upgLevels], params: task.params, nTrials, seed, svarHP, ..._mineheadJellyOpts() });
 }
 
 function _onOptComplete(topResults, floor, upgLevels, svarHP) {
@@ -728,6 +737,7 @@ function _showOptResults(cache) {
       upgLevels: _infLvs, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _infSvar,
       mineReduction: mineReduction(),
+      ..._mineheadJellyOpts(),
     });
     const ip = _infP, ir = _infR;
     const profile = mhState.inferResult?.profile || '';
@@ -898,7 +908,7 @@ function _runUpgradeRank(lvs, floor, svarHP) {
 }
 
 function _dispatchRankTask(worker, task, floor, params, nTrials, seed, svarHP) {
-  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction() });
+  worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction(), ..._mineheadJellyOpts() });
 }
 
 function _onRankComplete(results, affordable, floor, nTrials, lvs) {
@@ -954,6 +964,7 @@ function _showRankResults(cache) {
       upgLevels: cache.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: cache.svarHP || 1,
       mineReduction: mineReduction(),
+      ..._mineheadJellyOpts(),
     });
     const dmgDelta = b.avgDmg > 0 ? ((_rInfR.avgDmg - b.avgDmg) / b.avgDmg * 100) : 0;
     const winDelta = (_rInfR.winRate - b.winRate) * 100;
@@ -1063,7 +1074,7 @@ function _runUpgradePath(lvs, floor, svarHP) {
     _runPathStep(currentLvs, path, baseline, 0, maxSteps, params, nTrials, seed, svarHP, floor, hp,
       researchLv, mineCurrency, workers, statusEl, barEl, pctEl, progressEl, cancelEl, btnEl);
   };
-  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP, mineReduction: mineReduction() });
+  baseWorker.postMessage({ type: 'mc', id: 'path_base', floor, upgLevels: [...currentLvs], params, nTrials, seed, svarHP, mineReduction: mineReduction(), ..._mineheadJellyOpts() });
 }
 
 function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, seed, svarHP, floor, hp,
@@ -1083,7 +1094,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
       if (btnEl) btnEl.disabled = false;
       _showPathResults(_pathCache);
     };
-    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP, mineReduction: mineReduction() });
+    fw.postMessage({ type: 'mc', id: 'path_final', floor, upgLevels: [...currentLvs], params, nTrials: nTrials * 2, seed, svarHP, mineReduction: mineReduction(), ..._mineheadJellyOpts() });
     return;
   }
 
@@ -1159,7 +1170,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
   function dispatch(worker) {
     if (!_pathWorkers || taskIdx >= tasks.length) return;
     const task = tasks[taskIdx++];
-    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction() });
+    worker.postMessage({ type: 'mc', id: task.id, floor, upgLevels: task.upgLevels, params, nTrials, seed, svarHP, mineReduction: mineReduction(), ..._mineheadJellyOpts() });
   }
 
   for (const w of workers) {
@@ -1190,6 +1201,7 @@ function _showPathResults(cache) {
       upgLevels: _pathStartCtx.upgLevels, nTrials: 2000,
       seed: 42 + cache.floor, svarHP: _pathStartCtx.svarHP || 1,
       mineReduction: mineReduction(),
+      ..._mineheadJellyOpts(),
     });
     const dmgDelta = baseline.avgDmg > 0 ? ((_pInfR.avgDmg - baseline.avgDmg) / baseline.avgDmg * 100) : 0;
     const winDelta = (_pInfR.winRate - baseline.winRate) * 100;
@@ -1237,4 +1249,3 @@ function _showPathResults(cache) {
 
   el.innerHTML = html;
 }
-

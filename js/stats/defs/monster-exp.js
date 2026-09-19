@@ -28,6 +28,7 @@ import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
 import { talent } from '../systems/common/talent.js';
 import { computeMeritocBonusz } from '../systems/w7/meritoc.js';
+import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 import { winBonus } from '../systems/w6/summoning.js';
 import { grimoireUpgBonus22, grimoire } from '../systems/mc/grimoire.js';
 import { GrimoireUpg } from '../data/game/customlists.js';
@@ -186,9 +187,12 @@ export default createDescriptor({
     var comp50 = rval(companion, 50, ctx);
     var comp128 = rval(companion, 128, ctx);
     var comp168 = rval(companion, 168, ctx);
+    var jellyClassExp30 = jellyRewardBonus(s, 30);
+    var jellyClassExp62 = jellyRewardBonus(s, 62);
     var compMult = (1 + 9 * comp37) * (1 + comp33) * (1 + 4 * comp160)
       * (1 + comp32) * (1 + comp34) * (1 + comp145)
-      * (1 + 0.4 * comp168) * (1 + Math.min(0.5, comp128));
+      * (1 + 0.4 * comp168) * (1 + Math.min(0.5, comp128))
+      * (1 + jellyClassExp30 / 100) * (1 + jellyClassExp62 / 100);
 
     // Grid bonuses 130, 131, 132, 152
     var grid130 = rval(grid, 130, ctx);

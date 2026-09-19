@@ -23,6 +23,7 @@ import { outpostROGBonus } from '../systems/w7/royal-guardian.js';
 import { createDescriptor, gridBonusFinal, computeButtonBonus, computeKillroyBonus } from './helpers.js';
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonusForSave, companionLevel2 } from '../data/common/companions.js';
+import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
@@ -117,7 +118,7 @@ export default createDescriptor({
 
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;
-    var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData);
+    var ribBon = ribbonBonusAt(100, saveData.ribbonData, olaStr379, saveData.weeklyBossData, undefined, jellyRewardBonus(saveData, 60));
     // BonusMultiCook(72): per-meal mastery bonus = 1 + CookMaster[0][72]/(CookMaster[0][72]+5)
     var masteryLv72 = Number(saveData.cookMasterData && saveData.cookMasterData[0] && saveData.cookMasterData[0][72]) || 0;
     var mealMastery = 1 + masteryLv72 / (masteryLv72 + 5);
@@ -271,6 +272,17 @@ export default createDescriptor({
     var _fMb = _fMlv2_16 <= 0 ? 1 : 1.5 + 0.5 * _fMlv2_16;
     var _fBon2_16 = Math.round(_fMb * _fLv2_16 * 1);
     if (_fBon2_16 > 0) multItems.push({ name: 'Fountain: Pen N Paper', val: 1 + _fBon2_16 / 100, fmt: 'x', note: 'Level ' + _fLv2_16 + ((_fMlv2_16 > 0) ? ', Marble Level ' + _fMlv2_16 : '') });
+
+    for (var ji = 0; ji < 4; ji++) {
+      var jellyIndex = [0, 23, 46, 54][ji];
+      var jellyBonus = jellyRewardBonus(saveData, jellyIndex);
+      multItems.push({
+        name: label('Jelly Reward', jellyIndex),
+        val: 1 + jellyBonus / 100,
+        fmt: 'x',
+        note: jellyBonus > 0 ? '+' + jellyBonus + '% Research EXP' : 'Not cleared',
+      });
+    }
 
     var royalResearch = outpostROGBonus(saveData, 1);
     multItems.push({ name: 'Royal Guardian: Research Focus', val: Math.max(1, royalResearch), fmt: 'x', note: saveData.royalGDataAvailable === false ? 'RoyalG unavailable' : 'Research focus selection' });

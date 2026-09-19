@@ -8,6 +8,8 @@
 import { MealINFO } from '../../data/game/customlists.js';
 import { eventShopOwned, ribbonBonusAt } from '../../../game-helpers.js';
 import { cookingMealMulti } from './cooking.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
+import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 
 // ========== CORE: MealBonusesS computation ==========
 
@@ -24,7 +26,8 @@ export function mealContribution(idx, masteryLv, saveData, _cookMulti) {
   var cat = MealINFO[idx][5];
   if (cat === 'PxLine') return mealLv * base; // no mastery/ribbon
   var rib = ribbonBonusAt(28 + idx, saveData.ribbonData || [],
-    String((saveData.olaData && saveData.olaData[379]) || ''), saveData.weeklyBossData);
+    String((saveData.olaData && saveData.olaData[379]) || ''), saveData.weeklyBossData,
+    undefined, jellyRewardBonus(saveData, 60));
   var cm = _cookMulti != null ? _cookMulti : cookingMealMulti(saveData).val;
   return bonusMultiCook(masteryLv) * cm * rib * mealLv * base;
 }
@@ -50,18 +53,18 @@ export function computeAllMealBonuses(saveData, masteryOverrides) {
 export function yellowPointBudget(saveData) {
   var rank = Number(saveData.cookMasterData && saveData.cookMasterData[1]
     && saveData.cookMasterData[1][0]) || 0;
-  var companion = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  var companion = 5 * companionBonusForSave(87, saveData);
   var grid190 = Math.round(Number(saveData.gridLevels && saveData.gridLevels[190]) || 0);
   var event54 = 5 * eventShopOwned(54, saveData.cachedEventShopStr);
-  return Math.max(0, Math.round(rank + 1 + companion + grid190 + event54));
+  return Math.max(0, Math.round(rank + 1 + companion + grid190 + event54 + jellyRewardBonus(saveData, 5)));
 }
 
 export function purplePointBudget(saveData) {
   var rank = Number(saveData.cookMasterData && saveData.cookMasterData[1]
     && saveData.cookMasterData[1][0]) || 0;
-  var companion = saveData.companionIds && saveData.companionIds.has(87) ? 5 : 0;
+  var companion = 5 * companionBonusForSave(87, saveData);
   var event54 = 5 * eventShopOwned(54, saveData.cachedEventShopStr);
-  return Math.max(0, Math.round(rank + 1 + companion + event54));
+  return Math.max(0, Math.round(rank + 1 + companion + event54 + jellyRewardBonus(saveData, 13)));
 }
 
 // ========== GOAL DEFINITIONS ==========
@@ -285,7 +288,8 @@ export function optimizeForGoal(goalId, budget, saveData, options) {
     var base = Number(MealINFO[mi][2]) || 0;
     if (base <= 0) continue;
     var rib = cat === 'PxLine' ? 1 : ribbonBonusAt(28 + mi, saveData.ribbonData || [],
-      String((saveData.olaData && saveData.olaData[379]) || ''), saveData.weeklyBossData);
+      String((saveData.olaData && saveData.olaData[379]) || ''), saveData.weeklyBossData,
+      undefined, jellyRewardBonus(saveData, 60));
     var baseWeight = cat === 'PxLine' ? mealLv * base : cmVal * rib * mealLv * base;
     relevantMeals.push({ idx: mi, cat: cat, baseWeight: baseWeight, isPxLine: cat === 'PxLine' });
   }
