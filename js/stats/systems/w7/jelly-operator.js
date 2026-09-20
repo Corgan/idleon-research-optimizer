@@ -1141,6 +1141,25 @@ export function simulateJellyTrials(layout, S, options = {}) {
   const deaths = results.map(result => result.deaths);
   const revives = results.map(result => result.revivesUsed);
   const bestDps = results.map(result => result.bestDpsAfter);
+  const normalDamage = results.map(result => n(result.damageAtCriticalStart));
+  const criticalDamage = results.map(result => Math.max(0, n(result.damage) - n(result.damageAtCriticalStart)));
+  const shots = results.map(result => n(result.shots));
+  const hits = results.map(result => n(result.hits));
+  const bossAttacks = results.map(result => n(result.bossAttacks));
+  const immunoidFocusTime = results.map(result => n(result.immunoidFocusTime));
+  const liveSlots = results.map(result => n(result.liveSlots));
+  const attemptDelta = results.map(result => n(result.attemptDelta));
+  const amoebaStacksAtCriticalStart = results.map(result => n(result.amoebaStacksAtCriticalStart));
+  const amoebaStacksAtCriticalEnd = results.map(result => n(result.amoebaStacks));
+  const meanCellTypeContribution = Array.from({ length: 9 }, (_, type) => ({
+    type,
+    name: CELL_NAMES[type],
+    shots: mean(results.map(result => n(result.contribution?.[type]?.shots))),
+    hits: mean(results.map(result => n(result.contribution?.[type]?.hits))),
+    damage: mean(results.map(result => n(result.contribution?.[type]?.damage))),
+    bloodcells: mean(results.map(result => n(result.contribution?.[type]?.bloodcells))),
+    exp: mean(results.map(result => n(result.contribution?.[type]?.exp))),
+  }));
   const clearInterval = wilsonInterval(successes.length, trials);
   return {
     valid: true,
@@ -1167,6 +1186,21 @@ export function simulateJellyTrials(layout, S, options = {}) {
     meanDeaths: mean(deaths),
     meanRevives: mean(revives),
     meanBestDps: mean(bestDps),
+    meanNormalDamage: mean(normalDamage),
+    meanNormalPhaseDamage: mean(normalDamage),
+    meanCriticalDamage: mean(criticalDamage),
+    meanCriticalPhaseDamage: mean(criticalDamage),
+    meanShots: mean(shots),
+    meanHits: mean(hits),
+    meanBossAttacks: mean(bossAttacks),
+    meanImmunoidFocusTime: mean(immunoidFocusTime),
+    meanLiveSlots: mean(liveSlots),
+    meanAttemptDelta: mean(attemptDelta),
+    meanAmoebaStacksAtCriticalStart: mean(amoebaStacksAtCriticalStart),
+    meanAmoebaStacksAtCriticalEnd: mean(amoebaStacksAtCriticalEnd),
+    meanCellTypeContribution,
+    meanCellContributionByType: meanCellTypeContribution,
+    meanContributionByType: meanCellTypeContribution,
     minDamage: Math.min(...damages),
     maxDamage: Math.max(...damages),
     representative: results[0],
@@ -1177,6 +1211,145 @@ export function simulateJellyTrials(layout, S, options = {}) {
 
 export function jellyOperationEstimate(layout, S, options = {}) {
   return simulateJellyTrials(layout, S, { trials: options.trials || 64, ...options });
+}
+
+function finiteOrNull(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function clearProbabilityProxy(damageRatio) {
+  const ratio = Math.max(0, n(damageRatio));
+  if (ratio < 1) return Math.min(0.5, 0.5 * ratio * ratio);
+  return Math.min(0.999, 0.5 + 0.5 * (1 - Math.exp(-(ratio - 1))));
+}
+
+export function jellyOperationInsights(operation, S, options = {}) {
+  const valid = Boolean(operation?.valid);
+  const clearProbability = valid ? Math.max(0, Math.min(1, n(operation.clearProbability))) : 0;
+  const dailyAttempts = Math.max(0, Math.floor(n(options.dailyAttempts ?? jellyDailyTries(S))));
+  const expectedAttemptsToClear = clearProbability > 0 ? 1 / clearProbability : null;
+  const probabilityWithinDailyAttempts = dailyAttempts > 0
+    ? 1 - (1 - clearProbability) ** dailyAttempts
+    : 0;
+  const expectedDaysToClear = expectedAttemptsToClear != null && dailyAttempts > 0
+    ? expectedAttemptsToClear / dailyAttempts
+    : null;
+  const expectedDailyCyclesToClear = probabilityWithinDailyAttempts > 0
+    ? 1 / probabilityWithinDailyAttempts
+    : null;
+  const savedDailyPassiveBloodcells = options.includeDailyPassive === false ? 0 : jellyDailyBloodcells(S);
+  const expectedBloodcellsPerAttempt = valid ? n(operation.meanBloodcells) : 0;
+  const expectedBloodcellsPerDailyCycle = expectedBloodcellsPerAttempt * dailyAttempts + savedDailyPassiveBloodcells;
+  const expectedNetAttemptDeltaPerAttempt = valid ? n(operation.meanAttemptDelta) : 0;
+  const expectedNetAttemptDeltaPerDailyCycle = expectedNetAttemptDeltaPerAttempt * dailyAttempts;
+  const normalDamage = valid ? n(operation.meanNormalDamage ?? operation.meanNormalPhaseDamage) : 0;
+  const criticalDamage = valid ? n(operation.meanCriticalDamage ?? operation.meanCriticalPhaseDamage) : 0;
+  const totalPhaseDamage = normalDamage + criticalDamage;
+  const expRows = [];
+  for (let type = 0; type < jellyUnitsOwned(S); type++) {
+    const currentLevel = jellyCellLevel(S, type);
+    const currentExp = jellyCellExp(S, type);
+    const requirement = jellyCellExpRequirement(S, type);
+    const remainingExp = Math.max(0, requirement - currentExp);
+    const meanExpPerAttempt = valid ? n(operation.meanCellExpByType?.[type]) : 0;
+    const attemptsToNextLevel = remainingExp <= 0
+      ? 0
+      : meanExpPerAttempt > 0 ? remainingExp / meanExpPerAttempt : null;
+    const daysToNextLevel = attemptsToNextLevel == null || dailyAttempts <= 0
+      ? null
+      : attemptsToNextLevel / dailyAttempts;
+    expRows.push({
+      type,
+      name: CELL_NAMES[type],
+      currentLevel,
+      currentExp,
+      requirement,
+      remainingExp,
+      meanExpPerAttempt,
+      attemptsToNextLevel: finiteOrNull(attemptsToNextLevel),
+      daysToNextLevel: finiteOrNull(daysToNextLevel),
+    });
+  }
+  const currentObstruction = Math.max(0, Math.floor(n(
+    options.obstruction
+    ?? operation?.representative?.obstruction
+    ?? operation?.obstruction
+    ?? jellyProgress(S).obstruction
+  )));
+  const sourceTime = Math.max(1e-12, n(
+    operation?.representative?.standardTime
+    ?? jellyBossTime(currentObstruction)
+  ));
+  const sourceDamage = valid ? n(operation.meanDamage) : 0;
+  const outlookLayout = options.layout;
+  const useSurrogateOutlook = outlookLayout != null && jellyValidateLayout(outlookLayout, S).valid;
+  const obstructionOutlookCount = Math.max(0, Math.min(6, 72 - currentObstruction));
+  const obstructionOutlook = Array.from({ length: obstructionOutlookCount }, (_, offset) => {
+    const obstruction = currentObstruction + offset;
+    const hp = jellyBossHp(obstruction);
+    const time = jellyBossTime(obstruction);
+    let damageRatio;
+    if (useSurrogateOutlook) {
+      const surrogate = jellyOperationSurrogate(outlookLayout, S, {
+        ...options,
+        objective: 'clear',
+        obstruction,
+        fever: options.fever ?? operation?.fever ?? operation?.representative?.fever,
+        roidTiming: options.roidTiming ?? operation?.roidTiming,
+        revivePolicy: options.revivePolicy ?? operation?.revivePolicy,
+      });
+      damageRatio = surrogate.valid ? n(surrogate.damageRatio) : 0;
+    } else {
+      const estimatedDamage = sourceDamage * time / sourceTime;
+      damageRatio = hp > 0 ? estimatedDamage / hp : 0;
+    }
+    const estimatedClearProbability = offset === 0 && valid
+      ? clearProbability
+      : clearProbabilityProxy(damageRatio);
+    const expectedAttempts = estimatedClearProbability > 0 ? 1 / estimatedClearProbability : null;
+    return {
+      obstruction,
+      hp,
+      time,
+      estimatedClearProbability,
+      damageRatio,
+      expectedAttempts: finiteOrNull(expectedAttempts),
+      clearWithinDailyAttempts: dailyAttempts > 0
+        ? 1 - (1 - estimatedClearProbability) ** dailyAttempts
+        : 0,
+    };
+  });
+  return {
+    valid,
+    trials: Math.max(0, Math.floor(n(operation?.trials))),
+    clearProbability,
+    dailyAttempts,
+    expectedAttemptsToClear: finiteOrNull(expectedAttemptsToClear),
+    probabilityWithinDailyAttempts,
+    expectedDaysToClear: finiteOrNull(expectedDaysToClear),
+    expectedDailyCyclesToClear: finiteOrNull(expectedDailyCyclesToClear),
+    expectedBloodcellsPerAttempt,
+    savedDailyPassiveBloodcells,
+    expectedBloodcellsPerDailyCycle,
+    expectedDailyBloodcells: expectedBloodcellsPerDailyCycle,
+    expectedNetAttemptDeltaPerAttempt,
+    expectedNetAttemptDelta: expectedNetAttemptDeltaPerAttempt,
+    expectedNetAttemptDeltaPerDailyCycle,
+    normalDamage,
+    criticalDamage,
+    normalDamageShare: totalPhaseDamage > 0 ? normalDamage / totalPhaseDamage : null,
+    criticalDamageShare: totalPhaseDamage > 0 ? criticalDamage / totalPhaseDamage : null,
+    expRows,
+    cellExpRows: expRows,
+    obstructionOutlook,
+    obstructionOutlookEstimate: {
+      method: useSurrogateOutlook ? 'layout-surrogate' : 'scaled-current-operation',
+      probability: 'Current obstruction uses the simulated clear probability. Later rows convert deterministic damage ratio into a bounded probability proxy.',
+      note: useSurrogateOutlook
+        ? 'Each row uses the deterministic Jelly operation surrogate for the supplied options.layout; no per-obstruction Monte Carlo is run.'
+        : 'Without options.layout, mean current-operation damage is scaled by the obstruction time limit before comparison with each obstruction HP; no per-obstruction Monte Carlo is run.',
+    },
+  };
 }
 
 function availableFeverTypes(S, requested) {
@@ -1216,7 +1389,7 @@ export function optimizeJellyOperationPolicy(layout, S, options = {}) {
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const obstruction = options.obstruction == null ? jellyProgress(S).obstruction : Math.max(0, Math.floor(n(options.obstruction)));
-  const trials = Math.max(4, Math.min(256, Math.floor(n(options.trials) || 32)));
+  const trials = Math.max(4, Math.min(1000, Math.floor(n(options.trials) || 32)));
   const screeningTrials = Math.max(2, Math.min(trials, Math.floor(n(options.screeningTrials) || 4)));
   const feverTypes = availableFeverTypes(S, options.fever);
   const roidTimings = availableRoidTimings(S, obstruction, options.roidTiming);
@@ -1301,6 +1474,463 @@ export function optimizeJellyOperationPolicy(layout, S, options = {}) {
   };
 }
 
+const JELLY_QUALITY_PROFILES = {
+  fast: [8, 32, 128],
+  balanced: [16, 64, 256],
+  thorough: [32, 128, 512],
+};
+
+const JELLY_STRATEGY_PROFILES = {
+  conservative: { candidateCap: 8, beamWidth: 6, confidenceWeight: -1 },
+  balanced: { candidateCap: 12, beamWidth: 8, confidenceWeight: 0 },
+  aggressive: { candidateCap: 16, beamWidth: 10, confidenceWeight: 1 },
+  progression: { candidateCap: 12, beamWidth: 8, confidenceWeight: 0 },
+  bloodcells: { candidateCap: 12, beamWidth: 8, confidenceWeight: 0 },
+  exp: { candidateCap: 12, beamWidth: 8, confidenceWeight: 0 },
+  critical: { candidateCap: 12, beamWidth: 8, confidenceWeight: 0 },
+  'long-term': { candidateCap: 16, beamWidth: 10, confidenceWeight: 1 },
+  'low-risk': { candidateCap: 8, beamWidth: 6, confidenceWeight: -1 },
+};
+
+function jellyQualityOptions(options = {}) {
+  const quality = Object.hasOwn(JELLY_QUALITY_PROFILES, options.quality) ? options.quality : 'balanced';
+  const nominal = JELLY_QUALITY_PROFILES[quality];
+  if (options.trials == null) {
+    return {
+      quality,
+      screeningTrials: nominal[0],
+      racingTrials: nominal[1],
+      finalTrials: nominal[2],
+      stages: nominal.slice(),
+    };
+  }
+  const finalTrials = Math.max(1, Math.min(1000, Math.floor(n(options.trials) || nominal[2])));
+  const screeningTrials = Math.max(1, Math.min(
+    finalTrials,
+    Math.floor(n(options.screeningTrials) || Math.min(nominal[0], finalTrials))
+  ));
+  const racingTrials = Math.max(screeningTrials, Math.min(
+    finalTrials,
+    Math.floor(n(options.racingTrials) || Math.min(nominal[1], finalTrials))
+  ));
+  return {
+    quality,
+    screeningTrials,
+    racingTrials,
+    finalTrials,
+    stages: Array.from(new Set([screeningTrials, racingTrials, finalTrials])),
+  };
+}
+
+function jellyStrategyOptions(options = {}) {
+  const strategy = Object.hasOwn(JELLY_STRATEGY_PROFILES, options.strategy) ? options.strategy : 'balanced';
+  const preset = JELLY_STRATEGY_PROFILES[strategy];
+  return {
+    strategy,
+    candidateCap: Math.max(2, Math.min(24, Math.floor(n(options.candidateCap) || preset.candidateCap))),
+    beamWidth: Math.max(2, Math.min(20, Math.floor(n(options.sectionBeamWidth ?? options.beamWidth) || preset.beamWidth))),
+    confidenceWeight: preset.confidenceWeight,
+  };
+}
+
+function operationObjectiveValue(operation, objective, expCellType) {
+  if (!operation?.valid) return 0;
+  if (objective === 'clear') return n(operation.clearProbability);
+  if (objective === 'bloodcells') return n(operation.meanBloodcells);
+  if (objective === 'exp') return operationExpValue(operation, expCellType);
+  if (objective === 'survival') return n(operation.meanCriticalTime);
+  return n(operation.meanDamage);
+}
+
+function trialObjectiveValue(result, objective, expCellType) {
+  if (objective === 'clear') return result?.success ? 1 : 0;
+  if (objective === 'bloodcells') return n(result?.bloodcells);
+  if (objective === 'exp') {
+    return expCellType < 0
+      ? n(result?.cellExp)
+      : n(result?.expByType?.[expCellType]);
+  }
+  if (objective === 'survival') return n(result?.criticalTime);
+  return n(result?.damage);
+}
+
+function pairedOperationConfidence(candidate, baseline, objective, expCellType) {
+  const candidateResults = candidate?.results;
+  const baselineResults = baseline?.results;
+  if (!Array.isArray(candidateResults) || !Array.isArray(baselineResults)) return null;
+  const count = Math.min(candidateResults.length, baselineResults.length);
+  if (!count) return null;
+  const differences = [];
+  let wins = 0;
+  let ties = 0;
+  for (let index = 0; index < count; index++) {
+    const difference = trialObjectiveValue(candidateResults[index], objective, expCellType)
+      - trialObjectiveValue(baselineResults[index], objective, expCellType);
+    differences.push(difference);
+    if (difference > 0) wins++;
+    else if (difference === 0) ties++;
+  }
+  const meanDifference = mean(differences);
+  const margin = 1.96 * standardError(differences);
+  return {
+    trials: count,
+    chanceBeatsBaseline: (wins + 0.5 * ties) / count,
+    meanDifference,
+    low: meanDifference - margin,
+    high: meanDifference + margin,
+  };
+}
+
+function stripTrialResults(operation) {
+  if (!operation) return operation;
+  const { results, ...summary } = operation;
+  return summary;
+}
+
+function saveWithJellyPlots(S, plotIds) {
+  let result = S;
+  for (const plotId of plotIds) result = saveWithJellyPlot(result, plotId);
+  return result;
+}
+
+function jellyLegalPlacementAnchors(S, type) {
+  const unlocked = jellyUnlockedSlots(S);
+  const anchors = [];
+  for (let anchor = 0; anchor < JELLY_SIZE; anchor++) {
+    const slots = jellyFootprintSlots(anchor, type);
+    if (slots && slots.every(slot => unlocked.has(slot))) anchors.push(anchor);
+  }
+  return anchors;
+}
+
+function jellySectionGeometry(S, plotIds) {
+  const baseSlots = jellyUnlockedSlots(S);
+  const expandedSave = saveWithJellyPlots(S, plotIds);
+  const expandedSlots = jellyUnlockedSlots(expandedSave);
+  const newSlots = Array.from(expandedSlots).filter(slot => !baseSlots.has(slot)).sort((a, b) => a - b);
+  const newlyLegalFootprintPlacements = [];
+  const placementAnchorsByType = [];
+  for (let type = 0; type < jellyUnitsOwned(S); type++) {
+    const before = new Set(jellyLegalPlacementAnchors(S, type));
+    const anchors = jellyLegalPlacementAnchors(expandedSave, type).filter(anchor => !before.has(anchor));
+    placementAnchorsByType[type] = anchors;
+    newlyLegalFootprintPlacements.push({
+      type,
+      name: CELL_NAMES[type],
+      count: anchors.length,
+    });
+  }
+  return {
+    plotIds: plotIds.slice(),
+    newUsableSlots: newSlots.length,
+    newSlots,
+    proximitySlots: newSlots.filter(slot => PROXIMITY_ANCHORS.has(slot)).length,
+    newlyLegalFootprintPlacements,
+    placementAnchorsByType,
+    expandedSave,
+  };
+}
+
+function jellyCompleteLayout(layout, S, options = {}, geometry = null) {
+  const unlocked = Array.from(jellyUnlockedSlots(S)).sort((a, b) => a - b);
+  const types = Array.from({ length: jellyUnitsOwned(S) }, (_, type) => type);
+  const oneSlotTypes = types.filter(type => cellFootprint(type).length === 1);
+  let completed = jellyValidateLayout(layout, S).valid ? { ...(layout || {}) } : {};
+  const score = candidate => proxyObjectiveScore(candidate, S, options);
+  const occupied = jellyLayoutOccupancy(completed);
+  for (const slot of unlocked) {
+    if (occupied.has(slot)) continue;
+    let bestLayout = null;
+    let bestScore = -Infinity;
+    for (const type of oneSlotTypes) {
+      const candidate = jellyPlaceCell(completed, slot, type, S);
+      if (!candidate || Object.keys(candidate).length !== Object.keys(completed).length + 1) continue;
+      const candidateScore = score(candidate);
+      if (candidateScore > bestScore) {
+        bestLayout = candidate;
+        bestScore = candidateScore;
+      }
+    }
+    if (bestLayout) {
+      completed = bestLayout;
+      occupied.set(slot, { anchor: slot, type: Number(completed[slot]) });
+    }
+  }
+
+  const placementRows = [];
+  if (geometry) {
+    for (let type = 0; type < geometry.placementAnchorsByType.length; type++) {
+      if (cellFootprint(type).length <= 1) continue;
+      for (const anchor of geometry.placementAnchorsByType[type]) placementRows.push({ type, anchor });
+    }
+  }
+  let currentScore = score(completed);
+  for (const placement of placementRows.slice(0, Math.max(0, Math.min(48, Math.floor(n(options.localPlacementCap) || 24))))) {
+    const placed = jellyPlaceCell(completed, placement.anchor, placement.type, S);
+    if (!placed) continue;
+    const candidate = jellyCompleteLayout(placed, S, { ...options, localPlacementCap: 0 }, null);
+    const candidateScore = score(candidate);
+    if (candidateScore > currentScore) {
+      completed = candidate;
+      currentScore = candidateScore;
+    }
+  }
+  return completed;
+}
+
+function sectionStrategyScore(row, strategy) {
+  const confidence = row.confidence;
+  if (!confidence || strategy.confidenceWeight === 0) return row.objectiveGain;
+  return strategy.confidenceWeight < 0
+    ? confidence.low
+    : row.objectiveGain + Math.max(0, confidence.high - row.objectiveGain) * 0.25;
+}
+
+function sectionSimulationTieBreak(row, objective, expCellType) {
+  if (!row.operation) return -Infinity;
+  if (objective === 'clear') return -n(row.operation.meanTime) * 1e9 + n(row.operation.meanDamage);
+  return simulatedObjectiveScore(row.operation, objective, expCellType);
+}
+
+function compareSectionRows(a, b, strategy, objective, expCellType) {
+  const finalistDifference = Number(b.finalist) - Number(a.finalist);
+  if (finalistDifference) return finalistDifference;
+  if (objective === 'clear' && a.operation && b.operation) {
+    const aLow = n(a.operation.clearProbabilityLow);
+    const aHigh = n(a.operation.clearProbabilityHigh);
+    const bLow = n(b.operation.clearProbabilityLow);
+    const bHigh = n(b.operation.clearProbabilityHigh);
+    if (aLow > bHigh) return -1;
+    if (bLow > aHigh) return 1;
+    const secondaryDifference = sectionSimulationTieBreak(b, objective, expCellType)
+      - sectionSimulationTieBreak(a, objective, expCellType);
+    if (secondaryDifference) return secondaryDifference;
+  }
+  return sectionStrategyScore(b, strategy) - sectionStrategyScore(a, strategy)
+    || sectionSimulationTieBreak(b, objective, expCellType) - sectionSimulationTieBreak(a, objective, expCellType)
+    || b.proxyGain - a.proxyGain
+    || a.plotIds.join(',').localeCompare(b.plotIds.join(','));
+}
+
+function simulateSectionCandidates(rows, baselineLayout, S, options, quality, strategy, reportProgress) {
+  if (!rows.length) {
+    const baseline = simulateJellyTrials(baselineLayout, S, {
+      ...options,
+      trials: quality.finalTrials,
+      seed: Math.floor(n(options.seed) || 1),
+    });
+    return { rows, baseline: stripTrialResults(baseline) };
+  }
+  for (const row of rows) row.finalist = false;
+  let active = rows.slice();
+  let finalBaseline = null;
+  for (let stageIndex = 0; stageIndex < quality.stages.length; stageIndex++) {
+    const trials = quality.stages[stageIndex];
+    const seed = Math.floor(n(options.seed) || 1);
+    const baseline = simulateJellyTrials(baselineLayout, S, {
+      ...options,
+      trials,
+      seed,
+      includeTrials: true,
+    });
+    finalBaseline = baseline;
+    for (let index = 0; index < active.length; index++) {
+      const row = active[index];
+      const simulation = simulateJellyTrials(row.layout, row._save, {
+        ...options,
+        trials,
+        seed,
+        includeTrials: true,
+      });
+      const confidence = pairedOperationConfidence(simulation, baseline, options.objective, options.expCellType);
+      row.operation = simulation;
+      row.objectiveValue = operationObjectiveValue(simulation, options.objective, options.expCellType);
+      row.objectiveGain = upgradeMarginalScore(baseline, simulation, options.objective, options.expCellType);
+      row.gainPerSlot = row.newUsableSlots > 0 ? row.objectiveGain / row.newUsableSlots : 0;
+      row.confidence = confidence;
+      row.chanceBeatsBaseline = confidence?.chanceBeatsBaseline ?? null;
+      row.simulationTrials = trials;
+      row.finalist = stageIndex === quality.stages.length - 1;
+      reportProgress?.(`Simulating section candidates (${trials} trials)`, index + 1, active.length);
+    }
+    active.sort((a, b) => compareSectionRows(a, b, strategy, options.objective, options.expCellType));
+    if (stageIndex < quality.stages.length - 1) {
+      const nextLimit = stageIndex === 0
+        ? Math.min(strategy.candidateCap, Math.max(4, Math.ceil(active.length / 3)))
+        : Math.min(4, active.length);
+      active = active.slice(0, nextLimit);
+    }
+  }
+  for (const row of rows) row.operation = stripTrialResults(row.operation);
+  return { rows, baseline: stripTrialResults(finalBaseline) };
+}
+
+export function planJellySections(S, options = {}) {
+  const objective = options.objective || 'clear';
+  const expCellType = normalizeExpCellType(S, options.expCellType);
+  const quality = jellyQualityOptions(options);
+  const strategy = jellyStrategyOptions(options);
+  const baselineLayout = options.layout || jellyLayoutFromSave(S);
+  const purchased = new Set(researchRow(S, 18).map(value => Math.floor(n(value))));
+  const availablePlots = jellySlotPlots().filter(plot => !purchased.has(plot.plotId));
+  const availableTokens = Math.max(0, jellySlotPurchasesLeft(S));
+  const requestedTokens = Math.max(0, Math.min(40, Math.floor(n(options.tokens ?? Math.min(1, availableTokens)))));
+  const tokenBudget = options.allowHypotheticalTokens ? requestedTokens : Math.min(requestedTokens, availableTokens);
+  const tokens = Math.min(tokenBudget, availablePlots.length);
+  const plannerOptions = {
+    ...options,
+    objective,
+    expCellType,
+    seed: Math.floor(n(options.seed) || 1),
+    onProgress: undefined,
+  };
+  let progressCompleted = 0;
+  const progressTotal = Math.max(1, availablePlots.length + strategy.candidateCap * Math.max(1, tokens) * quality.stages.length);
+  const reportProgress = (phase, completedIncrement = 0, localTotal = 1) => {
+    progressCompleted = Math.min(progressTotal, progressCompleted + completedIncrement / Math.max(1, localTotal));
+    options.onProgress?.({
+      phase,
+      completed: progressCompleted,
+      total: progressTotal,
+      overallPercent: 100 * progressCompleted / progressTotal,
+    });
+  };
+  const baselineProxy = proxyObjectiveScore(baselineLayout, S, plannerOptions);
+  const plotRows = availablePlots.map(plot => {
+    const geometry = jellySectionGeometry(S, [plot.plotId]);
+    const layout = jellyCompleteLayout(baselineLayout, geometry.expandedSave, plannerOptions, geometry);
+    const proxyScore = proxyObjectiveScore(layout, geometry.expandedSave, plannerOptions);
+    reportProgress('Screening section geometry', 1);
+    return {
+      plotId: plot.plotId,
+      start: plot.start,
+      width: plot.width,
+      height: plot.height,
+      plotIds: [plot.plotId],
+      newUsableSlots: geometry.newUsableSlots,
+      newSlots: geometry.newSlots,
+      proximitySlots: geometry.proximitySlots,
+      newlyLegalFootprintPlacements: geometry.newlyLegalFootprintPlacements,
+      layout,
+      proxyScore,
+      proxyGain: proxyScore - baselineProxy,
+      _save: geometry.expandedSave,
+    };
+  });
+
+  let baselineOperation = null;
+  if (tokens > 0) {
+    const simulatedPlots = simulateSectionCandidates(
+      plotRows,
+      baselineLayout,
+      S,
+      plannerOptions,
+      quality,
+      strategy,
+      (phase, completed, total) => reportProgress(phase, completed === total ? 1 : 0, 1)
+    );
+    baselineOperation = simulatedPlots.baseline;
+  }
+
+  let sequenceRows = tokens === 1 ? plotRows.slice() : [];
+  if (tokens > 1) {
+    let frontier = plotRows
+      .slice()
+      .sort((a, b) => b.proxyGain - a.proxyGain || a.plotId - b.plotId)
+      .slice(0, strategy.beamWidth)
+      .map(row => row.plotIds);
+    for (let depth = 2; depth <= tokens; depth++) {
+      const keys = new Set();
+      const sequences = [];
+      if (depth === 2) {
+        for (let first = 0; first < availablePlots.length; first++) {
+          for (let second = first + 1; second < availablePlots.length; second++) {
+            sequences.push([availablePlots[first].plotId, availablePlots[second].plotId]);
+          }
+        }
+      } else {
+        for (const sequence of frontier) {
+          for (const plot of availablePlots) {
+            if (sequence.includes(plot.plotId)) continue;
+            sequences.push([...sequence, plot.plotId].sort((a, b) => a - b));
+          }
+        }
+      }
+      const screened = [];
+      for (const plotIds of sequences) {
+        const key = plotIds.join(',');
+        if (keys.has(key)) continue;
+        keys.add(key);
+        const geometry = jellySectionGeometry(S, plotIds);
+        const layout = jellyCompleteLayout(baselineLayout, geometry.expandedSave, plannerOptions, geometry);
+        const proxyScore = proxyObjectiveScore(layout, geometry.expandedSave, plannerOptions);
+        screened.push({
+          plotIds,
+          newUsableSlots: geometry.newUsableSlots,
+          newSlots: geometry.newSlots,
+          proximitySlots: geometry.proximitySlots,
+          newlyLegalFootprintPlacements: geometry.newlyLegalFootprintPlacements,
+          layout,
+          proxyScore,
+          proxyGain: proxyScore - baselineProxy,
+          _save: geometry.expandedSave,
+        });
+      }
+      screened.sort((a, b) => b.proxyGain - a.proxyGain || a.plotIds.join(',').localeCompare(b.plotIds.join(',')));
+      frontier = screened.slice(0, strategy.beamWidth).map(row => row.plotIds);
+      if (depth === tokens) {
+        sequenceRows = screened.slice(0, strategy.candidateCap);
+        const simulated = simulateSectionCandidates(
+          sequenceRows,
+          baselineLayout,
+          S,
+          plannerOptions,
+          quality,
+          strategy,
+          (phase, completed, total) => reportProgress(phase, completed === total ? 1 : 0, 1)
+        );
+        baselineOperation = simulated.baseline;
+      }
+    }
+  }
+
+  sequenceRows.sort((a, b) => compareSectionRows(a, b, strategy, objective, expCellType));
+  plotRows.sort((a, b) => compareSectionRows(a, b, strategy, objective, expCellType)
+    || a.plotId - b.plotId);
+  const recommendedSequence = sequenceRows[0] || null;
+  const cleanRow = row => {
+    if (!row) return null;
+    const { _save, ...clean } = row;
+    return clean;
+  };
+  const cleanedPlots = plotRows.map(cleanRow);
+  const cleanedSequences = sequenceRows.map(cleanRow);
+  const recommendation = cleanRow(recommendedSequence);
+  options.onProgress?.({ phase: 'Section plan complete', completed: progressTotal, total: progressTotal, overallPercent: 100 });
+  return {
+    objective,
+    expCellType,
+    quality: quality.quality,
+    qualityProfile: quality,
+    strategy: strategy.strategy,
+    tokens,
+    requestedTokens,
+    availableTokens,
+    baselineLayout,
+    baselineUnlockedSlots: Array.from(jellyUnlockedSlots(S)),
+    baselineObstruction: jellyProgress(S).obstruction,
+    baselineOperation,
+    plots: cleanedPlots,
+    sequences: cleanedSequences,
+    rankedCandidates: cleanedSequences,
+    recommendedSequence: recommendation,
+    recommendedPlotIds: recommendation?.plotIds || [],
+    finalLayout: recommendation?.layout || baselineLayout,
+    finalOperation: recommendation?.operation || baselineOperation,
+    note: 'Every unpurchased section is geometry-screened. Multi-token candidates use bounded non-greedy beam search, shared seeds, adaptive simulation, and a fully occupied legal final layout. Statistically overlapping clear results prefer faster clears, then higher damage.',
+  };
+}
+
 function saveWithJellyUpgrade(S, id) {
   const research = (S?.research || []).map(row => Array.isArray(row) ? row.slice() : row);
   while (research.length <= 18) research.push([]);
@@ -1360,11 +1990,75 @@ function evaluateUpgradeState(S, layout, options) {
   return { layout: optimized.layout, operation: optimized.operation };
 }
 
+function jellyEligibleUpgradeOrders(S, requestedIds, respectBudget) {
+  const orders = [];
+  for (let order = 0; order < 40; order++) {
+    const status = jellyUpgradeStatus(S, order);
+    if (requestedIds && !requestedIds.has(status.id)) continue;
+    if (!status.levelVisible || !status.prerequisiteMet || !status.belowMax) continue;
+    if (respectBudget && !status.affordable) continue;
+    orders.push(order);
+  }
+  return orders;
+}
+
+function bestFutureUpgradeProxyGain(S, layout, options, depth) {
+  if (depth <= 0) return 0;
+  const baselineScore = proxyObjectiveScore(layout, S, options);
+  let bestGain = 0;
+  const orders = jellyEligibleUpgradeOrders(S, options.requestedIds, options.respectBudget)
+    .slice(0, Math.max(2, Math.min(8, Math.floor(n(options.lookaheadBranchWidth) || 6))));
+  for (const order of orders) {
+    const id = jellyUpgradeAtOrder(order);
+    const cost = jellyUpgradeCost(S, order);
+    const upgraded = saveWithJellyUpgrade(S, id);
+    let candidateSave = upgraded;
+    let candidateLayout = layout;
+    let selectedPlotId = null;
+    if ((id === 8 || id === 9) && jellySlotPurchasesLeft(upgraded) > jellySlotPurchasesLeft(S)) {
+      let bestPlot = null;
+      for (const plot of jellySlotPlots()) {
+        if (researchRow(upgraded, 18).includes(plot.plotId)) continue;
+        const geometry = jellySectionGeometry(upgraded, [plot.plotId]);
+        const filled = jellyCompleteLayout(layout, geometry.expandedSave, options, geometry);
+        const score = proxyObjectiveScore(filled, geometry.expandedSave, options);
+        if (!bestPlot || score > bestPlot.score) bestPlot = { plotId: plot.plotId, layout: filled, score };
+      }
+      if (bestPlot) {
+        selectedPlotId = bestPlot.plotId;
+        candidateLayout = bestPlot.layout;
+      }
+    }
+    candidateSave = saveAfterJellyPurchase(S, id, cost, selectedPlotId, options.respectBudget);
+    const candidateScore = proxyObjectiveScore(candidateLayout, candidateSave, options);
+    const immediateGain = Math.max(0, candidateScore - baselineScore);
+    const futureGain = bestFutureUpgradeProxyGain(candidateSave, candidateLayout, options, depth - 1);
+    bestGain = Math.max(bestGain, immediateGain + 0.5 * futureGain);
+  }
+  return bestGain;
+}
+
+function evaluateUpgradeStateWithPolicy(S, layout, options, policy) {
+  return {
+    layout,
+    operation: simulateJellyTrials(layout, S, {
+      ...options,
+      fever: policy?.fever,
+      roidTiming: policy?.roidTiming,
+      revivePolicy: policy?.revivePolicy,
+      trials: options.trials,
+    }),
+  };
+}
+
 export function planJellyUpgradePurchases(S, options = {}) {
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const initialLayout = options.layout || jellyLayoutFromSave(S);
-  const trials = Math.max(4, Math.min(128, Math.floor(n(options.trials) || 16)));
+  const quality = jellyQualityOptions(options);
+  const strategy = jellyStrategyOptions(options);
+  const trials = quality.finalTrials;
+  const lookahead = Math.max(1, Math.min(3, Math.floor(n(options.lookahead) || 1)));
   const purchaseLimit = Math.max(1, Math.min(50, Math.floor(n(options.purchases) || 10)));
   const respectBudget = options.respectBudget !== false;
   const analysisOptions = {
@@ -1385,6 +2079,7 @@ export function planJellyUpgradePurchases(S, options = {}) {
   let finalState = null;
   let totalCost = 0;
   const totals = new Map();
+  const sequence = [];
 
   for (let purchaseIndex = 0; purchaseIndex < purchaseLimit; purchaseIndex++) {
     const stepOptions = {
@@ -1393,6 +2088,8 @@ export function planJellyUpgradePurchases(S, options = {}) {
     };
     const baselineState = evaluateUpgradeState(workingSave, workingLayout, {
       ...stepOptions,
+      trials: quality.screeningTrials,
+      reoptimize: false,
       onProgress: progress => options.onProgress?.({
         phase: `Purchase ${purchaseIndex + 1}: baseline ${progress.phase}`,
         completed: purchaseIndex + 0.15 * Number(progress.completed) / Math.max(1, Number(progress.total)),
@@ -1402,88 +2099,188 @@ export function planJellyUpgradePurchases(S, options = {}) {
     if (!initialState) initialState = baselineState;
     finalState = baselineState;
 
-    const eligibleOrders = [];
-    for (let order = 0; order < 40; order++) {
-      const status = jellyUpgradeStatus(workingSave, order);
-      if (requestedIds && !requestedIds.has(status.id)) continue;
-      if (!status.levelVisible || !status.prerequisiteMet || !status.belowMax) continue;
-      if (respectBudget && !status.affordable) continue;
-      eligibleOrders.push(order);
-    }
+    const eligibleOrders = jellyEligibleUpgradeOrders(workingSave, requestedIds, respectBudget);
     if (!eligibleOrders.length) break;
 
-    let best = null;
+    const candidateSpecs = [];
     for (let eligibleIndex = 0; eligibleIndex < eligibleOrders.length; eligibleIndex++) {
       const order = eligibleOrders[eligibleIndex];
       const status = jellyUpgradeStatus(workingSave, order);
       const id = status.id;
       const cost = jellyUpgradeCost(workingSave, order);
       const upgradedSave = saveWithJellyUpgrade(workingSave, id);
-      const candidateSaves = [{ save: upgradedSave, plotId: null }];
+      const candidateSaves = [];
       if ((id === 8 || id === 9) && jellySlotPurchasesLeft(upgradedSave) > jellySlotPurchasesLeft(workingSave)) {
         const purchased = new Set(researchRow(upgradedSave, 18).map(value => Math.floor(n(value))));
-        const rankedPlots = jellySlotPlots()
-          .filter(plot => !purchased.has(plot.plotId))
-          .map(plot => {
-            let proximitySlots = 0;
-            for (let y = 0; y < plot.height; y++) {
-              for (let x = 0; x < plot.width; x++) {
-                if (PROXIMITY_ANCHORS.has(plot.start + x + JELLY_COLS * y)) proximitySlots++;
-              }
-            }
-            return { ...plot, proximitySlots };
-          })
-          .sort((a, b) => b.proximitySlots - a.proximitySlots || b.width * b.height - a.width * a.height || a.plotId - b.plotId)
-          .slice(0, 8);
-        for (const plot of rankedPlots) candidateSaves.push({ save: saveWithJellyPlot(upgradedSave, plot.plotId), plotId: plot.plotId });
+        for (const plot of jellySlotPlots().filter(row => !purchased.has(row.plotId))) {
+          const geometry = jellySectionGeometry(upgradedSave, [plot.plotId]);
+          const expandedLayout = jellyCompleteLayout(baselineState.layout, geometry.expandedSave, stepOptions, geometry);
+          candidateSaves.push({
+            save: geometry.expandedSave,
+            layout: expandedLayout,
+            plotId: plot.plotId,
+            geometry,
+          });
+        }
+      } else {
+        candidateSaves.push({ save: upgradedSave, layout: baselineState.layout, plotId: null, geometry: null });
       }
-
-      let bestUpgradeState = null;
-      let bestUpgradeScore = -Infinity;
-      let bestPlotId = null;
       for (let candidateIndex = 0; candidateIndex < candidateSaves.length; candidateIndex++) {
         const candidate = candidateSaves[candidateIndex];
-        const state = evaluateUpgradeState(candidate.save, baselineState.layout, {
-          ...stepOptions,
-          onProgress: progress => options.onProgress?.({
-            phase: `Purchase ${purchaseIndex + 1}: ${jellyUpgradeData(id)?.name || `Upgrade ${id}`}`,
-            completed: purchaseIndex + 0.15 + 0.85 * (
-              eligibleIndex + (candidateIndex + Number(progress.completed) / Math.max(1, Number(progress.total))) / candidateSaves.length
-            ) / eligibleOrders.length,
-            total: purchaseLimit,
-          }),
-        });
-        const score = upgradeMarginalScore(baselineState.operation, state.operation, objective, expCellType);
-        if (score > bestUpgradeScore) {
-          bestUpgradeState = state;
-          bestUpgradeScore = score;
-          bestPlotId = candidate.plotId;
-        }
-      }
-      const efficiency = cost > 0 ? bestUpgradeScore / cost : bestUpgradeScore > 0 ? Infinity : 0;
-      if (!best || efficiency > best.efficiency || (
-        efficiency === best.efficiency && (bestUpgradeScore > best.score || (
-          bestUpgradeScore === best.score && order < best.order
-        ))
-      )) {
-        best = {
+        const purchasedSave = saveAfterJellyPurchase(workingSave, id, cost, candidate.plotId, respectBudget);
+        const proxyScore = proxyObjectiveScore(candidate.layout, purchasedSave, stepOptions);
+        candidateSpecs.push({
           order,
           id,
           cost,
-          score: bestUpgradeScore,
-          efficiency,
-          plotId: bestPlotId,
-          state: bestUpgradeState,
-        };
+          plotId: candidate.plotId,
+          selectedPlotIds: candidate.plotId == null ? [] : [candidate.plotId],
+          save: purchasedSave,
+          layout: candidate.layout,
+          geometry: candidate.geometry,
+          proxyScore,
+        });
       }
     }
-    if (!best) break;
+
+    const bestByUpgrade = new Map();
+    for (const candidate of candidateSpecs) {
+      const current = bestByUpgrade.get(candidate.id);
+      if (!current || candidate.proxyScore > current.proxyScore) bestByUpgrade.set(candidate.id, candidate);
+    }
+    const shortlist = Array.from(bestByUpgrade.values());
+    const extras = candidateSpecs
+      .filter(candidate => bestByUpgrade.get(candidate.id) !== candidate)
+      .sort((a, b) => b.proxyScore - a.proxyScore || a.order - b.order);
+    shortlist.push(...extras.slice(0, Math.max(0, strategy.candidateCap - shortlist.length)));
+    let active = shortlist;
+    let stageBaseline = baselineState;
+    for (let stageIndex = 0; stageIndex < quality.stages.length; stageIndex++) {
+      const stageTrials = quality.stages[stageIndex];
+      const optimizePolicies = stageIndex === Math.max(0, quality.stages.length - 2);
+      stageBaseline = optimizePolicies
+        ? evaluateUpgradeState(workingSave, baselineState.layout, {
+          ...stepOptions,
+          trials: stageTrials,
+          reoptimize: false,
+          includeTrials: true,
+        })
+        : evaluateUpgradeStateWithPolicy(workingSave, baselineState.layout, {
+          ...stepOptions,
+          trials: stageTrials,
+          includeTrials: true,
+        }, stageBaseline.operation);
+      for (let candidateIndex = 0; candidateIndex < active.length; candidateIndex++) {
+        const candidate = active[candidateIndex];
+        const progressOptions = {
+          ...stepOptions,
+          trials: stageTrials,
+          reoptimize: false,
+          includeTrials: true,
+          onProgress: progress => options.onProgress?.({
+            phase: `Purchase ${purchaseIndex + 1}: ${jellyUpgradeData(candidate.id)?.name || `Upgrade ${candidate.id}`}`,
+            completed: purchaseIndex + 0.15 + 0.85 * (
+              candidateIndex + Number(progress.completed) / Math.max(1, Number(progress.total))
+            ) / Math.max(1, active.length),
+            total: purchaseLimit,
+          }),
+        };
+        const state = optimizePolicies
+          ? evaluateUpgradeState(candidate.save, candidate.layout, progressOptions)
+          : evaluateUpgradeStateWithPolicy(candidate.save, candidate.layout, progressOptions, candidate.state?.operation || stageBaseline.operation);
+        const score = upgradeMarginalScore(stageBaseline.operation, state.operation, objective, expCellType);
+        const efficiency = candidate.cost > 0 ? score / candidate.cost : score > 0 ? Infinity : 0;
+        candidate.state = state;
+        candidate.score = score;
+        candidate.efficiency = efficiency;
+        candidate.confidence = pairedOperationConfidence(state.operation, stageBaseline.operation, objective, expCellType);
+        candidate.simulationTrials = stageTrials;
+      }
+      active.sort((a, b) => {
+        const rankedEfficiency = candidate => {
+          if (!candidate.confidence || strategy.confidenceWeight === 0) return candidate.efficiency;
+          if (strategy.confidenceWeight < 0) return candidate.confidence.low / Math.max(1e-12, candidate.cost);
+          const upside = Math.max(0, candidate.confidence.high - candidate.score);
+          return candidate.efficiency + 0.25 * upside / Math.max(1e-12, candidate.cost);
+        };
+        const aRank = rankedEfficiency(a);
+        const bRank = rankedEfficiency(b);
+        return bRank - aRank || b.score - a.score || a.order - b.order;
+      });
+      if (stageIndex < quality.stages.length - 1) {
+        const limit = stageIndex === 0
+          ? Math.min(strategy.candidateCap, Math.max(3, Math.ceil(active.length / 2)))
+          : Math.min(3, active.length);
+        active = active.slice(0, limit);
+      }
+    }
+    if (!active.length) break;
+    for (const candidate of active) {
+      candidate.lookaheadGain = lookahead > 1
+        ? bestFutureUpgradeProxyGain(candidate.save, candidate.state.layout, {
+          ...stepOptions,
+          requestedIds,
+          respectBudget,
+        }, lookahead - 1)
+        : 0;
+      const relativeFuture = candidate.lookaheadGain / Math.max(1, Math.abs(candidate.proxyScore));
+      candidate.selectionScore = candidate.efficiency * (1 + 0.1 * Math.min(2, Math.max(0, relativeFuture)));
+    }
+    if (purchaseIndex === 0) initialState = stageBaseline;
+    active.sort((a, b) => b.selectionScore - a.selectionScore
+      || b.efficiency - a.efficiency
+      || b.score - a.score
+      || a.order - b.order);
+    const best = active[0];
+    if (analysisOptions.reoptimize) {
+      const reoptimized = evaluateUpgradeState(best.save, best.state.layout, {
+        ...stepOptions,
+        trials: quality.finalTrials,
+        reoptimize: true,
+        includeTrials: true,
+        onProgress: progress => options.onProgress?.({
+          phase: `Purchase ${purchaseIndex + 1}: reoptimizing selected layout`,
+          completed: purchaseIndex + 0.95 + 0.05 * Number(progress.completed) / Math.max(1, Number(progress.total)),
+          total: purchaseLimit,
+        }),
+      });
+      best.state = reoptimized;
+      best.score = upgradeMarginalScore(stageBaseline.operation, reoptimized.operation, objective, expCellType);
+      best.efficiency = best.cost > 0 ? best.score / best.cost : best.score > 0 ? Infinity : 0;
+      best.confidence = pairedOperationConfidence(reoptimized.operation, stageBaseline.operation, objective, expCellType);
+    }
 
     const before = jellyUpgradeDisplay(workingSave, best.id);
-    workingSave = saveAfterJellyPurchase(workingSave, best.id, best.cost, best.plotId, respectBudget);
+    const beforeObjective = operationObjectiveValue(stageBaseline.operation, objective, expCellType);
+    const afterObjective = operationObjectiveValue(best.state.operation, objective, expCellType);
+    const bloodcellGain = n(best.state.operation.meanBloodcells) - n(stageBaseline.operation.meanBloodcells);
+    const paybackAttempts = bloodcellGain > 0 ? best.cost / bloodcellGain : null;
+    const paybackDays = paybackAttempts == null || jellyDailyTries(best.save) <= 0
+      ? null
+      : paybackAttempts / jellyDailyTries(best.save);
+    workingSave = best.save;
     workingLayout = best.state.layout;
     finalState = best.state;
     totalCost += best.cost;
+    sequence.push({
+      step: purchaseIndex + 1,
+      order: best.order,
+      id: best.id,
+      name: before.name,
+      cost: best.cost,
+      beforeObjective,
+      afterObjective,
+      gain: best.score,
+      efficiency: best.efficiency,
+      selectedPlotIds: best.selectedPlotIds,
+      bloodcellGain,
+      paybackAttempts: finiteOrNull(paybackAttempts),
+      paybackDays: finiteOrNull(paybackDays),
+      confidence: best.confidence,
+      chanceBeatsBaseline: best.confidence?.chanceBeatsBaseline ?? null,
+      simulationTrials: best.simulationTrials,
+      lookaheadGain: best.lookaheadGain,
+    });
     const total = totals.get(best.id) || {
       order: best.order,
       id: best.id,
@@ -1521,6 +2318,10 @@ export function planJellyUpgradePurchases(S, options = {}) {
   return {
     objective,
     expCellType,
+    quality: quality.quality,
+    qualityProfile: quality,
+    strategy: strategy.strategy,
+    lookahead,
     trials,
     reoptimized: analysisOptions.reoptimize,
     requestedPurchases: purchaseLimit,
@@ -1530,13 +2331,18 @@ export function planJellyUpgradePurchases(S, options = {}) {
     remainingBloodcells: jellyProgress(workingSave).bloodcells,
     totalCost,
     baselineLayout: initialState.layout,
-    baseline: initialState.operation,
+    baseline: stripTrialResults(initialState.operation),
     finalLayout: finalState.layout,
-    final: finalState.operation,
+    final: stripTrialResults(finalState.operation),
     rows,
+    sequence,
+    sequenceRows: sequence,
+    confidence: sequence.length === 1
+      ? pairedOperationConfidence(finalState.operation, initialState.operation, objective, expCellType)
+      : null,
     note: analysisOptions.reoptimize
-      ? 'At each future purchase, every legal next level is compared with equal seeded trials and bounded layout re-optimization. The winning purchase is applied before evaluating the next one.'
-      : 'At each future purchase, every legal next level is compared on the current layout with equal seeded trials. The winning purchase is applied before evaluating the next one.',
+      ? 'Purchases use proxy screening, shared-seed adaptive simulation, bounded lookahead, and final bounded layout re-optimization. Slot-token upgrades automatically select their best screened section.'
+      : 'Purchases use proxy screening, shared-seed adaptive simulation, bounded lookahead, and the current layout. Slot-token upgrades still automatically select and fill their best screened section.',
   };
 }
 
@@ -1708,6 +2514,119 @@ export function jellyOperationScenarioSurrogate(layout, S, options = {}) {
     lowerDamageRatio,
     meanDamageRatio,
     score,
+  };
+}
+
+export function jellyPolicySensitivity(layout, S, options = {}) {
+  const objective = options.objective || 'clear';
+  const expCellType = normalizeExpCellType(S, options.expCellType);
+  const obstruction = options.obstruction == null
+    ? jellyProgress(S).obstruction
+    : Math.max(0, Math.floor(n(options.obstruction)));
+  const criticalStart = jellyBossTime(obstruction);
+  const feverTypes = availableFeverTypes(S, 'auto');
+  const roidUnlocked = jellyUpgradeQuantity(S, 29) >= 1;
+  const bestTimingCandidates = roidUnlocked
+    ? Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map(fraction => Math.round(criticalStart * fraction))))
+    : ['none'];
+  const rows = [];
+  const matrix = [];
+  const totalRows = Math.max(1, feverTypes.length * 3);
+  let completed = 0;
+
+  const evaluate = (fever, timingKey, roidTiming, autoSelected = false) => {
+    const surrogate = jellyOperationSurrogate(layout, S, {
+      ...options,
+      objective,
+      expCellType,
+      obstruction,
+      fever,
+      roidTiming,
+      useRoid: roidUnlocked,
+    });
+    const expProxy = expCellType < 0
+      ? n(surrogate.projectedExp)
+      : n(surrogate.projectedExpByType?.[expCellType]);
+    const row = {
+      fever,
+      feverName: feverModeName(fever),
+      timing: timingKey,
+      roidTiming: roidUnlocked && Number.isFinite(Number(roidTiming)) ? Number(roidTiming) : null,
+      roidUnlocked,
+      autoSelected,
+      valid: Boolean(surrogate.valid),
+      objectiveScore: n(surrogate.score),
+      clearProxy: n(surrogate.damageRatio),
+      damageProxy: n(surrogate.projectedDamage),
+      bloodcellsProxy: n(surrogate.projectedBloodcells),
+      expProxy,
+      totalExpProxy: n(surrogate.projectedExp),
+      expByTypeProxy: Array.from({ length: 9 }, (_, type) => n(surrogate.projectedExpByType?.[type])),
+      survivalProxy: n(surrogate.criticalSeconds),
+      clearLikely: n(surrogate.damageRatio) >= 1,
+      proxies: {
+        clear: n(surrogate.damageRatio),
+        damage: n(surrogate.projectedDamage),
+        bloodcells: n(surrogate.projectedBloodcells),
+        exp: expProxy,
+        survival: n(surrogate.criticalSeconds),
+      },
+    };
+    completed++;
+    options.onProgress?.({
+      phase: 'Evaluating policy sensitivity',
+      completed: Math.min(completed, totalRows),
+      total: totalRows,
+    });
+    return row;
+  };
+
+  for (const fever of feverTypes) {
+    const bestCandidates = bestTimingCandidates.map(roidTiming => {
+      const surrogate = jellyOperationSurrogate(layout, S, {
+        ...options,
+        objective,
+        expCellType,
+        obstruction,
+        fever,
+        roidTiming,
+        useRoid: roidUnlocked,
+      });
+      return { roidTiming, score: n(surrogate.score) };
+    }).sort((a, b) => b.score - a.score || n(a.roidTiming) - n(b.roidTiming));
+    const bestTiming = bestCandidates[0]?.roidTiming ?? 'none';
+    const timingRows = [
+      evaluate(fever, 'immediate', 0),
+      evaluate(fever, 'critical', criticalStart),
+      evaluate(fever, 'best', bestTiming, true),
+    ];
+    rows.push(...timingRows);
+    matrix.push({
+      fever,
+      feverName: feverModeName(fever),
+      timings: timingRows,
+    });
+  }
+  const recommended = rows.slice().sort((a, b) => b.objectiveScore - a.objectiveScore
+    || a.fever - b.fever
+    || a.timing.localeCompare(b.timing))[0] || null;
+  options.onProgress?.({ phase: 'Policy sensitivity complete', completed: totalRows, total: totalRows });
+  return {
+    valid: rows.every(row => row.valid),
+    objective,
+    expCellType,
+    obstruction,
+    roidUnlocked,
+    feverTypes,
+    timingProfiles: [
+      { key: 'immediate', label: 'Immediate', roidTiming: roidUnlocked ? 0 : null },
+      { key: 'critical', label: 'Critical start', roidTiming: roidUnlocked ? criticalStart : null },
+      { key: 'best', label: 'Auto-selected best', roidTiming: null },
+    ],
+    rows,
+    matrix,
+    recommended,
+    note: 'Deterministic bounded surrogate matrix across every unlocked Fever and immediate, Critical-start, and best-of-five Stronkroid timings.',
   };
 }
 

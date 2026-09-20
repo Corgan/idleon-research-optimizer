@@ -1,6 +1,7 @@
 import {
   optimizeJellyLayout,
   optimizeJellyOperationPolicy,
+  planJellySections,
   planJellyUpgradePurchases,
   simulateJellyOperation,
 } from '../stats/systems/w7/jelly-operator.js';
@@ -8,6 +9,7 @@ import {
 const operations = {
   policy: message => optimizeJellyOperationPolicy(message.layout, message.saveData, message.options),
   layout: message => optimizeJellyLayout(message.saveData, message.options),
+  sections: message => planJellySections(message.saveData, message.options),
   purchases: message => planJellyUpgradePurchases(message.saveData, message.options),
   simulate: message => simulateJellyOperation(message.layout, message.saveData, message.options),
 };

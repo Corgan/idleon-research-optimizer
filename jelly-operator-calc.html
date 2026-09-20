@@ -23,6 +23,7 @@ table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;col
 .view-tools{display:flex;justify-content:flex-end;padding:8px 0}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
 .sim-workspace{display:grid;grid-template-columns:minmax(190px,240px) minmax(560px,1fr);gap:14px;align-items:start}.sim-palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.sim-cell-pick,.sim-action,.plot-toggle{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:6px;cursor:pointer}.sim-cell-pick{display:flex;align-items:center;gap:7px;padding:6px;text-align:left;font-size:.76rem}.sim-cell-pick img{width:32px;height:32px;object-fit:contain;flex:none}.sim-cell-pick.active,.sim-action.active,.plot-toggle.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.sim-cell-pick:disabled{opacity:.35;cursor:not-allowed}.sim-board{touch-action:none}.sim-board .slot:not(.locked):not(.obstruction){cursor:crosshair}.sim-board .cell-sprite{pointer-events:auto;cursor:grab}.sim-board .cell-sprite:active{cursor:grabbing}.sim-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sim-action{padding:6px 10px;font-size:.76rem}.plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:220px;overflow:auto;padding:4px}.plot-toggle{padding:5px;font-size:.7rem}.sim-message{margin-top:8px;padding:7px 9px;border-radius:5px;background:#101a32;color:var(--text2);font-size:.78rem}.sim-message.bad{background:#4b2638;color:#ffb3c1}.sim-result-status{font-weight:800}.sim-result-status.good{color:#78e08f}.sim-result-status.bad{color:#ff7f96}
 .planner-controls{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(140px,.7fr)) repeat(2,minmax(180px,.8fr)) auto;gap:14px;align-items:stretch;padding:13px;background:#101a32;border:1px solid #42506c;border-radius:8px}.planner-controls .control{justify-content:center}.check-control{display:flex;align-items:center;gap:9px;padding:8px 10px;background:#162544;border:1px solid #40536e;border-radius:6px;color:var(--text);font-size:.78rem;cursor:pointer}.check-control input{width:17px;height:17px;flex:none}.check-control strong{display:block}.check-control small{display:block;color:var(--text2);margin-top:2px}.planner-controls .primary{align-self:center;min-height:42px;padding-inline:20px}.planner-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:14px}.planner-cards .card{padding:14px;min-height:112px}.planner-table{margin-top:12px}
+.slot.new-section{box-shadow:inset 0 0 0 3px rgba(255,209,102,.9);opacity:1}.sequence-steps{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sequence-step{padding:6px 9px;background:#162544;border:1px solid #526784;border-radius:5px;font-size:.78rem}.rank-1 td{background:rgba(85,214,139,.07)}
 .breakdown-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}.breakdown-panel{min-width:0;padding:10px;background:#101b35;border:1px solid #40536e;border-radius:8px}.breakdown-panel h3{margin:0 0 8px;color:var(--cyan);font-size:.95rem}.bt-controls{margin-bottom:8px;display:flex;gap:6px}.bt-controls .btn-sm{padding:4px 10px;background:var(--bg3);color:var(--text2);border:1px solid #4a607e;border-radius:4px;cursor:pointer;font-size:.8em}.bt-tree{font-size:.85em}.bt-row{display:flex;align-items:center;gap:6px;padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04);min-height:26px;cursor:pointer}.bt-row:hover{background:rgba(255,255,255,.07)}.bt-children{background:rgba(0,0,0,.12);border-left:2px solid rgba(255,255,255,.08)}.bt-root{font-weight:700;font-size:1.05em;padding-top:6px;padding-bottom:6px;border-bottom:2px solid #445}.bt-arrow{cursor:pointer;color:var(--text2);font-size:1em;width:14px;text-align:center;user-select:none;flex-shrink:0}.bt-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bt-val{font-weight:600;text-align:right;flex-shrink:0;white-space:nowrap;margin-left:auto;font-variant-numeric:tabular-nums}.bt-tooltip{position:fixed;display:none;z-index:10;max-width:320px;padding:8px;background:#101b35;color:var(--text);border:1px solid #4a607e;border-radius:4px;font-size:.8em}
 @media(max-width:1100px){.breakdown-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1250px){.planner-controls{grid-template-columns:repeat(3,minmax(180px,1fr))}.planner-controls .primary{align-self:stretch}}
@@ -61,9 +62,13 @@ const CELL_SPRITE_SIZES=[[36,36],[73,36],[36,109],[110,110],[73,73],[36,36],[147
 let optimized = null;
 let optimizedStale = false;
 let upgradeAnalysis = null;
+let upgradeAnalysisStale = false;
+let sectionAnalysis = null;
+let sectionAnalysisStale = false;
 let currentPolicy = null;
 let simulator = null;
-let purchaseControls={objective:'clear',expCellType:-1,purchases:10,trials:8,reoptimize:false,budget:true};
+let purchaseControls={strategy:'progression',objective:'clear',expCellType:-1,purchases:3,quality:'thorough',lookahead:2,reoptimize:false,budget:true};
+let sectionControls={strategy:'progression',objective:'clear',expCellType:-1,tokens:null,quality:'thorough',beamWidth:8};
 let optimizerControls={objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,finalistCount:8,simulationTrials:256};
 let activeTab = 'overview';
 let jellyWorker = null;
@@ -71,15 +76,23 @@ let workerRequestId = 0;
 let workerProgress = null;
 let workerError = '';
 let spoilersVisible = false;
+let policyRefreshPending = false;
 initSaveLoader({
   target:'#save-area',
   auth:true,
   onLoad:(_state,_raw,metadata)=>{
     const automatic=metadata?.source==='auto-refresh';
-    const activeLayoutRun=automatic&&jellyWorker&&workerProgress?.operation==='layout';
+    const activeLongRun=automatic&&jellyWorker&&['layout','sections','purchases'].includes(workerProgress?.operation);
     if(automatic&&optimized)optimizedStale=true;
-    if(activeLayoutRun){
+    if(automatic&&upgradeAnalysis)upgradeAnalysisStale=true;
+    if(automatic&&sectionAnalysis)sectionAnalysisStale=true;
+    if(activeLongRun){
       optimizedStale=true;
+      if(workerProgress?.operation==='purchases')upgradeAnalysisStale=true;
+      if(workerProgress?.operation==='sections')sectionAnalysisStale=true;
+      currentPolicy=null;
+      simulator=makeSimulatorState();
+      policyRefreshPending=true;
       render();
       return;
     }
@@ -87,10 +100,14 @@ initSaveLoader({
     if(!automatic){
       optimized=null;
       optimizedStale=false;
+      upgradeAnalysis=null;
+      upgradeAnalysisStale=false;
+      sectionAnalysis=null;
+      sectionAnalysisStale=false;
     }
-    upgradeAnalysis=null;
     currentPolicy=null;
     simulator=makeSimulatorState();
+    policyRefreshPending=false;
     workerError='';
     const layout=J.jellyLayoutFromSave(saveData);
     render();
@@ -252,11 +269,14 @@ function startJellyWorker(operation,payload){
   jellyWorker=worker;
   worker.onmessage=event=>{
     const message=event.data||{};
-    if(message.requestId!==requestId)return;
+    if(message.requestId!==requestId||requestId!==workerRequestId||jellyWorker!==worker)return;
     if(message.type==='progress'){
       const previous=Number(workerProgress?.overallPercent)||0;
       const next=Number(message.progress?.overallPercent);
-      workerProgress={operation,...message.progress,overallPercent:Number.isFinite(next)?Math.max(previous,next):previous};
+      const completed=Number(message.progress?.completed)||0;
+      const total=Math.max(1,Number(message.progress?.total)||1);
+      const fallback=100*completed/total;
+      workerProgress={operation,...message.progress,overallPercent:Math.max(previous,Number.isFinite(next)?next:fallback)};
       updateWorkerProgress();
       return;
     }
@@ -273,9 +293,12 @@ function startJellyWorker(operation,payload){
       optimized=message.result;
     }else if(operation==='purchases'){
       upgradeAnalysis=message.result;
+    }else if(operation==='sections'){
+      sectionAnalysis=message.result;
     }else if(operation==='simulate'){
       simulator.result=message.result;
     }
+    const refreshPolicyAfterRender=policyRefreshPending&&['layout','sections','purchases'].includes(operation);
     try{
       render();
     }catch(error){
@@ -283,9 +306,15 @@ function startJellyWorker(operation,payload){
       if(operation==='layout')optimized=null;
       else if(operation==='policy')currentPolicy=null;
       else if(operation==='purchases')upgradeAnalysis=null;
+      else if(operation==='sections')sectionAnalysis=null;
       else if(operation==='simulate'&&simulator)simulator.result=null;
       workerError=`Jelly result rendering failed: ${String(error?.message||error)}`;
       render();
+    }
+    if(refreshPolicyAfterRender){
+      policyRefreshPending=false;
+      const layout=J.jellyLayoutFromSave(saveData);
+      startJellyWorker('policy',{layout,options:{objective:'clear',trials:24,screeningTrials:3,seed:randomSeed()}});
     }
   };
   worker.onmessageerror=()=>{
@@ -313,6 +342,7 @@ function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstru
   const interactive=Boolean(options.interactive);
   const unlocked=options.unlocked?new Set(options.unlocked):J.jellyUnlockedSlots(boardSave), occupied=J.jellyLayoutOccupancy(layout), cores=new Map(Object.entries(layout).map(([a,t])=>[Number(a),Number(t)]));
   const contributions=new Map((options.contributions||[]).map(row=>[Number(row.anchor),row]));
+  const highlighted=new Set(options.highlightSlots||[]);
   const maxContribution=Math.max(0,...Array.from(contributions.values(),row=>Number(row.marginalDps)||0));
   let html=`<div><h3>${esc(title)}</h3><div class="grid-wrap"><div class="jelly-grid${interactive?' sim-board':''}"${interactive?' data-sim-board':''}>`;
   const blocked=obstructionSlots();
@@ -339,6 +369,7 @@ function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstru
       if(!right&&!down)classes.push('round-br');
     }
     if(cores.has(i))classes.push('core');
+    if(highlighted.has(i))classes.push('new-section');
     if([43,44,45,46,60,65,78,83,96,101,114,119,133,134,135,136].includes(i))classes.push('proximity');
     const slotTitle=blocked.has(i)?`Slot ${i} - obstruction`:cell?`Slot ${i} - ${CELL_NAMES[type]} core ${cell.anchor}`:`Slot ${i}`;
     const contribution=cell?contributions.get(cell.anchor):null;
@@ -691,7 +722,7 @@ function render(){
   if(!J.hasJellyData(saveData)){root.innerHTML='<div class="section"><h2>Jelly data unavailable</h2><p class="note">This save does not contain Research[14] and Research[17]. Export a save after loading the September 18, 2026 build.</p></div>';return}
   const saved=J.jellyLayoutFromSave(saveData);
   root.innerHTML=`<div class="tabs">
-    ${[['overview','Overview'],['layout','Layout'],['simulator','Simulator'],['upgrades','Upgrades'],['bonuses','Bonuses'],['breakdowns','Breakdowns'],['planner','Purchase Planner'],['optimizer','Optimizer']].map(([id,label])=>`<div class="tab ${id===activeTab?'active':''}" data-tab="${id}">${label}</div>`).join('')}
+    ${[['overview','Overview'],['layout','Layout'],['simulator','Simulator'],['upgrades','Upgrades'],['bonuses','Bonuses'],['breakdowns','Breakdowns'],['sections','Sections'],['planner','Upgrade Planner'],['optimizer','Optimizer']].map(([id,label])=>`<div class="tab ${id===activeTab?'active':''}" data-tab="${id}">${label}</div>`).join('')}
   </div><div class="view-tools">${spoilerToggle()}</div>${workerError?`<div class="section"><p class="bad">${esc(workerError)}</p></div>`:''}
   <div id="tab-overview" class="tab-content ${activeTab==='overview'?'active':''}">
     <div class="section"><h2>Account snapshot</h2>${summaryCards(saved,currentPolicy)}</div>
@@ -704,11 +735,22 @@ function render(){
   <div id="tab-upgrades" class="tab-content ${activeTab==='upgrades'?'active':''}">${upgradesHtml()}</div>
   <div id="tab-bonuses" class="tab-content ${activeTab==='bonuses'?'active':''}">${bonusesHtml()}</div>
   <div id="tab-breakdowns" class="tab-content ${activeTab==='breakdowns'?'active':''}">${breakdownsHtml(saved)}</div>
+  <div id="tab-sections" class="tab-content ${activeTab==='sections'?'active':''}">${sectionPlannerHtml(saved)}</div>
   <div id="tab-planner" class="tab-content ${activeTab==='planner'?'active':''}">${purchasePlannerHtml()}</div>
   <div id="tab-optimizer" class="tab-content ${activeTab==='optimizer'?'active':''}">${optimizerHtml(saved)}</div>`;
   root.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{activeTab=tab.dataset.tab;render()});
   root.querySelectorAll('[data-toggle-spoilers]').forEach(button=>button.onclick=toggleSpoilersPreservingScroll);
-  root.querySelectorAll('[data-cancel-worker]').forEach(button=>button.onclick=()=>{stopJellyWorker();workerError='Operation cancelled.';render()});
+  root.querySelectorAll('[data-cancel-worker]').forEach(button=>button.onclick=()=>{
+    stopJellyWorker();
+    workerError='Operation cancelled.';
+    const refreshPolicy=policyRefreshPending;
+    policyRefreshPending=false;
+    render();
+    if(refreshPolicy){
+      const layout=J.jellyLayoutFromSave(saveData);
+      startJellyWorker('policy',{layout,options:{objective:'clear',trials:24,screeningTrials:3,seed:randomSeed()}});
+    }
+  });
   const run=root.querySelector('#run-optimizer');
   const syncOptimizerControls=()=>{
     const objective=root.querySelector('#objective');
@@ -743,20 +785,59 @@ function render(){
         seed:randomSeed(),
       }});
   };
+  const analyzeSections=root.querySelector('#analyze-sections');
+  const syncSectionControls=()=>{
+    const objective=root.querySelector('#section-objective');
+    if(!objective)return;
+    sectionControls={
+      strategy:root.querySelector('#section-strategy').value,
+      objective:objective.value,
+      expCellType:Math.max(-1,Math.min(J.jellyUnitsOwned(saveData)-1,Number(root.querySelector('#section-exp-cell-type')?.value))),
+      tokens:Math.max(1,Math.min(40,Number(root.querySelector('#section-tokens').value)||1)),
+      quality:root.querySelector('#section-quality').value,
+      beamWidth:Math.max(2,Math.min(24,Number(root.querySelector('#section-beam').value)||8)),
+    };
+  };
+  root.querySelectorAll('#section-strategy,#section-objective,#section-exp-cell-type,#section-tokens,#section-quality,#section-beam').forEach(control=>{
+    control.onchange=syncSectionControls;
+    control.oninput=syncSectionControls;
+  });
+  if(root.querySelector('#section-objective'))root.querySelector('#section-objective').onchange=()=>{
+    syncSectionControls();
+    root.querySelector('#section-exp-cell-type-control').hidden=sectionControls.objective!=='exp';
+  };
+  if(root.querySelector('#section-strategy'))root.querySelector('#section-strategy').onchange=()=>{
+    const objective=root.querySelector('#section-objective');
+    objective.value=strategyObjective(root.querySelector('#section-strategy').value,objective.value);
+    syncSectionControls();
+    root.querySelector('#section-exp-cell-type-control').hidden=sectionControls.objective!=='exp';
+  };
+  if(analyzeSections)analyzeSections.onclick=()=>{
+    syncSectionControls();
+    sectionAnalysisStale=false;
+    startJellyWorker('sections',{options:{
+      layout:saved,
+      ...sectionControls,
+      allowHypotheticalTokens:sectionControls.tokens>Math.max(0,J.jellySlotPurchasesLeft(saveData)),
+      seed:randomSeed(),
+    }});
+  };
   const analyze=root.querySelector('#analyze-upgrades');
   const syncPurchaseControls=()=>{
     const objective=root.querySelector('#upgrade-objective');
     if(!objective)return;
     purchaseControls={
+      strategy:root.querySelector('#upgrade-strategy').value,
       objective:objective.value,
       expCellType:Math.max(-1,Math.min(J.jellyUnitsOwned(saveData)-1,Number(root.querySelector('#upgrade-exp-cell-type')?.value))),
       purchases:Math.max(1,Math.min(50,Number(root.querySelector('#upgrade-purchases').value)||10)),
-      trials:Math.max(4,Math.min(128,Number(root.querySelector('#upgrade-trials').value)||8)),
+      quality:root.querySelector('#upgrade-quality').value,
+      lookahead:Math.max(1,Math.min(3,Number(root.querySelector('#upgrade-lookahead').value)||2)),
       reoptimize:root.querySelector('#upgrade-reoptimize').checked,
       budget:root.querySelector('#upgrade-budget').checked,
     };
   };
-  root.querySelectorAll('#upgrade-objective,#upgrade-exp-cell-type,#upgrade-purchases,#upgrade-trials,#upgrade-reoptimize,#upgrade-budget').forEach(control=>{
+  root.querySelectorAll('#upgrade-strategy,#upgrade-objective,#upgrade-exp-cell-type,#upgrade-purchases,#upgrade-quality,#upgrade-lookahead,#upgrade-reoptimize,#upgrade-budget').forEach(control=>{
     control.onchange=syncPurchaseControls;
     control.oninput=syncPurchaseControls;
   });
@@ -764,14 +845,23 @@ function render(){
     syncPurchaseControls();
     root.querySelector('#upgrade-exp-cell-type-control').hidden=purchaseControls.objective!=='exp';
   };
+  if(root.querySelector('#upgrade-strategy'))root.querySelector('#upgrade-strategy').onchange=()=>{
+    const objective=root.querySelector('#upgrade-objective');
+    objective.value=strategyObjective(root.querySelector('#upgrade-strategy').value,objective.value);
+    syncPurchaseControls();
+    root.querySelector('#upgrade-exp-cell-type-control').hidden=purchaseControls.objective!=='exp';
+  };
   if(analyze)analyze.onclick=()=>{
     syncPurchaseControls();
+    upgradeAnalysisStale=false;
     startJellyWorker('purchases',{options:{
         layout:saved,
         objective:purchaseControls.objective,
         expCellType:purchaseControls.expCellType,
+        strategy:purchaseControls.strategy,
         purchases:purchaseControls.purchases,
-        trials:purchaseControls.trials,
+        quality:purchaseControls.quality,
+        lookahead:purchaseControls.lookahead,
         seed:randomSeed(),
         reoptimize:purchaseControls.reoptimize,
         respectBudget:purchaseControls.budget,
@@ -801,6 +891,9 @@ function operationHtml(layout,op){
     ${spoilersVisible||J.jellyUpgradeLevel(saveData,28)>0?card('Amoeba weakening',`${r.amoebaStacks} stacks`,`${r.amoebaStacksAtCriticalStart} at Critical start; +${r.amoebaStacks-r.amoebaStacksAtCriticalStart} during Critical`):''}
     ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Stronkroid timing',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
   </div>
+  ${operationInsightsHtml(layout,op)}
+  ${advancedOperationMetricsHtml(op)}
+  ${policySensitivityHtml(layout,op)}
   <h3>Representative trial contribution</h3>
   <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contributions}</tbody></table></div>
   ${deaths?`<h3>Critical target timeline</h3><div>${deaths}</div>`:''}
@@ -818,6 +911,33 @@ function objectiveOptions(selected){
   return options.filter(row=>row[2]).map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
 }
 
+function strategyOptions(selected){
+  return [
+    ['progression','Progress now'],
+    ['bloodcells','Farm Bloodcells'],
+    ['exp','Level cells'],
+    ['critical','Critical push'],
+    ['long-term','Long-term progression'],
+    ['low-risk','Low-risk gains'],
+  ].map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
+}
+
+function qualityOptions(selected){
+  return [
+    ['fast','Fast (8 → 32 → 128)'],
+    ['balanced','Balanced (16 → 64 → 256)'],
+    ['thorough','Thorough (32 → 128 → 512)'],
+  ].map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
+}
+
+function strategyObjective(strategy,current='clear'){
+  if(strategy==='bloodcells'||strategy==='long-term')return 'bloodcells';
+  if(strategy==='exp')return 'exp';
+  if(strategy==='critical')return 'survival';
+  if(strategy==='progression')return 'clear';
+  return current;
+}
+
 function cellExpTargetOptions(selected){
   const owned=J.jellyUnitsOwned(saveData);
   return `<option value="-1" ${selected<0?'selected':''}>Total EXP</option>`
@@ -830,6 +950,70 @@ function cellExpValue(operation,type){
 
 function cellExpTargetName(type){
   return type<0?'Total EXP':CELL_NAMES[type]||'Cell EXP';
+}
+
+function operationInsightsHtml(layout,operation){
+  if(!operation||typeof J.jellyOperationInsights!=='function')return '';
+  const insights=J.jellyOperationInsights(operation,saveData,{layout});
+  const attempts=insights.expectedAttemptsToClear==null?'Unavailable':insights.expectedAttemptsToClear.toFixed(2);
+  const days=insights.expectedDaysToClear==null?'Unavailable':insights.expectedDaysToClear.toFixed(2);
+  const expRows=(insights.expRows||insights.cellExpRows||[]).map(row=>`<tr>
+    <td>${esc(row.name)}</td><td class="num">${row.currentLevel}</td><td class="num">${fmt(row.meanExpPerAttempt)}</td>
+    <td class="num">${row.attemptsToNextLevel==null?'—':row.attemptsToNextLevel.toFixed(1)}</td>
+    <td class="num">${row.daysToNextLevel==null?'—':row.daysToNextLevel.toFixed(2)}</td>
+  </tr>`).join('');
+  const obstructionRows=(insights.obstructionOutlook||[]).map(row=>`<tr>
+    <td>${Number(row.obstruction)+1}</td><td class="num">${fmt(row.hp)}</td><td class="num">${row.estimatedClearProbability==null?'—':pct(row.estimatedClearProbability)}</td>
+    <td class="num">${row.damageRatio==null?'—':pct(row.damageRatio)}</td><td class="num">${row.expectedAttempts==null?'—':row.expectedAttempts.toFixed(2)}</td>
+    <td class="num">${row.clearWithinDailyAttempts==null?'—':pct(row.clearWithinDailyAttempts)}</td>
+  </tr>`).join('');
+  return `<h3>Progression outlook</h3><div class="cards">
+    ${card('Attempts to clear',attempts,`${pct(insights.probabilityWithinDailyAttempts)} chance within daily attempts`)}
+    ${card('Expected days to clear',days,`${fmt(insights.dailyAttempts)} attempts per day`)}
+    ${card('Bloodcells / daily cycle',fmt(insights.expectedDailyBloodcells),`Includes ${fmt(insights.savedDailyPassiveBloodcells)} passive`)}
+    ${card('Net attempts / operation',signed(insights.expectedNetAttemptDelta),insights.expectedNetAttemptDelta>=0?'Expected attempt gain':'Expected attempt consumption')}
+    ${card('Normal-phase damage',pct(insights.normalDamageShare),`${fmt(insights.normalDamage)} mean`)}
+    ${card('Critical-phase damage',pct(insights.criticalDamageShare),`${fmt(insights.criticalDamage)} mean`)}
+  </div><details class="optimizer-diagnostics"><summary>Cell EXP outlook</summary>
+    <div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Level</th><th class="num">EXP / attempt</th><th class="num">Attempts to level</th><th class="num">Days to level</th></tr></thead><tbody>${expRows}</tbody></table></div>
+  </details>${obstructionRows?`<details class="optimizer-diagnostics"><summary>Obstruction outlook</summary>
+    <div class="table-scroll"><table><thead><tr><th>Obstruction</th><th class="num">HP</th><th class="num">Clear estimate</th><th class="num">Damage ratio</th><th class="num">Expected attempts</th><th class="num">Within daily tries</th></tr></thead><tbody>${obstructionRows}</tbody></table></div>
+  </details>`:''}`;
+}
+
+function policySensitivityHtml(layout,operation){
+  if(!operation||typeof J.jellyPolicySensitivity!=='function')return '';
+  const analysis=J.jellyPolicySensitivity(layout,saveData,{
+    objective:operation.objective||'clear',
+    expCellType:operation.expCellType??-1,
+    obstruction:operation.representative?.obstruction??J.jellyProgress(saveData).obstruction,
+  });
+  const rows=(analysis.rows||analysis||[]).map(row=>`<tr>
+    <td>${esc(feverModeName(row.fever))}</td><td>${esc(roidTimingText(row.roidTiming,operation.representative?.standardTime||0))}</td>
+    <td class="num">${row.clearProxy==null?'—':pct(row.clearProxy)}</td><td class="num">${fmt(row.damageProxy)}</td>
+    <td class="num">${fmt(row.bloodcellsProxy)}</td><td class="num">${fmt(row.expProxy)}</td><td class="num">${row.survivalProxy==null?'—':row.survivalProxy.toFixed(2)+'s'}</td>
+  </tr>`).join('');
+  return `<details class="optimizer-diagnostics"><summary>Policy sensitivity</summary>
+    <div class="table-scroll"><table><thead><tr><th>Fever</th><th>Stronkroid</th><th class="num">Clear proxy</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th><th class="num">Critical</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </details>`;
+}
+
+function advancedOperationMetricsHtml(operation){
+  if(operation.meanShots==null)return '';
+  const contributionRows=(operation.meanContributionByType||[]).filter(row=>row.shots||row.hits||row.damage||row.bloodcells||row.exp).map(row=>`<tr>
+    <td>${esc(row.name||CELL_NAMES[row.type])}</td><td class="num">${row.shots.toFixed(2)}</td><td class="num">${row.hits.toFixed(2)}</td>
+    <td class="num">${fmt(row.damage)}</td><td class="num">${fmt(row.bloodcells)}</td><td class="num">${fmt(row.exp)}</td>
+  </tr>`).join('');
+  return `<details class="optimizer-diagnostics"><summary>Operation metrics</summary>
+    <div class="cards">
+      ${card('Shots / attempt',operation.meanShots.toFixed(2),`${operation.meanHits.toFixed(2)} mean hits`)}
+      ${card('Boss attacks',operation.meanBossAttacks.toFixed(2),`${operation.meanDeaths.toFixed(2)} deaths`)}
+      ${card('Immunoid protection',`${operation.meanImmunoidFocusTime.toFixed(2)} sec`,'Mean focused duration')}
+      ${card('Surviving slots',operation.meanLiveSlots.toFixed(2),`${operation.meanRevives.toFixed(2)} revives used`)}
+      ${card('Amoeba stacks',`${operation.meanAmoebaStacksAtCriticalStart.toFixed(2)} → ${operation.meanAmoebaStacksAtCriticalEnd.toFixed(2)}`,'Critical start → operation end')}
+    </div>
+    ${contributionRows?`<h3>Mean cell contribution</h3><div class="table-scroll"><table><thead><tr><th>Cell</th><th class="num">Shots</th><th class="num">Hits</th><th class="num">Damage</th><th class="num">Bloodcells</th><th class="num">EXP</th></tr></thead><tbody>${contributionRows}</tbody></table></div>`:''}
+  </details>`;
 }
 
 function layoutStats(layout,fever){
@@ -860,6 +1044,88 @@ function upgradesHtml(){
   return `<div class="section"><h2>Upgrade reference</h2><div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
+function plotSlots(plotIds){
+  const selected=new Set(plotIds||[]);
+  const slots=[];
+  for(const plot of jellySlotPlots()){
+    if(!selected.has(plot.plotId))continue;
+    for(let y=0;y<plot.height;y++)for(let x=0;x<plot.width;x++)slots.push(plot.start+x+JELLY_COLS*y);
+  }
+  return slots;
+}
+
+function footprintSummary(opportunities){
+  if(!opportunities)return '—';
+  const rows=Array.isArray(opportunities)
+    ? opportunities
+    : Object.entries(opportunities).map(([type,count])=>({type:Number(type),count}));
+  return rows.filter(row=>Number(row.count)>0).map(row=>`${CELL_NAMES[row.type]||`Cell ${row.type+1}`} +${row.count}`).join(', ')||'No new large-cell placements';
+}
+
+function sectionPlannerHtml(saved){
+  const available=Math.max(0,J.jellySlotPurchasesLeft(saveData));
+  if(sectionControls.tokens==null)sectionControls.tokens=Math.max(1,available);
+  let result='<p class="note">Ranks every unpurchased section, then simulates the strongest geometry and multi-section combinations.</p>';
+  if(sectionAnalysis){
+    const candidates=sectionAnalysis.candidates||sectionAnalysis.rankedCandidates||sectionAnalysis.results||[];
+    const individualPlots=sectionAnalysis.plots||[];
+    const recommended=sectionAnalysis.recommendedSequence||sectionAnalysis.recommended||candidates[0]||null;
+    const rows=candidates.map((row,index)=>{
+      const ids=row.plotIds||row.sequence||[];
+      const chance=row.chanceBeatsBaseline;
+      return `<tr class="${index===0?'rank-1':''}"><td>${index+1}</td><td>${ids.map(id=>`Section ${Number(id)+1}`).join(' → ')}</td>
+        <td class="num">${row.newUsableSlots??row.newSlots??'—'}</td><td class="num">${row.proximitySlots??'—'}</td>
+        <td class="num">${row.objectiveGain==null?'—':signed(row.objectiveGain,4)}</td><td class="num">${row.gainPerSlot==null?'—':signed(row.gainPerSlot,4)}</td>
+        <td class="num">${chance==null?'—':pct(chance)}</td><td>${esc(footprintSummary(row.newlyLegalFootprintPlacements||row.footprintOpportunities))}</td></tr>`;
+    }).join('');
+    const individualRows=individualPlots.map(row=>`<tr>
+      <td>${Number(row.plotId)+1}</td><td class="num">${row.newUsableSlots}</td><td class="num">${row.proximitySlots}</td>
+      <td class="num">${row.proxyGain==null?'—':signed(row.proxyGain,4)}</td><td class="num">${row.objectiveGain==null?'—':signed(row.objectiveGain,4)}</td>
+      <td class="num">${row.chanceBeatsBaseline==null?'—':pct(row.chanceBeatsBaseline)}</td><td>${esc(footprintSummary(row.newlyLegalFootprintPlacements))}</td>
+    </tr>`).join('');
+    if(recommended){
+      const ids=recommended.plotIds||recommended.sequence||[];
+      const newSlots=plotSlots(ids);
+      const resultSaved=sectionAnalysis.baselineLayout||saved;
+      const resultUnlocked=sectionAnalysis.baselineUnlockedSlots||Array.from(J.jellyUnlockedSlots(saveData));
+      const resultObstruction=sectionAnalysis.baselineObstruction??J.jellyProgress(saveData).obstruction;
+      const baseline=sectionAnalysis.baselineOperation||sectionAnalysis.baseline;
+      const final=recommended.operation||sectionAnalysis.finalOperation||sectionAnalysis.final;
+      result=`<div class="cards planner-cards">
+        ${card('Recommended sections',ids.map(id=>String(Number(id)+1)).join(' → ')||'None',`${recommended.newUsableSlots??recommended.newSlots??newSlots.length} newly usable slots`)}
+        ${card('Objective gain',recommended.objectiveGain==null?'—':signed(recommended.objectiveGain,4),recommended.chanceBeatsBaseline==null?'Adaptive shared-seed comparison':`${pct(recommended.chanceBeatsBaseline)} chance to beat baseline`)}
+        ${card('Proximity slots',String(recommended.proximitySlots??0),footprintSummary(recommended.newlyLegalFootprintPlacements||recommended.footprintOpportunities))}
+        ${card('Quality',esc(sectionAnalysis.quality||sectionControls.quality),`${sectionAnalysis.evaluatedSections??candidates.length} section sequences evaluated`)}
+      </div>
+      ${sectionAnalysisStale?'<p class="bad">The save refreshed after this section analysis started. These results use its starting save.</p>':''}
+      <div class="sequence-steps">${ids.map((id,index)=>`<span class="sequence-step"><strong>${index+1}.</strong> Section ${Number(id)+1}</span>`).join('')}</div>
+      ${recommended.layout?`${legendHtml()}<div class="grid-pair">${gridHtml(resultSaved,sectionAnalysisStale?'Analysis starting save':'Current save',resultObstruction,{unlocked:resultUnlocked})}${gridHtml(recommended.layout,'Recommended sections',resultObstruction,{unlocked:[...resultUnlocked,...newSlots],highlightSlots:newSlots})}</div>`:''}
+      ${baseline&&final?`<div class="cards planner-cards">
+        ${card('Clear probability',`${pct(baseline.clearProbability)} → ${pct(final.clearProbability)}`,signedPct(final.clearProbability-baseline.clearProbability))}
+        ${card('Damage',`${fmt(baseline.meanDamage)} → ${fmt(final.meanDamage)}`,signed(final.meanDamage-baseline.meanDamage))}
+        ${card('Bloodcells',`${fmt(baseline.meanBloodcells)} → ${fmt(final.meanBloodcells)}`,signed(final.meanBloodcells-baseline.meanBloodcells))}
+        ${card(`${esc(cellExpTargetName(sectionAnalysis.expCellType??-1))} / attempt`,`${fmt(cellExpValue(baseline,sectionAnalysis.expCellType??-1))} → ${fmt(cellExpValue(final,sectionAnalysis.expCellType??-1))}`)}
+      </div>`:''}
+      <div class="table-scroll planner-table"><table><thead><tr><th>#</th><th>Section sequence</th><th class="num">Slots</th><th class="num">Proximity</th><th class="num">Gain</th><th class="num">Gain / slot</th><th class="num">Beats baseline</th><th>New footprint options</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      result+=`<details class="optimizer-diagnostics"><summary>Every individual section</summary>
+        <div class="table-scroll"><table><thead><tr><th>Section</th><th class="num">Slots</th><th class="num">Proximity</th><th class="num">Proxy gain</th><th class="num">Simulated gain</th><th class="num">Beats baseline</th><th>New footprint options</th></tr></thead><tbody>${individualRows}</tbody></table></div>
+      </details>`;
+    }
+  }
+  return `<div class="section"><h2>Board section planner</h2>
+    <div class="planner-controls">
+      <label class="control">Strategy<select id="section-strategy">${strategyOptions(sectionControls.strategy)}</select></label>
+      <label class="control">Objective<select id="section-objective">${objectiveOptions(sectionControls.objective)}</select></label>
+      <label class="control" id="section-exp-cell-type-control" ${sectionControls.objective==='exp'?'':'hidden'}>EXP target<select id="section-exp-cell-type">${cellExpTargetOptions(sectionControls.expCellType)}</select></label>
+      <label class="control">Sections to unlock<input id="section-tokens" type="number" min="1" max="40" value="${sectionControls.tokens}"></label>
+      <label class="control">Quality<select id="section-quality">${qualityOptions(sectionControls.quality)}</select></label>
+      <label class="control">Combination beam<input id="section-beam" type="number" min="2" max="24" value="${sectionControls.beamWidth}"></label>
+      <button class="primary" id="analyze-sections" ${workerProgress?.operation==='sections'?'disabled':''}>Rank sections</button>
+    </div>
+    <p class="note">${available} unused section token${available===1?'':'s'} in the current save. Values above that are hypothetical.</p>
+    ${workerProgressHtml('sections')}${result}</div>`;
+}
+
 function purchasePlannerHtml(){
   let result='<p class="note">Sequential purchase simulation.</p>';
   if(upgradeAnalysis){
@@ -868,10 +1134,18 @@ function purchasePlannerHtml(){
     const expTargetName=cellExpTargetName(expCellType);
     const baselineExp=cellExpValue(baseline,expCellType),finalExp=cellExpValue(final,expCellType);
     const rows=upgradeAnalysis.rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong><div class="sub">${esc(row.description)}</div></td><td class="num">${row.purchases}</td><td class="num">${row.startingLevel} → ${row.finalLevel}</td><td class="num">${fmt(row.totalCost)}</td><td class="num">${esc(row.effectText)}</td></tr>`).join('');
+    const sequenceRows=(upgradeAnalysis.sequence||[]).map((row,index)=>`<tr>
+      <td>${index+1}</td><td><strong>${esc(row.name||`Upgrade ${row.id}`)}</strong>${row.selectedPlotIds?.length?`<div class="sub">${row.selectedPlotIds.map(id=>`Section ${Number(id)+1}`).join(' → ')}</div>`:''}</td>
+      <td class="num">${fmt(row.cost)}</td><td class="num">${row.beforeObjective==null?'—':fmt(row.beforeObjective)}</td>
+      <td class="num">${row.afterObjective==null?'—':fmt(row.afterObjective)}</td><td class="num">${row.gain==null?'—':signed(row.gain,4)}</td>
+      <td class="num">${row.efficiency==null?'—':fmt(row.efficiency)}</td><td class="num">${row.paybackAttempts==null?'—':row.paybackAttempts.toFixed(1)}</td>
+      <td class="num">${row.paybackDays==null?'—':row.paybackDays.toFixed(2)}</td>
+    </tr>`).join('');
     const timeSaved=baseline.meanTime&&final.meanTime?baseline.meanTime-final.meanTime:0;
     result=`<div class="cards planner-cards">
       ${card('Purchases modeled',`${upgradeAnalysis.completedPurchases} / ${upgradeAnalysis.requestedPurchases}`,upgradeAnalysis.completedPurchases<upgradeAnalysis.requestedPurchases?'Stopped when no eligible purchase remained':'Full requested horizon completed')}
       ${card('Total Bloodcell cost',fmt(upgradeAnalysis.totalCost),upgradeAnalysis.respectBudget?`${fmt(upgradeAnalysis.remainingBloodcells)} remaining from current save`:'Hypothetical budget')}
+      ${card('Strategy',esc(upgradeAnalysis.strategy||purchaseControls.strategy),`${esc(upgradeAnalysis.quality||purchaseControls.quality)} quality · ${upgradeAnalysis.lookahead||purchaseControls.lookahead}-step lookahead`)}
       ${card('Clear probability',`${pct(baseline.clearProbability)} → ${pct(final.clearProbability)}`,signedPct(final.clearProbability-baseline.clearProbability))}
       ${card('Mean damage',`${fmt(baseline.meanDamage)} → ${fmt(final.meanDamage)}`,signed(final.meanDamage-baseline.meanDamage))}
       ${card('Bloodcells / attempt',`${fmt(baseline.meanBloodcells)} → ${fmt(final.meanBloodcells)}`,signed(final.meanBloodcells-baseline.meanBloodcells))}
@@ -879,14 +1153,19 @@ function purchasePlannerHtml(){
       ${card('Critical survival',`${baseline.meanCriticalTime.toFixed(2)}s → ${final.meanCriticalTime.toFixed(2)}s`,signed(final.meanCriticalTime-baseline.meanCriticalTime)+' sec')}
       ${card('Mean clear time',baseline.meanTime&&final.meanTime?`${baseline.meanTime.toFixed(2)}s → ${final.meanTime.toFixed(2)}s`:'Not cleared in both states',timeSaved?signed(timeSaved)+' sec saved':'')}
     </div>
+    ${upgradeAnalysisStale?'<p class="bad">The save refreshed after this purchase analysis started. These results use its starting save.</p>':''}
+    ${sequenceRows?`<h3>Purchase sequence</h3><div class="table-scroll planner-table"><table><thead><tr><th>Step</th><th>Purchase</th><th class="num">Cost</th><th class="num">Before</th><th class="num">After</th><th class="num">Gain</th><th class="num">Gain / cost</th><th class="num">Payback attempts</th><th class="num">Payback days</th></tr></thead><tbody>${sequenceRows}</tbody></table></div>`:''}
+    <h3>Totals by upgrade</h3>
     <div class="table-scroll planner-table"><table><thead><tr><th>Upgrade</th><th class="num">Levels bought</th><th class="num">Level total</th><th class="num">Total cost</th><th class="num">Planned effect</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No eligible purchases were available.</td></tr>'}</tbody></table></div>`;
   }
   return `<div class="section"><h2>Cost-effective purchase planner</h2>
     <div class="planner-controls">
+      <label class="control">Strategy<select id="upgrade-strategy">${strategyOptions(purchaseControls.strategy)}</select></label>
       <label class="control">Objective<select id="upgrade-objective">${objectiveOptions(purchaseControls.objective)}</select></label>
       <label class="control" id="upgrade-exp-cell-type-control" ${purchaseControls.objective==='exp'?'':'hidden'}>EXP target<select id="upgrade-exp-cell-type">${cellExpTargetOptions(purchaseControls.expCellType)}</select></label>
       <label class="control">Purchases ahead<input id="upgrade-purchases" type="number" min="1" max="50" value="${purchaseControls.purchases}"></label>
-      <label class="control">Trials per comparison<input id="upgrade-trials" type="number" min="4" max="128" value="${purchaseControls.trials}"></label>
+      <label class="control">Quality<select id="upgrade-quality">${qualityOptions(purchaseControls.quality)}</select></label>
+      <label class="control">Lookahead<input id="upgrade-lookahead" type="number" min="1" max="3" value="${purchaseControls.lookahead}"></label>
       <label class="check-control"><input id="upgrade-reoptimize" type="checkbox" ${purchaseControls.reoptimize?'checked':''}><span><strong>Reoptimize layout</strong><small>Search again after each purchase</small></span></label>
       <label class="check-control"><input id="upgrade-budget" type="checkbox" ${purchaseControls.budget?'checked':''}><span><strong>Respect Bloodcells</strong><small>Stop at the current saved balance</small></span></label>
       <button class="primary" id="analyze-upgrades" ${workerProgress?.operation==='purchases'?'disabled':''}>Plan purchases</button>
