@@ -60,6 +60,68 @@ function simExpOverHorizon(config) {
   return { totalExp: result.totalExp, totalTime: result.time, finalLevel: result.rLv };
 }
 
+const _coveragePatternCache = new WeakMap();
+const _cellValueCaches = new WeakMap();
+const MAX_CELL_VALUE_CACHE = 64;
+
+function _cellValueKey(simOpts, gl, md, il, ip, occ, rLv, currentExp) {
+  const target = simOpts.target
+    ? simOpts.target.type + ':' + simOpts.target.value
+    : 'static';
+  let key = target + '|' + rLv + '|' + currentExp + '|g:';
+  key += gl.join(',');
+  key += '|m:';
+  for (let i = 0; i < md.length; i++) key += md[i].type + ':' + md[i].slot + ',';
+  key += '|i:' + il.join(',');
+  key += '|p:' + ip.join(',');
+  key += '|o:' + occ.join(',');
+  return key;
+}
+
+function _cacheCellValues(saveCtx, key, values) {
+  let cache = _cellValueCaches.get(saveCtx);
+  if (!cache) {
+    cache = new Map();
+    _cellValueCaches.set(saveCtx, cache);
+  }
+  if (cache.size >= MAX_CELL_VALUE_CACHE) cache.delete(cache.keys().next().value);
+  cache.set(key, values.slice());
+}
+
+function _coveragePatterns(entry) {
+  let cached = _coveragePatternCache.get(entry);
+  if (cached) return cached;
+
+  const patterns = new Map();
+  for (let s = 0; s < 30; s++) {
+    for (let r = 0; r < 30; r++) {
+      const pk = s * 30 + r;
+      const start = entry.starts[pk];
+      const end = entry.starts[pk + 1];
+      if (start === end) continue;
+      let key = '';
+      for (let i = start; i < end; i += 2) {
+        if (i > start) key += ',';
+        key += entry.data[i] + ',' + entry.data[i + 1];
+      }
+      let pat = patterns.get(key);
+      if (!pat) {
+        const relPairs = [];
+        for (let i = start; i < end; i += 2) {
+          relPairs.push(entry.data[i], entry.data[i + 1]);
+        }
+        pat = { relPairs, phases: [] };
+        patterns.set(key, pat);
+      }
+      pat.phases.push(r, s);
+    }
+  }
+
+  cached = Array.from(patterns.values());
+  _coveragePatternCache.set(entry, cached);
+  return cached;
+}
+
 export function computeCellValues(simOpts) {
   // Compute the value of putting a 25% shape bonus on each cell.
   // If simOpts.target provided, uses sim-over-horizon scoring to capture
@@ -73,6 +135,11 @@ export function computeCellValues(simOpts) {
   const ip = simOpts.insightProgress || _sc.insightProgress;
   const occ = simOpts.occFound || _sc.occFound;
   const rLv = simOpts.researchLevel !== undefined ? simOpts.researchLevel : _sc.researchLevel;
+  const currentExp = simOpts.currentExp !== undefined ? simOpts.currentExp : getResearchCurrentExp(_sc);
+  const cacheKey = _cellValueKey(simOpts, gl, md, il, ip, occ, rLv, currentExp);
+  const cache = _cellValueCaches.get(_sc);
+  const cached = cache && cache.get(cacheKey);
+  if (cached) return cached.slice();
 
   if (simOpts.target) {
     const baseCfg = {
@@ -83,7 +150,7 @@ export function computeCellValues(simOpts) {
       insightProgress: ip.slice(),
       occFound: occ.slice(),
       researchLevel: rLv,
-      currentExp: simOpts.currentExp !== undefined ? simOpts.currentExp : getResearchCurrentExp(_sc),
+      currentExp,
       saveCtx: _sc,
     };
     // For level mode: find bare time first, then use fixed-hours scoring
@@ -117,6 +184,7 @@ export function computeCellValues(simOpts) {
       testSO2[idx] = -1; // restore
     }
   }
+  _cacheCellValues(_sc, cacheKey, values);
   return values;
 }
 
@@ -190,47 +258,13 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
     const uncovered = valuedCells.filter(c => !coveredCells.has(c.idx));
     if (uncovered.length === 0) return null;
 
-    // Pre-index uncovered valued cells by (col, row) for fast anchor lookup
-    const uncoveredByPos = new Map();
-    for (const u of uncovered) {
-      const col = u.idx % GRID_COLS;
-      const row = Math.floor(u.idx / GRID_COLS);
-      uncoveredByPos.set(row * GRID_COLS + col, u);
-    }
-
     for (const rot of rotations) {
       const ri = Math.round(((rot % 360) + 360) % 360 / 5) % 72;
       const entry = covLUT[si * 72 + ri];
       if (!entry) continue;
 
-      // Group the 900 phase offsets by their relative-cell pattern
-      const patterns = new Map(); // relKey -> { relPairs, phases }
-      for (let s = 0; s < 30; s++) {
-        for (let r = 0; r < 30; r++) {
-          const pk = s * 30 + r;
-          const start = entry.starts[pk];
-          const end = entry.starts[pk + 1];
-          if (start === end) continue;
-          let key = '';
-          for (let i = start; i < end; i += 2) {
-            if (i > start) key += ',';
-            key += entry.data[i] + ',' + entry.data[i + 1];
-          }
-          let pat = patterns.get(key);
-          if (!pat) {
-            const relPairs = [];
-            for (let i = start; i < end; i += 2) {
-              relPairs.push(entry.data[i], entry.data[i + 1]);
-            }
-            pat = { relPairs, phases: [] };
-            patterns.set(key, pat);
-          }
-          pat.phases.push(r, s); // flat pairs for speed
-        }
-      }
-
       // For each unique pattern, try all valid base positions
-      for (const pat of patterns.values()) {
+      for (const pat of _coveragePatterns(entry)) {
         const relPairs = pat.relPairs;
         const nRel = relPairs.length >> 1;
         const triedBases = new Set();
@@ -407,4 +441,3 @@ export function optimizeShapePlacement(simOpts, progressCb, precomputedCellValue
     phase1ExpTotal,
   };
 }
-

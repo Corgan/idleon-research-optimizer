@@ -59,11 +59,12 @@ const JELLY_OBSTRUCTION_SIZE=50*3*JELLY_RENDER_SCALE; // The game renders the 50
 const CELL_SPRITE_SIZES=[[36,36],[73,36],[36,109],[110,110],[73,73],[36,36],[147,147],[184,183]];
 
 let optimized = null;
+let optimizedStale = false;
 let upgradeAnalysis = null;
 let currentPolicy = null;
 let simulator = null;
-let purchaseControls={objective:'clear',purchases:10,trials:8,reoptimize:false,budget:true};
-let optimizerControls={objective:'clear',obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,finalistCount:8,simulationTrials:256};
+let purchaseControls={objective:'clear',expCellType:-1,purchases:10,trials:8,reoptimize:false,budget:true};
+let optimizerControls={objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,finalistCount:8,simulationTrials:256};
 let activeTab = 'overview';
 let jellyWorker = null;
 let workerRequestId = 0;
@@ -73,9 +74,20 @@ let spoilersVisible = false;
 initSaveLoader({
   target:'#save-area',
   auth:true,
-  onLoad:()=>{
+  onLoad:(_state,_raw,metadata)=>{
+    const automatic=metadata?.source==='auto-refresh';
+    const activeLayoutRun=automatic&&jellyWorker&&workerProgress?.operation==='layout';
+    if(automatic&&optimized)optimizedStale=true;
+    if(activeLayoutRun){
+      optimizedStale=true;
+      render();
+      return;
+    }
     stopJellyWorker();
-    optimized=null;
+    if(!automatic){
+      optimized=null;
+      optimizedStale=false;
+    }
     upgradeAnalysis=null;
     currentPolicy=null;
     simulator=makeSimulatorState();
@@ -253,6 +265,8 @@ function startJellyWorker(operation,payload){
     workerProgress=null;
     if(message.type==='error'){
       workerError=message.error||'Jelly worker failed.';
+    }else if(message.type!=='done'||!message.result){
+      workerError='Jelly worker completed without returning a result.';
     }else if(operation==='policy'){
       currentPolicy=message.result;
     }else if(operation==='layout'){
@@ -262,6 +276,24 @@ function startJellyWorker(operation,payload){
     }else if(operation==='simulate'){
       simulator.result=message.result;
     }
+    try{
+      render();
+    }catch(error){
+      console.error(error);
+      if(operation==='layout')optimized=null;
+      else if(operation==='policy')currentPolicy=null;
+      else if(operation==='purchases')upgradeAnalysis=null;
+      else if(operation==='simulate'&&simulator)simulator.result=null;
+      workerError=`Jelly result rendering failed: ${String(error?.message||error)}`;
+      render();
+    }
+  };
+  worker.onmessageerror=()=>{
+    if(requestId!==workerRequestId)return;
+    worker.terminate();
+    jellyWorker=null;
+    workerProgress=null;
+    workerError='The Jelly result could not be transferred from the worker. Try fewer finalists or trials.';
     render();
   };
   worker.onerror=event=>{
@@ -279,7 +311,7 @@ function obstructionSlots(){return new Set(JELLY_OBSTRUCTION_SLOTS)}
 function gridHtml(layout,title,obstructionIndex=J.jellyProgress(saveData).obstruction,options={}){
   const boardSave=options.save||saveData;
   const interactive=Boolean(options.interactive);
-  const unlocked=J.jellyUnlockedSlots(boardSave), occupied=J.jellyLayoutOccupancy(layout), cores=new Map(Object.entries(layout).map(([a,t])=>[Number(a),Number(t)]));
+  const unlocked=options.unlocked?new Set(options.unlocked):J.jellyUnlockedSlots(boardSave), occupied=J.jellyLayoutOccupancy(layout), cores=new Map(Object.entries(layout).map(([a,t])=>[Number(a),Number(t)]));
   const contributions=new Map((options.contributions||[]).map(row=>[Number(row.anchor),row]));
   const maxContribution=Math.max(0,...Array.from(contributions.values(),row=>Number(row.marginalDps)||0));
   let html=`<div><h3>${esc(title)}</h3><div class="grid-wrap"><div class="jelly-grid${interactive?' sim-board':''}"${interactive?' data-sim-board':''}>`;
@@ -683,6 +715,7 @@ function render(){
     if(!objective)return;
     optimizerControls={
       objective:objective.value,
+      expCellType:Math.max(-1,Math.min(J.jellyUnitsOwned(saveData)-1,Number(root.querySelector('#exp-cell-type')?.value))),
       obstruction:Math.max(0,Math.min(71,Number(root.querySelector('#obstruction').value)-1)),
       beamWidth:Number(root.querySelector('#beam').value),
       iterations:Number(root.querySelector('#iterations').value),
@@ -693,12 +726,17 @@ function render(){
       simulationTrials:Number(root.querySelector('#trials').value),
     };
   };
-  root.querySelectorAll('#objective,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#finalists,#trials').forEach(control=>{
+  root.querySelectorAll('#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#finalists,#trials').forEach(control=>{
     control.onchange=syncOptimizerControls;
     control.oninput=syncOptimizerControls;
   });
+  if(root.querySelector('#objective'))root.querySelector('#objective').onchange=()=>{
+    syncOptimizerControls();
+    root.querySelector('#exp-cell-type-control').hidden=optimizerControls.objective!=='exp';
+  };
   if(run)run.onclick=()=>{
     syncOptimizerControls();
+    optimizedStale=false;
     startJellyWorker('layout',{options:{
         layout:saved,
         ...optimizerControls,
@@ -711,21 +749,27 @@ function render(){
     if(!objective)return;
     purchaseControls={
       objective:objective.value,
+      expCellType:Math.max(-1,Math.min(J.jellyUnitsOwned(saveData)-1,Number(root.querySelector('#upgrade-exp-cell-type')?.value))),
       purchases:Math.max(1,Math.min(50,Number(root.querySelector('#upgrade-purchases').value)||10)),
       trials:Math.max(4,Math.min(128,Number(root.querySelector('#upgrade-trials').value)||8)),
       reoptimize:root.querySelector('#upgrade-reoptimize').checked,
       budget:root.querySelector('#upgrade-budget').checked,
     };
   };
-  root.querySelectorAll('#upgrade-objective,#upgrade-purchases,#upgrade-trials,#upgrade-reoptimize,#upgrade-budget').forEach(control=>{
+  root.querySelectorAll('#upgrade-objective,#upgrade-exp-cell-type,#upgrade-purchases,#upgrade-trials,#upgrade-reoptimize,#upgrade-budget').forEach(control=>{
     control.onchange=syncPurchaseControls;
     control.oninput=syncPurchaseControls;
   });
+  if(root.querySelector('#upgrade-objective'))root.querySelector('#upgrade-objective').onchange=()=>{
+    syncPurchaseControls();
+    root.querySelector('#upgrade-exp-cell-type-control').hidden=purchaseControls.objective!=='exp';
+  };
   if(analyze)analyze.onclick=()=>{
     syncPurchaseControls();
     startJellyWorker('purchases',{options:{
         layout:saved,
         objective:purchaseControls.objective,
+        expCellType:purchaseControls.expCellType,
         purchases:purchaseControls.purchases,
         trials:purchaseControls.trials,
         seed:randomSeed(),
@@ -774,6 +818,20 @@ function objectiveOptions(selected){
   return options.filter(row=>row[2]).map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
 }
 
+function cellExpTargetOptions(selected){
+  const owned=J.jellyUnitsOwned(saveData);
+  return `<option value="-1" ${selected<0?'selected':''}>Total EXP</option>`
+    +CELL_NAMES.slice(0,owned).map((name,type)=>`<option value="${type}" ${selected===type?'selected':''}>${esc(name)}</option>`).join('');
+}
+
+function cellExpValue(operation,type){
+  return type<0?Number(operation?.meanCellExp)||0:Number(operation?.meanCellExpByType?.[type])||0;
+}
+
+function cellExpTargetName(type){
+  return type<0?'Total EXP':CELL_NAMES[type]||'Cell EXP';
+}
+
 function layoutStats(layout,fever){
   const m=J.jellyLayoutMetrics(layout,saveData,{fever});
   return `<div class="cards" style="margin-top:12px">
@@ -806,6 +864,9 @@ function purchasePlannerHtml(){
   let result='<p class="note">Sequential purchase simulation.</p>';
   if(upgradeAnalysis){
     const baseline=upgradeAnalysis.baseline,final=upgradeAnalysis.final;
+    const expCellType=upgradeAnalysis.expCellType??-1;
+    const expTargetName=cellExpTargetName(expCellType);
+    const baselineExp=cellExpValue(baseline,expCellType),finalExp=cellExpValue(final,expCellType);
     const rows=upgradeAnalysis.rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong><div class="sub">${esc(row.description)}</div></td><td class="num">${row.purchases}</td><td class="num">${row.startingLevel} → ${row.finalLevel}</td><td class="num">${fmt(row.totalCost)}</td><td class="num">${esc(row.effectText)}</td></tr>`).join('');
     const timeSaved=baseline.meanTime&&final.meanTime?baseline.meanTime-final.meanTime:0;
     result=`<div class="cards planner-cards">
@@ -814,7 +875,7 @@ function purchasePlannerHtml(){
       ${card('Clear probability',`${pct(baseline.clearProbability)} → ${pct(final.clearProbability)}`,signedPct(final.clearProbability-baseline.clearProbability))}
       ${card('Mean damage',`${fmt(baseline.meanDamage)} → ${fmt(final.meanDamage)}`,signed(final.meanDamage-baseline.meanDamage))}
       ${card('Bloodcells / attempt',`${fmt(baseline.meanBloodcells)} → ${fmt(final.meanBloodcells)}`,signed(final.meanBloodcells-baseline.meanBloodcells))}
-      ${card('Cell EXP / attempt',`${fmt(baseline.meanCellExp)} → ${fmt(final.meanCellExp)}`,signed(final.meanCellExp-baseline.meanCellExp))}
+      ${card(`${esc(expTargetName)} / attempt`,`${fmt(baselineExp)} → ${fmt(finalExp)}`,signed(finalExp-baselineExp))}
       ${card('Critical survival',`${baseline.meanCriticalTime.toFixed(2)}s → ${final.meanCriticalTime.toFixed(2)}s`,signed(final.meanCriticalTime-baseline.meanCriticalTime)+' sec')}
       ${card('Mean clear time',baseline.meanTime&&final.meanTime?`${baseline.meanTime.toFixed(2)}s → ${final.meanTime.toFixed(2)}s`:'Not cleared in both states',timeSaved?signed(timeSaved)+' sec saved':'')}
     </div>
@@ -823,6 +884,7 @@ function purchasePlannerHtml(){
   return `<div class="section"><h2>Cost-effective purchase planner</h2>
     <div class="planner-controls">
       <label class="control">Objective<select id="upgrade-objective">${objectiveOptions(purchaseControls.objective)}</select></label>
+      <label class="control" id="upgrade-exp-cell-type-control" ${purchaseControls.objective==='exp'?'':'hidden'}>EXP target<select id="upgrade-exp-cell-type">${cellExpTargetOptions(purchaseControls.expCellType)}</select></label>
       <label class="control">Purchases ahead<input id="upgrade-purchases" type="number" min="1" max="50" value="${purchaseControls.purchases}"></label>
       <label class="control">Trials per comparison<input id="upgrade-trials" type="number" min="4" max="128" value="${purchaseControls.trials}"></label>
       <label class="check-control"><input id="upgrade-reoptimize" type="checkbox" ${purchaseControls.reoptimize?'checked':''}><span><strong>Reoptimize layout</strong><small>Search again after each purchase</small></span></label>
@@ -934,14 +996,17 @@ function optimizerHtml(saved){
   if(optimizerControls.obstruction==null)optimizerControls.obstruction=p.obstruction;
   let result='';
   if(optimized){
-    const savedM=J.jellyLayoutMetrics(saved,saveData,{fever:optimized.fever});
+    const resultSaved=optimized.savedLayout||saved;
+    const savedM=optimized.savedMetrics||J.jellyLayoutMetrics(resultSaved,saveData,{fever:optimized.fever});
     const op=optimized.operation, savedOp=optimized.savedOperation, blindOp=optimized.blindOperation, immunoidOp=optimized.immunoidOperation, r=op.representative;
+    const expCellType=optimized.expCellType??-1;
+    const expTargetName=cellExpTargetName(expCellType);
     const clearInterval=target=>target?`${pct(target.clearProbabilityLow)}–${pct(target.clearProbabilityHigh)}`:'—';
     const objectiveValue=target=>{
       if(!target)return '—';
       if(optimized.objective==='clear')return pct(target.clearProbability);
       if(optimized.objective==='bloodcells')return fmt(target.meanBloodcells);
-      if(optimized.objective==='exp')return fmt(target.meanCellExp);
+      if(optimized.objective==='exp')return fmt(cellExpValue(target,expCellType));
       if(optimized.objective==='survival')return `${target.meanCriticalTime.toFixed(2)} sec`;
       return fmt(target.meanDamage);
     };
@@ -949,7 +1014,7 @@ function optimizerHtml(saved){
       if(!blindOp||!savedOp)return null;
       return `${objectiveValue(blindOp)} blind vs ${objectiveValue(savedOp)} saved`;
     };
-    const savedOccupied=Array.from(J.jellyLayoutOccupancy(saved).keys()).sort((a,b)=>a-b);
+    const savedOccupied=Array.from(J.jellyLayoutOccupancy(resultSaved).keys()).sort((a,b)=>a-b);
     const optimizedOccupied=Array.from(J.jellyLayoutOccupancy(optimized.layout).keys()).sort((a,b)=>a-b);
     const sameCoverage=savedOccupied.length===optimizedOccupied.length&&savedOccupied.every((slot,index)=>slot===optimizedOccupied[index]);
     const sameCounts=savedM.rawCounts.every((count,type)=>count===optimized.metrics.rawCounts[type]);
@@ -987,9 +1052,10 @@ function optimizerHtml(saved){
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0?card('Revival priority',esc(op.revivePolicy)):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical survival',`${op.meanCriticalTime.toFixed(2)} sec`,`${op.meanDeaths.toFixed(2)} deaths; ${op.meanRevives.toFixed(2)} revives`):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells / attempt',fmt(op.meanBloodcells)):''}
-        ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card('Cell EXP / attempt',fmt(op.meanCellExp)):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card(`${esc(expTargetName)} / attempt`,fmt(cellExpValue(op,expCellType))):''}
       </div>
-      ${legendHtml()}<div class="grid-pair">${gridHtml(saved,'Current save')}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction)}</div>
+      ${optimizedStale?'<p class="bad">The save refreshed while this search was running. This recommendation uses the save from when the search started.</p>':''}
+      ${legendHtml()}<div class="grid-pair">${gridHtml(resultSaved,optimizedStale?'Search starting save':'Current save',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}</div>
       ${anchorOnlyNote}
       <h3>Changes</h3><div>${optimized.moves.length?changePlan:'No changes improve this objective.'}</div>
       <details class="optimizer-diagnostics"><summary>Search details</summary>
@@ -1017,6 +1083,7 @@ function optimizerHtml(saved){
       <label class="control">Objective<select id="objective">
         ${objectiveOptions(optimizerControls.objective)}
       </select></label>
+      <label class="control" id="exp-cell-type-control" ${optimizerControls.objective==='exp'?'':'hidden'}>EXP target<select id="exp-cell-type">${cellExpTargetOptions(optimizerControls.expCellType)}</select></label>
       <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${optimizerControls.obstruction+1}"></label>
       <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="${optimizerControls.beamWidth}"></label>
       <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="${optimizerControls.iterations}"></label>

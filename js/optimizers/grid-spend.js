@@ -34,6 +34,27 @@ import { gridPointsAvail } from '../sim-math.js';
 // With 8 nodes and 4 points: C(11,4) = 330 combos (fast).
 // With 22 nodes and 4 points: C(25,4) = 12,650 combos (slow).
 const MAX_SPENDABLE_NODES = 8;
+const _relevantNodeCaches = new WeakMap();
+const _beamForwardCaches = new WeakMap();
+const _defaultBeamCacheOwner = {};
+const MAX_RELEVANT_CACHE = 64;
+const MAX_BEAM_FORWARD_CACHE = 256;
+
+function _boundedCacheSet(cache, maxSize, key, value) {
+  if (cache.size >= maxSize) cache.delete(cache.keys().next().value);
+  cache.set(key, value);
+}
+
+function _optimizerStateKey(gl, so, md, il, ip, occ, rLv, rExp) {
+  let key = rLv + '|' + (rExp || 0) + '|g:' + gl.join(',');
+  key += '|s:' + so.join(',');
+  key += '|m:';
+  for (let i = 0; i < md.length; i++) key += md[i].type + ':' + md[i].slot + ',';
+  key += '|i:' + il.join(',');
+  if (ip) key += '|p:' + ip.join(',');
+  key += '|o:' + occ.join(',');
+  return key;
+}
 
 /**
  * Pre-score each spendable node by +1 EXP/hr delta and keep only the top K.
@@ -64,6 +85,15 @@ export function pruneSpendable(spendable, gl, so, md, il, occ, rLv, ctx) {
 }
 
 function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
+  let cache = _relevantNodeCaches.get(ctx);
+  if (!cache) {
+    cache = new Map();
+    _relevantNodeCaches.set(ctx, cache);
+  }
+  const cacheKey = _optimizerStateKey(gl, so, md, il, null, occ, rLv, 0);
+  const cached = cache.get(cacheKey);
+  if (cached) return new Set(cached);
+
   const relevant = new Set();
   const baseExpHr = simTotalExpWith(gl, so, md, il, occ, rLv, ctx);
   const baseMagCount = computeMagnifiersOwnedWith(gl, rLv, ctx);
@@ -120,6 +150,7 @@ function _detectExpRelevantNodes(gl, so, md, il, occ, rLv, ctx) {
     // Restore original level
     gl[idx] = origLv;
   }
+  _boundedCacheSet(cache, MAX_RELEVANT_CACHE, cacheKey, Array.from(relevant));
   return relevant;
 }
 
@@ -365,6 +396,17 @@ function _exhaustiveSpendAtLevel(s, ctx) {
 }
 
 function _beamForwardSim(initState, target, assumeObs, saveCtx) {
+  const cacheOwner = saveCtx && typeof saveCtx === 'object' ? saveCtx : _defaultBeamCacheOwner;
+  let cache = _beamForwardCaches.get(cacheOwner);
+  if (!cache) {
+    cache = new Map();
+    _beamForwardCaches.set(cacheOwner, cache);
+  }
+  const cacheKey = target.type + ':' + target.value + '|' + (assumeObs ? 1 : 0) + '|'
+    + _optimizerStateKey(initState.gl, initState.so, initState.md, initState.il, initState.ip, initState.occ, initState.rLv, initState.rExp);
+  const cached = cache.get(cacheKey);
+  if (cached) return { ...cached };
+
   const sc = cloneSimState(initState);
   const gl = sc.gl, il = sc.il, ip = sc.ip, occ = sc.occ;
   let so = sc.so, md = sc.md;
@@ -438,7 +480,9 @@ function _beamForwardSim(initState, target, assumeObs, saveCtx) {
     }
   }
 
-  return { totalTimeHrs: currentTime, totalExp: totalExp, rLv: rLv };
+  const result = { totalTimeHrs: currentTime, totalExp: totalExp, rLv: rLv };
+  _boundedCacheSet(cache, MAX_BEAM_FORWARD_CACHE, cacheKey, result);
+  return { ...result };
 }
 
 export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
@@ -519,4 +563,3 @@ export function beamSpendAtLevel(s, ctx, target, assumeObs, saveCtx) {
 
   return { changed: true, so: so, steps: bestCombo.steps, freePoints: freePoints };
 }
-

@@ -152,9 +152,7 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   if (candidates.length === 0) return null;
 
   // Phase 2a: full mag reopt + break-even for top candidates.
-  // Take top-3 by absolute rate gain (high-value grinds) PLUS top-3 by
-  // efficiency (rate gain / grind time) to surface fast GD-94-only level-ups
-  // that would otherwise be crowded out by high-GD-93 long grinds.
+  // Take top-3 by absolute rate gain plus top-3 by efficiency.
   const byGain = candidates.slice().sort((a, b) => b.quickRateGain - a.quickRateGain);
   const byEfficiency = candidates.slice().sort((a, b) =>
     (b.quickRateGain / Math.max(0.01, b.grindHrs))
@@ -188,66 +186,83 @@ async function _findBestInsightGrind(s, curExpHr, remainingHrs, ctx, assumeObsUn
   }
   if (viable.length === 0) return null;
 
-  // Phase 2b: permutation evaluation via adaptive-tick sims
-  function _simGrindSequence(seq, afterMD, baseIL, baseIP, baseRLv, baseRExp, remainHrs) {
-    const simIL = baseIL.slice();
-    const simIP = baseIP.slice();
-    const simOcc = occ.slice();
-    let simRLv = baseRLv, simRExp = baseRExp;
-    let totalExp = 0, simTime = 0;
-
-    for (let si = 0; si < seq.length + 1; si++) {
-      let phaseMD, phaseEndCondition;
-      if (si < seq.length) {
-        const g = seq[si];
-        phaseMD = buildConcentratedLayout({gl, so, md, il: simIL, occ: simOcc, rLv: simRLv, mMax}, g.obsIdx, ctx);
-        phaseEndCondition = (obsIdx) => obsIdx === g.obsIdx;
-      } else {
-        phaseMD = reoptRegularMags({gl, so, md: afterMD, il: simIL, occ: simOcc, rLv: simRLv, mMax}, ctx);
-        phaseMD = chooseMonoTargets({gl, so, md: phaseMD, il: simIL, ip: simIP, occ: simOcc, rLv: simRLv, mMax}, ctx, Math.max(1, remainHrs - simTime));
-        phaseEndCondition = null;
-      }
-
-      const monoArr = Array.from(getMonoObsSet(phaseMD));
-      const isPostGrind = si >= seq.length;
-      const phaseResult = simForwardProjection({
-        monoSlots: monoArr, md: phaseMD, il: simIL, ip: simIP,
-        gl, so, occ: simOcc, rLv: simRLv, rExp: simRExp, ctx,
-        maxHrs: remainHrs - simTime, maxJumps: 5000,
-        assumeObsUnlocked,
-        onInsightLevelUp: phaseEndCondition ? (obsIdx) => phaseEndCondition(obsIdx) : undefined,
-        onReopt: isPostGrind ? (curMD, curIL, curOcc, curRLv) => {
-          return reoptRegularMags({gl, so, md: curMD, il: curIL, occ: curOcc, rLv: curRLv, mMax}, ctx);
-        } : undefined,
-      });
-      totalExp += phaseResult.totalExp;
-      simTime += phaseResult.time;
-      simRLv = phaseResult.rLv;
-      simRExp = phaseResult.rExp;
-    }
-    return totalExp;
+  // Phase 2b: exhaustive ordered-subset evaluation with shared prefix states.
+  function _postGrindTotal(state) {
+    const simIL = state.il.slice();
+    const simIP = state.ip.slice();
+    const simOcc = state.occ.slice();
+    let phaseMD = reoptRegularMags({gl, so, md, il: simIL, occ: simOcc, rLv: state.rLv, mMax}, ctx);
+    phaseMD = chooseMonoTargets({
+      gl, so, md: phaseMD, il: simIL, ip: simIP, occ: simOcc, rLv: state.rLv, mMax
+    }, ctx, Math.max(1, remainingHrs - state.time));
+    const phaseResult = simForwardProjection({
+      monoSlots: Array.from(getMonoObsSet(phaseMD)),
+      md: phaseMD, il: simIL, ip: simIP,
+      gl, so, occ: simOcc, rLv: state.rLv, rExp: state.rExp, ctx,
+      maxHrs: remainingHrs - state.time, maxJumps: 5000,
+      assumeObsUnlocked,
+      onReopt: (curMD, curIL, curOcc, curRLv) => {
+        return reoptRegularMags({gl, so, md: curMD, il: curIL, occ: curOcc, rLv: curRLv, mMax}, ctx);
+      },
+    });
+    return state.totalExp + phaseResult.totalExp;
   }
 
-  // Enumerate all ordered subsets of viable candidates (N ≤ 5 → max 325 permutations)
-  const noGrindTotal = _simGrindSequence([], md, il, ip, rLv, 0, remainingHrs);
+  function _advanceGrindPrefix(state, candidate) {
+    const simIL = state.il.slice();
+    const simIP = state.ip.slice();
+    const simOcc = state.occ.slice();
+    const phaseMD = buildConcentratedLayout({
+      gl, so, md, il: simIL, occ: simOcc, rLv: state.rLv, mMax
+    }, candidate.obsIdx, ctx);
+    const phaseResult = simForwardProjection({
+      monoSlots: Array.from(getMonoObsSet(phaseMD)),
+      md: phaseMD, il: simIL, ip: simIP,
+      gl, so, occ: simOcc, rLv: state.rLv, rExp: state.rExp, ctx,
+      maxHrs: remainingHrs - state.time, maxJumps: 5000,
+      assumeObsUnlocked,
+      onInsightLevelUp: (obsIdx) => obsIdx === candidate.obsIdx,
+    });
+    return {
+      il: simIL,
+      ip: simIP,
+      occ: simOcc,
+      rLv: phaseResult.rLv,
+      rExp: phaseResult.rExp,
+      time: state.time + phaseResult.time,
+      totalExp: state.totalExp + phaseResult.totalExp,
+    };
+  }
+
+  const initialSequenceState = {
+    il: il.slice(),
+    ip: ip.slice(),
+    occ: occ.slice(),
+    rLv,
+    rExp: 0,
+    time: 0,
+    totalExp: 0,
+  };
+  const noGrindTotal = _postGrindTotal(initialSequenceState);
   let bestCandidate = null;
   let bestTotalExp = noGrindTotal;
 
-  function _permuteAndScore(seq, remaining) {
-    if (seq.length > 0) {
-      const seqTotal = _simGrindSequence(seq, md, il, ip, rLv, 0, remainingHrs);
-      if (seqTotal > bestTotalExp) {
-        bestTotalExp = seqTotal;
-        bestCandidate = seq[0];
-      }
-    }
+  function _permuteAndScore(state, firstCandidate, remaining) {
     for (let i = 0; i < remaining.length; i++) {
       const next = remaining[i];
+      const nextState = _advanceGrindPrefix(state, next);
+      const nextFirst = firstCandidate || next;
+      const seqTotal = _postGrindTotal(nextState);
+      if (seqTotal > bestTotalExp) {
+        bestTotalExp = seqTotal;
+        bestCandidate = nextFirst;
+      }
+      if (nextState.time >= remainingHrs - 1e-9) continue;
       const rest = remaining.slice(0, i).concat(remaining.slice(i + 1));
-      _permuteAndScore([...seq, next], rest);
+      _permuteAndScore(nextState, nextFirst, rest);
     }
   }
-  _permuteAndScore([], viable);
+  _permuteAndScore(initialSequenceState, null, viable);
 
   if (bestCandidate && bestTotalExp > noGrindTotal) {
     const x = bestCandidate;
@@ -334,6 +349,8 @@ export async function unifiedSim(config, saveCtx) {
   // Initial mag assignment via greedy optimizer
   if (config.magData) {
     s.md = config.magData.map(m => ({...m}));
+  } else if (config.reoptimize === false) {
+    s.md = _preOptUserMD.map(m => ({...m}));
   } else {
     // Build pool from current owned types, then grow with correct types if gl increased the count
     const pool = _sc.magData.slice(0, Math.min(_sc.magnifiersOwned, s.mOwned)).map(m => ({...m}));
@@ -569,7 +586,8 @@ export async function unifiedSim(config, saveCtx) {
     }
 
     // --- Check for profitable insight grinds after events ---
-    if (_activeGrindObs < 0 && config.reoptimize !== false && config.enableGrind !== false && (rLeveledUp || insightMatters)) {
+    if (_activeGrindObs < 0 && config.reoptimize !== false && config.enableGrind !== false
+      && (rLeveledUp || insightMatters)) {
       const _grindRemaining = _estimateRemainingHrs(config, currentTime, s.rLv, s.rExp, curExpHr, ctx);
       const _grindCandidate = await _findBestInsightGrind(s, curExpHr, _grindRemaining, ctx, config.assumeObsUnlocked, _sc);
       if (_grindCandidate) {
@@ -639,4 +657,3 @@ export async function unifiedSim(config, saveCtx) {
 
   return { phases, totalTime: currentTime, finalLevel: s.rLv, finalExp: s.rExp, finalIL: il.slice(), insightLAExtension: 0, includedTournament: _includeTournament };
 }
-

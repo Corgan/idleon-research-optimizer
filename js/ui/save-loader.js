@@ -61,7 +61,7 @@ function _injectCSS() {
  * @param {object}   opts
  * @param {string}   opts.target      — CSS selector for the container to inject into.
  *                                      A sibling paste-wrap div is created after it.
- * @param {function} opts.onLoad      — callback(saveData, parsedJSON) after successful load.
+ * @param {function} opts.onLoad      — callback(saveData, parsedJSON, {source}) after successful load.
  * @param {function} [opts.onReady]   — optional callback({loaded, source, reason}) once initial
  *                                      auth/cache discovery settles; manual loads do not retrigger it.
  * @param {function} [opts.statusText]— optional (saveData) => string for extra status info.
@@ -115,14 +115,14 @@ export function initSaveLoader(opts) {
   var textarea  = wrap.querySelector('.sl-paste');
   var loadBtn   = wrap.querySelector('.sl-paste-load');
 
-  function doLoad(raw) {
+  function doLoad(raw, metadata) {
     try {
       var save = typeof raw === 'string' ? JSON.parse(raw) : raw;
       if (!opts.skipLoad) loadSaveData(save);
       msgEl.className = 'sl-msg ok';
       var extra = opts.statusText ? opts.statusText(saveData) : '';
       msgEl.textContent = '\u2713 Loaded!' + (extra ? ' ' + extra : '');
-      if (opts.onLoad) opts.onLoad(saveData, save);
+      if (opts.onLoad) opts.onLoad(saveData, save, metadata || { source: 'manual' });
       return true;
     } catch (e) {
       msgEl.className = 'sl-msg err';
@@ -278,7 +278,7 @@ function _checkCachedSave(authStatus, doLoad, onReady) {
 
     if (cached) {
       // Auto-load cached save immediately — works even if session expired
-      var loaded = doLoad(cached.save);
+      var loaded = doLoad(cached.save, { source: 'cache' });
       onReady({
         loaded: loaded,
         source: 'cache',
@@ -335,7 +335,7 @@ function _handleGoogleSignIn(googleBtn, authStatus, overlay, msgEl, doLoad) {
           store.cacheSave(saveObj);
           _renderAuthStatus(authStatus, doLoad, 'Signed in');
           _startAutoRefresh(authStatus, doLoad);
-          doLoad(saveObj);
+          doLoad(saveObj, { source: 'sign-in' });
         });
       }).catch(function(e) {
         overlay.style.display = 'none';
@@ -375,7 +375,7 @@ function _fetchAndLoad(authStatus, doLoad, silent) {
         store.cacheSave(saveObj);
         _renderAuthStatus(authStatus, doLoad, 'Refreshed');
         _startAutoRefresh(authStatus, doLoad);
-        var loaded = doLoad(saveObj);
+        var loaded = doLoad(saveObj, { source: silent ? 'auto-refresh' : 'refresh' });
         return {
           loaded: loaded,
           source: 'fetch',
