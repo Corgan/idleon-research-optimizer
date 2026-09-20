@@ -202,6 +202,7 @@ export function loadSaveData(raw) {
   const stuGRaw = parseSaveKey(save, 'StuG');
   assignState({ statueGData: Array.isArray(stuGRaw) ? stuGRaw : (typeof stuGRaw === 'string' ? JSON.parse(stuGRaw) : []) });
   assignState({ lv0AllData: lv0All });
+  assignState({ exp0AllData: exp0All });
   assignState({ cyTalentPointsData: parseSaveKey(save, 'CYTalentPoints') || [] });
   assignSaveData({ charClassData: charClass });
   assignSaveData({ skillLvData: skillLv });

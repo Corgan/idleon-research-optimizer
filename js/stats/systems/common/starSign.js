@@ -96,6 +96,7 @@ var SIGN_BONUSES = {
   GFood: { 69: 20 },
   Jade:     { 75: 10 },
   Stealth:  { 73: 12 },
+  SneakExp: { 74: 15 },
   ArtifactFind: { 61: 15 },
   SailingSpd: { 63: 20 },
   CropEvoPerFarmLv: { 65: 3 },

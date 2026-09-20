@@ -36,6 +36,8 @@ export function doorHP(floor, mastery) {
   if (masteryLevel <= 0) return raw;
   if (floor === 0) return 1; // game override
   var scale = _HP_SCALE;
+  // The source mutates NinjaInfo[3] in index order. By floor 11, index 10
+  // has already become the mastery-scaled value and is reused as the base.
   if (floor > 10) scale = 0.01 * _HP_SCALE * Math.pow(_HP_SCALE, masteryLevel);
   return 0.01 * raw * Math.pow(scale, masteryLevel);
 }
@@ -105,6 +107,17 @@ export function floorDropTable(floor, mastery, saveData) {
     missProduct *= 1 - conditionalChance;
   }
   return items;
+}
+
+export function minimumGearDropMastery(itemKey, saveData) {
+  for (var mastery = 0; mastery <= 2; mastery++) {
+    for (var floor = 0; floor < FLOOR_COUNT; floor++) {
+      if (floorDropTable(floor, mastery, saveData).some(function(row) { return row.key === itemKey; })) {
+        return mastery;
+      }
+    }
+  }
+  return Infinity;
 }
 
 // Max charm level when found: NLbonuses(11) = Charm Collector

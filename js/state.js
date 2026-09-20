@@ -70,6 +70,7 @@ export const saveData = {
   cauldronP2WData: [],
   tasksGlobalData: [],
   lv0AllData: [],
+  exp0AllData: [],
   labBonusConnected: [],
   labJewelConnected: [],
   labMainBonusFull: [],
@@ -269,6 +270,7 @@ export function restoreState(s) {
   if (!saveData.starSignProgData) saveData.starSignProgData = [];
   if (!saveData.dungUpgData) saveData.dungUpgData = [];
   if (!saveData.lv0AllData) saveData.lv0AllData = [];
+  if (!saveData.exp0AllData) saveData.exp0AllData = [];
   if (!saveData.labBonusConnected) saveData.labBonusConnected = [];
   if (!saveData.labJewelConnected) saveData.labJewelConnected = [];
   if (!saveData.labMainBonusFull) saveData.labMainBonusFull = [];

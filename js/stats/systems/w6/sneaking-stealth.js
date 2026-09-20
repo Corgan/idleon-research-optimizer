@@ -150,8 +150,7 @@ function _gemstoneBonus(gemIdx, olaData, saveData, activeCharIdx) {
   // Other gems: multiply by (1 + gemstone5/100) * max(1, getbonus2(1,432,activeCharIdx))
   var gem5 = _gemstoneBonus(5, olaData, saveData, activeCharIdx);
   var aci = activeCharIdx != null ? activeCharIdx : -1;
-  var tal432 = 0;
-  try { tal432 = maxTalentBonus(432, aci, saveData) || 0; } catch(e) {}
+  var tal432 = maxTalentBonus(432, aci, saveData) || 0;
   return val * (1 + gem5 / 100) * Math.max(1, tal432);
 }
 
@@ -209,8 +208,7 @@ export function goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, 
 }
 function _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
   var gem3 = _gemstoneBonus(3, olaData, saveData, activeCharIdx);
-  var legend6 = 0;
-  try { legend6 = legendPTSbonus(6, saveData) || 0; } catch(e) {}
+  var legend6 = legendPTSbonus(6, saveData) || 0;
   var result = {}; // bonusType -> multiplied stat (first match wins)
   for (var i = 0; i < 39; i++) {
     var slotIdx = 60 + i;
@@ -306,8 +304,7 @@ function _fractalIslandBonus6(saveData) {
 // STEALTH_CHAPTER bubble (Kazam cauldron idx 10, key 'A10AllCharz').
 // Game: bubbleVal * floor(max(0, (TomeCompletionPts - 5000) / 2000))
 function _alchA10AllCharz(saveData, activeCharIdx) {
-  var bubbleVal = 0;
-  try { bubbleVal = Number(bubbleValByKey('A10AllCharz', activeCharIdx || 0, saveData)) || 0; } catch(e) {}
+  var bubbleVal = Number(bubbleValByKey('A10AllCharz', activeCharIdx || 0, saveData)) || 0;
   if (bubbleVal <= 0) return 0;
   var tomeScore = _num(saveData.totalTomePoints);
   var tomeMult = Math.floor(Math.max(0, (tomeScore - 5000) / 2000));
@@ -318,15 +315,12 @@ function _alchA10AllCharz(saveData, activeCharIdx) {
 // Active if: equipped in PVtStarSign, OR (unlocked AND infinite star signs >= 74)
 // Value = 12 * seraphMulti (per activation pass — game loops twice for dual-sign chip)
 function _starSign73(saveData, activeCharIdx) {
-  try { return Number(computeStarSignBonus('Stealth', activeCharIdx || 0, saveData)) || 0; }
-  catch(e) { return 0; }
+  return Number(computeStarSignBonus('Stealth', activeCharIdx || 0, saveData)) || 0;
 }
 
 function _votingBonus25(saveData, activeCharIdx) {
   if (saveData.activeVoteIdx !== 25) return 0;
-  var votingMulti = 1;
-  try { votingMulti = Number(createStatContext({ charIdx: activeCharIdx || 0, saveData: saveData }).resolve('voting-multi').val) || 1; }
-  catch(e) {}
+  var votingMulti = Number(createStatContext({ charIdx: activeCharIdx || 0, saveData: saveData }).resolve('voting-multi').val) || 1;
   return votingBonusz(25, votingMulti, saveData);
 }
 
@@ -356,15 +350,13 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var baseStealth = 10 + nk13 * sneakLv;
 
   // ---- CORE MULTIPLIER (everything except ally and funeral) ----
-  var farmRankBon = 0;
-  try { farmRankBon = farmRankUpgBonus(4, farmCharIdx, s) || 0; } catch(e) {}
+  var farmRankBon = farmRankUpgBonus(4, farmCharIdx, s) || 0;
   var farmFactor = 1 + farmRankBon * farmLv / 100;
 
   var nb7 = _num(charmMap[7]);
   var factor7 = 1 + nb7 / 100;
 
-  var compass45 = 0;
-  try { compass45 = computeCompassBonus(45, s) || 0; } catch(e) {}
+  var compass45 = computeCompassBonus(45, s) || 0;
   var factorCompass = 1 + compass45 / 100;
 
   var gambit11 = _gambitBonus11(holesData, s);
@@ -383,26 +375,20 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var starSign73v = _starSign73(s, farmCharIdx);
   var factorAlchStar = 1 + (alchA10 + starSign73v) / 100;
 
-  var statue26 = 0;
-  try {
-    var statResult = computeStatueBonusGiven(26, farmCharIdx, s);
-    statue26 = (statResult && statResult.val) || 0;
-  } catch(e) {}
+  var statResult = computeStatueBonusGiven(26, farmCharIdx, s);
+  var statue26 = (statResult && statResult.val) || 0;
   var factorStatue = 1 + statue26 / 100;
 
-  var cardLv = 0;
-  try { cardLv = computeCardLv('Crystal5', s) || 0; } catch(e) {}
+  var cardLv = computeCardLv('Crystal5', s) || 0;
   var factorCards = 1 + 4 * cardLv / 100;
 
-  var ach368 = 0;
-  try { ach368 = achieveStatus(368, s) || 0; } catch(e) {}
+  var ach368 = achieveStatus(368, s) || 0;
   var factorAchieve = 1 + 5 * ach368 / 100;
 
   var gem0 = _gemstoneBonus(0, olaData, s, activeCharIdx);
   var factorGemstone = 1 + gem0 / 100;
 
-  var vote25 = 0;
-  try { vote25 = _votingBonus25(s, farmCharIdx) || 0; } catch(e) {}
+  var vote25 = _votingBonus25(s, farmCharIdx) || 0;
   var factorVoting = 1 + vote25 / 100;
 
   var lamp21 = _lampBonus(2, 1, holesData, spelunkData);
@@ -416,13 +402,11 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var fractalMulti = 1 + 2 * fractal6 * sneakLv / 100;
 
   // Emperor
-  var emperor0 = 0;
-  try { emperor0 = computeEmperorBon(0, s) || 0; } catch(e) {}
+  var emperor0 = computeEmperorBon(0, s) || 0;
   var emperorMulti = 1 + emperor0 / 100;
 
   // RoG (sushi)
-  var rogPct = 0;
-  try { rogPct = rogBonusQTY(32, s.cachedUniqueSushi || 0) || 0; } catch(e) {}
+  var rogPct = rogBonusQTY(32, s.cachedUniqueSushi || 0) || 0;
   var rogMulti = 1 + rogPct / 100;
   var jellyStealthPct = jellyRewardBonus(s, 16);
   var jellyStealthMulti = 1 + jellyStealthPct / 100;
@@ -456,8 +440,8 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
       factorAlchStar, factorStatue, statue26, factorCards, cardLv,
       factorAchieve, ach368, factorGemstone, gem0, factorVoting, vote25,
       factorLamp, lamp21, factorBUpg, bUpg54: bUpg54v,
-      fractal6, emperor0, rogPct, nk23, comp163,
-      fractalMulti, emperorMulti, rogMulti, shhMulti, comp163Multi,
+      fractal6, emperor0, rogPct, jellyStealthPct, nk23, comp163,
+      fractalMulti, emperorMulti, rogMulti, jellyStealthMulti, shhMulti, comp163Multi,
     },
   };
 }
@@ -576,6 +560,7 @@ export function buildStealthBreakdown(twinIdx, floor, allTwinFloors, saveData, a
     ], { fmt: 'x', note: '1 + 2 × unlock × Sneaking level / 100' }),
     _pctFactorNode('Emperor: Sneaking Stealth', b.emperor0),
     _pctFactorNode('RoG: Sneaking Stealth', b.rogPct),
+    _pctFactorNode('Jelly Operator: Sneaking Stealth', b.jellyStealthPct),
     _pctFactorNode('Shh! Ninja Knowledge', b.nk23),
     node('Companion 163', b.comp163Multi, [
       node('Owned', b.comp163, null, { fmt: 'raw' }),
@@ -644,8 +629,7 @@ export function computeDoorDamageDetailed(twinIdx, saveData, activeCharIdx) {
   var goldPerTen = _num(goldInv[22]);
   var sneakTens = Math.floor(sneakLv / 10);
   var goldDamage = _num(goldInv[18]);
-  var y8 = 0;
-  try { y8 = Number(bubbleValByKey('Y8', activeCharIdx || 0, s)) || 0; } catch(e) {}
+  var y8 = Number(bubbleValByKey('Y8', activeCharIdx || 0, s)) || 0;
   var gem2 = _gemstoneBonus(2, olaData, s, activeCharIdx);
   var trueBattering = _nlBonus(27, nd);
   var factors = {
@@ -684,8 +668,7 @@ export function computeUntieProgressDetailed(twinIdx, saveData, activeCharIdx) {
   var isKunai = !!eq && _num(eq[0]) === 1 && _num(eq[1]) === 2;
   var weaponStat = isKunai ? _weaponItemStat(slotIdx, nd) : 0;
   var mahjong = _nlBonus(5, nd);
-  var vial = 0;
-  try { vial = Number(computeVialByKey('6Untie', s, activeCharIdx)) || 0; } catch(e) {}
+  var vial = Number(computeVialByKey('6Untie', s, activeCharIdx)) || 0;
   var progress = isKunai ? weaponStat * (1 + mahjong / 100) * (1 + vial / 100) : 0;
   return { progress: progress, canUntie: isKunai, itemKey: itemKey, itemLevel: _num(slot[1]), weaponStat: weaponStat, mahjong: mahjong, vial: vial };
 }
@@ -808,12 +791,9 @@ export function computeNK11Extras(saveData, activeCharIdx) {
   var spelunkData = saveData.spelunkData || [];
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, saveData, activeCharIdx);
   var gem7 = _gemstoneBonus(7, olaData, saveData, activeCharIdx);
-  var pal30 = 0;
-  try { pal30 = computePaletteBonus(30, saveData) || 0; } catch(e) {}
-  var v88 = 0;
-  try { v88 = vaultUpgBonus(88, saveData) || 0; } catch(e) {}
-  var c53 = 0;
-  try { c53 = cloudBonus(53, saveData.weeklyBossData) || 0; } catch(e) {}
+  var pal30 = computePaletteBonus(30, saveData) || 0;
+  var v88 = vaultUpgBonus(88, saveData) || 0;
+  var c53 = cloudBonus(53, saveData.weeklyBossData) || 0;
   return {
     ninjaBonus21: _num(goldInv[21]),
     gemstone7: gem7,

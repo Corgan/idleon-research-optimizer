@@ -65,3 +65,42 @@ export function topCandidates(items, score, count) {
     return b.score - a.score;
   }).slice(0, Math.max(0, Number(count) || 0));
 }
+
+export function bestCharmPairFromPool(pool, first, second, hasCharmedPerk, score, slotMultipliers, scrollAlreadyEquipped) {
+  var empty = { key: 'Blank', level: 0, _empty: true };
+  var multipliers = slotMultipliers || [1, 1];
+  var itemScore = typeof score === 'function' ? score : function(item) { return Number(item && item.level) || 0; };
+  function candidates(request) {
+    if (!request || request._empty) return [empty];
+    return (pool || []).filter(function(item) {
+      if (!item || item._empty || Number(item.type) !== 2) return false;
+      if (request._copyId != null) return item._copyId === request._copyId;
+      if (request._family) return Number(item.bonusType) === Number(request.bonusType);
+      return item.key === request.key && (request.level == null || Number(item.level) === Number(request.level));
+    });
+  }
+  var firstCandidates = candidates(first);
+  var secondCandidates = candidates(second);
+  var best = null;
+  var bestScore = -Infinity;
+  for (var firstIdx = 0; firstIdx < firstCandidates.length; firstIdx++) {
+    for (var secondIdx = 0; secondIdx < secondCandidates.length; secondIdx++) {
+      var firstItem = firstCandidates[firstIdx];
+      var secondItem = secondCandidates[secondIdx];
+      if (!firstItem._empty && !secondItem._empty && firstItem._copyId === secondItem._copyId) continue;
+      if (!canEquipCharmPair(firstItem, secondItem, hasCharmedPerk)) continue;
+      var scrollCount = Number(firstItem.key === 'NjTr7') + Number(secondItem.key === 'NjTr7');
+      if (scrollCount > 1 || (scrollAlreadyEquipped && scrollCount > 0)) continue;
+      var firstScore = Number(itemScore(firstItem)) || 0;
+      var secondScore = Number(itemScore(secondItem)) || 0;
+      var direct = firstScore * (Number(multipliers[0]) || 1) + secondScore * (Number(multipliers[1]) || 1);
+      var swapped = firstScore * (Number(multipliers[1]) || 1) + secondScore * (Number(multipliers[0]) || 1);
+      var pairScore = Math.max(direct, swapped);
+      if (!best || pairScore > bestScore) {
+        best = [firstItem, secondItem];
+        bestScore = pairScore;
+      }
+    }
+  }
+  return best;
+}
