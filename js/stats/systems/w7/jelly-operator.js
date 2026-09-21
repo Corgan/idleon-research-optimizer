@@ -265,19 +265,129 @@ export function jellySlotPurchasesLeft(S) {
   );
 }
 
-export function jellyFootprintSlots(anchor, type) {
-  anchor = Math.floor(n(anchor));
+const JELLY_SESSION = Symbol('jellySession');
+const JELLY_PREPARED_RUN = Symbol('jellyPreparedRun');
+const JELLY_SURROGATE_METRICS = Symbol('jellySurrogateMetrics');
+
+const EMPTY_JELLY_SAVE = Object.freeze({});
+
+const MAX_CACHED_TRIALS = 2048;
+const MAX_CACHED_TRIAL_BATCHES = 64;
+const MAX_CACHED_LAYOUT_SCORES = 50000;
+
+function withJellySession(options = {}) {
+  if (options[JELLY_SESSION]) return options;
+  return {
+    ...options,
+    [JELLY_SESSION]: {
+      contexts: new WeakMap(),
+      nextContextId: 0,
+      trialCache: new Map(),
+      cachedTrials: 0,
+    },
+  };
+}
+
+function jellySessionOptions(options, extra = {}) {
+  return {
+    [JELLY_SESSION]: options[JELLY_SESSION],
+    ...extra,
+  };
+}
+
+function getJellyContext(S, options) {
+  const session = options[JELLY_SESSION];
+  const saveKey = S && typeof S === 'object' ? S : EMPTY_JELLY_SAVE;
+  let context = session.contexts.get(saveKey);
+  if (context) return context;
+  const quantities = Array.from({ length: 40 }, (_, id) => jellyUpgradeQuantity(S, id));
+  const levels = Array.from({ length: 9 }, (_, type) => jellyCellLevel(S, type));
+  context = {
+    id: session.nextContextId++,
+    quantities,
+    levels,
+    exp: Array.from({ length: 9 }, (_, type) => jellyCellExp(S, type)),
+    totalCellLevel: levels.reduce((sum, level) => sum + level, 0),
+    progress: jellyProgress(S),
+    board: makeJellyBoard(S),
+    feverStats: new Map(),
+    currencyBaseByFever: new Map(),
+    damageBase: undefined,
+    organelleMultiplier: undefined,
+  };
+  session.contexts.set(saveKey, context);
+  return context;
+}
+
+function getJellyFeverStats(S, context, fever) {
+  let stats = context.feverStats.get(fever);
+  if (stats) return stats;
+  stats = {
+    speed: jellyCellSpeedMultiplier(S, fever),
+    exp: jellyCellExpMultiplier(S, fever),
+  };
+  context.feverStats.set(fever, stats);
+  return stats;
+}
+
+function memoizedNumber(cache, key, compute, limit) {
+  if (cache.has(key)) return cache.get(key);
+  const value = compute();
+  if (cache.size >= limit) cache.delete(cache.keys().next().value);
+  cache.set(key, value);
+  return value;
+}
+
+const JELLY_FOOTPRINT_OFFSETS = Array.from({ length: 9 }, (_, type) => cellFootprint(type).map(offsetCoord));
+
+const JELLY_FOOTPRINT_CACHE = Array.from({ length: 9 }, () => new Array(JELLY_SIZE));
+
+function jellyFootprintInternal(anchor, type) {
+  if (
+    !Number.isInteger(anchor)
+    || anchor < 0
+    || anchor >= JELLY_SIZE
+    || !Number.isInteger(type)
+    || type < 0
+    || type >= JELLY_FOOTPRINT_OFFSETS.length
+  ) return null;
+  const row = JELLY_FOOTPRINT_CACHE[type];
+  if (row[anchor] !== undefined) return row[anchor];
   const anchorX = anchor % JELLY_COLS;
   const anchorY = Math.floor(anchor / JELLY_COLS);
   const slots = [];
-  for (const offset of cellFootprint(type)) {
-    const { dx, dy } = offsetCoord(offset);
+  for (const { dx, dy } of JELLY_FOOTPRINT_OFFSETS[type]) {
     const x = anchorX + dx;
     const y = anchorY + dy;
-    if (x < 0 || x >= JELLY_COLS || y < 0 || y >= JELLY_SIZE / JELLY_COLS) return null;
+    if (x < 0 || x >= JELLY_COLS || y < 0 || y >= JELLY_SIZE / JELLY_COLS) {
+      row[anchor] = null;
+      return null;
+    }
     slots.push(x + y * JELLY_COLS);
   }
+  row[anchor] = slots;
   return slots;
+}
+
+export function jellyFootprintSlots(anchor, type) {
+  anchor = Math.floor(n(anchor));
+  type = Number(type);
+  // Retain the original fallback behavior for unusual public inputs.
+  if (!Number.isInteger(type) || type < 0 || type > 8) {
+    const anchorX = anchor % JELLY_COLS;
+    const anchorY = Math.floor(anchor / JELLY_COLS);
+    const slots = [];
+    for (const offset of cellFootprint(type)) {
+      const { dx, dy } = offsetCoord(offset);
+      const x = anchorX + dx;
+      const y = anchorY + dy;
+      if (x < 0 || x >= JELLY_COLS || y < 0 || y >= JELLY_SIZE / JELLY_COLS) return null;
+      slots.push(x + y * JELLY_COLS);
+    }
+    return slots;
+  }
+  const slots = jellyFootprintInternal(anchor, type);
+  return slots ? slots.slice() : null;
 }
 
 export function jellyLayoutFromSave(S) {
@@ -307,45 +417,141 @@ export function jellyLayoutOccupancy(layout) {
   return occupied;
 }
 
-export function jellyValidateLayout(layout, S) {
+function makeJellyBoard(S) {
   const unlocked = jellyUnlockedSlots(S);
-  const occupied = new Set();
+  const unlockedFlags = new Uint8Array(JELLY_SIZE);
+  for (const slot of unlocked) {
+    if (slot >= 0 && slot < JELLY_SIZE) unlockedFlags[slot] = 1;
+  }
+  return {
+    unlocked,
+    unlockedFlags,
+    unitsOwned: jellyUnitsOwned(S),
+    virusLimit: 1 + jellyUpgradeQuantity(S, 15),
+    legalFootprints: Array.from({ length: 9 }, () => new Array(JELLY_SIZE)),
+    anchorsByType: new Array(9),
+    layouts: new WeakMap(),
+  };
+}
+
+function legalJellyFootprint(board, anchor, type) {
+  if (
+    !Number.isInteger(anchor)
+    || anchor < 0
+    || anchor >= JELLY_SIZE
+    || !Number.isInteger(type)
+    || type < 0
+    || type >= board.unitsOwned
+  ) return null;
+  const row = board.legalFootprints[type];
+  if (row[anchor] !== undefined) return row[anchor];
+  const slots = jellyFootprintInternal(anchor, type);
+  if (!slots) return (row[anchor] = null);
+  for (const slot of slots) {
+    if (!board.unlockedFlags[slot]) return (row[anchor] = null);
+  }
+  row[anchor] = slots;
+  return slots;
+}
+
+function describeJellyLayout(layout, board) {
+  const cacheable = layout !== null && typeof layout === 'object';
+  if (cacheable) {
+    const cached = board.layouts.get(layout);
+    if (cached) return cached;
+  }
+  const finish = result => {
+    if (cacheable) board.layouts.set(layout, result);
+    return result;
+  };
+  const owners = new Int32Array(JELLY_SIZE);
+  owners.fill(-1);
+  const entries = [];
+  const counts = new Array(9).fill(0);
   let viruses = 0;
   for (const [rawAnchor, rawType] of Object.entries(layout || {})) {
     const anchor = Number(rawAnchor);
     const type = Number(rawType);
-    if (!Number.isInteger(anchor) || anchor < 0 || anchor >= JELLY_SIZE) return { valid: false, reason: `Invalid anchor ${rawAnchor}` };
-    if (!Number.isInteger(type) || type < 0 || type >= jellyUnitsOwned(S)) return { valid: false, reason: `Cell ${type} is locked` };
-    const slots = jellyFootprintSlots(anchor, type);
-    if (!slots) return { valid: false, reason: `${CELL_NAMES[type]} wraps outside the grid` };
-    for (const slot of slots) {
-      if (!unlocked.has(slot)) return { valid: false, reason: `Slot ${slot} is locked` };
-      if (occupied.has(slot)) return { valid: false, reason: `Cells overlap at slot ${slot}` };
-      occupied.add(slot);
+    if (!Number.isInteger(anchor) || anchor < 0 || anchor >= JELLY_SIZE) {
+      return finish({ valid: false, reason: `Invalid anchor ${rawAnchor}` });
     }
+    if (!Number.isInteger(type) || type < 0 || type >= board.unitsOwned) {
+      return finish({ valid: false, reason: `Cell ${type} is locked` });
+    }
+    const slots = jellyFootprintInternal(anchor, type);
+    if (!slots) {
+      return finish({ valid: false, reason: `${CELL_NAMES[type]} wraps outside the grid` });
+    }
+    for (const slot of slots) {
+      if (!board.unlockedFlags[slot]) return finish({ valid: false, reason: `Slot ${slot} is locked` });
+      if (owners[slot] !== -1) return finish({ valid: false, reason: `Cells overlap at slot ${slot}` });
+      owners[slot] = anchor;
+    }
+    entries.push({ anchor, type, slots });
+    counts[type]++;
     if (type === 5) viruses++;
   }
-  if (viruses > 1 + jellyUpgradeQuantity(S, 15)) return { valid: false, reason: 'Virus limit exceeded' };
-  return { valid: true, reason: '' };
+  if (viruses > board.virusLimit) return finish({ valid: false, reason: 'Virus limit exceeded' });
+  return finish({
+    valid: true,
+    reason: '',
+    owners,
+    entries,
+    counts,
+    viruses,
+  });
+}
+
+function placeJellyCellPrepared(layout, anchor, type, board, replace = true) {
+  const slots = legalJellyFootprint(board, anchor, type);
+  if (!slots) return null;
+  const info = describeJellyLayout(layout, board);
+
+  // Preserve the public operation's ability to repair an invalid input layout.
+  if (!info.valid) {
+    if (!replace) return null;
+    const next = { ...(layout || {}) };
+    const targetSlots = new Set(slots);
+    for (const [rawOtherAnchor, rawOtherType] of Object.entries(next)) {
+      const otherAnchor = Number(rawOtherAnchor);
+      const otherSlots = jellyFootprintSlots(otherAnchor, Number(rawOtherType)) || [];
+      if (otherSlots.some(slot => targetSlots.has(slot))) delete next[otherAnchor];
+    }
+    next[anchor] = type;
+    return describeJellyLayout(next, board).valid ? next : null;
+  }
+
+  const displaced = [];
+  let viruses = info.viruses;
+  for (const slot of slots) {
+    const owner = info.owners[slot];
+    if (owner === -1) continue;
+    if (!replace) return null;
+    if (!displaced.includes(owner)) {
+      displaced.push(owner);
+      if (Number(layout[owner]) === 5) viruses--;
+    }
+  }
+  if (type === 5) viruses++;
+  if (viruses > board.virusLimit) return null;
+  if (displaced.length === 1 && displaced[0] === anchor && Number(layout[anchor]) === type) return layout;
+  const next = { ...(layout || {}) };
+  for (const owner of displaced) delete next[owner];
+  next[anchor] = type;
+  return next;
+}
+
+export function jellyValidateLayout(layout, S) {
+  const info = describeJellyLayout(layout, makeJellyBoard(S));
+  return { valid: info.valid, reason: info.reason };
 }
 
 export function jellyPlaceCell(layout, anchor, type, S) {
   anchor = Math.floor(n(anchor));
   type = Math.floor(n(type));
-  if (type < 0 || type >= jellyUnitsOwned(S)) return null;
-  const slots = jellyFootprintSlots(anchor, type);
-  const unlocked = jellyUnlockedSlots(S);
-  if (!slots || slots.some(slot => !unlocked.has(slot))) return null;
-  const next = { ...(layout || {}) };
-  const targetSlots = new Set(slots);
-  for (const [rawOtherAnchor, otherType] of Object.entries(next)) {
-    const otherAnchor = Number(rawOtherAnchor);
-    const otherSlots = jellyFootprintSlots(otherAnchor, Number(otherType)) || [];
-    if (otherSlots.some(slot => targetSlots.has(slot))) delete next[otherAnchor];
-  }
-  next[anchor] = type;
-  const validation = jellyValidateLayout(next, S);
-  return validation.valid ? next : null;
+  const next = placeJellyCellPrepared(layout, anchor, type, makeJellyBoard(S), true);
+  // Preserve the public function's fresh-object behavior.
+  return next === layout ? { ...next } : next;
 }
 
 export function jellyRemoveCell(layout, anchor) {
@@ -640,94 +846,140 @@ export function jellyDailyResetOutcome(S) {
 }
 
 export function jellyLayoutMetrics(layout, S, options = {}) {
-  const validation = jellyValidateLayout(layout, S);
-  if (!validation.valid) return { valid: false, reason: validation.reason, dps: 0, cells: [] };
-  const entries = Object.entries(layout).map(([anchor, type]) => ({ anchor: Number(anchor), type: Number(type) }));
-  const rawCounts = new Array(9).fill(0);
-  for (const cell of entries) rawCounts[cell.type]++;
+  options = withJellySession(options);
+  const context = getJellyContext(S, options);
+  const q = context.quantities;
+  const info = describeJellyLayout(layout, context.board);
+  if (!info.valid) return { valid: false, reason: info.reason, dps: 0, cells: [] };
+
+  const fever = options.fever == null ? context.progress.fever : Math.floor(n(options.fever));
+  const feverStats = getJellyFeverStats(S, context, fever);
+
+  const rawCounts = info.counts.slice();
   const counts = rawCounts.slice();
-  if (jellyUpgradeQuantity(S, 14) >= 1) {
+  if (q[14] >= 1) {
     for (let type = 0; type < counts.length; type++) if (type !== 5) counts[type] += Math.floor(counts[type] / 3);
   }
 
-  const damagePassive = (1 + 2 * counts[7]) * (1 + (0.5 * counts[2] + 0.1 * counts[0]));
-  const speedPassive = (1 + 0.5 * counts[6]) * (1 + (0.25 * counts[3] + 0.15 * counts[1]));
-  const organelleReach = new Set();
-  for (const cell of entries) {
-    if (cell.type !== 3) continue;
+  const damagePassive = (1 + 2 * counts[7]) * (1 + 0.5 * counts[2] + 0.1 * counts[0]);
+  const speedPassive = (1 + 0.5 * counts[6]) * (1 + 0.25 * counts[3] + 0.15 * counts[1]);
+
+  const organelleReach = new Uint8Array(JELLY_SIZE);
+  const virusReach = new Uint8Array(JELLY_SIZE);
+  const mark = (mask, slot) => {
+    if (slot >= 0 && slot < JELLY_SIZE) mask[slot] = 1;
+  };
+
+  for (const cell of info.entries) {
     const anchor = cell.anchor;
-    const candidates = [anchor - 36, anchor - 19, anchor - 17, anchor + 17, anchor + 19, anchor + 36];
-    if (anchor % JELLY_COLS > 1) candidates.push(anchor - 2);
-    if (anchor % JELLY_COLS < 16) candidates.push(anchor + 2);
-    candidates.forEach(slot => organelleReach.add(slot));
+    if (cell.type === 3) {
+      mark(organelleReach, anchor - 36);
+      mark(organelleReach, anchor - 19);
+      mark(organelleReach, anchor - 17);
+      mark(organelleReach, anchor + 17);
+      mark(organelleReach, anchor + 19);
+      mark(organelleReach, anchor + 36);
+      if (anchor % JELLY_COLS > 1) mark(organelleReach, anchor - 2);
+      if (anchor % JELLY_COLS < 16) mark(organelleReach, anchor + 2);
+    } else if (cell.type === 5) {
+      mark(virusReach, anchor - JELLY_COLS);
+      mark(virusReach, anchor + JELLY_COLS);
+      if (anchor % JELLY_COLS > 0) mark(virusReach, anchor - 1);
+      if (anchor % JELLY_COLS < JELLY_COLS - 1) mark(virusReach, anchor + 1);
+    }
   }
 
-  const virusReach = new Set();
-  for (const cell of entries) {
-    if (cell.type !== 5) continue;
-    const anchor = cell.anchor;
-    virusReach.add(anchor - JELLY_COLS);
-    virusReach.add(anchor + JELLY_COLS);
-    if (anchor % JELLY_COLS > 0) virusReach.add(anchor - 1);
-    if (anchor % JELLY_COLS < JELLY_COLS - 1) virusReach.add(anchor + 1);
+  let infectedSlots = 0;
+  for (const cell of info.entries) {
+    for (const slot of cell.slots) {
+      if (virusReach[slot]) {
+        infectedSlots += cell.slots.length;
+        break;
+      }
+    }
+  }
+  const virusMultiplier = 1 + infectedSlots / 10;
+
+  if (context.damageBase === undefined) {
+    context.damageBase = jellyCellDamageMultiplier(S, { fever: -1, totalCellLevel: 0 });
+  }
+  if (context.organelleMultiplier === undefined) {
+    context.organelleMultiplier = 1.5 + Math.min(0.25, Math.max(0, rogBonusQTY(63, S?.cachedUniqueSushi || 0) / 100));
   }
 
-  const infectedSlots = new Set();
-  for (const cell of entries) {
-    const slots = jellyFootprintSlots(cell.anchor, cell.type) || [];
-    if (slots.some(slot => virusReach.has(slot))) slots.forEach(slot => infectedSlots.add(slot));
+  const totalCellLevel = n(options.totalCellLevel ?? context.totalCellLevel);
+  const feverActive = fever >= 0 && q[16] > fever;
+  let feverDamage = 0;
+  if (feverActive) {
+    if (fever === 0) feverDamage = n(options.feverRampPct);
+    else if (fever === 1) feverDamage = 100;
+    else if (fever === 4) feverDamage = 50;
   }
-  const virusMultiplier = 1 + infectedSlots.size / 10;
-  const cellDamage = jellyCellDamageMultiplier(S, options);
-  const cellSpeed = jellyCellSpeedMultiplier(S, options.fever);
-  const proximityMultiplier = 1 + jellyUpgradeQuantity(S, 13) / 100;
-  const organelleMultiplier = 1.5 + Math.min(0.25, Math.max(0, rogBonusQTY(63, S?.cachedUniqueSushi || 0) / 100));
-  const roidMultiplier = options.roidActive && jellyUpgradeQuantity(S, 29) >= 1
-    ? 1 + (50 + jellyUpgradeQuantity(S, 29)) / 100
-    : 1;
 
-  const cells = entries.map(cell => {
-    const slots = jellyFootprintSlots(cell.anchor, cell.type) || [];
-    const organelle = slots.some(slot => organelleReach.has(slot)) ? organelleMultiplier : 1;
-    const proximity = jellyUpgradeQuantity(S, 13) >= 1 && PROXIMITY_ANCHORS.has(cell.anchor) ? proximityMultiplier : 1;
-    const level = Math.max(0, Math.floor(n(options.cellLevels?.[cell.type] ?? jellyCellLevel(S, cell.type))));
-    const damage = CELL_BASE_DAMAGE[cell.type]
-      * cellDamage
-      * damagePassive
-      * virusMultiplier
-      * (1 + level * (1 + jellyUpgradeQuantity(S, 17)) / 100)
-      * (1 + n(options.amoebaStacks) / 100)
+  const cellDamage = context.damageBase
+    * (1 + q[32] * Math.floor(totalCellLevel / 100) / 100)
+    * (1 + feverDamage / 100);
+
+  const proximityMultiplier = 1 + q[13] / 100;
+  const roidMultiplier = options.roidActive && q[29] >= 1 ? 1 + (50 + q[29]) / 100 : 1;
+
+  const commonDamage = cellDamage * damagePassive * virusMultiplier * (1 + n(options.amoebaStacks) / 100);
+  const commonSpeed = feverStats.speed * speedPassive * roidMultiplier;
+  const levelPercent = 1 + q[17];
+
+  const cells = [];
+  let dps = 0;
+  let attacksPerSecond = 0;
+  let amoebaAttacksPerSecond = 0;
+
+  for (const entry of info.entries) {
+    let organelle = 1;
+    for (const slot of entry.slots) {
+      if (organelleReach[slot]) {
+        organelle = context.organelleMultiplier;
+        break;
+      }
+    }
+    const proximity = q[13] >= 1 && PROXIMITY_ANCHORS.has(entry.anchor) ? proximityMultiplier : 1;
+    const level = Math.max(0, Math.floor(n(options.cellLevels?.[entry.type] ?? context.levels[entry.type])));
+    const damage = CELL_BASE_DAMAGE[entry.type]
+      * commonDamage
+      * (1 + level * levelPercent / 100)
       * proximity;
-    const attacksPerSecond = 39 / CELL_BASE_COOLDOWNS[cell.type]
-      * cellSpeed
-      * speedPassive
+    const aps = 39 / CELL_BASE_COOLDOWNS[entry.type]
+      * commonSpeed
       * organelle
-      * proximity
-      * roidMultiplier;
-    return {
-      ...cell,
-      name: CELL_NAMES[cell.type],
-      slots,
+      * proximity;
+    const cellDps = damage * aps;
+    cells.push({
+      anchor: entry.anchor,
+      type: entry.type,
+      name: CELL_NAMES[entry.type],
+      slots: entry.slots.slice(),
       organelle,
       proximity,
       damage,
-      attacksPerSecond,
-      dps: damage * attacksPerSecond,
-    };
-  });
+      attacksPerSecond: aps,
+      dps: cellDps,
+    });
+    dps += cellDps;
+    attacksPerSecond += aps;
+    if (entry.type === 0) amoebaAttacksPerSecond += aps;
+  }
+
   return {
     valid: true,
     reason: '',
     counts,
     rawCounts,
-    infectedSlots: infectedSlots.size,
+    infectedSlots,
     damagePassive,
     speedPassive,
     virusMultiplier,
     cells,
-    dps: cells.reduce((sum, cell) => sum + cell.dps, 0),
-    attacksPerSecond: cells.reduce((sum, cell) => sum + cell.attacksPerSecond, 0),
-    amoebaAttacksPerSecond: cells.filter(cell => cell.type === 0).reduce((sum, cell) => sum + cell.attacksPerSecond, 0),
+    dps,
+    attacksPerSecond,
+    amoebaAttacksPerSecond,
   };
 }
 
@@ -760,13 +1012,31 @@ function axisEntryProgress(start, target, lower, upper) {
   return (upper - start) / (target - start);
 }
 
-function projectileHitDelay(anchor, type, random) {
+const JELLY_PROJECTILE_GEOMETRY = Array.from({ length: 9 }, () => new Array(JELLY_SIZE));
+
+function jellyProjectileGeometry(anchor, type) {
+  const row = JELLY_PROJECTILE_GEOMETRY[type];
+  let geometry = row[anchor];
+  if (geometry) return geometry;
   const anchorX = 171 + 37 * (anchor % JELLY_COLS);
   const anchorY = 61 + 37 * Math.floor(anchor / JELLY_COLS);
-  const duration = 0.6 + Math.hypot(501 - anchorX, 245 - anchorY) / 400;
   const visual = jellyProjectileData(type);
-  const startX = anchorX + 18 * visual.offsetX + visual.spread * (2 * random() - 1);
-  const startY = anchorY + 18 * visual.offsetY + visual.spread * (2 * random() - 1);
+  const duration = 0.6 + Math.hypot(501 - anchorX, 245 - anchorY) / 400;
+  geometry = {
+    startX: anchorX + 18 * visual.offsetX,
+    startY: anchorY + 18 * visual.offsetY,
+    spread: visual.spread,
+    durationFrames: duration * 60,
+    maxDelayFrames: Math.ceil(duration * 60),
+    centerDelay: undefined,
+  };
+  row[anchor] = geometry;
+  return geometry;
+}
+
+function jellyProjectileDelayFrames(geometry, random) {
+  const startX = geometry.startX + geometry.spread * (2 * random() - 1);
+  const startY = geometry.startY + geometry.spread * (2 * random() - 1);
   const requiredEase = Math.max(
     0,
     axisEntryProgress(startX, 484, 479, 529),
@@ -780,7 +1050,19 @@ function projectileHitDelay(anchor, type, random) {
     if (backIn(mid) >= requiredEase) high = mid;
     else low = mid;
   }
-  return Math.ceil(duration * high * 60) / 60;
+  return Math.ceil(geometry.durationFrames * high);
+}
+
+function projectileHitDelay(anchor, type, random) {
+  return jellyProjectileDelayFrames(jellyProjectileGeometry(anchor, type), random) / 60;
+}
+
+function centerProjectileHitDelay(anchor, type) {
+  const geometry = jellyProjectileGeometry(anchor, type);
+  if (geometry.centerDelay === undefined) {
+    geometry.centerDelay = jellyProjectileDelayFrames(geometry, () => 0.5) / 60;
+  }
+  return geometry.centerDelay;
 }
 
 function roidActivationTime(options) {
@@ -794,6 +1076,11 @@ function roidActivationTime(options) {
   return Math.max(0, n(options.roidTiming));
 }
 
+/*
+ * Retained for a future delayed-revival model. The current simulator revives
+ * immediately after each death, so only one slot is ever dead when a revive is
+ * spent and every non-"none" policy selects the same slot.
+ */
 function reviveTarget(policy, deadSlots, cells) {
   if (policy === 'none' || deadSlots.length === 0) return null;
   const details = deadSlots.map(slot => {
@@ -852,44 +1139,187 @@ function wilsonInterval(successes, trials, z = 1.959963984540054) {
   };
 }
 
+function prepareJellyRun(layout, S, options) {
+  const context = getJellyContext(S, options);
+  const q = context.quantities;
+  const obstruction = options.obstruction == null
+    ? context.progress.obstruction
+    : Math.max(0, Math.floor(n(options.obstruction)));
+  const fever = options.fever == null ? context.progress.fever : Math.floor(n(options.fever));
+  const metrics = jellyLayoutMetrics(layout, S, jellySessionOptions(options, {
+    fever,
+    totalCellLevel: context.totalCellLevel,
+  }));
+  const feverStats = getJellyFeverStats(S, context, fever);
+
+  let currencyBaseMultiplier = context.currencyBaseByFever.get(fever);
+  if (currencyBaseMultiplier === undefined) {
+    currencyBaseMultiplier = jellyCurrencyMultiplier(S, fever, {
+      bestDps: 0,
+      totalCellLevel: context.totalCellLevel,
+    });
+    context.currencyBaseByFever.set(fever, currencyBaseMultiplier);
+  }
+
+  let maxDelayFrames = 0;
+  const cellTemplates = metrics.cells.map(cell => {
+    const geometry = jellyProjectileGeometry(cell.anchor, cell.type);
+    maxDelayFrames = Math.max(maxDelayFrames, geometry.maxDelayFrames);
+    return {
+      ...cell,
+      geometry,
+      cooldown: CELL_BASE_COOLDOWNS[cell.type] / feverStats.speed / metrics.speedPassive,
+    };
+  });
+
+  return {
+    context,
+    q,
+    metrics,
+    cellTemplates,
+    obstruction,
+    fever,
+    hp: jellyBossHp(obstruction),
+    standardTime: jellyBossTime(obstruction),
+    bossCooldown: jellyBossAttackCooldown(obstruction),
+    expMultiplier: feverStats.exp,
+    currencyBaseMultiplier,
+    roidStart: q[29] >= 1 ? roidActivationTime({ ...options, obstruction }) : Infinity,
+    roidMultiplier: 1 + (50 + q[29]) / 100,
+    revivePolicy: options.revivePolicy || 'immunoid-first',
+    levelTimerFrames: Math.max(0, Math.floor(n(options.levelTimerFrames))),
+    secondTickOffset: options.secondTickOffset == null ? null : Math.max(0, n(options.secondTickOffset)),
+    maxCriticalSeconds: Math.max(10, n(options.maxCriticalSeconds) || 600),
+    wheelSize: Math.max(2, maxDelayFrames + 2),
+  };
+}
+
+function cachedJellyTrialResults(layout, S, options, prepared, trials, seed) {
+  const session = options[JELLY_SESSION];
+  const key = JSON.stringify([
+    prepared.context.id,
+    jellyLayoutKey(layout),
+    prepared.obstruction,
+    prepared.fever,
+    Number.isFinite(prepared.roidStart) ? prepared.roidStart : 'never',
+    prepared.revivePolicy === 'none' ? 'none' : 'instant',
+    prepared.levelTimerFrames,
+    prepared.secondTickOffset,
+    prepared.maxCriticalSeconds,
+    seed,
+  ]);
+
+  let entry = session.trialCache.get(key);
+  if (entry) {
+    // Refresh LRU position.
+    session.trialCache.delete(key);
+  } else {
+    entry = { results: [] };
+  }
+
+  const oldLength = entry.results.length;
+  const runOptions = {
+    ...options,
+    [JELLY_PREPARED_RUN]: prepared,
+  };
+  for (let index = oldLength; index < trials; index++) {
+    entry.results.push(simulateJellyOperation(layout, S, {
+      ...runOptions,
+      seed: seed + index * 2654435761,
+    }));
+  }
+
+  session.cachedTrials += entry.results.length - oldLength;
+  session.trialCache.set(key, entry);
+
+  while (session.trialCache.size > MAX_CACHED_TRIAL_BATCHES || session.cachedTrials > MAX_CACHED_TRIALS) {
+    const oldestKey = session.trialCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = session.trialCache.get(oldestKey);
+    session.cachedTrials -= oldest.results.length;
+    session.trialCache.delete(oldestKey);
+  }
+
+  return entry.results.slice(0, trials);
+}
+
 export function simulateJellyOperation(layout, S, options = {}) {
-  const validation = jellyValidateLayout(layout, S);
-  const obstruction = options.obstruction == null ? jellyProgress(S).obstruction : Math.max(0, Math.floor(n(options.obstruction)));
-  const fever = options.fever == null ? jellyProgress(S).fever : Math.floor(n(options.fever));
-  const hp = jellyBossHp(obstruction);
-  const standardTime = jellyBossTime(obstruction);
-  if (!validation.valid) {
-    return { valid: false, reason: validation.reason, obstruction, fever, hp, standardTime, success: false, time: 0, damage: 0, damagePct: 0 };
+  options = withJellySession(options);
+  const prepared = options[JELLY_PREPARED_RUN] || prepareJellyRun(layout, S, options);
+  const {
+    context,
+    q,
+    metrics,
+    obstruction,
+    fever,
+    hp,
+    standardTime,
+    bossCooldown,
+    expMultiplier,
+    currencyBaseMultiplier,
+    roidStart,
+    revivePolicy,
+  } = prepared;
+
+  if (!metrics.valid) {
+    return {
+      valid: false,
+      reason: metrics.reason,
+      obstruction,
+      fever,
+      hp,
+      standardTime,
+      success: false,
+      time: 0,
+      damage: 0,
+      damagePct: 0,
+    };
   }
 
   const random = seededRandom(options.seed ?? 1);
   const frameSeconds = 1 / 60;
-  const initialTotalCellLevel = jellyTotalCellLevel(S);
-  const levels = Array.from({ length: 9 }, (_, type) => jellyCellLevel(S, type));
-  const exp = Array.from({ length: 9 }, (_, type) => jellyCellExp(S, type));
+
+  const levels = context.levels.slice();
+  const exp = context.exp.slice();
   const expGained = new Array(9).fill(0);
-  const expMultiplier = jellyCellExpMultiplier(S, fever);
-  const cellLevelPercent = 1 + jellyUpgradeQuantity(S, 17);
-  const currencyBaseMultiplier = jellyCurrencyMultiplier(S, fever, { bestDps: 0, totalCellLevel: initialTotalCellLevel });
-  const canLevel = jellyUpgradeQuantity(S, 10) >= 1;
-  const criticalUnlocked = jellyUpgradeQuantity(S, 36) === 1;
-  const amoebaUnlocked = jellyUpgradeQuantity(S, 28) >= 1;
-  const dpsUnlocked = jellyUpgradeQuantity(S, 12) >= 1;
-  const roidUnlocked = jellyUpgradeQuantity(S, 29) >= 1;
-  const roidStart = roidUnlocked ? roidActivationTime(options) : Infinity;
-  const revivePolicy = options.revivePolicy || 'immunoid-first';
-  let revivesRemaining = Math.max(0, Math.floor(jellyUpgradeQuantity(S, 35)));
-  let levelTimer = Math.max(0, Math.floor(n(options.levelTimerFrames)));
+  const contribution = Array.from({ length: 9 }, (_, type) => ({
+    type,
+    name: CELL_NAMES[type],
+    shots: 0,
+    hits: 0,
+    damage: 0,
+    bloodcells: 0,
+    exp: 0,
+  }));
+
+  const cellLevelPercent = 1 + q[17];
+  const levelFactors = levels.map(level => 1 + level * cellLevelPercent / 100);
+  const requirements = levels.map(level => 20 * 1.3 ** level);
+
+  const canLevel = q[10] >= 1;
+  const criticalUnlocked = q[36] === 1;
+  const amoebaUnlocked = q[28] >= 1;
+  const dpsUnlocked = q[12] >= 1;
+
+  let expReady = canLevel && exp.some((value, type) => value >= requirements[type]);
+  let revivesRemaining = Math.max(0, Math.floor(q[35]));
+  let levelTimer = prepared.levelTimerFrames;
   let feverSeconds = 0;
   let amoebaStacks = 0;
   let amoebaStacksAtCriticalStart = null;
   let maxAmoebaStacksAtFire = 0;
   let damageAtCriticalStart = null;
   let hitsAtCriticalStart = null;
-  let bestDps = jellyProgress(S).bestDps;
+
+  let bestDps = context.progress.bestDps;
   let displayedDps = 0;
-  let damageBuckets = [0];
-  let nextSecondTick = options.secondTickOffset == null ? random() : Math.max(0, n(options.secondTickOffset));
+  let hitCurrencyMultiplier = currencyBaseMultiplier * jellyBestDpsMultiplierFromValue(bestDps);
+
+  // Current bucket followed by the previous three complete buckets.
+  const damageBuckets = [0, 0, 0, 0];
+  let closedBuckets = 0;
+  let nextSecondTick = prepared.secondTickOffset == null ? random() : prepared.secondTickOffset;
+
   let roidRemaining = 0;
   let roidUsed = false;
   let bossCounter = 0;
@@ -904,36 +1334,52 @@ export function simulateJellyOperation(layout, S, options = {}) {
   let immunoidHits = 0;
   let immunoidFocusTime = 0;
   let endedBy = 'running';
-  const projectiles = [];
+  let projectilesRemaining = 0;
+
   const deathLog = [];
-  const contribution = new Array(9).fill(0).map((_, type) => ({ type, name: CELL_NAMES[type], shots: 0, hits: 0, damage: 0, bloodcells: 0, exp: 0 }));
+  const projectileWheel = Array.from({ length: prepared.wheelSize }, () => []);
 
-  const initialMetrics = jellyLayoutMetrics(layout, S, { fever, totalCellLevel: initialTotalCellLevel });
-  const cells = initialMetrics.cells.map(cell => ({
+  const cells = prepared.cellTemplates.map(cell => ({
     ...cell,
-    initialLevelFactor: 1 + levels[cell.type] * cellLevelPercent / 100,
-    cooldown: CELL_BASE_COOLDOWNS[cell.type] / jellyCellSpeedMultiplier(S, fever) / initialMetrics.speedPassive,
-    progress: randomInt(random, 0, Math.floor(Math.max(5, CELL_BASE_COOLDOWNS[cell.type] / jellyCellSpeedMultiplier(S, fever) / initialMetrics.speedPassive - 1))),
+    enabled: true,
+    shotBaseDamage: cell.damage / levelFactors[cell.type],
+    progress: randomInt(random, 0, Math.floor(Math.max(5, cell.cooldown - 1))),
   }));
-  const allSlots = cells.flatMap(cell => cell.slots);
-  const alive = new Set(allSlots);
-  const immunoidSlots = new Set(cells.filter(cell => cell.type === 4).flatMap(cell => cell.slots));
-  const slotOwners = new Map();
-  for (const cell of cells) for (const slot of cell.slots) slotOwners.set(slot, cell);
-  const maxCriticalSeconds = Math.max(10, n(options.maxCriticalSeconds) || 600);
-  const maxTime = standardTime + maxCriticalSeconds;
 
-  while (time < maxTime && endedBy === 'running') {
+  const allSlots = [];
+  const immunoidSlots = [];
+  const slotOwners = new Array(JELLY_SIZE);
+  for (const cell of cells) {
+    for (const slot of cell.slots) {
+      allSlots.push(slot);
+      slotOwners[slot] = cell;
+      if (cell.type === 4) immunoidSlots.push(slot);
+    }
+  }
+
+  const alive = new Set(allSlots);
+  let liveImmunoidCount = immunoidSlots.length;
+  const maxTime = standardTime + prepared.maxCriticalSeconds;
+
+  for (let frame = 0; time < maxTime && endedBy === 'running'; frame++) {
     levelTimer--;
-    if (canLevel && levelTimer <= 0) {
+
+    if (canLevel && expReady && levelTimer <= 0) {
       for (let type = 0; type < 9; type++) {
-        const requirement = 20 * 1.3 ** levels[type];
-        if (exp[type] >= requirement) {
-          exp[type] -= requirement;
-          levels[type]++;
-          levelTimer = 20;
-          break;
+        if (exp[type] < requirements[type]) continue;
+        exp[type] -= requirements[type];
+        levels[type]++;
+        requirements[type] = 20 * 1.3 ** levels[type];
+        levelFactors[type] = 1 + levels[type] * cellLevelPercent / 100;
+        levelTimer = 20;
+        expReady = false;
+        for (let other = 0; other < 9; other++) {
+          if (exp[other] >= requirements[other]) {
+            expReady = true;
+            break;
+          }
         }
+        break;
       }
     }
 
@@ -942,130 +1388,150 @@ export function simulateJellyOperation(layout, S, options = {}) {
       roidRemaining = 300;
     }
     roidRemaining--;
-    const roidActive = roidRemaining > 0;
-    const roidMultiplier = roidActive ? 1 + (50 + jellyUpgradeQuantity(S, 29)) / 100 : 1;
+    const roidMultiplier = roidRemaining > 0 ? prepared.roidMultiplier : 1;
+
+    // Hits are processed after all shots for the frame, as before.
+    const shotRamp = (1 + amoebaStacks / 100) * (fever === 0 ? 1 + feverSeconds / 100 : 1);
 
     for (const cell of cells) {
-      if (!alive.has(cell.anchor)) continue;
+      if (!cell.enabled) continue;
       cell.progress += 0.65 * cell.organelle * cell.proximity * roidMultiplier;
-      if (cell.progress >= cell.cooldown) {
-        cell.progress = 0;
-        maxAmoebaStacksAtFire = Math.max(maxAmoebaStacksAtFire, amoebaStacks);
-        const levelFactor = 1 + levels[cell.type] * cellLevelPercent / 100;
-        const coldFactor = fever === 0 ? 1 + feverSeconds / 100 : 1;
-        const projectile = {
-          arrival: time + projectileHitDelay(cell.anchor, cell.type, random),
-          damage: cell.damage
-            * levelFactor / cell.initialLevelFactor
-            * (1 + amoebaStacks / 100)
-            * coldFactor,
-          type: cell.type,
-          anchor: cell.anchor,
-        };
-        projectiles.push(projectile);
-        shots++;
-        contribution[cell.type].shots++;
-      }
+      if (cell.progress < cell.cooldown) continue;
+      cell.progress = 0;
+      maxAmoebaStacksAtFire = Math.max(maxAmoebaStacksAtFire, amoebaStacks);
+      const delayFrames = jellyProjectileDelayFrames(cell.geometry, random);
+      const arrivalFrame = frame + Math.max(1, delayFrames);
+      projectileWheel[arrivalFrame % prepared.wheelSize].push({
+        damage: cell.shotBaseDamage * levelFactors[cell.type] * shotRamp,
+        type: cell.type,
+      });
+      projectilesRemaining++;
+      shots++;
+      contribution[cell.type].shots++;
     }
 
-    const frameEnd = time + frameSeconds;
-    for (let index = projectiles.length - 1; index >= 0; index--) {
-      const projectile = projectiles[index];
-      if (projectile.arrival > frameEnd) continue;
-      projectiles.splice(index, 1);
+    const completedFrame = frame + 1;
+    const frameEnd = completedFrame / 60;
+    const arrivals = projectileWheel[completedFrame % prepared.wheelSize];
+
+    // Appends are in shot-creation order, so reverse traversal matches
+    // the original reverse traversal of the pending-projectile array.
+    for (let index = arrivals.length - 1; index >= 0; index--) {
+      const projectile = arrivals[index];
+      const type = projectile.type;
+      const row = contribution[type];
+      const gainedBloodcells = projectile.damage * hitCurrencyMultiplier;
       damage += projectile.damage;
       damageBuckets[0] += projectile.damage;
-      const currencyMultiplier = currencyBaseMultiplier * jellyBestDpsMultiplierFromValue(bestDps);
-      const gainedBloodcells = projectile.damage * currencyMultiplier;
       bloodcells += gainedBloodcells;
       hits++;
-      contribution[projectile.type].hits++;
-      contribution[projectile.type].damage += projectile.damage;
-      contribution[projectile.type].bloodcells += gainedBloodcells;
-      if (amoebaUnlocked && projectile.type === 0) amoebaStacks++;
+      row.hits++;
+      row.damage += projectile.damage;
+      row.bloodcells += gainedBloodcells;
+      if (amoebaUnlocked && type === 0) amoebaStacks++;
       if (canLevel) {
-        exp[projectile.type] += expMultiplier;
-        expGained[projectile.type] += expMultiplier;
-        contribution[projectile.type].exp += expMultiplier;
+        exp[type] += expMultiplier;
+        expGained[type] += expMultiplier;
+        row.exp += expMultiplier;
+        if (exp[type] >= requirements[type]) expReady = true;
       }
     }
 
+    projectilesRemaining -= arrivals.length;
+    arrivals.length = 0;
+
+    let secondTicked = false;
     while (dpsUnlocked && nextSecondTick <= frameEnd) {
-      damageBuckets.unshift(0);
-      if (damageBuckets.length >= 6) damageBuckets.splice(4, 1);
+      damageBuckets[3] = damageBuckets[2];
+      damageBuckets[2] = damageBuckets[1];
+      damageBuckets[1] = damageBuckets[0];
+      damageBuckets[0] = 0;
+      closedBuckets = Math.min(3, closedBuckets + 1);
       feverSeconds++;
       nextSecondTick += 1;
+      secondTicked = true;
     }
-    if (dpsUnlocked && damageBuckets.length > 3) {
+
+    if (secondTicked && closedBuckets >= 3) {
       displayedDps = (damageBuckets[1] + damageBuckets[2] + damageBuckets[3]) / 3;
-      bestDps = Math.max(bestDps, displayedDps);
+      if (displayedDps > bestDps) {
+        bestDps = displayedDps;
+        hitCurrencyMultiplier = currencyBaseMultiplier * jellyBestDpsMultiplierFromValue(bestDps);
+      }
     }
 
     time = frameEnd;
+
     if (amoebaStacksAtCriticalStart == null && time >= standardTime) {
       amoebaStacksAtCriticalStart = amoebaStacks;
       damageAtCriticalStart = damage;
       hitsAtCriticalStart = hits;
     }
+
     if (damage >= hp) {
       endedBy = 'clear';
       break;
     }
 
-    if (time > standardTime) {
-      const liveImmunoidSlots = Array.from(immunoidSlots).filter(slot => alive.has(slot));
-      if (liveImmunoidSlots.length) immunoidFocusTime += frameSeconds;
-      if (!criticalUnlocked) {
-        endedBy = 'timer';
-        break;
-      }
-      bossCounter++;
-      const bossCooldown = jellyBossAttackCooldown(obstruction);
-      if (bossCounter >= bossCooldown) {
-        const liveSlots = Array.from(alive);
-        if (!liveSlots.length) {
-          endedBy = 'all-slots-dead';
-          break;
-        }
-        const focused = liveImmunoidSlots.length > 0;
-        const pool = focused ? liveImmunoidSlots : liveSlots;
-        const target = pool[randomInt(random, 0, pool.length - 1)];
-        alive.delete(target);
-        deaths++;
-        bossAttacks++;
-        const targetCell = slotOwners.get(target);
-        deathLog.push({
-          time,
-          slot: target,
-          anchor: targetCell?.anchor ?? null,
-          type: targetCell?.type ?? null,
-          focused,
-          disabledAnchor: targetCell?.anchor === target,
-          revived: false,
-        });
-        if (focused) {
-          immunoidHits++;
-          bossCounter = -2 * bossCooldown;
-        } else {
-          bossCounter = 0;
-        }
-        if (revivesRemaining > 0 && revivePolicy !== 'none') {
-          const deadSlots = allSlots.filter(slot => !alive.has(slot));
-          const revived = reviveTarget(revivePolicy, deadSlots, initialMetrics.cells);
-          if (revived != null) {
-            alive.add(revived);
-            revivesRemaining--;
-            revivesUsed++;
-            for (let logIndex = deathLog.length - 1; logIndex >= 0; logIndex--) {
-              if (deathLog[logIndex].slot === revived && !deathLog[logIndex].revived) {
-                deathLog[logIndex].revived = true;
-                break;
-              }
-            }
-          }
-        }
-      }
+    if (time <= standardTime) continue;
+
+    if (liveImmunoidCount > 0) immunoidFocusTime += frameSeconds;
+
+    if (!criticalUnlocked) {
+      endedBy = 'timer';
+      break;
     }
+
+    bossCounter++;
+    if (bossCounter < bossCooldown) continue;
+
+    if (!alive.size) {
+      endedBy = 'all-slots-dead';
+      break;
+    }
+
+    const focused = liveImmunoidCount > 0;
+    const pool = focused ? immunoidSlots.filter(slot => alive.has(slot)) : Array.from(alive);
+    const target = pool[randomInt(random, 0, pool.length - 1)];
+    const targetCell = slotOwners[target];
+
+    alive.delete(target);
+    deaths++;
+    bossAttacks++;
+
+    if (focused) {
+      immunoidHits++;
+      bossCounter = -2 * bossCooldown;
+    } else {
+      bossCounter = 0;
+    }
+
+    /*
+     * Under the current immediate-revival model, every non-"none"
+     * policy revives this exact slot:
+     *
+     * while revives remain, every previous death was immediately revived.
+     * Therefore there cannot be another dead slot to choose instead.
+     */
+    const revived = revivesRemaining > 0 && revivePolicy !== 'none';
+    if (revived) {
+      alive.add(target);
+      revivesRemaining--;
+      revivesUsed++;
+    } else {
+      if (targetCell?.anchor === target) targetCell.enabled = false;
+      if (targetCell?.type === 4) liveImmunoidCount--;
+    }
+
+    deathLog.push({
+      time,
+      slot: target,
+      anchor: targetCell?.anchor ?? null,
+      type: targetCell?.type ?? null,
+      focused,
+      disabledAnchor: targetCell?.anchor === target,
+      revived,
+    });
   }
 
   if (endedBy === 'running') endedBy = 'simulation-cap';
@@ -1090,7 +1556,7 @@ export function simulateJellyOperation(layout, S, options = {}) {
     shots,
     hits,
     attacks: hits,
-    projectilesRemaining: projectiles.length,
+    projectilesRemaining,
     bloodcells,
     cellExp: expGained.reduce((sum, value) => sum + value, 0),
     expByType: expGained,
@@ -1103,7 +1569,7 @@ export function simulateJellyOperation(layout, S, options = {}) {
     hitsAtCriticalStart: hitsAtCriticalStart ?? hits,
     feverSeconds,
     displayedDps,
-    bestDpsBefore: jellyProgress(S).bestDps,
+    bestDpsBefore: context.progress.bestDps,
     bestDpsAfter: bestDps,
     deaths,
     bossAttacks,
@@ -1117,18 +1583,20 @@ export function simulateJellyOperation(layout, S, options = {}) {
     contribution,
     deathLog,
     attemptDelta: (success ? 1 : 0) - attemptSpent,
-    triesAfter: Math.max(0, jellyProgress(S).tries + (success ? 1 : 0) - attemptSpent),
+    triesAfter: Math.max(0, context.progress.tries + (success ? 1 : 0) - attemptSpent),
     note: 'Seeded 60 FPS runtime simulation with opening cooldowns, projectile travel, Fever, Amoeba weakening, Stronkroid, mid-run levels, Critical Condition, Immunoid focus, footprint deaths, revives, and displayed DPS.',
   };
 }
 
 export function simulateJellyTrials(layout, S, options = {}) {
+  options = withJellySession(options);
   const trials = Math.max(1, Math.min(1000, Math.floor(n(options.trials) || 64)));
   const seed = Math.floor(n(options.seed) || 1);
-  const results = [];
-  for (let index = 0; index < trials; index++) {
-    results.push(simulateJellyOperation(layout, S, { ...options, seed: seed + index * 2654435761 }));
+  const prepared = prepareJellyRun(layout, S, options);
+  if (!prepared.metrics.valid) {
+    return { valid: false, reason: prepared.metrics.reason, trials, results: [] };
   }
+  const results = cachedJellyTrialResults(layout, S, options, prepared, trials, seed);
   const valid = results.every(result => result.valid);
   if (!valid) return { valid: false, reason: results.find(result => !result.valid)?.reason || 'Invalid layout', trials, results: [] };
   const successes = results.filter(result => result.success);
@@ -1224,6 +1692,7 @@ function clearProbabilityProxy(damageRatio) {
 }
 
 export function jellyOperationInsights(operation, S, options = {}) {
+  options = withJellySession(options);
   const valid = Boolean(operation?.valid);
   const clearProbability = valid ? Math.max(0, Math.min(1, n(operation.clearProbability))) : 0;
   const dailyAttempts = Math.max(0, Math.floor(n(options.dailyAttempts ?? jellyDailyTries(S))));
@@ -1372,7 +1841,13 @@ function availableRoidTimings(S, obstruction, requested) {
 function availableRevivePolicies(S, requested) {
   if (requested != null && requested !== 'auto' && requested !== 'optimize') return [requested];
   if (jellyUpgradeQuantity(S, 35) < 1) return ['none'];
-  return ['immunoid-first', 'anchor-first', 'dps-first', 'soak-first'];
+  /*
+   * The simulator revives immediately after every death while revives remain,
+   * so at most one slot is ever dead when a revive is spent. Every non-"none"
+   * policy therefore selects the same slot. Restore the alternatives (and the
+   * target-selection logic) if delayed revival is ever introduced.
+   */
+  return ['immunoid-first'];
 }
 
 function normalizeExpCellType(S, value) {
@@ -1386,21 +1861,28 @@ function operationExpValue(operation, expCellType) {
 }
 
 export function optimizeJellyOperationPolicy(layout, S, options = {}) {
+  options = withJellySession(options);
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const obstruction = options.obstruction == null ? jellyProgress(S).obstruction : Math.max(0, Math.floor(n(options.obstruction)));
   const trials = Math.max(4, Math.min(1000, Math.floor(n(options.trials) || 32)));
   const screeningTrials = Math.max(2, Math.min(trials, Math.floor(n(options.screeningTrials) || 4)));
   const feverTypes = availableFeverTypes(S, options.fever);
-  const roidTimings = availableRoidTimings(S, obstruction, options.roidTiming);
+  const roidTimings = options.useRoid === false
+    ? ['none']
+    : availableRoidTimings(S, obstruction, options.roidTiming);
+  const optimizeTiming = options.useRoid !== false
+    && (options.roidTiming == null || options.roidTiming === 'auto' || options.roidTiming === 'optimize');
   const revivePolicies = availableRevivePolicies(S, options.revivePolicy);
   const screened = [];
+  const screenedKeys = new Set();
   const progressTotal = Math.max(1, feverTypes.length + 2 * roidTimings.length + 18 + 4 * revivePolicies.length + 3);
   let policyIndex = 0;
   const reportProgress = (phase, completed) => options.onProgress?.({ phase, completed, total: progressTotal });
   function screen(fever, roidTiming, revivePolicy) {
     const key = `${fever}|${roidTiming}|${revivePolicy}`;
-    if (screened.some(candidate => candidate.key === key)) return;
+    if (screenedKeys.has(key)) return;
+    screenedKeys.add(key);
     const simulation = simulateJellyTrials(layout, S, {
       ...options,
       obstruction,
@@ -1428,12 +1910,14 @@ export function optimizeJellyOperationPolicy(layout, S, options = {}) {
   for (const fever of bestFevers) {
     for (const roidTiming of roidTimings) screen(fever, roidTiming, defaultRevive);
   }
-  const coarseTimingLeaders = screened.slice().sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 2);
-  for (const candidate of coarseTimingLeaders) {
-    if (!Number.isFinite(candidate.roidTiming)) continue;
-    const start = Math.max(0, Math.floor(candidate.roidTiming) - 4);
-    const end = Math.min(jellyBossTime(obstruction), Math.ceil(candidate.roidTiming) + 4);
-    for (let second = start; second <= end; second++) screen(candidate.fever, second, defaultRevive);
+  if (optimizeTiming) {
+    const coarseTimingLeaders = screened.slice().sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 2);
+    for (const candidate of coarseTimingLeaders) {
+      if (!Number.isFinite(candidate.roidTiming)) continue;
+      const start = Math.max(0, Math.floor(candidate.roidTiming) - 4);
+      const end = Math.min(jellyBossTime(obstruction), Math.ceil(candidate.roidTiming) + 4);
+      for (let second = start; second <= end; second++) screen(candidate.fever, second, defaultRevive);
+    }
   }
   const bestTimings = screened.slice().sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 4);
   for (const candidate of bestTimings) {
@@ -1588,22 +2072,29 @@ function stripTrialResults(operation) {
 }
 
 function saveWithJellyPlots(S, plotIds) {
-  let result = S;
-  for (const plotId of plotIds) result = saveWithJellyPlot(result, plotId);
-  return result;
+  if (!plotIds.length) return S;
+  const research = copyJellyResearch(S);
+  const plots = copyJellyResearchRow(research, 18);
+  for (const plotId of plotIds) {
+    if (!plots.includes(plotId)) plots.push(plotId);
+  }
+  return { ...S, research };
 }
 
-function jellyLegalPlacementAnchors(S, type) {
-  const unlocked = jellyUnlockedSlots(S);
+function jellyLegalPlacementAnchors(S, type, options = {}) {
+  options = withJellySession(options);
+  const board = getJellyContext(S, options).board;
+  if (board.anchorsByType[type]) return board.anchorsByType[type];
   const anchors = [];
   for (let anchor = 0; anchor < JELLY_SIZE; anchor++) {
-    const slots = jellyFootprintSlots(anchor, type);
-    if (slots && slots.every(slot => unlocked.has(slot))) anchors.push(anchor);
+    if (legalJellyFootprint(board, anchor, type)) anchors.push(anchor);
   }
+  board.anchorsByType[type] = anchors;
   return anchors;
 }
 
-function jellySectionGeometry(S, plotIds) {
+function jellySectionGeometry(S, plotIds, options = {}) {
+  options = withJellySession(options);
   const baseSlots = jellyUnlockedSlots(S);
   const expandedSave = saveWithJellyPlots(S, plotIds);
   const expandedSlots = jellyUnlockedSlots(expandedSave);
@@ -1611,8 +2102,8 @@ function jellySectionGeometry(S, plotIds) {
   const newlyLegalFootprintPlacements = [];
   const placementAnchorsByType = [];
   for (let type = 0; type < jellyUnitsOwned(S); type++) {
-    const before = new Set(jellyLegalPlacementAnchors(S, type));
-    const anchors = jellyLegalPlacementAnchors(expandedSave, type).filter(anchor => !before.has(anchor));
+    const before = new Set(jellyLegalPlacementAnchors(S, type, options));
+    const anchors = jellyLegalPlacementAnchors(expandedSave, type, options).filter(anchor => !before.has(anchor));
     placementAnchorsByType[type] = anchors;
     newlyLegalFootprintPlacements.push({
       type,
@@ -1632,10 +2123,12 @@ function jellySectionGeometry(S, plotIds) {
 }
 
 function jellyCompleteLayout(layout, S, options = {}, geometry = null) {
+  options = withJellySession(options);
+  const board = getJellyContext(S, options).board;
   const unlocked = Array.from(jellyUnlockedSlots(S)).sort((a, b) => a - b);
   const types = Array.from({ length: jellyUnitsOwned(S) }, (_, type) => type);
   const oneSlotTypes = types.filter(type => cellFootprint(type).length === 1);
-  let completed = jellyValidateLayout(layout, S).valid ? { ...(layout || {}) } : {};
+  let completed = describeJellyLayout(layout, board).valid ? { ...(layout || {}) } : {};
   const score = candidate => proxyObjectiveScore(candidate, S, options);
   const occupied = jellyLayoutOccupancy(completed);
   for (const slot of unlocked) {
@@ -1643,8 +2136,8 @@ function jellyCompleteLayout(layout, S, options = {}, geometry = null) {
     let bestLayout = null;
     let bestScore = -Infinity;
     for (const type of oneSlotTypes) {
-      const candidate = jellyPlaceCell(completed, slot, type, S);
-      if (!candidate || Object.keys(candidate).length !== Object.keys(completed).length + 1) continue;
+      const candidate = placeJellyCellPrepared(completed, slot, type, board, false);
+      if (!candidate) continue;
       const candidateScore = score(candidate);
       if (candidateScore > bestScore) {
         bestLayout = candidate;
@@ -1666,7 +2159,7 @@ function jellyCompleteLayout(layout, S, options = {}, geometry = null) {
   }
   let currentScore = score(completed);
   for (const placement of placementRows.slice(0, Math.max(0, Math.min(48, Math.floor(n(options.localPlacementCap) || 24))))) {
-    const placed = jellyPlaceCell(completed, placement.anchor, placement.type, S);
+    const placed = placeJellyCellPrepared(completed, placement.anchor, placement.type, board, true);
     if (!placed) continue;
     const candidate = jellyCompleteLayout(placed, S, { ...options, localPlacementCap: 0 }, null);
     const candidateScore = score(candidate);
@@ -1766,6 +2259,7 @@ function simulateSectionCandidates(rows, baselineLayout, S, options, quality, st
 }
 
 export function planJellySections(S, options = {}) {
+  options = withJellySession(options);
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const quality = jellyQualityOptions(options);
@@ -1797,7 +2291,7 @@ export function planJellySections(S, options = {}) {
   };
   const baselineProxy = proxyObjectiveScore(baselineLayout, S, plannerOptions);
   const plotRows = availablePlots.map(plot => {
-    const geometry = jellySectionGeometry(S, [plot.plotId]);
+    const geometry = jellySectionGeometry(S, [plot.plotId], plannerOptions);
     const layout = jellyCompleteLayout(baselineLayout, geometry.expandedSave, plannerOptions, geometry);
     const proxyScore = proxyObjectiveScore(layout, geometry.expandedSave, plannerOptions);
     reportProgress('Screening section geometry', 1);
@@ -1861,7 +2355,7 @@ export function planJellySections(S, options = {}) {
         const key = plotIds.join(',');
         if (keys.has(key)) continue;
         keys.add(key);
-        const geometry = jellySectionGeometry(S, plotIds);
+        const geometry = jellySectionGeometry(S, plotIds, plannerOptions);
         const layout = jellyCompleteLayout(baselineLayout, geometry.expandedSave, plannerOptions, geometry);
         const proxyScore = proxyObjectiveScore(layout, geometry.expandedSave, plannerOptions);
         screened.push({
@@ -1931,30 +2425,42 @@ export function planJellySections(S, options = {}) {
   };
 }
 
-function saveWithJellyUpgrade(S, id) {
-  const research = (S?.research || []).map(row => Array.isArray(row) ? row.slice() : row);
+function copyJellyResearch(S) {
+  const research = Array.isArray(S?.research) ? S.research.slice() : [];
   while (research.length <= 18) research.push([]);
-  research[17] = Array.isArray(research[17]) ? research[17].slice() : [];
-  research[17][id] = jellyUpgradeLevel(S, id) + 1;
+  return research;
+}
+
+function copyJellyResearchRow(research, index) {
+  const row = Array.isArray(research[index]) ? research[index].slice() : [];
+  research[index] = row;
+  return row;
+}
+
+function saveWithJellyUpgrade(S, id) {
+  const research = copyJellyResearch(S);
+  const upgrades = copyJellyResearchRow(research, 17);
+  upgrades[id] = jellyUpgradeLevel(S, id) + 1;
   return { ...S, research };
 }
 
 function saveWithJellyPlot(S, plotId) {
-  const research = (S?.research || []).map(row => Array.isArray(row) ? row.slice() : row);
-  while (research.length <= 18) research.push([]);
-  research[18] = Array.isArray(research[18]) ? research[18].slice() : [];
-  if (!research[18].includes(plotId)) research[18].push(plotId);
-  return { ...S, research };
+  return saveWithJellyPlots(S, [plotId]);
 }
 
 function saveAfterJellyPurchase(S, id, cost, plotId, respectBudget) {
-  let result = saveWithJellyUpgrade(S, id);
-  if (plotId != null) result = saveWithJellyPlot(result, plotId);
-  if (!respectBudget) return result;
-  const research = result.research.map(row => Array.isArray(row) ? row.slice() : row);
-  research[7] = Array.isArray(research[7]) ? research[7].slice() : [];
-  research[7][11] = Math.max(0, n(research[7][11]) - cost);
-  return { ...result, research };
+  const research = copyJellyResearch(S);
+  const upgrades = copyJellyResearchRow(research, 17);
+  upgrades[id] = jellyUpgradeLevel(S, id) + 1;
+  if (plotId != null) {
+    const plots = copyJellyResearchRow(research, 18);
+    if (!plots.includes(plotId)) plots.push(plotId);
+  }
+  if (respectBudget) {
+    const progress = copyJellyResearchRow(research, 7);
+    progress[11] = Math.max(0, n(progress[11]) - cost);
+  }
+  return { ...S, research };
 }
 
 function upgradeMarginalScore(baseline, candidate, objective, expCellType) {
@@ -2019,7 +2525,7 @@ function bestFutureUpgradeProxyGain(S, layout, options, depth) {
       let bestPlot = null;
       for (const plot of jellySlotPlots()) {
         if (researchRow(upgraded, 18).includes(plot.plotId)) continue;
-        const geometry = jellySectionGeometry(upgraded, [plot.plotId]);
+        const geometry = jellySectionGeometry(upgraded, [plot.plotId], options);
         const filled = jellyCompleteLayout(layout, geometry.expandedSave, options, geometry);
         const score = proxyObjectiveScore(filled, geometry.expandedSave, options);
         if (!bestPlot || score > bestPlot.score) bestPlot = { plotId: plot.plotId, layout: filled, score };
@@ -2039,19 +2545,31 @@ function bestFutureUpgradeProxyGain(S, layout, options, depth) {
 }
 
 function evaluateUpgradeStateWithPolicy(S, layout, options, policy) {
+  const fever = policy?.fever ?? options.fever;
+  const roidTiming = policy?.roidTiming ?? options.roidTiming;
+  const revivePolicy = policy?.revivePolicy ?? options.revivePolicy;
+  const simulation = simulateJellyTrials(layout, S, {
+    ...options,
+    fever,
+    roidTiming,
+    revivePolicy,
+    trials: options.trials,
+  });
   return {
     layout,
-    operation: simulateJellyTrials(layout, S, {
-      ...options,
-      fever: policy?.fever,
-      roidTiming: policy?.roidTiming,
-      revivePolicy: policy?.revivePolicy,
-      trials: options.trials,
-    }),
+    operation: {
+      ...simulation,
+      objective: options.objective,
+      expCellType: options.expCellType,
+      fever: simulation.representative?.fever ?? fever,
+      roidTiming,
+      revivePolicy,
+    },
   };
 }
 
 export function planJellyUpgradePurchases(S, options = {}) {
+  options = withJellySession(options);
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const initialLayout = options.layout || jellyLayoutFromSave(S);
@@ -2113,7 +2631,7 @@ export function planJellyUpgradePurchases(S, options = {}) {
       if ((id === 8 || id === 9) && jellySlotPurchasesLeft(upgradedSave) > jellySlotPurchasesLeft(workingSave)) {
         const purchased = new Set(researchRow(upgradedSave, 18).map(value => Math.floor(n(value))));
         for (const plot of jellySlotPlots().filter(row => !purchased.has(row.plotId))) {
-          const geometry = jellySectionGeometry(upgradedSave, [plot.plotId]);
+          const geometry = jellySectionGeometry(upgradedSave, [plot.plotId], stepOptions);
           const expandedLayout = jellyCompleteLayout(baselineState.layout, geometry.expandedSave, stepOptions, geometry);
           candidateSaves.push({
             save: geometry.expandedSave,
@@ -2347,23 +2865,26 @@ export function planJellyUpgradePurchases(S, options = {}) {
 }
 
 export function jellyOperationSurrogate(layout, S, options = {}) {
-  const obstruction = options.obstruction == null ? jellyProgress(S).obstruction : options.obstruction;
+  options = withJellySession(options);
+  const context = getJellyContext(S, options);
+  const obstruction = options.obstruction == null ? context.progress.obstruction : options.obstruction;
   const duration = jellyBossTime(obstruction);
-  const fever = options.fever == null ? jellyProgress(S).fever : Math.floor(n(options.fever));
-  const metrics = jellyLayoutMetrics(layout, S, {
+  const fever = options.fever == null ? context.progress.fever : Math.floor(n(options.fever));
+  const metrics = options[JELLY_SURROGATE_METRICS] || jellyLayoutMetrics(layout, S, jellySessionOptions(options, {
     fever,
     feverRampPct: fever === 0 ? duration / 2 : 0,
-  });
+  }));
   if (!metrics.valid) return { valid: false, reason: metrics.reason, score: -Infinity };
   const hp = jellyBossHp(obstruction);
-  const roidStart = jellyUpgradeQuantity(S, 29) >= 1 ? roidActivationTime(options) : Infinity;
+  const roidStart = jellyUpgradeQuantity(S, 29) >= 1
+    ? roidActivationTime({ ...options, obstruction })
+    : Infinity;
   const roidEnd = roidStart + 5;
   const roidFactor = 1 + (50 + jellyUpgradeQuantity(S, 29)) / 100;
-  const coldAverage = fever === 0 ? 1 + duration / 200 : 1;
   const amoebaUnlocked = jellyUpgradeQuantity(S, 28) >= 1;
   const bossInterval = jellyBossAttackCooldown(obstruction) / 60;
   const cells = metrics.cells.map(cell => {
-    const travel = projectileHitDelay(cell.anchor, cell.type, () => 0.5) * Math.max(0.8, Math.min(1.2, n(options.travelScale) || 1));
+    const travel = centerProjectileHitDelay(cell.anchor, cell.type) * Math.max(0.8, Math.min(1.2, n(options.travelScale) || 1));
     const openingFraction = options.openingFraction == null ? 0.5 : Math.max(0, Math.min(1, n(options.openingFraction)));
     const firstShot = openingFraction / Math.max(1e-12, cell.attacksPerSecond);
     const activeSeconds = Math.max(0, duration - travel - firstShot);
@@ -2375,7 +2896,7 @@ export function jellyOperationSurrogate(layout, S, options = {}) {
       travel,
       survival: 1,
       expectedAttacks: attacks,
-      expectedDamage: attacks * cell.damage * coldAverage,
+      expectedDamage: attacks * cell.damage,
     };
   });
   let expectedAmoebaHits = cells.filter(cell => cell.type === 0).reduce((sum, cell) => sum + cell.expectedAttacks, 0);
@@ -2393,20 +2914,23 @@ export function jellyOperationSurrogate(layout, S, options = {}) {
   let nextEvent = bossInterval;
   let criticalEvents = 0;
   const maxCriticalSeconds = Math.max(10, n(options.maxCriticalSeconds) || 600);
+  const attritionBias = Math.max(0.5, Math.min(1.5, n(options.anchorAttritionBias) || 1));
   const integrate = seconds => {
     if (seconds <= 0) return;
     let attacks = 0;
+    let damageRate = 0;
+    let amoebaRate = 0;
     for (const cell of cells) {
-      const cellAttacks = cell.attacksPerSecond * cell.survival * seconds;
+      const attackRate = cell.attacksPerSecond * cell.survival;
+      const cellAttacks = attackRate * seconds;
       attacks += cellAttacks;
       projectedAttacksByType[cell.type] += cellAttacks;
+      damageRate += cell.dps * cell.survival;
+      if (cell.type === 0) amoebaRate += attackRate;
     }
-    const damage = cells.reduce((sum, cell) => sum + cell.dps * cell.survival, 0) * seconds;
-    const amoebaHits = cells.filter(cell => cell.type === 0).reduce((sum, cell) => (
-      sum + cell.attacksPerSecond * cell.survival
-    ), 0) * seconds;
+    const amoebaHits = amoebaRate * seconds;
     const ramp = amoebaUnlocked ? 1 + (expectedAmoebaHits + amoebaHits / 2) / 100 : 1;
-    projectedDamage += damage * ramp;
+    projectedDamage += damageRate * seconds * ramp;
     projectedAttacks += attacks;
     expectedAmoebaHits += amoebaHits;
   };
@@ -2419,7 +2943,6 @@ export function jellyOperationSurrogate(layout, S, options = {}) {
     const targetSlots = focused ? liveImmunoidSlots : aliveSlots;
     for (const cell of cells) {
       if ((focused && cell.type !== 4) || cell.survival <= 0) continue;
-      const attritionBias = Math.max(0.5, Math.min(1.5, n(options.anchorAttritionBias) || 1));
       cell.survival *= Math.max(0, 1 - attritionBias / Math.max(1, targetSlots));
     }
     if (focused) liveImmunoidSlots--;
@@ -2473,6 +2996,15 @@ export function jellyOperationSurrogate(layout, S, options = {}) {
 }
 
 export function jellyOperationScenarioSurrogate(layout, S, options = {}) {
+  options = withJellySession(options);
+  const context = getJellyContext(S, options);
+  const obstruction = options.obstruction == null ? context.progress.obstruction : options.obstruction;
+  const fever = options.fever == null ? context.progress.fever : Math.floor(n(options.fever));
+  const duration = jellyBossTime(obstruction);
+  const sharedMetrics = jellyLayoutMetrics(layout, S, jellySessionOptions(options, {
+    fever,
+    feverRampPct: fever === 0 ? duration / 2 : 0,
+  }));
   const scenarios = [
     { openingFraction: 0.1, travelScale: 0.96, anchorAttritionBias: 0.8 },
     { openingFraction: 0.25, travelScale: 1.04, anchorAttritionBias: 1.2 },
@@ -2482,7 +3014,11 @@ export function jellyOperationScenarioSurrogate(layout, S, options = {}) {
     { openingFraction: 0.85, travelScale: 1.02, anchorAttritionBias: 1.35 },
     { openingFraction: 0.95, travelScale: 1.1, anchorAttritionBias: 0.7 },
     { openingFraction: 0.5, travelScale: 1, anchorAttritionBias: 1 },
-  ].map(scenario => jellyOperationSurrogate(layout, S, { ...options, ...scenario }));
+  ].map(scenario => jellyOperationSurrogate(layout, S, {
+    ...options,
+    ...scenario,
+    [JELLY_SURROGATE_METRICS]: sharedMetrics,
+  }));
   if (scenarios.some(scenario => !scenario.valid)) {
     return { valid: false, score: -Infinity, scenarios };
   }
@@ -2518,6 +3054,7 @@ export function jellyOperationScenarioSurrogate(layout, S, options = {}) {
 }
 
 export function jellyPolicySensitivity(layout, S, options = {}) {
+  options = withJellySession(options);
   const objective = options.objective || 'clear';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const obstruction = options.obstruction == null
@@ -2631,13 +3168,12 @@ export function jellyPolicySensitivity(layout, S, options = {}) {
 }
 
 function proxyObjectiveScore(layout, S, options) {
-  const surrogate = jellyOperationSurrogate(layout, S, options);
-  if (!surrogate.valid) return -Infinity;
   if (options.objective === 'dps') {
-    const metrics = jellyLayoutMetrics(layout, S, { fever: options.fever });
+    const metrics = jellyLayoutMetrics(layout, S, jellySessionOptions(options, { fever: options.fever }));
     return metrics.valid ? metrics.dps : -Infinity;
   }
-  return surrogate.score;
+  const surrogate = jellyOperationSurrogate(layout, S, options);
+  return surrogate.valid ? surrogate.score : -Infinity;
 }
 
 function simulatedObjectiveScore(simulation, objective, expCellType = -1) {
@@ -2679,8 +3215,54 @@ export function optimizeJellyLayout(S, options = {}) {
   const objective = options.objective || 'dps';
   const expCellType = normalizeExpCellType(S, options.expCellType);
   const obstruction = options.obstruction == null ? jellyProgress(S).obstruction : Math.max(0, Math.floor(n(options.obstruction)));
+  options = {
+    ...withJellySession(options),
+    objective,
+    expCellType,
+    obstruction,
+  };
   const saved = options.layout || jellyLayoutFromSave(S);
-  const savedKey = jellyLayoutKey(saved);
+  const layoutMetadata = new WeakMap();
+  const metadataOf = layout => {
+    let metadata = layoutMetadata.get(layout);
+    if (metadata) return metadata;
+    const counts = new Array(8).fill(0);
+    for (const value of Object.values(layout)) {
+      const type = Number(value);
+      if (Number.isInteger(type) && type >= 0 && type < counts.length) counts[type]++;
+    }
+    metadata = {
+      key: jellyLayoutKey(layout),
+      composition: counts.join(','),
+      counts,
+      moves: undefined,
+      hash: undefined,
+    };
+    layoutMetadata.set(layout, metadata);
+    return metadata;
+  };
+  const keyOf = layout => metadataOf(layout).key;
+  const compositionKey = layout => metadataOf(layout).composition;
+  const moveCount = layout => {
+    const metadata = metadataOf(layout);
+    if (metadata.moves === undefined) metadata.moves = jellyLayoutMoves(saved, layout).length;
+    return metadata.moves;
+  };
+  const layoutHash = layout => {
+    const metadata = metadataOf(layout);
+    if (metadata.hash !== undefined) return metadata.hash;
+    let hash = 2166136261;
+    const key = metadata.key;
+    for (let index = 0; index < key.length; index++) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    metadata.hash = hash >>> 0;
+    return metadata.hash;
+  };
+  const savedKey = keyOf(saved);
+  const board = getJellyContext(S, options).board;
+  const placeCell = (layout, anchor, type) => placeJellyCellPrepared(layout, anchor, type, board, true);
   const fever = proxyFeverType(saved, S, objective, obstruction, options.fever, expCellType);
   const types = Array.from({ length: jellyUnitsOwned(S) }, (_, type) => type);
   const unlockedSet = jellyUnlockedSlots(S);
@@ -2715,8 +3297,7 @@ export function optimizeJellyLayout(S, options = {}) {
   const placements = [];
   for (const anchor of unlocked) {
     for (const type of types) {
-      const slots = jellyFootprintSlots(anchor, type);
-      if (slots && slots.every(slot => unlockedSet.has(slot))) placements.push({ anchor, type });
+      if (legalJellyFootprint(board, anchor, type)) placements.push({ anchor, type });
     }
   }
   const beamWidth = Math.max(4, Math.min(128, Math.floor(n(options.beamWidth) || 32)));
@@ -2727,14 +3308,10 @@ export function optimizeJellyLayout(S, options = {}) {
   const screeningCandidateCount = Math.max(finalistCount, Math.min(128, Math.floor(
     options.screeningCandidateCount == null ? finalistCount * 4 : n(options.screeningCandidateCount)
   )));
-  const moveCount = layout => jellyLayoutMoves(saved, layout).length;
-  const compositionKey = layout => {
-    const counts = new Array(8).fill(0);
-    for (const type of Object.values(layout)) if (type >= 0 && type < counts.length) counts[type]++;
-    return counts.join(',');
-  };
-  const compareProxy = (a, b) => b.score - a.score || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout));
+  const compareProxy = (a, b) => b.score - a.score || keyOf(a.layout).localeCompare(keyOf(b.layout));
   const selectDiverseBy = (candidates, limit = beamWidth, compare = compareProxy) => {
+    limit = Math.max(0, Math.floor(limit));
+    if (!limit || !candidates.length) return [];
     candidates.sort(compare);
     const selected = [];
     const selectedKeys = new Set();
@@ -2745,11 +3322,12 @@ export function optimizeJellyLayout(S, options = {}) {
       if (compositions.has(composition)) continue;
       compositions.add(composition);
       selected.push(candidate);
-      selectedKeys.add(jellyLayoutKey(candidate.layout));
+      selectedKeys.add(keyOf(candidate.layout));
       if (selected.length >= diversityTarget) break;
     }
+    if (selected.length >= limit) return selected;
     for (const candidate of candidates) {
-      const key = jellyLayoutKey(candidate.layout);
+      const key = keyOf(candidate.layout);
       if (selectedKeys.has(key)) continue;
       selected.push(candidate);
       selectedKeys.add(key);
@@ -2758,11 +3336,30 @@ export function optimizeJellyLayout(S, options = {}) {
     return selected;
   };
   const selectDiverse = (candidates, limit = beamWidth) => selectDiverseBy(candidates, limit, compareProxy);
-  const scoreLayout = layout => proxyObjectiveScore(layout, S, { ...options, objective, fever });
-  const addWithoutReplacement = (layout, placement) => {
-    const next = jellyPlaceCell(layout, placement.anchor, placement.type, S);
-    return next && Object.keys(next).length === Object.keys(layout).length + 1 ? next : null;
+  const scoreCache = new Map();
+  const scoreOptions = {
+    ...options,
+    objective,
+    expCellType,
+    obstruction,
+    fever,
   };
+  const scoreLayout = layout => memoizedNumber(
+    scoreCache,
+    keyOf(layout),
+    () => proxyObjectiveScore(layout, S, scoreOptions),
+    MAX_CACHED_LAYOUT_SCORES
+  );
+  const scenarioScoreCache = new Map();
+  const scenarioScoreOf = layout => memoizedNumber(
+    scenarioScoreCache,
+    keyOf(layout),
+    () => jellyOperationScenarioSurrogate(layout, S, scoreOptions).score,
+    MAX_CACHED_LAYOUT_SCORES
+  );
+  const addWithoutReplacement = (layout, placement) => (
+    placeJellyCellPrepared(layout, placement.anchor, placement.type, board, false)
+  );
   const oneSlotTypes = types.filter(type => cellFootprint(type).length === 1);
   const fillOpenSlots = layout => {
     let filled = { ...layout };
@@ -2839,11 +3436,13 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     return remaining.some(count => count > 0) ? null : layout;
   };
-  const standaloneOrder = types.slice().sort((a, b) => {
-    const scoreA = scoreLayout(jellyPlaceCell({}, placementByType[a]?.[0]?.anchor, a, S) || {});
-    const scoreB = scoreLayout(jellyPlaceCell({}, placementByType[b]?.[0]?.anchor, b, S) || {});
-    return scoreB / Math.max(1, cellFootprint(b).length) - scoreA / Math.max(1, cellFootprint(a).length) || a - b;
+  const standaloneScores = types.map(type => {
+    const placement = placementByType[type]?.[0];
+    if (!placement) return -Infinity;
+    const layout = placeCell({}, placement.anchor, type);
+    return layout ? scoreLayout(layout) / Math.max(1, cellFootprint(type).length) : -Infinity;
   });
+  const standaloneOrder = types.slice().sort((a, b) => standaloneScores[b] - standaloneScores[a] || a - b);
   const typeOrders = [
     standaloneOrder,
     types,
@@ -2869,7 +3468,7 @@ export function optimizeJellyLayout(S, options = {}) {
       if (nodes >= nodeBudget || results.length >= resultLimit) return;
       nodes++;
       if (index >= items.length) {
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (!resultKeys.has(key)) {
           resultKeys.add(key);
           results.push(layout);
@@ -2896,7 +3495,7 @@ export function optimizeJellyLayout(S, options = {}) {
     return { layouts: results, nodes };
   };
   const seedCandidates = [{ layout: {}, score: scoreLayout({}) }];
-  const seedKeys = new Set([jellyLayoutKey({})]);
+  const seedKeys = new Set([keyOf({})]);
   let savedCompositionSeeds = 0;
   let backtrackingNodes = 0;
   let backtrackingSeeds = 0;
@@ -2906,7 +3505,7 @@ export function optimizeJellyLayout(S, options = {}) {
     const packed = backtrackExactComposition(savedCounts, anchors);
     backtrackingNodes += packed.nodes;
     for (const layout of packed.layouts) {
-      const key = jellyLayoutKey(layout);
+      const key = keyOf(layout);
       if (seedKeys.has(key)) continue;
       seedKeys.add(key);
       seedCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'saved-count-backtracking' });
@@ -2920,7 +3519,7 @@ export function optimizeJellyLayout(S, options = {}) {
     for (const anchors of packingAnchorOrders) {
       const layout = packExactComposition(savedCounts, typeOrder, anchors);
       if (!layout) continue;
-      const key = jellyLayoutKey(layout);
+      const key = keyOf(layout);
       if (seedKeys.has(key)) continue;
       seedKeys.add(key);
       seedCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'saved-composition' });
@@ -2932,16 +3531,16 @@ export function optimizeJellyLayout(S, options = {}) {
   for (const typeOrder of typeOrders) {
     for (const anchors of anchorOrders) {
       const layout = greedyCompositionSeed(typeOrder, anchors);
-      const key = jellyLayoutKey(layout);
+      const key = keyOf(layout);
       if (seedKeys.has(key)) continue;
       seedKeys.add(key);
       seedCandidates.push({ layout, score: scoreLayout(layout) });
     }
   }
-  const searchArchive = new Map(seedCandidates.map(candidate => [jellyLayoutKey(candidate.layout), candidate]));
+  const searchArchive = new Map(seedCandidates.map(candidate => [keyOf(candidate.layout), candidate]));
   const eliteArchive = new Map();
   const eliteFeatureKey = layout => {
-    const metrics = jellyLayoutMetrics(layout, S, { fever });
+    const metrics = jellyLayoutMetrics(layout, S, jellySessionOptions(options, { fever }));
     if (!metrics.valid) return 'invalid';
     let organelleCoverage = 0;
     let proximityCoverage = 0;
@@ -2953,7 +3552,7 @@ export function optimizeJellyLayout(S, options = {}) {
       if (cell.organelle > 1) organelleCoverage++;
       if (cell.proximity > 1) proximityCoverage++;
       footprintSlots += cell.slots.length;
-      travelWeighted += projectileHitDelay(cell.anchor, cell.type, () => 0.5) * cell.attacksPerSecond;
+      travelWeighted += centerProjectileHitDelay(cell.anchor, cell.type) * cell.attacksPerSecond;
       attackWeight += cell.attacksPerSecond;
       if (cell.type === 4) immunoids++;
     }
@@ -2971,7 +3570,7 @@ export function optimizeJellyLayout(S, options = {}) {
     ].join('|');
   };
   const archiveCandidate = candidate => {
-    const key = jellyLayoutKey(candidate.layout);
+    const key = keyOf(candidate.layout);
     const current = searchArchive.get(key);
     if (!current || candidate.score > current.score) searchArchive.set(key, candidate);
     const feature = eliteFeatureKey(candidate.layout);
@@ -2987,14 +3586,6 @@ export function optimizeJellyLayout(S, options = {}) {
     for (const candidate of archived) archiveCandidate(candidate);
   };
   const searchStarts = Math.max(1, Math.min(12, Math.floor(n(options.searchStarts) || 4)));
-  const layoutHash = layout => {
-    let hash = 2166136261;
-    for (const character of jellyLayoutKey(layout)) {
-      hash ^= character.charCodeAt(0);
-      hash = Math.imul(hash, 16777619);
-    }
-    return hash >>> 0;
-  };
   const startCompare = start => (a, b) => {
     const scoreA = Math.log1p(Math.abs(a.score)) * Math.sign(a.score || 1)
       + (((layoutHash(a.layout) ^ Math.imul(start + 1, 0x9e3779b1)) >>> 0) / 4294967296 - 0.5) * 0.35;
@@ -3005,7 +3596,7 @@ export function optimizeJellyLayout(S, options = {}) {
   let beams = Array.from({ length: searchStarts }, (_, start) => (
     selectDiverseBy(seedCandidates.slice(), beamWidth, startCompare(start))
   ));
-  const startSeen = beams.map(rows => new Set(rows.map(candidate => jellyLayoutKey(candidate.layout))));
+  const startSeen = beams.map(rows => new Set(rows.map(candidate => keyOf(candidate.layout))));
   let evaluated = seedCandidates.length;
   const searchRounds = iterations + savedRefinementRounds + refinementRounds;
   const reportLayoutProgress = (phase, overallPercent, completed = overallPercent, total = 100) => {
@@ -3020,7 +3611,7 @@ export function optimizeJellyLayout(S, options = {}) {
         for (const placement of placements) {
           const layout = addWithoutReplacement(candidate.layout, placement);
           if (!layout) continue;
-          const key = jellyLayoutKey(layout);
+          const key = keyOf(layout);
           if (startSeen[start].has(key)) continue;
           startSeen[start].add(key);
           candidates.push({ layout, score: scoreLayout(layout), searchStart: start });
@@ -3030,7 +3621,7 @@ export function optimizeJellyLayout(S, options = {}) {
       archiveTop(candidates);
       const next = selectDiverseBy(candidates, beamWidth, startCompare(start));
       const unchanged = next.length === startBeam.length && next.every((candidate, index) => (
-        jellyLayoutKey(candidate.layout) === jellyLayoutKey(startBeam[index].layout)
+        keyOf(candidate.layout) === keyOf(startBeam[index].layout)
       ));
       if (!unchanged) changed = true;
       return next;
@@ -3040,19 +3631,19 @@ export function optimizeJellyLayout(S, options = {}) {
   }
   const savedDiscoveredByConstruction = startSeen.some(seen => seen.has(savedKey));
   const blindBeam = selectDiverse(beams.flat(), Math.max(beamWidth, beamWidth * searchStarts));
-  const blindKeys = new Set(blindBeam.map(candidate => jellyLayoutKey(candidate.layout)));
+  const blindKeys = new Set(blindBeam.map(candidate => keyOf(candidate.layout)));
 
   const savedBeamWidth = Math.max(4, Math.ceil(beamWidth / 2));
   let savedBeam = [{ layout: saved, score: scoreLayout(saved) }];
-  const savedSeen = new Set([jellyLayoutKey(saved)]);
+  const savedSeen = new Set([keyOf(saved)]);
   evaluated++;
   for (let refinement = 0; refinement < savedRefinementRounds; refinement++) {
     const candidates = savedBeam.slice();
     for (const candidate of savedBeam) {
       for (const placement of placements) {
-        const layout = jellyPlaceCell(candidate.layout, placement.anchor, placement.type, S);
+        const layout = placeCell(candidate.layout, placement.anchor, placement.type);
         if (!layout) continue;
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (savedSeen.has(key)) continue;
         savedSeen.add(key);
         candidates.push({ layout, score: scoreLayout(layout) });
@@ -3062,7 +3653,7 @@ export function optimizeJellyLayout(S, options = {}) {
         const anchor = Number(rawAnchor);
         const type = Number(candidate.layout[rawAnchor]);
         const removed = jellyRemoveCell(candidate.layout, anchor);
-        const removedKey = jellyLayoutKey(removed);
+        const removedKey = keyOf(removed);
         if (!savedSeen.has(removedKey)) {
           savedSeen.add(removedKey);
           candidates.push({ layout: removed, score: scoreLayout(removed) });
@@ -3070,9 +3661,9 @@ export function optimizeJellyLayout(S, options = {}) {
         }
         for (const placement of placements) {
           if (placement.type !== type || placement.anchor === anchor) continue;
-          const relocated = jellyPlaceCell(removed, placement.anchor, type, S);
+          const relocated = placeCell(removed, placement.anchor, type);
           if (!relocated) continue;
-          const key = jellyLayoutKey(relocated);
+          const key = keyOf(relocated);
           if (savedSeen.has(key)) continue;
           savedSeen.add(key);
           candidates.push({ layout: relocated, score: scoreLayout(relocated) });
@@ -3082,7 +3673,7 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     archiveTop(candidates);
     const next = selectDiverse(candidates, savedBeamWidth);
-    const unchanged = next.length === savedBeam.length && next.every((candidate, index) => jellyLayoutKey(candidate.layout) === jellyLayoutKey(savedBeam[index].layout));
+    const unchanged = next.length === savedBeam.length && next.every((candidate, index) => keyOf(candidate.layout) === keyOf(savedBeam[index].layout));
     savedBeam = next;
     options.onProgress?.({
       phase: `Exploring saved-board relocations ${refinement + 1}/${savedRefinementRounds}`,
@@ -3099,9 +3690,9 @@ export function optimizeJellyLayout(S, options = {}) {
     const candidates = beam.slice();
     for (const candidate of beam) {
       for (const placement of placements) {
-        const layout = jellyPlaceCell(candidate.layout, placement.anchor, placement.type, S);
+        const layout = placeCell(candidate.layout, placement.anchor, placement.type);
         if (!layout) continue;
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (seen.has(key)) continue;
         seen.add(key);
         candidates.push({ layout, score: scoreLayout(layout) });
@@ -3109,7 +3700,7 @@ export function optimizeJellyLayout(S, options = {}) {
       }
       for (const anchor of Object.keys(candidate.layout)) {
         const layout = jellyRemoveCell(candidate.layout, anchor);
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (seen.has(key)) continue;
         seen.add(key);
         candidates.push({ layout, score: scoreLayout(layout) });
@@ -3118,7 +3709,7 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     archiveTop(candidates);
     const next = selectDiverse(candidates);
-    const unchanged = next.length === beam.length && next.every((candidate, index) => jellyLayoutKey(candidate.layout) === jellyLayoutKey(beam[index].layout));
+    const unchanged = next.length === beam.length && next.every((candidate, index) => keyOf(candidate.layout) === keyOf(beam[index].layout));
     beam = next;
     reportLayoutProgress(`Refining layouts ${refinement + 1}/${refinementRounds}`, 28 + 8 * (refinement + 1) / Math.max(1, refinementRounds));
     if (unchanged) break;
@@ -3129,33 +3720,27 @@ export function optimizeJellyLayout(S, options = {}) {
     options.screeningTrials == null ? Math.min(8, Math.max(4, Math.ceil(simulationTrials / 4))) : n(options.screeningTrials)
   )));
   const scenarioCandidates = Array.from(new Map(
-    [...searchArchive.values(), ...eliteArchive.values()].map(candidate => [jellyLayoutKey(candidate.layout), candidate])
+    [...searchArchive.values(), ...eliteArchive.values()].map(candidate => [keyOf(candidate.layout), candidate])
   ).values()).map(candidate => ({
     ...candidate,
-    scenarioScore: jellyOperationScenarioSurrogate(candidate.layout, S, {
-      ...options,
-      objective,
-      obstruction,
-      fever,
-    }).score,
+    scenarioScore: scenarioScoreOf(candidate.layout),
   }));
   reportLayoutProgress('Ranking structural niches', 38);
   const compareScenario = (a, b) => b.scenarioScore - a.scenarioScore || compareProxy(a, b);
   let screeningPool = selectDiverseBy(scenarioCandidates, screeningCandidateCount, compareScenario);
   const eliteScreeningPool = selectDiverseBy(Array.from(eliteArchive.values()).map(candidate => ({
     ...candidate,
-    scenarioScore: jellyOperationScenarioSurrogate(candidate.layout, S, {
-      ...options,
-      objective,
-      obstruction,
-      fever,
-    }).score,
+    scenarioScore: scenarioScoreOf(candidate.layout),
   })), Math.min(Math.max(4, finalistCount), eliteArchive.size), compareScenario);
-  for (const candidate of eliteScreeningPool) {
-    if (!screeningPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-      screeningPool.push(candidate);
-    }
-  }
+  const screeningKeys = new Set(screeningPool.map(candidate => keyOf(candidate.layout)));
+  const addScreeningCandidate = candidate => {
+    if (!candidate) return;
+    const key = keyOf(candidate.layout);
+    if (screeningKeys.has(key)) return;
+    screeningKeys.add(key);
+    screeningPool.push(candidate);
+  };
+  for (const candidate of eliteScreeningPool) addScreeningCandidate(candidate);
   const immunoidArchetypeCandidates = [];
   if (jellyUnitsOwned(S) > 4 && jellyUpgradeQuantity(S, 36) === 1) {
     const archetypeKeys = new Set();
@@ -3163,11 +3748,11 @@ export function optimizeJellyLayout(S, options = {}) {
     for (const base of archetypeBases) {
       const baseImmunoids = Object.values(base).filter(type => Number(type) === 4).length;
       for (const placement of placementByType[4] || []) {
-        const layout = jellyPlaceCell(base, placement.anchor, 4, S);
+        const layout = placeCell(base, placement.anchor, 4);
         if (!layout) continue;
         const count = Object.values(layout).filter(type => Number(type) === 4).length;
         if (count <= baseImmunoids) continue;
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (archetypeKeys.has(key)) continue;
         archetypeKeys.add(key);
         immunoidArchetypeCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'immunoid-archetype' });
@@ -3177,11 +3762,11 @@ export function optimizeJellyLayout(S, options = {}) {
     const singleImmunoids = immunoidArchetypeCandidates.slice().sort(compareProxy).slice(0, 6);
     for (const base of singleImmunoids) {
       for (const placement of placementByType[4] || []) {
-        const layout = jellyPlaceCell(base.layout, placement.anchor, 4, S);
+        const layout = placeCell(base.layout, placement.anchor, 4);
         if (!layout) continue;
         const count = Object.values(layout).filter(type => Number(type) === 4).length;
         if (count < 2) continue;
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (archetypeKeys.has(key)) continue;
         archetypeKeys.add(key);
         immunoidArchetypeCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'immunoid-archetype' });
@@ -3192,11 +3777,7 @@ export function optimizeJellyLayout(S, options = {}) {
   const immunoidArchetypePool = immunoidArchetypeCandidates.length
     ? selectDiverse(immunoidArchetypeCandidates, Math.min(4, immunoidArchetypeCandidates.length))
     : [];
-  for (const candidate of immunoidArchetypePool) {
-    if (!screeningPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-      screeningPool.push(candidate);
-    }
-  }
+  for (const candidate of immunoidArchetypePool) addScreeningCandidate(candidate);
   const archetypeCandidatesByType = new Map();
   const archetypeBases = [saved, ...blindBeam.slice().sort(compareProxy).slice(0, Math.min(3, blindBeam.length)).map(candidate => candidate.layout)];
   for (const type of types) {
@@ -3209,11 +3790,11 @@ export function optimizeJellyLayout(S, options = {}) {
     for (const base of archetypeBases) {
       const baseCount = Object.values(base).filter(value => Number(value) === type).length;
       for (const placement of placementByType[type] || []) {
-        const layout = jellyPlaceCell(base, placement.anchor, type, S);
+        const layout = placeCell(base, placement.anchor, type);
         if (!layout) continue;
         const count = Object.values(layout).filter(value => Number(value) === type).length;
         if (count <= baseCount) continue;
-        const key = jellyLayoutKey(layout);
+        const key = keyOf(layout);
         if (keys.has(key)) continue;
         keys.add(key);
         candidates.push({ layout, score: scoreLayout(layout), seedKind: `type-${type}-archetype` });
@@ -3222,22 +3803,13 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     archetypeCandidatesByType.set(type, candidates);
     const pool = candidates.length ? selectDiverse(candidates, Math.min(2, candidates.length)) : [];
-    for (const candidate of pool) {
-      if (!screeningPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-        screeningPool.push(candidate);
-      }
-    }
+    for (const candidate of pool) addScreeningCandidate(candidate);
   }
   for (const candidate of blindBeam.slice().sort(compareProxy).slice(0, Math.min(2, blindBeam.length))) {
-    if (!screeningPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-      screeningPool.push(candidate);
-    }
+    addScreeningCandidate(candidate);
   }
-  if (!screeningPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey)) {
-    screeningPool.push({
-      layout: saved,
-      score: scoreLayout(saved),
-    });
+  if (!screeningKeys.has(savedKey)) {
+    addScreeningCandidate({ layout: saved, score: scoreLayout(saved) });
   }
   reportLayoutProgress('Preparing simulation policies', 40);
   const obstructionBands = Array.from(new Set([
@@ -3248,9 +3820,9 @@ export function optimizeJellyLayout(S, options = {}) {
     71,
   ])).sort((a, b) => a - b);
   const obstructionBandCandidates = [];
-  const obstructionBandKeys = new Set(screeningPool.map(candidate => jellyLayoutKey(candidate.layout)));
+  const obstructionBandKeys = new Set(screeningPool.map(candidate => keyOf(candidate.layout)));
   for (const band of obstructionBands) {
-    const bandFever = proxyFeverType(saved, S, objective, band, options.fever);
+    const bandFever = proxyFeverType(saved, S, objective, band, options.fever, expCellType);
     const bandScore = layout => proxyObjectiveScore(layout, S, {
       ...options,
       objective,
@@ -3263,7 +3835,7 @@ export function optimizeJellyLayout(S, options = {}) {
       .slice(0, 2);
     for (const base of bases) {
       const local = [{ layout: base.layout, bandScore: base.bandScore }];
-      const weakAnchors = jellyAnchorContributions(base.layout, S, { fever: bandFever })
+      const weakAnchors = jellyAnchorContributions(base.layout, S, jellySessionOptions(options, { fever: bandFever }))
         .slice().sort((a, b) => a.marginalDps - b.marginalDps).slice(0, 6);
       for (const weak of weakAnchors) {
         const anchor = weak.anchor;
@@ -3273,12 +3845,12 @@ export function optimizeJellyLayout(S, options = {}) {
         local.push({ layout: removed, bandScore: bandScore(removed) });
         for (const placement of placementByType[type] || []) {
           if (placement.anchor === anchor) continue;
-          const relocated = jellyPlaceCell(removed, placement.anchor, type, S);
+          const relocated = placeCell(removed, placement.anchor, type);
           if (relocated) local.push({ layout: relocated, bandScore: bandScore(relocated) });
         }
       }
       for (const row of local.sort((a, b) => b.bandScore - a.bandScore).slice(0, 2)) {
-        const key = jellyLayoutKey(row.layout);
+        const key = keyOf(row.layout);
         if (obstructionBandKeys.has(key)) continue;
         obstructionBandKeys.add(key);
         const candidate = {
@@ -3304,6 +3876,11 @@ export function optimizeJellyLayout(S, options = {}) {
     seed: Math.floor(n(options.seed) || 1),
   });
   const screenPolicyKey = policy => `${policy.fever}|${policy.roidTiming}|${policy.revivePolicy}`;
+  const optimizeTiming = options.useRoid !== false
+    && (options.roidTiming == null || options.roidTiming === 'auto' || options.roidTiming === 'optimize');
+  const optimizeRevive = options.revivePolicy == null
+    || options.revivePolicy === 'auto'
+    || options.revivePolicy === 'optimize';
   const policyPortfolio = layout => {
     const policies = [];
     const keys = new Set();
@@ -3319,17 +3896,16 @@ export function optimizeJellyLayout(S, options = {}) {
       revivePolicy: screenPolicy.revivePolicy,
     });
     add({
-      fever: proxyFeverType(layout, S, objective, obstruction, options.fever),
+      fever: proxyFeverType(layout, S, objective, obstruction, options.fever, expCellType),
       roidTiming: screenPolicy.roidTiming,
       revivePolicy: screenPolicy.revivePolicy,
     });
-    if (jellyUpgradeQuantity(S, 29) >= 1) {
+    if (optimizeTiming && jellyUpgradeQuantity(S, 29) >= 1) {
       add({ fever: screenPolicy.fever, roidTiming: 0, revivePolicy: screenPolicy.revivePolicy });
       add({ fever: screenPolicy.fever, roidTiming: jellyBossTime(obstruction), revivePolicy: screenPolicy.revivePolicy });
     }
-    if (jellyUpgradeQuantity(S, 35) >= 1) {
+    if (optimizeRevive && jellyUpgradeQuantity(S, 35) >= 1) {
       add({ fever: screenPolicy.fever, roidTiming: screenPolicy.roidTiming, revivePolicy: 'immunoid-first' });
-      add({ fever: screenPolicy.fever, roidTiming: screenPolicy.roidTiming, revivePolicy: 'dps-first' });
     }
     return policies;
   };
@@ -3337,7 +3913,7 @@ export function optimizeJellyLayout(S, options = {}) {
   const screenCandidate = (candidate, trials) => {
     const policies = policyPortfolio(candidate.layout);
     const screenedPolicies = policies.map(policy => {
-      const canReuseSaved = jellyLayoutKey(candidate.layout) === savedKey
+      const canReuseSaved = keyOf(candidate.layout) === savedKey
         && trials === screenPolicy.trials
         && screenPolicyKey(policy) === screenPolicyKey(screenPolicy);
       const simulation = canReuseSaved
@@ -3387,19 +3963,19 @@ export function optimizeJellyLayout(S, options = {}) {
     return screenCandidate(candidate, screeningTrials);
   });
   screened.sort((a, b) => b.screeningScore - a.screeningScore || compareProxy(a, b));
-  const screenedKeys = new Set(screened.map(candidate => jellyLayoutKey(candidate.layout)));
-  const proxyRank = new Map(screened.slice().sort(compareProxy).map((candidate, index) => [jellyLayoutKey(candidate.layout), index]));
-  const simulationRank = new Map(screened.map((candidate, index) => [jellyLayoutKey(candidate.layout), index]));
+  const screenedKeys = new Set(screened.map(candidate => keyOf(candidate.layout)));
+  const proxyRank = new Map(screened.slice().sort(compareProxy).map((candidate, index) => [keyOf(candidate.layout), index]));
+  const simulationRank = new Map(screened.map((candidate, index) => [keyOf(candidate.layout), index]));
   const compositionCorrection = new Map();
   for (const candidate of screened) {
-    const correction = (proxyRank.get(jellyLayoutKey(candidate.layout)) || 0)
-      - (simulationRank.get(jellyLayoutKey(candidate.layout)) || 0);
+    const correction = (proxyRank.get(keyOf(candidate.layout)) || 0)
+      - (simulationRank.get(keyOf(candidate.layout)) || 0);
     const composition = compositionKey(candidate.layout);
     compositionCorrection.set(composition, Math.max(compositionCorrection.get(composition) ?? -Infinity, correction));
   }
   const calibratedCandidateCount = Math.min(8, Math.max(2, finalistCount));
   const calibratedCandidates = Array.from(searchArchive.values())
-    .filter(candidate => !screenedKeys.has(jellyLayoutKey(candidate.layout)))
+    .filter(candidate => !screenedKeys.has(keyOf(candidate.layout)))
     .sort((a, b) => (
       (compositionCorrection.get(compositionKey(b.layout)) || 0) - (compositionCorrection.get(compositionKey(a.layout)) || 0)
       || compareProxy(a, b)
@@ -3422,10 +3998,10 @@ export function optimizeJellyLayout(S, options = {}) {
 
   const feedbackBudget = Math.max(24, beamWidth * 12);
   const feedbackCandidates = [];
-  const feedbackKeys = new Set(screened.map(candidate => jellyLayoutKey(candidate.layout)));
+  const feedbackKeys = new Set(screened.map(candidate => keyOf(candidate.layout)));
   const feedbackLeaders = screened.slice(0, Math.min(4, screened.length));
-  const savedScreenedCandidate = screened.find(candidate => jellyLayoutKey(candidate.layout) === savedKey);
-  if (savedScreenedCandidate && !feedbackLeaders.some(candidate => jellyLayoutKey(candidate.layout) === savedKey)) {
+  const savedScreenedCandidate = screened.find(candidate => keyOf(candidate.layout) === savedKey);
+  if (savedScreenedCandidate && !feedbackLeaders.some(candidate => keyOf(candidate.layout) === savedKey)) {
     feedbackLeaders.push(savedScreenedCandidate);
   }
   let relocationFeedbackCount = 0;
@@ -3433,7 +4009,7 @@ export function optimizeJellyLayout(S, options = {}) {
   let regionFeedbackCount = 0;
   const addFeedback = (layout, kind) => {
     if (!layout) return false;
-    const key = jellyLayoutKey(layout);
+    const key = keyOf(layout);
     if (feedbackKeys.has(key)) return false;
     feedbackKeys.add(key);
     feedbackCandidates.push({ layout, score: scoreLayout(layout), feedbackKind: kind });
@@ -3447,9 +4023,9 @@ export function optimizeJellyLayout(S, options = {}) {
   const swapBudget = Math.ceil(feedbackBudget / 4);
   const regionBudget = Math.max(1, feedbackBudget - relocationBudget - swapBudget);
   for (const leader of feedbackLeaders) {
-    const weakAnchors = jellyAnchorContributions(leader.layout, S, {
+    const weakAnchors = jellyAnchorContributions(leader.layout, S, jellySessionOptions(options, {
       fever: leader.screeningPolicy?.fever ?? screenPolicy.fever,
-    }).slice().sort((a, b) => a.marginalDps - b.marginalDps || a.anchor - b.anchor);
+    })).slice().sort((a, b) => a.marginalDps - b.marginalDps || a.anchor - b.anchor);
     for (const weak of weakAnchors) {
       const anchor = weak.anchor;
       const type = Number(leader.layout[anchor]);
@@ -3457,7 +4033,7 @@ export function optimizeJellyLayout(S, options = {}) {
       const relocations = [];
       for (const placement of placementByType[type] || []) {
         if (placement.anchor === anchor) continue;
-        const relocated = jellyPlaceCell(removed, placement.anchor, type, S);
+        const relocated = placeCell(removed, placement.anchor, type);
         if (relocated) relocations.push({ layout: relocated, score: scoreLayout(relocated) });
       }
       for (const relocation of relocations.sort(compareProxy).slice(0, 4)) {
@@ -3478,9 +4054,9 @@ export function optimizeJellyLayout(S, options = {}) {
         const secondType = Number(leader.layout[secondAnchor]);
         if (firstType === secondType) continue;
         let swapped = jellyRemoveCell(jellyRemoveCell(leader.layout, firstAnchor), secondAnchor);
-        swapped = jellyPlaceCell(swapped, secondAnchor, firstType, S);
+        swapped = placeCell(swapped, secondAnchor, firstType);
         if (!swapped) continue;
-        swapped = jellyPlaceCell(swapped, firstAnchor, secondType, S);
+        swapped = placeCell(swapped, firstAnchor, secondType);
         addFeedback(swapped, 'swap');
         if (swapFeedbackCount >= swapBudget) break;
       }
@@ -3567,7 +4143,7 @@ export function optimizeJellyLayout(S, options = {}) {
       const search = (working, index, sameTypeMinimum) => {
         if (nodes >= nodeBudget || index >= items.length) {
           if (index >= items.length) {
-            const key = jellyLayoutKey(working);
+            const key = keyOf(working);
             const score = scoreLayout(working);
             const current = resultMap.get(key);
             if (!current || score > current.score) resultMap.set(key, { layout: working, score });
@@ -3596,12 +4172,14 @@ export function optimizeJellyLayout(S, options = {}) {
     return results;
   };
   for (const leader of feedbackLeaders) {
-    const metrics = jellyLayoutMetrics(leader.layout, S, { fever: leader.screeningPolicy?.fever ?? screenPolicy.fever });
+    const metrics = jellyLayoutMetrics(leader.layout, S, jellySessionOptions(options, {
+      fever: leader.screeningPolicy?.fever ?? screenPolicy.fever,
+    }));
     const centers = [89];
     for (const cell of metrics.cells || []) if (cell.type === 3 || cell.type === 4 || cell.type === 5) centers.push(cell.anchor);
-    for (const contribution of jellyAnchorContributions(leader.layout, S, {
+    for (const contribution of jellyAnchorContributions(leader.layout, S, jellySessionOptions(options, {
       fever: leader.screeningPolicy?.fever ?? screenPolicy.fever,
-    }).slice().sort((a, b) => a.marginalDps - b.marginalDps).slice(0, 4)) {
+    })).slice().sort((a, b) => a.marginalDps - b.marginalDps).slice(0, 4)) {
       centers.push(contribution.anchor);
     }
     for (const center of Array.from(new Set(centers))) {
@@ -3661,31 +4239,22 @@ export function optimizeJellyLayout(S, options = {}) {
   const racingTrials = Math.max(screeningTrials, Math.min(simulationTrials, screeningTrials * 4));
   const racingCandidateCount = Math.min(screened.length, Math.max(finalistCount, finalistCount * 2));
   let racingPool = screened.slice(0, racingCandidateCount);
-  const bestBlindScreened = screened.find(candidate => blindKeys.has(jellyLayoutKey(candidate.layout)));
-  if (bestBlindScreened && !racingPool.some(candidate => jellyLayoutKey(candidate.layout) === jellyLayoutKey(bestBlindScreened.layout))) {
-    racingPool.push(bestBlindScreened);
-  }
-  if (bestImmunoidScreened && !racingPool.some(candidate => jellyLayoutKey(candidate.layout) === jellyLayoutKey(bestImmunoidScreened.layout))) {
-    racingPool.push(bestImmunoidScreened);
-  }
-  for (const candidate of bestArchetypeScreened) {
-    if (candidate && !racingPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-      racingPool.push(candidate);
-    }
-    for (const candidate of policyNicheCandidates) {
-      if (candidate && !racingPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-        racingPool.push(candidate);
-      }
-      for (const candidate of countArchetypeScreened) {
-        if (candidate && !racingPool.some(existing => jellyLayoutKey(existing.layout) === jellyLayoutKey(candidate.layout))) {
-          racingPool.push(candidate);
-        }
-      }
-    }
-  }
-  if (!racingPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey)) {
-    const savedCandidate = screened.find(candidate => jellyLayoutKey(candidate.layout) === savedKey);
-    if (savedCandidate) racingPool.push(savedCandidate);
+  const racingKeys = new Set(racingPool.map(candidate => keyOf(candidate.layout)));
+  const addRacingCandidate = candidate => {
+    if (!candidate) return;
+    const key = keyOf(candidate.layout);
+    if (racingKeys.has(key)) return;
+    racingKeys.add(key);
+    racingPool.push(candidate);
+  };
+  const bestBlindScreened = screened.find(candidate => blindKeys.has(keyOf(candidate.layout)));
+  addRacingCandidate(bestBlindScreened);
+  addRacingCandidate(bestImmunoidScreened);
+  for (const candidate of bestArchetypeScreened) addRacingCandidate(candidate);
+  for (const candidate of policyNicheCandidates) addRacingCandidate(candidate);
+  for (const candidate of countArchetypeScreened) addRacingCandidate(candidate);
+  if (!racingKeys.has(savedKey)) {
+    addRacingCandidate(screened.find(candidate => keyOf(candidate.layout) === savedKey));
   }
   if (racingTrials > screeningTrials) {
     screened = racingPool.map((candidate, index) => {
@@ -3701,7 +4270,9 @@ export function optimizeJellyLayout(S, options = {}) {
   }
 
   const screeningFeatureKey = candidate => {
-    const metrics = jellyLayoutMetrics(candidate.layout, S, { fever: candidate.screeningPolicy?.fever ?? screenPolicy.fever });
+    const metrics = jellyLayoutMetrics(candidate.layout, S, jellySessionOptions(options, {
+      fever: candidate.screeningPolicy?.fever ?? screenPolicy.fever,
+    }));
     const organelleByType = new Array(8).fill(0);
     const proximityByType = new Array(8).fill(0);
     let immunoidSlots = 0;
@@ -3720,40 +4291,40 @@ export function optimizeJellyLayout(S, options = {}) {
     if (featureKeys.has(featureKey)) continue;
     featureKeys.add(featureKey);
     finalists.push(candidate);
-    finalistKeys.add(jellyLayoutKey(candidate.layout));
+    finalistKeys.add(keyOf(candidate.layout));
     if (finalists.length >= Math.max(1, Math.ceil(finalistCount / 2))) break;
   }
   for (const candidate of screened) {
-    const key = jellyLayoutKey(candidate.layout);
+    const key = keyOf(candidate.layout);
     if (finalistKeys.has(key)) continue;
     finalists.push(candidate);
     finalistKeys.add(key);
     if (finalists.length >= finalistCount) break;
   }
-  const bestBlindRaced = screened.find(candidate => blindKeys.has(jellyLayoutKey(candidate.layout)));
-  if (bestBlindRaced && !finalistKeys.has(jellyLayoutKey(bestBlindRaced.layout))) {
+  const bestBlindRaced = screened.find(candidate => blindKeys.has(keyOf(candidate.layout)));
+  if (bestBlindRaced && !finalistKeys.has(keyOf(bestBlindRaced.layout))) {
     finalists.push(bestBlindRaced);
-    finalistKeys.add(jellyLayoutKey(bestBlindRaced.layout));
+    finalistKeys.add(keyOf(bestBlindRaced.layout));
   }
   const bestImmunoidRaced = screened.find(candidate => immunoidCount(candidate) > 0);
-  if (bestImmunoidRaced && !finalistKeys.has(jellyLayoutKey(bestImmunoidRaced.layout))) {
+  if (bestImmunoidRaced && !finalistKeys.has(keyOf(bestImmunoidRaced.layout))) {
     finalists.push(bestImmunoidRaced);
-    finalistKeys.add(jellyLayoutKey(bestImmunoidRaced.layout));
+    finalistKeys.add(keyOf(bestImmunoidRaced.layout));
   }
   const bestArchetypeRaced = types.map(type => screened.find(candidate => (
     Object.values(candidate.layout).some(value => Number(value) === type)
   )) || null);
   for (const candidate of bestArchetypeRaced) {
-    if (candidate && !finalistKeys.has(jellyLayoutKey(candidate.layout))) {
+    if (candidate && !finalistKeys.has(keyOf(candidate.layout))) {
       finalists.push(candidate);
-      finalistKeys.add(jellyLayoutKey(candidate.layout));
+      finalistKeys.add(keyOf(candidate.layout));
     }
   }
   for (const niche of policyNicheCandidates) {
-    const candidate = screened.find(row => jellyLayoutKey(row.layout) === jellyLayoutKey(niche.layout));
-    if (candidate && !finalistKeys.has(jellyLayoutKey(candidate.layout))) {
+    const candidate = screened.find(row => keyOf(row.layout) === keyOf(niche.layout));
+    if (candidate && !finalistKeys.has(keyOf(candidate.layout))) {
       finalists.push(candidate);
-      finalistKeys.add(jellyLayoutKey(candidate.layout));
+      finalistKeys.add(keyOf(candidate.layout));
     }
   }
   for (const type of types) {
@@ -3766,14 +4337,14 @@ export function optimizeJellyLayout(S, options = {}) {
     countArchetypeRaced.push(...Array.from(byCount.values()).sort((a, b) => b.screeningScore - a.screeningScore).slice(0, 2));
   }
   for (const candidate of countArchetypeRaced.sort((a, b) => b.screeningScore - a.screeningScore).slice(0, finalistCount)) {
-    const key = jellyLayoutKey(candidate.layout);
+    const key = keyOf(candidate.layout);
     if (!finalistKeys.has(key)) {
       finalists.push(candidate);
       finalistKeys.add(key);
     }
   }
   if (!finalistKeys.has(savedKey)) {
-    finalists.push(screened.find(candidate => jellyLayoutKey(candidate.layout) === savedKey) || screenCandidate({
+    finalists.push(screened.find(candidate => keyOf(candidate.layout) === savedKey) || screenCandidate({
       layout: saved,
       score: scoreLayout(saved),
     }, racingTrials));
@@ -3798,12 +4369,12 @@ export function optimizeJellyLayout(S, options = {}) {
   }).sort((a, b) => b.simulatedScore - a.simulatedScore
     || b.score - a.score
     || moveCount(a.layout) - moveCount(b.layout)
-    || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout)));
-  const neighborhoodKeys = new Set(reranked.map(candidate => jellyLayoutKey(candidate.layout)));
+    || keyOf(a.layout).localeCompare(keyOf(b.layout)));
+  const neighborhoodKeys = new Set(reranked.map(candidate => keyOf(candidate.layout)));
   const neighborhoodCandidates = [];
   const addNeighborhood = layout => {
     if (!layout) return;
-    const key = jellyLayoutKey(layout);
+    const key = keyOf(layout);
     if (neighborhoodKeys.has(key)) return;
     neighborhoodKeys.add(key);
     neighborhoodCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'winner-neighborhood' });
@@ -3816,7 +4387,7 @@ export function optimizeJellyLayout(S, options = {}) {
     const removed = jellyRemoveCell(neighborhoodLeader.layout, anchor);
     for (const placement of placementByType[type] || []) {
       if (placement.anchor === anchor) continue;
-      addNeighborhood(jellyPlaceCell(removed, placement.anchor, type, S));
+      addNeighborhood(placeCell(removed, placement.anchor, type));
     }
   }
   const leaderAnchors = Object.keys(neighborhoodLeader.layout).map(Number);
@@ -3828,9 +4399,9 @@ export function optimizeJellyLayout(S, options = {}) {
       const secondType = Number(neighborhoodLeader.layout[secondAnchor]);
       if (firstType === secondType) continue;
       let swapped = jellyRemoveCell(jellyRemoveCell(neighborhoodLeader.layout, firstAnchor), secondAnchor);
-      swapped = jellyPlaceCell(swapped, secondAnchor, firstType, S);
+      swapped = placeCell(swapped, secondAnchor, firstType);
       if (!swapped) continue;
-      addNeighborhood(jellyPlaceCell(swapped, firstAnchor, secondType, S));
+      addNeighborhood(placeCell(swapped, firstAnchor, secondType));
     }
   }
   const neighborhoodShortlist = selectDiverse(neighborhoodCandidates, Math.min(24, neighborhoodCandidates.length));
@@ -3869,7 +4440,7 @@ export function optimizeJellyLayout(S, options = {}) {
       score: simulatedObjectiveScore(row.simulation, objective, expCellType),
     })).sort((a, b) => b.score - a.score);
     const promoted = neighborhoodScreened
-      .filter(row => jellyLayoutKey(row.candidate.layout) !== jellyLayoutKey(neighborhoodLeader.layout))
+      .filter(row => keyOf(row.candidate.layout) !== keyOf(neighborhoodLeader.layout))
       .slice(0, 3);
     for (const row of promoted) {
       const simulation = optimizeJellyOperationPolicy(row.candidate.layout, S, {
@@ -3892,7 +4463,7 @@ export function optimizeJellyLayout(S, options = {}) {
     reranked.sort((a, b) => b.simulatedScore - a.simulatedScore
       || b.score - a.score
       || moveCount(a.layout) - moveCount(b.layout)
-      || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout)));
+      || keyOf(a.layout).localeCompare(keyOf(b.layout)));
   }
   const adaptiveMaxTrials = Math.max(simulationTrials, Math.min(1000, Math.floor(n(options.adaptiveMaxTrials) || 1000)));
   const confidenceBounds = simulation => {
@@ -3945,7 +4516,7 @@ export function optimizeJellyLayout(S, options = {}) {
     }).sort((a, b) => b.robustScore - a.robustScore
       || b.score - a.score
       || moveCount(a.layout) - moveCount(b.layout)
-      || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout)));
+      || keyOf(a.layout).localeCompare(keyOf(b.layout)));
   }
   const confirmationStages = [];
   let confirmedTrials = simulationTrials;
@@ -3956,15 +4527,15 @@ export function optimizeJellyLayout(S, options = {}) {
       return bounds[0] <= leaderBounds[1] && leaderBounds[0] <= bounds[1];
     });
     for (const candidate of reranked.slice(0, Math.min(2, reranked.length))) {
-      if (!finalCandidates.some(row => jellyLayoutKey(row.layout) === jellyLayoutKey(candidate.layout))) {
+      if (!finalCandidates.some(row => keyOf(row.layout) === keyOf(candidate.layout))) {
         finalCandidates.push(candidate);
       }
     }
-    const finalKeys = new Set(finalCandidates.map(candidate => jellyLayoutKey(candidate.layout)));
+    const finalKeys = new Set(finalCandidates.map(candidate => keyOf(candidate.layout)));
     const finalTrials = Math.min(adaptiveMaxTrials, Math.max(512, simulationTrials));
     let heldoutIndex = 0;
     reranked = reranked.map(candidate => {
-      if (!finalKeys.has(jellyLayoutKey(candidate.layout))) return candidate;
+      if (!finalKeys.has(keyOf(candidate.layout))) return candidate;
       heldoutIndex++;
       reportLayoutProgress(`Confirming finalist ${heldoutIndex}/${finalCandidates.length}`, 90 + 6 * heldoutIndex / Math.max(1, finalCandidates.length));
       const simulation = simulateJellyTrials(candidate.layout, S, {
@@ -3994,7 +4565,7 @@ export function optimizeJellyLayout(S, options = {}) {
       || b.simulatedScore - a.simulatedScore
       || b.score - a.score
       || moveCount(a.layout) - moveCount(b.layout)
-      || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout)));
+      || keyOf(a.layout).localeCompare(keyOf(b.layout)));
     confirmationStages.push({ trials: finalTrials, candidates: finalCandidates.length, phase: 'held-out' });
     confirmedTrials = finalTrials;
   }
@@ -4007,11 +4578,11 @@ export function optimizeJellyLayout(S, options = {}) {
     })());
     if (competitive.length <= 1) break;
     const nextTrials = Math.min(adaptiveMaxTrials, confirmedTrials < 512 ? Math.max(512, confirmedTrials * 2) : 1000);
-    const competitiveKeys = new Set(competitive.map(candidate => jellyLayoutKey(candidate.layout)));
+    const competitiveKeys = new Set(competitive.map(candidate => keyOf(candidate.layout)));
     const overlapBase = 96 + Math.min(2, overlapRound) * 1.5;
     let overlapIndex = 0;
     reranked = reranked.map(candidate => {
-      if (!competitiveKeys.has(jellyLayoutKey(candidate.layout))) return candidate;
+      if (!competitiveKeys.has(keyOf(candidate.layout))) return candidate;
       overlapIndex++;
       reportLayoutProgress(`Resolving close finalists ${overlapIndex}/${competitive.length}`, overlapBase + 1.5 * overlapIndex / Math.max(1, competitive.length));
       const simulation = simulateJellyTrials(candidate.layout, S, {
@@ -4039,7 +4610,7 @@ export function optimizeJellyLayout(S, options = {}) {
     }).sort((a, b) => b.simulatedScore - a.simulatedScore
       || b.score - a.score
       || moveCount(a.layout) - moveCount(b.layout)
-      || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout)));
+      || keyOf(a.layout).localeCompare(keyOf(b.layout)));
     confirmationStages.push({ trials: nextTrials, candidates: competitive.length, phase: 'overlap' });
     confirmedTrials = nextTrials;
     overlapRound++;
@@ -4053,13 +4624,13 @@ export function optimizeJellyLayout(S, options = {}) {
     validationTrials: heldoutValidation ? validationTrials : 0,
     heldoutValidation,
   };
-  const savedFinalist = reranked.find(candidate => jellyLayoutKey(candidate.layout) === savedKey);
-  const blindFinalist = reranked.find(candidate => blindKeys.has(jellyLayoutKey(candidate.layout)));
+  const savedFinalist = reranked.find(candidate => keyOf(candidate.layout) === savedKey);
+  const blindFinalist = reranked.find(candidate => blindKeys.has(keyOf(candidate.layout)));
   const immunoidFinalist = reranked.find(candidate => immunoidCount(candidate) > 0);
   const proxyOrdered = reranked.slice().sort(compareProxy);
-  const proxyRanks = new Map(proxyOrdered.map((candidate, index) => [jellyLayoutKey(candidate.layout), index + 1]));
+  const proxyRanks = new Map(proxyOrdered.map((candidate, index) => [keyOf(candidate.layout), index + 1]));
   const proxyAuditRows = reranked.map((candidate, index) => {
-    const proxyRank = proxyRanks.get(jellyLayoutKey(candidate.layout)) || reranked.length;
+    const proxyRank = proxyRanks.get(keyOf(candidate.layout)) || reranked.length;
     return {
       proxyRank,
       simulationRank: index + 1,
@@ -4156,10 +4727,11 @@ export function optimizeJellyLayout(S, options = {}) {
       currentPreferred: preferred.includes(obstruction),
     };
   }
-  if (jellyLayoutKey(best.layout) !== savedKey) {
+  if (keyOf(best.layout) !== savedKey) {
     const filledLayout = fillOpenSlots(best.layout);
-    if (jellyLayoutKey(filledLayout) !== jellyLayoutKey(best.layout)) {
+    if (keyOf(filledLayout) !== keyOf(best.layout)) {
       reportLayoutProgress('Filling remaining unlocked slots', 99);
+      const evaluationSeed = best.simulation.seed ?? Math.floor(n(options.seed) || 1);
       const simulation = simulateJellyTrials(filledLayout, S, {
         ...options,
         obstruction,
@@ -4167,24 +4739,28 @@ export function optimizeJellyLayout(S, options = {}) {
         roidTiming: best.simulation.roidTiming,
         revivePolicy: best.simulation.revivePolicy,
         trials: best.simulation.trials,
-        seed: Math.floor(n(options.seed) || 1),
+        seed: evaluationSeed,
       });
-      best = {
-        ...best,
-        layout: filledLayout,
-        score: scoreLayout(filledLayout),
-        simulation: {
-          ...simulation,
-          objective,
-          expCellType,
-          fever: best.simulation.fever,
-          roidTiming: best.simulation.roidTiming,
-          revivePolicy: best.simulation.revivePolicy,
-          policiesEvaluated: best.simulation.policiesEvaluated,
-          screeningTrials: best.simulation.screeningTrials,
-        },
-        simulatedScore: simulatedObjectiveScore(simulation, objective, expCellType),
-      };
+      const incumbentScore = simulatedObjectiveScore(best.simulation, objective, expCellType);
+      const filledScore = simulatedObjectiveScore(simulation, objective, expCellType);
+      if (filledScore >= incumbentScore) {
+        best = {
+          ...best,
+          layout: filledLayout,
+          score: scoreLayout(filledLayout),
+          simulation: {
+            ...simulation,
+            objective,
+            expCellType,
+            fever: best.simulation.fever,
+            roidTiming: best.simulation.roidTiming,
+            revivePolicy: best.simulation.revivePolicy,
+            policiesEvaluated: best.simulation.policiesEvaluated,
+            screeningTrials: best.simulation.screeningTrials,
+          },
+          simulatedScore: filledScore,
+        };
+      }
     }
   }
   reportLayoutProgress('Layout optimization complete', 100);
@@ -4193,12 +4769,12 @@ export function optimizeJellyLayout(S, options = {}) {
     expCellType,
     fever: best.simulation.fever,
     savedLayout: saved,
-    savedMetrics: jellyLayoutMetrics(saved, S, { fever: best.simulation.fever }),
+    savedMetrics: jellyLayoutMetrics(saved, S, jellySessionOptions(options, { fever: best.simulation.fever })),
     savedUnlockedSlots: Array.from(jellyUnlockedSlots(S)),
     layout: best.layout,
     score: best.simulatedScore,
     proxyScore: best.score,
-    metrics: jellyLayoutMetrics(best.layout, S, { fever: best.simulation.fever }),
+    metrics: jellyLayoutMetrics(best.layout, S, jellySessionOptions(options, { fever: best.simulation.fever })),
     operation: best.simulation,
     savedOperation: savedFinalist?.simulation || null,
     blindLayout: blindFinalist?.layout || null,
@@ -4214,7 +4790,7 @@ export function optimizeJellyLayout(S, options = {}) {
     obstructionBandResults,
     proxyAudit,
     adaptiveConfirmation,
-    anchorContributions: jellyAnchorContributions(best.layout, S, { fever: best.simulation.fever }),
+    anchorContributions: jellyAnchorContributions(best.layout, S, jellySessionOptions(options, { fever: best.simulation.fever })),
     moves: jellyLayoutMoves(saved, best.layout),
     evaluated,
     search: {
@@ -4255,10 +4831,10 @@ export function optimizeJellyLayout(S, options = {}) {
       neighborhoodPromoted,
       obstructionBands,
       obstructionBandCandidates: obstructionBandCandidates.length,
-      savedScreened: screeningPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),
-      savedRaced: racingPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),
-      savedFeedbackSeeded: feedbackLeaders.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),
-      savedFinalist: finalists.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),
+      savedScreened: screeningPool.some(candidate => keyOf(candidate.layout) === savedKey),
+      savedRaced: racingPool.some(candidate => keyOf(candidate.layout) === savedKey),
+      savedFeedbackSeeded: feedbackLeaders.some(candidate => keyOf(candidate.layout) === savedKey),
+      savedFinalist: finalists.some(candidate => keyOf(candidate.layout) === savedKey),
       blindCandidates: blindBeam.length,
       blindFinalist: Boolean(blindFinalist),
       immunoidArchetypeCandidates: immunoidArchetypeCandidates.length,
@@ -4271,6 +4847,7 @@ export function optimizeJellyLayout(S, options = {}) {
 }
 
 export function jellyAnchorContributions(layout, S, options = {}) {
+  options = withJellySession(options);
   const baseline = jellyLayoutMetrics(layout, S, options);
   if (!baseline.valid) return [];
   const byAnchor = new Map(baseline.cells.map(cell => [cell.anchor, cell]));
