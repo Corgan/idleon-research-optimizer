@@ -2800,9 +2800,9 @@ export function optimizeJellyLayout(S, options = {}) {
     shuffled(unlocked),
   ];
   const packingAnchorOrders = [...anchorOrders.slice(0, 3), ...referenceAnchorOrders];
-  const seedCellLimit = Math.max(1, Math.min(unlocked.length, Math.max(Object.keys(saved).length, iterations)));
-  const greedyCompositionSeed = (typeOrder, anchors) => {
-    let layout = {};
+  const seedCellLimit = Math.max(1, unlocked.length);
+  const greedyCompositionSeed = (typeOrder, anchors, initialLayout = {}) => {
+    let layout = { ...initialLayout };
     let changed = true;
     while (changed && Object.keys(layout).length < seedCellLimit) {
       changed = false;
@@ -2936,6 +2936,58 @@ export function optimizeJellyLayout(S, options = {}) {
       if (seedKeys.has(key)) continue;
       seedKeys.add(key);
       seedCandidates.push({ layout, score: scoreLayout(layout) });
+    }
+  }
+  let organelleCoverageSeeds = 0;
+  const structuralSeedTrials = Math.max(4, Math.min(1000, Math.floor(n(options.simulationTrials) || 32)));
+  if (structuralSeedTrials >= 16 && types.includes(0) && types.includes(1) && types.includes(3)) {
+    const organellePlacements = placementByType[3] || [];
+    const organelleReach = anchor => {
+      const candidates = [anchor - 36, anchor - 19, anchor - 17, anchor + 17, anchor + 19, anchor + 36];
+      if (anchor % JELLY_COLS > 1) candidates.push(anchor - 2);
+      if (anchor % JELLY_COLS < 16) candidates.push(anchor + 2);
+      return candidates.filter(slot => unlockedSet.has(slot));
+    };
+    const organelleStructures = [];
+    for (let first = 0; first < organellePlacements.length; first++) {
+      for (let second = first + 1; second < organellePlacements.length; second++) {
+        for (let third = second + 1; third < organellePlacements.length; third++) {
+          let layout = {};
+          for (const index of [first, second, third]) {
+            const placement = organellePlacements[index];
+            const next = addWithoutReplacement(layout, placement);
+            if (!next) {
+              layout = null;
+              break;
+            }
+            layout = next;
+          }
+          if (!layout) continue;
+          const reach = new Set();
+          for (const rawAnchor of Object.keys(layout)) {
+            for (const slot of organelleReach(Number(rawAnchor))) reach.add(slot);
+          }
+          organelleStructures.push({ layout, coverage: reach.size });
+        }
+      }
+    }
+    organelleStructures.sort((a, b) => (
+      b.coverage - a.coverage || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout))
+    ));
+    const maximumCoverage = organelleStructures[0]?.coverage ?? -1;
+    const bestStructures = organelleStructures
+      .filter(row => row.coverage === maximumCoverage)
+      .slice(0, 3);
+    for (const structure of bestStructures) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const anchors = shuffledWithSeed(unlocked, (0x51ed270b ^ seed) >>> 0);
+        const layout = greedyCompositionSeed([0, 0, 0, 1], anchors, structure.layout);
+        const key = jellyLayoutKey(layout);
+        if (seedKeys.has(key)) continue;
+        seedKeys.add(key);
+        seedCandidates.push({ layout, score: scoreLayout(layout), seedKind: 'organelle-coverage' });
+        organelleCoverageSeeds++;
+      }
     }
   }
   const searchArchive = new Map(seedCandidates.map(candidate => [jellyLayoutKey(candidate.layout), candidate]));
@@ -4238,6 +4290,7 @@ export function optimizeJellyLayout(S, options = {}) {
       scenarioCandidates: scenarioCandidates.length,
       eliteScreeningCandidates: eliteScreeningPool.length,
       compositionSeeds: seedCandidates.length,
+      organelleCoverageSeeds,
       savedCompositionSeeds,
       backtrackingSeeds,
       backtrackingNodes,
