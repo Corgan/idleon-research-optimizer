@@ -655,11 +655,7 @@ export function jellyLayoutMetrics(layout, S, options = {}) {
   const organelleReach = new Set();
   for (const cell of entries) {
     if (cell.type !== 3) continue;
-    const anchor = cell.anchor;
-    const candidates = [anchor - 36, anchor - 19, anchor - 17, anchor + 17, anchor + 19, anchor + 36];
-    if (anchor % JELLY_COLS > 1) candidates.push(anchor - 2);
-    if (anchor % JELLY_COLS < 16) candidates.push(anchor + 2);
-    candidates.forEach(slot => organelleReach.add(slot));
+    _organelleReachSlots(cell.anchor).forEach(slot => organelleReach.add(slot));
   }
 
   const virusReach = new Set();
@@ -729,6 +725,104 @@ export function jellyLayoutMetrics(layout, S, options = {}) {
     attacksPerSecond: cells.reduce((sum, cell) => sum + cell.attacksPerSecond, 0),
     amoebaAttacksPerSecond: cells.filter(cell => cell.type === 0).reduce((sum, cell) => sum + cell.attacksPerSecond, 0),
   };
+}
+
+function _organelleReachSlots(anchor) {
+  const candidates = [anchor - 36, anchor - 19, anchor - 17, anchor + 17, anchor + 19, anchor + 36];
+  if (anchor % JELLY_COLS > 1) candidates.push(anchor - 2);
+  if (anchor % JELLY_COLS < 16) candidates.push(anchor + 2);
+  return candidates;
+}
+
+export function jellyOrganelleConnectionProfile(layout) {
+  const entries = Object.entries(layout || {}).map(([anchor, type]) => ({
+    anchor: Number(anchor),
+    type: Number(type),
+  }));
+  const contactsByTarget = new Map();
+  const linksByTarget = new Map();
+  for (const source of entries) {
+    if (source.type !== 3) continue;
+    const reach = new Set(_organelleReachSlots(source.anchor));
+    for (const target of entries) {
+      const slots = jellyFootprintSlots(target.anchor, target.type) || [];
+      const contacts = slots.reduce((sum, slot) => sum + Number(reach.has(slot)), 0);
+      if (!contacts) continue;
+      contactsByTarget.set(target.anchor, (contactsByTarget.get(target.anchor) || 0) + contacts);
+      linksByTarget.set(target.anchor, (linksByTarget.get(target.anchor) || 0) + 1);
+    }
+  }
+  const contacts = Array.from(contactsByTarget.values()).reduce((sum, value) => sum + value, 0);
+  const links = Array.from(linksByTarget.values()).reduce((sum, value) => sum + value, 0);
+  return {
+    buffedCells: contactsByTarget.size,
+    links,
+    contacts,
+    redundantContacts: Math.max(0, contacts - contactsByTarget.size),
+    multiplyLinkedCells: Array.from(linksByTarget.values()).filter(value => value > 1).length,
+  };
+}
+
+export function jellyOrganelleReanchorCandidates(layout, S, options = {}) {
+  const organelleAnchors = Object.keys(layout || {})
+    .map(Number)
+    .filter(anchor => Number(layout[anchor]) === 3)
+    .sort((a, b) => a - b);
+  if (organelleAnchors.length < 2) return { layouts: [], nodes: 0 };
+  const unlocked = jellyUnlockedSlots(S);
+  const placements = Array.from(unlocked)
+    .sort((a, b) => a - b)
+    .filter(anchor => {
+      const slots = jellyFootprintSlots(anchor, 3);
+      return slots && slots.every(slot => unlocked.has(slot));
+    });
+  const nodeBudget = Math.max(1, Math.min(100000, Math.floor(n(options.nodeBudget) || 12000)));
+  const retainLimit = Math.max(1, Math.min(100, Math.floor(n(options.retainLimit) || 24)));
+  const structural = [];
+  const structuralKeys = new Set();
+  let nodes = 0;
+  const addWithoutReplacement = (current, anchor) => {
+    const next = jellyPlaceCell(current, anchor, 3, S);
+    if (!next || Object.keys(next).length !== Object.keys(current).length + 1) return null;
+    for (const [existingAnchor, type] of Object.entries(current)) {
+      if (Number(next[existingAnchor]) !== Number(type)) return null;
+    }
+    return next;
+  };
+  const retain = candidate => {
+    const key = jellyLayoutKey(candidate);
+    if (structuralKeys.has(key)) return;
+    structuralKeys.add(key);
+    const profile = jellyOrganelleConnectionProfile(candidate);
+    structural.push({ layout: candidate, profile, key });
+    structural.sort((a, b) => (
+      b.profile.buffedCells - a.profile.buffedCells
+      || a.profile.redundantContacts - b.profile.redundantContacts
+      || b.profile.links - a.profile.links
+      || a.key.localeCompare(b.key)
+    ));
+    if (structural.length > retainLimit) {
+      const removed = structural.pop();
+      structuralKeys.delete(removed.key);
+    }
+  };
+  for (let first = 0; first < organelleAnchors.length && nodes < nodeBudget; first++) {
+    for (let second = first + 1; second < organelleAnchors.length && nodes < nodeBudget; second++) {
+      let base = jellyRemoveCell(layout, organelleAnchors[first]);
+      base = jellyRemoveCell(base, organelleAnchors[second]);
+      for (let firstPlacement = 0; firstPlacement < placements.length && nodes < nodeBudget; firstPlacement++) {
+        const withFirst = addWithoutReplacement(base, placements[firstPlacement]);
+        nodes++;
+        if (!withFirst) continue;
+        for (let secondPlacement = firstPlacement + 1; secondPlacement < placements.length && nodes < nodeBudget; secondPlacement++) {
+          const complete = addWithoutReplacement(withFirst, placements[secondPlacement]);
+          nodes++;
+          if (complete) retain(complete);
+        }
+      }
+    }
+  }
+  return { layouts: structural.map(row => row.layout), nodes };
 }
 
 function seededRandom(seed) {
@@ -2943,10 +3037,7 @@ export function optimizeJellyLayout(S, options = {}) {
   if (structuralSeedTrials >= 16 && types.includes(0) && types.includes(1) && types.includes(3)) {
     const organellePlacements = placementByType[3] || [];
     const organelleReach = anchor => {
-      const candidates = [anchor - 36, anchor - 19, anchor - 17, anchor + 17, anchor + 19, anchor + 36];
-      if (anchor % JELLY_COLS > 1) candidates.push(anchor - 2);
-      if (anchor % JELLY_COLS < 16) candidates.push(anchor + 2);
-      return candidates.filter(slot => unlockedSet.has(slot));
+      return _organelleReachSlots(anchor).filter(slot => unlockedSet.has(slot));
     };
     const organelleStructures = [];
     for (let first = 0; first < organellePlacements.length; first++) {
@@ -2967,12 +3058,19 @@ export function optimizeJellyLayout(S, options = {}) {
           for (const rawAnchor of Object.keys(layout)) {
             for (const slot of organelleReach(Number(rawAnchor))) reach.add(slot);
           }
-          organelleStructures.push({ layout, coverage: reach.size });
+          organelleStructures.push({
+            layout,
+            coverage: reach.size,
+            connectionProfile: jellyOrganelleConnectionProfile(layout),
+          });
         }
       }
     }
     organelleStructures.sort((a, b) => (
-      b.coverage - a.coverage || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout))
+      b.coverage - a.coverage
+      || b.connectionProfile.buffedCells - a.connectionProfile.buffedCells
+      || a.connectionProfile.redundantContacts - b.connectionProfile.redundantContacts
+      || jellyLayoutKey(a.layout).localeCompare(jellyLayoutKey(b.layout))
     ));
     const maximumCoverage = organelleStructures[0]?.coverage ?? -1;
     const bestStructures = organelleStructures
@@ -2995,6 +3093,7 @@ export function optimizeJellyLayout(S, options = {}) {
   const eliteFeatureKey = layout => {
     const metrics = jellyLayoutMetrics(layout, S, { fever });
     if (!metrics.valid) return 'invalid';
+    const organelleConnections = jellyOrganelleConnectionProfile(layout);
     let organelleCoverage = 0;
     let proximityCoverage = 0;
     let footprintSlots = 0;
@@ -3014,6 +3113,7 @@ export function optimizeJellyLayout(S, options = {}) {
     return [
       compositionKey(layout),
       Math.floor(organelleCoverage / 2),
+      Math.floor(organelleConnections.redundantContacts / 4),
       Math.floor(proximityCoverage / 2),
       Math.floor((metrics.infectedSlots || 0) / 4),
       Math.floor(footprintSlots / 8),
@@ -3885,7 +3985,24 @@ export function optimizeJellyLayout(S, options = {}) {
       addNeighborhood(jellyPlaceCell(swapped, firstAnchor, secondType, S));
     }
   }
-  const neighborhoodShortlist = selectDiverse(neighborhoodCandidates, Math.min(24, neighborhoodCandidates.length));
+  const organelleAnchors = leaderAnchors.filter(anchor => Number(neighborhoodLeader.layout[anchor]) === 3);
+  const organelleReanchorKeys = [];
+  let organelleReanchorNodes = 0;
+  if (organelleAnchors.length >= 2) {
+    const reanchored = jellyOrganelleReanchorCandidates(neighborhoodLeader.layout, S);
+    organelleReanchorNodes = reanchored.nodes;
+    for (const layout of reanchored.layouts) {
+      organelleReanchorKeys.push(jellyLayoutKey(layout));
+      addNeighborhood(layout);
+    }
+  }
+  const diverseNeighborhood = selectDiverse(neighborhoodCandidates, Math.min(24, neighborhoodCandidates.length));
+  const neighborhoodByKey = new Map(neighborhoodCandidates.map(candidate => [jellyLayoutKey(candidate.layout), candidate]));
+  const neighborhoodShortlist = diverseNeighborhood.slice();
+  for (const key of organelleReanchorKeys.slice(0, 3)) {
+    const candidate = neighborhoodByKey.get(key);
+    if (candidate && !neighborhoodShortlist.some(row => jellyLayoutKey(row.layout) === key)) neighborhoodShortlist.push(candidate);
+  }
   const neighborhoodTrials = Math.min(simulationTrials, Math.max(16, screeningTrials * 4));
   let neighborhoodPromoted = 0;
   if (neighborhoodShortlist.length && neighborhoodTrials > 0) {
@@ -3923,6 +4040,10 @@ export function optimizeJellyLayout(S, options = {}) {
     const promoted = neighborhoodScreened
       .filter(row => jellyLayoutKey(row.candidate.layout) !== jellyLayoutKey(neighborhoodLeader.layout))
       .slice(0, 3);
+    const mandatoryOrganelle = neighborhoodScreened.find(row => organelleReanchorKeys.includes(jellyLayoutKey(row.candidate.layout)));
+    if (mandatoryOrganelle && !promoted.some(row => jellyLayoutKey(row.candidate.layout) === jellyLayoutKey(mandatoryOrganelle.candidate.layout))) {
+      promoted.push(mandatoryOrganelle);
+    }
     for (const row of promoted) {
       const simulation = optimizeJellyOperationPolicy(row.candidate.layout, S, {
         ...options,
@@ -4306,6 +4427,8 @@ export function optimizeJellyLayout(S, options = {}) {
       neighborhoodCandidates: neighborhoodCandidates.length,
       neighborhoodShortlist: neighborhoodShortlist.length,
       neighborhoodPromoted,
+      organelleReanchorNodes,
+      organelleReanchorCandidates: organelleReanchorKeys.length,
       obstructionBands,
       obstructionBandCandidates: obstructionBandCandidates.length,
       savedScreened: screeningPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),

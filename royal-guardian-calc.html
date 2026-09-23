@@ -564,6 +564,8 @@
       .royal-quick-tooltip h3 { margin: 0 0 4px; color: var(--cyan); }
       .tooltip-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; line-height: 1.15; }
       .tooltip-grid b { color: var(--gold); text-align: right; }
+      .royal-raw-tooltip { margin-top: 5px; padding-top: 5px; border-top: 1px solid #40536e; }
+      .royal-raw-tooltip b { max-width: 220px; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; white-space: normal; }
       .tooltip-ranks { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; margin-top: 3px; line-height: 1.15; }
       .tooltip-ranks b { color: var(--gold); text-align: right; white-space: nowrap; }
       .tooltip-unit-group { margin-top: 4px; }
@@ -1178,6 +1180,26 @@
           return String(value);
         }
       }
+      function rawOutpostClearValues(clear, mapIdx, assignmentCount = clear?.assignments) {
+        const exact = value => Number.isFinite(Number(value)) ? Number(value) : null;
+        const values = {
+          mapIdx: Number(mapIdx),
+          state: String(clear?.state || ""),
+          active: clear?.state === "clearing",
+          progress: exact(clear?.progress),
+          requirement: exact(clear?.requirement),
+          remaining: exact(clear?.remaining),
+          ratePerHour: exact(clear?.ratePerHour),
+          assignments: exact(assignmentCount),
+        };
+        const attributes = `data-map-idx="${values.mapIdx}" data-state="${esc(values.state)}" data-active="${values.active}" data-progress="${safeRawValue(values.progress)}" data-requirement="${safeRawValue(values.requirement)}" data-remaining="${safeRawValue(values.remaining)}" data-rate-per-hour="${safeRawValue(values.ratePerHour)}" data-assignments="${safeRawValue(values.assignments)}"`;
+        const markup = `<div hidden data-royal-clear-values ${attributes}>${esc(JSON.stringify(values))}</div>`;
+        return { values, attributes, markup };
+      }
+      function rawOutpostClearTooltip(values) {
+        const read = key => esc(values?.dataset?.[key] ?? "");
+        return `<h3>Raw clearing values</h3><div class="tooltip-grid royal-raw-tooltip"><span>Progress</span><b>${read("progress")}</b><span>Requirement</span><b>${read("requirement")}</b><span>Remaining</span><b>${read("remaining")}</b><span>Clear rate / hr</span><b>${read("ratePerHour")}</b><span>Militia assignments</span><b>${read("assignments")}</b><span>Active</span><b>${read("active")}</b></div>`;
+      }
       function displayItemName(v) {
         return esc(
           String(v ?? "")
@@ -1249,7 +1271,6 @@
         royalQuickTooltip.style.top = `${Math.max(viewportTop + margin, Math.min(viewportTop + viewportHeight - margin - scaledHeight, clientY + pad))}px`;
       }
       function wireRoyalTooltips() {
-        if (session.rangeFinderMode) return;
         const S = activeRoyalState();
         const hide = () => { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; };
         const bind = (element, html) => {
@@ -1262,6 +1283,8 @@
           element.addEventListener("blur", hide);
           element.addEventListener("keydown", event => { if (event.key === "Escape") hide(); });
         };
+        document.querySelectorAll("[data-royal-clear-tooltip]").forEach(element => bind(element, () => rawOutpostClearTooltip(element)));
+        if (session.rangeFinderMode) return;
         document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(S, n(element.dataset.mapOutpost))));
         document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => resourceQuickView(S, n(element.dataset.mapResource))));
       }
@@ -1863,8 +1886,8 @@
       function outpostQuickView(S, mapIdx) {
         const row = R.outpostEligibility(S, mapIdx);
         if (!row.built) {
-          const clear = R.outpostClearMetrics(S, mapIdx), militia = R.militiaAssignmentCount(S, mapIdx);
-          return `<h3>${mapName(mapIdx)}</h3><div class="tooltip-grid"><span>Status</span><b>Unconquered</b><span>Unlock progress</span><b>${f(clear.progress)} / ${f(clear.requirement)}</b><span>Remaining</span><b>${f(clear.remaining)}</b><span>Militia assigned</span><b>${fi(militia)}</b><span>Clear rate</span><b>${f(clear.ratePerHour)}/hr</b><span>ETA</span><b>${fmtHours(clear.etaHours)}</b></div>`;
+          const clear = R.outpostClearMetrics(S, mapIdx), militia = R.militiaAssignmentCount(S, mapIdx), rawClear = rawOutpostClearValues(clear, mapIdx, militia);
+          return `<h3>${mapName(mapIdx)}</h3><div class="tooltip-grid"><span>Status</span><b>Unconquered</b><span>Unlock progress</span><b>${f(clear.progress)} / ${f(clear.requirement)}</b><span>Remaining</span><b>${f(clear.remaining)}</b><span>Militia assigned</span><b>${fi(militia)}</b><span>Clear rate</span><b>${f(clear.ratePerHour)}/hr</b><span>ETA</span><b>${fmtHours(clear.etaHours)}</b></div>${rawOutpostClearTooltip({ dataset: { progress: safeRawValue(rawClear.values.progress), requirement: safeRawValue(rawClear.values.requirement), remaining: safeRawValue(rawClear.values.remaining), ratePerHour: safeRawValue(rawClear.values.ratePerHour), assignments: safeRawValue(rawClear.values.assignments), active: String(rawClear.values.active) } })}${rawClear.markup}`;
         }
         const rate = R.outpostResourceRateBreakdown(S, mapIdx);
         const ranks = [0, 1, 2, 3, 4].filter(index => R.outpostUnlockedBars(S)[index]).map(index => { const rank = R.outpostRankInfo(S, mapIdx, index); return `<span>${R.outpostRankName(index)} (${R.outpostRankContributor(index)}) · rank ${fi(rank.rank)}</span><b>${f(rank.exp)} EXP · ${f(R.outpostRankExpPerHour(S, mapIdx, index))}/hr</b>`; }).join("");
@@ -1966,7 +1989,8 @@
         const status = x.built ? "Built" : clear?.state || x.state;
         const summary = x.built ? `${type} | ${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr | range ${f(R.outpostRange(S, x.mapIdx))}` : `${status} | ${f(clear?.progress)} / ${f(clear?.requirement)} progress | ${f(clear?.ratePerHour)} clears/hr`;
         const selected = session.selectedOutpost === x.mapIdx;
-        return `<button class="outpost-row outpost-selectable ${selected ? "selected" : ""}" type="button" role="option" tabindex="${selected ? "0" : "-1"}" aria-selected="${selected ? "true" : "false"}" data-outpost-select="${x.mapIdx}"><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge ${x.built ? "badge-green" : "badge-gold"}">${status}</span></div><div class="small">${summary}</div></button>`;
+        const rawClear = clear ? rawOutpostClearValues(clear, x.mapIdx, R.militiaAssignmentCount(S, x.mapIdx)) : null;
+        return `<button class="outpost-row outpost-selectable ${selected ? "selected" : ""}" type="button" role="option" tabindex="${selected ? "0" : "-1"}" aria-selected="${selected ? "true" : "false"}" data-outpost-select="${x.mapIdx}"${rawClear ? ` data-royal-clear-tooltip ${rawClear.attributes}` : ""}><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge ${x.built ? "badge-green" : "badge-gold"}">${status}</span></div><div class="small">${summary}</div>${rawClear?.markup || ""}</button>`;
       }
       function outpostUnitDetails(S, mapIdx) {
         const units = R.outpostUnits(S, mapIdx);
@@ -2068,6 +2092,7 @@
           const clear = R.outpostClearMetrics(S, x.mapIdx),
             assignmentCount = R.militiaAssignmentCount(S, x.mapIdx),
             hasMilitiaAssignment = R.militiaAssignments(S).some((assignment) => assignment.type === 4 && assignment.mapIdx === x.mapIdx),
+            rawClear = rawOutpostClearValues(clear, x.mapIdx, assignmentCount),
             stateText = clear.state === "clearing"
               ? `<p>Militia clearing; ETA ${fmtHours(clear.etaHours)}.</p>`
               : clear.state === "waiting-militia"
@@ -2078,7 +2103,7 @@
                     ? `<p>Not currently accruing${clear.reason ? `: ${esc(clear.reason)}` : "."}</p>`
                     : `<p>${clear.reason ? esc(clear.reason) : "Clear status unavailable."}</p>`,
             badge = clear.state === "clearing" ? "Militia clearing" : clear.state === "waiting-militia" ? "Waiting for militia" : clear.state === "secured" ? "Secured" : clear.state === "non-accruing" ? "Not currently accruing" : "Unavailable";
-          return `<article class="outpost-row"><div class="row-body"><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge badge-gold">${badge}</span></div>${stateText}${bar(clear.requirement ? clear.progress / clear.requirement : 0)}<div class="small">${f(clear.progress)} / ${f(clear.requirement)} progress | ${f(clear.remaining)} remaining | ${assignmentCount && hasMilitiaAssignment ? `${f(assignmentCount)} militia assigned | ${f(clear.ratePerHour)} clears/hr` : "No militia assigned"}</div></div></article>`;
+          return `<article class="outpost-row"><div class="row-body"><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge badge-gold">${badge}</span></div>${stateText}${bar(clear.requirement ? clear.progress / clear.requirement : 0)}<div class="small" tabindex="0" data-royal-clear-tooltip ${rawClear.attributes}>${f(clear.progress)} / ${f(clear.requirement)} progress | ${f(clear.remaining)} remaining | ${assignmentCount && hasMilitiaAssignment ? `${f(assignmentCount)} militia assigned | ${f(clear.ratePerHour)} clears/hr` : "No militia assigned"}</div>${rawClear.markup}</div></article>`;
         }
         const raw = S.royalMapsData[x.mapIdx] || [],
           con = R.outpostConnections(S, x.mapIdx),
