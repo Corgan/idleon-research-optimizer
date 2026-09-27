@@ -237,15 +237,21 @@ export function renderDashboard(saveCtx) {
   const curRate = simTotalExp(_simOpts, _dSaveCtx);
   const afkRate = cachedAFKRate || buildTree(afkGainsDesc, getCatalog(), { saveData: saveData });
   const _afkRateVal = afkRate.val;
+  const effectiveAFKRate = Math.max(0, Math.min(1, _afkRateVal));
+  const offlineExpRate = curRate.total * effectiveAFKRate;
   const expReq = getResearchExpRequired();
   const expCur = getResearchCurrentExp(_dSaveCtx);
-  const timeToNext = curRate.total > 0 ? (expReq - expCur) / curRate.total : Infinity;
+  const expRemaining = Math.max(0, expReq - expCur);
+  const activeTimeToNext = curRate.total > 0 ? expRemaining / curRate.total : Infinity;
+  const offlineTimeToNext = offlineExpRate > 0 ? expRemaining / offlineExpRate : Infinity;
   const gridPoints = getGridPointsBreakdown(saveData.researchLevel, saveData.gridLevels, _dSaveCtx);
   sumDiv.innerHTML = `
     <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;padding:12px;">
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Research Level</div><div style="color:var(--gold);font-size:1.4em;font-weight:700;">${saveData.researchLevel}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(curRate.total)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(curRate.total)}</div></div>
-      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(timeToNext)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Active EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(curRate.total)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(curRate.total)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Offline EXP/hr</div><div style="color:var(--green);font-size:1.4em;font-weight:700;">${fmtVal(offlineExpRate)}</div><div style="color:var(--text2);font-size:.7em;">${fmtExact(offlineExpRate)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Active Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(activeTimeToNext)}</div></div>
+      <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Offline Time to Next LV</div><div style="color:var(--cyan);font-size:1.4em;font-weight:700;">${fmtTime(offlineTimeToNext)}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">AFK Rate</div><div style="color:var(--text);font-size:1.4em;font-weight:700;">${(_afkRateVal * 100).toFixed(1)}%</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Magnifiers</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magnifiersOwned}</div></div>
       <div style="text-align:center;"><div style="color:var(--text2);font-size:.8em;">Max/Slot</div><div style="color:var(--blue);font-size:1.4em;font-weight:700;">${saveData.magMaxPerSlot}</div></div>
