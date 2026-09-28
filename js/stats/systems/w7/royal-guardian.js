@@ -222,7 +222,11 @@ function _armoryDollarValue(S, index, value = armoryBonus(S, index)) {
 	if (index === 79) { const type = Math.max(0, Math.min(3, Math.floor(n(royalG(S, 3, 2))))); return `${_formatDollar(outpostROGBonus(S, type))}x ${['Construction Build Rate', 'Research EXP Gain', 'Spelunking Stamina Regen', 'Minehead Currency Gain'][type]}`; }
 	return null;
 }
-export function armoryDescription(S, index, value = armoryBonus(S, index)) { return _replaceMarkers(ARMORY_UPGRADES[index]?.description, value, _armoryDollarValue(S, index, value)); }
+export function armoryDescription(S, index, value = armoryBonus(S, index)) {
+	let template = ARMORY_UPGRADES[index]?.description;
+	if (index === 53) template = template?.replace('Total Bonus:+{%', 'Total Bonus:+$%');
+	return _replaceMarkers(template, value, _armoryDollarValue(S, index, value));
+}
 export function royalStatueDescription(S, index, levelOverride) {
 	const info = ROYAL_STATUES[Number(index)];
 	if (!info) return 'Source value unavailable';
