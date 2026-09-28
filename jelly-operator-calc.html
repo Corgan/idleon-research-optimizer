@@ -1553,6 +1553,7 @@ function simulatorResultHtml(){
     <div class="cards">
       ${card('Outcome',`<span class="sim-result-status ${r.success?'good':'bad'}">${status}</span>`,`${r.time.toFixed(2)} sec; ${esc(String(r.endedBy).replace(/-/g,' '))}`)}
       ${card('Damage',`${fmt(r.damage)} / ${fmt(r.hp)}`,pct(r.damagePct))}
+      ${card('Peak DPS',fmt(r.peakDps),`Tracked 3-second peak; Best DPS ${fmt(r.bestDpsBefore)} → ${fmt(r.bestDpsAfter)}`)}
       ${card('Bloodcells earned',fmt(r.bloodcells),`Attempt change: ${r.attemptDelta>=0?'+':''}${r.attemptDelta}`)}
       ${card('Cell EXP earned',fmt(r.cellExp),`${r.hits} hits from ${r.shots} shots`)}
       ${card('Critical survival',`${r.criticalTime.toFixed(2)} sec`,`${r.deaths} deaths; ${r.revivesUsed} revives`)}
@@ -1590,7 +1591,7 @@ function simulatorHtml(){
   const feverOptions=feverCount?FEVER_MODES.slice(0,feverCount).map((mode,index)=>`<option value="${index}" ${state.fever===index?'selected':''}>${mode.name} - ${mode.bonus}</option>`).join(''):'<option value="0">Feverizer locked</option>';
   const roidUnlocked=J.jellyUpgradeLevel(S,29)>0,reviveUnlocked=J.jellyUpgradeLevel(S,35)>0;
   return `<div class="section"><h2>Interactive operation simulator</h2>
-    <p class="note">Local sandbox. Drag to place; right-click to remove.</p>
+    <p class="note">Local sandbox. Drag to place; right-click to remove. Simulation follows the source's nominal 60 FPS mechanics; live RNG state, timer phase, frame stalls, and human input timing are not present in a save.</p>
     <div class="controls">
       <label class="control">Stage<select id="sim-stage">${stageOptions}</select></label>
       <label class="control">Fever<select id="sim-fever" ${feverCount?'':'disabled'}>${feverOptions}</select></label>
@@ -1805,6 +1806,7 @@ function summaryCards(layout,op){
     ${card('Current obstruction',`${p.obstruction+1} / 72`,fmt(J.jellyBossHp(p.obstruction))+' HP')}
     ${card('Clear probability',op?pct(op.clearProbability):'Calculating...',op?(op.successCount?`Median ${op.medianTime.toFixed(2)} sec across ${op.trials} trials`:`${pct(op.meanDamage/J.jellyBossHp(p.obstruction))} mean boss damage`):'Worker simulation in progress')}
     ${card('Steady DPS',fmt(m.dps),`${m.cells.length} placed cells`)}
+    ${spoilersVisible||J.jellyUpgradeLevel(saveData,12)>0?card('Projected peak DPS',op?fmt(op.meanPeakDps):'Calculating...',op?`Mean tracked 3-second peak; projected Best DPS ${fmt(op.meanBestDps)} (${op.meanBestDpsMultiplier.toFixed(3)}x Bloodcells)`:'Monte Carlo simulation in progress'):''}
     ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells',fmt(p.bloodcells),`Daily: ${fmt(J.jellyDailyBloodcells(saveData))}`):''}
     ${card('Attempts banked',fmt(p.tries),`Daily floor: ${fmt(J.jellyDailyTries(saveData))}`)}
     ${spoilersVisible||J.jellyUpgradeLevel(saveData,12)>0?card('Best DPS',fmt(p.bestDps),`${J.jellyBestDpsMultiplier(saveData).toFixed(3)}x Bloodcells`):''}
@@ -2228,7 +2230,7 @@ function layoutStats(layout,fever){
     ${card('Damage passive',m.damagePassive.toFixed(3)+'x','Unlocked damage-passive cells')}
     ${card('Speed passive',m.speedPassive.toFixed(3)+'x','Unlocked speed-passive cells')}
     ${spoilersVisible||J.jellyUpgradeLevel(saveData,5)>0?card('Virus multiplier',m.virusMultiplier.toFixed(3)+'x',m.infectedSlots+' infected footprint slots'):''}
-    ${card('Attack rate',fmt(m.attacksPerSecond)+'/sec','Before projectile travel')}
+    ${card('Attack rate',fmt(m.attacksPerSecond)+'/sec','60 FPS breakpoint rate, before projectile travel')}
   </div>`;
 }
 
