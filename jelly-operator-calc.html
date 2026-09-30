@@ -19,8 +19,8 @@ h1{display:flex;align-items:baseline;margin:0;padding:12px 18px;background:var(-
 table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;color:var(--text2);border-bottom:1px solid #445;padding:6px;position:sticky;top:0;background:var(--bg2)}td{padding:6px;border-bottom:1px solid #ffffff0c}.num{text-align:right;font-variant-numeric:tabular-nums}.table-scroll{overflow:auto;max-height:650px}
 .move{display:inline-block;margin:3px;padding:4px 7px;background:#0d2947;border-radius:4px;font-size:.75rem}
 .optimizer-diagnostics{margin-top:14px;padding:10px 12px;background:#101a32;border:1px solid #42506c;border-radius:7px}.optimizer-diagnostics>summary{cursor:pointer;color:var(--cyan);font-weight:750}.optimizer-diagnostics[open]>summary{margin-bottom:12px}
-.progress-panel{margin-top:12px;padding:10px;background:#101a32;border:1px solid #42506c;border-radius:6px}.bar-outer{height:10px;border-radius:5px;background:#333;overflow:hidden;margin:7px 0}.bar-fill{height:100%;background:var(--green);transition:width .12s linear}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.cancel{background:#4b2638;color:var(--text);border:1px solid #a74462;border-radius:5px;padding:5px 10px;cursor:pointer}
-.view-tools{display:flex;justify-content:flex-end;padding:8px 0}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
+.progress-panel{margin-top:12px;padding:10px;background:#101a32;border:1px solid #42506c;border-radius:6px}.bar-outer{height:10px;border-radius:5px;background:#333;overflow:hidden;margin:7px 0}.bar-fill{height:100%;background:var(--green);transition:width .12s linear}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.progress-active{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px;margin:9px 0}.progress-start{padding:7px 8px;background:#0b1428;border:1px solid #34425f;border-radius:5px}.progress-start-head{display:flex;justify-content:space-between;gap:8px;font-size:.75rem}.progress-start-detail{margin-top:3px;color:var(--text2);font-size:.69rem;line-height:1.3}.progress-start .bar-outer{height:5px;margin:5px 0 0}.cancel{background:#4b2638;color:var(--text);border:1px solid #a74462;border-radius:5px;padding:5px 10px;cursor:pointer}
+.view-tools{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0}.shape-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.shape-control{display:flex;align-items:center;gap:6px;background:#101a32;border:1px solid #42506c;border-radius:999px;padding:4px 10px;font-size:.78em;color:var(--text2);font-weight:700;cursor:pointer}.shape-control.is-override{border-color:var(--gold);color:var(--gold)}.shape-control select{background:#0b1426;color:var(--text);border:1px solid #42506c;border-radius:6px;padding:3px 6px;font-size:.95em;font-weight:600}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
 .sim-workspace{display:grid;grid-template-columns:minmax(190px,240px) minmax(560px,1fr);gap:14px;align-items:start}.sim-palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.sim-cell-pick,.sim-action,.plot-toggle{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:6px;cursor:pointer}.sim-cell-pick{display:flex;align-items:center;gap:7px;padding:6px;text-align:left;font-size:.76rem}.sim-cell-pick img{width:32px;height:32px;object-fit:contain;flex:none}.sim-cell-pick.active,.sim-action.active,.plot-toggle.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.sim-cell-pick:disabled{opacity:.35;cursor:not-allowed}.sim-board{touch-action:none}.sim-board .slot:not(.locked):not(.obstruction){cursor:crosshair}.sim-board .cell-sprite{pointer-events:auto;cursor:grab}.sim-board .cell-sprite:active{cursor:grabbing}.sim-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sim-action{padding:6px 10px;font-size:.76rem}.plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:220px;overflow:auto;padding:4px}.plot-toggle{padding:5px;font-size:.7rem}.sim-message{margin-top:8px;padding:7px 9px;border-radius:5px;background:#101a32;color:var(--text2);font-size:.78rem}.sim-message.bad{background:#4b2638;color:#ffb3c1}.sim-result-status{font-weight:800}.sim-result-status.good{color:#78e08f}.sim-result-status.bad{color:#ff7f96}
 .planner-controls{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(140px,.7fr)) repeat(2,minmax(180px,.8fr)) auto;gap:14px;align-items:stretch;padding:13px;background:#101a32;border:1px solid #42506c;border-radius:8px}.planner-controls .control{justify-content:center}.check-control{display:flex;align-items:center;gap:9px;padding:8px 10px;background:#162544;border:1px solid #40536e;border-radius:6px;color:var(--text);font-size:.78rem;cursor:pointer}.check-control input{width:17px;height:17px;flex:none}.check-control strong{display:block}.check-control small{display:block;color:var(--text2);margin-top:2px}.planner-controls .primary{align-self:center;min-height:42px;padding-inline:20px}.planner-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:14px}.planner-cards .card{padding:14px;min-height:112px}.planner-table{margin-top:12px}
 .slot.new-section{box-shadow:inset 0 0 0 3px rgba(255,209,102,.9);opacity:1}.sequence-steps{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sequence-step{padding:6px 9px;background:#162544;border:1px solid #526784;border-radius:5px;font-size:.78rem}.rank-1 td{background:rgba(85,214,139,.07)}
@@ -44,6 +44,7 @@ import { fmtVal } from './js/renderers/format.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
 import { CELL_NAMES, JELLY_COLS, JELLY_OBSTRUCTION_SLOTS, JELLY_SIZE, jellyRewards, jellyRewardTarget, jellySlotPlots, jellyUpgradeData, jellyUpgradeOrder } from './js/stats/data/w7/jelly-operator.js';
 import * as J from './js/stats/systems/w7/jelly-operator.js';
+import { buildSaveContext, computeShapesOwned } from './js/save/context.js';
 
 const FEVER_MODES=[
   {name:'COLD',bonus:'+1% all damage each elapsed second'},
@@ -69,7 +70,7 @@ let currentPolicy = null;
 let simulator = null;
 let purchaseControls={strategy:'progression',objective:'clear',expCellType:-1,purchases:3,planningDays:30,quality:'thorough',lookahead:2,reoptimize:false,budget:true};
 let sectionControls={strategy:'progression',objective:'clear',expCellType:-1,tokens:null,quality:'thorough',beamWidth:8};
-let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,adaptiveSearch:true,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3};
+let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,adaptiveSearch:true,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
 let activeTab = 'overview';
 let jellyWorker = null;
 let jellyCertificationWorkers = [];
@@ -89,10 +90,49 @@ let workerError = '';
 let jellyCheckpointInventory = null;
 let spoilersVisible = false;
 let policyRefreshPending = false;
+const SHAPE_OVERRIDE_KEY='jelly-shape-overrides';
+// Research nodes 185/187 are scaled by the shape covering them. Players who only drag a shape
+// onto them while actively operating export a save that understates their real bonuses, so the
+// override is a persisted account-context correction rather than a hypothetical sandbox value.
+let shapeOverrides={};
+let availableShapeCount=0;
+function loadShapeOverrides(){
+  const next={};
+  try{
+    const raw=JSON.parse(localStorage.getItem(SHAPE_OVERRIDE_KEY)||'{}');
+    for(const entry of J.JELLY_SHAPE_NODES){
+      const value=raw?.[entry.node];
+      if(value==null)continue;
+      const index=Math.floor(Number(value));
+      if(Number.isFinite(index)&&index>=-1)next[entry.node]=index;
+    }
+  }catch{}
+  shapeOverrides=next;
+}
+function persistShapeOverrides(){
+  try{localStorage.setItem(SHAPE_OVERRIDE_KEY,JSON.stringify(shapeOverrides))}catch{}
+}
+function applyShapeOverrides(){
+  if(Object.keys(shapeOverrides).length)saveData.jellyShapeOverrides={...shapeOverrides};
+  else delete saveData.jellyShapeOverrides;
+}
+loadShapeOverrides();
+applyShapeOverrides();
 initSaveLoader({
   target:'#save-area',
   auth:true,
   onLoad:async(_state,_raw,metadata)=>{
+    availableShapeCount=computeShapesOwned(saveData.researchLevel,saveData.gridLevels,buildSaveContext());
+    let shapeOverridesChanged=false;
+    for(const node of Object.keys(shapeOverrides)){
+      const selected=Number(shapeOverrides[node]);
+      if(selected>=availableShapeCount){
+        delete shapeOverrides[node];
+        shapeOverridesChanged=true;
+      }
+    }
+    if(shapeOverridesChanged)persistShapeOverrides();
+    applyShapeOverrides();
     await refreshJellyCheckpointInventory(false);
     const automatic=metadata?.source==='auto-refresh';
     const activeLongRun=automatic&&(jellyWorker||jellyCertificationWorkers.length||jellySearchWorkers.length)&&['layout','certify','certifyLocal','sections','purchases'].includes(workerProgress?.operation);
@@ -210,6 +250,41 @@ function wireJsTooltips(){
   });
 }
 function spoilerToggle(){return `<button type="button" class="spoiler-toggle" data-toggle-spoilers aria-pressed="${spoilersVisible?'true':'false'}">Spoilers: ${spoilersVisible?'Shown':'Hidden'}</button>`}
+function shapeToolsHtml(){
+  const allChoices=J.jellyShapeChoices();
+  const choices=allChoices.slice(0,Math.max(0,Math.min(allChoices.length,availableShapeCount)));
+  return `<div class="shape-tools">${J.jellyShapeSummary(saveData).map(row=>{
+    const current=shapeOverrides[row.node];
+    const selected=current==null?'saved':String(current);
+    const tip=`${row.name} — Research node ${row.node}, level ${row.level} at ${row.perLevelPct}% per level. `
+      +`Saved shape ${row.savedName} gives +${row.savedBonusPct.toFixed(1)}%. `
+      +`Applied shape ${row.effectiveName} gives +${row.bonusPct.toFixed(1)}%. `
+      +`Set this if you only move the shape onto the node while actively running an operation, so your export understates it. `
+      +`Daily attempts (node 186) read the raw purchased level and are never affected by shapes.`;
+    const options=[
+      `<option value="saved"${selected==='saved'?' selected':''}>From save: ${esc(row.savedName)}</option>`,
+      `<option value="-1"${selected==='-1'?' selected':''}>No shape</option>`,
+      ...choices.map(choice=>`<option value="${choice.index}"${selected===String(choice.index)?' selected':''}>${esc(choice.name)} +${choice.bonusPct}%</option>`),
+    ].join('');
+    return `<label class="shape-control${row.overridden?' is-override':''}" data-tooltip="${esc(tip)}"><span>${esc(row.affects)} shape</span><select data-shape-node="${row.node}" aria-label="${esc(row.name)} research grid shape">${options}</select></label>`;
+  }).join('')}</div>`;
+}
+function onShapeOverridesChanged(){
+  persistShapeOverrides();
+  applyShapeOverrides();
+  if(optimized)optimizedStale=true;
+  if(upgradeAnalysis)upgradeAnalysisStale=true;
+  if(sectionAnalysis)sectionAnalysisStale=true;
+  stopJellyWorker();
+  // Warm search workers hold an already-initialized copy of the old context.
+  clearJellyWarmSearchWorkers();
+  currentPolicy=null;
+  policyRefreshPending=false;
+  workerError='';
+  render();
+  const layout=J.jellyLayoutFromSave(saveData);
+  startJellyWorker('policy',{layout,options:{objective:'clear',trials:24,screeningTrials:3,seed:randomSeed()}});
+}
 function toggleSpoilersPreservingScroll(){
   const page={x:window.scrollX,y:window.scrollY};
   const scrolls=Array.from(document.querySelectorAll('#main-content .table-scroll,#main-content .grid-wrap')).map(element=>({top:element.scrollTop,left:element.scrollLeft}));
@@ -260,16 +335,64 @@ function roidTimingText(timing,standardTime){
   if(seconds<standardTime)return `Use ${seconds.toFixed(0)}s after start`;
   return `Use ${seconds.toFixed(0)}s after start`;
 }
+function jellyLiveMetricCards(candidate){
+  const metrics=candidate?.metrics||{};
+  const simulated=metrics.kind==='simulation'&&Number(metrics.trials)>0;
+  const hp=Math.max(0,Number(metrics.hp)||0),damage=Math.max(0,Number(metrics.damage)||0);
+  const damageRatio=hp>0?damage/hp:Number(metrics.damageRatio)||0;
+  const damageLabel=simulated?'Mean damage':'Projected damage';
+  const damageDetail=hp>0?`${pct(damageRatio)} of ${fmt(hp)} boss HP`:(simulated?'Shared-seed operation trials':'Deterministic transient projection');
+  const clearValue=simulated?pct(Number(metrics.clearProbability)||0):'Awaiting trials';
+  const clearDetail=simulated
+    ?`${pct(Number(metrics.clearProbabilityLow)||0)}–${pct(Number(metrics.clearProbabilityHigh)||0)} 95% interval · ${fmt(metrics.trials)} trials`
+    :'Clear probability is shown only after operation simulation';
+  const bloodLabel=simulated?'Bloodcells / attempt':'Projected Bloodcells';
+  const rows=[
+    card(damageLabel,fmt(damage),damageDetail),
+    card('Clear probability',clearValue,clearDetail),
+    card(bloodLabel,fmt(Number(metrics.bloodcells)||0),simulated?'Mean from operation trials':'Deterministic transient projection'),
+  ];
+  const objective=candidate?.objective||optimizerControls.objective||'dps';
+  if(objective==='exp')rows.push(card('EXP / attempt',fmt(Number(metrics.exp)||0),simulated?'Mean selected EXP objective':'Projected selected EXP objective'));
+  else if(objective==='survival')rows.push(card('Critical survival',`${(Number(metrics.survival)||0).toFixed(2)} sec`,simulated?'Mean Critical-phase duration':'Projected Critical-phase duration'));
+  else if(simulated&&Number(metrics.peakDps)>0)rows.push(card('Peak DPS',fmt(Number(metrics.peakDps)),`${fmt(metrics.trials)} simulated operations`));
+  return rows.join('');
+}
+function jellyOperationLiveMetrics(operation){
+  if(!operation?.valid)return null;
+  return {
+    kind:'simulation',
+    trials:Number(operation.trials)||0,
+    successCount:Number(operation.successCount)||0,
+    clearProbability:Number(operation.clearProbability)||0,
+    clearProbabilityLow:Number(operation.clearProbabilityLow)||0,
+    clearProbabilityHigh:Number(operation.clearProbabilityHigh)||0,
+    damage:Number(operation.meanDamage)||0,
+    hp:Number(operation.representative?.hp)||0,
+    bloodcells:Number(operation.meanBloodcells)||0,
+    exp:Number(operation.meanCellExp)||0,
+    survival:Number(operation.meanCriticalTime)||0,
+    peakDps:Number(operation.meanPeakDps)||0,
+  };
+}
+function activeJellyProgressHtml(starts){
+  if(!Array.isArray(starts)||!starts.length)return '';
+  return `<div class="progress-active">${starts.map(row=>{
+    const percent=Math.max(0,Math.min(100,Number(row.percent)||0));
+    return `<div class="progress-start"><div class="progress-start-head"><strong>Start ${Number(row.start)+1} · ${esc(row.phase||'Working')}</strong><span>${percent.toFixed(1)}%</span></div><div class="progress-start-detail">${esc(row.detail||'Updating search state')}</div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div></div>`;
+  }).join('')}</div>`;
+}
 function workerProgressHtml(operation){
   if(!workerProgress||workerProgress.operation!==operation)return '';
   const completed=Number(workerProgress.completed)||0,total=Math.max(1,Number(workerProgress.total)||1);
   const localPercent=Math.max(0,Math.min(100,completed/total*100));
   const overall=Number(workerProgress.overallPercent);
   const percent=Math.max(0,Math.min(100,Number.isFinite(overall)?overall:localPercent));
+  const note=workerProgress.detail||((workerProgress.paused?'Paused after active starts':'Overall progress'));
   const layoutControls=operation==='layout'
     ?`<button data-pause-jelly-search>${workerProgress.paused?'Resume':'Pause'}</button><button class="primary" data-stop-keep-jelly>Stop and keep best</button>`
     :'';
-  return `<div class="progress-panel"><div class="progress-row"><strong>${esc(workerProgress.phase||'Working...')}</strong><span>${percent.toFixed(1)}%</span></div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div><div class="progress-row"><span class="note">${workerProgress.paused?'Paused after active starts':'Overall progress'}</span><span>${layoutControls}<button class="cancel" data-cancel-worker>Cancel</button></span></div><div class="live-search-slot">${operation==='layout'?liveJellySearchHtml():''}</div></div>`;
+  return `<div class="progress-panel"><div class="progress-row"><strong>${esc(workerProgress.phase||'Working...')}</strong><span>${percent.toFixed(1)}%</span></div><div class="bar-outer"><div class="bar-fill" style="width:${percent}%"></div></div><div class="progress-row"><span class="note progress-note">${esc(note)}</span><span>${layoutControls}<button class="cancel" data-cancel-worker>Cancel</button></span></div><div class="progress-active-slot">${activeJellyProgressHtml(workerProgress.activeStarts)}</div><div class="live-search-slot">${operation==='layout'?liveJellySearchHtml():''}</div></div>`;
 }
 function liveJellySearchHtml(){
   if(!jellyLiveSearch?.layout)return '<p class="note">The best-so-far board appears after the first search update. Rendering is throttled to at most once every 0.75 seconds.</p>';
@@ -277,13 +400,12 @@ function liveJellySearchHtml(){
   const status=jellyLiveSearch.evidence==='finalist'
     ?'Simulation-confirmed'
     :(jellyLiveSearch.evidence==='racing'||jellyLiveSearch.evidence==='screening'?'Simulation-ranked':'Best deterministic candidate');
-  const comparison=jellyLiveSearch.gainPercent==null?'':` · ${signed(Number(jellyLiveSearch.gainPercent)||0)}% vs same-model saved baseline`;
-  return `<details open><summary>${esc(status)}${comparison}</summary>
+  return `<details open><summary>${esc(status)}</summary>
     <p class="note">The preview replaces the right-hand board only when a stronger leader arrives, at most once every 0.75 seconds. Simulation-ranked updates supersede proxy-only leaders.</p>
     <div class="cards">
-      ${card('Best-so-far score',fmt(jellyLiveSearch.score),esc(jellyLiveSearch.source||'Current search leader'))}
+      ${jellyLiveMetricCards(jellyLiveSearch)}
       ${card('Layout changes',fmt(jellyLiveSearch.moves),`${fmt(diversity.layouts||0)} layouts in the largest reported archive`)}
-      ${card('Structural diversity',`At least ${fmt(diversity.eliteNiches||0)} niches`,`At least ${fmt(diversity.compositions||0)} compositions · observed Virus counts ${(diversity.virusCounts||[]).join(', ')||'none'}`)}
+      ${card('Structural diversity',`At least ${fmt(diversity.eliteNiches||0)} niches`,`At least ${fmt(diversity.baseFamilies||0)} base families · ${fmt(diversity.compositions||0)} compositions · observed Virus counts ${(diversity.virusCounts||[]).join(', ')||'none'}`)}
     </div>
     <div class="grid-pair">${gridHtml(jellyLiveSearch.baselineLayout||J.jellyLayoutFromSave(saveData),'Search baseline',jellyLiveSearch.obstruction??optimizerControls.obstruction,{unlocked:jellyLiveSearch.unlockedSlots||Array.from(J.jellyUnlockedSlots(saveData))})}${gridHtml(jellyLiveSearch.layout,'Live best-so-far',jellyLiveSearch.obstruction??optimizerControls.obstruction,{unlocked:jellyLiveSearch.unlockedSlots||Array.from(J.jellyUnlockedSlots(saveData))})}</div>
   </details>`;
@@ -333,6 +455,9 @@ function jellySaveFingerprint(){
     saveData.research?.[7]||[],
     saveData.research?.slice?.(14,19)||[],
     saveData.cachedUniqueSushi||0,
+    // Shape overrides change Cell Damage and Bloodcell multipliers, so results checkpointed
+    // under a different shape must not be restored into the current context.
+    saveData.jellyShapeOverrides||null,
   ]));
 }
 function jellyWorkerContextFingerprint(){
@@ -519,6 +644,7 @@ function auditProgressHtml(){
 }
 function startParallelJellyAudit(){
   if(!optimized?.operation||!optimized?.savedOperation||optimized.certificate)return;
+  if(J.jellyLayoutKey(optimized.layout)===J.jellyLayoutKey(optimized.savedLayout||J.jellyLayoutFromSave(saveData)))return;
   stopJellyAudit();
   const requestId=++auditRequestId;
   const cap=Math.max(512,Math.min(8192,Number(optimizerControls.adaptiveMaxTrials)||2048));
@@ -695,6 +821,7 @@ async function startParallelJellyOptimization(layout,options){
     results:[],
     completed:[],
     workerProgress:{},
+    workerStatus:{},
     paused:false,
     schema:2,
   };
@@ -707,6 +834,7 @@ async function startParallelJellyOptimization(layout,options){
       options.seed=state.seed;
       state.resumed=true;
       state.workerProgress={};
+      state.workerStatus={};
     }
   }catch(error){
     workerError=`Search checkpoint could not be restored: ${String(error?.message||error)}`;
@@ -723,6 +851,7 @@ async function startParallelJellyOptimization(layout,options){
     layouts:Math.max(Number(left.layouts)||0,Number(right.layouts)||0),
     eliteNiches:Math.max(Number(left.eliteNiches)||0,Number(right.eliteNiches)||0),
     compositions:Math.max(Number(left.compositions)||0,Number(right.compositions)||0),
+    baseFamilies:Math.max(Number(left.baseFamilies)||0,Number(right.baseFamilies)||0),
     virusCounts:Array.from(new Set([...(left.virusCounts||[]),...(right.virusCounts||[])])).sort((a,b)=>a-b),
     cellTypes:Array.from(new Set([...(left.cellTypes||[]),...(right.cellTypes||[])])).sort((a,b)=>a-b),
     sources:Array.from(new Set([...(left.sources||[]),...(right.sources||[])])).sort(),
@@ -794,7 +923,7 @@ async function startParallelJellyOptimization(layout,options){
       shard:row.start,
       searchStartOffset:row.start,
       searchStarts:1,
-      score:row.result.score,
+      operation:row.result.operation,
       layoutKey:J.jellyLayoutKey(row.result.layout),
       evaluated:row.result.evaluated,
     })).sort((a,b)=>a.shard-b.shard);
@@ -813,7 +942,14 @@ async function startParallelJellyOptimization(layout,options){
     };
     best.evaluated=acceptedRows.reduce((sum,row)=>sum+(Number(row.result.evaluated)||0),0);
     const mergedDiversity=acceptedRows.reduce((summary,row)=>mergeDiversity(summary,row.result.search?.diversitySummary),{});
-    best.search={...(best.search||{}),searchStarts:acceptedRows.length,requestedSearchStarts:requestedStarts,parallelWorkers:requestedWorkers,totalSearchStarts:acceptedRows.length,stoppingReason:state.stoppingReason||'Requested start count completed.',diversitySummary:mergedDiversity,parallelDiversity:true};
+    const mergedBaseSearch={
+      initialBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.initialBaseFamilies)||0),0),
+      explorationBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.explorationBaseFamilies)||0),0),
+      finalBeamBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.finalBeamBaseFamilies)||0),0),
+      coarseRebuildCandidates:acceptedRows.reduce((sum,row)=>sum+(Number(row.result.search?.coarseRebuildCandidates)||0),0),
+      explorationRounds:Math.max(...acceptedRows.map(row=>Number(row.result.search?.explorationRounds)||0),0),
+    };
+    best.search={...(best.search||{}),...mergedBaseSearch,searchStarts:acceptedRows.length,requestedSearchStarts:requestedStarts,parallelWorkers:requestedWorkers,totalSearchStarts:acceptedRows.length,stoppingReason:state.stoppingReason||'Requested start count completed.',diversitySummary:mergedDiversity,parallelDiversity:true};
     best.evaluationLedger=(best.evaluationLedger||[]).filter(row=>row.phase!=='Parallel island merge');
     best.evaluationLedger.unshift({
       phase:'Parallel island merge',
@@ -859,6 +995,42 @@ async function startParallelJellyOptimization(layout,options){
   render();
   let nextJob=0;
   let activeJobs=0;
+  const updateQueueProgress=()=>{
+    const activeProgress=Object.entries(state.workerProgress)
+      .filter(([index])=>!state.completed.includes(Number(index)))
+      .reduce((sum,[,value])=>sum+Math.max(0,Math.min(100,Number(value)||0))/100,0);
+    const aggregate=100*(state.completed.length+activeProgress)/requestedStarts;
+    const activeStarts=Object.entries(state.workerStatus||{})
+      .filter(([index])=>!state.completed.includes(Number(index)))
+      .map(([index,status])=>({start:Number(index),...status}))
+      .sort((a,b)=>a.start-b.start);
+    const stageLabel=phase=>{
+      const text=String(phase||'').toLowerCase();
+      if(text.includes('screen'))return 'screening';
+      if(text.includes('racing')||text.includes('race'))return 'racing';
+      if(text.includes('validat')||text.includes('confirm')||text.includes('finalist')||text.includes('resolving'))return 'validating';
+      if(text.includes('refin')||text.includes('neighborhood'))return 'refining';
+      if(text.includes('rank')||text.includes('polic'))return 'ranking';
+      if(text.includes('pack')||text.includes('build')||text.includes('enumerat')||text.includes('prepar'))return 'building';
+      return 'working';
+    };
+    const stageCounts=activeStarts.reduce((counts,row)=>{
+      const label=stageLabel(row.phase);
+      counts[label]=(counts[label]||0)+1;
+      return counts;
+    },{});
+    const stageSummary=Object.entries(stageCounts).map(([label,count])=>`${count} ${label}`).join(' · ');
+    const queued=Math.max(0,requestedStarts-state.completed.length-activeJobs);
+    workerProgress.phase=state.paused
+      ?`Pausing after ${state.completed.length}/${requestedStarts} search starts · ${activeJobs} active`
+      :`Parallel search · ${state.completed.length}/${requestedStarts} starts complete · ${activeJobs} active`;
+    workerProgress.detail=`${stageSummary||'No active starts'} · ${queued} queued`;
+    workerProgress.activeStarts=activeStarts;
+    workerProgress.completed=state.completed.length+activeProgress;
+    workerProgress.total=requestedStarts;
+    workerProgress.overallPercent=Math.max(Number(workerProgress.overallPercent)||0,aggregate);
+    updateWorkerProgress();
+  };
   const readyToFinish=()=>{
     if(state.userStop)return activeJobs===0&&state.results.length>0;
     if(state.paused)return false;
@@ -885,6 +1057,8 @@ async function startParallelJellyOptimization(layout,options){
     activeJobs++;
     worker._jellyBusy=true;
     worker._jellyStart=start;
+    state.workerStatus[start]={phase:'Starting search',detail:'Initializing this independent search start',percent:0};
+    updateQueueProgress();
     const {layout:ignoredLayout,...jobOptions}=options;
     worker.postMessage({
       type:'run',
@@ -917,18 +1091,16 @@ async function startParallelJellyOptimization(layout,options){
       const start=worker._jellyStart;
       if(message.type==='progress'){
         acceptLiveUpdate(message.progress);
-        state.workerProgress[start]=Number(message.progress?.overallPercent)||0;
-        const completedBase=state.completed.length;
-        const activeProgress=Object.entries(state.workerProgress)
-          .filter(([index])=>!state.completed.includes(Number(index)))
-          .reduce((sum,[,value])=>sum+value/100,0);
-        workerProgress.phase=state.paused
-          ?`Pausing after search start ${start+1}/${requestedStarts}: ${message.progress?.phase||'working'}`
-          :`Dynamic search start ${start+1}/${requestedStarts}: ${message.progress?.phase||'working'}`;
-        workerProgress.completed=completedBase+activeProgress;
-        workerProgress.total=requestedStarts;
-        workerProgress.overallPercent=100*workerProgress.completed/requestedStarts;
-        updateWorkerProgress();
+        const percent=Math.max(Number(state.workerProgress[start])||0,Number(message.progress?.overallPercent)||0);
+        state.workerProgress[start]=percent;
+        state.workerStatus[start]={
+          phase:message.progress?.phase||'Working',
+          detail:message.progress?.detail||'Updating search state',
+          percent,
+          completed:Number(message.progress?.completed)||0,
+          total:Number(message.progress?.total)||1,
+        };
+        updateQueueProgress();
         return;
       }
       if(message.type==='error'||message.type!=='done'||!message.result){
@@ -946,6 +1118,9 @@ async function startParallelJellyOptimization(layout,options){
           evidence:'finalist',
           source:`Completed search start ${start+1}`,
           moves:message.result.moves?.length||0,
+          objective:options.objective||'dps',
+          expCellType:Number(options.expCellType??-1),
+          metrics:jellyOperationLiveMetrics(message.result.operation),
           gainPercent:Number.isFinite(Number(message.result.savedScore))
             ?100*((Number(message.result.score)||0)-Number(message.result.savedScore))/Math.max(1e-12,Math.abs(Number(message.result.savedScore)||1))
             :0,
@@ -954,13 +1129,12 @@ async function startParallelJellyOptimization(layout,options){
       });
       state.completed.push(start);
       delete state.workerProgress[start];
+      delete state.workerStatus[start];
       activeJobs--;
       worker._jellyBusy=false;
       updateAdaptiveCutoff();
       persist();
-      workerProgress.completed=state.completed.length;
-      workerProgress.total=requestedStarts;
-      workerProgress.overallPercent=100*state.completed.length/requestedStarts;
+      updateQueueProgress();
       render();
       assignJob(worker,workerIndex);
     };
@@ -1344,10 +1518,13 @@ function updateWorkerProgress(){
   const localPercent=Math.max(0,Math.min(100,completed/total*100));
   const overall=Number(workerProgress.overallPercent);
   const percent=Math.max(0,Math.min(100,Number.isFinite(overall)?overall:localPercent));
-  const strong=panel.querySelector('strong'),value=panel.querySelector('.progress-row span'),fill=panel.querySelector('.bar-fill');
+  const strong=panel.querySelector('.progress-row strong'),value=panel.querySelector('.progress-row span'),fill=panel.querySelector('.bar-fill');
+  const note=panel.querySelector('.progress-note'),active=panel.querySelector('.progress-active-slot');
   if(strong)strong.textContent=workerProgress.phase||'Working...';
   if(value)value.textContent=percent.toFixed(1)+'%';
   if(fill)fill.style.width=percent+'%';
+  if(note)note.textContent=workerProgress.detail||'Overall progress';
+  if(active)active.innerHTML=activeJellyProgressHtml(workerProgress.activeStarts);
 }
 function startJellyWorker(operation,payload){
   stopJellyWorker();
@@ -1821,7 +1998,7 @@ function render(){
   const saved=J.jellyLayoutFromSave(saveData);
   root.innerHTML=`<div class="tabs">
     ${[['overview','Overview'],['layout','Layout'],['simulator','Simulator'],['upgrades','Upgrades'],['bonuses','Bonuses'],['breakdowns','Breakdowns'],['sections','Sections'],['planner','Upgrade Planner'],['optimizer','Optimizer']].map(([id,label])=>`<div class="tab ${id===activeTab?'active':''}" data-tab="${id}">${label}</div>`).join('')}
-  </div><div class="view-tools">${spoilerToggle()}</div>${workerError?`<div class="section"><p class="bad">${esc(workerError)}</p></div>`:''}
+  </div><div class="view-tools">${shapeToolsHtml()}${spoilerToggle()}</div>${workerError?`<div class="section"><p class="bad">${esc(workerError)}</p></div>`:''}
   <div id="tab-overview" class="tab-content ${activeTab==='overview'?'active':''}">
     <div class="section"><h2>Account snapshot</h2>${summaryCards(saved,currentPolicy)}</div>
     <div class="section"><h2>Operation estimate</h2>${currentPolicy?operationHtml(saved,currentPolicy):'<p class="note">Calculating…</p>'+workerProgressHtml('policy')}</div>
@@ -1838,6 +2015,12 @@ function render(){
   <div id="tab-optimizer" class="tab-content ${activeTab==='optimizer'?'active':''}">${optimizerHtml(saved)}</div>`;
   root.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{activeTab=tab.dataset.tab;render()});
   root.querySelectorAll('[data-toggle-spoilers]').forEach(button=>button.onclick=toggleSpoilersPreservingScroll);
+  root.querySelectorAll('[data-shape-node]').forEach(select=>select.onchange=()=>{
+    const node=Number(select.dataset.shapeNode);
+    if(select.value==='saved')delete shapeOverrides[node];
+    else shapeOverrides[node]=Math.floor(Number(select.value));
+    onShapeOverridesChanged();
+  });
   root.querySelectorAll('[data-cancel-worker]').forEach(button=>button.onclick=()=>{
     stopJellyWorker();
     workerError='Operation cancelled.';
@@ -1876,11 +2059,12 @@ function render(){
   const syncOptimizerControls=()=>{
     const objective=root.querySelector('#objective');
     if(!objective)return;
+    const currentObstruction=Math.max(0,Math.min(71,J.jellyProgress(saveData).obstruction));
     optimizerControls={
       mode:root.querySelector('#optimizer-mode').value,
       objective:objective.value,
       expCellType:Math.max(-1,Math.min(J.jellyUnitsOwned(saveData)-1,Number(root.querySelector('#exp-cell-type')?.value))),
-      obstruction:Math.max(0,Math.min(71,Number(root.querySelector('#obstruction').value)-1)),
+      obstruction:Math.max(currentObstruction,Math.min(71,Number(root.querySelector('#obstruction').value)-1)),
       beamWidth:Number(root.querySelector('#beam').value),
       iterations:Number(root.querySelector('#iterations').value),
       savedRefinementRounds:Number(root.querySelector('#saved-refinement-rounds').value),
@@ -1914,9 +2098,14 @@ function render(){
       certifyMoveNeighborhood:root.querySelector('#certify-move-neighborhood').checked,
       certifyMaxPasses:Math.max(1,Math.min(20,Number(root.querySelector('#certify-max-passes').value)||8)),
       certifyRepackCells:Math.max(0,Math.min(3,Number(root.querySelector('#certify-repack-cells').value)||3)),
+      seedSandbox:(()=>{
+        const control=root.querySelector('#seed-sandbox');
+        if(!control)return optimizerControls.seedSandbox||false;
+        return control.type==='checkbox'?control.checked:control.value==='true';
+      })(),
     };
   };
-  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells').forEach(control=>{
+  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells,#seed-sandbox').forEach(control=>{
     control.onchange=syncOptimizerControls;
     control.oninput=syncOptimizerControls;
   });
@@ -1976,6 +2165,13 @@ function render(){
       ...localOptions,
       seed:randomSeed(),
     };
+    delete options.seedSandbox;
+    if(operation==='layout'&&optimizerControls.seedSandbox){
+      const sandbox=ensureSimulator().layout;
+      if(sandbox&&Object.keys(sandbox).length){
+        options.seedLayouts=[{label:'Simulator sandbox board',layout:{...sandbox}}];
+      }
+    }
     if(operation==='layout')startParallelJellyOptimization(saved,options).catch(error=>{
       workerProgress=null;
       workerError=`Layout search could not start: ${String(error?.message||error)}`;
@@ -2402,14 +2598,25 @@ function purchasePlannerHtml(){
       <td class="num">${fmt(row.cost)}</td><td class="num">${row.waitDays==null?'—':row.waitDays.toFixed(2)}</td>
       <td class="num">${formatObjectiveCell(row,'before')}</td>
       <td class="num">${formatObjectiveCell(row,'after')}</td><td class="num">${formatDecisionGain(row)}</td>
+      <td class="num">${row.projectedClearDaysFromStart==null?'—':row.projectedClearDaysFromStart.toFixed(2)}</td>
       <td class="num">${row.bloodcellGainPerDay==null?'—':signed(row.bloodcellGainPerDay,2)}</td><td class="num">${row.totalPaybackDays==null?'—':row.totalPaybackDays.toFixed(2)}</td>
     </tr>`).join('');
     const timeSaved=baseline.meanTime&&final.meanTime?baseline.meanTime-final.meanTime:0;
+    const progressionStopText={
+      'current-state-clears-sooner':'Stopped when another purchase would take longer than attempting the obstruction now',
+      'no-eligible-purchase':'Stopped because no eligible upgrade remained',
+      'planning-horizon':'Stopped at the maximum saving horizon',
+      'purchase-cap':'Stopped at the safety purchase cap',
+    }[upgradeAnalysis.stopReason]||'Stopped after the selected sequence';
+    const purchasesDetail=upgradeAnalysis.clearEtaStrategy
+      ?progressionStopText
+      :upgradeAnalysis.completedPurchases<upgradeAnalysis.requestedPurchases?'Stopped when no eligible purchase remained':'Full requested horizon completed';
     result=`<div class="cards planner-cards">
-      ${card('Purchases modeled',`${upgradeAnalysis.completedPurchases} / ${upgradeAnalysis.requestedPurchases}`,upgradeAnalysis.completedPurchases<upgradeAnalysis.requestedPurchases?'Stopped when no eligible purchase remained':'Full requested horizon completed')}
+      ${card(upgradeAnalysis.clearEtaStrategy?'Clear path purchases':'Purchases modeled',`${upgradeAnalysis.completedPurchases} / ${upgradeAnalysis.requestedPurchases}`,purchasesDetail)}
       ${card('Total Bloodcell cost',fmt(upgradeAnalysis.totalCost),upgradeAnalysis.respectBudget?`${fmt(upgradeAnalysis.remainingBloodcells)} projected remaining after saving`:'Hypothetical budget')}
-      ${card('Planning horizon',`${upgradeAnalysis.planningDays??purchaseControls.planningDays} days`,`${(upgradeAnalysis.elapsedDays??0).toFixed(2)} expected days spent saving`)}
+      ${card(upgradeAnalysis.clearEtaStrategy?'Maximum save horizon':'Planning horizon',`${upgradeAnalysis.planningDays??purchaseControls.planningDays} days`,`${(upgradeAnalysis.elapsedDays??0).toFixed(2)} expected days spent saving`)}
       ${card('Strategy',esc(upgradeAnalysis.strategy||purchaseControls.strategy),`${esc(upgradeAnalysis.quality||purchaseControls.quality)} quality · ${upgradeAnalysis.lookahead||purchaseControls.lookahead}-step lookahead`)}
+      ${upgradeAnalysis.clearEtaStrategy?card('Projected days to next clear',upgradeAnalysis.projectedClearDays==null?'Not yet estimable':upgradeAnalysis.projectedClearDays.toFixed(2),`${upgradeAnalysis.elapsedDays.toFixed(2)} save days plus expected attempts after the planned purchases`):''}
       ${card('Clear probability',`${pct(baseline.clearProbability)} → ${pct(final.clearProbability)}`,signedPct(final.clearProbability-baseline.clearProbability))}
       ${card('Mean damage',`${fmt(baseline.meanDamage)} → ${fmt(final.meanDamage)}`,signed(final.meanDamage-baseline.meanDamage))}
       ${card('Bloodcells / attempt',`${fmt(baseline.meanBloodcells)} → ${fmt(final.meanBloodcells)}`,signed(final.meanBloodcells-baseline.meanBloodcells))}
@@ -2419,7 +2626,7 @@ function purchasePlannerHtml(){
       ${card('Mean clear time',baseline.meanTime&&final.meanTime?`${baseline.meanTime.toFixed(2)}s → ${final.meanTime.toFixed(2)}s`:'Not cleared in both states',timeSaved?signed(timeSaved)+' sec saved':'')}
     </div>
     ${upgradeAnalysisStale?'<p class="bad">The save refreshed after this purchase analysis started. These results use its starting save.</p>':''}
-    ${sequenceRows?`<h3>Purchase sequence</h3><p class="note"><strong>${esc(objectiveLabel)}</strong>: ${objectiveHelp} If sampled clear chance does not change, the planner ranks progress by faster clears or additional boss-health damage and shows that fallback explicitly. Bloodcell payoff is separate: it estimates how long the purchase cost takes to earn back from extra Bloodcells. “Planned effect” below is only the upgrade’s raw in-game effect.</p><div class="table-scroll planner-table"><table><thead><tr><th>Step</th><th>Action</th><th class="num">Cost</th><th class="num">Save days</th><th class="num">Before<br><small>${esc(objectiveLabel)}</small></th><th class="num">After<br><small>${esc(objectiveLabel)}</small></th><th class="num">Improvement used to rank</th><th class="num">Extra Bloodcells / day</th><th class="num">Save + payoff days</th></tr></thead><tbody>${sequenceRows}</tbody></table></div>`:''}
+    ${sequenceRows?`<h3>Purchase sequence</h3><p class="note">${upgradeAnalysis.clearEtaStrategy?'<strong>Progress now</strong> targets the shortest projected calendar time to the next obstruction clear. Save time and limited daily attempts are included; Bloodcell cost breaks ties, and planning stops when buying more would be slower than attempting the clear.':'<strong>'+esc(objectiveLabel)+'</strong>: '+objectiveHelp+' If sampled clear chance does not change, the planner ranks progress by faster clears or additional boss-health damage and shows that fallback explicitly.'} Bloodcell payoff is separate: it estimates how long the purchase cost takes to earn back from extra Bloodcells. “Planned effect” below is only the upgrade’s raw in-game effect.</p><div class="table-scroll planner-table"><table><thead><tr><th>Step</th><th>Action</th><th class="num">Cost</th><th class="num">Save days</th><th class="num">Before<br><small>${esc(objectiveLabel)}</small></th><th class="num">After<br><small>${esc(objectiveLabel)}</small></th><th class="num">Improvement used to rank</th><th class="num">Projected days<br>to clear</th><th class="num">Extra Bloodcells / day</th><th class="num">Save + payoff days</th></tr></thead><tbody>${sequenceRows}</tbody></table></div>`:''}
     <h3>Totals by upgrade</h3>
     <div class="table-scroll planner-table"><table><thead><tr><th>Upgrade</th><th class="num">Levels bought</th><th class="num">Level total</th><th class="num">Total cost</th><th class="num">Planned effect</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No eligible purchases were available.</td></tr>'}</tbody></table></div>`;
   }
@@ -2428,8 +2635,8 @@ function purchasePlannerHtml(){
       <label class="control">Strategy<select id="upgrade-strategy">${strategyOptions(purchaseControls.strategy)}</select></label>
       <label class="control">Objective<select id="upgrade-objective">${objectiveOptions(purchaseControls.objective)}</select></label>
       <label class="control" id="upgrade-exp-cell-type-control" ${purchaseControls.objective==='exp'?'':'hidden'}>EXP target<select id="upgrade-exp-cell-type">${cellExpTargetOptions(purchaseControls.expCellType)}</select></label>
-      <label class="control">Purchases ahead<input id="upgrade-purchases" type="number" min="1" max="50" value="${purchaseControls.purchases}"></label>
-      <label class="control">Planning days<input id="upgrade-planning-days" type="number" min="1" max="365" value="${purchaseControls.planningDays}"></label>
+      <label class="control">${purchaseControls.strategy==='progression'?'Safety purchase cap':'Purchases ahead'}<input id="upgrade-purchases" type="number" min="1" max="50" value="${purchaseControls.purchases}"></label>
+      <label class="control">${purchaseControls.strategy==='progression'?'Maximum save days':'Planning days'}<input id="upgrade-planning-days" type="number" min="1" max="365" value="${purchaseControls.planningDays}"></label>
       <label class="control">Quality<select id="upgrade-quality">${qualityOptions(purchaseControls.quality)}</select></label>
       <label class="control">Lookahead<input id="upgrade-lookahead" type="number" min="1" max="3" value="${purchaseControls.lookahead}"></label>
       <label class="check-control"><input id="upgrade-reoptimize" type="checkbox" ${purchaseControls.reoptimize?'checked':''}><span><strong>Reoptimize layout</strong><small>Search again after each purchase</small></span></label>
@@ -2538,7 +2745,8 @@ function initializeBreakdownTrees(layout){
 
 function optimizerHtml(saved){
   const p=J.jellyProgress(saveData);
-  if(optimizerControls.obstruction==null)optimizerControls.obstruction=p.obstruction;
+  const layoutRunning=workerProgress?.operation==='layout';
+  if(optimizerControls.obstruction==null||(!layoutRunning&&optimizerControls.obstruction<p.obstruction))optimizerControls.obstruction=p.obstruction;
   const checkpointRows=jellyCheckpointInventory||[];
   const checkpointBytes=checkpointRows.reduce((sum,row)=>sum+row.estimatedBytes,0);
   const checkpointOperations=checkpointRows.reduce((sum,row)=>sum+row.operations,0);
@@ -2642,6 +2850,13 @@ function optimizerHtml(saved){
     const op=optimized.operation, savedOp=optimized.savedOperation, blindOp=optimized.blindOperation, immunoidOp=optimized.immunoidOperation, r=op.representative;
     const expCellType=optimized.expCellType??-1;
     const expTargetName=cellExpTargetName(expCellType);
+    const objectiveLabel={
+      clear:'Clear chance, then clear time / damage',
+      bloodcells:'Mean Bloodcells per attempt',
+      exp:`${expTargetName} per attempt`,
+      survival:'Critical survival time',
+      dps:'Mean operation damage',
+    }[optimized.objective]||optimized.objective;
     const clearInterval=target=>target?`${pct(target.clearProbabilityLow)}–${pct(target.clearProbabilityHigh)}`:'—';
     const objectiveValue=target=>{
       if(!target)return '—';
@@ -2651,6 +2866,14 @@ function optimizerHtml(saved){
       if(optimized.objective==='survival')return `${target.meanCriticalTime.toFixed(2)} sec`;
       return fmt(target.meanDamage);
     };
+    const objectiveDiagnosticValue=target=>{
+      if(!target)return '—';
+      if(optimized.objective!=='clear')return objectiveValue(target);
+      if(target.successCount)return `${pct(target.clearProbability)} · ${target.medianTime.toFixed(2)} sec`;
+      const hp=Number(target.representative?.hp)||0;
+      return `${pct(target.clearProbability)} · ${hp>0?pct(target.meanDamage/hp):fmt(target.meanDamage)} damage`;
+    };
+    const fmtInt=value=>Math.round(Number(value)||0).toLocaleString();
     const objectiveComparison=()=>{
       if(!blindOp||!savedOp)return null;
       return `${objectiveValue(blindOp)} blind vs ${objectiveValue(savedOp)} saved`;
@@ -2663,25 +2886,26 @@ function optimizerHtml(saved){
       ? '<p class="note">Same cells and occupied slots; anchors differ.</p>'
       : '';
     const archetypeRows=(optimized.archetypeResults||[]).filter(row=>row.type<J.jellyUnitsOwned(saveData)).map(row=>`<tr>
-      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${row.operation?objectiveValue(row.operation):'—'}</td>
+      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${row.operation?objectiveDiagnosticValue(row.operation):'—'}</td>
       <td class="num">${row.operation?clearInterval(row.operation):'—'}</td>
     </tr>`).join('');
     const contributionRows=(optimized.anchorContributions||[]).map(row=>`<tr>
       <td>${row.anchor}</td><td>${esc(row.name)}</td><td class="num">${fmt(row.directDps)}</td><td class="num">${fmt(row.marginalDps)}</td><td class="num">${pct(row.marginalPct)}</td>
     </tr>`).join('');
     const evaluationLedgerRows=(optimized.evaluationLedger||[]).map(row=>`<tr>
-      <td>${esc(row.phase)}</td><td>${esc(row.method)}</td><td class="num">${fmt(row.candidates)}</td><td class="num">${fmt(row.trials)}</td><td>${esc(row.claim)}</td><td>${esc(row.evidence)}</td>
+      <td>${esc(row.phase)}</td><td>${esc(row.method)}</td><td class="num">${fmtInt(row.candidates)}</td><td class="num">${fmtInt(row.trials)}</td><td>${esc(row.claim)}</td><td>${esc(row.evidence)}</td>
     </tr>`).join('');
     const parallelShardRows=(optimized.parallelSearch?.shardSummaries||[]).map(row=>`<tr>
-      <td>${row.shard+1}</td><td class="num">${row.searchStartOffset+1}–${row.searchStartOffset+row.searchStarts}</td><td class="num">${fmt(row.score)}</td><td class="num">${fmt(row.evaluated)}</td><td>${row.shard===optimized.parallelSearch.selectedShard?'Selected':'Completed'}</td>
+      <td>${row.shard+1}</td><td class="num">${row.searchStartOffset+1}–${row.searchStartOffset+row.searchStarts}</td><td class="num">${objectiveDiagnosticValue(row.operation)}</td><td class="num">${fmtInt(row.evaluated)}</td><td>${row.shard===optimized.parallelSearch.selectedShard?'Selected':'Completed'}</td>
     </tr>`).join('');
     const countArchetypeRows=(optimized.countArchetypeResults||[]).filter(row=>row.type<J.jellyUnitsOwned(saveData)&&row.operation).map(row=>`<tr>
-      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${objectiveValue(row.operation)}</td><td class="num">${clearInterval(row.operation)}</td>
+      <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${objectiveDiagnosticValue(row.operation)}</td><td class="num">${clearInterval(row.operation)}</td>
     </tr>`).join('');
     const breakpointRanges=(optimized.immunoidBreakpoint?.ranges||[]).map(range=>range.start===range.end?String(range.start+1):`${range.start+1}–${range.end+1}`).join(', ');
     const worstProxy=optimized.proxyAudit?.underRanked?.[0];
     const clearGain=savedOp?op.clearProbability-savedOp.clearProbability:0;
     const pairedSaved=optimized.pairedConfirmation?.vsSaved;
+    const challenger=optimized.challengerComparison;
     const freshAudit=optimized.postSelectionAudit||postSelectionAudit;
     const pairedStatus=pairedSaved?.classification||'unavailable';
     const pairedStatusText={
@@ -2709,8 +2933,33 @@ function optimizerHtml(saved){
       return groups;
     },new Map()).values()).sort((a,b)=>a.action.localeCompare(b.action)||a.name.localeCompare(b.name));
     const changePlan=changeGroups.map(group=>`<div class="move"><strong>${group.action==='remove'?'Remove':'Place'} ${esc(group.name)}:</strong> slots ${group.anchors.sort((a,b)=>a-b).join(', ')}</div>`).join('');
+    const seedEntries=optimized.seedComparison?.entries||[];
+    const seedRejected=optimized.seedComparison?.rejected||[];
+    const seedStatusText=entry=>{
+      if(entry.isWinner)return 'Selected as the recommendation';
+      if(!entry.simulated)return 'Not simulated';
+      return {
+        'confirmed-better':'Beats the recommendation',
+        'confirmed-worse':'Loses to the recommendation',
+        'statistically-unresolved':'Statistically tied with the recommendation',
+      }[entry.vsBest?.classification]||'Compared';
+    };
+    const seedRows=seedEntries.map(entry=>`<tr>
+      <td>${esc(entry.label)}${entry.matchesSaved?' <span class="note">(identical to your save)</span>':''}</td>
+      <td class="num">${entry.cells}</td>
+      <td class="num">${entry.simulated?`#${entry.rank}`:'—'}</td>
+      <td class="num">${entry.operation?objectiveValue(entry.operation):'—'}</td>
+      <td class="num">${entry.operation?pct(entry.operation.clearProbability):'—'}</td>
+      <td>${esc(seedStatusText(entry))}</td>
+      <td>${entry.filled?`Filling its ${entry.filled.cells-entry.cells} open slot${entry.filled.cells-entry.cells===1?'':'s'} ranked #${entry.filled.rank??'—'}${entry.filled.isWinner?' and won':''}`:'No open slots'}</td>
+    </tr>`).join('');
+    const seedComparisonHtml=(seedEntries.length||seedRejected.length)?`<h3>Your submitted layouts</h3>
+      ${seedEntries.length?`<table><thead><tr><th>Layout</th><th>Cells</th><th>Rank</th><th>${esc(objectiveLabel)}</th><th>Clear</th><th>Result</th><th>Gap-filled variant</th></tr></thead><tbody>${seedRows}</tbody></table>
+      <p class="note">Submitted boards are mandatory through screening, racing, and full simulation on the same seeds and policy search as generated candidates, and the search also refines them. A board that loses here was measured, not pruned.</p>`:''}
+      ${seedRejected.length?`<p class="bad">Rejected: ${seedRejected.map(row=>`${esc(row.label)} — ${esc(row.reason)}`).join('; ')}</p>`:''}`:'';
     result=`<div class="section"><h2>Recommendation</h2>
       <div class="cards">
+        ${card('Optimizing for',esc(objectiveLabel),optimized.objective==='bloodcells'?'Bloodcell output determines the winner':'Bloodcells are reported but do not determine this winner')}
         ${savedOp?card('Saved clear probability',pct(savedOp.clearProbability),savedOp.successCount?`Median ${savedOp.medianTime.toFixed(2)} sec`:`${pct(savedOp.meanDamage/savedOp.representative.hp)} mean damage`):''}
         ${card('Recommended clear probability',pct(op.clearProbability),`${clearInterval(op)} 95% interval`)}
         ${savedOp?card('Improvement',`${clearGain>=0?'+':''}${(clearGain*100).toFixed(2)} points`,op.successCount?`Median clear ${op.medianTime.toFixed(2)} sec`:`${pct(op.meanDamage/r.hp)} mean damage`):''}
@@ -2718,16 +2967,20 @@ function optimizerHtml(saved){
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,29)>0?card('Stronkroid',roidTimingText(op.roidTiming,r.standardTime),'',stronkroidTooltip()):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,35)>0?card('Revival priority',esc(op.revivePolicy)):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,36)>0?card('Critical survival',`${op.meanCriticalTime.toFixed(2)} sec`,`${op.meanDeaths.toFixed(2)} deaths; ${op.meanRevives.toFixed(2)} revives`):''}
-        ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Bloodcells / attempt',fmt(op.meanBloodcells)):''}
+        ${spoilersVisible||J.jellyUpgradeLevel(saveData,23)>0?card('Mean Bloodcells / attempt',fmt(op.meanBloodcells),`${optimized.objective==='bloodcells'?'Selected objective':'Not optimized in this run'} · max observed ${fmt(op.maxBloodcells??op.meanBloodcells)}`):''}
+        ${p.bestBloodcells>0?card('Saved best operation',fmt(p.bestBloodcells),'Historical single-operation record; Daily Transfusion uses this value'):''}
         ${spoilersVisible||J.jellyUpgradeLevel(saveData,10)>0?card(`${esc(expTargetName)} / attempt`,fmt(cellExpValue(op,expCellType))):''}
+        ${challenger&&!challenger.selected?card('Best challenger',challenger.classification==='statistically-unresolved'?'Not confirmed':challenger.classification==='confirmed-worse'?'Confirmed worse':'Not selected',`${challenger.operation?objectiveValue(challenger.operation):'—'} · saved layout retained`):''}
         ${freshAudit?card('Fresh winner audit',freshAuditStatus,`${fmt(freshAudit.trials)} independent paired trials · ${(freshAudit.chanceBeatsBaseline*100).toFixed(1)}% trial wins · ${freshAudit.rigorousMetric==='mean-clear-difference'?'clear difference':'normalized magnitude'} bound`):''}
       </div>
       ${auditProgressHtml()}
       ${optimizedStale?'<p class="bad">The save refreshed while this search was running. This recommendation uses the save from when the search started.</p>':''}
+      ${challenger&&!challenger.selected?'<p class="note">The search found a numerically higher challenger, but it did not prove that the challenger beats the saved layout on shared-seed paired trials. The saved layout is retained instead of recommending statistically unsupported changes.</p>':''}
       ${pairedStatus==='statistically-unresolved'?'<p class="note">The recommended and saved layouts remain statistically unresolved on the held-out paired trials. The recommendation has the higher measured objective, but the difference is not yet confirmed.</p>':''}
       ${legendHtml()}<div class="grid-pair">${gridHtml(resultSaved,optimizedStale?'Search starting save':'Current save',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}</div>
       ${anchorOnlyNote}
       <h3>Changes</h3><div>${optimized.moves.length?changePlan:'No changes improve this objective.'}</div>
+      ${seedComparisonHtml}
       <details class="optimizer-diagnostics"><summary>Search details</summary>
         <div class="cards">
           ${card('Steady DPS',`${fmt(savedM.dps)} → ${fmt(optimized.metrics.dps)}`,savedM.dps>0?`+${pct(optimized.metrics.dps/savedM.dps-1)}`:'')}
@@ -2735,35 +2988,42 @@ function optimizerHtml(saved){
           ${J.jellyUpgradeLevel(saveData,4)>0?card('Best Immunoid finalist',immunoidOp?objectiveValue(immunoidOp):'None',immunoidOp?`${J.jellyLayoutMetrics(optimized.immunoidLayout,saveData,{fever:immunoidOp.fever}).rawCounts[4]} Immunoid`:'None'):''}
           ${optimized.immunoidBreakpoint?card('Immunoid breakpoint',breakpointRanges||'None',optimized.immunoidBreakpoint.currentPreferred?'Favored here':'Not favored here'):''}
           ${card('Surrogate rank audit',(optimized.proxyAudit?.rankCorrelation??1).toFixed(3),worstProxy&&worstProxy.rankDelta>0?`Largest under-rank: ${worstProxy.rankDelta}`:'No under-ranked finalist')}
-          ${card('Search',`${optimized.search?.searchStarts||1} starts`,`${fmt(optimized.evaluated)} candidates · ${optimized.search?.eliteArchiveSize||0} niches`)}
+          ${card('Retained search starts',`${optimized.search?.searchStarts||1} of ${optimized.search?.requestedSearchStarts||optimized.search?.searchStarts||1}`,`${fmtInt(optimized.evaluated)} proxy candidates · ${fmtInt(optimized.search?.eliteArchiveSize||0)} niches`)}
           ${optimized.parallelSearch?card('Dynamic search queue',`${optimized.parallelSearch.executedStarts}/${optimized.parallelSearch.requestedStarts} executed`,`${optimized.parallelSearch.acceptedStarts} retained · ${optimized.parallelSearch.workers} warm-capable workers · ${optimized.parallelSearch.warmWorkersReused||0} reused${optimized.parallelSearch.resumed?' · resumed':''}`):''}
-          ${optimized.search?.diversitySummary?card('Exploration diversity',`At least ${fmt(optimized.search.diversitySummary.eliteNiches)} niches`,`At least ${fmt(optimized.search.diversitySummary.compositions)} compositions · observed Virus counts ${(optimized.search.diversitySummary.virusCounts||[]).join(', ')||'none'} · ${fmt(optimized.search.diversitySummary.sources?.length||0)} source families`):''}
-          ${card('Adaptive allocation',`${fmt(optimized.search?.adaptiveRacingCandidates||0)} extra racers`,`${fmt(optimized.search?.racingCandidates||0)} candidates received ${fmt(optimized.search?.racingTrials||0)} trials`)}
+          ${card('Search funnel',`${fmtInt(optimized.evaluated)} → ${fmtInt(optimized.search?.screeningCandidates||0)} → ${fmtInt(optimized.search?.racingCandidates||0)} → ${fmtInt(optimized.search?.normalizedFinalists||optimized.search?.finalists||0)}`,'Proxy candidates → screened → raced → fully simulated finalists')}
+          ${card('Base experimentation',`${fmtInt(optimized.search?.initialBaseFamilies||0)} → ${fmtInt(optimized.search?.explorationBaseFamilies||0)} → ${fmtInt(optimized.search?.finalBeamBaseFamilies||0)} families`,`Initial seeds → after ${fmtInt(optimized.search?.explorationRounds||0)} coarse rounds → granular refinement · ${fmtInt(optimized.search?.coarseRebuildCandidates||0)} multi-cell rebuilds`)}
+          ${optimized.search?.screeningGeometryDiversity?card('Screening geometry diversity',pct(optimized.search.screeningGeometryDiversity.meanAnchorTypeDistance),`${fmtInt(optimized.search.screeningGeometryDiversity.layouts)} layouts · ${pct(optimized.search.screeningGeometryDiversity.meanOccupancyDistance)} mean occupied-slot difference · 0% is identical, 100% has no overlap`):''}
+          ${optimized.search?.finalistGeometryDiversity?card('Finalist geometry diversity',pct(optimized.search.finalistGeometryDiversity.meanAnchorTypeDistance),`${fmtInt(optimized.search.finalistGeometryDiversity.layouts)} layouts · ${pct(optimized.search.finalistGeometryDiversity.meanOccupancyDistance)} mean occupied-slot difference`):''}
+          ${optimized.search?.diversitySummary?card('Exploration diversity',`At least ${fmtInt(optimized.search.diversitySummary.eliteNiches)} niches`,`At least ${fmtInt(optimized.search.diversitySummary.baseFamilies||0)} base families · ${fmtInt(optimized.search.diversitySummary.compositions)} compositions · observed Virus counts ${(optimized.search.diversitySummary.virusCounts||[]).join(', ')||'none'} · ${fmtInt(optimized.search.diversitySummary.sources?.length||0)} source families`):''}
+          ${card('Adaptive allocation',`${fmtInt(optimized.search?.adaptiveRacingCandidates||0)} extra racers`,`${fmtInt(optimized.search?.racingCandidates||0)} candidates received ${fmtInt(optimized.search?.racingTrials||0)} trials`)}
           ${card('Search islands',(optimized.search?.islandProfiles||[]).join(', ')||'Objective',`${optimized.search?.islandMutationCandidates||0} mutations · ${optimized.search?.islandMigrations||0} migrations · bias scale ${(optimized.search?.islandBiasScale||0).toFixed(3)}`)}
-          ${optimized.search?.virusConditionedSeeds?card('Virus conditioning',`${fmt(optimized.search.virusConditionedSeeds)} seeds`,`${fmt(optimized.search.virusStructuresEnumerated)} structures · ${optimized.search.virusStructureComplete?'exhausted declared count scope':'node-budget limited'}`):''}
+          ${optimized.search?.virusConditionedSeeds?card('Virus conditioning',`${fmtInt(optimized.search.virusConditionedSeeds)} seeds`,`${fmtInt(optimized.search.virusStructuresEnumerated)} structures · ${optimized.search.virusStructureComplete?'exhausted declared count scope':'node-budget limited'} · Organelle fills test Virus counts ${(optimized.search.organelleFillVirusCounts||[]).join(', ')}`):''}
+          ${card('Passive coverage champions',`${fmtInt(optimized.search?.maxVirusInfectedSlotsScreened||0)} Virus slots`,`${fmtInt(optimized.search?.maxVirusInfectedOrganellesScreened||0)} Virus-connected Organelles · ${fmtInt(optimized.search?.maxOrganelleCellsScreened||0)} Organelle-connected cells · Organelle counts ${(optimized.search?.organelleStructureCounts||[]).join(', ')||'none'} (geometry limit ${fmtInt(optimized.search?.organelleCountLimitExplored||0)}) · ${fmtInt(optimized.search?.organelleVirusJointSeeds||0)} joint seeds · ${optimized.search?.jointOrganelleVirusFinalist?'joint finalist retained':'no joint finalist'}`)}
+          ${card('Board-aware construction',`${fmtInt(optimized.search?.boardAwareSeeds||0)} seeds`,optimized.search?.boardAwareBestScore!=null?`Best board-aware foundation scored ${fmt(optimized.search.boardAwareBestScore)} vs ${fmt(optimized.search.greedyBestSeedScore||0)} for the best first-legal-anchor seed · ${optimized.search?.boardAwareFinalist?'reached finalist simulation':'did not reach finalist simulation'}`:'Not run for this search')}
           ${card('Neighborhood',`${optimized.search?.neighborhoodCandidates||0} checked`,`${optimized.search?.neighborhoodPromoted||0} promoted`)}
           ${card('Exact regional repair',`${optimized.search?.exactRegionLayouts||0} repairs`,`${optimized.search?.exactRegionCompleteScopes||0} complete scopes · ${optimized.search?.exactRegionBudgetLimitedScopes||0} budget-limited`)}
-          ${card('Simulation cache',`${optimized.search?.simulationCacheHits||0} reused`,`${optimized.search?.simulationCacheMisses||0} unique batches · ${fmt(optimized.search?.simulationCacheTrialsTrimmed||0)} cached trial records released`)}
+          ${card('Simulation cache',`${optimized.search?.simulationCacheHits||0} reused`,`${optimized.search?.simulationCacheMisses||0} unique batches · ${fmtInt(optimized.search?.simulationCacheTrialsTrimmed||0)} cached trial records released`)}
           ${optimized.adaptiveConfirmation?.triggered?card('Confirmation',`${optimized.adaptiveConfirmation.confirmedTrials} trials`,`${optimized.adaptiveConfirmation.validationTrials||0} validation trials`):''}
           ${card('Paired vs saved',pairedStatusText,pairedSaved?`${pairedDifference}; ${pct(pairedSaved.chanceBeatsBaseline)} trial wins`:'Requires held-out confirmation')}
         </div>
         ${optimized.search?.diversitySummary?`<h3>Exploration coverage</h3><div class="cards">
-          ${card('Distinct compositions',`At least ${fmt(optimized.search.diversitySummary.compositions)}`,`${fmt(optimized.search.diversitySummary.layouts)} layouts in the largest shard archive`)}
+          ${card('Distinct compositions',`At least ${fmtInt(optimized.search.diversitySummary.compositions)}`,`${fmtInt(optimized.search.diversitySummary.layouts)} layouts in the largest shard archive`)}
           ${card('Virus counts explored',(optimized.search.diversitySummary.virusCounts||[]).join(', ')||'None',`${optimized.search.virusSearchMode||'balanced'} conditioning scope`)}
           ${card('Cell types represented',(optimized.search.diversitySummary.cellTypes||[]).map(type=>CELL_NAMES[type]||`Cell ${type+1}`).join(', ')||'None')}
-          ${card('Candidate sources',fmt(optimized.search.diversitySummary.sources?.length||0),(optimized.search.diversitySummary.sources||[]).join(', '))}
-          ${card('Policy niches',fmt(optimized.search.policyNiches||0),`${fmt(optimized.search.screeningPoliciesEvaluated||0)} policy evaluations`)}
+          ${card('Candidate sources',fmtInt(optimized.search.diversitySummary.sources?.length||0),(optimized.search.diversitySummary.sources||[]).join(', '))}
+          ${card('Policy niches',fmtInt(optimized.search.policyNiches||0),`${fmtInt(optimized.search.screeningPoliciesEvaluated||0)} policy evaluations`)}
         </div>`:''}
         <h3>Evaluation ledger</h3>
         <p class="note">Each row states what was evaluated and the strongest claim that evidence supports. Only explicitly exhausted exact scopes are proofs; the final stochastic recommendation is never labeled a global optimum.</p>
         <div class="table-scroll"><table><thead><tr><th>Phase</th><th>Method</th><th class="num">Candidates</th><th class="num">Trials</th><th>Claim</th><th>Evidence</th></tr></thead><tbody>${evaluationLedgerRows}</tbody></table></div>
-        ${parallelShardRows?`<h3>Dynamic search starts</h3><div class="table-scroll"><table><thead><tr><th>Start</th><th class="num">Offset</th><th class="num">Score</th><th class="num">Evaluated</th><th>Status</th></tr></thead><tbody>${parallelShardRows}</tbody></table></div>`:''}
+        ${parallelShardRows?`<h3>Dynamic search starts</h3><p class="note">These are player-facing operation results. The internal lexicographic sorting scalar is intentionally hidden.</p><div class="table-scroll"><table><thead><tr><th>Start</th><th class="num">Offset</th><th class="num">Best result</th><th class="num">Proxy candidates</th><th>Status</th></tr></thead><tbody>${parallelShardRows}</tbody></table></div>`:''}
         <h3>Cell-type finalists</h3>
         <div class="table-scroll"><table><thead><tr><th>Required type</th><th class="num">Count</th><th class="num">Objective</th><th class="num">Clear 95% interval</th></tr></thead><tbody>${archetypeRows}</tbody></table></div>
         <h3>Count finalists</h3>
         <div class="table-scroll"><table><thead><tr><th>Cell type</th><th class="num">Count</th><th class="num">Objective</th><th class="num">Clear 95% interval</th></tr></thead><tbody>${countArchetypeRows}</tbody></table></div>
         <h3>Anchor contributions</h3>
-        <div class="table-scroll"><table><thead><tr><th>Anchor</th><th>Cell</th><th class="num">Direct DPS</th><th class="num">Marginal DPS</th><th class="num">Share</th></tr></thead><tbody>${contributionRows}</tbody></table></div>
+        <p class="note">Marginal DPS removes one anchor and recomputes the whole interacting board. These percentages overlap and are not additive, so they can sum above 100%.</p>
+        <div class="table-scroll"><table><thead><tr><th>Anchor</th><th>Cell</th><th class="num">Direct DPS</th><th class="num">Marginal DPS</th><th class="num">Marginal ÷ total</th></tr></thead><tbody>${contributionRows}</tbody></table></div>
       </details>
     </div>`;
   }
@@ -2779,7 +3039,7 @@ function optimizerHtml(saved){
         ${objectiveOptions(optimizerControls.objective)}
       </select></label>
       <label class="control" id="exp-cell-type-control" ${optimizerControls.objective==='exp'?'':'hidden'}>EXP target<select id="exp-cell-type">${cellExpTargetOptions(optimizerControls.expCellType)}</select></label>
-      <label class="control">Obstruction<input id="obstruction" type="number" min="1" max="72" value="${optimizerControls.obstruction+1}"></label>
+      <label class="control">Obstruction<input id="obstruction" type="number" min="${p.obstruction+1}" max="72" value="${optimizerControls.obstruction+1}" ${layoutRunning?'disabled':''}></label>
       <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="${optimizerControls.beamWidth}"></label>
       <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="${optimizerControls.iterations}"></label>
       <label class="control">Saved-board relocation rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.savedRefinementRounds}"></label>
@@ -2793,6 +3053,8 @@ function optimizerHtml(saved){
       <label class="control">Fully simulated finalists<input id="finalists" type="number" min="1" max="64" value="${optimizerControls.finalistCount}"></label>
       <label class="control">Simulation trials<input id="trials" type="number" min="4" max="1000" value="${optimizerControls.simulationTrials}"></label>
       <label class="control">Adaptive confirmation cap<input id="adaptive-max-trials" type="number" min="512" max="8192" step="512" value="${optimizerControls.adaptiveMaxTrials}"></label>
+      <label class="control"><input id="seed-sandbox" type="checkbox" ${optimizerControls.seedSandbox?'checked':''}> Compare my Simulator sandbox board</label>
+      <p class="note">Build a board on the Simulator tab, then enable this to force it through screening, racing, and full simulation as a mandatory candidate. The search also refines it, so a strong hand-built board can seed a better recommendation.</p>
       `:`
       <input id="objective" type="hidden" value="${optimizerControls.objective}">
       <input id="exp-cell-type" type="hidden" value="${optimizerControls.expCellType}">
@@ -2810,6 +3072,7 @@ function optimizerHtml(saved){
       <input id="finalists" type="hidden" value="${optimizerControls.finalistCount}">
       <input id="trials" type="hidden" value="${optimizerControls.simulationTrials}">
       <input id="adaptive-max-trials" type="hidden" value="${optimizerControls.adaptiveMaxTrials}">
+      <input id="seed-sandbox" type="hidden" value="${optimizerControls.seedSandbox?'true':'false'}">
       <label class="control" ${optimizerControls.mode==='local'?'hidden':''}>Node budget<input id="exact-node-budget" type="number" min="1" max="50000000" value="${optimizerControls.exactNodeBudget}"></label>
       <label class="control" ${optimizerControls.mode==='local'?'hidden':''}>Time budget (seconds)<input id="exact-time-budget" type="number" min="1" max="3600" value="${Math.round(optimizerControls.exactTimeBudgetMs/1000)}"></label>
       <label class="control" ${optimizerControls.mode==='local'?'hidden':''}><input id="exact-full-coverage" type="checkbox" ${optimizerControls.exactRequireFullCoverage?'checked':''}> Require every unlocked slot occupied</label>
