@@ -16,6 +16,8 @@ import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
+import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
+import { getSetBonus } from '../w3/setBonus.js';
 
 export function sigilBonus(sigilIdx, saveData, charIdx) {
   var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
@@ -317,13 +319,75 @@ function _clearedW6Maps() {
   return count;
 }
 
-export function finalBubbleValByKey(key, charIdx, saveData, cacheInputs) {
-  var base = Number(bubbleValByKey(key, charIdx, saveData, cacheInputs)) || 0;
-  if (key === 'W10AllCharz') {
-    return base * Math.floor(Math.max(0, ((Number(saveData.totalTomePoints) || 0) - 5000) / 2000));
+var _SLAB_POST_PASS = { W2: 1, W4: 1, A2: 1, A4: 1, M2: 1, M4: 1 };
+var _TOME_BONUS_POST_PASS = { W8: 1, A9: 1, M9: 1 };
+var _TOME_POST_PASS = { W10AllCharz: 1, A10AllCharz: 1, M10AllCharz: 1 };
+var _LEVEL_POST_PASS = { W7: 1, A8: 1, M7: 1 };
+var _FAMILY_LEVEL_POST_PASS = { W9AllCharz: 0, A7AllCharz: 1, M8AllCharz: 2 };
+
+function _classZeroedBubble(key, cls) {
+  var zeroed = cls < 7 ? ['W1', 'A1', 'A5', 'M5']
+    : cls < 18 ? ['A1', 'A5', 'A6', 'M1', 'M5', 'M6']
+    : cls < 30 ? ['M1', 'M5', 'M6', 'W1', 'W5', 'W6']
+    : ['W1', 'W5', 'W6', 'A1', 'A5', 'A6'];
+  return zeroed.indexOf(key) !== -1;
+}
+
+// Warrior (6-17), Archer (18-29), and Mage (30-41) character-level totals.
+function _familyLevelTotal(family, saveData) {
+  var total = 0;
+  for (var ci = 0; ci < (charClassData || []).length; ci++) {
+    var cls = Number(charClassData[ci]) || 0;
+    var f = cls < 6 ? -1 : cls < 18 ? 0 : cls < 30 ? 1 : cls < 42 ? 2 : -1;
+    if (f === family) total += Number(saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][0]) || 0;
   }
-  if (key === 'Y6') return base * _clearedW6Maps();
-  return base;
+  return total;
+}
+
+// Final DNSM.AlchBubbles value: TalentCalc(-2) post-passes applied after the
+// class and big-bubble passes, in source order.
+export function finalBubbleValByKey(key, charIdx, saveData, cacheInputs) {
+  var baseNode = bubbleValByKey(key, charIdx, saveData, cacheInputs);
+  var base = Number(baseNode) || 0;
+  var children = [node('Cached bubble', base, baseNode && baseNode.children || null, { fmt: 'raw' })];
+  var val = base;
+  function apply(name, mult, note) {
+    val *= mult;
+    children.push(node(name, mult, null, { fmt: 'x', note: note }));
+  }
+  if (key === 'MealSpdz') {
+    var meals = (saveData.mealsData && saveData.mealsData[0]) || [];
+    var meals11 = 0;
+    for (var mi = 0; mi < meals.length; mi++) if ((Number(meals[mi]) || 0) >= 11) meals11++;
+    val = Math.pow(base, meals11);
+    children.push(node('Meals at Lv 11+ (exponent)', meals11, null, { fmt: 'raw' }));
+  }
+  if (_SLAB_POST_PASS[key]) {
+    var slab = (saveData.cards1Data && saveData.cards1Data.length) || 0;
+    apply('Slab items / 100', Math.floor(slab / 100), 'floor(' + slab + ' / 100)');
+  }
+  var tomeN = Math.floor(Math.max(0, ((Number(saveData.totalTomePoints) || 0) - 5000) / 2000));
+  if (_TOME_BONUS_POST_PASS[key]) {
+    apply('Tome points', tomeN, 'floor((tome - 5000) / 2000)');
+    var g17 = (Number(saveData.grimoireData && saveData.grimoireData[17]) || 0) * grimoireUpgPerLevel(17);
+    var troll = Number(getSetBonus('TROLL_SET', charIdx)) || 0;
+    apply(label('Grimoire', 17) + ' + Troll Set', 1 + (g17 + troll) / 100);
+  }
+  if (_TOME_POST_PASS[key]) apply('Tome points', tomeN, 'floor((tome - 5000) / 2000)');
+  if (_LEVEL_POST_PASS[key]) {
+    var lv = Number(saveData.lv0AllData && saveData.lv0AllData[charIdx] && saveData.lv0AllData[charIdx][0]) || 0;
+    apply('Character level', Math.max(1, Math.floor((lv - 500) / 10)), 'max(1, floor((' + lv + ' - 500) / 10))');
+  }
+  if (Object.prototype.hasOwnProperty.call(_FAMILY_LEVEL_POST_PASS, key)) {
+    var famLv = _familyLevelTotal(_FAMILY_LEVEL_POST_PASS[key], saveData);
+    apply('Class family levels', 1 + 4 * famLv / (famLv + 1e3), famLv + ' total levels');
+  }
+  if (_classZeroedBubble(key, Number(charClassData && charClassData[charIdx]) || 0)) {
+    val = 0;
+    children.push(node('Not active for this class', 0, null, { fmt: 'raw' }));
+  }
+  if (key === 'Y6') apply('Cleared W6 maps 251-263', _clearedW6Maps());
+  return treeResult(val, children.length > 1 ? children : baseNode && baseNode.children || null);
 }
 
 // ==================== VIAL BY KEY ====================

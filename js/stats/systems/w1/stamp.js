@@ -242,7 +242,9 @@ export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
     var vault16 = vaultUpgBonus(16, saveData);
     if (vault16 > 0) total *= 1 + vault16 / 100;
   }
-  if (typeKey === 'BaseAllEff') {
+  // Source multiplies every type key containing "Eff" (BaseFishEff, FishEffPerLv,
+  // CookingEff, ...) by max(Talent 625, 1), not only BaseAllEff.
+  if (typeKey.indexOf('Eff') !== -1) {
     var stampTalent625 = talent.resolve(625, { charIdx: charIdx == null ? 0 : charIdx, saveData: saveData }).val;
     total *= Math.max(Number(stampTalent625) || 0, 1);
   }

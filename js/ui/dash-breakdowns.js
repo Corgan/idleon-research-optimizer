@@ -436,7 +436,7 @@ export function renderBreakdownTree(root, container, opts) {
       return '1 in ' + fmtVal(Math.round(1 / v));
     }
     if (node.fmt === 'pct') return parseFloat(v.toFixed(1)) + '%';
-    if (node.fmt === '%') return '+' + parseFloat(v.toFixed(2)) + '%';
+    if (node.fmt === '%') return (v < 0 ? '' : '+') + (Math.abs(v) >= 1e6 ? fmtVal(v) : parseFloat(v.toFixed(2))) + '%';
     if (node.fmt === 'x') return '\u00d7' + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));
     if (node.fmt === '+') return (v >= 0 ? '+' : '') + (Math.abs(v) >= 1e4 ? fmtVal(v) : parseFloat(v.toFixed(4)));
     if (Number.isInteger(v)) return v >= 1e4 ? fmtVal(v) : String(v);

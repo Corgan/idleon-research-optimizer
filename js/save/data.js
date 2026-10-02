@@ -37,6 +37,8 @@ export let maxCarryCapData = [];
 export let maxCarryCapDataAvailable = [];
 export let fishingToolkitData = [];
 export let fishingToolkitDataAvailable = [];
+export let fishingSpotIndexData = [];
+export let fishingSpotIndexDataAvailable = [];
 export let mapBonData = [];
 export let obolNamesData = [];
 export let obolMapsData = [];
@@ -83,6 +85,8 @@ export function assignSaveData(u) {
   if ('maxCarryCapDataAvailable' in u) maxCarryCapDataAvailable = u.maxCarryCapDataAvailable;
   if ('fishingToolkitData' in u) fishingToolkitData = u.fishingToolkitData;
   if ('fishingToolkitDataAvailable' in u) fishingToolkitDataAvailable = u.fishingToolkitDataAvailable;
+  if ('fishingSpotIndexData' in u) fishingSpotIndexData = u.fishingSpotIndexData;
+  if ('fishingSpotIndexDataAvailable' in u) fishingSpotIndexDataAvailable = u.fishingSpotIndexDataAvailable;
   if ('mapBonData' in u) mapBonData = u.mapBonData;
   if ('obolNamesData' in u) obolNamesData = u.obolNamesData;
   if ('obolMapsData' in u) obolMapsData = u.obolMapsData;

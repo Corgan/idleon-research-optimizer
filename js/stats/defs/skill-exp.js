@@ -27,7 +27,9 @@ import { HolesInfo, MapAFKtarget, MapDetails } from '../data/game/customlists.js
 import { MONSTERS } from '../data/game/monsters.js';
 import {
   rval, safe, computeAllBaseSkillEff, computeAllEfficiencies,
-  computeAllSkillxpz, computeAllSkillxpMULTI
+  computeAllSkillxpz, computeAllSkillxpMULTI,
+  computeAllSkillxpzDetail, computeAllSkillxpMULTIDetail,
+  noteNum, resolverTerm, sourceTerm, sumTerms,
 } from './skill-helpers.js';
 import { computeCalcTalent, computeFishingToolkitStat } from '../systems/common/calcTalent.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
@@ -96,6 +98,62 @@ function _allProwess(ci, ctx) {
   var mealProwess = _num(safe(computeMealBonus, 'Sprow', saveData, ci));
   return Math.max(0, Math.min(0.1,
     (prowessMulti - 1) / 10 + 0.001 * skillProw + 0.0005 * mealProwess));
+}
+
+// ArbitraryCode("ProwessALL"): shared skilling prowess before per-skill box terms.
+export function computeAllSkillProwess(ci, ctx) {
+  return _allProwess(ci, ctx);
+}
+
+export function computeAllSkillProwessDetail(ci, ctx) {
+  var saveData = ctx.saveData;
+  var prowessRaw = safe(bubbleValByKey, 'ProwessMulti', ci, saveData);
+  var prowessMulti = _num(prowessRaw);
+  var skillProw = _activeStarSignBonus(25, 2, ci, saveData);
+  var mealRaw = safe(computeMealBonus, 'Sprow', saveData, ci);
+  var mealProwess = _num(mealRaw);
+  var raw = (prowessMulti - 1) / 10 + 0.001 * skillProw + 0.0005 * mealProwess;
+  return {
+    name: 'All skill prowess',
+    val: _allProwess(ci, ctx),
+    fmt: '+',
+    note: 'clamp(0, 0.1, sum) · raw ' + noteNum(raw),
+    children: [
+      { name: 'Bubble: Prowess multi (−1) ÷ 10', val: (prowessMulti - 1) / 10, fmt: '+', children: prowessRaw && prowessRaw.children || null },
+      { name: 'Star Sign 25 × 0.001', val: 0.001 * skillProw, fmt: '+' },
+      { name: 'Meal: Skill Prowess × 0.0005', val: 0.0005 * mealProwess, fmt: '+', children: mealRaw && mealRaw.children || null },
+    ],
+  };
+}
+
+// Game: FishingToolkit("EXP") + T117 + T104 + SkillageDN(MinFishEXP, 2× if fish<mine)
+//   + CardBonus(31) + StampFishExp + T75 + Arcade(4) + Achieve(117) + etc49
+//   + 25*RiftSkill(3) + 25*Bribe(29) + Roo(2) + Voting(8) + Vault(30)
+function _fishingExpTerms(ci, ctx) {
+  var s = ctx.saveData;
+  var miningLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][1]) || 0;
+  var fishingLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][4]) || 0;
+  var minFishRaw = safe(bubbleValByKey, 'MinFishEXP', ci, s);
+  var minFishEXP = _num(minFishRaw);
+  var passive = safe(computeRiftSkillBonus, 3, 2, s) > 0;
+  return [
+    sourceTerm('Fishing Toolkit EXP (lure + line)', computeFishingToolkitStat('EXP', ci)),
+    resolverTerm(talent, 117, ctx),
+    resolverTerm(talent, 104, ctx),
+    sourceTerm('Bubble: Mining/Fishing EXP' + (fishingLv < miningLv ? ' ×2 (Fishing below Mining)' : ''),
+      fishingLv < miningLv ? 2 * minFishEXP : minFishEXP, { children: minFishRaw && minFishRaw.children || null }),
+    sourceTerm('Card Bonus: Fishing EXP', safe(computeCardBonusByType, 31, ci, s, passive ? { passive: true } : undefined)),
+    sourceTerm('Stamp: Fishing EXP', safe(computeStampBonusOfTypeX, 'FishExp', s, ci)),
+    resolverTerm(talent, 75, ctx),
+    resolverTerm(arcade, 4, ctx),
+    sourceTerm(label('Achievement', 117), safe(achieveStatus, 117, s)),
+    resolverTerm(etcBonus, '49', ctx),
+    sourceTerm('25 × Rift Skill Mastery (Fishing)', 25 * safe(computeRiftSkillBonus, 3, 0, s)),
+    sourceTerm('25 × ' + label('Bribe', 29), 25 * safe(getBribeBonus, '29', s)),
+    sourceTerm('Roo Bonus 2', safe(computeRooBonus, 2, s)),
+    sourceTerm('Vote: Fishing', _vote(8, ctx)),
+    resolverTerm(vault, 30, ctx),
+  ];
 }
 
 function _talentCalc146(ci, ctx) {
@@ -436,31 +494,10 @@ var SKILL_EXP_CONFIG = {
     skillLvIdx: 4,
     calcTalentRow: [42, 3],
     sources: function(ci, ctx) {
-      // Game: FishingToolkit("EXP") + T117 + T104 + SkillageDN(MinFishEXP, 2× if fish<mine)
-      //   + CardBonus(31) + StampFishExp + T75 + Arcade(4) + Achieve(117) + etc49
-      //   + 25*RiftSkill(3) + 25*Bribe(29) + Roo(2) + Voting(8) + Vault(30)
-      var s = ctx.saveData;
-      var fishToolkitEXP = computeFishingToolkitStat('EXP', ci);
-      var talent117 = rval(talent, 117, ctx);
-      var talent104 = rval(talent, 104, ctx);
-      // SkillageDN: MinFishEXP bubble, doubled if fishing level < mining level
-      var miningLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][1]) || 0;
-      var fishingLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][4]) || 0;
-      var minFishEXP = safe(bubbleValByKey, 'MinFishEXP', ci, ctx.saveData);
-      var skillageDN = fishingLv < miningLv ? 2 * minFishEXP : minFishEXP;
-      var card31 = _skillCardBonus(31, 3, ci, ctx.saveData);
-      var stampFishExp = _stampBonus('FishExp', ci, ctx.saveData);
-      var talent75 = rval(talent, 75, ctx);
-      var arcade4 = rval(arcade, 4, ctx);
-      var ach117 = safe(achieveStatus, 117, ctx.saveData);
-      var etc49 = rval(etcBonus, '49', ctx);
-      var riftBonus3 = 25 * safe(computeRiftSkillBonus, 3, 0, ctx.saveData);
-      var bribe29 = 25 * safe(getBribeBonus, '29', ctx.saveData);
-      var roo2 = safe(computeRooBonus, 2, ctx.saveData);
-      var voting8 = _vote(8, ctx);
-      var vault30 = rval(vault, 30, ctx);
-      return fishToolkitEXP + talent117 + talent104 + skillageDN + card31 + stampFishExp
-        + talent75 + arcade4 + ach117 + etc49 + riftBonus3 + bribe29 + roo2 + voting8 + vault30;
+      return sumTerms(_fishingExpTerms(ci, ctx));
+    },
+    terms: function(ci, ctx) {
+      return _fishingExpTerms(ci, ctx);
     },
   },
   Catching: {
@@ -650,9 +687,12 @@ export default createDescriptor({
       }, status);
     }
 
-    var allSkillxpz = computeAllSkillxpz(ci, ctx);
-    var allSkillxpMULTI = computeAllSkillxpMULTI(ctx);
-    var perSkillSources = sk.sources(ci, ctx);
+    var allSkillxpzDetail = computeAllSkillxpzDetail(ci, ctx);
+    var allSkillxpMULTIDetail = computeAllSkillxpMULTIDetail(ctx);
+    var allSkillxpz = allSkillxpzDetail.val;
+    var allSkillxpMULTI = allSkillxpMULTIDetail.val;
+    var skillTerms = sk.terms ? sk.terms(ci, ctx) : null;
+    var perSkillSources = skillTerms ? sumTerms(skillTerms) : sk.sources(ci, ctx);
 
     // CalcTalentMAP contribution
     var calcTalent = 0;
@@ -666,10 +706,20 @@ export default createDescriptor({
     if (val !== val || val == null) val = 1;
 
     var children = [];
-    children.push({ name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' });
-    children.push({ name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' });
-    children.push({ name: skillType + ' specific sources', val: perSkillSources, fmt: 'raw' });
-    if (calcTalent > 0) children.push({ name: skillType + ' Talent Bonus', val: calcTalent, fmt: 'raw' });
+    children.push(allSkillxpMULTIDetail);
+    if (skillTerms) {
+      var additive = [
+        { name: skillType + ' specific sources', val: perSkillSources, fmt: '%', children: skillTerms },
+        allSkillxpzDetail,
+      ];
+      if (calcTalent > 0) additive.push({ name: skillType + ' Talent Bonus', val: calcTalent, fmt: '%' });
+      children.push({ name: skillType + ' EXP %', val: 1 + (perSkillSources + allSkillxpz + calcTalent) / 100, fmt: 'x',
+        note: sk.clamp === false ? '' : 'Total is at least ×0.1', children: additive });
+    } else {
+      children.push(Object.assign({}, allSkillxpzDetail, { fmt: 'raw' }));
+      children.push({ name: skillType + ' specific sources', val: perSkillSources, fmt: 'raw' });
+      if (calcTalent > 0) children.push({ name: skillType + ' Talent Bonus', val: calcTalent, fmt: 'raw' });
+    }
 
     return Object.assign({
       val: val,

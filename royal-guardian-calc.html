@@ -17,6 +17,7 @@
         --blue: #2196f3;
         --cyan: #4dd0e1;
         --red: #f44;
+        --purple: #bb86fc;
       }
       * {
         box-sizing: border-box;
@@ -775,6 +776,95 @@
       .unit-exp-chart svg { display: block; width: 100%; height: auto; }
       .unit-exp-chart-tick { fill: var(--text2); font-size: 11px; font-variant-numeric: tabular-nums; }
       .unit-exp-chart-label { fill: #e8edf7; font-size: 11px; font-weight: 700; }
+/* Forecast timeline */
+.forecast-view .fc-controls { flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin-bottom: 10px; }
+.fc-toggle { display: inline-flex; border: 1px solid #40536e; border-radius: 4px; overflow: hidden; }
+.fc-toggle button { border: 0; border-radius: 0; background: #101b35; color: var(--text2); padding: 6px 10px; cursor: pointer; }
+.fc-toggle button[aria-pressed="true"] { background: #1d3150; color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
+.fc-types { display: flex; flex-wrap: wrap; gap: 4px 10px; border: 1px solid #333; border-radius: 4px; padding: 2px 8px 5px; font-size: .85em; }
+.fc-types legend { color: var(--text2); padding: 0 4px; font-size: .9em; }
+.fc-types label { display: inline-flex; align-items: center; gap: 4px; }
+.fc-hint, .fc-rel { color: var(--text2); font-size: .82em; }
+.fc-hint { margin: 10px 0 6px; }
+.fc-timeline-wrap { overflow-x: auto; border: 1px solid #2a3a55; border-radius: 6px; background: #0d1528; }
+.fc-timeline-wrap svg { display: block; width: 100%; min-width: 760px; height: auto; user-select: none; touch-action: none; }
+.fc-lane-alt { fill: rgba(255,255,255,.025); }
+.fc-lane-armory { fill: rgba(255,215,0,.05); }
+.fc-lane-label { fill: #d8deea; font-size: 11px; }
+.fc-hit { fill: transparent; cursor: crosshair; }
+.fc-grid { stroke: rgba(255,255,255,.07); stroke-width: 1; }
+.fc-tick { fill: var(--text2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.fc-sleep { fill: rgba(80,90,160,.16); pointer-events: none; }
+.fc-reset { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.fc-now { stroke: var(--green); stroke-width: 1.5; pointer-events: none; }
+.fc-now-label { fill: var(--green); font-size: 10px; font-weight: 700; pointer-events: none; }
+.fc-window { fill: rgba(77,208,225,.12); stroke: rgba(77,208,225,.55); stroke-dasharray: 3 3; }
+.fc-committed { fill: rgba(77,208,225,.55); pointer-events: none; }
+.fc-drained { fill: rgba(76,175,80,.7); pointer-events: none; }
+.fc-projected { fill: none; stroke: rgba(77,208,225,.8); stroke-width: 1.25; stroke-dasharray: 4 3; pointer-events: none; }
+.fc-fill { fill: var(--cyan); stroke: #0d1528; stroke-width: 1.5; cursor: pointer; }
+.fc-refill { fill: var(--green); }
+.fc-missed { stroke: var(--red); stroke-width: 2; fill: none; }
+.fc-rank-ghost { fill: #0d1528; stroke-width: 1.5; cursor: pointer; }
+.fc-rank { stroke: #0d1528; stroke-width: 1; }
+.fc-clear-ghost { fill: none; stroke: var(--purple); stroke-width: 1.5; cursor: pointer; }
+.fc-clear { fill: var(--purple); }
+.fc-afford { fill: none; stroke: var(--gold); stroke-width: 1.5; cursor: pointer; }
+.fc-afford.committed { fill: var(--gold); cursor: default; }
+.fc-collect line { stroke: #f8fafc; stroke-width: 1.5; pointer-events: none; }
+.fc-collect circle { fill: #f8fafc; stroke: #0d1528; stroke-width: 2; cursor: ew-resize; }
+.fc-collect circle:focus { outline: none; stroke: var(--accent); stroke-width: 3; }
+.fc-collect.ignored line { stroke-dasharray: 2 3; opacity: .5; }
+.fc-collect.ignored circle { fill: #687389; }
+.fc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 14px; color: var(--text2); font-size: .8em; }
+.fc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-legend i { display: inline-block; width: 16px; height: 10px; border-radius: 2px; }
+.fc-legend b { font-weight: 700; }
+.fc-key-collect { background: #f8fafc; width: 3px !important; height: 14px !important; }
+.fc-key-window { background: rgba(77,208,225,.25); border: 1px dashed rgba(77,208,225,.7); }
+.fc-key-reset { border-left: 2px dashed var(--accent); width: 2px !important; height: 14px !important; }
+.fc-key-sleep { background: rgba(80,90,160,.4); }
+.fc-key-committed { background: rgba(77,208,225,.55); }
+.fc-key-drained { background: rgba(76,175,80,.7); }
+.fc-key-projected { border-top: 2px dashed rgba(77,208,225,.8); height: 0 !important; }
+.fc-key-currency { border-top: 2px solid var(--gold); height: 0 !important; }
+.fc-key-threshold { border-top: 1px dashed rgba(255,215,0,.6); height: 0 !important; }
+.fc-key-fill { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); }
+.fc-key-refill { color: var(--green); }
+.fc-key-missed { color: var(--red); }
+.fc-key-clear { color: var(--purple); }
+.fc-key-afford { color: var(--gold); }
+.fc-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .fc-columns { grid-template-columns: 1fr; } }
+.fc-add { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+.fc-add label { display: flex; flex-direction: column; gap: 2px; color: var(--text2); font-size: .85em; }
+.fc-agenda { list-style: none; display: grid; gap: 6px; max-height: 640px; overflow-y: auto; padding-right: 4px; }
+.fc-item { background: var(--bg3); border: 1px solid #2f4566; border-radius: 6px; padding: 6px 8px; }
+.fc-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.fc-item-head b { color: var(--cyan); min-width: 64px; }
+.fc-item-head input { background: #101b35; color: var(--text); border: 1px solid #40536e; border-radius: 4px; padding: 2px 4px; }
+.fc-remove { margin-left: auto; background: none; border: 1px solid #40536e; border-radius: 4px; color: var(--text2); cursor: pointer; padding: 1px 6px; }
+.fc-remove:hover, .fc-remove:focus-visible { color: var(--red); border-color: var(--red); }
+.fc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.fc-chip { --chip: var(--cyan); display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 10px; font-size: .75em; font-weight: 600; color: var(--chip); background: color-mix(in srgb, var(--chip) 15%, transparent); border: 1px solid color-mix(in srgb, var(--chip) 40%, transparent); }
+.fc-chip .currency-inline { width: 14px; height: 14px; }
+.fc-chip-gold { --chip: var(--gold); }
+.fc-chip-green { --chip: var(--green); }
+.fc-chip-red { --chip: var(--red); }
+.fc-chip-purple { --chip: var(--purple); }
+.fc-details { margin-top: 5px; font-size: .82em; }
+.fc-details summary { cursor: pointer; color: var(--text2); }
+.fc-details ul { list-style: none; margin: 4px 0 0 10px; display: grid; gap: 3px; }
+.link-button { background: none; border: 0; padding: 0; color: var(--cyan); cursor: pointer; text-decoration: underline; font: inherit; }
+.fc-tip-list { list-style: none; margin: 4px 0 0; display: grid; gap: 2px; }
+.fc-chart { margin: 4px 0 10px; }
+.fc-chart svg { display: block; width: 100%; height: auto; background: #0d1528; border-radius: 6px; }
+.fc-chart-bg { fill: rgba(255,255,255,.02); }
+.fc-currency { fill: none; stroke: var(--gold); stroke-width: 2; }
+.fc-currency-projected { fill: none; stroke: rgba(77,208,225,.8); stroke-width: 1.25; stroke-dasharray: 4 3; }
+.fc-threshold { stroke: rgba(255,215,0,.45); stroke-dasharray: 3 4; }
+.fc-threshold-label { fill: rgba(255,215,0,.8); font-size: 10px; }
+.forecast-view .data-table tr.selected td { background: rgba(255,215,0,.06); }
       .unit-exp-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text2); font-size: .78em; }
       .unit-exp-legend span { display: inline-flex; align-items: center; gap: 6px; }
       .unit-exp-legend i { display: inline-block; width: 22px; height: 0; border-top: 2.4px solid #e8edf7; }
@@ -1076,6 +1166,17 @@
         ><button
           class="tab-btn"
           role="tab"
+          id="tab-forecast"
+          aria-controls="content"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="forecast"
+        >
+          Forecast
+        </button
+        ><button
+          class="tab-btn"
+          role="tab"
           id="tab-optimizer"
           aria-controls="content"
           aria-selected="false"
@@ -1092,6 +1193,7 @@
       import { initSaveLoader } from "./js/ui/save-loader.js";
       import * as R from "./js/stats/systems/w7/royal-guardian.js";
       import * as O from "./js/stats/systems/w7/royal-guardian-optimizer.js";
+      import * as F from "./js/stats/systems/w7/royal-forecast.js";
       import {
         ARMORY_UPGRADES,
         ARMORY_ORDER,
@@ -1322,19 +1424,20 @@
         royalQuickTooltip.style.left = `${Math.max(viewportLeft + margin, Math.min(viewportLeft + viewportWidth - margin - scaledWidth, clientX + pad))}px`;
         royalQuickTooltip.style.top = `${Math.max(viewportTop + margin, Math.min(viewportTop + viewportHeight - margin - scaledHeight, clientY + pad))}px`;
       }
+      function hideRoyalTooltip() { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; }
+      function bindRoyalTooltip(element, html) {
+        element.setAttribute("aria-describedby", royalQuickTooltip.id);
+        const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); lastRoyalTooltipAnchor = { x, y }; positionRoyalTooltip(x, y); };
+        element.addEventListener("pointerenter", event => show(event.clientX, event.clientY));
+        element.addEventListener("pointermove", event => { lastRoyalTooltipAnchor = { x: event.clientX, y: event.clientY }; positionRoyalTooltip(event.clientX, event.clientY); });
+        element.addEventListener("pointerleave", hideRoyalTooltip);
+        element.addEventListener("focus", () => { const rect = element.getBoundingClientRect(); show(rect.right, rect.top); });
+        element.addEventListener("blur", hideRoyalTooltip);
+        element.addEventListener("keydown", event => { if (event.key === "Escape") hideRoyalTooltip(); });
+      }
       function wireRoyalTooltips() {
         const S = activeRoyalState();
-        const hide = () => { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; };
-        const bind = (element, html) => {
-          element.setAttribute("aria-describedby", royalQuickTooltip.id);
-          const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); lastRoyalTooltipAnchor = { x, y }; positionRoyalTooltip(x, y); };
-          element.addEventListener("pointerenter", event => show(event.clientX, event.clientY));
-          element.addEventListener("pointermove", event => { lastRoyalTooltipAnchor = { x: event.clientX, y: event.clientY }; positionRoyalTooltip(event.clientX, event.clientY); });
-          element.addEventListener("pointerleave", hide);
-          element.addEventListener("focus", () => { const rect = element.getBoundingClientRect(); show(rect.right, rect.top); });
-          element.addEventListener("blur", hide);
-          element.addEventListener("keydown", event => { if (event.key === "Escape") hide(); });
-        };
+        const bind = bindRoyalTooltip;
         document.querySelectorAll("[data-royal-clear-tooltip]").forEach(element => bind(element, () => rawOutpostClearTooltip(element)));
         if (session.rangeFinderMode) return;
         document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(S, n(element.dataset.mapOutpost))));
@@ -1483,8 +1586,8 @@
         document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => showOutpostRange(n(element.dataset.mapOutpost))));
         document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => showResourceRange(n(element.dataset.mapResource))));
       }
-      function decorateCurrencySelectors() {
-        for (const select of document.querySelectorAll("#currency-selector, #resource-currency")) {
+      function decorateCurrencySelectors(root = document) {
+        for (const select of (root || document).querySelectorAll("#currency-selector, #resource-currency, #fc-currency")) {
           const picker = document.createElement("details"); picker.className = "currency-icon-picker";
           const selectedOption = select.selectedOptions[0], selectedSlot = Number(selectedOption?.value);
           picker.innerHTML = `<summary aria-label="Currency: ${esc(selectedOption?.textContent || "All")}" title="${esc(selectedOption?.textContent || "All")}">${Number.isFinite(selectedSlot) && selectedSlot >= 0 ? currencyIcon(selectedSlot) : "All"}</summary><span class="currency-icon-menu" role="group" aria-label="Choose currency"></span>`;
@@ -1836,7 +1939,9 @@
                       ? upgrades(S)
                       : session.tab === "breakdowns"
                         ? globalBreakdowns(S)
-                        : layoutOptimizer(S);
+                        : session.tab === "forecast"
+                          ? forecastView(S)
+                          : layoutOptimizer(S);
                 decorateCurrencySelectors();
                 decorateDetailBreakdowns(S);
                 if ((session.tab !== "outposts" || session.outpostDetailView === "summary") && (session.tab !== "resources" || session.resourceDetailView === "summary")) decorateRangeTargets();
@@ -3009,11 +3114,410 @@
           rows = R.orbletRows(S);
         return `<div class="upgrade-heading"><h2>Orblets</h2>${spoilerToggle()}</div>${balances(S, "orblets")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<tr><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Locked Orblet upgrade</td><td class="upgrade-spoiler-hidden">???</td></tr>` : `<tr><td>${displayItemName(r.name)}</td><td>${fi(r.level)} / ${fi(r.maxLevel)}</td><td>${esc(R.orbletDescription(S, r.index))}</td><td class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</td></tr>`).join("")}</tbody></table></div><div class="mobile-cards">${rows.map((r) => !r.unlocked && !session.spoilersVisible ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div class="upgrade-spoiler-hidden">Level ???</div><div class="upgrade-spoiler-hidden">Locked Orblet upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(r.name)}</b><div>Level ${fi(r.level)} / ${fi(r.maxLevel)}</div><div>${esc(R.orbletDescription(S, r.index))}</div><div class="${r.maxed || r.affordable ? "cost-ok" : "cost-bad"}">Cost ${r.maxed ? "MAX" : `${fi(r.owned)} / ${fi(r.cost)} Orblets`}</div></article>`).join("")}</div>`;
       }
+      // ===== Forecast: manual collections over a projected timeline =====
+      const FORECAST_STORE = "royal-forecast-v1";
+      const FORECAST_HORIZONS = [[12, "12h"], [24, "24h"], [72, "3d"], [168, "7d"], [336, "14d"]];
+      const FORECAST_TYPES = [["fills", "Node fills"], ["ranks", "Rank-ups"], ["affordable", "Affordable upgrades"], ["clears", "Clears"], ["resets", "Resets"]];
+      const RANK_COLORS = ["rgb(74, 229, 74)", "rgb(68, 138, 166)", "rgb(249, 130, 114)", "rgb(255, 214, 97)", "rgb(236, 214, 133)"];
+      const BAR_NAMES = ["Trading", "Intel", "Command", "Military", "Purity"];
+      const forecast = loadForecastSettings();
+      let forecastCache = { key: null, result: null, ms: 0 };
+      let forecastTips = [];
+      let forecastSnapTimes = [];
+      function loadForecastSettings() {
+        const base = { horizon: 72, lanes: "nodes", world: "map", types: Object.fromEntries(FORECAST_TYPES.map(([key]) => [key, true])), collects: [], windows: [], sleep: { enabled: false, start: "23:00", end: "07:00" }, interval: 6, currency: null };
+        try {
+          const saved = JSON.parse(localStorage.getItem(FORECAST_STORE) || "null");
+          if (!saved || typeof saved !== "object") return base;
+          if (FORECAST_HORIZONS.some(([hours]) => hours === saved.horizon)) base.horizon = saved.horizon;
+          if (saved.lanes === "outposts") base.lanes = "outposts";
+          if (saved.world === "all") base.world = "all";
+          for (const [key] of FORECAST_TYPES) if (typeof saved.types?.[key] === "boolean") base.types[key] = saved.types[key];
+          if (Array.isArray(saved.collects)) base.collects = saved.collects.map(Number).filter(Number.isFinite);
+          if (Array.isArray(saved.windows)) base.windows = saved.windows.map(w => ({ start: Number(w?.start), end: Number(w?.end) })).filter(w => Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start);
+          const time = /^\d\d:\d\d$/;
+          if (saved.sleep && typeof saved.sleep === "object") base.sleep = { enabled: !!saved.sleep.enabled, start: time.test(saved.sleep.start) ? saved.sleep.start : "23:00", end: time.test(saved.sleep.end) ? saved.sleep.end : "07:00" };
+          if (Number(saved.interval) >= 0.5 && Number(saved.interval) <= 48) base.interval = Number(saved.interval);
+        } catch { }
+        return base;
+      }
+      function saveForecastSettings() {
+        const anchor = forecastAnchor() ?? 0;
+        forecast.collects = [...new Set(forecast.collects.filter(epoch => epoch >= anchor))].sort((a, b) => a - b);
+        forecast.windows = forecast.windows.filter(w => w.end > anchor).sort((a, b) => a.start - b.start);
+        try { localStorage.setItem(FORECAST_STORE, JSON.stringify({ horizon: forecast.horizon, lanes: forecast.lanes, world: forecast.world, types: forecast.types, collects: forecast.collects, windows: forecast.windows, sleep: forecast.sleep, interval: forecast.interval })); } catch { }
+      }
+      // Times are stored as epoch seconds so collects stay put across save refreshes; t=0 is the save snapshot.
+      function forecastAnchor() { const value = Number(saveData.timeAwayData?.GlobalTime); return Number.isFinite(value) && value > 0 ? value : null; }
+      function forecastElapsedHours() { const anchor = forecastAnchor(); return anchor === null ? null : (Date.now() / 1000 - anchor) / 3600; }
+      function fcHours(epoch) { return (epoch - (forecastAnchor() ?? 0)) / 3600; }
+      function fcEpoch(hours) { return (forecastAnchor() ?? 0) + hours * 3600; }
+      function fcDate(hours) { const anchor = forecastAnchor(); return anchor === null ? null : new Date((anchor + hours * 3600) * 1000); }
+      function fcDuration(hours) {
+        const minutes = Math.round(Math.max(0, hours) * 60), days = Math.floor(minutes / 1440), h = Math.floor(minutes % 1440 / 60), m = minutes % 60;
+        return days ? `${days}d ${h}h` : h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+      }
+      function fcClock(hours) {
+        const date = fcDate(hours);
+        return date ? `${date.toLocaleDateString([], { weekday: "short" })} ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : `+${fcDuration(hours)}`;
+      }
+      function fcWhen(hours) { return `${esc(fcClock(hours))} <span class="fc-rel">+${esc(fcDuration(hours))}</span>`; }
+      function fcInputValue(hours) {
+        const date = fcDate(hours);
+        if (!date) return String(Math.round(hours * 100) / 100);
+        const pad = value => String(value).padStart(2, "0");
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+      function fcParseInput(value) {
+        if (forecastAnchor() === null) { const hours = Number(value); return Number.isFinite(hours) ? hours : null; }
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) ? (date.getTime() / 1000 - forecastAnchor()) / 3600 : null;
+      }
+      function fcTimeInput(hours, attributes) {
+        return forecastAnchor() === null ? `<input type="number" min="0" max="${forecast.horizon}" step="0.25" value="${fcInputValue(hours)}" ${attributes}>` : `<input type="datetime-local" step="60" value="${fcInputValue(hours)}" ${attributes}>`;
+      }
+      function forecastBlocked() {
+        const anchor = forecastAnchor();
+        if (!forecast.sleep.enabled || anchor === null) return [];
+        const [startHour, startMinute] = forecast.sleep.start.split(":").map(Number), [endHour, endMinute] = forecast.sleep.end.split(":").map(Number);
+        const day0 = new Date(anchor * 1000); day0.setHours(0, 0, 0, 0);
+        const list = [];
+        for (let day = -1; day <= Math.ceil(forecast.horizon / 24) + 1; day++) {
+          const start = new Date(day0); start.setDate(start.getDate() + day); start.setHours(startHour, startMinute, 0, 0);
+          const end = new Date(day0); end.setDate(end.getDate() + day); end.setHours(endHour, endMinute, 0, 0);
+          if (end <= start) end.setDate(end.getDate() + 1);
+          const a = Math.max(0, (start.getTime() / 1000 - anchor) / 3600), b = Math.min(forecast.horizon, (end.getTime() / 1000 - anchor) / 3600);
+          if (b > a) list.push({ start: a, end: b });
+        }
+        return list;
+      }
+      function forecastInputs() {
+        return {
+          horizonHours: forecast.horizon,
+          collects: forecast.collects.map(fcHours).filter(hours => hours >= 0 && hours <= forecast.horizon),
+          windows: forecast.windows.map(w => ({ start: fcHours(w.start), end: fcHours(w.end) })).filter(w => w.end > 0 && w.start < forecast.horizon),
+        };
+      }
+      function computeForecast(S) {
+        const inputs = forecastInputs();
+        const key = JSON.stringify([session.saveRevision, session.royalStateView, session.shelfStepIndex, inputs]);
+        if (forecastCache.key === key) return forecastCache.result;
+        const started = performance.now();
+        let result;
+        try { result = F.forecastRoyal(S, inputs); } catch (error) { result = { available: false, error: String(error?.message || error || "Forecast failed.") }; }
+        forecastCache = { key, result, ms: performance.now() - started };
+        return result;
+      }
+      function nodeLabel(resourceIdx) { return `Resource ${n(resourceIdx) + 1}`; }
+      function fcMapName(mapIdx) { return (mapDisplayName(mapIdx) || `Outpost ${mapIdx}`).replaceAll("_", " "); }
+      function rankUpSummary(rankUps) {
+        const counts = [0, 0, 0, 0, 0];
+        for (const up of rankUps) counts[up.bar] += up.to - up.from;
+        return counts.map((count, bar) => count ? `<span class="fc-chip" style="--chip:${RANK_COLORS[bar]}">${BAR_NAMES[bar]} +${fi(count)}</span>` : "").join("");
+      }
+      function affordableChips(items) {
+        const unique = [...new Map(items.map(item => [item.index, item])).values()];
+        return unique.map(item => `<span class="fc-chip fc-chip-gold">${currencyIcon(item.currencySlot)}${displayItemName(item.name)}</span>`).join("");
+      }
+      function forecastLanes(S, result) {
+        const inWorld = world => forecast.world === "all" || world === session.worldIdx;
+        if (forecast.lanes === "nodes") return Object.keys(result.tracks).map(Number).filter(idx => inWorld(R.resourceWorld(idx))).sort((a, b) => a - b).map(id => ({ kind: "node", id }));
+        const clearing = new Set(result.segments.flatMap(segment => segment.ghosts.clears.map(ghost => ghost.mapIdx)));
+        const lanes = [];
+        for (const world of worlds) if (inWorld(world)) for (const row of R.worldOutpostRows(S, world)) if (row.built || clearing.has(row.mapIdx)) lanes.push({ kind: "outpost", id: row.mapIdx });
+        return lanes;
+      }
+      function forecastAxisLabel(hours, step) {
+        const date = fcDate(hours);
+        if (!date) return `+${fi(hours)}h`;
+        if (date.getHours() === 0 && date.getMinutes() === 0) return date.toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" });
+        return step >= 1 ? date.toLocaleTimeString([], { hour: "numeric" }) : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      }
+      function forecastTimeline(S, result) {
+        const lanes = forecastLanes(S, result);
+        const W = 1000, L = 170, Rm = 12, width = W - L - Rm, axisY = 30, armoryY = 44, laneH = 22, top = armoryY + laneH, H = top + lanes.length * laneH + 6;
+        const end = result.horizonHours, x = hours => L + width * Math.max(0, Math.min(end, hours)) / end, X = hours => x(hours).toFixed(1);
+        const tip = html => { forecastTips.push(html); return forecastTips.length - 1; };
+        const snap = hours => { forecastSnapTimes.push(hours); return hours; };
+        let back = "", marks = "", over = "";
+        lanes.forEach((lane, i) => { if (i % 2 === 0) back += `<rect x="0" y="${top + i * laneH}" width="${W}" height="${laneH}" class="fc-lane-alt"/>`; });
+        back += `<rect x="0" y="${armoryY}" width="${W}" height="${laneH}" class="fc-lane-armory"/>`;
+        for (const blocked of forecastBlocked()) back += `<rect x="${X(blocked.start)}" y="${axisY}" width="${(x(blocked.end) - x(blocked.start)).toFixed(1)}" height="${H - axisY}" class="fc-sleep"/>`;
+        const step = end <= 12 ? 1 : end <= 24 ? 3 : end <= 72 ? 6 : end <= 168 ? 12 : 24;
+        const date0 = fcDate(0), offset = date0 ? (step - ((date0.getHours() + date0.getMinutes() / 60 + date0.getSeconds() / 3600) % step)) % step : 0;
+        for (let hours = offset; hours <= end + 1e-9; hours += step) back += `<line x1="${X(hours)}" x2="${X(hours)}" y1="${axisY}" y2="${H}" class="fc-grid"/><text x="${X(hours)}" y="${axisY - 6}" text-anchor="middle" class="fc-tick">${esc(forecastAxisLabel(hours, step))}</text>`;
+        for (const reset of result.resets || []) over += `<line x1="${X(reset)}" x2="${X(reset)}" y1="${axisY - 2}" y2="${H}" class="fc-reset" data-ftip="${tip(`<h3>Daily reset</h3><p>${esc(fcClock(reset))}</p>`)}"/>`;
+        const anchor = forecastAnchor(), now = anchor === null ? null : (Date.now() / 1000 - anchor) / 3600;
+        if (now !== null && now >= 0 && now <= end) over += `<line x1="${X(now)}" x2="${X(now)}" y1="${axisY - 2}" y2="${H}" class="fc-now"/><text x="${X(now)}" y="${H - 2}" class="fc-now-label" text-anchor="middle">now</text>`;
+        result.windows.forEach(w => { marks += `<rect x="${X(w.start)}" y="${axisY}" width="${Math.max(2, x(w.end) - x(w.start)).toFixed(1)}" height="${H - axisY}" class="fc-window" data-fwindow-start="${w.start}" data-ftip="${tip(`<h3>Menu open</h3><p>${esc(fcClock(w.start))} – ${esc(fcClock(w.end))}</p><p>Collects continuously. Double-click to remove.</p>`)}"/>`; });
+        // Armory lane: upgrades that become affordable.
+        marks += `<text x="8" y="${armoryY + 15}" class="fc-lane-label">Armory</text>`;
+        if (forecast.types.affordable) {
+          const groups = new Map();
+          const add = (at, item, committed) => { const key = `${Math.round(x(at))}|${committed}`; if (!groups.has(key)) groups.set(key, { at, committed, items: [] }); groups.get(key).items.push(item); };
+          for (const segment of result.segments) for (const ghost of segment.ghosts.affordable) add(ghost.at, ghost, false);
+          for (const commit of result.collects) for (const item of commit.affordable) add(commit.at, item, true);
+          for (const w of result.windows) for (const item of w.summary.affordable) add(item.at, item, true);
+          for (const group of groups.values()) {
+            const cx = x(group.at), cy = armoryY + laneH / 2;
+            const list = group.items.map(item => `<li>${currencyIcon(item.currencySlot)}${displayItemName(item.name)} <span class="fc-rel">${f(item.cost)}</span></li>`).join("");
+            const html = group.committed ? `<h3>Affordable after collect</h3><p>${esc(fcClock(group.at))}</p><ul class="fc-tip-list">${list}</ul>` : `<h3>Affordable if collected</h3><p>after ${esc(fcClock(group.at))}</p><ul class="fc-tip-list">${list}</ul>`;
+            marks += `<path d="M${cx.toFixed(1)} ${cy - 6} L${(cx + 5).toFixed(1)} ${cy} L${cx.toFixed(1)} ${cy + 6} L${(cx - 5).toFixed(1)} ${cy} Z" class="fc-afford${group.committed ? " committed" : ""}" ${group.committed ? "" : `data-fat="${snap(group.at)}"`} data-ftip="${tip(html)}"/>`;
+          }
+        }
+        lanes.forEach((lane, i) => {
+          const y0 = top + i * laneH, barTop = y0 + 4, barH = laneH - 8;
+          if (lane.kind === "node") {
+            const slot = R.resourceCurrency(lane.id), maps = [...new Set(result.segments.flatMap(segment => segment.nodes.filter(node => node.resourceIdx === lane.id).flatMap(node => node.maps)))];
+            const name = `${nodeLabel(lane.id)}${maps.length ? ` · ${fcMapName(maps[0])}` : ""}`;
+            marks += `${slot >= 0 ? `<image href="./assets/royal-guardian/RGres${slot}.png" x="6" y="${y0 + 3}" width="15" height="15"/>` : ""}<text x="25" y="${y0 + 15}" class="fc-lane-label"><title>${esc(name)}</title>${esc(name.length > 24 ? `${name.slice(0, 23)}…` : name)}</text>`;
+            const track = result.tracks[lane.id] || [];
+            for (let k = 0; k < track.length; k++) {
+              const point = track[k], next = track[k + 1]?.t ?? end;
+              if (next - point.t <= 1e-9 || point.f <= 0) continue;
+              const h = Math.max(1, point.f * barH);
+              marks += `<rect x="${X(point.t)}" y="${(barTop + barH - h).toFixed(1)}" width="${Math.max(0.5, x(next) - x(point.t)).toFixed(1)}" height="${h.toFixed(1)}" class="${point.drained ? "fc-drained" : "fc-committed"}"/>`;
+            }
+            for (const segment of result.segments) {
+              const node = segment.nodes.find(item => item.resourceIdx === lane.id);
+              if (!node || node.drained || !result.banks) continue;
+              marks += `<polyline points="${node.projected.map(p => `${X(p.t)},${(barTop + barH * (1 - p.f)).toFixed(1)}`).join(" ")}" class="fc-projected"/>`;
+              if (forecast.types.fills && node.fillAt !== null) marks += `<circle cx="${X(node.fillAt)}" cy="${barTop}" r="4" class="fc-fill" data-fat="${snap(node.fillAt)}" data-ftip="${tip(`<h3>${esc(nodeLabel(lane.id))} fills</h3><p>Collect after ${esc(fcClock(node.fillAt))} to drain it.</p>`)}"/>`;
+            }
+            if (forecast.types.resets) for (const reset of result.resetEvents) {
+              const missed = reset.missed.find(item => item.resourceIdx === lane.id), cx = x(reset.at);
+              if (reset.refilled.includes(lane.id)) marks += `<path d="M${(cx - 4).toFixed(1)} ${y0 + laneH - 2} L${(cx + 4).toFixed(1)} ${y0 + laneH - 2} L${cx.toFixed(1)} ${y0 + laneH - 9} Z" class="fc-refill" data-ftip="${tip(`<h3>Refilled at reset</h3><p>${esc(nodeLabel(lane.id))}${reset.gradeGains ? " gains a grade" : ""}.</p>`)}"/>`;
+              else if (missed) marks += `<path d="M${(cx - 4).toFixed(1)} ${y0 + 5} L${(cx + 4).toFixed(1)} ${y0 + 13} M${(cx + 4).toFixed(1)} ${y0 + 5} L${(cx - 4).toFixed(1)} ${y0 + 13}" class="fc-missed" data-ftip="${tip(`<h3>Refill missed</h3><p>${esc(nodeLabel(lane.id))} was ready ${esc(fcClock(missed.readyAt))} but not collected before the reset.</p>`)}"/>`;
+            }
+          } else {
+            const name = fcMapName(lane.id);
+            marks += `<text x="8" y="${y0 + 15}" class="fc-lane-label"><title>${esc(name)}</title>${esc(name.length > 26 ? `${name.slice(0, 25)}…` : name)}</text>`;
+            const barY = bar => y0 + 4 + bar * 3.4;
+            if (forecast.types.ranks) {
+              for (const segment of result.segments) for (const ghost of segment.ghosts.ranks) {
+                // A reset-boundary segment repeats ranks already marked in the previous segment.
+                if (ghost.mapIdx !== lane.id || (ghost.ready && segment.start > 0)) continue;
+                const cx = x(ghost.at), cy = barY(ghost.bar);
+                marks += `<path d="M${cx.toFixed(1)} ${(cy - 3.5).toFixed(1)} L${(cx + 3.5).toFixed(1)} ${cy.toFixed(1)} L${cx.toFixed(1)} ${(cy + 3.5).toFixed(1)} L${(cx - 3.5).toFixed(1)} ${cy.toFixed(1)} Z" class="fc-rank-ghost" style="stroke:${RANK_COLORS[ghost.bar]}" data-fat="${snap(ghost.at)}" data-ftip="${tip(`<h3>${BAR_NAMES[ghost.bar]} rank ${fi(ghost.rank)}</h3><p>${ghost.ready ? "Ready now — collect to commit." : `Collect after ${esc(fcClock(ghost.at))}.`}</p>`)}"/>`;
+              }
+              const committed = [...result.collects.map(c => ({ at: c.at, rankUps: c.rankUps })), ...result.windows.flatMap(w => w.summary.rankUps.map(up => ({ at: up.at, rankUps: [up] })))];
+              for (const commit of committed) {
+                const ups = commit.rankUps.filter(up => up.mapIdx === lane.id);
+                if (!ups.length) continue;
+                const html = `<h3>Committed ${esc(fcClock(commit.at))}</h3><ul class="fc-tip-list">${ups.map(up => `<li>${BAR_NAMES[up.bar]} ${fi(up.from)} → ${fi(up.to)}</li>`).join("")}</ul>${ups.some(up => up.pointsAfter > up.pointsBefore) ? `<p>+${fi(Math.max(...ups.map(up => up.pointsAfter)) - Math.min(...ups.map(up => up.pointsBefore)))} outpost points</p>` : ""}`;
+                for (const up of ups) marks += `<circle cx="${X(commit.at)}" cy="${barY(up.bar).toFixed(1)}" r="3" class="fc-rank" style="fill:${RANK_COLORS[up.bar]}" data-ftip="${tip(html)}"/>`;
+              }
+            }
+            if (forecast.types.clears) {
+              for (const segment of result.segments) for (const ghost of segment.ghosts.clears) if (ghost.mapIdx === lane.id) marks += `<rect x="${(x(ghost.at) - 4).toFixed(1)}" y="${y0 + 7}" width="8" height="8" class="fc-clear-ghost" data-fat="${snap(ghost.at)}" data-ftip="${tip(`<h3>Clear complete</h3><p>Collect after ${esc(fcClock(ghost.at))} to finish clearing.</p>`)}"/>`;
+              for (const commit of [...result.collects, ...result.windows.flatMap(w => w.events.filter(e => e.kind === "clear").map(e => ({ at: e.at, secured: [e.mapIdx] })))]) if (commit.secured.includes(lane.id)) marks += `<rect x="${(x(commit.at) - 4).toFixed(1)}" y="${y0 + 7}" width="8" height="8" class="fc-clear" data-ftip="${tip(`<h3>Clear committed</h3><p>${esc(fcClock(commit.at))}</p>`)}"/>`;
+            }
+          }
+        });
+        if (!lanes.length) marks += `<text x="${L + width / 2}" y="${top + 16}" text-anchor="middle" class="fc-tick">${forecast.lanes === "nodes" ? "No linked resource nodes" : "No built outposts"} in ${forecast.world === "all" ? "any world" : `W${session.worldIdx + 1}`}</text>`;
+        forecast.collects.forEach((epoch, index) => {
+          const hours = fcHours(epoch);
+          if (hours < 0 || hours > end) return;
+          const ignored = result.ignoredCollects.some(t => Math.abs(t - hours) < 1e-5);
+          over += `<g class="fc-collect${ignored ? " ignored" : ""}" data-fcollect-group="${index}"><line x1="${X(hours)}" x2="${X(hours)}" y1="${axisY + 6}" y2="${H}"/><circle cx="${X(hours)}" cy="${axisY + 6}" r="6" tabindex="0" role="button" data-fcollect="${index}" aria-label="Collect at ${esc(fcClock(hours))}. Arrow keys move it; Delete removes it." data-ftip="${tip(`<h3>Collect</h3><p>${esc(fcClock(hours))}${ignored ? " — inside a menu-open window, ignored" : ""}</p><p>Drag or use arrow keys to move. Double-click or Delete removes.</p>`)}"/></g>`;
+        });
+        const geo = { L, width, end, axisY, H };
+        return `<div class="fc-timeline-wrap"><svg id="forecast-timeline" viewBox="0 0 ${W} ${H}" data-geo='${JSON.stringify(geo)}' role="application" aria-label="Forecast timeline. Click to add a collect; shift-drag to mark the menu open.">${back}<rect class="fc-hit" x="${L}" y="${axisY}" width="${width}" height="${H - axisY}"/>${marks}${over}</svg></div>`;
+      }
+      function forecastLegend() {
+        return `<div class="fc-legend"><span><i class="fc-key-collect"></i>Collect (click to add)</span><span><i class="fc-key-window"></i>Menu open (shift-drag)</span><span><i class="fc-key-reset"></i>Daily reset</span>${forecast.sleep.enabled ? '<span><i class="fc-key-sleep"></i>Asleep</span>' : ""}${forecast.lanes === "nodes" ? '<span><i class="fc-key-committed"></i>Collected</span><span><i class="fc-key-drained"></i>Drained, refills at reset</span><span><i class="fc-key-projected"></i>If collected now</span><span><b class="fc-key-fill"></b>Fills</span><span><b class="fc-key-refill">▲</b>Refilled</span><span><b class="fc-key-missed">✕</b>Missed refill</span>' : `${BAR_NAMES.map((name, bar) => `<span><b class="fc-key-rank" style="color:${RANK_COLORS[bar]}">◆</b>${name}</span>`).join("")}<span>Hollow: ready if collected · Filled: committed</span><span><b class="fc-key-clear">■</b>Clear</span>`}<span><b class="fc-key-afford">◆</b>Affordable</span></div>`;
+      }
+      function forecastAgenda(result) {
+        const inputs = forecastInputs();
+        const entryIndex = hours => forecast.collects.findIndex(epoch => Math.abs(fcHours(epoch) - hours) < 1e-5);
+        const items = [
+          ...result.collects.map(c => ({ at: c.at, order: 1, html: () => {
+            const index = entryIndex(c.at);
+            const maps = [...new Set(c.rankUps.map(up => up.mapIdx))];
+            const outposts = maps.length ? `<details class="fc-details"><summary>${fi(maps.length)} outpost${maps.length === 1 ? "" : "s"}</summary><ul>${maps.map(mapIdx => `<li><button type="button" class="link-button" data-fc-outpost="${mapIdx}">${esc(fcMapName(mapIdx))}</button> ${c.rankUps.filter(up => up.mapIdx === mapIdx).map(up => `<span class="fc-chip" style="--chip:${RANK_COLORS[up.bar]}">${BAR_NAMES[up.bar]} ${fi(up.from)}→${fi(up.to)}</span>`).join("")}${c.points[mapIdx] ? ` <span class="fc-rel">+${fi(c.points[mapIdx])} pts</span>` : ""}</li>`).join("")}</ul></details>` : "";
+            const points = Object.values(c.points).reduce((a, b) => a + b, 0);
+            return `<div class="fc-item-head"><b>Collect</b>${fcTimeInput(c.at, `data-fc-edit="${index}" aria-label="Collect time"`)}<span class="fc-rel">+${esc(fcDuration(c.at))} · banked ${esc(fcDuration(c.banked))}</span><button type="button" class="fc-remove" data-fc-remove="${index}" aria-label="Remove collect">✕</button></div><div class="fc-chips">${c.drained.length ? `<span class="fc-chip fc-chip-green">${fi(c.drained.length)} node${c.drained.length === 1 ? "" : "s"} drained</span>` : ""}${rankUpSummary(c.rankUps)}${points ? `<span class="fc-chip">+${fi(points)} points</span>` : ""}${affordableChips(c.affordable)}${c.secured.map(mapIdx => `<span class="fc-chip fc-chip-purple">Cleared ${esc(fcMapName(mapIdx))}</span>`).join("")}${!c.banked ? '<span class="fc-rel">Nothing banked</span>' : ""}</div>${outposts}`;
+          } })),
+          ...result.windows.map(w => ({ at: w.start, order: 2, html: () => {
+            const s = w.summary;
+            return `<div class="fc-item-head"><b>Menu open</b><span>${fcWhen(w.start)} – ${esc(fcClock(w.end))}</span><span class="fc-rel">${esc(fcDuration(w.end - w.start))}${w.entry ? ` · opens with ${esc(fcDuration(w.entry.banked))} banked` : ""}</span><button type="button" class="fc-remove" data-fc-remove-window="${w.start}" aria-label="Remove menu-open window">✕</button></div><div class="fc-chips">${s.drained.length ? `<span class="fc-chip fc-chip-green">${fi(s.drained.length)} fills</span>` : ""}${rankUpSummary([...(w.entry?.rankUps || []), ...s.rankUps])}${affordableChips([...(w.entry?.affordable || []), ...s.affordable])}${s.secured.map(mapIdx => `<span class="fc-chip fc-chip-purple">Cleared ${esc(fcMapName(mapIdx))}</span>`).join("")}${w.truncated ? '<span class="fc-chip fc-chip-red">Step limit reached</span>' : ""}</div>`;
+          } })),
+          ...(forecast.types.resets ? result.resetEvents.map(r => ({ at: r.at, order: 0, html: () => `<div class="fc-item-head"><b>Daily reset</b><span>${fcWhen(r.at)}</span></div><div class="fc-chips">${r.refills ? `<span class="fc-chip fc-chip-green">${fi(r.refilled.length)} refilled</span>${r.gradeGains ? `<span class="fc-chip">+${fi(r.gradeGains)} grade${r.gradeGains === 1 ? "" : "s"}</span>` : ""}` : '<span class="fc-rel">Resource Replenish not owned: no refills</span>'}${r.missed.length ? `<span class="fc-chip fc-chip-red">${fi(r.missed.length)} missed</span>` : ""}</div>${r.missed.length ? `<details class="fc-details"><summary>Missed refills</summary><ul>${r.missed.map(m => `<li><button type="button" class="link-button" data-fc-resource="${m.resourceIdx}">${esc(nodeLabel(m.resourceIdx))}</button> ready ${esc(fcClock(m.readyAt))}</li>`).join("")}</ul></details>` : ""}` })) : []),
+        ].sort((a, b) => a.at - b.at || a.order - b.order);
+        const ignored = result.ignoredCollects.length ? `<p class="fc-rel">${fi(result.ignoredCollects.length)} collect${result.ignoredCollects.length === 1 ? "" : "s"} inside menu-open windows ignored.</p>` : "";
+        const add = `<form class="fc-add" id="fc-add-form"><label>Add collect ${fcTimeInput(Math.min(forecast.horizon, Math.max(0, inputs.collects.length ? inputs.collects[inputs.collects.length - 1] + 6 : 1)), 'id="fc-add-time"')}</label><button type="submit">Add</button></form>`;
+        return `<h3>Agenda</h3>${add}${ignored}${items.length ? `<ol class="fc-agenda">${items.map(item => `<li class="fc-item">${item.html()}</li>`).join("")}</ol>` : '<p class="fc-rel">Nothing scheduled yet. Click the timeline or use Suggest.</p>'}`;
+      }
+      function forecastCurrency(result) {
+        const slots = Object.keys(result.currency).map(Number).filter(slot => (result.currency[slot] || []).some(p => p.v > 0)).sort((a, b) => a - b);
+        if (!slots.length) return "";
+        if (!slots.includes(forecast.currency)) forecast.currency = slots.find(slot => result.summary.currency[slot] > 0) ?? slots[0];
+        const slot = forecast.currency, committed = result.currency[slot] || [];
+        const projected = result.segments.filter(segment => segment.currency[slot]).map(segment => segment.currency[slot]);
+        const thresholds = [...new Map([...result.segments.flatMap(segment => segment.ghosts.affordable), ...result.collects.flatMap(c => c.affordable)].filter(item => item.currencySlot === slot).map(item => [item.index, item])).values()];
+        const values = [...committed.map(p => p.v), ...projected.flat().map(p => p.v), ...thresholds.map(item => item.cost)];
+        const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || Math.max(1, hi);
+        const yMin = lo >= 0 ? Math.max(0, lo - span * 0.04) : lo - span * 0.04, yMax = hi + span * 0.04;
+        const W = 640, H = 220, L = 58, Rm = 8, T = 10, B = 10, width = W - L - Rm, plot = H - T - B, end = result.horizonHours;
+        const x = hours => (L + width * hours / end).toFixed(1), y = value => (T + plot * (1 - (value - yMin) / (yMax - yMin))).toFixed(1);
+        let svg = `<rect x="${L}" y="${T}" width="${width}" height="${plot}" class="fc-chart-bg"/>`;
+        for (let k = 0; k <= 4; k++) { const value = yMin + (yMax - yMin) * k / 4; svg += `<line x1="${L}" x2="${L + width}" y1="${y(value)}" y2="${y(value)}" class="fc-grid"/><text x="${L - 6}" y="${(Number(y(value)) + 4).toFixed(1)}" text-anchor="end" class="fc-tick">${esc(fmtVal(value))}</text>`; }
+        for (const reset of result.resets || []) svg += `<line x1="${x(reset)}" x2="${x(reset)}" y1="${T}" y2="${T + plot}" class="fc-reset"/>`;
+        let lastLabelY = Infinity;
+        for (const item of [...thresholds].sort((a, b) => a.cost - b.cost)) { const ty = Number(y(item.cost)); svg += `<line x1="${L}" x2="${L + width}" y1="${ty}" y2="${ty}" class="fc-threshold"/>`; if (lastLabelY - ty >= 12) { svg += `<text x="${L + width - 4}" y="${(ty - 3).toFixed(1)}" text-anchor="end" class="fc-threshold-label">${displayItemName(item.name)}</text>`; lastLabelY = ty; } }
+        for (const points of projected) svg += `<polyline points="${points.map(p => `${x(p.t)},${y(p.v)}`).join(" ")}" class="fc-currency-projected"/>`;
+        let path = "";
+        committed.forEach((p, i) => { path += `${i ? ` L${x(p.t)},${y(committed[i - 1].v)} L` : "M"}${x(p.t)},${y(p.v)}`; });
+        if (committed.length) path += ` L${x(end)},${y(committed[committed.length - 1].v)}`;
+        svg += `<path d="${path}" class="fc-currency"/>`;
+        const rows = slots.map(value => { const series = result.currency[value] || []; return `<tr${value === slot ? ' class="selected"' : ""}><td>${currencyIcon(value)}Currency slot ${fi(value)}</td><td class="num">${f(series[0]?.v)}</td><td class="num">${f(series[series.length - 1]?.v)}</td><td class="num">${f(result.summary.currency[value] || 0)}</td></tr>`; }).join("");
+        return `<h3>Currency</h3><div class="planner-controls"><label>Currency<select id="fc-currency">${slots.map(value => `<option value="${value}" ${value === slot ? "selected" : ""}>Currency slot ${value}</option>`).join("")}</select></label></div><figure class="fc-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Currency balance over the forecast">${svg}</svg><figcaption class="fc-legend"><span><i class="fc-key-currency"></i>Collected balance</span><span><i class="fc-key-projected"></i>If collected now</span><span><i class="fc-key-threshold"></i>Armory cost</span></figcaption></figure><div class="table-wrap"><table class="data-table"><thead><tr><th>Currency</th><th class="num">Start</th><th class="num">At horizon</th><th class="num">Collected</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+      function forecastView(S) {
+        if (!R.hasCompleteRoyalData(S)) return `<section class="section"><h2>Forecast</h2><div class="planner-warning">Royal Guardian save data is unavailable.</div></section>`;
+        forecastTips = []; forecastSnapTimes = [];
+        const result = computeForecast(S);
+        if (!result.available) return `<section class="section forecast-view"><h2>Forecast</h2><div class="planner-warning" role="alert">${esc(result.error || `Forecast unavailable: ${(result.missing || []).join(", ")}`)}</div></section>`;
+        const s = result.summary, affordable = new Set([...result.collects.flatMap(c => c.affordable), ...result.windows.flatMap(w => [...(w.entry?.affordable || []), ...w.summary.affordable])].map(item => item.index));
+        const notes = [
+          forecastAnchor() === null ? "Save timestamp unavailable: times are relative to the snapshot." : "",
+          forecastElapsedHours() >= 1 ? `The save snapshot is ${esc(fcDuration(forecastElapsedHours()))} old. The forecast starts at the snapshot; refresh the save for a current projection.` : "",
+          result.partial ? "Reset timing unavailable: daily resets are not modeled." : "",
+          !result.banks ? `${displayItemName(ARMORY_UPGRADES[30]?.name || "Armory 30")} not owned: time does not bank, so only menu-open windows collect.` : "",
+          result.truncated ? "A menu-open window reached the step limit; later events may be approximate." : "",
+        ].filter(Boolean).map(text => `<div class="planner-warning" role="status">${text}</div>`).join("");
+        const pressed = value => `aria-pressed="${value ? "true" : "false"}"`;
+        const controls = `<div class="planner-controls fc-controls"><label>Horizon<select id="fc-horizon">${FORECAST_HORIZONS.map(([hours, text]) => `<option value="${hours}" ${hours === forecast.horizon ? "selected" : ""}>${text}</option>`).join("")}</select></label><div class="fc-toggle" role="group" aria-label="Timeline rows"><button type="button" data-fc-lanes="nodes" ${pressed(forecast.lanes === "nodes")}>Resource nodes</button><button type="button" data-fc-lanes="outposts" ${pressed(forecast.lanes === "outposts")}>Outposts</button></div><label>Worlds<select id="fc-world"><option value="map" ${forecast.world === "map" ? "selected" : ""}>Map world (W${session.worldIdx + 1})</option><option value="all" ${forecast.world === "all" ? "selected" : ""}>All worlds</option></select></label><fieldset class="fc-types"><legend>Show</legend>${FORECAST_TYPES.map(([key, text]) => `<label><input type="checkbox" data-fc-type="${key}" ${forecast.types[key] ? "checked" : ""}>${text}</label>`).join("")}</fieldset></div><div class="planner-controls fc-controls"><label class="unit-exp-check"><input type="checkbox" id="fc-sleep" ${forecast.sleep.enabled ? "checked" : ""} ${forecastAnchor() === null ? "disabled" : ""}>Asleep</label><label>From<input type="time" id="fc-sleep-start" value="${forecast.sleep.start}"></label><label>To<input type="time" id="fc-sleep-end" value="${forecast.sleep.end}"></label><button type="button" id="fc-suggest-refills">Suggest refill collects</button><label>Every (hours)<input type="number" id="fc-interval" min="0.5" max="48" step="0.5" value="${forecast.interval}"></label><button type="button" id="fc-suggest-interval">Suggest interval</button><button type="button" id="fc-clear" ${forecast.collects.length || forecast.windows.length ? "" : "disabled"}>Clear</button></div>`;
+        const cards = `<div class="card-grid cols-5">${card("Collects", fi(result.collects.length), result.ignoredCollects.length ? `${fi(result.ignoredCollects.length)} ignored in menu windows` : `${fi(result.windows.length)} menu-open window${result.windows.length === 1 ? "" : "s"}`)}${card("Refills", fi(s.refilled), `${fi(s.missed)} missed · +${fi(s.gradeGains)} grade${s.gradeGains === 1 ? "" : "s"}`)}${card("Rank-ups", fi(s.rankUps), `+${fi(s.points)} outpost points`)}${card("Affordable", fi(affordable.size), `Armory upgrade${affordable.size === 1 ? "" : "s"} reached${s.secured.length ? ` · ${fi(s.secured.length)} clear${s.secured.length === 1 ? "" : "s"}` : ""}`)}${card("Banked at end", esc(fcDuration(s.bankedAtHorizon)), "Uncollected at the horizon")}</div>`;
+        return `<section class="section forecast-view">${optimizedStateNotice("forecast")}<h2>Forecast</h2>${notes}${controls}${cards}<p class="fc-hint">Click the timeline to collect at that moment (markers snap). Drag a collect to move it; double-click or Delete removes it. Shift-drag marks the menu open.</p>${forecastTimeline(S, result)}${forecastLegend()}<div class="fc-columns"><div>${forecastAgenda(result)}</div><div>${forecastCurrency(result)}</div></div><p class="fc-rel">Computed in ${fi(forecastCache.ms)} ms.</p></section>`;
+      }
+      function renderForecast() {
+        const view = document.querySelector(".forecast-view");
+        if (!view) return render();
+        const position = { x: window.scrollX, y: window.scrollY };
+        const active = view.contains(document.activeElement) ? document.activeElement : null;
+        const focus = active?.id ? `#${CSS.escape(active.id)}` : active?.dataset?.fcollect !== undefined ? null : active?.dataset?.fcLanes ? `[data-fc-lanes="${active.dataset.fcLanes}"]` : active?.dataset?.fcType ? `[data-fc-type="${active.dataset.fcType}"]` : null;
+        hideRoyalTooltip();
+        view.outerHTML = forecastView(activeRoyalState());
+        decorateCurrencySelectors(document.querySelector(".forecast-view"));
+        wireForecast();
+        if (focus) document.querySelector(focus)?.focus({ preventScroll: true });
+        window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+      }
+      function forecastChanged(focusCollectEpoch = null) {
+        saveForecastSettings();
+        renderForecast();
+        if (focusCollectEpoch !== null) { const index = forecast.collects.indexOf(focusCollectEpoch); if (index >= 0) document.querySelector(`[data-fcollect="${index}"]`)?.focus({ preventScroll: true }); }
+      }
+      function setForecastCollect(index, hours) {
+        const epoch = fcEpoch(Math.max(0, Math.min(forecast.horizon, hours)));
+        if (index === null || index < 0) forecast.collects.push(epoch); else forecast.collects[index] = epoch;
+        forecastChanged(epoch);
+      }
+      function removeForecastCollect(index) { if (index >= 0) forecast.collects.splice(index, 1); forecastChanged(); }
+      function applyForecastSuggestion(mode) {
+        const S = activeRoyalState(), elapsed = forecastElapsedHours();
+        // Suggestions start from the present when it lies inside the horizon; an older snapshot plans from the save time.
+        const from = elapsed !== null && elapsed > 0 && elapsed < forecast.horizon ? elapsed : 0;
+        const inputs = forecastInputs();
+        const suggestion = F.suggestRoyalCollects(S, { ...inputs, mode, fromHours: from, intervalHours: forecast.interval, blocked: forecastBlocked() });
+        const kept = forecast.collects.filter(epoch => fcHours(epoch) < from - 1e-6 || fcHours(epoch) > forecast.horizon);
+        forecast.collects = [...kept, ...suggestion.collects.filter(hours => hours >= from - 1e-6).map(fcEpoch)];
+        forecastChanged();
+      }
+      function wireForecast() {
+        const view = document.querySelector(".forecast-view");
+        if (!view) return;
+        const on = (selector, event, handler) => view.querySelectorAll(selector).forEach(element => element.addEventListener(event, handler));
+        on("#fc-horizon", "change", e => { forecast.horizon = n(e.target.value); forecastChanged(); });
+        on("[data-fc-lanes]", "click", e => { forecast.lanes = e.currentTarget.dataset.fcLanes; forecastChanged(); });
+        on("#fc-world", "change", e => { forecast.world = e.target.value; forecastChanged(); });
+        on("[data-fc-type]", "change", e => { forecast.types[e.target.dataset.fcType] = e.target.checked; forecastChanged(); });
+        on("#fc-sleep", "change", e => { forecast.sleep.enabled = e.target.checked; forecastChanged(); });
+        on("#fc-sleep-start", "change", e => { if (e.target.value) { forecast.sleep.start = e.target.value; forecastChanged(); } });
+        on("#fc-sleep-end", "change", e => { if (e.target.value) { forecast.sleep.end = e.target.value; forecastChanged(); } });
+        on("#fc-interval", "change", e => { const value = Number(e.target.value); if (value >= 0.5 && value <= 48) { forecast.interval = value; saveForecastSettings(); } });
+        on("#fc-suggest-refills", "click", () => applyForecastSuggestion("refills"));
+        on("#fc-suggest-interval", "click", () => applyForecastSuggestion("interval"));
+        on("#fc-clear", "click", () => { forecast.collects = []; forecast.windows = []; forecastChanged(); });
+        on("#fc-currency", "change", e => { forecast.currency = n(e.target.value); renderForecast(); });
+        on("[data-fc-edit]", "change", e => { const hours = fcParseInput(e.target.value); if (hours !== null && hours >= 0) setForecastCollect(n(e.target.dataset.fcEdit), hours); });
+        on("[data-fc-remove]", "click", e => removeForecastCollect(n(e.currentTarget.dataset.fcRemove)));
+        on("[data-fc-remove-window]", "click", e => { const start = Number(e.currentTarget.dataset.fcRemoveWindow); forecast.windows = forecast.windows.filter(w => !(fcHours(w.start) <= start + 1e-6 && fcHours(w.end) > start)); forecastChanged(); });
+        on("#fc-add-form", "submit", e => { e.preventDefault(); const hours = fcParseInput(view.querySelector("#fc-add-time").value); if (hours !== null && hours >= 0 && hours <= forecast.horizon) setForecastCollect(null, hours); });
+        on("[data-fc-outpost]", "click", e => { session.selectedOutpost = n(e.currentTarget.dataset.fcOutpost); session.worldIdx = R.outpostWorld(session.selectedOutpost); session.outpostFilter = "all"; session.outpostDetailView = "summary"; session.mapSelectionKind = "outpost"; session.tab = "outposts"; render(); });
+        on("[data-fc-resource]", "click", e => { session.selectedResource = n(e.currentTarget.dataset.fcResource); session.worldIdx = R.resourceWorld(session.selectedResource); session.resourceState = "all"; session.resourceDetailView = "summary"; session.mapSelectionKind = "resource"; session.tab = "resources"; render(); });
+        view.querySelectorAll("[data-ftip]").forEach(element => bindRoyalTooltip(element, () => forecastTips[n(element.dataset.ftip)] || ""));
+        const svg = view.querySelector("#forecast-timeline");
+        if (svg) wireForecastTimeline(svg);
+      }
+      function wireForecastTimeline(svg) {
+        const geo = JSON.parse(svg.dataset.geo);
+        const point = event => { const p = svg.createSVGPoint(); p.x = event.clientX; p.y = event.clientY; const local = p.matrixTransform(svg.getScreenCTM().inverse()); return { x: local.x, y: local.y, hours: (local.x - geo.L) / geo.width * geo.end }; };
+        const clamp = hours => Math.max(0, Math.min(geo.end, hours));
+        const snapGhost = hours => Math.ceil(hours * 60 - 1e-9) / 60;
+        const snap = hours => {
+          const perHour = geo.width / geo.end; let best = null;
+          for (const t of forecastSnapTimes) { const distance = Math.abs(t - hours) * perHour; if (distance <= 6 && (!best || distance < best.distance)) best = { t, distance }; }
+          return clamp(best ? snapGhost(best.t) : Math.round(hours * 12) / 12);
+        };
+        let drag = null;
+        svg.addEventListener("pointerdown", event => {
+          if (event.button !== 0) return;
+          const p = point(event), handle = event.target.closest("[data-fcollect]");
+          if (handle) drag = { kind: "move", index: n(handle.dataset.fcollect), startX: p.x, moved: false, group: svg.querySelector(`[data-fcollect-group="${handle.dataset.fcollect}"]`) };
+          else if (p.x >= geo.L && p.x <= geo.L + geo.width && p.y >= geo.axisY) {
+            if (event.shiftKey) {
+              const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+              rect.setAttribute("class", "fc-window"); rect.setAttribute("x", p.x); rect.setAttribute("y", geo.axisY); rect.setAttribute("width", 0); rect.setAttribute("height", geo.H - geo.axisY);
+              svg.appendChild(rect);
+              drag = { kind: "window", start: clamp(p.hours), startX: p.x, moved: false, rect };
+            } else if (!event.target.closest("[data-fwindow-start]")) drag = { kind: "add", startX: p.x, moved: false, target: event.target.closest("[data-fat]"), hours: p.hours };
+          }
+          if (!drag) return;
+          svg.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        });
+        svg.addEventListener("pointermove", event => {
+          if (!drag) return;
+          const p = point(event);
+          if (Math.abs(p.x - drag.startX) > 3) drag.moved = true;
+          if (drag.kind === "move" && drag.moved) { drag.group?.setAttribute("transform", `translate(${(p.x - drag.startX).toFixed(1)} 0)`); hideRoyalTooltip(); }
+          if (drag.kind === "window") { const a = Math.max(geo.L, Math.min(drag.startX, p.x)), b = Math.min(geo.L + geo.width, Math.max(drag.startX, p.x)); drag.rect.setAttribute("x", a); drag.rect.setAttribute("width", Math.max(0, b - a)); }
+        });
+        const finish = (event, cancelled) => {
+          if (!drag) return;
+          const current = drag; drag = null;
+          if (cancelled) { renderForecast(); return; }
+          const p = point(event);
+          if (current.kind === "move") { if (current.moved) setForecastCollect(current.index, snap(p.hours)); else svg.querySelector(`[data-fcollect="${current.index}"]`)?.focus({ preventScroll: true }); }
+          else if (current.kind === "add" && !current.moved) setForecastCollect(null, current.target ? clamp(snapGhost(Number(current.target.dataset.fat))) : snap(current.hours));
+          else if (current.kind === "window") {
+            const a = Math.round(clamp(Math.min(current.start, p.hours)) * 12) / 12, b = Math.round(clamp(Math.max(current.start, p.hours)) * 12) / 12;
+            current.rect.remove();
+            if (b - a >= 1 / 12) { forecast.windows.push({ start: fcEpoch(a), end: fcEpoch(b) }); forecastChanged(); }
+          }
+        };
+        svg.addEventListener("pointerup", event => finish(event, false));
+        svg.addEventListener("pointercancel", event => finish(event, true));
+        svg.addEventListener("dblclick", event => {
+          const handle = event.target.closest("[data-fcollect]");
+          if (handle) { removeForecastCollect(n(handle.dataset.fcollect)); return; }
+          const window = event.target.closest("[data-fwindow-start]");
+          if (window) { const start = Number(window.dataset.fwindowStart); forecast.windows = forecast.windows.filter(w => !(fcHours(w.start) <= start + 1e-6 && fcHours(w.end) > start)); forecastChanged(); }
+        });
+        svg.querySelectorAll("[data-fcollect]").forEach(handle => handle.addEventListener("keydown", event => {
+          const index = n(handle.dataset.fcollect), hours = fcHours(forecast.collects[index]);
+          if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeForecastCollect(index); }
+          else if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); setForecastCollect(index, hours + (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 1 : 1 / 12)); }
+        }));
+      }
       function wire() {
         wireTabs(".tab-btn", (b) => {
           clearOutpostPointPlan();
           session.tab = b.dataset.tab;
         });
+        wireForecast();
         wireTabs(
           "[data-world-tab]",
           (b) => {

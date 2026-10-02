@@ -31,7 +31,7 @@ import {
 } from '../systems/common/starSign.js';
 import { talent } from '../systems/common/talent.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
-import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
+import { bubbleValByKey, finalBubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { votingBonusz } from '../systems/w2/voting.js';
 import { getBribeBonus } from '../systems/w3/bribe.js';
 import { computeOwnedItemCount } from '../systems/w3/construction.js';
@@ -45,10 +45,15 @@ import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { createDescriptor } from './helpers.js';
 import { label } from '../entity-names.js';
 import {
-  computeAllBaseSkillEff,
-  computeAllEfficiencies,
+  computeAllBaseSkillEffDetail,
+  computeAllEfficienciesDetail,
   computeCachedSkillBubble,
+  pctGroup,
+  resolverTerm,
   rval,
+  noteNum,
+  sourceTerm,
+  sumTerms,
 } from './skill-helpers.js';
 
 var TOOL_SLOT = {
@@ -111,55 +116,118 @@ function _toolPower(skillType, charIdx) {
   return (Number(item && item.Weapon_Power) || 0) + (Number(saved && saved.Weapon_Power) || 0);
 }
 
-function _powerFromNamedRows(skillType, names, maps) {
+function _namedRowsDetail(skillType, names, maps, label) {
   var total = 0;
+  var children = [];
   for (var slot = 0; names && slot < names.length; slot++) {
     var itemName = names[slot];
     if (!itemName || itemName === 'Blank' || itemName.indexOf(skillType) === -1) continue;
     var item = ITEMS[itemName];
     var saved = maps && (maps[slot] || maps[String(slot)]);
-    total += (Number(item && item.Weapon_Power) || 0) + (Number(saved && saved.Weapon_Power) || 0);
+    var power = (Number(item && item.Weapon_Power) || 0) + (Number(saved && saved.Weapon_Power) || 0);
+    total += power;
+    children.push({ name: _itemName(itemName), val: power, fmt: 'raw' });
   }
-  return total;
+  return { name: label, val: total, fmt: 'raw', children: children.length ? children : null };
+}
+
+function _itemName(key) {
+  var item = ITEMS[key];
+  return item && item.displayName ? String(item.displayName).replace(/_/g, ' ') : key;
+}
+
+function _powerFromNamedRows(skillType, names, maps) {
+  return _namedRowsDetail(skillType, names, maps, '').val;
+}
+
+function _totalSkillPowerDetail(skillType, charIdx, ctx) {
+  var saveData = ctx.saveData;
+  var config = SKILL_POWER[skillType];
+  var toolKey = equipOrderData[charIdx] && equipOrderData[charIdx][1] && equipOrderData[charIdx][1][TOOL_SLOT[skillType]];
+  var terms = [
+    { name: 'Tool: ' + (toolKey && toolKey !== 'Blank' ? _itemName(toolKey) : 'none'), val: _toolPower(skillType, charIdx), fmt: 'raw' },
+    _namedRowsDetail(skillType, equipOrderData[charIdx] && equipOrderData[charIdx][0],
+      emmData[charIdx] && emmData[charIdx][0], 'Equipment'),
+    _namedRowsDetail(skillType, obolNamesData[charIdx], obolMapsData[charIdx], 'Obols'),
+    _namedRowsDetail(skillType, obolFamilyNames, obolFamilyMaps, 'Family obols'),
+  ];
+  if (config.statue != null) {
+    var statue = computeStatueBonusGiven(config.statue, charIdx, saveData);
+    terms.push({ name: label('Statue', config.statue), val: _num(statue), fmt: 'raw', children: statue && statue.children || null });
+  }
+  for (var i = 0; i < config.bubbles.length; i++) {
+    var bubble = finalBubbleValByKey(config.bubbles[i], charIdx, saveData);
+    terms.push({ name: 'Bubble: ' + (label('Bubble', config.bubbles[i]).replace(/^Bubble: /, '')), val: _num(bubble), fmt: 'raw',
+      children: bubble && bubble.children || null });
+  }
+  // Source order: (tool + equipment) + obols + family obols + statue + bubbles.
+  var total = terms[0].val + terms[1].val;
+  for (var t = 2; t < terms.length; t++) total += terms[t].val;
+  return { name: skillType + ' power sources', val: total, fmt: 'raw', children: terms };
 }
 
 function _totalSkillPower(skillType, charIdx, ctx) {
-  var saveData = ctx.saveData;
-  var config = SKILL_POWER[skillType];
-  var gearNames = equipOrderData[charIdx] && equipOrderData[charIdx][0];
-  var gearMaps = emmData[charIdx] && emmData[charIdx][0];
-  var total = _toolPower(skillType, charIdx) + _powerFromNamedRows(skillType, gearNames, gearMaps);
-  total += _powerFromNamedRows(skillType, obolNamesData[charIdx], obolMapsData[charIdx]);
-  total += _powerFromNamedRows(skillType, obolFamilyNames, obolFamilyMaps);
-  if (config.statue != null) total += _num(computeStatueBonusGiven(config.statue, charIdx, saveData));
-  for (var i = 0; i < config.bubbles.length; i++) {
-    total += _num(bubbleValByKey(config.bubbles[i], charIdx, saveData));
-  }
-  return total;
+  return _totalSkillPowerDetail(skillType, charIdx, ctx).val;
 }
 
-function _skillStatsDN(skillType, charIdx, ctx) {
+function _skillStatsDNDetail(skillType, charIdx, ctx) {
   var saveData = ctx.saveData;
   var toolPower = _toolPower(skillType, charIdx);
   var toolBubble = skillType === 'Mining' || skillType === 'Fishing' ? 'ToolW'
     : skillType === 'Choppin' || skillType === 'Worship' ? 'ToolM' : 'ToolA';
+  var children = [{ name: 'Tool power', val: toolPower, fmt: 'raw' }];
   var value = toolPower;
   if (skillType === 'Mining') {
-    value *= 1 + rval(talent, 103, ctx) * (_skillLevel(skillType, charIdx, saveData) / 10) / 100;
+    var miningFactor = 1 + rval(talent, 103, ctx) * (_skillLevel(skillType, charIdx, saveData) / 10) / 100;
+    value *= miningFactor;
+    children.push({ name: label('Talent', 103) + ' (per 10 levels)', val: miningFactor, fmt: 'x' });
   }
-  value *= 1 + _num(bubbleValByKey(toolBubble, charIdx, saveData)) / 100;
-  value += skillType === 'Fishing' || skillType === 'Catching' ? 3 : 4;
-  if (skillType === 'Fishing') value += computeFishingToolkitStat('POW', charIdx);
-  value += _totalSkillPower(skillType, charIdx, ctx);
+  var toolBubbleRaw = bubbleValByKey(toolBubble, charIdx, saveData);
+  var toolBubbleFactor = 1 + _num(toolBubbleRaw) / 100;
+  value *= toolBubbleFactor;
+  children.push({ name: 'Bubble: ' + label('Bubble', toolBubble).replace(/^Bubble: /, '') + ' (tool power)', val: toolBubbleFactor, fmt: 'x',
+    children: toolBubbleRaw && toolBubbleRaw.children || null });
+  var flat = skillType === 'Fishing' || skillType === 'Catching' ? 3 : 4;
+  value += flat;
+  children.push({ name: 'Base', val: flat, fmt: '+' });
+  if (skillType === 'Fishing') {
+    var toolkitPow = computeFishingToolkitStat('POW', charIdx);
+    value += toolkitPow;
+    children.push({ name: 'Fishing Toolkit POW (lure + line)', val: toolkitPow, fmt: '+' });
+  }
+  var sources = _totalSkillPowerDetail(skillType, charIdx, ctx);
+  value += sources.val;
+  children.push(sources);
   if (skillType === 'Fishing') {
     var highScore = Number(saveData.minigameHiscores && saveData.minigameHiscores[1]) || 0;
-    value += Math.min(highScore, rval(talent, 116, ctx, { tab: 2 }));
+    var cap = rval(talent, 116, ctx, { tab: 2 });
+    var minigame = Math.min(highScore, cap);
+    value += minigame;
+    children.push({ name: 'Fishing minigame high score', val: minigame, fmt: '+',
+      note: 'min(high score ' + highScore + ', ' + label('Talent', 116) + ' cap ' + cap + ')' });
   } else if (skillType === 'Trapping') {
-    value += _num(computeStatueBonusGiven(15, charIdx, saveData));
+    var statue15 = _num(computeStatueBonusGiven(15, charIdx, saveData));
+    value += statue15;
+    children.push({ name: label('Statue', 15), val: statue15, fmt: '+' });
   } else if (skillType === 'Worship') {
-    value += _num(computeStatueBonusGiven(16, charIdx, saveData));
+    var statue16 = _num(computeStatueBonusGiven(16, charIdx, saveData));
+    value += statue16;
+    children.push({ name: label('Statue', 16), val: statue16, fmt: '+' });
   }
-  return value;
+  return { name: skillType + ' Skill Power', val: value, fmt: 'raw', children: children };
+}
+
+function _skillStatsDN(skillType, charIdx, ctx) {
+  return _skillStatsDNDetail(skillType, charIdx, ctx).val;
+}
+
+// SkillStatsDN: the skill power term used by efficiency and Multi-Fish/Ore odds.
+export function computeSkillPowerDN(skillType, charIdx, ctx) {
+  return _skillStatsDN(skillType, charIdx, ctx);
+}
+
+export function computeSkillPowerDetail(skillType, charIdx, ctx) {
+  return _skillStatsDNDetail(skillType, charIdx, ctx);
 }
 
 function _totalStat(stat, charIdx, ctx) {
@@ -240,10 +308,18 @@ function _talentCalc146(charIdx, ctx) {
 }
 
 function _shared(charIdx, ctx) {
+  var allEfficienciesDetail = computeAllEfficienciesDetail(charIdx, ctx);
+  var allBaseSkillEffDetail = computeAllBaseSkillEffDetail(charIdx, ctx);
   return {
-    allEfficiencies: computeAllEfficiencies(charIdx, ctx),
-    allBaseSkillEff: computeAllBaseSkillEff(charIdx, ctx),
+    allEfficiencies: allEfficienciesDetail.val,
+    allBaseSkillEff: allBaseSkillEffDetail.val,
+    allEfficienciesDetail: allEfficienciesDetail,
+    allBaseSkillEffDetail: allBaseSkillEffDetail,
   };
+}
+
+function _pctFactor(node) {
+  return Object.assign({}, node, { val: 1 + node.val / 100, fmt: 'x', note: node.note || '+' + noteNum(node.val) + '%' });
 }
 
 function _mining(charIdx, ctx, shared) {
@@ -303,16 +379,62 @@ function _choppin(charIdx, ctx, shared) {
 function _fishing(charIdx, ctx, shared) {
   var saveData = ctx.saveData;
   var level = _skillLevel('Fishing', charIdx, saveData);
-  var statsDN = _skillStatsDN('Fishing', charIdx, ctx);
-  var str = _totalStat('STR', charIdx, ctx);
-  var talent142 = rval(talent, 142, ctx);
+  var power = _skillStatsDNDetail('Fishing', charIdx, ctx);
+  var statsDN = power.val;
+  var strResult = computeTotalStat('STR', charIdx, ctx);
+  var str = Number(strResult.computed) || 0;
+  var strChildren = strResult.tree && strResult.tree.children || null;
+  var talent142 = resolverTerm(talent, 142, ctx);
+  var t142 = talent142.val;
+  var stampBase = _stamp('BaseFishEff', charIdx, saveData);
+  var baseTerms = [
+    { name: 'Skill Power ^ 1.3', val: Math.pow(statsDN, 1.3), fmt: 'raw', children: [power] },
+    { name: 'STR ^ 0.6 × Talent 142', val: Math.pow(str, 0.6) * (1 + t142 / 100), fmt: 'raw', children: [
+      { name: 'Total STR', val: str, fmt: 'raw', children: strChildren },
+      Object.assign({}, talent142, { val: 1 + t142 / 100, fmt: 'x' }),
+    ] },
+    sourceTerm('Stamp: Base Fishing Efficiency', computeStampBonusOfTypeX('BaseFishEff', saveData, charIdx), { fmt: 'raw', val: stampBase }),
+    shared.allBaseSkillEffDetail,
+  ];
   var inner = Math.pow(statsDN, 1.3)
-    + Math.pow(str, 0.6) * (1 + talent142 / 100)
-    + _stamp('BaseFishEff', charIdx, saveData) + shared.allBaseSkillEff;
-  var statGroup = talent142 + 10 * computeRiftSkillBonus(3, 1, saveData)
-    + _vote(8, ctx) + _num(getSetBonus('PLATINUM_SET', charIdx))
-    + 15 * _num(getBribeBonus('29', saveData))
-    + _stamp('FishEffPerLv', charIdx, saveData) * level;
+    + Math.pow(str, 0.6) * (1 + t142 / 100)
+    + stampBase + shared.allBaseSkillEff;
+  var stampPerLv = _stamp('FishEffPerLv', charIdx, saveData);
+  var statTerms = [
+    Object.assign({}, talent142),
+    sourceTerm('10 × Rift Skill Mastery (Fishing)', 10 * computeRiftSkillBonus(3, 1, saveData)),
+    sourceTerm('Vote: Fishing Efficiency', _vote(8, ctx)),
+    sourceTerm('Platinum Set', _num(getSetBonus('PLATINUM_SET', charIdx))),
+    sourceTerm('15 × ' + label('Bribe', 29), 15 * _num(getBribeBonus('29', saveData))),
+    sourceTerm('Stamp: Fishing Efficiency per level × ' + level, stampPerLv * level),
+  ];
+  var statGroup = sumTerms(statTerms);
+  var box = computeBoxReward(charIdx, 'FishEffPct');
+  var cardRaw = computeCardBonusByType(30, charIdx, saveData, { passive: computeRiftSkillBonus(3, 2, saveData) > 0 });
+  var factors = [
+    { name: 'Fishing level', val: 1 + level / 200, fmt: 'x', note: '1 + ' + level + ' / 200' },
+    { name: 'STR scaling', val: 1 + Math.pow(str / 100, 0.35) * (1 + statGroup / 100), fmt: 'x',
+      note: '1 + (STR / 100)^0.35 × (1 + sources / 100)', children: [
+        { name: '(STR / 100) ^ 0.35', val: Math.pow(str / 100, 0.35), fmt: 'raw' },
+        { name: 'STR scaling sources', val: 1 + statGroup / 100, fmt: 'x', children: statTerms },
+      ] },
+    { name: 'Fishing Efficiency %', val: 1 + (_box(charIdx, 'FishEffPct') + computeCalcTalent(43, 3, charIdx, saveData)) / 100, fmt: 'x',
+      children: [
+        sourceTerm('Post Office: Fishing Efficiency', box),
+        sourceTerm('Talent bonus (Fishing)', computeCalcTalent(43, 3, charIdx, saveData)),
+      ] },
+    { name: 'Skill Power', val: 1 + statsDN / 100, fmt: 'x', note: '1 + ' + noteNum(statsDN) + ' / 100' },
+    shared.allEfficienciesDetail,
+    sourceTerm('Golden Food: Fishing Efficiency', null, { fmt: 'x', val: _goldFoodMultiplier('FishingEff', charIdx, saveData) }),
+    pctGroup('Fishing Efficiency sources', [
+      sourceTerm('Card Bonus: Fishing Efficiency', cardRaw),
+      sourceTerm('Vial: Fishing Efficiency', computeVialByKey('FishEff', saveData, charIdx)),
+      resolverTerm(etcBonus, '19', ctx),
+      sourceTerm('Roo Bonus 0', computeRooBonus(0, saveData)),
+    ]),
+    _pctFactor(resolverTerm(talent, 85, ctx)),
+    { name: 'Star Sign: Fishing Efficiency', val: 1 + _starSign('Fishing', charIdx, saveData) / 100, fmt: 'x' },
+  ];
   var value = inner
     * (1 + level / 200)
     * (1 + Math.pow(str / 100, 0.35) * (1 + statGroup / 100))
@@ -324,7 +446,8 @@ function _fishing(charIdx, ctx, shared) {
       + rval(etcBonus, '19', ctx) + _num(computeRooBonus(0, saveData))) / 100)
     * (1 + rval(talent, 85, ctx) / 100)
     * (1 + _starSign('Fishing', charIdx, saveData) / 100);
-  return { value: value, statsDN: statsDN, stat: str, level: level };
+  var tree = [{ name: 'Base efficiency', val: inner, fmt: 'raw', children: baseTerms }].concat(factors);
+  return { value: value, statsDN: statsDN, stat: str, level: level, tree: tree };
 }
 
 function _catching(charIdx, ctx, shared) {
@@ -512,7 +635,8 @@ export default createDescriptor({
     if (result.children) children.push.apply(children, result.children);
     children.push({ name: 'All Base Skill Efficiency', val: shared.allBaseSkillEff, fmt: 'raw' });
     children.push({ name: 'All Skill Efficiencies', val: shared.allEfficiencies, fmt: 'x' });
-
+    // Skills with a source-order factor tree replace the summary terms.
+    if (result.tree) children = result.tree;
     var missingMetadata = [];
     if (saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
     if (['Mining', 'Choppin', 'Fishing', 'Catching'].indexOf(skillType) !== -1

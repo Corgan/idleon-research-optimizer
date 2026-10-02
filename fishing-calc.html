@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idleon Fishing Calculator</title>
+<style>
+:root {
+  --bg:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --panel:#101b35;
+  --accent:#e94560; --text:#eee; --text2:#c0c0d4; --gold:#ffd700;
+  --green:#4caf50; --blue:#2196f3; --purple:#bb86fc; --cyan:#4dd0e1;
+  --red:#f44; --orange:#ffa060; --border:#425071;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+h1 { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:var(--bg2); border-bottom:2px solid var(--accent); font-size:1.35em; }
+h1 span { color:var(--accent); }
+h1 a { color:var(--text2); font-size:.62em; text-decoration:none; }
+.main { max-width:1500px; margin:0 auto; padding:14px; }
+.empty { padding:36px; text-align:center; color:var(--text2); }
+.section { background:var(--bg2); border-radius:8px; padding:14px; margin-bottom:14px; }
+.section h2 { margin-bottom:10px; color:var(--accent); font-size:1.08em; border-bottom:1px solid #34405f; padding-bottom:6px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.section h2 small { color:var(--text2); font-weight:400; font-size:.72em; }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+.card { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:9px 11px; min-height:74px; }
+.card-title { color:var(--cyan); font-size:.73em; font-weight:700; }
+.card-val { color:var(--gold); font-size:1.3em; font-weight:700; margin:3px 0; font-variant-numeric:tabular-nums; }
+.card-sub { color:var(--text2); font-size:.68em; line-height:1.35; }
+.toolbar { background:var(--bg2); border-bottom:1px solid #39435f; padding:10px 14px; display:flex; flex-wrap:wrap; gap:9px 14px; align-items:flex-end; position:sticky; top:0; z-index:20; }
+.toolbar[hidden] { display:none; }
+.control { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-size:.71em; }
+select,input { min-height:31px; border:1px solid #586482; border-radius:4px; background:var(--panel); color:var(--text); padding:4px 7px; }
+input[type=number] { width:90px; }
+.table-wrap { overflow:auto; }
+.data-table { width:100%; border-collapse:collapse; font-size:.78em; white-space:nowrap; }
+.data-table th { position:sticky; top:0; z-index:1; text-align:left; padding:6px; color:var(--text2); background:var(--bg2); border-bottom:1px solid #46516c; }
+.data-table td { padding:5px 6px; border-bottom:1px solid rgba(255,255,255,.05); }
+.data-table tr:hover td { background:rgba(255,255,255,.035); }
+.data-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.data-table tr.current td { background:rgba(255,215,0,.07); }
+.data-table tr.saved td { background:rgba(77,208,225,.07); }
+.data-table tr.inactive td { color:#7f8aa6; }
+.data-table tr.clickable { cursor:pointer; }
+.badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.72em; font-weight:700; margin-left:4px; }
+.badge-green { background:rgba(76,175,80,.2); color:#83db88; }
+.badge-gold { background:rgba(255,215,0,.15); color:var(--gold); }
+.badge-red { background:rgba(255,68,68,.16); color:#ff8b8b; }
+.badge-cyan { background:rgba(77,208,225,.16); color:var(--cyan); }
+.badge-muted { background:rgba(192,192,212,.12); color:var(--text2); }
+.callout-list { display:grid; gap:7px; }
+.callout { border-left:3px solid var(--gold); background:rgba(255,215,0,.065); padding:8px 10px; color:var(--text2); font-size:.76em; line-height:1.5; }
+.callout.warn { border-left-color:var(--red); background:rgba(255,68,68,.055); }
+.callout code { color:var(--cyan); }
+.split { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; }
+.split > .section { margin-bottom:0; }
+.share-bar { display:flex; height:10px; border-radius:4px; overflow:hidden; background:#313a52; min-width:120px; }
+.share-bar i { display:block; height:100%; }
+.s0 { background:#6fa8dc; } .s1 { background:#83db88; } .s2 { background:#ffb74d; } .s3 { background:#bb86fc; }
+.delta-up { color:#83db88; font-weight:700; }
+.delta-down { color:#ff8b8b; }
+.muted { color:var(--text2); }
+.btn { border:1px solid #586482; background:var(--panel); color:var(--text); border-radius:4px; padding:3px 9px; cursor:pointer; font-size:.95em; }
+.btn:hover { border-color:var(--cyan); }
+h3.sub { margin:14px 0 8px; color:var(--cyan); font-size:.9em; }
+.helper-bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:flex-end; margin-bottom:8px; font-size:.78em; }
+.breakdown-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.breakdown-panel { min-width:0; padding:10px; background:var(--panel); border:1px solid #40536e; border-radius:8px; }
+.breakdown-panel h3 { margin:0 0 8px; color:var(--cyan); font-size:.95rem; }
+.bt-controls { margin-bottom:8px; display:flex; gap:6px; }
+.bt-controls .btn-sm { padding:4px 10px; background:var(--bg3); color:var(--text2); border:1px solid #4a607e; border-radius:4px; cursor:pointer; font-size:.8em; }
+.bt-tree { font-size:.85em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-bottom:1px solid rgba(255,255,255,.04); min-height:26px; cursor:pointer; }
+.bt-row:hover { background:rgba(255,255,255,.07); }
+.bt-children { background:rgba(0,0,0,.12); border-left:2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight:700; font-size:1.05em; padding-top:6px; padding-bottom:6px; border-bottom:2px solid #445; }
+.bt-arrow { cursor:pointer; color:var(--text2); font-size:1em; width:14px; text-align:center; user-select:none; flex-shrink:0; }
+.bt-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bt-val { font-weight:600; text-align:right; flex-shrink:0; white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums; }
+.bt-tooltip { position:fixed; display:none; z-index:30; max-width:340px; padding:8px; background:var(--panel); color:var(--text); border:1px solid #4a607e; border-radius:4px; font-size:.8em; }
+@media(max-width:1300px) { .breakdown-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:1000px) { .split { grid-template-columns:1fr; } }
+@media(max-width:700px) {
+  .main { padding:8px; } h1 { font-size:1.04em; padding:10px; }
+  .toolbar { position:static; padding:8px; }
+  .card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .breakdown-grid { grid-template-columns:1fr; }
+  .bt-label { white-space:normal; overflow-wrap:anywhere; }
+}
+</style>
+</head>
+<body>
+<h1><a href="index.html">Home</a><div>&#127907; <span>Idleon</span> Fishing Calculator</div><a href="https://github.com/Corgan/idleon-research-optimizer">GitHub</a></h1>
+<div id="save-area"></div>
+<div id="toolbar" class="toolbar" hidden></div>
+<div id="app" class="main"><div class="empty">Load a save to calculate AFK Fishing catches, fish, and EXP.</div></div>
+<div id="fish-bt-tooltip" class="bt-tooltip"></div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import { charClassData } from './js/save/data.js';
+import { ClassNames } from './js/stats/data/game/customlists.js';
+import {
+  FISHING_POOL_KEYS,
+  fishingPool,
+  fishingLocations,
+  fishingToolkitOptions,
+} from './js/stats/data/w2/fishing.js';
+import { createFishingEvaluator, rankFishingToolkits } from './js/stats/systems/w2/fishing.js';
+import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+
+var LURES = fishingToolkitOptions(0);
+var LINES = fishingToolkitOptions(1);
+var LOCATIONS = fishingLocations();
+var DEFAULT_LOCATION = '72:FishBig';
+
+var state = {
+  loaded: false,
+  charIdx: 0,
+  lure: 0,
+  line: 0,
+  hours: 1,
+  location: DEFAULT_LOCATION,
+  objective: 'exp',
+  trenchDepths: 5,
+  trenchHelpers: null,
+  trenchHelperMode: 'saved',
+};
+var evaluators = Object.create(null);
+var rankCache = Object.create(null);
+var trenchCache = Object.create(null);
+var pendingTrees = [];
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  statusText: function() { return characterCount() + ' characters'; },
+  onLoad: function() {
+    var firstLoad = !state.loaded;
+    state.loaded = true;
+    evaluators = Object.create(null);
+    rankCache = Object.create(null);
+    trenchCache = Object.create(null);
+    state.trenchHelpers = null;
+    state.charIdx = Math.min(state.charIdx, characterCount() - 1);
+    if (firstLoad) state.charIdx = defaultCharacter();
+    applySavedDefaults();
+    render();
+  },
+});
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, function(c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+function num(value) { value = Number(value); return Number.isFinite(value) ? fmtVal(value) : '—'; }
+function whole(value) {
+  value = Number(value);
+  if (!Number.isFinite(value)) return '—';
+  return Math.abs(value) < 1e6 ? Math.round(value).toLocaleString() : fmtVal(value);
+}
+function pct(value, digits) { return (Number(value) || 0).toFixed(digits == null ? 2 : digits) + '%'; }
+function badge(text, type) { return '<span class="badge badge-' + (type || 'muted') + '">' + esc(text) + '</span>'; }
+function card(title, value, sub) {
+  return '<div class="card"><div class="card-title">' + esc(title) + '</div><div class="card-val">' + value
+    + '</div><div class="card-sub">' + (sub || '') + '</div></div>';
+}
+function head(cols) {
+  return '<thead><tr>' + cols.map(function(c) {
+    return '<th' + (c[1] ? ' class="num"' : '') + (c[2] ? ' title="' + esc(c[2]) + '"' : '') + '>' + esc(c[0]) + '</th>';
+  }).join('') + '</tr></thead>';
+}
+
+function characterCount() {
+  return Math.max(saveData.charNames?.length || 0, saveData.lv0AllData?.length || 0, 1);
+}
+function charLabel(ci) {
+  var name = saveData.charNames?.[ci] || ('Character ' + (ci + 1));
+  var cls = String(ClassNames[charClassData[ci]] || '').replace(/_/g, ' ');
+  return name + (cls ? ' (' + cls + ')' : '');
+}
+function fishingLevel(ci) { return Number(saveData.lv0AllData?.[ci]?.[4]) || 0; }
+function defaultCharacter() {
+  var best = 0;
+  for (var ci = 0; ci < characterCount(); ci++) {
+    var ev = evaluator(ci);
+    var targetIsFish = FISHING_POOL_KEYS.indexOf(ev.base.afkTarget) >= 0;
+    var bestIsFish = FISHING_POOL_KEYS.indexOf(evaluator(best).base.afkTarget) >= 0;
+    if (targetIsFish && !bestIsFish) best = ci;
+    else if (targetIsFish === bestIsFish && fishingLevel(ci) > fishingLevel(best)) best = ci;
+  }
+  return best;
+}
+function evaluator(ci) {
+  if (!evaluators[ci]) evaluators[ci] = createFishingEvaluator(saveData, ci);
+  return evaluators[ci];
+}
+function locationById(id) {
+  return LOCATIONS.find(function(l) { return l.id === id; }) || LOCATIONS.find(function(l) { return l.id === DEFAULT_LOCATION; });
+}
+function applySavedDefaults() {
+  var base = evaluator(state.charIdx).base;
+  state.lure = base.savedSelection.lure;
+  state.line = base.savedSelection.line;
+  if (base.savedLocationId) state.location = base.savedLocationId;
+}
+function depthText(bonus) {
+  var parts = [];
+  for (var i = 0; i < 4; i++) if (bonus[i]) parts.push('D' + i + ' +' + bonus[i]);
+  return parts.join(', ') || 'none';
+}
+function toolkitStatText(stats) {
+  return ['D0', 'D1', 'D2', 'D3', 'EXP', 'SPEED', 'POW'].filter(function(k) { return stats[k]; })
+    .map(function(k) { return k + ' ' + stats[k]; }).join(' · ') || 'no stats';
+}
+function hoursLabel() { return state.hours === 1 ? '/hr' : '/' + state.hours + 'h'; }
+
+function renderToolbar() {
+  var base = evaluator(state.charIdx).base;
+  var html = '<label class="control">Character<select data-control="char">';
+  for (var ci = 0; ci < characterCount(); ci++) {
+    html += '<option value="' + ci + '"' + (ci === state.charIdx ? ' selected' : '') + '>'
+      + esc(charLabel(ci)) + ' · Lv ' + fishingLevel(ci) + '</option>';
+  }
+  html += '</select></label>';
+  html += toolkitSelect('Lure', 'lure', LURES, state.lure, base.savedSelection.lure);
+  html += toolkitSelect('Line', 'line', LINES, state.line, base.savedSelection.line);
+  html += '<label class="control">Fishing location<select data-control="location">';
+  LOCATIONS.forEach(function(l) {
+    html += '<option value="' + esc(l.id) + '"' + (state.location === l.id ? ' selected' : '') + '>'
+      + esc(l.label + ' · ' + l.poolName + ' · depth ' + depthText(l.bonus)) + (base.savedLocationId === l.id ? ' (saved)' : '') + '</option>';
+  });
+  html += '</select></label>';
+  html += '<label class="control">Hours away<input type="number" min="0.04" max="10000" step="0.5" data-control="hours" value="' + state.hours + '"></label>';
+  html += '<label class="control">&nbsp;<button class="btn" data-action="reset">Reset to saved</button></label>';
+  document.getElementById('toolbar').innerHTML = html;
+  document.getElementById('toolbar').hidden = false;
+}
+function toolkitSelect(label, control, options, value, savedIdx) {
+  var html = '<label class="control">' + label + '<select data-control="' + control + '">';
+  options.forEach(function(o) {
+    html += '<option value="' + o.idx + '"' + (o.idx === value ? ' selected' : '') + '>'
+      + esc(o.name + (o.idx === savedIdx ? ' (saved)' : '') + ' — ' + toolkitStatText(o.stats)) + '</option>';
+  });
+  return html + '</select></label>';
+}
+
+function render() {
+  if (!state.loaded) return;
+  pendingTrees = [];
+  renderToolbar();
+  var ev = evaluator(state.charIdx);
+  var base = ev.base;
+  var selection = { lure: state.lure, line: state.line };
+  var location = locationById(state.location);
+  state.location = location.id;
+  var result = ev.evaluateLocations(selection, state.hours);
+  var selectedRow = result.locations.find(function(l) { return l.id === location.id; });
+  var inputs = selectedRow.inputs;
+  var selected = selectedRow.outcome;
+  var html = '';
+
+  var notes = [];
+  if (!base.savedSelectionAvailable) notes.push('<div class="callout warn">This save has no <code>PVFishingToolkit_' + state.charIdx + '</code> key; the saved lure/line default is Fly + Fishing Twine.</div>');
+  if (!base.savedSpotAvailable) notes.push('<div class="callout warn">This save has no <code>PVFishingSpotIndex_' + state.charIdx + '</code> key; the saved fishing spot is unknown.</div>');
+  result.reasons.forEach(function(r) { notes.push('<div class="callout warn">' + esc(r) + '</div>'); });
+
+  var savedLocation = base.savedLocationId ? locationById(base.savedLocationId) : null;
+  if (notes.length) html += '<div class="callout-list" style="margin-bottom:12px">' + notes.join('') + '</div>';
+  html += '<div class="section"><h2>' + esc(charLabel(state.charIdx)) + '<small>Saved location: '
+    + esc(savedLocation ? savedLocation.label + ' (' + savedLocation.poolName + ')' : 'not fishing (' + (base.afkTarget || 'none') + ')')
+    + ' · Rod: ' + esc(base.rodName) + ' (Speed ' + base.rodSpeed + ')</small></h2><div class="card-grid">'
+    + card('Depths at ' + location.label, 'D1 ' + num(inputs.depths.D1) + ' · D2 ' + num(inputs.depths.D2) + ' · D3 ' + num(inputs.depths.D3),
+      'D0 ' + num(inputs.depths.D0) + ' (each D0 point removes ⅓ from D1–D3) · equipment ' + base.equipmentDepth.map(num).join('/')
+      + ' · spot ' + depthText(inputs.spotBonus))
+    + card('Fishing Efficiency', num(inputs.efficiency), 'Unlocks fish types and sets fish per catch')
+    + card('Catches / hr', whole(inputs.catchesPerHour), 'Active catches; catch time ' + inputs.speed.toFixed(3)
+      + 's + 0.4s · attack-loadout ×' + inputs.attackFactorUsed.toFixed(2))
+    + card('AFK Gain Rate', pct(inputs.afkRate * 100, 0), 'Multiplies catches while away')
+    + card('AFK catches ' + hoursLabel(), whole(inputs.catchesPerHour * inputs.afkRate * state.hours), 'Catches/hr × AFK rate × hours')
+    + card('Multi-Fish', pct(inputs.multiFish, 1), 'Raw ' + pct(inputs.multiFishRaw, 1) + ' · cap ' + pct(inputs.multiFishCap, 0)
+      + (inputs.multiFishRaw > inputs.multiFishCap ? ' ' + badge('capped', 'gold') : ''))
+    + card('Fishing EXP multi', '×' + num(inputs.expMulti), 'Toolkit EXP included')
+    + card('Fishing Speed bonus', pct(inputs.speedBonusPct, 0), 'Food ' + num(base.foodSpeed) + '% · toolkit ' + inputs.toolkit.stats.SPEED
+      + '% · card ' + num(base.card45) + '% · talent ' + num(base.talent637) + '% · lab ' + Math.round(base.mainframe112 / 20) + '%')
+    + card('Fishing Power / Prowess', num(inputs.power), 'Prowess exponent bonus ' + inputs.prowess.toFixed(4))
+    + '</div></div>';
+
+  html += '<div class="section"><h2>Every fishing location<small>Each spot has its own pool and depth bonus · totals ' + hoursLabel()
+    + ' · click a row for its fish breakdown and best lure + line</small></h2>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['Location'], ['Pool'], ['Spot depth'], ['Catch split'],
+      ['Fish 1', true], ['Fish 2', true], ['Fish 3', true], ['Fish 4', true],
+      ['Fish / catch', true, 'Ore value × (1 + Multi-Fish)'],
+      ['Fish', true], ['Fishing EXP', true], ['EXP / catch', true, 'Average FishPools EXP per catch before the EXP multi'],
+      ['Panel EXP/hr', true, 'What the AFK panel shows: catches × AFK × monster ExpGiven × EXP multi'],
+      ['Real ÷ panel', true],
+    ]) + '<tbody>';
+  result.locations.forEach(function(l) {
+    var p = l.outcome;
+    var cls = 'clickable' + (l.id === state.location ? ' current' : l.id === base.savedLocationId ? ' saved' : '');
+    var ratio = p.panelExpPerHour > 0 ? (p.exp / state.hours) / p.panelExpPerHour : 0;
+    html += '<tr class="' + cls + '" data-location="' + esc(l.id) + '"><td>' + esc(l.label)
+      + (l.id === base.savedLocationId ? badge('saved', 'cyan') : '') + '</td>'
+      + '<td>' + esc(l.poolName) + '</td><td class="muted">' + esc(depthText(l.bonus)) + '</td>'
+      + '<td>' + shareBar(p.shares) + '</td>'
+      + p.shares.map(function(s, i) {
+        var f = p.fish[i];
+        return '<td class="num' + (f.active ? '' : ' muted') + '">' + (f.unlocked ? (s > 0 ? pct(s) : 'skipped') : 'locked') + '</td>';
+      }).join('')
+      + '<td class="num">' + num(p.fishPerCatch) + '</td>'
+      + '<td class="num">' + whole(p.fishTotal) + '</td>'
+      + '<td class="num">' + num(p.exp) + '</td>'
+      + '<td class="num">' + num(p.expPerCatch) + '</td>'
+      + '<td class="num">' + num(p.panelExpPerHour) + '</td>'
+      + '<td class="num ' + (ratio >= 1 ? 'delta-up' : 'delta-down') + '">×' + ratio.toFixed(3) + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  if (location && location.poolKey === 'MotherlodeFISH') html += renderTrench(ev, selection);
+  html += '<div class="split">' + renderPoolDetail(selected, inputs, location) + renderRanking(ev, location) + '</div>';
+  html += renderBreakdowns(ev, selection, location);
+
+  document.getElementById('app').innerHTML = html;
+  mountTrees();
+}
+
+function duration(hours) {
+  if (!Number.isFinite(hours)) return 'never';
+  if (hours <= 0) return 'ready';
+  if (hours < 1) return Math.max(1, Math.round(hours * 60)) + 'm';
+  if (hours < 48) return (hours < 10 ? hours.toFixed(1) : Math.round(hours)) + 'h';
+  var days = hours / 24;
+  return (days < 10 ? days.toFixed(1) : whole(days)) + 'd';
+}
+function toolkitName(sel) { return LURES[sel.lure].name + ' + ' + LINES[sel.line].name; }
+function sameToolkit(a, b) { return a.lure === b.lure && a.line === b.line; }
+
+var TRENCH_LOCATION = LOCATIONS.find(function(l) { return l.poolKey === 'MotherlodeFISH'; });
+
+function trenchPlanFor(ev, selection) {
+  var key = [ev.base.charIdx, selection.lure, selection.line, state.trenchDepths, 'best'].join('|');
+  if (!trenchCache[key]) trenchCache[key] = ev.trenchPlan(selection, state.trenchDepths);
+  return trenchCache[key];
+}
+
+// Helper characters keep their own saved lure + line unless the fastest mode is selected.
+function helperPlan(ci) {
+  var best = state.trenchHelperMode === 'best';
+  var key = [ci, 'helper', state.trenchDepths, best ? 'best' : 'saved'].join('|');
+  if (!trenchCache[key]) {
+    var ev = evaluator(ci);
+    trenchCache[key] = ev.trenchPlan(ev.base.savedSelection, state.trenchDepths, { searchBest: best });
+  }
+  return trenchCache[key];
+}
+function helperRate(plan, k) {
+  var row = plan && plan.rows[k];
+  if (!row) return 0;
+  return (state.trenchHelperMode === 'best' ? row.best : row.selected).outcome.fishTotal;
+}
+function ensureHelpers() {
+  if (state.trenchHelpers) return;
+  state.trenchHelpers = {};
+  for (var ci = 0; ci < characterCount(); ci++) {
+    if (evaluator(ci).base.afkTarget === 'MotherlodeFISH') state.trenchHelpers[ci] = true;
+  }
+}
+function activeHelpers() {
+  ensureHelpers();
+  var list = [];
+  for (var ci = 0; ci < characterCount(); ci++) {
+    if (ci !== state.charIdx && state.trenchHelpers[ci]) list.push(ci);
+  }
+  return list;
+}
+
+function requirementTree(t, depth) {
+  var reductions = [{ name: 'Jar collectible 5', val: t.jarCollectible5, fmt: '%',
+    note: 'Includes Legend 29 ×' + (1 + t.legend29 / 100).toFixed(2) }];
+  t.bolaia.forEach(function(b) {
+    reductions.push({ name: 'Bolaia study ' + b.study + ' (' + b.cavern + ')', val: b.value, fmt: '%',
+      note: whole(b.perLayer) + '% per ' + b.cavern + ' layer × ' + b.layers + ' layers' });
+  });
+  return {
+    name: 'Fish needed for Depth ' + depth, val: t.value, fmt: 'raw', note: 'Base ÷ (1 + reduction / 100)',
+    children: [
+      { name: 'Base: 200 × 2.2^' + (t.layers + 1), val: t.base, fmt: 'raw' },
+      { name: 'Requirement reduction', val: t.reductionPct, fmt: '%', children: reductions },
+      { name: 'Fish already counted', val: t.progress, fmt: 'raw' },
+      { name: 'Fish remaining', val: t.remaining, fmt: 'raw' },
+    ],
+  };
+}
+
+function renderTrench(ev, selection) {
+  var plan = trenchPlanFor(ev, selection);
+  if (!plan) return '';
+  var t = plan.trench;
+  var now = plan.rows[0];
+  var sel = now.selected;
+  var best = now.best;
+  var o = sel.outcome;
+  var inputs = ev.inputsFor(selection, TRENCH_LOCATION);
+  var bestIsSelected = sameToolkit(best.selection, selection);
+  var pctDone = t.value > 0 ? Math.min(100, t.progress / t.value * 100) : 0;
+  var helpers = activeHelpers();
+  var helperPlans = helpers.map(function(ci) { return { ci: ci, plan: helperPlan(ci) }; });
+  var helperNow = helperPlans.reduce(function(sum, h) { return sum + helperRate(h.plan, 0); }, 0);
+  var teamNow = o.fishTotal + helperNow;
+  var teamHours = teamNow > 0 ? t.remaining / teamNow : Infinity;
+
+  var credited = o.fish.filter(function(f) { return f.credited; })[0];
+  var html = '<div class="section"><h2>Trench · Depth ' + now.depth
+    + '<small>All four Trench fish are the same item. The AFK claim overwrites that item\'s count per fish type instead of adding, so only the last unlocked type (normally Fish 4) is credited toward the depth; Depth 3 raises its share. ETA uses '
+    + esc(charLabel(state.charIdx)) + ' with the selected lure + line; tick other characters to fish alongside. Clearing a depth is manual and resets its progress.</small></h2>'
+    + '<div class="card-grid">'
+    + card('Depth progress', pct(pctDone, 1), whole(t.progress) + ' / ' + whole(t.value) + ' fish')
+    + card('Fish to next depth', whole(t.remaining), 'Requirement after ' + whole(t.reductionPct) + '% reduction')
+    + card('Fish / hr', whole(o.fishTotal), esc(toolkitName(selection))
+      + (credited ? ' · Fish ' + (credited.slot + 1) + ' at ' + pct(credited.share) + ' (' + whole(o.overwrittenFish) + ' overwritten)' : ''))
+    + card('ETA to Depth ' + (now.depth + 1), duration(sel.hours), esc(charLabel(state.charIdx)) + ' alone')
+    + card('Fastest lure + line', duration(best.hours), esc(toolkitName(best.selection))
+      + (bestIsSelected ? ' ' + badge('selected', 'gold') : ' · ' + (sel.hours > best.hours && Number.isFinite(sel.hours) ? duration(sel.hours - best.hours) + ' faster ' : '')
+        + '<button class="btn" data-use="' + best.selection.lure + ':' + best.selection.line + '">Use</button>'));
+  if (helpers.length) {
+    html += card('ETA with ' + helpers.length + ' helper' + (helpers.length === 1 ? '' : 's'), duration(teamHours),
+      whole(teamNow) + ' fish/hr together (' + whole(helperNow) + ' from helpers)');
+  }
+  html += card('Efficiency requirement', num(now.effReqs[0]), 'Fish 2 · Fish 3 +100 · Fish 4 +200 · yours ×' + num(inputs.efficiency / now.effReqs[2]))
+    + '</div>';
+
+  html += '<h3 class="sub">Other characters fishing the Trench</h3>'
+    + '<div class="helper-bar"><label class="control">Helpers use<select data-control="trenchHelperMode">'
+    + '<option value="saved"' + (state.trenchHelperMode === 'saved' ? ' selected' : '') + '>Their saved lure + line</option>'
+    + '<option value="best"' + (state.trenchHelperMode === 'best' ? ' selected' : '') + '>Their fastest lure + line</option>'
+    + '</select></label><span class="muted">Ticked characters are assumed to AFK at the Trench. Characters saved at the Trench start ticked.</span></div>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      [''], ['Character'], ['Saved target'], ['Fishing lv', true], ['Lure + line'], ['Fish / hr', true], ['ETA alone', true],
+    ]) + '<tbody>';
+  for (var ci = 0; ci < characterCount(); ci++) {
+    if (ci === state.charIdx) continue;
+    var on = !!state.trenchHelpers[ci];
+    var hp = helperPlan(ci);
+    if (!hp) continue;
+    var row = hp.rows[0];
+    var used = state.trenchHelperMode === 'best' ? row.best : row.selected;
+    var target = evaluator(ci).base.afkTarget;
+    html += '<tr class="clickable' + (on ? ' saved' : ' inactive') + '" data-helper="' + ci + '">'
+      + '<td><input type="checkbox" data-helper-check="' + ci + '"' + (on ? ' checked' : '') + '></td>'
+      + '<td>' + esc(charLabel(ci)) + '</td>'
+      + '<td class="muted">' + esc(target || 'none') + (target === 'MotherlodeFISH' ? badge('at Trench', 'cyan') : '') + '</td>'
+      + '<td class="num">' + fishingLevel(ci) + '</td>'
+      + '<td>' + esc(toolkitName(state.trenchHelperMode === 'best' ? row.best.selection : evaluator(ci).base.savedSelection)) + '</td>'
+      + '<td class="num">' + whole(used.outcome.fishTotal) + '</td>'
+      + '<td class="num">' + duration(used.hours) + '</td></tr>';
+  }
+  html += '</tbody></table></div>';
+
+  html += '<div class="breakdown-grid" style="margin-top:12px">'
+    + treePanel('Fish needed', requirementTree(t, now.depth))
+    + treePanel('Trench fish & EXP / hr', ev.breakdowns(selection, TRENCH_LOCATION).panels[0].tree)
+    + '</div>';
+
+  html += '<h3 class="sub">Depth projection</h3>'
+    + '<label class="control" style="max-width:200px;margin-bottom:8px">Depths to project<select data-control="trenchDepths">'
+    + [3, 5, 10, 15, 25].map(function(n) { return '<option value="' + n + '"' + (n === state.trenchDepths ? ' selected' : '') + '>' + n + '</option>'; }).join('')
+    + '</select></label>';
+  var cols = [
+    ['Depth'], ['Fish 2 eff req', true], ['Fish needed', true], ['Fish / catch', true, 'With the selected lure + line'],
+    ['Fish / hr', true, 'This character with the selected lure + line'], ['ETA', true], ['Total', true, 'Cumulative time from now'],
+  ];
+  if (helpers.length) cols.push(['Team fish / hr', true, 'Including ticked helpers'], ['Team ETA', true], ['Team total', true]);
+  cols.push(['Fastest lure + line'], ['ETA', true], ['Total', true]);
+  html += '<div class="table-wrap"><table class="data-table">' + head(cols) + '<tbody>';
+  var teamTotal = 0;
+  plan.rows.forEach(function(r, i) {
+    html += '<tr' + (i === 0 ? ' class="current"' : '') + '><td>' + r.depth + (i === 0 ? badge('current', 'cyan') : '') + '</td>'
+      + '<td class="num">' + num(r.effReqs[0]) + '</td>'
+      + '<td class="num">' + whole(r.requirement.remaining) + '</td>'
+      + '<td class="num">' + whole(r.selected.outcome.oreValue) + '</td>'
+      + '<td class="num">' + whole(r.selected.outcome.fishTotal) + '</td>'
+      + '<td class="num">' + duration(r.selected.hours) + '</td>'
+      + '<td class="num">' + duration(r.selected.cumulativeHours) + '</td>';
+    if (helpers.length) {
+      var team = r.selected.outcome.fishTotal + helperPlans.reduce(function(sum, h) { return sum + helperRate(h.plan, i); }, 0);
+      var hours = team > 0 ? r.requirement.remaining / team : Infinity;
+      teamTotal += hours;
+      html += '<td class="num">' + whole(team) + '</td><td class="num">' + duration(hours) + '</td><td class="num">' + duration(teamTotal) + '</td>';
+    }
+    html += '<td>' + esc(toolkitName(r.best.selection)) + (sameToolkit(r.best.selection, selection) ? badge('selected', 'gold') : '') + '</td>'
+      + '<td class="num">' + duration(r.best.hours) + '</td>'
+      + '<td class="num">' + duration(r.best.cumulativeHours) + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html + '</div>';
+}
+
+function treePanel(title, tree) {
+  var id = 'fish-tree-' + pendingTrees.length;
+  pendingTrees.push([id, tree]);
+  return '<div class="breakdown-panel"><h3>' + esc(title) + '</h3><div id="' + id + '"></div></div>';
+}
+
+function mountTrees() {
+  resetTreeCounter();
+  pendingTrees.forEach(function(entry) {
+    var host = document.getElementById(entry[0]);
+    if (host) renderBreakdownTree(toRenderNode(entry[1]), host, { tooltipId: 'fish-bt-tooltip' });
+  });
+  pendingTrees = [];
+}
+
+function renderBreakdowns(ev, selection, location) {
+  var result = ev.breakdowns(selection, location);
+  return '<div class="section"><h2>Breakdowns<small>' + esc(location.label + ' · ' + toolkitName(selection))
+    + ' · hover a row for its formula, click to expand</small></h2><div class="breakdown-grid">'
+    + result.panels.map(function(p) { return treePanel(p.title, p.tree); }).join('')
+    + '</div></div>';
+}
+
+function shareBar(shares) {
+  var html = '<div class="share-bar" title="' + esc(shares.map(function(s, i) { return 'Fish ' + (i + 1) + ': ' + pct(s); }).join(' · ')) + '">';
+  var total = 0;
+  shares.forEach(function(s) { if (s > 0) total += s; });
+  shares.forEach(function(s, i) { if (s > 0) html += '<i class="s' + i + '" style="width:' + (s / total * 100).toFixed(2) + '%"></i>'; });
+  return html + '</div>';
+}
+
+function renderPoolDetail(p, inputs, location) {
+  var html = '<div class="section"><h2>' + esc(location.label + ' · ' + p.pool.name) + '<small>Depth bonus ' + esc(depthText(location.bonus))
+    + ' · fish per catch ' + whole(p.oreValue)
+    + ' · ×' + (1 + inputs.multiFish / 100).toFixed(2) + ' Multi-Fish · panel ' + p.pool.panelExpPerCatch + ' EXP/catch</small></h2>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['Fish'], ['Efficiency req', true], ['Share', true], ['EXP / catch', true],
+      ['Catches', true], ['Fish', true], ['EXP', true], ['EXP %', true],
+    ]) + '<tbody>';
+  p.fish.forEach(function(f, i) {
+    var status = !f.unlocked ? badge('needs ' + num(f.effReq) + ' eff', 'red') : (!f.active ? badge('skipped', 'muted') : (f.overwritten ? badge('overwritten', 'red') : ''));
+    var catches = f.active ? p.catches * f.share / 100 : 0;
+    html += '<tr class="' + (f.active ? '' : 'inactive') + '"><td><span class="share-bar" style="display:inline-flex;width:10px;min-width:10px;vertical-align:middle"><i class="s' + i + '" style="width:100%"></i></span> '
+      + esc(f.name) + status + '</td>'
+      + '<td class="num">' + (f.effReq ? num(f.effReq) : '—') + '</td>'
+      + '<td class="num">' + pct(f.share) + '</td>'
+      + '<td class="num">' + whole(f.expPerCatch) + '</td>'
+      + '<td class="num">' + whole(catches) + '</td>'
+      + '<td class="num"' + (f.overwritten ? ' title="' + esc(whole(f.count)) + ' rolled, then replaced by a later ' + esc(f.name) + ' count in the AFK claim"' : '') + '>'
+      + whole(f.creditedCount) + '</td>'
+      + '<td class="num">' + num(f.exp) + '</td>'
+      + '<td class="num">' + (p.exp > 0 ? pct(f.exp / p.exp * 100, 1) : '—') + '</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="num">' + pct(p.shareTotal) + '</td>'
+    + '<td class="num" title="Average EXP per catch before the EXP multi">' + num(p.expPerCatch) + ' avg</td>'
+    + '<td class="num">' + whole(p.catches) + '</td><td class="num">' + whole(p.fishTotal) + '</td>'
+    + '<td class="num">' + num(p.exp) + '</td><td></td></tr></tfoot></table></div></div>';
+  return html;
+}
+
+function renderRanking(ev, location) {
+  var key = [state.charIdx, location.id, state.objective, state.hours].join('|');
+  if (!rankCache[key]) rankCache[key] = rankFishingToolkits(ev, location.poolKey, location, state.objective, state.hours);
+  var rows = rankCache[key];
+  var saved = ev.base.savedSelection;
+  var currentRow = rows.find(function(r) { return r.selection.lure === state.lure && r.selection.line === state.line; });
+  var metric = state.objective === 'fish' ? 'fishTotal' : 'exp';
+  var ref = currentRow ? currentRow.outcome[metric] : 0;
+  var shown = rows.slice(0, 10);
+  if (currentRow && shown.indexOf(currentRow) < 0) shown.push(currentRow);
+  var savedRow = rows.find(function(r) { return r.selection.lure === saved.lure && r.selection.line === saved.line; });
+  if (savedRow && shown.indexOf(savedRow) < 0) shown.push(savedRow);
+
+  var html = '<div class="section"><h2>Best lure + line<small>' + esc(location.label + ' · ' + location.poolName) + ' · all 225 combinations</small></h2>'
+    + '<label class="control" style="margin-bottom:8px;max-width:220px">Rank by<select data-control="objective">'
+    + '<option value="exp"' + (state.objective === 'exp' ? ' selected' : '') + '>Fishing EXP</option>'
+    + '<option value="fish"' + (state.objective === 'fish' ? ' selected' : '') + '>Fish quantity</option></select></label>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['#', true], ['Lure'], ['Line'], ['EXP', true], ['Fish', true], ['vs selected', true], [''],
+    ]) + '<tbody>';
+  shown.forEach(function(r) {
+    var rank = rows.indexOf(r) + 1;
+    var isCurrent = r === currentRow;
+    var isSaved = r === savedRow;
+    var delta = ref > 0 ? (r.outcome[metric] / ref - 1) * 100 : 0;
+    html += '<tr class="' + (isCurrent ? 'current' : isSaved ? 'saved' : '') + '">'
+      + '<td class="num">' + rank + '</td>'
+      + '<td>' + esc(LURES[r.selection.lure].name) + '</td><td>' + esc(LINES[r.selection.line].name)
+      + (isSaved ? badge('saved', 'cyan') : '') + (isCurrent ? badge('selected', 'gold') : '') + '</td>'
+      + '<td class="num">' + num(r.outcome.exp) + '</td><td class="num">' + whole(r.outcome.fishTotal) + '</td>'
+      + '<td class="num ' + (delta > 0.005 ? 'delta-up' : delta < -0.005 ? 'delta-down' : 'muted') + '">'
+      + (Math.abs(delta) < 0.005 ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(1) + '%') + '</td>'
+      + '<td>' + (isCurrent ? '' : '<button class="btn" data-use="' + r.selection.lure + ':' + r.selection.line + '">Use</button>') + '</td></tr>';
+  });
+  html += '</tbody></table></div><div class="callout" style="margin-top:8px">Ranking holds the character and fishing location fixed, because the location\'s depth bonus changes which toolkit is best. It covers every toolkit combination, including pieces this account may not have unlocked yet.</div></div>';
+  return html;
+}
+
+document.addEventListener('change', function(e) {
+  var control = e.target.getAttribute && e.target.getAttribute('data-control');
+  if (!control) return;
+  var value = e.target.value;
+  if (control === 'char') {
+    state.charIdx = Number(value) || 0;
+    applySavedDefaults();
+  } else if (control === 'lure') state.lure = Number(value) || 0;
+  else if (control === 'line') state.line = Number(value) || 0;
+  else if (control === 'location') state.location = value;
+  else if (control === 'hours') {
+    var hours = Number(value);
+    state.hours = hours > 0 ? Math.min(hours, 10000) : 1;
+  } else if (control === 'objective') state.objective = value === 'fish' ? 'fish' : 'exp';
+  else if (control === 'trenchDepths') state.trenchDepths = Number(value) || 5;
+  else if (control === 'trenchHelperMode') state.trenchHelperMode = value === 'best' ? 'best' : 'saved';
+  render();
+});
+
+document.addEventListener('click', function(e) {
+  var helper = e.target.closest && e.target.closest('tr[data-helper]');
+  if (helper) {
+    var ci = Number(helper.getAttribute('data-helper'));
+    ensureHelpers();
+    state.trenchHelpers[ci] = !state.trenchHelpers[ci];
+    render();
+    return;
+  }
+  var use = e.target.closest && e.target.closest('[data-use]');
+  if (use) {
+    var parts = use.getAttribute('data-use').split(':');
+    state.lure = Number(parts[0]) || 0;
+    state.line = Number(parts[1]) || 0;
+    render();
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-action="reset"]')) {
+    applySavedDefaults();
+    render();
+    return;
+  }
+  var row = e.target.closest && e.target.closest('tr[data-location]');
+  if (row) {
+    state.location = row.getAttribute('data-location');
+    render();
+  }
+});
+</script>
+</body>
+</html>

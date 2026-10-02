@@ -442,6 +442,8 @@ export function outpostSupportLinks(S, targetMap) {
 	return links;
 }
 export function supportCount(S, targetMap) { return outpostSupportLinks(S, targetMap).length; }
+// Optional per-pass precomputation (ext._supportCounts) for callers that evaluate many outposts on unchanged links.
+function _supportCountFor(S, mapIdx, ext) { return Array.isArray(ext?._supportCounts) ? n(ext._supportCounts[mapIdx]) : supportCount(S, mapIdx); }
 
 export function resourceGrade(S, index) { return royalG(S, 5, index); }
 // RoyalG[4] is collected/consumed progress, not inventory remaining.
@@ -537,7 +539,7 @@ export function globalResourceRateBreakdown(S, ext) {
 	return { value: factors.reduce((v, f) => v * f.value, 1), factors, available: royalDataAvailable, partial: allMissing.length > 0 || !derived.available, missing: allMissing };
 }
 export function outpostResourceRateBreakdown(S, mapIdx, ext) {
-	ext = ext || {}; const units = totalUnitsByType(S, mapIdx); const global = globalResourceRateBreakdown(S, ext);
+	ext = ext || {}; const units = totalUnitsByType(S, mapIdx); const global = ext._globalResourceRate || globalResourceRateBreakdown(S, ext);
 	if (!global.available || !hasRoyalMapsData(S) || !outpostBuilt(S, mapIdx)) {
 		const missing = new Set(global.missing);
 		if (!hasRoyalMapsData(S)) missing.add('RoyalMaps');
@@ -548,7 +550,7 @@ export function outpostResourceRateBreakdown(S, mapIdx, ext) {
 		{ name: 'base', value: 125, kind: 'base' },
 		{ name: 'globalResourceRateMultiplier', value: global.value, kind: 'multiplier', breakdown: global },
 		{ name: 'outpostPurifyBonus', value: 1 + (200 + armoryBonus(S, 1)) * outpostPurification(S, mapIdx) / 100 },
-		{ name: 'supportCollection', value: 1 + supportCollection(S) * supportCount(S, mapIdx) / 100 },
+		{ name: 'supportCollection', value: 1 + supportCollection(S) * _supportCountFor(S, mapIdx, ext) / 100 },
 		{ name: 'mapLevel1', value: 1 + n(row(S, mapIdx)?.[1]) * 5 / 100 }, { name: 'commandRank*armory73', value: 1 + outpostRank(S, mapIdx, 2) * armoryBonus(S, 73) / 100 },
 		{ name: 'unitSpec0*totalUnits0', value: 1 + unitSpecEffect(S, 0) * units[0] / 100 }, { name: 'mapLevel0Cap', value: Math.min(5, 1 + 10 * Math.max(0, Math.round(n(row(S, mapIdx)?.[0]) - 5)) / 100) },
 	];
@@ -562,7 +564,7 @@ export function globalSupportBreakdown(S) { const armory = armoryEffectDetail(S,
 export function globalSavageBreakdown(S) { const armory = armoryEffectDetail(S, 69); return { baseMultiplier: 5, armory, value: savageCollection(S), currencyMultiplier: 0 }; }
 export function resourceRankExpBreakdown(S, mapIdx, ext) { return outpostRankExpBreakdown(S, mapIdx, ext); }
 export function barExpRateBase(S, bar, ext) { ext = ext || {}; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S); let value = (1 + orbletBonus(S, 6) / 100) * (1 + jellyCompletionBonus(1, S) / 100); if (bar === 4) value *= 1 + n(ext.shop65 ?? derived.shop65) / 100; if (bar === n(royalG(S, 3, 7))) value *= 1 + n(ext.shop77 ?? derived.shop77) / 100; return value * (1 + unitSpecEffect(S, [1, 3, 5, 6, 7][bar], ext) / 100); }
-export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarSourceMap = outpostRank(S, bar, 4) >= 1; const educationMulti = 1 + 10 * n(row(S, mapIdx)?.[2]) / 100; return barExpRateBase(S, bar, ext) * educationMulti * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarSourceMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * supportCount(S, mapIdx) / 100); }
+export function barExpRate(S, bar, mapIdx, ext) { const purifiedBarSourceMap = outpostRank(S, bar, 4) >= 1; const educationMulti = 1 + 10 * n(row(S, mapIdx)?.[2]) / 100; return barExpRateBase(S, bar, ext) * educationMulti * (outpostIsGlorified(S, mapIdx) ? 2 : 1) * (1 + 200 * (purifiedBarSourceMap ? 1 : 0) / 100) * (1 + outpostRank(S, mapIdx, 1) * armoryBonus(S, 72) / 100) * (1 + supportCollection(S) * _supportCountFor(S, mapIdx, ext) / 100); }
 export function globalRankExpBreakdown(S, ext) {
 	ext = ext || {}; const derived = ext.derivedInputs || ext._royalDerived || royalGuardianDerivedInputs(S); const selectedBar = n(royalG(S, 3, 7)); const unitIds = ['trader', 'surveyor', 'commander', 'knight', 'priest'];
 	return { orblet: orbletEffectDetail(S, 6), shop65: n(ext.shop65 ?? derived.shop65), shop77: n(ext.shop77 ?? derived.shop77), selectedBar, bars: [0, 1, 2, 3, 4].map(bar => ({ bar, name: outpostRankName(bar), contributor: outpostRankContributor(bar), unit: unitIds[bar], baseRate: barExpRateBase(S, bar, ext), purityShopActive: bar === 4, selectedShopActive: bar === selectedBar })) };

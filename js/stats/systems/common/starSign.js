@@ -105,6 +105,7 @@ var SIGN_BONUSES = {
   MobRespawn: { 26: 2, 49: 4 },
   pctCardDrop: { 41: 15 },
   CarryCap: { 11: 10, 25: 5, 29: 30 },
+  MultiFish: { 6: 20 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)

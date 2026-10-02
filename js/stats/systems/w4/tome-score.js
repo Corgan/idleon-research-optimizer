@@ -28,6 +28,7 @@ import { DeathNoteMobs, Tome as TomeData, RANDOlist } from '../../data/game/cust
 import { createStatContext } from '../../stat-context.js';
 import { computeArcaneMapMultiBon } from '../mc/tesseract.js';
 import { label } from '../../entity-names.js';
+import { TotalStatz } from '../w7/royal-guardian.js';
 
 // ===== Static Tome data: [half, mode, maxPts] per slot =====
 // Derived from CustomLists.Tome: each entry is [name, half, mode, maxPts, ...].
@@ -591,6 +592,16 @@ function tomeQTY(slot, S) {
       return S.cachedUniqueSushi || 0;
 
     case 117: return ola(594); // Button Presses
+
+    case 118: // Total_Royal_Statue_LV — sum max(0, RoyalG[0][r])
+      s = 0;
+      for (i = 0; i < ((S.royalGData && S.royalGData[0]) || []).length; i++) s += Math.max(0, num(S.royalGData[0][i]));
+      return s;
+
+    case 119: return TotalStatz(S)[4]; // Royal_Guardian_Outposts_Built — RoyalG("TotalStatz", 4)
+    case 120: return TotalStatz(S)[0]; // Total_Resource_Grade — RoyalG("TotalStatz", 0)
+    case 121: // Successful_Jelly_Operations — Research[7][9]
+      return num(S.research && S.research[7] && S.research[7][9]);
 
     default: return 0;
   }
@@ -1191,6 +1202,10 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 115: return { val: val, children: [_n('sum Research[12]', val)] };
     case 116: return { val: val, children: [_n('cachedUniqueSushi', val)] };
     case 117: return { val: val, children: [_olaNode(594)] };
+    case 118: return { val: val, children: [_n('sum max(0, RoyalG[0])', val)] };
+    case 119: return { val: val, children: [_n('Built Royal outposts', val)] };
+    case 120: return { val: val, children: [_n('sum RoyalG[5] resource grades', val)] };
+    case 121: return { val: val, children: [_n('Research[7][9]', val)] };
 
     default: return { val: val, children: [] };
   }

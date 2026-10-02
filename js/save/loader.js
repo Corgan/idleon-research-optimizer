@@ -264,7 +264,7 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
   // Per-character prayers, post office, card equip, currentMap
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], currentMapDataAvailable = [], afkTargetData = [], attackLoadoutData = [], attackLoadoutDataAvailable = [], combatAfkInputDataAvailable = [], maxCarryCapData = [], maxCarryCapDataAvailable = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], buffsActive = [];
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], currentMapDataAvailable = [], afkTargetData = [], attackLoadoutData = [], attackLoadoutDataAvailable = [], combatAfkInputDataAvailable = [], maxCarryCapData = [], maxCarryCapDataAvailable = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], fishingSpotIndexData = [], fishingSpotIndexDataAvailable = [], buffsActive = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
@@ -298,6 +298,9 @@ export function loadSaveData(raw) {
       ? [Number(toolkit[0]) || 0, Number(toolkit[1]) || 0]
       : [0, 0]);
     fishingToolkitDataAvailable.push(Object.prototype.hasOwnProperty.call(save, toolkitKey));
+    const spotKey = 'PVFishingSpotIndex_' + ci;
+    fishingSpotIndexData.push(Number(parseSaveKey(save, spotKey)) || 0);
+    fishingSpotIndexDataAvailable.push(Object.prototype.hasOwnProperty.call(save, spotKey));
     buffsActive.push(parseSaveKey(save, 'BuffsActive_' + ci) || []);
   }
   assignSaveData({ prayersPerCharData: prayersPerChar });
@@ -314,6 +317,7 @@ export function loadSaveData(raw) {
   assignSaveData({ maxCarryCapDataAvailable: maxCarryCapDataAvailable });
   assignSaveData({ fishingToolkitData: fishingToolkitData });
   assignSaveData({ fishingToolkitDataAvailable: fishingToolkitDataAvailable });
+  assignSaveData({ fishingSpotIndexData: fishingSpotIndexData, fishingSpotIndexDataAvailable: fishingSpotIndexDataAvailable });
   assignSaveData({ buffsActiveData: buffsActive });
 
   // MapBon — account-wide per-map kill counts (arcane map bonus)
