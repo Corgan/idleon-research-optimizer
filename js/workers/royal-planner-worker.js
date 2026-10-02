@@ -8,6 +8,7 @@ import {
   planSpecialPlacement,
   projectRoyalStateAfterReset,
 } from "../stats/systems/w7/royal-guardian-planner.js";
+import { planRoyalUnitExp } from "../stats/systems/w7/royal-unit-exp.js";
 
 const planners = {
   layout: (message, options) => {
@@ -29,6 +30,7 @@ const planners = {
   "support-network": (message, options) => planSpecialPlacement(message.saveData, "support-network", message.subgoal, options),
   "savage-placement": (message, options) => planSpecialPlacement(message.saveData, "savage-placement", message.subgoal, options),
   "outpost-points": (message, options) => planOutpostPointSpending(message.saveData, message.mapIdx, message.goal, options),
+  "unit-exp": (message, options) => planRoyalUnitExp(message.saveData, message.mapIdx, options),
 };
 
 self.onmessage = (event) => {

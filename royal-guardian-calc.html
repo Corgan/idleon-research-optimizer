@@ -384,7 +384,7 @@
         height: 100%;
         pointer-events: none;
       }
-      .royal-map-node img:last-child {
+      .royal-map-node img:last-of-type {
         inset: 21.429% auto auto 25%;
         width: 50%;
         height: 50%;
@@ -666,10 +666,21 @@
       .shelf-timeline-detail .royal-resource-icon { width: 22px; height: 22px; flex-basis: 22px; }
       @media (max-width: 700px) { .shelf-timeline-item { grid-template-columns: 1fr; gap: 3px; } }
       @media (max-width: 700px) { .layout-change { grid-template-columns: 34px minmax(0, 1fr); } .layout-outpost-icon { width: 34px; } .layout-change-item { grid-template-columns: 1fr; gap: 3px; } }
-      .royal-range-circle { position: absolute; z-index: 0; display: none; aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid rgba(77, 208, 225, .9); border-radius: 50%; background: rgba(77, 208, 225, .1); box-shadow: 0 0 12px rgba(77, 208, 225, .3); pointer-events: none; }
+      .royal-map.range-finder-active { background-color: #808080; background-blend-mode: multiply; }
+      .royal-range-circle { position: absolute; z-index: 0; display: none; aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid rgba(77, 208, 225, .9); border-radius: 50%; background: radial-gradient(circle closest-side, transparent var(--range-inner, 0%), color-mix(in srgb, var(--range-color, var(--cyan)) 30%, transparent) var(--range-inner, 0%)); background-origin: border-box; box-shadow: 0 0 12px rgba(77, 208, 225, .3); pointer-events: none; }
+      .royal-range-circle.guard-add { border-style: dashed; box-shadow: none; }
+      .royal-range-circle.guard-remove { border-style: dotted; box-shadow: none; }
+      .royal-range-circle { border-color: var(--range-color, var(--cyan)); color: var(--range-color, var(--cyan)); }
+      .royal-map.range-finder-active .range-band { opacity: 1; filter: drop-shadow(0 0 6px var(--range-color)); outline: none; }
+      .royal-range-node-badges { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; width: max-content; pointer-events: none; }
+      .royal-range-node-label { padding: 1px 4px; background: #101b35; border: 1px solid var(--range-color); border-radius: 3px; color: var(--range-color); font-size: 11px; font-weight: 700; white-space: nowrap; }
+      .royal-range-gap-label { order: 1; padding: 1px 4px; background: #101b35; border: 1px solid var(--range-color); border-radius: 3px; color: var(--range-color); font-size: 11px; font-weight: 700; white-space: nowrap; }
+      .royal-range-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 5px; }
+      .royal-range-legend span { color: var(--range-color); border-bottom: 2px solid var(--range-color); }
       .royal-map.range-finder-active .royal-map-node,
-      .royal-map.range-finder-active .royal-map-outpost { transition: opacity .12s, filter .12s; }
+      .royal-map.range-finder-active .royal-map-outpost { z-index: 1; transition: opacity .12s, filter .12s; }
       .royal-map.range-finder-active .range-dimmed { opacity: .22; filter: grayscale(.75); }
+      .royal-map.range-finder-active .range-short { opacity: 1; filter: none; }
       .royal-map.range-finder-active .range-active { z-index: 5; filter: drop-shadow(0 0 4px var(--cyan)); }
       .royal-map.range-finder-active .range-match { z-index: 4; opacity: 1; filter: drop-shadow(0 0 5px var(--gold)); }
       .royal-range-status { min-width: 150px; color: var(--cyan); }
@@ -749,6 +760,38 @@
         display: block;
         color: var(--text2);
       }
+      .unit-exp-planner { margin: 18px 0; padding: 14px; border: 1px solid #40536e; border-radius: 8px; background: #101b35; min-width: 0; }
+      .unit-exp-planner .planner-controls { flex-wrap: wrap; align-items: flex-end; }
+      .unit-exp-planner input[type="number"] { width: 100px; }
+      .unit-exp-planner label small { color: var(--text2); font-weight: 400; }
+      .unit-exp-planner .unit-exp-check { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+      .unit-exp-planner .card-grid { margin: 12px 0; }
+      .unit-exp-planner .royal-worker-icon { display: inline-block; vertical-align: middle; height: 36px; }
+      .unit-exp-unit { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+      .unit-exp-steps li > span { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+      .unit-exp-transients { width: auto; }
+      .unit-exp-transients th { padding-right: 18px; white-space: nowrap; }
+      .unit-exp-chart { margin: 4px 0 12px; }
+      .unit-exp-chart svg { display: block; width: 100%; height: auto; }
+      .unit-exp-chart-tick { fill: var(--text2); font-size: 11px; font-variant-numeric: tabular-nums; }
+      .unit-exp-chart-label { fill: #e8edf7; font-size: 11px; font-weight: 700; }
+      .unit-exp-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text2); font-size: .78em; }
+      .unit-exp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .unit-exp-legend i { display: inline-block; width: 22px; height: 0; border-top: 2.4px solid #e8edf7; }
+      .unit-exp-legend i.dashed { border-top: 1.5px dashed rgba(232, 237, 247, .6); }
+      .unit-exp-legend i.switch { width: 0; height: 14px; border-top: 0; border-left: 1px dashed rgba(232, 237, 247, .6); }
+      .unit-exp-legend i.eta { width: 0; height: 14px; border-top: 0; border-left: 1.5px solid var(--gold); }
+      .unit-exp-legend i.intel-up { width: 0; height: 9px; border-top: 0; border-left: 2px solid rgb(68, 138, 166); }
+      .unit-exp-legend .dot { width: 9px; height: 9px; border-radius: 50%; background: #e8edf7; }
+      .unit-exp-steps { list-style: none; display: grid; gap: 6px; margin: 6px 0 12px; }
+      .unit-exp-steps li { display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, .03); }
+      .unit-exp-steps li > b { color: var(--gold); font-variant-numeric: tabular-nums; }
+      .unit-exp-options { display: flex; flex-wrap: wrap; gap: 6px; }
+      .unit-exp-option { display: inline-flex; flex-direction: column; align-items: center; min-width: 64px; padding: 3px 6px; border: 1px solid #33445e; border-radius: 5px; font-size: .85em; }
+      .unit-exp-option.current { border-color: var(--purple); }
+      .unit-exp-option.best { background: rgba(77, 208, 225, .14); border-color: var(--cyan); }
+      .unit-exp-targets { margin-bottom: 8px; }
+      @media (max-width: 600px) { .unit-exp-steps li { grid-template-columns: 1fr; gap: 2px; } }
       .comparison {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1149,6 +1192,15 @@
         outpostPointError: "",
         outpostPointRequestId: 0,
         outpostPointWorker: null,
+        unitExpTargets: {},
+        unitExpMove: false,
+        unitExpResult: null,
+        unitExpKey: null,
+        unitExpRunning: false,
+        unitExpProgress: null,
+        unitExpError: "",
+        unitExpRequestId: 0,
+        unitExpWorker: null,
       };
       const collectionBreakdownLabels = "Collection-rate breakdown currencyFactorLabel Final per-endpoint currency/hr";
       let resourceResetNote = "";
@@ -1291,35 +1343,131 @@
       function clearRoyalRangeFinder() {
         const map = document.querySelector(".royal-map");
         if (!map) return;
-        map.querySelector(".royal-range-circle")?.removeAttribute("style");
+        map.querySelectorAll(".royal-range-circle").forEach(circle => circle.remove());
+        map.querySelectorAll(".royal-range-node-label").forEach(label => label.remove());
+        map.querySelectorAll(".royal-range-gap-label").forEach(label => label.remove());
+        map.querySelectorAll(".royal-range-node-badges").forEach(stack => stack.remove());
+        map.querySelectorAll(".range-short").forEach(element => element.classList.remove("range-short"));
+        map.querySelectorAll(".range-band").forEach(element => {
+          element.classList.remove("range-band");
+          element.style.removeProperty("--range-color");
+          delete element.dataset.rangeDelta;
+        });
         map.querySelectorAll(".range-active, .range-match, .range-dimmed").forEach(element => element.classList.remove("range-active", "range-match", "range-dimmed"));
         const status = document.querySelector("[data-range-status]");
         if (status) status.textContent = "Hover or focus an outpost or resource";
+      }
+      function guardRangeBands(steps) {
+        const colors = [
+          "#a78bfa", "#ff9f43", "#60a5fa", "#f9a8d4", "#a3e635", "#ff5c5c",
+          "#4dd0e1",
+          "#ffe14d", "#e879f9", "#34d399", "#f8fafc", "#c99a6b", "#8fa5b8",
+        ];
+        const rings = new Map();
+        for (const step of steps) {
+          if (step.delta < -6 || step.delta > 6) continue;
+          if (!rings.has(step.radius)) rings.set(step.radius, []);
+          rings.get(step.radius).push(step.delta);
+        }
+        return [...rings].sort(([a], [b]) => a - b).map(([radius, values]) => {
+          const deltas = values.slice().sort((a, b) => a - b), delta = deltas[0];
+          const kind = deltas.includes(0) ? "current" : deltas[0] > 0 ? "add" : "remove";
+          const label = deltas.map(delta => delta === 0 ? "Current" : delta > 0 ? `+${delta}` : String(delta)).join(" / ");
+          const color = colors[kind === "current" ? 6 : delta + 6];
+          return { radius, deltas, delta, kind, label, color };
+        });
+      }
+      function guardRangeBandForDistance(bands, distance) {
+        return Number.isFinite(distance) ? bands.find(band => distance <= band.radius) || null : null;
+      }
+      function guardRangeMarkup(steps, position) {
+        const bands = guardRangeBands(steps);
+        return bands.map(({ radius, kind, color }, index) => {
+          const inner = index === 0 ? 0 : bands[index - 1].radius / radius * 100;
+          return `<div class="royal-range-circle guard-${kind}" aria-hidden="true" style="--range-color:${color};--range-inner:${inner}%;display:block;left:${((position.x - 75) / 811) * 100}%;top:${((position.y - 27) / 433) * 100}%;width:${((radius * 2) / 811) * 100}%"></div>`;
+        }).reverse().join("");
+      }
+      function fitRoyalRangeLabels(map) {
+        const bounds = map.getBoundingClientRect();
+        for (const label of map.querySelectorAll(".royal-range-node-badges")) {
+          label.style.translate = "none";
+          const rect = label.getBoundingClientRect();
+          const owner = label.parentElement.getBoundingClientRect();
+          const top = rect.bottom > bounds.bottom - 4 ? owner.top - rect.height - 4 : rect.top;
+          const dx = Math.max(bounds.left + 4, Math.min(rect.left, bounds.right - rect.width - 4)) - rect.left;
+          const dy = Math.max(bounds.top + 4, Math.min(top, bounds.bottom - rect.height - 4)) - rect.top;
+          label.style.translate = `${dx}px ${dy}px`;
+        }
+      }
+      function royalRangeBadgeStack(element) {
+        let stack = element.querySelector(".royal-range-node-badges");
+        if (!stack) {
+          stack = document.createElement("span");
+          stack.className = "royal-range-node-badges";
+          element.appendChild(stack);
+        }
+        return stack;
       }
       function showOutpostRange(mapIdx) {
         const S = activeRoyalState();
         clearRoyalRangeFinder();
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-outpost="${mapIdx}"]`);
         if (!map || !target || !R.outpostBuilt(S, mapIdx) || ![0, 2].includes(R.outpostType(S, mapIdx))) return;
-        const position = R.outpostMapPosition(mapIdx), radius = R.outpostRange(S, mapIdx) + 15;
-        const matches = R.reachableResourcesForOutpost(S, mapIdx).filter(result => result.reachable && R.resourceCurrency(result.resourceIdx) >= 0);
-        const matchIds = new Set(matches.map(result => result.resourceIdx));
+        const position = R.outpostMapPosition(mapIdx), steps = R.outpostGuardRangeSteps(S, mapIdx);
+        const resources = R.reachableResourcesForOutpost(S, mapIdx).filter(result => R.resourceCurrency(result.resourceIdx) >= 0);
+        const matches = resources.filter(result => result.reachable);
+        const bands = guardRangeBands(steps);
+        const resourceBands = new Map(resources.map(result => [result.resourceIdx, guardRangeBandForDistance(bands, result.distance)]));
+        const resourceRanges = new Map(resources.map(result => [result.resourceIdx, result]));
         target.classList.add("range-active");
-        map.querySelectorAll("[data-map-resource]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapResource)) ? "range-match" : "range-dimmed"));
-        const circle = map.querySelector(".royal-range-circle");
-        if (circle && position) circle.style.cssText = `display:block;left:${((position.x - 75) / 811) * 100}%;top:${((position.y - 27) / 433) * 100}%;width:${((radius * 2) / 811) * 100}%`;
+        map.querySelectorAll("[data-map-resource]").forEach(element => {
+          const band = resourceBands.get(n(element.dataset.mapResource));
+          element.classList.add(band ? "range-band" : "range-dimmed");
+          showRangeShortfall(element, resourceRanges.get(n(element.dataset.mapResource)), bands);
+          if (!band) return;
+          element.style.setProperty("--range-color", band.color);
+          element.dataset.rangeDelta = String(band.delta);
+          const label = document.createElement("span");
+          label.className = "royal-range-node-label";
+          label.textContent = band.delta === 0 ? "Current" : band.delta > 0 ? `+${band.delta}` : String(band.delta);
+          label.setAttribute("aria-label", band.delta === 0 ? "Requires current Guard count"
+            : band.delta > 0 ? `Needs ${band.delta} more Guards` : `Still reachable after removing ${Math.abs(band.delta)} Guards`);
+          royalRangeBadgeStack(element).appendChild(label);
+        });
+        if (position) map.insertAdjacentHTML("beforeend", guardRangeMarkup(steps, position));
+        fitRoyalRangeLabels(map);
         const status = document.querySelector("[data-range-status]");
-        if (status) status.textContent = `${mapName(mapIdx)}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in range`;
+        if (status) status.innerHTML = `${esc(mapName(mapIdx))}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in current range. Node colors show the smallest range that reaches them: +N needs N more Guards; -N stays reachable after removing N Guards. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Resource radii; shared labels mean identical capped ranges.`;
+      }
+      function showRangeShortfall(element, result, bands) {
+        if (!result || !Number.isFinite(result.distance)) return;
+        const previous = bands.filter(band => band.radius < result.distance).at(-1);
+        if (!previous) return;
+        const pixels = Math.ceil(result.distance - previous.radius);
+        const label = document.createElement("span");
+        label.className = "royal-range-gap-label";
+        label.style.setProperty("--range-color", previous.color);
+        label.textContent = `+${pixels} px`;
+        label.setAttribute("aria-label", `Needs ${pixels} more pixels beyond the ${previous.label} Guard range`);
+        royalRangeBadgeStack(element).appendChild(label);
+        if (element.classList.contains("range-dimmed")) element.classList.add("range-short");
       }
       function showResourceRange(resourceIdx) {
         const S = activeRoyalState();
         clearRoyalRangeFinder();
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-resource="${resourceIdx}"]`);
         if (!map || !target) return;
-        const matches = R.reachableOutpostsForResource(S, resourceIdx).filter(result => result.reachable);
+        const outposts = R.reachableOutpostsForResource(S, resourceIdx);
+        const matches = outposts.filter(result => result.reachable);
+        const outpostRanges = new Map(outposts.map(result => [result.mapIdx, result]));
         const matchIds = new Set(matches.map(result => result.mapIdx));
         target.classList.add("range-active");
-        map.querySelectorAll("[data-map-outpost]").forEach(element => element.classList.add(matchIds.has(n(element.dataset.mapOutpost)) ? "range-match" : "range-dimmed"));
+        map.querySelectorAll("[data-map-outpost]").forEach(element => {
+          element.classList.add(matchIds.has(n(element.dataset.mapOutpost)) ? "range-match" : "range-dimmed");
+          const result = outpostRanges.get(n(element.dataset.mapOutpost));
+          if (result) showRangeShortfall(element, result, guardRangeBands(R.outpostGuardRangeSteps(S, result.mapIdx)));
+        });
+        fitRoyalRangeLabels(map);
         const status = document.querySelector("[data-range-status]");
         if (status) status.textContent = `Resource ${resourceIdx + 1}: ${matches.length} outpost${matches.length === 1 ? "" : "s"} in range`;
       }
@@ -1662,6 +1810,7 @@
       }
       function render() {
         const S = activeRoyalState();
+        if (session.unitExpKey !== null && session.unitExpKey !== unitExpKey(S)) clearUnitExp();
         royalQuickTooltip.classList.remove("open");
         if (R.hasCompleteRoyalData(S) && session.tab === "resources") syncResourceSelection(S);
         document.querySelector("#royal-map-host").innerHTML = R.hasCompleteRoyalData(S) ? persistentMap(S) : "";
@@ -2076,6 +2225,220 @@
         const legacy = connections[1]?.kind !== "empty" ? render(connections[1], "Legacy saved link") : "";
         return `<div class="outpost-connection-list">${current}${legacy}</div>`;
       }
+      function unitExpKey(S) {
+        return JSON.stringify([session.saveRevision, session.royalStateView, session.selectedOutpost, S.royalGData, S.royalMapsData]);
+      }
+      function clearUnitExp() {
+        session.unitExpRequestId++;
+        session.unitExpWorker?.terminate();
+        session.unitExpWorker = null;
+        session.unitExpRunning = false;
+        session.unitExpProgress = null;
+        session.unitExpError = "";
+        session.unitExpResult = null;
+        session.unitExpKey = null;
+      }
+      function unitExpTargets(S, mapIdx) {
+        const unlocked = R.outpostUnlockedBars(S);
+        return session.unitExpTargets[mapIdx] || {
+          trading: unlocked[0] ? R.outpostRank(S, mapIdx, 0) + 1 : null,
+          command: !unlocked[0] && unlocked[2] ? R.outpostRank(S, mapIdx, 2) + 1 : null,
+          military: null,
+        };
+      }
+      function unitExpEta(result) {
+        if (!result) return "Unavailable";
+        return result.status === "already" ? "Already reached" : result.status === "reached" ? fmtHours(result.etaHours) : result.status === "no-progress" ? "No progress" : `Not reached in ${fi(result.elapsedHours / 8760)} years`;
+      }
+      function unitExpWhen(hours) {
+        return hours === undefined || hours === null ? "Not reached" : hours <= 0 ? "Now" : fmtHours(hours);
+      }
+      function unitExpSplit(traders, surveyors) {
+        return `<span class="unit-exp-unit">${unitIcon(1)}${fi(traders)} Traders</span><span class="unit-exp-unit">${unitIcon(3)}${fi(surveyors)} Surveyors</span>`;
+      }
+      function unitExpAxisTime(hours, days = hours >= 72) {
+        const value = days ? hours / 24 : hours;
+        return `${value >= 100 ? fi(value) : String(Number(value.toFixed(1)))}${days ? "d" : "h"}`;
+      }
+      function unitExpChart(plan) {
+        const runs = [plan.plan, plan.current].filter(run => run.chart?.hours?.length);
+        const end = Math.max(0, ...runs.map(run => run.chart.hours[run.chart.hours.length - 1]));
+        if (!runs.length || !(end > 0)) return "";
+        const colors = ["rgb(74, 229, 74)", "rgb(68, 138, 166)", "rgb(249, 130, 114)", "rgb(255, 214, 97)"];
+        const keys = { 0: "trading", 2: "command", 3: "military" };
+        const planEnd = plan.plan.chart.exp[1].length - 1;
+        const intelGain = plan.plan.chart.exp[1][planEnd] - plan.startExp[1];
+        const lines = [0, 2, 3, 1].map(bar => {
+          const key = keys[bar], need = key && plan.targets[key] !== null ? plan.targetExp[key] - plan.startExp[bar] : bar === 1 ? intelGain : 0;
+          return need > 0 ? { bar, key, need, name: R.outpostRankName(bar).replace(" Rank", ""), label: bar === 1 ? "Intel (vs plan)" : `${R.outpostRankName(bar).replace(" Rank", "")} ${fi(plan.targets[key])}` } : null;
+        }).filter(Boolean);
+        if (!lines.length) return "";
+        const pct = (run, line, i) => 100 * (run.chart.exp[line.bar][i] - plan.startExp[line.bar]) / line.need;
+        const peak = Math.max(100, ...runs.flatMap(run => lines.map(line => pct(run, line, run.chart.hours.length - 1))));
+        const yMax = Math.min(200, Math.ceil(peak / 25) * 25);
+        const W = 900, H = 300, L = 46, Rm = 16, T = 30, B = 46, width = W - L - Rm, plot = H - T - B;
+        const x = hours => L + width * hours / end, y = value => T + plot * (1 - value / yMax);
+        let svg = `<defs><clipPath id="unit-exp-clip"><rect x="${L}" y="${T - 3}" width="${width}" height="${plot + 3}"/></clipPath></defs><rect x="${L}" y="${T}" width="${width}" height="${plot}" fill="rgba(255,255,255,.025)" stroke="#2c3a52"/>`;
+        for (let value = 0; value <= yMax; value += yMax > 100 ? 50 : 25) svg += `<line x1="${L}" x2="${L + width}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}" stroke="${value === 100 ? "rgba(232,237,247,.45)" : "rgba(255,255,255,.06)"}"${value === 100 ? ' stroke-dasharray="2 4"' : ""}/><text x="${L - 6}" y="${(y(value) + 4).toFixed(1)}" text-anchor="end" class="unit-exp-chart-tick">${value}%</text>`;
+        const raw = end / 7, unit = end >= 72 ? 24 : 1, scaled = raw / unit, mag = 10 ** Math.floor(Math.log10(Math.max(scaled, 1e-9)));
+        const tick = ([1, 2, 5, 10].map(k => k * mag).find(k => k >= scaled) || 10 * mag) * unit;
+        for (let h = 0; h <= end + tick * 1e-6; h += tick) svg += `<line x1="${x(h).toFixed(1)}" x2="${x(h).toFixed(1)}" y1="${T + plot}" y2="${T + plot + 4}" stroke="#56657e"/><text x="${x(h).toFixed(1)}" y="${T + plot + 16}" text-anchor="middle" class="unit-exp-chart-tick">${unitExpAxisTime(h, unit === 24)}</text>`;
+        for (const up of plan.plan.intelRankUps || []) if (up.hours > 0 && up.hours <= end) svg += `<line x1="${x(up.hours).toFixed(1)}" x2="${x(up.hours).toFixed(1)}" y1="${T + plot + 22}" y2="${T + plot + 30}" stroke="${colors[1]}" stroke-width="2"/>`;
+        for (const step of plan.plan.steps.filter(step => step.hours > 0)) {
+          const sx = x(step.hours).toFixed(1);
+          svg += `<line x1="${sx}" x2="${sx}" y1="${T - 6}" y2="${T + plot}" stroke="#e8edf7" stroke-opacity=".5" stroke-dasharray="3 3"/><text x="${sx}" y="${T - 10}" text-anchor="middle" class="unit-exp-chart-label">${fi(step.traders)}T / ${fi(step.surveyors)}S</text>`;
+        }
+        if (plan.plan.etaHours > 0) {
+          const ex = x(plan.plan.etaHours);
+          svg += `<line x1="${ex.toFixed(1)}" x2="${ex.toFixed(1)}" y1="${T}" y2="${T + plot}" stroke="#ffd700" stroke-opacity=".75"/><text x="${(ex + (ex > L + width - 90 ? -5 : 5)).toFixed(1)}" y="${T + 12}" text-anchor="${ex > L + width - 90 ? "end" : "start"}" class="unit-exp-chart-label" style="fill:#ffd700">All targets ${unitExpAxisTime(plan.plan.etaHours)}</text>`;
+        }
+        if (plan.current.etaHours > 0 && plan.current.etaHours !== plan.plan.etaHours) {
+          const cx = x(plan.current.etaHours).toFixed(1);
+          svg += `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${T + plot}" stroke="#ffd700" stroke-opacity=".4" stroke-dasharray="6 4"/>`;
+        }
+        svg += '<g clip-path="url(#unit-exp-clip)">';
+        for (const [run, dashed] of [[plan.current, true], [plan.plan, false]]) {
+          if (!(run.chart?.hours?.length > 1)) continue;
+          for (const line of lines) svg += `<polyline points="${run.chart.hours.map((h, i) => `${x(h).toFixed(1)},${y(pct(run, line, i)).toFixed(1)}`).join(" ")}" fill="none" stroke="${colors[line.bar]}" stroke-width="${dashed ? 1.5 : 2.4}"${dashed ? ' stroke-opacity=".6" stroke-dasharray="6 4"' : ""} stroke-linejoin="round"/>`;
+        }
+        svg += "</g>";
+        for (const line of lines.filter(line => line.key)) {
+          const cur = plan.current.reachedAt[line.key], mine = plan.plan.reachedAt[line.key];
+          if (cur > 0) svg += `<circle cx="${x(cur).toFixed(1)}" cy="${y(100).toFixed(1)}" r="4" fill="#101b35" stroke="${colors[line.bar]}" stroke-width="1.5"/>`;
+          if (mine > 0) svg += `<circle cx="${x(mine).toFixed(1)}" cy="${y(100).toFixed(1)}" r="4.5" fill="${colors[line.bar]}" stroke="#101b35"/>`;
+        }
+        const first = plan.plan.steps[0];
+        const legend = `<div class="unit-exp-legend">${lines.map(line => `<span><i style="border-top-color:${colors[line.bar]}"></i>${esc(line.label)}</span>`).join("")}<span><i class="dashed"></i>Current assignments</span><span><i class="switch"></i>Split change${first ? ` (start ${fi(first.traders)}T / ${fi(first.surveyors)}S)` : ""}</span><span><i class="intel-up"></i>Intel rank-up</span><span><b class="dot"></b>Target reached (hollow: current)</span></div>`;
+        return `<figure class="unit-exp-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="EXP gained toward each target over time for the plan and current assignments">${svg}</svg>${legend}</figure>`;
+      }
+      const UNIT_EXP_NEEDS = { trading: "Trader or Surveyor slots", command: "a Commander", military: "a Knight" };
+      function unitExpBlocked(plan) {
+        const key = plan.plan.blocked;
+        if (!key) return "No target can progress with these units.";
+        const bar = { trading: 0, command: 2, military: 3 }[key];
+        const entry = plan.transients?.table.find(row => row.type === { command: 5, military: 6 }[key]);
+        const hint = key === "trading" ? "" : !plan.transients ? " Turn on Move same-world transients to borrow one." : entry && entry.available === entry.current ? " None are assigned elsewhere in this world." : "";
+        return `${R.outpostRankName(bar)} ${fi(plan.targets[key])} needs ${UNIT_EXP_NEEDS[key]} here.${hint}`;
+      }
+      function unitExpPanel(S, mapIdx) {
+        const unlocked = R.outpostUnlockedBars(S);
+        const bars = [["trading", 0], ["command", 2], ["military", 3]].filter(([, bar]) => unlocked[bar]);
+        if (!bars.length) return "";
+        if (session.unitExpKey !== null && session.unitExpKey !== unitExpKey(S)) clearUnitExp();
+        const targets = unitExpTargets(S, mapIdx), plan = session.unitExpResult;
+        const inputs = bars.map(([key, bar]) => `<label><span>${R.outpostRankName(bar)} <small>now ${fi(R.outpostRank(S, mapIdx, bar))}</small></span><input id="unit-exp-${key}" data-unit-exp-target="${key}" type="number" min="1" max="500" step="1" placeholder="None" value="${targets[key] ?? ""}"></label>`).join("");
+        const controls = `<form id="unit-exp-form"><div class="planner-controls">${inputs}<label class="unit-exp-check"><input id="unit-exp-move" type="checkbox" ${session.unitExpMove ? "checked" : ""}>Move same-world transients here</label><button type="submit" ${session.unitExpRunning ? "disabled" : ""}>${session.unitExpRunning ? "Planning..." : "Plan"}</button><button type="button" id="cancel-unit-exp" ${session.unitExpRunning ? "" : "disabled"}>Cancel</button></div></form>`;
+        let body = "";
+        if (plan?.available) {
+          const first = plan.plan.steps[0];
+          const saved = plan.savedHours;
+          body += `<div class="card-grid cols-3">${card("All targets", unitExpEta(plan.plan), saved > 0 ? `${fmtHours(saved)} faster than current` : saved === null ? "" : "Same as current")}${card("Current assignments", unitExpEta(plan.current), `${fi(plan.currentTraders)} Traders / ${fi(plan.pool - plan.currentTraders)} Surveyors`)}${card("Start with", first && plan.plan.status !== "no-progress" ? `${fi(first.traders)} / ${fi(first.surveyors)}` : "&mdash;", `Traders / Surveyors · ${fi(plan.plan.switches)} switch${plan.plan.switches === 1 ? "" : "es"}`)}</div>`;
+          const targetRows = [["trading", 0], ["command", 2], ["military", 3]].filter(([key]) => plan.targets[key] !== null);
+          body += `<table class="data-table unit-exp-targets"><thead><tr><th>Target</th><th>Plan</th><th>Current assignments</th></tr></thead><tbody>${targetRows.map(([key, bar]) => `<tr><td>${R.outpostRankName(bar)} ${fi(plan.targets[key])}</td><td>${unitExpWhen(plan.plan.reachedAt[key])}</td><td>${unitExpWhen(plan.current.reachedAt[key])}</td></tr>`).join("")}</tbody></table>${plan.plan.status === "no-progress" ? `<div class="planner-warning" role="alert">${esc(unitExpBlocked(plan))}</div>` : unitExpChart(plan)}`;
+          const events = plan.plan.steps.map(step => ({ hours: step.hours, order: 0, html: `${unitExpSplit(step.traders, step.surveyors)}${step.reason === "intel-rank" ? ` <span class="badge badge-blue">Intel rank ${fi(step.ranks[1])}</span>` : step.reason === "trading-target" ? ' <span class="badge badge-gold">Trading target reached</span>' : ""}` }));
+          const movedByType = (plan.transients?.moves || []).reduce((groups, move) => { (groups[move.type] ||= { name: move.name, count: 0 }).count++; return groups; }, {});
+          const movedTypes = Object.keys(movedByType).map(Number).sort((a, b) => a - b);
+          if (movedTypes.length) events.push({ hours: 0, order: 1, html: `<span>Move here:</span>${movedTypes.map(type => `<span class="unit-exp-unit">${transientUnitIcon(type)}${fi(movedByType[type].count)} ${esc(movedByType[type].name)}</span>`).join("")}` });
+          for (const [key, bar] of targetRows) if (plan.plan.reachedAt[key] > 0) events.push({ hours: plan.plan.reachedAt[key], order: 2, html: `<span class="badge badge-green">${R.outpostRankName(bar)} ${fi(plan.targets[key])}</span>` });
+          events.sort((a, b) => a.hours - b.hours || a.order - b.order);
+          if (plan.plan.status !== "no-progress") body += `<h4>Check-ins</h4><ol class="unit-exp-steps">${events.map(event => `<li><b>${unitExpWhen(event.hours)}</b><span>${event.html}</span></li>`).join("")}</ol>`;
+          if (plan.transients) {
+            const rows = plan.transients.table.map(entry => `<tr><th scope="row"><span class="unit-exp-unit">${transientUnitIcon(entry.type)}${esc(entry.name)}</span></th><td><div class="unit-exp-options">${entry.options.map(option => `<span class="unit-exp-option${option.count === entry.current ? " current" : ""}${option.count === entry.best ? " best" : ""}"><b>${fi(option.count)}${option.count === entry.best ? " &#9733;" : ""}</b>${option.status === "reached" || option.status === "already" ? fmtHours(option.etaHours) : option.status === "no-progress" ? (option.blocked ? `Needs ${{ trading: "slots", command: "Commander", military: "Knight" }[option.blocked]}` : "No progress") : "Not reached"}</span>`).join("")}${entry.available === entry.current ? '<span class="small">No same-world donors</span>' : ""}</div></td></tr>`).join("");
+            body += `<h4>Transient units</h4><table class="data-table unit-exp-transients"><tbody>${rows}</tbody></table>`;
+          }
+          if (plan.plan.status === "limit") body += `<p class="small">Limit: ${fi(plan.limits.hours / 8760)} years.</p>`;
+        } else if (plan) body += `<div class="planner-warning">${esc(plan.reason)}</div>`;
+        return `<section class="unit-exp-planner" aria-label="Unit EXP planner"><h3>Unit EXP planner</h3>${controls}<div id="unit-exp-output">${plannerProgress(session.unitExpProgress, "Unit EXP plan")}${session.unitExpError ? `<div class="planner-warning" role="alert">${esc(session.unitExpError)}</div>` : ""}${body}</div></section>`;
+      }
+      function renderUnitExp() {
+        const panel = document.querySelector(".unit-exp-planner");
+        if (!panel) return;
+        const detail = panel.closest(".outpost-detail");
+        const position = { x: window.scrollX, y: window.scrollY, top: detail?.scrollTop, left: detail?.scrollLeft };
+        const active = panel.contains(document.activeElement) ? document.activeElement : null;
+        const focusSelector = active?.id ? `#${CSS.escape(active.id)}` : active?.type === "submit" ? '#unit-exp-form button[type="submit"]' : null;
+        panel.outerHTML = unitExpPanel(activeRoyalState(), session.selectedOutpost);
+        wireUnitExp();
+        if (focusSelector) document.querySelector(focusSelector)?.focus({ preventScroll: true });
+        if (detail) { detail.scrollTop = position.top; detail.scrollLeft = position.left; }
+        window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+      }
+      function wireUnitExp() {
+        const inputs = [...document.querySelectorAll("[data-unit-exp-target]")];
+        const capture = (showErrors = true) => {
+          inputs.forEach(input => input.setCustomValidity(""));
+          if (inputs.length && inputs.every(input => input.value === "")) inputs[0].setCustomValidity("Set at least one target rank.");
+          if (!inputs.every(input => showErrors ? input.reportValidity() : input.checkValidity())) return false;
+          const targets = { trading: null, command: null, military: null };
+          for (const input of inputs) targets[input.dataset.unitExpTarget] = input.value === "" ? null : Number(input.value);
+          session.unitExpTargets[session.selectedOutpost] = targets;
+          session.unitExpMove = !!document.querySelector("#unit-exp-move")?.checked;
+          return true;
+        };
+        const changed = () => {
+          clearUnitExp();
+          const targets = { trading: null, command: null, military: null };
+          for (const input of inputs) targets[input.dataset.unitExpTarget] = input.value === "" || !input.checkValidity() ? null : Number(input.value);
+          session.unitExpTargets[session.selectedOutpost] = targets;
+          session.unitExpMove = !!document.querySelector("#unit-exp-move")?.checked;
+          document.querySelector("#unit-exp-output").innerHTML = '<p class="planner-note">Inputs changed. Plan to update.</p>';
+          const submit = document.querySelector('#unit-exp-form button[type="submit"]');
+          submit.disabled = false;
+          submit.textContent = "Plan";
+          document.querySelector("#cancel-unit-exp").disabled = true;
+        };
+        document.querySelectorAll("[data-unit-exp-target], #unit-exp-move").forEach(input => {
+          input.addEventListener("input", changed);
+          input.addEventListener("change", changed);
+        });
+        document.querySelector("#unit-exp-form")?.addEventListener("submit", event => {
+          event.preventDefault();
+          if (capture()) runUnitExp();
+        });
+        document.querySelector("#cancel-unit-exp")?.addEventListener("click", () => { clearUnitExp(); renderUnitExp(); });
+      }
+      function runUnitExp() {
+        const S = activeRoyalState(), mapIdx = session.selectedOutpost;
+        clearUnitExp();
+        const requestId = session.unitExpRequestId;
+        session.unitExpKey = unitExpKey(S);
+        session.unitExpRunning = true;
+        const fail = error => {
+          if (requestId !== session.unitExpRequestId) return;
+          session.unitExpWorker?.terminate();
+          session.unitExpWorker = null;
+          session.unitExpRunning = false;
+          session.unitExpProgress = null;
+          session.unitExpResult = null;
+          session.unitExpError = String(error?.message || error || "Unit EXP planning failed.");
+          renderUnitExp();
+        };
+        try {
+          const worker = new Worker("./js/workers/royal-planner-worker.js", { type: "module" });
+          session.unitExpWorker = worker;
+          worker.onmessage = event => {
+            if (event.data?.requestId !== session.unitExpRequestId) return;
+            try {
+              if (event.data.type === "progress") session.unitExpProgress = event.data.progress;
+              else if (event.data.type === "done") {
+                const result = event.data.result;
+                if (!result || (result.available && !Array.isArray(result.plan?.steps))) throw new Error("Unit EXP worker returned an empty result.");
+                session.unitExpResult = result;
+                session.unitExpRunning = false;
+                session.unitExpProgress = null;
+                session.unitExpWorker = null;
+                worker.terminate();
+              } else if (event.data.type === "error") throw new Error(event.data.error || "Unit EXP planning failed.");
+              renderUnitExp();
+            } catch (error) { fail(error); }
+          };
+          worker.onerror = event => fail(event.message || "Unit EXP worker failed.");
+          worker.onmessageerror = () => fail("Could not read the Unit EXP worker result.");
+          const derivedInputs = R.royalGuardianDerivedInputs(S);
+          worker.postMessage({ type: "run", operation: "unit-exp", requestId, saveData: S, mapIdx, options: { targets: unitExpTargets(S, mapIdx), moveTransients: session.unitExpMove, ext: { derivedInputs } } });
+          renderUnitExp();
+        } catch (error) { fail(error); }
+      }
       function currentConnectionToResource(S, mapIdx, resourceIdx) {
         const connection = R.outpostConnections(S, mapIdx)[0];
         return connection.kind === "resource" && connection.id === Number(resourceIdx);
@@ -2123,7 +2486,7 @@
           })
           .join(
             "",
-          )}</div><h3>Assignable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Fixed permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient assignments</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
+          )}</div>${unitExpPanel(S, x.mapIdx)}<h3>Assignable units</h3>${outpostUnitDetails(S, x.mapIdx)}<h3>Fixed permanent units</h3>${outpostPermanentUnitDetails(S, x.mapIdx)}<h3>Transient assignments</h3>${outpostTransientUnitDetails(S, x.mapIdx)}<h3>Connection</h3>${outpostConnectionDetails(S, con)}<h3>Reachable resource nodes</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Resource</th><th>Distance / reach</th><th>Connected</th><th>Remaining</th><th>Grade</th><th>Drain</th></tr></thead><tbody>${reachableResourceRows(S, x.mapIdx, reach)}</tbody></table></div><div class="mobile-cards">${reachableResourceCards(S, x.mapIdx, reach)}</div></div></details>`;
       }
       function layoutActionLabel(action) {
         if (action.kind === "connection") { const endpoint = action.endpoint || {}; return `${endpoint.kind === "resource" ? `Connect ${mapName(action.mapIdx)} to Resource ${endpoint.id + 1}` : endpoint.kind === "map" ? `Connect ${mapName(action.mapIdx)} to ${mapName(endpoint.id)}` : `Clear connection on ${mapName(action.mapIdx)}`} (slot ${n(action.slot) + 1})`; }
@@ -2985,6 +3348,7 @@
           worker.postMessage({ type: "run", operation: "outpost-points", requestId, saveData: S, mapIdx, options: {} });
         });
         document.querySelector("#cancel-outpost-points")?.addEventListener("click", () => { clearOutpostPointPlan(); render(); });
+        wireUnitExp();
         document.querySelectorAll("[data-currency-resource]").forEach(x => {
           const select = (focusOwner = false) => {
             session.selectedResource = n(x.dataset.currencyResource);

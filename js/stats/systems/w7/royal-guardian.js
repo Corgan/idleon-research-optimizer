@@ -393,6 +393,24 @@ export function unitSpecEffect(S, index, ext, armoryBonusOverride) { ext = ext |
 function _rangeWithoutLogistics(S, mapIdx, ext) { return 80 + orbletBonus(S, 8) + unitSpecEffect(S, 2, ext) * totalUnitsByType(S, mapIdx)[2] + outpostRank(S, mapIdx, 3) * armoryBonus(S, 74); }
 export function outpostRangeAtLogisticsLevel(S, mapIdx, level, ext) { const logistics = Math.max(0, Math.floor(n(level))); return Math.floor(Math.min(999, _rangeWithoutLogistics(S, mapIdx, ext) + 250 * logistics / (logistics + 100))); }
 export function outpostRange(S, mapIdx, ext) { return outpostRangeAtLogisticsLevel(S, mapIdx, row(S, mapIdx)?.[1], ext); }
+export function outpostGuardRangeSteps(S, mapIdx, ext) {
+	if (!outpostBuilt(S, mapIdx)) return [];
+	const units = outpostUnits(S, mapIdx);
+	const guards = units.filter(unit => unit.type === 2);
+	const others = units.filter(unit => unit.type !== 2);
+	const steps = [];
+	for (let delta = 0 - guards.length; delta <= others.length; delta++) {
+		const maps = S.royalMapsData.slice();
+		maps[mapIdx] = row(S, mapIdx).slice();
+		const packed = String(Math.max(0, Math.floor(n(maps[mapIdx][11])))).padStart(9, '0').slice(-9).split('');
+		const converted = (delta < 0 ? guards : others).slice(0, Math.abs(delta));
+		for (const unit of converted) packed[unit.slot] = delta < 0 ? '2' : '4';
+		maps[mapIdx][11] = Number(packed.join(''));
+		const range = outpostRange({ ...S, royalMapsData: maps }, mapIdx, ext);
+		steps.push({ delta, movableGuards: guards.length + delta, range, radius: range + 15 });
+	}
+	return steps;
+}
 export function connectionRange(S, mapIdx, ext) { return outpostRange(S, mapIdx, ext); }
 export function globalRangeBreakdown(S) { return { base: 80, orblet: orbletEffectDetail(S, 8), cap: 999, allowances: { resource: 15, outpost: 8 } }; }
 export function outpostRangeBreakdown(S, mapIdx, ext) {
