@@ -1512,10 +1512,12 @@
         return stack;
       }
       function showOutpostRange(mapIdx) {
-        const S = activeRoyalState();
+        const saved = activeRoyalState();
         clearRoyalRangeFinder();
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-outpost="${mapIdx}"]`);
-        if (!map || !target || !R.outpostBuilt(S, mapIdx) || ![0, 2].includes(R.outpostType(S, mapIdx))) return;
+        const assumed = !R.outpostBuilt(saved, mapIdx);
+        const S = assumed ? R.assumeConqueredOutpost(saved, mapIdx) : saved;
+        if (!map || !target || ![0, 2].includes(R.outpostType(S, mapIdx))) return;
         const position = R.outpostMapPosition(mapIdx), steps = R.outpostGuardRangeSteps(S, mapIdx);
         const resources = R.reachableResourcesForOutpost(S, mapIdx).filter(result => R.resourceCurrency(result.resourceIdx) >= 0);
         const matches = resources.filter(result => result.reachable);
@@ -1540,7 +1542,7 @@
         if (position) map.insertAdjacentHTML("beforeend", guardRangeMarkup(steps, position));
         fitRoyalRangeLabels(map);
         const status = document.querySelector("[data-range-status]");
-        if (status) status.innerHTML = `${esc(mapName(mapIdx))}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in current range. Node colors show the smallest range that reaches them: +N needs N more Guards; -N stays reachable after removing N Guards. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Resource radii; shared labels mean identical capped ranges.`;
+        if (status) status.innerHTML = `${esc(mapName(mapIdx))}${assumed ? " (not conquered; Current is a newly conquered Normal outpost with its starting Worker, +1 converts it to a Guard)" : ""}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in current range. Node colors show the smallest range that reaches them: +N needs N more Guards; -N stays reachable after removing N Guards. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Resource radii; shared labels mean identical capped ranges.`;
       }
       function showRangeShortfall(element, result, bands) {
         if (!result || !Number.isFinite(result.distance)) return;

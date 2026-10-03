@@ -47,6 +47,10 @@ input[type=number] { width:90px; }
 .badge-red { background:rgba(255,68,68,.16); color:#ff8b8b; }
 .badge-cyan { background:rgba(77,208,225,.16); color:var(--cyan); }
 .badge-muted { background:rgba(192,192,212,.12); color:var(--text2); }
+.target-cell { line-height:1.25; }
+.target-name { color:var(--text); font-weight:600; white-space:nowrap; }
+.target-name .badge { margin-left:6px; vertical-align:1px; }
+.target-map { color:var(--text2); font-size:.78em; margin-top:2px; }
 .callout-list { display:grid; gap:7px; }
 .callout { border-left:3px solid var(--gold); background:rgba(255,215,0,.065); padding:8px 10px; color:var(--text2); font-size:.76em; line-height:1.5; }
 .callout.warn { border-left-color:var(--red); background:rgba(255,68,68,.055); }
@@ -99,8 +103,9 @@ h3.sub { margin:14px 0 8px; color:var(--cyan); font-size:.9em; }
 import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
 import { fmtVal } from './js/renderers/format.js';
-import { charClassData } from './js/save/data.js';
-import { ClassNames } from './js/stats/data/game/customlists.js';
+import { charClassData, currentMapData } from './js/save/data.js';
+import { ClassNames, MapDispName } from './js/stats/data/game/customlists.js';
+import { MONSTERS } from './js/stats/data/game/monsters.js';
 import {
   FISHING_POOL_KEYS,
   fishingPool,
@@ -183,6 +188,19 @@ function charLabel(ci) {
   return name + (cls ? ' (' + cls + ')' : '');
 }
 function fishingLevel(ci) { return Number(saveData.lv0AllData?.[ci]?.[4]) || 0; }
+var ACTIVITY_BADGE = { FIGHTING: ['Fighting', 'red'], FISHING: ['Fishing', 'cyan'], MINING: ['Mining', 'gold'],
+  CHOPPIN: ['Choppin', 'green'], CATCHING: ['Catching', 'green'] };
+function prettyName(raw) { return String(raw || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim(); }
+function targetCell(ci, target) {
+  if (!target) return '<span class="muted">No AFK target</span>';
+  var mon = MONSTERS[target];
+  var map = MapDispName[currentMapData[ci]];
+  var act = mon && ACTIVITY_BADGE[mon.AFKtype] || [prettyName(mon && mon.AFKtype || 'Skilling').toLowerCase().replace(/^./, function(c) { return c.toUpperCase(); }), 'muted'];
+  var trench = target === 'MotherlodeFISH';
+  return '<div class="target-cell"><div class="target-name">' + esc(mon ? prettyName(mon.Name) : target)
+    + (trench ? badge('Trench', 'gold') : badge(act[0], act[1])) + '</div>'
+    + (map ? '<div class="target-map">' + esc(prettyName(map)) + '</div>' : '') + '</div>';
+}
 function defaultCharacter() {
   var best = 0;
   for (var ci = 0; ci < characterCount(); ci++) {
@@ -452,7 +470,7 @@ function renderTrench(ev, selection) {
     html += '<tr class="clickable' + (on ? ' saved' : ' inactive') + '" data-helper="' + ci + '">'
       + '<td><input type="checkbox" data-helper-check="' + ci + '"' + (on ? ' checked' : '') + '></td>'
       + '<td>' + esc(charLabel(ci)) + '</td>'
-      + '<td class="muted">' + esc(target || 'none') + (target === 'MotherlodeFISH' ? badge('at Trench', 'cyan') : '') + '</td>'
+      + '<td>' + targetCell(ci, target) + '</td>'
       + '<td class="num">' + fishingLevel(ci) + '</td>'
       + '<td>' + esc(toolkitName(state.trenchHelperMode === 'best' ? row.best.selection : evaluator(ci).base.savedSelection)) + '</td>'
       + '<td class="num">' + whole(used.outcome.fishTotal) + '</td>'

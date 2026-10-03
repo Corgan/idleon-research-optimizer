@@ -411,6 +411,15 @@ export function outpostGuardRangeSteps(S, mapIdx, ext) {
 	}
 	return steps;
 }
+// Conquest writes [0,0,0,0,0,0,0,0,-1,-1,0,211111111,0]: a Normal outpost whose single unlocked slot holds a Worker.
+export const CONQUERED_OUTPOST_ROW = Object.freeze([0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 211111111, 0]);
+export function assumeConqueredOutpost(S, mapIdx, startingUnitType = 0) {
+	if (outpostBuilt(S, mapIdx)) return S;
+	const conquered = CONQUERED_OUTPOST_ROW.slice(); const type = Math.max(0, Math.min(3, Math.floor(n(startingUnitType))));
+	conquered[11] = Number(`${type + 2}11111111`);
+	const maps = (S?.royalMapsData || []).slice(); maps[mapIdx] = conquered;
+	return { ...S, royalMapsData: maps };
+}
 export function connectionRange(S, mapIdx, ext) { return outpostRange(S, mapIdx, ext); }
 export function globalRangeBreakdown(S) { return { base: 80, orblet: orbletEffectDetail(S, 8), cap: 999, allowances: { resource: 15, outpost: 8 } }; }
 export function outpostRangeBreakdown(S, mapIdx, ext) {
