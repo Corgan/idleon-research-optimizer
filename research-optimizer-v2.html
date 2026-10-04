@@ -54,7 +54,8 @@ h1 span { color: var(--accent); }
 .tier-list { min-height: 120px; }
 .tier-zone { display: flex; flex-wrap: wrap; gap: 4px; min-height: 36px; padding: 6px; border-radius: 4px; margin-bottom: 2px; transition: background .15s; }
 .tier-zone.drag-over { background: rgba(255,255,255,.08); }
-.tier-zone-label { font-size: .7em; color: var(--text2); text-align: center; padding: 2px; user-select: none; width: 100%; }
+.tier-zone.drag-deny { background: rgba(231,76,60,.08); }
+.tier-zone-label { font-size: .7em; color: var(--text2); text-align: center; padding: 2px; user-select: none; width: 100%; pointer-events: none; }
 .tier-divider { display: flex; align-items: center; gap: 6px; margin: 4px 0; user-select: none; }
 .tier-divider hr { flex: 1; border: none; border-top: 2px solid var(--green); }
 .tier-divider span { color: var(--green); font-weight: 700; font-size: .8em; white-space: nowrap; }
@@ -62,7 +63,9 @@ h1 span { color: var(--accent); }
 .tier-sq:hover { border-color: var(--accent); transform: scale(1.1); z-index: 2; }
 .tier-sq:active { cursor: grabbing; }
 .tier-sq.dragging { opacity: .3; }
-.tier-sq.tier-exp { cursor: default; }
+.tier-sq.drop-before { box-shadow: -5px 0 0 -1px var(--accent); }
+.tier-sq.drop-after { box-shadow: 5px 0 0 -1px var(--accent); }
+.tier-sq.tier-exp { border-style: dashed; }
 
 /* Shape preset sidebar */
 .sp-wrap { display: flex; gap: 0; }
@@ -490,6 +493,9 @@ h1 span { color: var(--accent); }
     <h3 style="color:var(--green);margin-bottom:8px;">Shape Optimization</h3>
     <p style="color:var(--text2);font-size:.9em;margin-bottom:12px;">
       Drag nodes above or below the Res EXP divider to control where shapes are placed.
+      Drop on the left or right half of a node to insert before or after it. Res EXP nodes can be dragged
+      into the top zone to force a shape onto them, and dragged back to return them to value order.
+      Editing a built-in preset detaches it so the preset itself stays unchanged.
       The grid below shows the optimized shape placement based on your priority list.
     </p>
     <div id="ue-tier-panel" style="background:var(--bg2);border-radius:8px;padding:12px 16px;margin-bottom:16px;">

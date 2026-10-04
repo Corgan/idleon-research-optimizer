@@ -418,7 +418,6 @@ function _shapeInfo(nodeIdx, sc) {
 function _renderTierList(containerId, tiers, onChange, opts) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const locked = opts && opts.locked;
 
   // Shared tooltip element
   let tierTT = document.getElementById('tier-tt');
@@ -429,18 +428,23 @@ function _renderTierList(containerId, tiers, onChange, opts) {
     document.body.appendChild(tierTT);
   }
 
-  // Collect leveled EXP nodes for the immutable mid-section, sorted by cell value (optimized order)
-  const aboveSet = new Set(tiers.above);
+  // Leveled EXP nodes not prioritized above, sorted by cell value (optimized order)
   const _tierSc = (opts && opts.saveCtx) || buildSaveContext();
-  const expNodes = [];
-  for (const idx of GRID_INDICES) {
-    if ((_tierSc.gridLevels[idx] || 0) < 1) continue;
-    if (aboveSet.has(idx)) continue; // shown in above zone instead
-    const goal = NODE_GOAL[idx] || '';
-    if (NODE_GOAL_COLORS[goal]) expNodes.push(idx);
-  }
   const _cv = computeCellValues({ saveCtx: _tierSc });
-  expNodes.sort((a, b) => (_cv[b] || 0) - (_cv[a] || 0));
+  const _expNoise = Math.max(0, ..._cv) * 1e-12;
+  // EXP-category nodes, plus any node whose shape bonus really changes Res EXP
+  // (e.g. Boony Crowns via the Research EXP sticker); the optimizer ranks both by EXP.
+  const isExpNode = (idx) => !!NODE_GOAL_COLORS[NODE_GOAL[idx] || ''] || (_cv[idx] || 0) > _expNoise;
+  function collectExpNodes() {
+    const aboveSet = new Set(tiers.above);
+    const nodes = [];
+    for (const idx of GRID_INDICES) {
+      if ((_tierSc.gridLevels[idx] || 0) < 1) continue;
+      if (aboveSet.has(idx)) continue; // shown in above zone instead
+      if (isExpNode(idx)) nodes.push(idx);
+    }
+    return nodes.sort((a, b) => (_cv[b] || 0) - (_cv[a] || 0));
+  }
 
   function showTierTooltip(e, nodeIdx) {
     const info = RES_GRID_RAW[nodeIdx];
@@ -464,12 +468,56 @@ function _renderTierList(containerId, tiers, onChange, opts) {
   }
   function hideTierTT() { tierTT.style.display = 'none'; }
 
+  let drag = null; // { node, from: 'above' | 'below' | 'exp' }
+  let dropMark = null;
+
+  function clearDropMark() {
+    if (dropMark) dropMark.classList.remove('drop-before', 'drop-after');
+    dropMark = null;
+    container.querySelectorAll('.tier-zone.drag-over, .tier-zone.drag-deny').forEach(z => z.classList.remove('drag-over', 'drag-deny'));
+  }
+
+  // 'below' only holds non-EXP nodes; the EXP section only accepts EXP nodes returning from 'above'.
+  function canDrop(toTier) {
+    if (!drag) return false;
+    if (toTier === 'below') return !isExpNode(drag.node);
+    if (toTier === 'exp') return drag.from === 'above' && isExpNode(drag.node);
+    return toTier === 'above';
+  }
+
+  function dropTarget(zone, e) {
+    const sq = e.target.closest && e.target.closest('.tier-sq');
+    if (!sq || !zone.contains(sq)) return null;
+    const r = sq.getBoundingClientRect();
+    return { sq, node: Number(sq.dataset.node), after: e.clientX > r.left + r.width / 2 };
+  }
+
+  function applyDrop(toTier, target) {
+    const { node, from } = drag;
+    if (target && target.node === node) return false;
+    // EXP-valued non-EXP-category nodes stay in the stored 'below' list while shown in the EXP zone.
+    for (const t of ['above', 'below']) {
+      if (t !== from && !(from === 'exp' && t === 'below')) continue;
+      const i = tiers[t].indexOf(node);
+      if (i >= 0) tiers[t].splice(i, 1);
+    }
+    if (toTier !== 'exp') {
+      const list = tiers[toTier];
+      let pos = target ? list.indexOf(target.node) : -1;
+      if (pos < 0) pos = list.length;
+      else if (target.after) pos++;
+      list.splice(pos, 0, node);
+    }
+    return true;
+  }
+
   function rebuild() {
     container.innerHTML = '';
-    let dragSrc = null, dragTier = null;
+    clearDropMark();
 
     const aboveFiltered = tiers.above.filter(n => (_tierSc.gridLevels[n] || 0) >= 1);
-    const belowFiltered = tiers.below.filter(n => (_tierSc.gridLevels[n] || 0) >= 1);
+    const belowFiltered = tiers.below.filter(n => (_tierSc.gridLevels[n] || 0) >= 1 && !isExpNode(n));
+    const expNodes = collectExpNodes();
 
 
     function sqColor(nodeIdx) {
@@ -483,107 +531,96 @@ function _renderTierList(containerId, tiers, onChange, opts) {
     function makeSq(nodeIdx, tierName) {
       const div = document.createElement('div');
       div.className = 'tier-sq';
-      div.draggable = !locked && tierName !== 'exp';
+      div.draggable = true;
       div.dataset.node = nodeIdx;
       div.dataset.tier = tierName;
       div.textContent = gridCoord(nodeIdx);
       div.style.borderColor = sqColor(nodeIdx);
-      if (locked) div.style.opacity = '0.7';
       if (tierName === 'exp') {
         div.classList.add('tier-exp');
       }
       // Tooltip
-      div.addEventListener('mouseenter', (e) => showTierTooltip(e, nodeIdx));
+      div.addEventListener('mouseenter', (e) => { if (!drag) showTierTooltip(e, nodeIdx); });
       div.addEventListener('mousemove', moveTierTT);
       div.addEventListener('mouseleave', hideTierTT);
 
-      if (tierName === 'exp' || locked) return div;
-      // Drag
       div.addEventListener('dragstart', (e) => {
-        dragSrc = nodeIdx; dragTier = tierName;
+        drag = { node: nodeIdx, from: tierName };
         div.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      div.addEventListener('dragend', () => { div.classList.remove('dragging'); });
-      div.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        div.style.outline = '2px solid var(--accent)';
-      });
-      div.addEventListener('dragleave', () => { div.style.outline = ''; });
-      div.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        div.style.outline = '';
-        if (dragSrc === null || dragSrc === nodeIdx) return;
-        tiers[dragTier].splice(tiers[dragTier].indexOf(dragSrc), 1);
-        const destPos = tiers[tierName].indexOf(nodeIdx);
-        tiers[tierName].splice(destPos, 0, dragSrc);
         hideTierTT();
-        onChange();
-        rebuild();
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(nodeIdx)); // required for Firefox to start the drag
+      });
+      div.addEventListener('dragend', () => {
+        div.classList.remove('dragging');
+        drag = null;
+        clearDropMark();
       });
       return div;
     }
 
-    function makeZone(tierName, label) {
+    function makeZone(tierName, label, nodes) {
       const zone = document.createElement('div');
       zone.className = 'tier-zone';
       zone.dataset.tier = tierName;
       zone.addEventListener('dragover', (e) => {
+        if (!drag) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        zone.classList.add('drag-over');
+        const ok = canDrop(tierName);
+        e.dataTransfer.dropEffect = ok ? 'move' : 'none';
+        if (dropMark) dropMark.classList.remove('drop-before', 'drop-after');
+        dropMark = null;
+        zone.classList.toggle('drag-over', ok);
+        zone.classList.toggle('drag-deny', !ok);
+        if (!ok || tierName === 'exp') return;
+        const t = dropTarget(zone, e);
+        if (t && t.node !== drag.node) {
+          dropMark = t.sq;
+          dropMark.classList.add(t.after ? 'drop-after' : 'drop-before');
+        }
       });
-      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('dragleave', (e) => {
+        if (zone.contains(e.relatedTarget)) return;
+        zone.classList.remove('drag-over', 'drag-deny');
+        if (dropMark && zone.contains(dropMark)) { dropMark.classList.remove('drop-before', 'drop-after'); dropMark = null; }
+      });
       zone.addEventListener('drop', (e) => {
         e.preventDefault();
-        zone.classList.remove('drag-over');
-        if (dragSrc === null) return;
-        if (tiers[dragTier].indexOf(dragSrc) < 0) { dragSrc = null; return; } // already handled by child
-        tiers[dragTier].splice(tiers[dragTier].indexOf(dragSrc), 1);
-        tiers[tierName].push(dragSrc);
+        if (!drag || !canDrop(tierName)) { clearDropMark(); return; }
+        const changed = applyDrop(tierName, tierName === 'exp' ? null : dropTarget(zone, e));
+        drag = null;
+        clearDropMark();
+        if (!changed) return;
         hideTierTT();
         onChange();
         rebuild();
       });
-      const filtered = tierName === 'above' ? aboveFiltered : belowFiltered;
-      if (filtered.length === 0) {
+      if (nodes.length === 0 && label) {
         const lbl = document.createElement('div');
         lbl.className = 'tier-zone-label';
         lbl.textContent = label;
         zone.appendChild(lbl);
       }
+      nodes.forEach(n => zone.appendChild(makeSq(n, tierName)));
       return zone;
     }
 
     // Above section
-    const aboveZone = makeZone('above', 'drag here to prioritize over EXP');
-    aboveFiltered.forEach(n => aboveZone.appendChild(makeSq(n, 'above')));
-    container.appendChild(aboveZone);
+    container.appendChild(makeZone('above', 'drag here to prioritize over EXP', aboveFiltered));
 
-    // EXP divider + immutable squares
+    // EXP divider + EXP squares (ordered by shape value; drag one up to force-prioritize it)
     const expDiv = document.createElement('div');
     expDiv.className = 'tier-divider';
     expDiv.innerHTML = '<hr><span>\u2501 Res EXP \u2501</span><hr>';
     container.appendChild(expDiv);
-    if (expNodes.length > 0) {
-      const expZone = document.createElement('div');
-      expZone.className = 'tier-zone';
-
-      for (const idx of expNodes) expZone.appendChild(makeSq(idx, 'exp'));
-      container.appendChild(expZone);
-    }
+    container.appendChild(makeZone('exp', expNodes.length ? '' : 'drag EXP nodes here to unprioritize', expNodes));
 
     // Below section
     const belowDiv = document.createElement('div');
     belowDiv.className = 'tier-divider';
     belowDiv.innerHTML = '<hr><span>\u2501 Below EXP \u2501</span><hr>';
     container.appendChild(belowDiv);
-    const belowZone = makeZone('below', 'drag here for below EXP');
-    belowFiltered.forEach(n => belowZone.appendChild(makeSq(n, 'below')));
-    container.appendChild(belowZone);
-
-
+    container.appendChild(makeZone('below', 'drag here for below EXP', belowFiltered));
   }
   rebuild();
 }
@@ -608,8 +645,8 @@ export async function renderUpgradeEval(saveCtx) {
   const sc = saveCtx || buildSaveContext();
 
   // Render the tier list and sidebar immediately (cheap)
-  const locked = _isBasePreset(_getActivePresetId());
-  _renderTierList('ue-tier-shape', sc.shapeTiers, _tierOnChange, { locked, saveCtx: sc });
+  // Built-in presets stay editable; the first edit detaches them (see _tierOnChange).
+  _renderTierList('ue-tier-shape', sc.shapeTiers, _tierOnChange, { saveCtx: sc });
   _updateAboveWarning();
   _renderPresetSidebar();
 
@@ -646,15 +683,26 @@ export async function renderUpgradeEval(saveCtx) {
     if (gen !== _shapeOptGen) return; // preempted - don't fallback for stale call
     console.error('Shape opt worker error:', err);
     // Fallback to synchronous computation
-    _lastOpt = optimizeShapePlacement({ useTiers: true });
+    _lastOpt = optimizeShapePlacement({ useTiers: true, saveCtx: sc });
     if (sc.shapeTiers.above.length > 0) {
-      _pureExpTotal = optimizeShapePlacement().optimizedTotal;
+      _pureExpTotal = optimizeShapePlacement({ saveCtx: sc }).optimizedTotal;
     } else {
       _pureExpTotal = _lastOpt.phase1ExpTotal || 0;
     }
   }
   if (gridDiv) gridDiv.style.opacity = '';
+  _refreshTierColors();
   renderUEGrid(sc);
+}
+
+// The tier list renders before the optimizer finishes; recolor its borders from the new result.
+function _refreshTierColors() {
+  const ov = _lastOpt && _lastOpt.optimizedOverlay;
+  if (!ov) return;
+  document.querySelectorAll('#ue-tier-shape .tier-sq').forEach(sq => {
+    const si = ov[Number(sq.dataset.node)];
+    sq.style.borderColor = si >= 0 ? SHAPE_COLORS[si] : '#555';
+  });
 }
 
 function renderUEGrid(sc) {
@@ -681,8 +729,11 @@ function renderUEGrid(sc) {
       if (tierCost > 0.01) {
         html += ' <span style="color:#e74c3c;">(\u2212' + fmtVal(tierCost) + ' / \u2212' + tierCostPct.toFixed(2) + '% vs pure EXP)</span>';
       }
-      html += ' <span style="color:var(--text2);margin-left:auto;">' + opt.placements.length + ' shapes placed</span>'
-        + '</div>';
+      html += ' <span style="color:var(--text2);margin-left:auto;">' + opt.placements.length + ' shapes placed'
+        + (opt.exactSearch && opt.exactSearch.proven
+          ? ' \u00b7 <span style="color:var(--green);" title="Exhaustive search over every node set each shape can cover (' + opt.exactSearch.nodes.toLocaleString() + ' search nodes)">proven optimal</span>'
+          : '')
+        + '</span></div>';
       sumEl.innerHTML = html;
     } else {
       sumEl.innerHTML = '';
