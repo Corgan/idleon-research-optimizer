@@ -773,6 +773,22 @@
       .unit-exp-transients { width: auto; }
       .unit-exp-transients th { padding-right: 18px; white-space: nowrap; }
       .unit-exp-chart { margin: 4px 0 12px; }
+      tr.armory-row, article.armory-row { cursor: pointer; }
+      tr.armory-row:hover, tr.armory-row.open, article.armory-row.open { background: rgba(255, 255, 255, .04); }
+      tr.armory-row:focus-visible, article.armory-row:focus-visible, .purity-help:focus-visible, [data-purity-tooltip]:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+      .armory-caret { display: inline-block; width: 1.1em; color: var(--text2); }
+      .armory-chart-row > td { background: rgba(0, 0, 0, .18); }
+      .armory-cost-chart { padding: 4px 6px; }
+      .armory-cost-band { fill: transparent; cursor: crosshair; }
+      .armory-cost-band:hover { fill: rgba(255, 255, 255, .07); }
+      [data-purity-tooltip] { cursor: help; }
+      .rg-help-glyph { display: inline-flex; align-items: center; justify-content: center; width: 1.25em; height: 1.25em; margin: 0 0.15em; padding: 0; border: 1.5px solid #fff; border-radius: 50%; background: #2b2b2b; color: #fff; font: 700 0.78em/1 sans-serif; vertical-align: 0.05em; cursor: pointer; }
+      .rg-help-glyph:hover, .rg-help-glyph:focus-visible { background: var(--gold); color: #1a1a2e; outline: none; }
+      .armory-helper-text { max-width: 320px; line-height: 1.4; }
+      .purity-effects { margin: 4px 0 6px; padding-left: 18px; max-width: 420px; }
+      .armory-tip-provides { max-width: 420px; margin: 2px 0 8px; padding: 6px 8px; border-left: 2px solid var(--cyan); background: rgba(77, 208, 225, .07); }
+      .armory-tip-provides span { color: var(--text2); font-size: .85em; }
+      .purity-effects li { margin: 2px 0; }
       .unit-exp-chart svg { display: block; width: 100%; height: auto; }
       .unit-exp-chart-tick { fill: var(--text2); font-size: 11px; font-variant-numeric: tabular-nums; }
       .unit-exp-chart-label { fill: #e8edf7; font-size: 11px; font-weight: 700; }
@@ -1200,6 +1216,7 @@
         ROYAL_RESOURCES,
         ROYAL_MARBLES,
         ROYAL_STATUES,
+        PURIFIED_BONUS_GLYPH,
       } from "./js/stats/data/w7/royal-guardian.js";
       import { mapDisplayName } from "./js/stats/data/common/maps.js";
       import { label } from "./js/stats/entity-names.js";
@@ -1215,6 +1232,8 @@
       royalQuickTooltip.setAttribute("role", "tooltip");
       document.body.appendChild(royalQuickTooltip);
       let lastRoyalTooltipAnchor = null;
+      let pinnedRoyalTooltip = null;
+      document.addEventListener("click", event => { if (pinnedRoyalTooltip && !event.target.closest?.("[data-royal-pin]")) hideRoyalTooltip(true); });
       const repositionRoyalTooltip = () => {
         if (royalQuickTooltip.classList.contains("open") && lastRoyalTooltipAnchor) {
           positionRoyalTooltip(lastRoyalTooltipAnchor.x, lastRoyalTooltipAnchor.y);
@@ -1273,6 +1292,7 @@
         breakdownOutpost: null,
         currencyTarget: 0,
         upgradeView: "armory",
+        armoryChartOrder: null,
         breakdownCategory: "collection",
         breakdownUnit: "worker",
         breakdownUnitStat: "collection",
@@ -1424,21 +1444,33 @@
         royalQuickTooltip.style.left = `${Math.max(viewportLeft + margin, Math.min(viewportLeft + viewportWidth - margin - scaledWidth, clientX + pad))}px`;
         royalQuickTooltip.style.top = `${Math.max(viewportTop + margin, Math.min(viewportTop + viewportHeight - margin - scaledHeight, clientY + pad))}px`;
       }
-      function hideRoyalTooltip() { royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; }
+      function hideRoyalTooltip(force) { if (pinnedRoyalTooltip && force !== true) return; pinnedRoyalTooltip = null; royalQuickTooltip.classList.remove("open"); lastRoyalTooltipAnchor = null; }
       function bindRoyalTooltip(element, html) {
         element.setAttribute("aria-describedby", royalQuickTooltip.id);
-        const show = (x, y) => { royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); lastRoyalTooltipAnchor = { x, y }; positionRoyalTooltip(x, y); };
+        const show = (x, y) => { if (pinnedRoyalTooltip && pinnedRoyalTooltip !== element) return; royalQuickTooltip.innerHTML = html(); royalQuickTooltip.classList.add("open"); lastRoyalTooltipAnchor = { x, y }; positionRoyalTooltip(x, y); };
+        if (element.hasAttribute("data-royal-pin")) element.addEventListener("click", event => {
+          event.preventDefault();
+          if (pinnedRoyalTooltip === element) { hideRoyalTooltip(true); return; }
+          pinnedRoyalTooltip = null;
+          const rect = element.getBoundingClientRect();
+          show(rect.right, rect.top);
+          pinnedRoyalTooltip = element;
+        });
         element.addEventListener("pointerenter", event => show(event.clientX, event.clientY));
         element.addEventListener("pointermove", event => { lastRoyalTooltipAnchor = { x: event.clientX, y: event.clientY }; positionRoyalTooltip(event.clientX, event.clientY); });
         element.addEventListener("pointerleave", hideRoyalTooltip);
         element.addEventListener("focus", () => { const rect = element.getBoundingClientRect(); show(rect.right, rect.top); });
         element.addEventListener("blur", hideRoyalTooltip);
-        element.addEventListener("keydown", event => { if (event.key === "Escape") hideRoyalTooltip(); });
+        element.addEventListener("keydown", event => { if (event.key === "Escape") hideRoyalTooltip(true); });
       }
       function wireRoyalTooltips() {
+        if (pinnedRoyalTooltip && !pinnedRoyalTooltip.isConnected) hideRoyalTooltip(true);
         const S = activeRoyalState();
         const bind = bindRoyalTooltip;
+        document.querySelectorAll("[data-armory-helper]").forEach(element => bind(element, () => armoryHelperTooltip(n(element.dataset.armoryHelper))));
         document.querySelectorAll("[data-royal-clear-tooltip]").forEach(element => bind(element, () => rawOutpostClearTooltip(element)));
+        document.querySelectorAll("[data-armory-point]").forEach(element => bind(element, () => armoryCostTooltip(S, n(element.dataset.armoryOrder), n(element.dataset.armoryPoint))));
+        document.querySelectorAll("[data-purity-tooltip]").forEach(element => bind(element, () => purityTooltip(S, n(element.dataset.purityTooltip))));
         if (session.rangeFinderMode) return;
         document.querySelectorAll("[data-map-outpost]").forEach(element => bind(element, () => outpostQuickView(S, n(element.dataset.mapOutpost))));
         document.querySelectorAll("[data-map-resource]").forEach(element => bind(element, () => resourceQuickView(S, n(element.dataset.mapResource))));
@@ -2014,7 +2046,7 @@
           })
           .join(
             "",
-          )}</div></section><section class="section"><h2>Next actions</h2>${a.map((x) => `<div class="info-panel">${x}</div>`).join("")}</section><section class="section"><h2>Purified outposts</h2><div class="card-grid cols-3">${
+          )}</div></section><section class="section"><h2>Next actions</h2>${a.map((x) => `<div class="info-panel">${x}</div>`).join("")}</section><section class="section"><h2><span class="purity-help" tabindex="0" data-purity-tooltip="-1">Purified outposts ⓘ</span></h2><div class="card-grid cols-3">${
           p
             .slice(0, 6)
             .map((x) =>
@@ -2273,7 +2305,7 @@
         const barracks = Math.max(0, n(raw[0])), logistics = Math.max(0, n(raw[1])), education = Math.max(0, n(raw[2]));
         const slots = level => Math.min(6, 1 + level), barracksMulti = level => Math.min(5, 1 + Math.max(0, Math.round(level - 5)) * .1), rangeBonus = level => Math.floor(250 * level / (level + 100));
         const educationUnlocked = R.armoryLevel(S, 57) >= 1;
-        return `<div class="card-grid cols-3"><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Expanded Barracks</b><span class="badge badge-blue">Lv ${fi(barracks)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">12 points</span></div><div class="outpost-upgrade-effect"><span>Unit slots</span><strong>${fi(slots(barracks))} → ${fi(slots(barracks + 1))}</strong><span>Post-cap collection</span><strong>${fmtMultiplier(barracksMulti(barracks))}x → ${fmtMultiplier(barracksMulti(barracks + 1))}x</strong></div></article><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Advanced Logistics</b><span class="badge badge-blue">Lv ${fi(logistics)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">2 points</span></div><div class="outpost-upgrade-effect"><span>Collection bonus</span><strong>+${fi(logistics * 5)}% → +${fi((logistics + 1) * 5)}%</strong><span>Range bonus</span><strong>+${fi(rangeBonus(logistics))} → +${fi(rangeBonus(logistics + 1))}</strong></div></article><article class="card outpost-upgrade-card ${educationUnlocked ? "" : "locked"}"><div class="outpost-upgrade-head"><b>Greater Education</b><span class="badge ${educationUnlocked ? "badge-blue" : "badge-red"}">${educationUnlocked ? `Lv ${fi(education)}` : "Locked"}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">1 point</span></div><div class="outpost-upgrade-effect"><span>Listed rank EXP bonus</span><strong>${educationUnlocked ? `+${fi(education * 10)}% → +${fi((education + 1) * 10)}%` : "Armory required"}</strong></div><div class="small">${educationUnlocked ? "The current game collection formula does not consume this saved level." : `Unlock from Armory shelf ${fi(ARMORY_ORDER.indexOf(57) + 1)}.`}</div></article></div>`;
+        return `<div class="card-grid cols-3"><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Expanded Barracks</b><span class="badge badge-blue">Lv ${fi(barracks)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">12 points</span></div><div class="outpost-upgrade-effect"><span>Unit slots</span><strong>${fi(slots(barracks))} → ${fi(slots(barracks + 1))}</strong><span>Post-cap collection</span><strong>${fmtMultiplier(barracksMulti(barracks))}x → ${fmtMultiplier(barracksMulti(barracks + 1))}x</strong></div></article><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Advanced Logistics</b><span class="badge badge-blue">Lv ${fi(logistics)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">2 points</span></div><div class="outpost-upgrade-effect"><span>Collection bonus</span><strong>+${fi(logistics * 5)}% → +${fi((logistics + 1) * 5)}%</strong><span>Range bonus</span><strong>+${fi(rangeBonus(logistics))} → +${fi(rangeBonus(logistics + 1))}</strong></div></article><article class="card outpost-upgrade-card ${educationUnlocked ? "" : "locked"}"><div class="outpost-upgrade-head"><b>Greater Education</b><span class="badge ${educationUnlocked ? "badge-blue" : "badge-red"}">${educationUnlocked ? `Lv ${fi(education)}` : "Locked"}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">1 point</span></div><div class="outpost-upgrade-effect"><span>Rank EXP bonus</span><strong>${educationUnlocked ? `+${fi(education * 10)}% → +${fi((education + 1) * 10)}%` : "Armory required"}</strong></div><div class="small">${educationUnlocked ? "Multiplies every rank bar's EXP at this outpost, before the Glorified 2x." : `Unlock from Armory shelf ${fi(ARMORY_ORDER.indexOf(57) + 1)}.`}</div></article></div>`;
       }
       function clearOutpostPointPlan() {
         session.outpostPointRequestId += 1;
@@ -2446,6 +2478,7 @@
           const movedByType = (plan.transients?.moves || []).reduce((groups, move) => { (groups[move.type] ||= { name: move.name, count: 0 }).count++; return groups; }, {});
           const movedTypes = Object.keys(movedByType).map(Number).sort((a, b) => a - b);
           if (movedTypes.length) events.push({ hours: 0, order: 1, html: `<span>Move here:</span>${movedTypes.map(type => `<span class="unit-exp-unit">${transientUnitIcon(type)}${fi(movedByType[type].count)} ${esc(movedByType[type].name)}</span>`).join("")}` });
+          for (const up of plan.plan.commandUnits || []) events.push({ hours: up.hours, order: 1, html: `<span class="badge badge-red">Command rank ${fi(up.rank)}</span><span class="unit-exp-unit">${unitIcon(up.type)}+1 permanent ${up.type === 1 ? "Trader" : "Surveyor"}</span>` });
           for (const [key, bar] of targetRows) if (plan.plan.reachedAt[key] > 0) events.push({ hours: plan.plan.reachedAt[key], order: 2, html: `<span class="badge badge-green">${R.outpostRankName(bar)} ${fi(plan.targets[key])}</span>` });
           events.sort((a, b) => a.hours - b.hours || a.order - b.order);
           if (plan.plan.status !== "no-progress") body += `<h4>Check-ins</h4><ol class="unit-exp-steps">${events.map(event => `<li><b>${unitExpWhen(event.hours)}</b><span>${event.html}</span></li>`).join("")}</ol>`;
@@ -2581,7 +2614,7 @@
             (r) => r.reachable,
           );
         const outpostType = types[R.outpostType(S, x.mapIdx)], glorified = R.outpostIsGlorified(S, x.mapIdx), purified = R.outpostIsPurified(S, x.mapIdx);
-        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="outpost-detail-header"><div class="outpost-detail-title"><strong>${mapName(x.mapIdx)}</strong><div class="outpost-detail-pills"><span class="outpost-detail-pill">${outpostType}</span><span class="outpost-detail-pill state">${glorified ? "Glorified" : "Built"}</span>${purified ? '<span class="outpost-detail-pill purified">Purified</span>' : ""}</div></div><div class="outpost-detail-stats"><div class="outpost-detail-stat"><span>Points available</span><b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Connection range</span><b>${f(R.outpostRange(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Resource output</span><b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr</b></div></div></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}${outpostPointPlanPanel(S, x.mapIdx)}<h3>Rank bars</h3><div class="rank-grid">${[
+        return `<details class="outpost-row" ${forceOpen ? "open" : ""}><summary><div class="outpost-detail-header"><div class="outpost-detail-title"><strong>${mapName(x.mapIdx)}</strong><div class="outpost-detail-pills"><span class="outpost-detail-pill">${outpostType}</span><span class="outpost-detail-pill state">${glorified ? "Glorified" : "Built"}</span>${purified ? `<span class="outpost-detail-pill purified" tabindex="0" data-purity-tooltip="${x.mapIdx}">Purified</span>` : ""}</div></div><div class="outpost-detail-stats"><div class="outpost-detail-stat"><span>Points available</span><b>${f(R.outpostPointsLeft(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Connection range</span><b>${f(R.outpostRange(S, x.mapIdx))}</b></div><div class="outpost-detail-stat"><span>Resource output</span><b>${f(R.outpostResourceRateBreakdown(S, x.mapIdx).value)}/hr</b></div></div></div></summary><div class="row-body"><h3>Outpost Upgrades</h3>${outpostUpgradeCards(S, raw)}${outpostPointPlanPanel(S, x.mapIdx)}<h3>Rank bars</h3><div class="rank-grid">${[
           0, 1, 2, 3, 4,
         ]
           .map((b, i) => {
@@ -2589,7 +2622,7 @@
               z = rankBreakdown.info,
               locked = !R.outpostUnlockedBars(S)[b];
             const eta = Number.isFinite(rankBreakdown.etaHours) ? fmtResetDuration(rankBreakdown.etaHours) : "No active EXP";
-            return `<div class="rank ${locked ? "locked" : ""}"><b>${R.outpostRankName(b)}</b><small>${R.outpostRankContributor(b)} EXP · ${fi(rankBreakdown.contributors)} contributor${rankBreakdown.contributors === 1 ? "" : "s"}</small>${locked ? '<small><span class="badge badge-red">Locked</span></small>' : ""}<small>Rank ${fi(z.rank)} | ${f(z.exp)} / ${f(z.nextReq)} EXP</small>${bar(z.progress)}<small>${f(rankBreakdown.value)}/hr</small><small>Next rank: ${eta}</small></div>`;
+            return `<div class="rank ${locked ? "locked" : ""}"${b === 4 ? ` tabindex="0" data-purity-tooltip="${x.mapIdx}"` : ""}><b>${R.outpostRankName(b)}</b><small>${R.outpostRankContributor(b)} EXP · ${fi(rankBreakdown.contributors)} contributor${rankBreakdown.contributors === 1 ? "" : "s"}</small>${locked ? '<small><span class="badge badge-red">Locked</span></small>' : ""}<small>Rank ${fi(z.rank)} | ${f(z.exp)} / ${f(z.nextReq)} EXP</small>${bar(z.progress)}<small>${f(rankBreakdown.value)}/hr</small><small>Next rank: ${eta}</small></div>`;
           })
           .join(
             "",
@@ -3064,19 +3097,93 @@
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
         return `<section class="section">${optimizedStateNotice("upgrades")}<nav class="subtabs" role="tablist" aria-label="Upgrade views">${["armory", "statues", "flair", "orblets"].map((v) => `<button role="tab" aria-selected="${session.upgradeView === v ? "true" : "false"}" data-upgrade="${v}">${v === "armory" ? "Armory" : v === "statues" ? "Royal Statues" : v === "flair" ? "Statue Flair" : "Orblets"}</button>`).join("")}</nav>${session.upgradeView === "armory" ? armory(S) : session.upgradeView === "statues" ? statues(S) : session.upgradeView === "flair" ? flair(S) : orblets(S)}</section>`;
       }
+      function armoryRowAttrs(r, expandable) {
+        if (!expandable) return "";
+        const open = session.armoryChartOrder === r.orderIndex;
+        return ` class="armory-row${open ? " open" : ""}" data-armory-row="${r.orderIndex}" tabindex="0" role="button" aria-expanded="${open}"`;
+      }
+      function armoryLogTicks(lo, hi) {
+        const step = Math.max(1, Math.ceil((hi - lo) / 7)), ticks = [];
+        for (let e = lo; e <= hi; e += step) ticks.push(e);
+        return ticks;
+      }
+      function armoryCostChart(S, orderIndex) {
+        const p = R.armoryCostProjection(S, orderIndex, 50);
+        if (!p?.rows.length) return `<div class="note">Max level reached.</div>`;
+        const series = [...(p.discountAvailable ? [["discounted", "With daily discount", "#4dd0e1"]] : []), ["full", "Full price", "#ffd700"]];
+        const values = p.rows.flatMap(r => series.map(([k]) => r[k])).filter(v => v > 0 && Number.isFinite(v));
+        const showBalance = p.balance > 0;
+        const lo = Math.min(...values, ...(showBalance ? [p.balance] : [])), hi = Math.max(...values, ...(showBalance ? [p.balance] : []));
+        const logScale = hi / Math.max(lo, 1e-9) > 20;
+        const W = 1200, H = 300, L = 64, Rm = 16, T = 18, B = 40, width = W - L - Rm, plot = H - T - B, N = p.rows.length;
+        const tickLabel = v => v >= 1e6 ? `1e${Math.round(Math.log10(v))}` : f(v);
+        let y, yTicks;
+        if (logScale) {
+          const yLo = Math.floor(Math.log10(lo)), yHi = Math.max(yLo + 1, Math.ceil(Math.log10(hi)));
+          y = v => T + plot * (1 - (Math.log10(Math.max(v, 10 ** yLo)) - yLo) / (yHi - yLo));
+          yTicks = armoryLogTicks(yLo, yHi).map(e => 10 ** e);
+        } else {
+          const mag = 10 ** Math.floor(Math.log10(Math.max(hi, 1e-9))), top = ([1, 2, 5, 10].map(k => k * mag).find(k => k >= hi) || 10 * mag);
+          y = v => T + plot * (1 - v / top); yTicks = Array.from({ length: 5 }, (_, i) => top * i / 4);
+        }
+        const x = i => L + (N === 1 ? width / 2 : width * i / (N - 1));
+        let svg = `<rect x="${L}" y="${T}" width="${width}" height="${plot}" fill="rgba(255,255,255,.025)" stroke="#2c3a52"/>`;
+        for (const v of yTicks) svg += `<line x1="${L}" x2="${L + width}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.06)"/><text x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="unit-exp-chart-tick">${logScale ? tickLabel(v) : f(v)}</text>`;
+        const xStep = N <= 12 ? 1 : 5 * Math.ceil(N / 50);
+        p.rows.forEach((r, i) => { if (i === 0 || i === N - 1 || r.nextLevel % xStep === 0) svg += `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}" y1="${T + plot}" y2="${T + plot + 4}" stroke="#56657e"/><text x="${x(i).toFixed(1)}" y="${T + plot + 16}" text-anchor="middle" class="unit-exp-chart-tick">${fi(r.nextLevel)}</text>`; });
+        svg += `<text x="${L + width / 2}" y="${H - 6}" text-anchor="middle" class="unit-exp-chart-tick">Level purchased</text>`;
+        if (showBalance) { const by = y(p.balance).toFixed(1); svg += `<line x1="${L}" x2="${L + width}" y1="${by}" y2="${by}" stroke="#4ae54a" stroke-opacity=".7" stroke-dasharray="6 4"/><text x="${L + width - 4}" y="${(y(p.balance) - 5).toFixed(1)}" text-anchor="end" class="unit-exp-chart-label" style="fill:#4ae54a">Balance ${f(p.balance)}</text>`; }
+        for (const [key, , color] of series) {
+          svg += `<polyline points="${p.rows.map((r, i) => `${x(i).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round"/>`;
+          svg += p.rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[key]).toFixed(1)}" r="2.6" fill="${color}"/>`).join("");
+        }
+        const half = N === 1 ? width / 2 : width / (N - 1) / 2;
+        svg += p.rows.map((r, i) => `<rect class="armory-cost-band" data-armory-point="${i}" data-armory-order="${orderIndex}" x="${Math.max(L, x(i) - half).toFixed(1)}" y="${T}" width="${(Math.min(L + width, x(i) + half) - Math.max(L, x(i) - half)).toFixed(1)}" height="${plot}"/>`).join("");
+        const fullCovered = p.rows.filter(r => r.cumulativeFull <= p.balance).length, discountCovered = p.rows.filter(r => r.cumulativeDiscounted <= p.balance).length;
+        const summary = `Next ${fi(N)} level${N === 1 ? "" : "s"} (${fi(p.level)} → ${fi(p.level + N)} of ${fi(p.maxLevel)}), ${logScale ? "log" : "linear"} scale. ${p.discountAvailable ? `Daily Masterclass discount: ${fi(p.discountsLeftToday)} of ${fi(p.dailyPurchaseLimit)} discounted purchases left today (shared with Compass). ` : "No daily Masterclass discount unlocked (Legend 23). "}Your balance covers ${fi(fullCovered)} level${fullCovered === 1 ? "" : "s"} at full price${p.discountAvailable ? ` or ${fi(discountCovered)} with the discount` : ""}.`;
+        const legend = `<div class="unit-exp-legend">${series.map(([, label, color]) => `<span><i style="border-top-color:${color}"></i>${label}</span>`).join("")}${showBalance ? '<span><i style="border-top:1.5px dashed #4ae54a"></i>Current balance</span>' : ""}</div>`;
+        return `<div class="armory-cost-chart"><div class="note">${summary}</div><figure class="unit-exp-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected Armory upgrade cost for the next ${N} levels">${svg}</svg>${legend}</figure></div>`;
+      }
+      function armoryCostTooltip(S, orderIndex, point) {
+        const p = R.armoryCostProjection(S, orderIndex, 50), r = p?.rows[point];
+        if (!r) return "";
+        const u = ARMORY_UPGRADES[p.index], icon = currencyIcon(p.currencySlot), preview = R.armoryPurchasePreview(S, p.index, r.level);
+        const provides = preview.recruit ? `<div class="armory-tip-provides"><span>Recruits</span> <b>${esc(preview.recruit)}</b></div>` : `<div class="armory-tip-provides"><span>At level ${fi(r.nextLevel)}</span><div>${esc(preview.description).replaceAll(PURIFIED_BONUS_GLYPH, "?")}</div></div>`;
+        return `<h3>${displayItemName(u?.name)} · Level ${fi(r.level)} → ${fi(r.nextLevel)}</h3>${provides}<div class="tooltip-grid">${p.discountAvailable ? `<span>With daily discount</span><b>${icon}${f(r.discounted)}</b>` : ""}<span>Full price</span><b>${icon}${f(r.full)}</b>${p.discountAvailable ? `<span>Total from Lv ${fi(p.level)} (discount)</span><b>${icon}${f(r.cumulativeDiscounted)}</b>` : ""}<span>Total from Lv ${fi(p.level)} (full)</span><b>${icon}${f(r.cumulativeFull)}</b><span>Balance</span><b class="${r.cumulativeFull <= p.balance ? "cost-ok" : r.cumulativeDiscounted <= p.balance && p.discountAvailable ? "" : "cost-bad"}">${icon}${f(p.balance)}</b></div>`;
+      }
+      const RANK_EXP_PURITY_NOTE = "No rank EXP bonus in practice. The intended 3x rank EXP checks map IDs 0-4 (the bar index), and those maps cannot hold outposts.";
+      function purityTooltip(S, mapIdx) {
+        const any = R.purificationDetail(S, Math.max(0, mapIdx));
+        const reached = index => session.spoilersVisible || R.armoryUnlockOrder().indexOf(index) < R.armoryUnlockedCount(S);
+        const decree = !reached(51) ? "A later Armory upgrade adds collection rate to all outposts per Purified map." : any.armory51.level > 0 ? `+${f(any.decreePerMap)}% collection rate to every outpost per Purified map (${fi(any.purifiedCount)} purified → ${fmtMultiplier(any.decreeMultiplier)}x)` : "Global Decree - PM not purchased; once bought, every Purified map adds collection rate to all outposts.";
+        const collection = `${fmtMultiplier(any.collectionMultiplier)}x collection rate at the purified outpost (base +200%${any.armory1.level > 0 && reached(1) ? ` + Perfect Purification ${f(any.armory1.bonus)}%` : ""})`;
+        if (mapIdx < 0) {
+          return `<h3>Purification</h3><div class="note">An outpost becomes Purified at Purity Rank 1.</div><ul class="purity-effects"><li>${collection}</li><li>${decree}</li><li>+10 Regal mobs when D.I. respawns monsters on that map (Regal Intervention)</li><li>${RANK_EXP_PURITY_NOTE}</li></ul>`;
+        }
+        const d = R.purificationDetail(S, mapIdx), rate = d.built ? R.outpostRankBarBreakdown(S, mapIdx, 4) : null;
+        const progress = d.purified ? `<span>Status</span><b class="cost-ok">Purified (Purity Rank ${fi(d.rank)})</b>` : `<span>Status</span><b>Not purified</b><span>Purity EXP</span><b>${f(d.exp)} / ${f(d.nextReq)}</b><span>Purity EXP / hr</span><b>${f(rate?.value)}</b><span>ETA</span><b>${rate && Number.isFinite(rate.etaHours) ? fmtHours(rate.etaHours) : "No Purity EXP"}</b>`;
+        const rankExp = d.rankExpBar !== null ? `3x ${R.outpostRankName(d.rankExpBar)} EXP at every outpost (map ${d.rankExpBar} feeds bar ${d.rankExpBar})` : RANK_EXP_PURITY_NOTE;
+        return `<h3>${mapName(mapIdx)} · Purification</h3><div class="tooltip-grid">${progress}</div><h4>${d.purified ? "Active effects" : "When purified"}</h4><ul class="purity-effects"><li>${collection}</li><li>${decree}</li><li>+10 Regal mobs when D.I. respawns monsters on this map (Regal Intervention)</li><li>${rankExp}</li></ul>`;
+      }
+      const HELP_GLYPH_BUTTON = (attrs, label) => `<button type="button" class="rg-help-glyph" data-royal-pin ${attrs} aria-label="${label}">?</button>`;
+      function armoryNameHtml(u) { return `${displayItemName(u?.name)}${u?.helper ? ` ${HELP_GLYPH_BUTTON(`data-armory-helper="${u.index}"`, "Royal Helper info")}` : ""}`; }
+      function armoryDescriptionHtml(text) { return esc(text).replaceAll(PURIFIED_BONUS_GLYPH, HELP_GLYPH_BUTTON('data-purity-tooltip="-1"', "Purified bonuses")); }
+      function armoryRowDescription(S, r, max) { return armoryDescriptionHtml(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index)); }
+      function armoryHelperTooltip(index) { const u = ARMORY_UPGRADES[index]; return u?.helper ? `<h3>Royal Helper · ${displayItemName(u.name)}</h3><div class="armory-helper-text">${u.helper.split("@").map(line => esc(line.trim())).filter(Boolean).join("<br><br>")}</div>` : ""; }
       function armory(S) {
         const
           rows = R.armoryRows(S), redux = R.allMasterclassCostReduxDetail(S), unlockedCount = R.armoryUnlockedCount(S);
-        return `<div class="upgrade-heading"><h2>Armory</h2>${spoilerToggle()}</div><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x. ${fi(unlockedCount)} of ${fi(rows.length)} shelves reached.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Shelf</th><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
+        return `<div class="upgrade-heading"><h2>Armory</h2>${spoilerToggle()}</div><div class="note">Masterclass costs: ${fmtMultiplier(redux.value)}x (${f(redux.reductionPercent)}% reduction), including daily prefix ${fmtMultiplier(redux.prefix)}x and BARGAIN ${fmtMultiplier(redux.bargain)}x. ${fi(unlockedCount)} of ${fi(rows.length)} shelves reached. Click a row to project its next 50 level costs.</div><div class="table-wrap"><table class="data-table"><thead><tr><th>Shelf</th><th>Name</th><th>Level</th><th>Description</th><th>Cost</th></tr></thead><tbody>${rows
           .map((r) => {
             const u = ARMORY_UPGRADES[r.index],
               max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible;
             if (concealed) return `<tr><td>${fi(r.orderIndex + 1)}</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">???</td><td class="upgrade-spoiler-hidden">Unreached upgrade</td><td class="upgrade-spoiler-hidden">???</td></tr>`;
-            return `<tr><td>${fi(r.orderIndex + 1)}</td><td>${displayItemName(u?.name)}</td><td>${fi(r.currentLevel)} / ${fi(u?.maxLevel)}</td><td>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</td><td class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">${max ? `${currencyIcon(r.cost.currencySlot)}MAX (slot ${r.cost.currencySlot})` : `${currencyIcon(r.cost.currencySlot)}${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</td></tr>`;
+            const open = !max && session.armoryChartOrder === r.orderIndex;
+            return `<tr${armoryRowAttrs(r, !max)}><td>${max ? "" : `<span class="armory-caret" aria-hidden="true">${open ? "▾" : "▸"}</span>`}${fi(r.orderIndex + 1)}</td><td>${armoryNameHtml(u)}</td><td>${fi(r.currentLevel)} / ${fi(u?.maxLevel)}</td><td>${armoryRowDescription(S, r, max)}</td><td class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">${max ? `${currencyIcon(r.cost.currencySlot)}MAX (slot ${r.cost.currencySlot})` : `${currencyIcon(r.cost.currencySlot)}${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</td></tr>${open ? `<tr class="armory-chart-row"><td colspan="5">${armoryCostChart(S, r.orderIndex)}</td></tr>` : ""}`;
           })
           .join(
             "",
-            )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible; return concealed ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ???</div><div class="upgrade-spoiler-hidden">Unreached upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"><b>${displayItemName(u?.name)}</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ${f(r.currentLevel)} / ${f(u?.maxLevel)}</div><div>${esc(max ? R.armoryDescription(S, r.index) : r.currentLevel <= 0 ? `On purchase: ${R.armoryDescription(S, r.index, r.nextBonus)}` : R.armoryDescription(S, r.index))}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${currencyIcon(r.cost.currencySlot)}${max ? `MAX (slot ${r.cost.currencySlot})` : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>`; }).join("")}</div>`;
+            )}</tbody></table></div><div class="mobile-cards">${rows.map((r) => { const u = ARMORY_UPGRADES[r.index], max = r.currentLevel >= n(u?.maxLevel), balance = n(S.royalGData?.[1]?.[r.cost.currencySlot]), concealed = r.orderIndex >= unlockedCount && !session.spoilersVisible, open = !max && session.armoryChartOrder === r.orderIndex; return concealed ? `<article class="mobile-card"><b class="upgrade-spoiler-hidden">???</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ???</div><div class="upgrade-spoiler-hidden">Unreached upgrade</div><div class="upgrade-spoiler-hidden">Cost ???</div></article>` : `<article class="mobile-card"${armoryRowAttrs(r, !max)}><b>${armoryNameHtml(u)}</b><div>Shelf ${fi(r.orderIndex + 1)} | Level ${f(r.currentLevel)} / ${f(u?.maxLevel)}</div><div>${armoryRowDescription(S, r, max)}</div><div class="${max || r.cost.value <= balance ? "cost-ok" : "cost-bad"}">Cost ${currencyIcon(r.cost.currencySlot)}${max ? `MAX (slot ${r.cost.currencySlot})` : `${f(balance)} / ${f(r.cost.value)} (slot ${r.cost.currencySlot})`}</div></article>${open ? armoryCostChart(S, r.orderIndex) : ""}`; }).join("")}</div>`;
       }
       function statues(S) {
         return `<div class="upgrade-heading"><h2>Royal Statues</h2>${spoilerToggle()}</div>${balances(S, "statues")}<div class="table-wrap"><table class="data-table upgrade-table"><thead><tr><th>Name</th><th class="num">Level</th><th>Current effect</th><th>Next effect</th><th>Material</th><th class="num">Owned</th><th class="num">Cost</th><th class="num">Upgrade odds</th></tr></thead><tbody>${Array.from(
@@ -3534,6 +3641,11 @@
           "[data-upgrade]",
           (b) => (session.upgradeView = b.dataset.upgrade),
         );
+        document.querySelectorAll("[data-armory-row]").forEach(row => {
+          const toggle = () => { const order = n(row.dataset.armoryRow); session.armoryChartOrder = session.armoryChartOrder === order ? null : order; hideRoyalTooltip(); render(); document.querySelector(`[data-armory-row="${order}"]`)?.focus({ preventScroll: true }); };
+          row.onclick = event => { if (!event.target.closest("a, button, input, select")) toggle(); };
+          row.onkeydown = event => { if (event.target === row && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggle(); } };
+        });
         wireTabs(
           "[data-currency-view]",
           (b) => (session.currencyView = b.dataset.currencyView),

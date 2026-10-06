@@ -245,7 +245,12 @@ function _summary(m, packed, best, start, targets, counts) {
 		return { ...step, changes: next.changes, packed: Number(digits.join('')) };
 	});
 	const chart = _chart(replay.trace, [...steps.map(step => step.hours), ...Object.values(replay.reachedAt)]);
-	return { status: replay.status, blocked: replay.blocked, etaHours: replay.etaHours, elapsedHours: replay.elapsedHours, reachedAt: replay.reachedAt, finalRanks: replay.finalRanks, spec: best.spec, steps, switches: Math.max(0, steps.length - 1), chart, intelRankUps: _rankUps(replay.trace, 1) };
+	return { status: replay.status, blocked: replay.blocked, etaHours: replay.etaHours, elapsedHours: replay.elapsedHours, reachedAt: replay.reachedAt, finalRanks: replay.finalRanks, spec: best.spec, steps, switches: Math.max(0, steps.length - 1), chart, intelRankUps: _rankUps(replay.trace, 1), commandUnits: _commandUnits(replay.trace) };
+}
+
+// Command ranks grant permanent units in Worker, Trader, Guard, Surveyor order; only Traders and Surveyors earn rank EXP.
+function _commandUnits(trace) {
+	return _rankUps(trace, 2).map(up => ({ ...up, type: (up.rank - 1) % 4 })).filter(up => up.type === 1 || up.type === 3);
 }
 
 function _transientPools(S, mapIdx, ext) {

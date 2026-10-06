@@ -227,6 +227,11 @@ export function armoryDescription(S, index, value = armoryBonus(S, index)) {
 	if (index === 53) template = template?.replace('Total Bonus:+{%', 'Total Bonus:+$%');
 	return _replaceMarkers(template, value, _armoryDollarValue(S, index, value));
 }
+export function armoryPurchasePreview(S, index, fromLevel) {
+	const at = level => { const royalGData = (S?.royalGData || []).slice(); royalGData[2] = (royalGData[2] || []).slice(); royalGData[2][index] = level; return { ...S, royalGData }; };
+	const after = at(fromLevel + 1);
+	return { index, fromLevel, toLevel: fromLevel + 1, bonus: armoryBonus(after, index), description: armoryDescription(after, index), recruit: index === 68 ? _kingdomSovereigntyNextUnit(at(fromLevel)) : null };
+}
 export function royalStatueDescription(S, index, levelOverride) {
 	const info = ROYAL_STATUES[Number(index)];
 	if (!info) return 'Source value unavailable';
@@ -305,7 +310,7 @@ export function allMasterclassCostReduxDetail(S, options = {}) {
 export function armoryUpgradeCost(S, orderIndex, options = {}) {
 	const index = ARMORY_ORDER[orderIndex] ?? orderIndex; const upgrade = ARMORY_UPGRADES[index];
 	if (!upgrade) return { value: Infinity, factors: [], missing: ['armory row'] };
-	const level = armoryLevel(S, index); const redux = allMasterclassCostRedux(S, options); const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
+	const level = options.level !== undefined ? n(options.level) : armoryLevel(S, index); const redux = allMasterclassCostRedux(S, options); const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
 	if (index === 46 && level < 3) return { value: 2, factors: [{ name: 'source special case', value: 2 }], index, level, currencySlot };
 	if (index === 58 && level < 1) return { value: 3, factors: [{ name: 'source special case', value: 3 }], index, level, currencySlot };
 	// The game looks up the numeric order index inside the upgrade-ID order table.
@@ -315,6 +320,29 @@ export function armoryUpgradeCost(S, orderIndex, options = {}) {
 	const jellyDiscount = 1 / (1 + (firstFiveWeight * jellyCompletionBonus(11, S) + firstTenWeight * jellyCompletionBonus(26, S)) / 100);
 	const factors = [{ name: 'base', value: 25 }, { name: 'Masterclass reduction', value: redux }, { name: 'Jelly obstruction discounts', value: jellyDiscount }, { name: 'order growth', value: 1.24 ** orderIndex }, { name: 'order coefficient', value: 3 + 5 * orderIndex }, { name: 'base cost coefficient', value: upgrade.baseCost }, { name: 'level growth', value: upgrade.costGrowth ** level }];
 	return { value: factors.reduce((value, factor) => value * factor.value, 1), factors, index, level, currencySlot };
+}
+export function armoryCostProjection(S, orderIndex, count = 50) {
+	const index = ARMORY_ORDER[orderIndex] ?? orderIndex; const upgrade = ARMORY_UPGRADES[index];
+	if (!upgrade) return null;
+	const level = armoryLevel(S, index); const maxLevel = n(upgrade.maxLevel); const redux = allMasterclassCostReduxDetail(S);
+	const steps = Math.max(0, Math.min(Math.floor(n(count)), maxLevel - level));
+	const rows = []; let cumulativeDiscounted = 0; let cumulativeFull = 0;
+	for (let step = 0; step < steps; step++) {
+		const at = level + step;
+		// Counter 0 is below any positive Legend 23 limit; a huge counter forces the post-limit prefix.
+		const discounted = armoryUpgradeCost(S, orderIndex, { level: at, optionsList480: 0 }).value;
+		const full = armoryUpgradeCost(S, orderIndex, { level: at, optionsList480: Number.MAX_SAFE_INTEGER }).value;
+		cumulativeDiscounted += discounted; cumulativeFull += full;
+		rows.push({ level: at, nextLevel: at + 1, discounted, full, cumulativeDiscounted, cumulativeFull });
+	}
+	const currencySlot = ARMORY_UPGRADES[orderIndex]?.currencySlot ?? -1;
+	return { index, orderIndex, level, maxLevel, currencySlot, balance: royalG(S, 1, currencySlot), dailyPurchaseLimit: redux.dailyPurchaseLimit, purchaseCounter: redux.purchaseCounter, discountsLeftToday: Math.max(0, redux.dailyPurchaseLimit - redux.purchaseCounter), discountAvailable: redux.dailyPurchaseLimit > 0, rows };
+}
+export function purificationDetail(S, mapIdx) {
+	const info = outpostRankInfo(S, mapIdx, 4); const purified = outpostIsPurified(S, mapIdx);
+	const armory1 = armoryEffectDetail(S, 1); const armory51 = armoryEffectDetail(S, 51); const purifiedCount = TotalStatz(S)[2];
+	const rankExpBar = mapIdx >= 0 && mapIdx <= 4 ? mapIdx : null;
+	return { mapIdx, built: outpostBuilt(S, mapIdx), purified, rank: info.rank, exp: info.exp, nextReq: outpostExpFormula(0, 4), progress: purified ? 1 : Math.max(0, Math.min(1, info.exp / Math.max(1, outpostExpFormula(0, 4)))), collectionMultiplier: 1 + (200 + armory1.bonus) / 100, armory1, armory51, purifiedCount, decreePerMap: armory51.bonus, decreeMultiplier: 1 + purifiedCount * armory51.bonus / 100, rankExpBar, rankExpMultiplier: 3, regalMobs: 10 };
 }
 export function armoryRows(S) { return ARMORY_ORDER.map((index, orderIndex) => ({ index, orderIndex, currentLevel: armoryLevel(S, index), currentBonus: armoryBonus(S, index), nextBonus: armoryBonus(S, index) + (ARMORY_UPGRADES[index]?.bonusPerLevel || 0), cost: armoryUpgradeCost(S, orderIndex) })); }
 
