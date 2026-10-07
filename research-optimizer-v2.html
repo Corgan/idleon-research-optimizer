@@ -66,6 +66,23 @@ h1 span { color: var(--accent); }
 .tier-sq.drop-before { box-shadow: -5px 0 0 -1px var(--accent); }
 .tier-sq.drop-after { box-shadow: 5px 0 0 -1px var(--accent); }
 .tier-sq.tier-exp { border-style: dashed; }
+.shape-breakdown { max-width: 1200px; margin: 16px auto 0; display: flex; flex-direction: column; gap: 6px; font-size: .85em; }
+.shape-breakdown .sb-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; color: var(--cyan); font-weight: 600; font-size: 1.05em; }
+.shape-breakdown .sb-hint { color: var(--text2); font-weight: 400; font-size: .85em; }
+.shape-breakdown .sb-table { width: 100%; border-collapse: collapse; background: var(--bg2); border-radius: 6px; }
+.shape-breakdown .sb-table th { text-align: left; color: var(--text2); font-weight: 600; font-size: .85em; padding: 4px 8px; border-bottom: 1px solid #333; }
+.shape-breakdown .sb-table td { padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; white-space: nowrap; }
+.shape-breakdown .sb-row:hover { background: rgba(255,255,255,.04); }
+.shape-breakdown .sb-order { color: var(--text2); font-weight: 700; width: 24px; }
+.shape-breakdown .sb-swatch { display: inline-block; width: 10px; height: 10px; border: 2px solid #555; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.shape-breakdown .sb-name { font-weight: 700; }
+.shape-breakdown .sb-lv { color: var(--text2); }
+.shape-breakdown .sb-pos { font-family: monospace; font-size: 1.1em; font-weight: 700; color: var(--text); }
+.shape-breakdown .sb-same { color: var(--green); }
+.shape-breakdown .sb-move { color: var(--gold); font-family: monospace; }
+.shape-breakdown .sb-nodes { color: var(--text2); white-space: normal; }
+.shape-breakdown .sb-filler { color: var(--text2); font-size: .85em; }
+.shape-svg polygon.sb-hl { stroke-width: 4; opacity: 1; }
 
 /* Shape preset sidebar */
 .sp-wrap { display: flex; gap: 0; }
@@ -513,6 +530,7 @@ h1 span { color: var(--accent); }
 
     <div id="ue-shape-summary"></div>
     <div class="research-grid" id="ue-grid"></div>
+    <div id="ue-shape-breakdown" class="shape-breakdown"></div>
   </div>
 </div>
 

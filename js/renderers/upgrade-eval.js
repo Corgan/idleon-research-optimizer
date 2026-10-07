@@ -35,6 +35,7 @@ import {
 import { attachTooltip } from '../ui/tooltip.js';
 import { showGridTooltip } from '../ui/dashboard.js';
 import { formatDesc } from './grid-desc.js';
+import { mineheadShapePriority } from '../stats/systems/w7/minehead.js';
 
 // ===== SHAPE PRIORITY SYSTEM =====
 // All non-EXP node indices that can appear in shape tier lists
@@ -99,12 +100,26 @@ const SP_ACTIVE_KEY = 'idleon_shapePresetActive';
 
 const SP_BASE_PRESETS = [
   { id: '_none',     name: 'Res EXP',   data: '|' },
-  { id: '_minehead', name: 'Minehead',  data: 'J6,G5,H5,I5,H4|' },
+  // Save-aware: currency nodes by exact shape gain, then damage nodes (static order is the no-save fallback).
+  { id: '_minehead', name: 'Minehead',  data: 'J6,I5,H5,G4,F6,H4,G5|', build: _mineheadPresetData },
   { id: '_dr',       name: 'DR',        data: 'N4,M4,I4|' },
   { id: '_daily',    name: 'Daily',     data: 'K5,L5|' },
   { id: '_classexp', name: 'Class EXP', data: 'K6,L6,M6,M5|' },
   { id: '_insight',  name: 'Insight',   data: 'L8,M8|' },
 ];
+
+function _mineheadPresetData() {
+  if (!saveData.gridLevels || !saveData.gridLevels.some(lv => lv > 0)) return null;
+  try {
+    return mineheadShapePriority(saveData).map(i => gridCoord(i)).join(',') + '|';
+  } catch (e) {
+    console.warn('Minehead preset ranking failed:', e);
+    return null;
+  }
+}
+function _presetData(preset) {
+  return (preset.build && preset.build()) || preset.data;
+}
 
 function _coordToIdx(coord) {
   const m = coord.match(/^([A-T])(\d{1,2})$/i);
@@ -151,7 +166,7 @@ function _setActivePresetId(id) {
 function _isBasePreset(id) { return id && id.startsWith('_'); }
 
 function _applyPreset(preset) {
-  const tiers = _stringToTiers(preset.data);
+  const tiers = _stringToTiers(_presetData(preset));
   if (!tiers) return;
   saveData.shapeTiers.above = tiers.above;
   saveData.shapeTiers.below = tiers.below;
@@ -166,7 +181,7 @@ function _applyPreset(preset) {
   if (activeId && activeId.startsWith('_')) {
     const bp = SP_BASE_PRESETS.find(p => p.id === activeId);
     if (bp) {
-      const tiers = _stringToTiers(bp.data);
+      const tiers = _stringToTiers(_presetData(bp));
       if (tiers) { saveData.shapeTiers.above = tiers.above; saveData.shapeTiers.below = tiers.below; }
     }
   }
@@ -642,6 +657,9 @@ export async function renderUpgradeEval(saveCtx) {
   // Cancel any in-flight shape optimization worker
   cancelWorkerTask('shapeOpt');
   const gen = ++_shapeOptGen;
+  // Save-aware built-in presets re-rank against the currently loaded save.
+  const activeBase = SP_BASE_PRESETS.find(p => p.id === _getActivePresetId());
+  if (activeBase && activeBase.build) _applyPreset(activeBase);
   const sc = saveCtx || buildSaveContext();
 
   // Render the tier list and sidebar immediately (cheap)
@@ -815,8 +833,93 @@ function renderUEGrid(sc) {
       el.setAttribute('stroke-width', '2');
       el.setAttribute('stroke-linejoin', 'round');
       el.setAttribute('opacity', '0.7');
+      el.dataset.shape = si;
       svg.appendChild(el);
     }
     gridDiv.appendChild(svg);
   }
+  _renderShapeBreakdown(sc, opt);
+}
+
+// ===== PLACEMENT BREAKDOWN =====
+// One card per placed shape in drag order. The game keeps a node with the first shape that
+// covers it, so shapes must be dropped in this order for each to own the listed nodes.
+// Lift dark shape colors (e.g. Maroon) toward white so they stay legible on the dark card background.
+function _readableColor(hex) {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  let rgb = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  const lum = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  if (lum(rgb) >= 110) return hex;
+  for (let t = 0.1; t <= 1 && lum(rgb) < 110; t += 0.1) {
+    rgb = [0, 2, 4].map(i => Math.round(parseInt(h.slice(i, i + 2), 16) * (1 - t) + 255 * t));
+  }
+  return 'rgb(' + rgb.join(',') + ')';
+}
+
+function _escHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function _shapeNodeSet(overlay, si) {
+  const out = [];
+  for (let i = 0; i < overlay.length; i++) if (overlay[i] === si) out.push(i);
+  return out;
+}
+
+function _fmtShapePos(pos) {
+  if (!pos || !Number.isFinite(Number(pos.x)) || !Number.isFinite(Number(pos.y))) return null;
+  return '(' + Math.round(pos.x) + ', ' + Math.round(pos.y) + ')' + (pos.rot ? ' rot ' + pos.rot + '\u00b0' : '');
+}
+
+function _renderShapeBreakdown(sc, opt) {
+  const host = document.getElementById('ue-shape-breakdown');
+  if (!host) return;
+  const placements = (opt && opt.placements) || [];
+  if (placements.length === 0) { host.innerHTML = ''; return; }
+  const current = sc.shapePositions || [];
+
+  let html = '<div class="sb-head"><span>Placement</span>'
+    + '<span class="sb-hint">Exact shape positions in game coordinates. Drop in this order; a node keeps the first shape that covers it.</span></div>'
+    + '<table class="sb-table"><thead><tr><th>#</th><th>Shape</th><th>Place at</th><th>Currently</th><th>Nodes</th></tr></thead><tbody>';
+
+  placements.forEach((p, order) => {
+    const si = p.shapeIdx;
+    const target = _fmtShapePos(p);
+    const cur = current[si];
+    const curStr = _fmtShapePos(cur);
+    const same = cur && Math.round(cur.x) === Math.round(p.x) && Math.round(cur.y) === Math.round(p.y)
+      && (Number(cur.rot) || 0) === (Number(p.rot) || 0);
+    const owned = (p.cells || []).map(gridCoord).join(', ');
+    html += '<tr class="sb-row" data-shape="' + si + '">'
+      + '<td class="sb-order">' + (order + 1) + '</td>'
+      + '<td><span class="sb-swatch" style="border-color:' + SHAPE_COLORS[si] + '"></span>'
+      + '<span class="sb-name" style="color:' + _readableColor(SHAPE_COLORS[si]) + '">' + _escHtml(p.shapeName || SHAPE_NAMES[si]) + '</span>'
+      + ' <span class="sb-lv">' + (p.bonusPct ?? SHAPE_BONUS_PCT[si]) + '%</span></td>'
+      + '<td class="sb-pos">' + (target || '?') + '</td>'
+      + '<td>' + (same ? '<span class="sb-same">already there</span>'
+        : '<span class="sb-move">' + (curStr || 'not placed') + '</span>') + '</td>'
+      + '<td class="sb-nodes">' + owned + '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  const placed = new Set(placements.map(p => p.shapeIdx));
+  const unused = [];
+  for (let si = 0; si < SHAPE_NAMES.length; si++) {
+    if (!placed.has(si) && _shapeNodeSet(sc.shapeOverlay || [], si).length > 0) unused.push(si);
+  }
+  if (unused.length) {
+    html += '<div class="sb-filler">Not used by this layout: '
+      + unused.map(si => '<span style="color:' + _readableColor(SHAPE_COLORS[si]) + '">' + _escHtml(SHAPE_NAMES[si]) + '</span>').join(', ') + '</div>';
+  }
+  host.innerHTML = html;
+
+  host.querySelectorAll('.sb-row').forEach(row => {
+    const si = row.dataset.shape;
+    const poly = () => document.querySelector('#ue-grid .shape-svg polygon[data-shape="' + si + '"]');
+    row.addEventListener('mouseenter', () => { const el = poly(); if (el) el.classList.add('sb-hl'); });
+    row.addEventListener('mouseleave', () => { const el = poly(); if (el) el.classList.remove('sb-hl'); });
+  });
 }

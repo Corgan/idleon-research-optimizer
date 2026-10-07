@@ -1,12 +1,14 @@
 // ===== MINEHEAD CURRENCY DESCRIPTOR =====
-// Computes minehead CurrencyGain multiplier.
-// Game: Grid(129) × (1+Grid(148)/100) × (1+RoG(12)/100) × max(1,min(2,Comp143))
-//   × min(3, 1+BonusQTY(6)/100) × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+Arcade62)/100)
+// Computes minehead CurrencyGain/hr.
+// Game: Grid(129) × (1+EventShop44) × (1+Grid(148)/100) × max(1,OutpostROGbon(3)) × (1+RoG(12)/100)
+//   × (1+Jelly8/100) × (1+ban_j) × (1+10×Task[2][6][4]/100) × max(1,min(2,Comp143)+CompLV2(143))
+//   × min(3, 1+BonusQTY(6)/100)
+//   × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+Arcade62+DancingCoral5)/100)
 //   × (1+Button_Bonuses(1)/100) × (1+Atom(13)/100) × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
 
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import {
-  computeButtonBonus,
+  buttonBonusDetail,
   computeMineheadCurrSources,
   currencyPerHour,
   mineheadBonusQTY,
@@ -15,6 +17,21 @@ import {
 import { createDescriptor, gridBonusFinal } from './helpers.js';
 import { label } from '../entity-names.js';
 import { getLOG } from '../../formulas.js';
+import { RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../data/w7/research.js';
+
+// Grid_Bonus(idx, 0) = perLevel × level × (1 + shape%/100) × AllMulti.
+function _gridTerms(S, idx) {
+  var info = RES_GRID_RAW[idx] || [];
+  var si = S.shapeOverlay ? S.shapeOverlay[idx] : -1;
+  var hasShape = si >= 0 && si < SHAPE_BONUS_PCT.length;
+  return [
+    { name: 'Per Level', val: Number(info[2]) || 0, fmt: 'raw' },
+    { name: 'Level', val: Number(S.gridLevels && S.gridLevels[idx]) || 0, fmt: 'raw' },
+    { name: hasShape ? 'Shape: ' + String(SHAPE_NAMES[si]).replace(/_/g, ' ') : 'Shape', val: 1 + (hasShape ? SHAPE_BONUS_PCT[si] : 0) / 100,
+      fmt: 'x', note: hasShape ? '' : 'No shape' },
+    { name: 'All Bonus Multi', val: Number(S.allBonusMulti) || 1, fmt: 'x' },
+  ];
+}
 
 export default createDescriptor({
   id: 'minehead-currency',
@@ -31,11 +48,12 @@ export default createDescriptor({
 
     // 1. Grid(129) — base
     var grid129 = gridBonusFinal(saveData, 129);
-    children.push({ name: label('Grid', 129), val: grid129, fmt: 'raw' });
+    children.push({ name: label('Grid', 129), val: grid129, fmt: 'raw', children: _gridTerms(saveData, 129) });
 
     // 2. × (1+Grid(148)/100)
     var grid148 = gridBonusFinal(saveData, 148);
-    children.push({ name: label('Grid', 148), val: 1 + grid148 / 100, fmt: 'x' });
+    children.push({ name: label('Grid', 148), val: 1 + grid148 / 100, fmt: 'x', note: 'Grid bonus ' + grid148.toFixed(2) + '%',
+      children: _gridTerms(saveData, 148) });
 
     var sources = computeMineheadCurrSources(saveData, ctx.charIdx);
 
@@ -73,9 +91,16 @@ export default createDescriptor({
           note: 'Spelunky[24][5], Tower 23' },
       ] });
 
-    // 7. × (1+Button_Bonuses(1)/100)
-    var bb1 = computeButtonBonus(1, saveData);
-    children.push({ name: label('Button', 1), val: 1 + bb1 / 100, fmt: 'x' });
+    // 7. × (1+Button_Bonuses(1)/100), Button_BonusMULTI = (1+Comp147/100) × (1+Grid(125)/100)
+    var bd1 = buttonBonusDetail(1, saveData);
+    var bb1 = bd1.val;
+    children.push({ name: label('Button', 1), val: 1 + bb1 / 100, fmt: 'x',
+      children: [
+        { name: 'Slot Hits', val: bd1.hits, fmt: 'raw', note: bd1.presses + ' presses (OLA 594)' },
+        { name: 'Rate per Hit', val: bd1.rate, fmt: 'raw' },
+        { name: label('Companion', 147), val: bd1.comp147Multi, fmt: 'x' },
+        { name: label('Grid', 125), val: bd1.grid125Multi, fmt: 'x', note: 'Grid bonus ' + bd1.grid125.toFixed(2) + '%' },
+      ] });
 
     // 8. × (1+Atom(13)/100)
     var atom13 = sources.atom13;
@@ -92,8 +117,8 @@ export default createDescriptor({
     var mealMineCurr = sources.mealMineCurr;
     children.push({ name: 'Research Grid and Meals', val: 1 + (grid147 + grid166 + mealMineCurr) / 100, fmt: 'x',
       children: [
-        { name: label('Grid', 147), val: grid147, fmt: 'raw' },
-        { name: label('Grid', 166), val: grid166, fmt: 'raw' },
+        { name: label('Grid', 147), val: grid147, fmt: 'raw', children: _gridTerms(saveData, 147) },
+        { name: label('Grid', 166), val: grid166, fmt: 'raw', children: _gridTerms(saveData, 166) },
         { name: 'Meals: Minehead Currency', val: mealMineCurr, fmt: 'raw' },
       ] });
 

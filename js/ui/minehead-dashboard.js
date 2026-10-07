@@ -7,7 +7,8 @@ import { _bNode, _gbNode as _gbNodeS } from '../stats/node-helpers.js';
 import { label } from '../stats/entity-names.js';
 import { gridCoord, RES_GRID_RAW, SHAPE_BONUS_PCT, SHAPE_NAMES } from '../game-data.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
-import { computeButtonBonus } from '../stats/defs/helpers.js';
+import { computeButtonBonus, buttonBonusDetail } from '../stats/defs/helpers.js';
+import { getLOG } from '../formulas.js';
 import { computeDancingCoralBonus } from '../stats/systems/w7/spelunking.js';
 import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS, MINEHEAD_BONUS_QTY as FLOOR_REWARD_QTY, FLOOR_REWARD_DESC } from '../stats/data/w7/minehead.js';
@@ -35,7 +36,8 @@ export function renderDashboard() {
   const svarHP = saveData.serverVarMineHP || 1;
   const svarCost = saveData.serverVarMineCost || 1;
   const hp = floorHP(floor, svarHP);
-  const tries = dailyTries(0);
+  // Game: DailyTries = round(3 + Grid_Bonus(147, 1)); mode 1 is the raw node level.
+  const tries = dailyTries(Math.round(Number(saveData.gridLevels?.[147]) || 0));
 
   const _gbCtx = { abm: saveData.allBonusMulti || 1 };
   const _gb = idx => gbWith(saveData.gridLevels, saveData.shapeOverlay, idx, _gbCtx);
@@ -234,7 +236,7 @@ export function renderCurrencyTab() {
 function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, mhSrc, cph, rogB12 = 0) {
   const eventShop44 = mhSrc.eventShop44 || 0;
   const taskCurrencyMulti = mhSrc.taskCurrencyMulti || 1;
-  const logDmg = highestDmg > 0 ? Math.log10(highestDmg) : 0;
+  const logDmg = getLOG(highestDmg);
   const upg5 = upgradeQTY(5, lvs[5]);
   const upg22 = upgradeQTY(22, lvs[22]);
   const upg28raw = upgradeQTY(28, lvs[28]);
@@ -300,6 +302,7 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
         _bNode(label('Breeding', 20), mhSrc.mealShinyS20, null, { fmt: '%' }),
       ], { fmt: 'x' }),
       _bNode(label('WinBonus', 26), 1 + mhSrc.mealWinBon26 / 100, null, { fmt: 'x' }),
+      _bNode(label('Companion', 162), 1 + mhSrc.mealComp162 / 100, null, { fmt: 'x', note: '25% per companion bonus' }),
     ], { fmt: 'x' }),
   ] : null;
   const mealNode = _bNode(label('Meal', 73), mhSrc.mealMineCurr, mealChildren, {
@@ -333,8 +336,24 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
     fmt: 'x', note: mhSrc.bundleJ ? 'ban_j owned' : 'Not owned',
   });
 
-  var bb1 = computeButtonBonus(1, saveData);
-  var buttonNode = _bNode(label('Button', 1), 1 + bb1 / 100, null, { fmt: 'x' });
+  const bd1 = buttonBonusDetail(1, saveData);
+  const buttonNode = _bNode(label('Button', 1), 1 + bd1.val / 100, [
+    _bNode('Button Bonus', bd1.val, [
+      _bNode('Slot Hits', bd1.hits, null, {
+        fmt: 'raw', note: `${bd1.presses} presses (OLA 594), 5 per slot over 9 slots`,
+      }),
+      _bNode('Rate per Hit', bd1.rate, null, { fmt: '%' }),
+      _bNode('Button Multi', bd1.multi, [
+        _bNode(label('Companion', 147), bd1.comp147Multi, null, { fmt: 'x', note: `+${bd1.comp147}%` }),
+        (() => {
+          const n = _gbNodeS(saveData, 125, 'Grid ' + gridCoord(125) + ': ' + RES_GRID_RAW[125][0].replace(/_/g, ' '));
+          n.val = bd1.grid125Multi;
+          n.fmt = 'x';
+          return n;
+        })(),
+      ], { fmt: 'x' }),
+    ], { fmt: '%' }),
+  ], { fmt: 'x' });
 
   const eventShopMult = 1 + 100 * eventShop44 / 100;
   const eventShopNode = _bNode('Event Shop 44', eventShopMult, null, {

@@ -16,6 +16,7 @@ import { computeDancingCoralBonus } from './spelunking.js';
 import { mineheadCurrencyTaskLevel } from '../../data/w7/tasks.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { outpostROGBonus } from './royal-guardian.js';
+import { SHAPE_BONUS_PCT } from '../../data/w7/research.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -30,21 +31,35 @@ export function buildMhqArray(mineFloor) {
   return arr;
 }
 
-var BUTTON_RATES = [2, 3, 2, 2, 4, 5, 4, 25, 5];
+export var BUTTON_RATES = [2, 3, 2, 2, 4, 5, 4, 25, 5];
 
-// Game: Button_Bonuses(slotIdx). Presses rotate through nine slots in groups of five.
-export function computeButtonBonus(slotIdx, saveData) {
+// Game: Button_Bonuses(slotIdx) = hits × rate × Button_BonusMULTI, where
+// Button_BonusMULTI = (1 + Companions(147)/100) × (1 + Grid_Bonus(125, 0)/100).
+// OLA[594] presses rotate through nine slots in groups of five.
+export function buttonBonusDetail(slotIdx, saveData) {
   var presses = Number(saveData.olaData && saveData.olaData[594]) || 0;
-  if (presses <= 0 || slotIdx < 0 || slotIdx >= BUTTON_RATES.length) return 0;
-  var fullCycles = Math.floor(presses / 45);
-  var rem = presses % 45;
-  var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
+  var valid = slotIdx >= 0 && slotIdx < BUTTON_RATES.length;
+  var fullCycles = Math.floor(Math.max(0, presses) / 45);
+  var rem = Math.max(0, presses) % 45;
+  var hits = valid ? fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx)) : 0;
+  var rate = valid ? BUTTON_RATES[slotIdx] : 0;
   var comp147 = companionBonusForSave(147, saveData);
   var grid125 = gbWith(saveData.gridLevels || [], saveData.shapeOverlay || [], 125, {
     abm: Number(saveData.allBonusMulti) || 1,
-    c52: Number(saveData.comp52TrueMulti) || 1,
   });
-  return hits * BUTTON_RATES[slotIdx] * (1 + comp147 / 100) * (1 + grid125 / 100);
+  var comp147Multi = 1 + comp147 / 100;
+  var grid125Multi = 1 + grid125 / 100;
+  var multi = comp147Multi * grid125Multi;
+  return {
+    slotIdx: slotIdx, presses: presses, hits: hits, rate: rate,
+    comp147: comp147, comp147Multi: comp147Multi,
+    grid125: grid125, grid125Multi: grid125Multi,
+    multi: multi, val: presses > 0 ? hits * rate * multi : 0,
+  };
+}
+
+export function computeButtonBonus(slotIdx, saveData) {
+  return buttonBonusDetail(slotIdx, saveData).val;
 }
 
 // ===== MINEHEAD CURRENCY SOURCES =====
@@ -296,7 +311,7 @@ export function currencyPerHour(opts) {
   var gridBonus148 = opts.gridBonus148 || 0;
   var gridBonus147 = opts.gridBonus147 || 0;
   var gridBonus166 = opts.gridBonus166 || 0;
-  var comp143 = opts.comp143 || 1;
+  var comp143 = opts.comp143 || 0;
   var comp143Level2 = opts.comp143Level2 || 0;
   var bonusQTY6 = opts.bonusQTY6 || 0;
   var atom13 = opts.atom13 || 0;
@@ -335,6 +350,73 @@ export function currencyPerHour(opts) {
   return base * eventShopMulti * multi148 * royalCurrencyMulti * rogMulti * jellyMulti
     * bundleMulti * taskCurrencyMulti * compMulti * bqMulti * farmPCT
     * buttonMulti * atomMulti * passiveMulti;
+}
+
+// ===== RESEARCH GRID SHAPE VALUE =====
+// Every Research Grid node that feeds a Minehead formula:
+//   currency: 129 base, 148 multiplier, 147/166 shared additive pool with MealMineCurr,
+//             125 Button_BonusMULTI -> Button_Bonuses(1)
+//   damage:   167 BaseDMG multiplier, 146 BonusDMGperTilePCT
+// Grid 147/166 mode 1 (daily tries / wiggles) use raw levels, so shapes do not affect them.
+export var MINEHEAD_CURRENCY_GRID_NODES = [129, 148, 147, 166, 125];
+export var MINEHEAD_DAMAGE_GRID_NODES = [167, 146];
+// Risky Strategy scales with tiles revealed in the current turn; rank it at this reference count.
+export var MINEHEAD_SHAPE_TILE_REFERENCE = 5;
+
+/**
+ * Exact multiplicative gain each Minehead grid node receives from a shape of `shapePct`,
+ * measured from an unshaped baseline. Currency rows are ratios of CurrencyGain/hr; damage
+ * rows are ratios of outgoing damage (146 at `opts.tilesPerTurn` revealed tiles).
+ */
+export function mineheadGridShapeValues(saveData, shapePct, opts) {
+  opts = opts || {};
+  var p = Number(shapePct);
+  if (!(p >= 0)) p = Math.max.apply(null, SHAPE_BONUS_PCT);
+  var tiles = opts.tilesPerTurn != null ? Number(opts.tilesPerTurn) || 0 : MINEHEAD_SHAPE_TILE_REFERENCE;
+  var gl = saveData.gridLevels || [];
+  var ctx = { abm: Number(saveData.allBonusMulti) || 1 };
+  var g = function(idx) { return gbWith(gl, [], idx, ctx); };
+  var grown = function(v) { return v * (1 + p / 100); };
+  var meal = opts.mealMineCurr != null ? Number(opts.mealMineCurr) || 0 : computeMineheadCurrSources(saveData).mealMineCurr;
+
+  var g129 = g(129), g148 = g(148), g147 = g(147), g166 = g(166), g125 = g(125);
+  var g167 = g(167), g146 = g(146);
+  var pool = g147 + g166 + meal;
+  var btn = buttonBonusDetail(1, saveData);
+  var btnNoGrid = btn.presses > 0 ? btn.hits * btn.rate * btn.comp147Multi : 0;
+  var bb1 = btnNoGrid * (1 + g125 / 100);
+  var bb1Shaped = btnNoGrid * (1 + grown(g125) / 100);
+  var perTile = upgradeQTY(9, Number((saveData.mineheadUpgLevels || [])[9]) || 0);
+
+  function row(idx, kind, bonus, ratio, factor) {
+    return {
+      idx: idx, kind: kind, level: Number(gl[idx]) || 0,
+      bonus: bonus, shapedBonus: grown(bonus),
+      ratio: ratio, gainPct: (ratio - 1) * 100, factor: factor,
+    };
+  }
+  return [
+    row(129, 'currency', g129, g129 > 0 ? 1 + p / 100 : 1, 'Base Minehead Currency/hr'),
+    row(148, 'currency', g148, (100 + grown(g148)) / (100 + g148), '\u00d7(1 + Grid/100)'),
+    row(147, 'currency', g147, (100 + pool - g147 + grown(g147)) / (100 + pool), 'Shared pool with Grid 166 + meals'),
+    row(166, 'currency', g166, (100 + pool - g166 + grown(g166)) / (100 + pool), 'Shared pool with Grid 147 + meals'),
+    row(125, 'currency', g125, (100 + bb1Shaped) / (100 + bb1), 'Button multi \u2192 Button_Bonuses(1)'),
+    row(167, 'damage', g167, (100 + grown(g167)) / (100 + g167), 'Base damage multiplier'),
+    row(146, 'damage', g146, (100 + tiles * (perTile + grown(g146))) / (100 + tiles * (perTile + g146)),
+      'Per-tile damage at ' + tiles + ' tiles revealed'),
+  ];
+}
+
+/** Above-tier ranking: currency nodes by shape gain, then damage nodes by shape gain. */
+export function mineheadShapePriority(saveData, shapePct, opts) {
+  var rows = mineheadGridShapeValues(saveData, shapePct, opts);
+  var order = function(kind) {
+    return rows.map(function(r, i) { return { r: r, i: i }; })
+      .filter(function(o) { return o.r.kind === kind; })
+      .sort(function(a, b) { return (b.r.ratio - a.r.ratio) || (a.i - b.i); })
+      .map(function(o) { return o.r.idx; });
+  };
+  return order('currency').concat(order('damage'));
 }
 
 // ===== WIGGLE =====

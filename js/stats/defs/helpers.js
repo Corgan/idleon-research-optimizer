@@ -1,7 +1,6 @@
 // ===== SHARED DESCRIPTOR HELPERS =====
 
 import { gbWith } from '../../sim-math.js';
-import { companionBonus, companionBonusForSave } from '../data/common/companions.js';
 import { buffsActiveData } from '../../save/data.js';
 import { talent } from '../systems/common/talent.js';
 
@@ -81,22 +80,8 @@ export function getBuffBonus(buffId, tab, ci, ctx) {
   return 0;
 }
 
-// Button_Bonuses(slotIdx): presses rotate through 9 slots in groups of 5.
-// Rate per slot: [2, 3, 2, 2, 4, 5, 4, 25, 5]
-// MULTI = (1 + Comp(147)/100) × (1 + Grid(125)/100)
-// Result = slotHits × rate[slotIdx] × MULTI
-var BUTTON_RATES = [2, 3, 2, 2, 4, 5, 4, 25, 5];
-export function computeButtonBonus(slotIdx, saveData) {
-  var presses = Number(saveData.olaData[594]) || 0;
-  if (presses <= 0) return 0;
-  var fullCycles = Math.floor(presses / 45);
-  var rem = presses % 45;
-  var hits = fullCycles * 5 + Math.max(0, Math.min(5, rem - 5 * slotIdx));
-  var comp147 = companionBonusForSave(147, saveData);
-  var grid125 = gridBonusFinal(saveData, 125);
-  var multi = (1 + comp147 / 100) * (1 + grid125 / 100);
-  return hits * (BUTTON_RATES[slotIdx] || 0) * multi;
-}
+// Button_Bonuses(slotIdx): canonical implementation lives in the Minehead system.
+export { computeButtonBonus, buttonBonusDetail } from '../systems/w7/minehead.js';
 
 // KillroyBonuses OLA indices and formula coefficients per slot:
 // KB(idx) = 1 + OLA[olaIdx] / (denom + OLA[olaIdx]) * scale  (for "multiplier" types)
