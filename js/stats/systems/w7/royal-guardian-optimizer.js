@@ -102,6 +102,13 @@ export function encodePackedUnits(units, slotCap = 9) {
 	}).join(''));
 }
 
+// Overwrites only the listed unit slots, preserving locked digits and Barracks-fixed units.
+export function withPackedUnits(packed, units) {
+	const digits = decodePackedUnitDigits(packed);
+	for (const unit of Array.isArray(units) ? units : []) { const slot = n(unit?.slot), type = n(unit?.type); if (Number.isInteger(slot) && slot >= 0 && slot < 9 && type >= 0 && type <= 3) digits[slot] = type + 2; }
+	return encodePackedUnitDigits(digits);
+}
+
 function _setProfession(row, slot, type) {
 	const digits = decodePackedUnitDigits(row[11]); digits[slot] = type + 2; row[11] = encodePackedUnitDigits(digits);
 }
@@ -180,7 +187,12 @@ export function applyRoyalMove(S, move, options) {
 		errors.push('unit transfers are unsupported; units are stationary per outpost');
 	}
 	else if (move.kind === 'units') {
-		row[11] = encodePackedUnits(move.units, move.slotCap === undefined ? 9 : move.slotCap);
+		const assignable = R.outpostAssignableSlotCount(next, move.mapIdx); const original = decodePackedUnitDigits(row[11]);
+		const editable = Math.min(assignable, move.slotCap === undefined ? 9 : n(move.slotCap));
+		for (const unit of Array.isArray(move.units) ? move.units : []) if (n(unit?.slot) >= editable) errors.push(`map ${move.mapIdx}: unit slot ${n(unit?.slot)} is not assignable`);
+		const digits = decodePackedUnitDigits(encodePackedUnits(move.units, editable));
+		for (let slot = assignable; slot < 9; slot++) digits[slot] = original[slot];
+		row[11] = encodePackedUnitDigits(digits);
 		if (!options.allowPoolEdit && !_sameUnitCounts(_assignedUnits(S), _assignedUnits(next))) errors.push('units move must preserve the global unit pool');
 	}
 	else if (move.kind === 'outpost-upgrade') {
@@ -193,8 +205,8 @@ export function applyRoyalMove(S, move, options) {
 		else {
 			const previousLevel = n(row[kind]); row[kind] = Math.floor(previousLevel) + 1;
 			if (kind === 0) {
-				const oldCap = Math.min(6, 1 + previousLevel); const newCap = Math.min(6, 1 + row[0]);
-				if (newCap > oldCap) { const digits = decodePackedUnitDigits(row[11]); if (digits[oldCap] === 1) { digits[oldCap] = 2; row[11] = encodePackedUnitDigits(digits); } }
+				const unlockSlot = R.barracksUnlockSlot(row[11]);
+				if (unlockSlot !== null) { const digits = decodePackedUnitDigits(row[11]); const offset = 9 - String(Math.max(0, Math.floor(n(row[11])))).length; digits[unlockSlot + offset] = 2; row[11] = encodePackedUnitDigits(digits); }
 			}
 		}
 	}

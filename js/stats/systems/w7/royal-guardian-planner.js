@@ -545,7 +545,7 @@ function _resourceRate(plan, mapIdx, options) {
 	const details = royalPlanRates(plan).resources.filter(item => resourceIdx === null || item.resourceIdx === resourceIdx);
 	return details.reduce((sum, item) => sum + (item.streams || []).filter(stream => stream.mapIdx === mapIdx).reduce((subtotal, stream) => subtotal + n(stream.currencyRate), 0), 0);
 }
-function _barracksSlot(S, mapIdx) { const level = n(_mapRow(S, mapIdx)?.[0]); const oldCap = Math.min(6, 1 + level); const newCap = Math.min(6, 1 + level + 1); return newCap > oldCap ? oldCap : null; }
+function _barracksSlot(S, mapIdx) { const row = _mapRow(S, mapIdx); const slot = R.barracksUnlockSlot(row?.[11]); return slot !== null && slot < Math.min(6, 2 + Math.max(0, Math.floor(n(row?.[0])))) ? slot : null; }
 function _metrics(plan, baseline, mapIdx, goal, options) {
 	const S = _save(plan); const row = _mapRow(S, mapIdx); const selectedResource = _selectedResource(options);
 	const currencySlot = selectedResource === null ? null : R.resourceCurrency(selectedResource);
@@ -635,8 +635,8 @@ function _pointProfessionState(S, mode) {
 	if (mode === 'current') return state;
 	for (let mapIdx = 0; mapIdx < (state.royalMapsData || []).length; mapIdx++) {
 		if (!R.outpostBuilt(state, mapIdx)) continue;
-		const digits = O.decodePackedUnitDigits(state.royalMapsData[mapIdx][11]);
-		for (let slot = 0; slot < digits.length; slot++) {
+		const digits = O.decodePackedUnitDigits(state.royalMapsData[mapIdx][11]); const assignable = R.outpostAssignableSlotCount(state, mapIdx);
+		for (let slot = 0; slot < Math.min(assignable, digits.length); slot++) {
 			if (mode === 'no-workers' && digits[slot] === 2) digits[slot] = 3;
 			else if (mode === 'all-workers' && digits[slot] >= 2 && digits[slot] <= 5) digits[slot] = 2;
 		}
@@ -718,7 +718,7 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 	const pointCredit = Math.max(0, 12 - R.outpostPointsLeft(S, index));
 	const alternatives = packages.map((spec, packageIndex) => {
 		const actions = Array.from({ length: spec.count }, () => ({ kind: 'outpost-upgrade', mapIdx: index, upgrade: spec.upgrade }));
-		const beforeUnits = R.outpostUnits(S, index); let state = O.cloneRoyalState(S);
+		const beforeUnits = R.outpostStationedUnits(S, index); let state = O.cloneRoyalState(S);
 		for (const action of actions) { const result = O.applyRoyalMove(state, action, { ...opts.optimizerOptions, _outpostPointCredit: pointCredit }); if (!result.ok) return _pointUnavailable(spec.name, actions, result.errors?.join('; ') || 'upgrade rejected'); state = result.state; }
 		const scenarios = {
 			current: _pointScenarioMetrics(scenarioBaselines.current, _pointRateMetrics(state, index, opts, true)),
@@ -727,7 +727,7 @@ export function planOutpostPointSpending(S, mapIdx, goal = 'collection', options
 			allWorkers: _pointScenarioMetrics(scenarioBaselines.allWorkers, _pointRateMetrics(_pointProfessionState(state, 'all-workers'), index, opts)),
 		};
 		const result = { name: spec.name, package: spec.name, available: true, reason: null, actions, points: 12, ...scenarios.current, scenarios, levels: { before: { barracks: n(_mapRow(S, index)?.[0]), logistics: n(_mapRow(S, index)?.[1]), education: n(_mapRow(S, index)?.[2]) }, after: { barracks: n(_mapRow(state, index)?.[0]), logistics: n(_mapRow(state, index)?.[1]), education: n(_mapRow(state, index)?.[2]) } } };
-		if (spec.upgrade === 0) { const afterUnits = R.outpostUnits(state, index); result.workerAdded = afterUnits.length > beforeUnits.length; result.workerAddedType = result.workerAdded ? 0 : null; result.workerNote = result.workerAdded ? 'Added Worker to the new assignable slot.' : 'No Worker added; assignable Barracks slots are capped at 6.'; }
+		if (spec.upgrade === 0) { const afterUnits = R.outpostStationedUnits(state, index); const added = afterUnits.find(unit => !beforeUnits.some(prior => prior.slot === unit.slot)); const fixed = added ? added.slot >= R.outpostAssignableSlotCount(state, index) : false; result.workerAdded = !!added; result.workerAddedType = added ? added.type : null; result.workerAddedFixed = fixed; result.workerNote = !added ? 'No Worker added; Barracks only adds units through level 6.' : fixed ? 'Added a fixed Worker in the 7th slot (counts as a Worker, cannot be reassigned).' : 'Added Worker to the new assignable slot.'; }
 		_reportProgress(options, 'scenario', packageIndex + 1, 3, { package: spec.name }); return result;
 	});
 	const available = alternatives.filter(item => item.available);

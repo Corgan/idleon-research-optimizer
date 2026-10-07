@@ -390,12 +390,19 @@ export function outpostPointBreakdown(S, mapIdx) {
 export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => armoryLevel(S, idx) >= 1); }
 
 export function decodePackedUnits(packed) { const digits = String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number); const units = digits.map((digit, slot) => ({ slot, type: digit >= 2 && digit <= 5 ? digit - 2 : -1, raw: digit })).filter(unit => unit.type >= 0); return units; }
-export function outpostUnits(S, mapIdx) { return decodePackedUnits(row(S, mapIdx)?.[11]); }
+// Source OutpostUnitSlots: only slots below min(6, 1 + Barracks) are clickable. The Barracks
+// purchase converts the first locked digit at index 1..6 into a Worker, so Barracks 6 adds a
+// permanently fixed Worker at index 6 that still counts toward TotalUnitsz.
+export function outpostAssignableSlotCount(S, mapIdx) { return Math.min(9, Math.min(6, 1 + Math.max(0, Math.floor(n(row(S, mapIdx)?.[0]))))); }
+export function outpostStationedUnits(S, mapIdx) { return decodePackedUnits(row(S, mapIdx)?.[11]); }
+export function outpostUnits(S, mapIdx) { const cap = outpostAssignableSlotCount(S, mapIdx); return outpostStationedUnits(S, mapIdx).filter(unit => unit.slot < cap); }
+export function outpostBarracksFixedUnits(S, mapIdx) { const cap = outpostAssignableSlotCount(S, mapIdx); return outpostStationedUnits(S, mapIdx).filter(unit => unit.slot >= cap); }
+export function barracksUnlockSlot(packed) { const index = String(Math.max(0, Math.floor(n(packed)))).indexOf('1'); return index > 0 && index < 7 ? index : null; }
 export function commandRankPassiveUnits(S, mapIdx, type) { const rank = Math.max(0, outpostRank(S, mapIdx, 2)); return Math.ceil(Math.max(0, rank - Math.floor(n(type))) / 4); }
 export function passiveUnits(S, mapIdx, type) { return commandRankPassiveUnits(S, mapIdx, type) + (type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0); }
-export function permanentUnitDetails(S, mapIdx) { return [0, 1, 2, 3].map(type => { const commandRank = commandRankPassiveUnits(S, mapIdx, type); const glorified = type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0; return { type, name: movableProfessionName(type), commandRank, glorified, count: commandRank + glorified }; }); }
+export function permanentUnitDetails(S, mapIdx) { const fixed = outpostBarracksFixedUnits(S, mapIdx); return [0, 1, 2, 3].map(type => { const commandRank = commandRankPassiveUnits(S, mapIdx, type); const glorified = type === 0 && outpostIsGlorified(S, mapIdx) ? 1 : 0; const barracks = fixed.filter(unit => unit.type === type).length; return { type, name: movableProfessionName(type), commandRank, glorified, barracks, count: commandRank + glorified + barracks }; }); }
 export function nextCommandRankUnit(S, mapIdx) { const currentRank = Math.max(0, outpostRank(S, mapIdx, 2)); const rank = currentRank + 1; const type = (rank - 1) % 4; return { rank, type, name: movableProfessionName(type) }; }
-export function totalUnitsByType(S, mapIdx) { const totals = outpostUnits(S, mapIdx).reduce((counts, unit) => { counts[unit.type]++; return counts; }, [0, 0, 0, 0]); return totals.map((value, type) => value + passiveUnits(S, mapIdx, type)); }
+export function totalUnitsByType(S, mapIdx) { const totals = outpostStationedUnits(S, mapIdx).reduce((counts, unit) => { counts[unit.type]++; return counts; }, [0, 0, 0, 0]); return totals.map((value, type) => value + passiveUnits(S, mapIdx, type)); }
 export function globalUnitBreakdowns(S, ext) {
 	const rules = [
 		{ id: 'worker', name: 'Worker', kind: 'movable', stats: [{ id: 'collection', label: 'Collection', base: 50, armory: armoryEffectDetail(S, 19), value: unitSpecEffect(S, 0, ext), unit: '%' }] },
@@ -411,7 +418,7 @@ export function globalUnitBreakdowns(S, ext) {
 }
 export function outpostUnitBreakdown(S, mapIdx, ext) {
 	const assignable = outpostUnits(S, mapIdx); const permanent = permanentUnitDetails(S, mapIdx); const totals = totalUnitsByType(S, mapIdx); const transient = outpostTransientAssignments(S, mapIdx);
-	return { mapIdx, packed: n(row(S, mapIdx)?.[11]), savePath: `RoyalMaps[${mapIdx}][11]`, assignable, permanent, transient, totals, rules: globalUnitBreakdowns(S, ext) };
+	return { mapIdx, packed: n(row(S, mapIdx)?.[11]), savePath: `RoyalMaps[${mapIdx}][11]`, assignable, barracksFixed: outpostBarracksFixedUnits(S, mapIdx), assignableSlots: outpostAssignableSlotCount(S, mapIdx), permanent, transient, totals, rules: globalUnitBreakdowns(S, ext) };
 }
 export function parseConnectionEndpoint(value) { if (value === undefined || value === null || value === '' || (typeof value === 'string' && value.trim() === '')) return { kind: 'empty', id: -1 }; const endpoint = Number(value); if (!Number.isFinite(endpoint) || endpoint < 0) return { kind: 'empty', id: -1 }; return endpoint >= 1000 ? { kind: 'map', id: endpoint - 1000 } : { kind: 'resource', id: endpoint }; }
 export function outpostConnections(S, mapIdx) { const r = row(S, mapIdx); return [parseConnectionEndpoint(r?.[8]), parseConnectionEndpoint(r?.[9])]; }
