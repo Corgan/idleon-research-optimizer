@@ -348,11 +348,20 @@
       .royal-map-counters h3 { margin: 0 0 7px; color: var(--cyan); font-size: .9em; }
       .royal-counter-grid { display: grid; gap: 5px; }
       .royal-counter { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 5px; align-items: center; min-width: 0; font-size: .76em; }
-      .royal-counter img, .royal-currency-chip img { width: 20px; height: 20px; object-fit: contain; }
+      .royal-counter img { width: 20px; height: 20px; object-fit: contain; }
+      .royal-currency-chip img { flex: none; width: 16px; height: 16px; object-fit: contain; }
       .royal-counter-label { color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .royal-counter-value { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
-      .royal-currency-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-      .royal-currency-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px; background: #132745; border: 1px solid #40536e; border-radius: 4px; color: var(--text); font-size: .72em; }
+      .royal-currency-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin-top: 4px; }
+      .royal-currency-chips > .note { grid-column: 1 / -1; }
+      .royal-counter-tabs { margin: 8px 0 5px; padding: 0; gap: 0; }
+      .royal-counter-tabs button { flex: 1 1 0; min-width: 0; padding: 3px 0; font-size: .7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .royal-counter-panel { font-size: .95em; }
+      .royal-drained-days { display: grid; gap: 2px; font-size: .76em; color: var(--text2); }
+      .royal-drained-days-head { display: flex; justify-content: space-between; gap: 4px; }
+      #drained-projection-days-value { color: var(--gold); font-weight: 700; white-space: nowrap; }
+      .royal-drained-days input { width: 100%; margin: 0; accent-color: #6fa8dc; }
+      .royal-currency-chip { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 3px; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; background: #132745; border: 1px solid #40536e; border-radius: 4px; color: var(--text); font-size: .72em; }
       .royal-partial { display: block; color: var(--gold); font-size: .82em; white-space: normal; overflow-wrap: anywhere; }
       .royal-map-layer { position: absolute; inset: 0; }
       .royal-map-upgrade-layer { z-index: 20; pointer-events: none; }
@@ -1251,6 +1260,8 @@
         mapOverlayMode: "assignments",
         bankedProjectionMode: "current",
         bankedHoursAfterReset: 0,
+        drainedProjectionDays: (() => { try { const v = Math.floor(Number(localStorage.getItem("royal-drained-projection-days"))); return v >= 1 ? Math.min(30, v) : 7; } catch { return 7; } })(),
+        counterTab: (() => { try { const v = localStorage.getItem("royal-counter-tab"); return ["balances", "nodes", "forecast"].includes(v) ? v : "balances"; } catch { return "balances"; } })(),
         assignmentLayers: { movable: true, permanent: true, transient: true },
         rangeFinderMode: false,
         largeMap: true,
@@ -2022,7 +2033,43 @@
         const projectedChips = projectedUnavailable
           ? (slots.map(slot => `<span class="royal-currency-chip" title="Projected at next reset for currency slot ${slot}: reset timing unavailable" aria-label="Projected at next reset currency slot ${slot}: Unavailable"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">Unavailable</span>`).join("") || '<span class="note">No world currencies.</span>')
           : currencyChips(slot => f(worldDetails.filter(detail => detail.currencySlot === slot).reduce((sum, detail) => sum + n(detail.projectedRemainingAtReset), 0)), "Projected at next reset");
-        return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div><div class="royal-counter-label" style="margin-top:8px">Currency balances</div><div class="royal-currency-chips">${chips}</div><div class="royal-counter-label" title="Current remaining resource amounts for this world's currency nodes" aria-label="Remaining in nodes">Remaining in nodes</div><div class="royal-currency-chips">${remainingChips}</div><div class="royal-counter-label" title="Projected-to-empty nodes require collection before reset to refill and grade; this is not guaranteed income or a capacity ceiling" aria-label="Projected at next reset">Projected at next reset</div><div class="royal-currency-chips">${projectedChips}</div></aside>`;
+        const drainedSection = drainedProjectionCounters(S, slots);
+        const COUNTER_TABS = [
+          ["balances", "Balances", "Currency currently owned"],
+          ["nodes", "Nodes", "Currency still in this world's nodes, now and at the next reset"],
+          ["forecast", "Forecast", "Multi-day projection for saved-drained nodes"],
+        ];
+        const tab = COUNTER_TABS.some(([key]) => key === session.counterTab) ? session.counterTab : "balances";
+        const tabs = `<nav class="subtabs royal-counter-tabs" role="tablist" aria-label="Currency counter views">${COUNTER_TABS.map(([key, label, title]) => `<button type="button" role="tab" id="royal-counter-tab-${key}" data-counter-tab="${key}" aria-controls="royal-counter-panel-${key}" aria-selected="${key === tab}" tabindex="${key === tab ? 0 : -1}" title="${title}">${label}</button>`).join("")}</nav>`;
+        const panel = (key, body) => `<div class="royal-counter-panel" role="tabpanel" id="royal-counter-panel-${key}" aria-labelledby="royal-counter-tab-${key}" data-counter-panel="${key}"${key === tab ? "" : " hidden"}>${body}</div>`;
+        const balancesPanel = panel("balances", `<div class="royal-counter-label">Currency balances</div><div class="royal-currency-chips">${chips}</div>`);
+        const nodesPanel = panel("nodes", `<div class="royal-counter-label" title="Current remaining resource amounts for this world's currency nodes" aria-label="Remaining in nodes">Remaining in nodes</div><div class="royal-currency-chips">${remainingChips}</div><div class="royal-counter-label" title="Projected-to-empty nodes require collection before reset to refill and grade; this is not guaranteed income or a capacity ceiling" aria-label="Projected at next reset">Projected at next reset</div><div class="royal-currency-chips">${projectedChips}</div>`);
+        const forecastPanel = panel("forecast", drainedSection);
+        return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div>${tabs}${balancesPanel}${nodesPanel}${forecastPanel}</aside>`;
+      }
+      let drainedProjectionCache = null;
+      function drainedProjectionCounters(S, slots) {
+        const days = session.drainedProjectionDays;
+        const allocation = R.hasCompleteRoyalData(S) ? O.resourceAllocationMetrics(S, { hours: 0 }) : null;
+        drainedProjectionCache = { S, slots, allocation };
+        const input = `<label class="royal-drained-days" title="Projects only nodes saved as fully drained and ready to grade up. Each refill is assumed fully drained before the next reset, so it refills and gains a grade every reset."><span class="royal-drained-days-head"><span>Drained nodes in</span><span id="drained-projection-days-value">${days} day${days === 1 ? "" : "s"}</span></span><input id="drained-projection-days" type="range" min="1" max="30" step="1" value="${days}" aria-label="Projection days"></label>`;
+        return `${input}<div id="drained-projection-body">${drainedProjectionBody(S, slots, days, allocation)}</div>`;
+      }
+      function drainedProjectionBody(S, slots, days, allocation) {
+        const projection = O.drainedNodeDayProjection(S, days, allocation ? { allocation } : undefined);
+        if (!projection.available) return `<span class="note">Unavailable: ${esc((projection.missing || []).join(", "))}</span>`;
+        const when = projection.hoursToDay == null ? "reset timing unavailable" : `in ${f(projection.hoursToDay)}h`;
+        const world = slot => projection.nodes.filter(node => node.currencySlot === slot && R.resourceWorld(node.resourceIdx) === session.worldIdx);
+        const chipRow = (label, valueFor, titleFor) => slots.map(slot => {
+          const value = f(valueFor(world(slot)));
+          return `<span class="royal-currency-chip" title="${esc(titleFor(slot, world(slot)))}" aria-label="${label} currency slot ${slot}: ${value}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${value}</span>`;
+        }).join("") || '<span class="note">No world currencies.</span>';
+        const sum = (nodes, key) => nodes.reduce((total, node) => total + n(node[key]), 0);
+        const gradeText = nodes => nodes.length ? `${nodes.length} drained node${nodes.length === 1 ? "" : "s"}: grades ${nodes.map(node => `${node.grade}→${node.projectedGrade}`).join(", ")}` : "No saved-drained nodes for this currency";
+        const availableChips = chipRow(`Available on day ${days}`, nodes => sum(nodes, "availableOnDay"), (slot, nodes) => `Day ${days} (${when}): amount refilled into saved-drained nodes at that reset. ${gradeText(nodes)}`);
+        const cumulativeChips = chipRow(`Cumulative through day ${days}`, nodes => sum(nodes, "cumulative"), (slot, nodes) => `Currency from fully draining every refill of saved-drained nodes through day ${days}, including that day. Balance + cumulative: ${f(n(S.royalGData?.[1]?.[slot]) + sum(nodes, "cumulative"))}. Savage-only drains add no currency.`);
+        const note = !projection.refills ? '<span class="royal-partial" role="status">Armory 70 not owned: drained nodes do not refill.</span>' : projection.gradeGainPerReset ? "" : '<span class="royal-partial" role="status">Node grade-ups not unlocked: refills stay at the current grade.</span>';
+        return `${note}<div class="royal-counter-label" title="Day ${days}, ${when}">Available on day ${days}</div><div class="royal-currency-chips">${availableChips}</div><div class="royal-counter-label">Cumulative through day ${days}</div><div class="royal-currency-chips">${cumulativeChips}</div>`;
       }
       function overview(S) {
         if (!R.hasCompleteRoyalData(S)) return royalDataGate();
@@ -3904,6 +3951,40 @@
         document.querySelector("#banked-hours-after-reset")?.addEventListener("change", event => {
           session.bankedHoursAfterReset = Math.max(0, n(event.target.value));
           render();
+        });
+        document.querySelector("#drained-projection-days")?.addEventListener("input", event => {
+          const days = Math.max(1, Math.min(30, Math.floor(n(event.target.value)) || 1));
+          if (days === session.drainedProjectionDays) return;
+          session.drainedProjectionDays = days;
+          const label = document.querySelector("#drained-projection-days-value");
+          if (label) label.textContent = `${days} day${days === 1 ? "" : "s"}`;
+          const body = document.querySelector("#drained-projection-body");
+          const cache = drainedProjectionCache;
+          if (body && cache) body.innerHTML = drainedProjectionBody(cache.S, cache.slots, days, cache.allocation);
+        });
+        document.querySelector("#drained-projection-days")?.addEventListener("change", () => {
+          try { localStorage.setItem("royal-drained-projection-days", String(session.drainedProjectionDays)); } catch {}
+        });
+        const counterTabButtons = [...document.querySelectorAll("[data-counter-tab]")];
+        const selectCounterTab = (key, focus) => {
+          session.counterTab = key;
+          try { localStorage.setItem("royal-counter-tab", key); } catch {}
+          counterTabButtons.forEach(button => {
+            const selected = button.dataset.counterTab === key;
+            button.setAttribute("aria-selected", String(selected));
+            button.tabIndex = selected ? 0 : -1;
+            if (selected && focus) button.focus();
+          });
+          document.querySelectorAll("[data-counter-panel]").forEach(panel => { panel.hidden = panel.dataset.counterPanel !== key; });
+        };
+        counterTabButtons.forEach((button, index) => {
+          button.addEventListener("click", () => selectCounterTab(button.dataset.counterTab, false));
+          button.addEventListener("keydown", event => {
+            if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+            event.preventDefault();
+            const next = counterTabButtons[(index + (event.key === "ArrowRight" ? 1 : -1) + counterTabButtons.length) % counterTabButtons.length];
+            selectCounterTab(next.dataset.counterTab, true);
+          });
         });
         document.querySelectorAll("[data-assignment-layer]").forEach(button => button.addEventListener("click", () => {
           const layer = button.dataset.assignmentLayer;

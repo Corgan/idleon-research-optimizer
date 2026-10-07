@@ -392,6 +392,45 @@ export function resourceAllocationToReset(S, options) {
 	});
 	return { ...allocation, available: true, resetProjectionAvailable: true, reset, resetLabel: 'before reset', hoursToReset: reset.hoursRemaining, collectableBeforeReset: allocation.collectedWithinWindow, projectedRemainingAtReset: details.reduce((sum, detail) => sum + detail.projectedRemainingAtReset, 0), nodesEmptyingByReset: allocation.nodesEmptiedWithinWindow, projectedRefillsAtReset: details.filter(detail => detail.refillsAtReset).length, projectedGradeGainsAtReset: details.reduce((sum, detail) => sum + detail.gradeGainAtReset, 0), details, projection: 'Projection through daily reset; projected-to-empty nodes refill only if collection commits the drained sentinel before reset; post-reset collection is not simulated' };
 }
+// Multi-day projection for nodes saved with the drained sentinel (fully drained,
+// ready to refill/grade at reset). Assumes each refill is fully drained before the
+// next reset, so every reset refills it (Armory 70) and adds one grade (Armory 0).
+export function drainedNodeDayProjection(S, days, options) {
+	options = _opts(options);
+	const dayCount = Math.max(1, Math.min(3650, Math.floor(n(days)) || 1));
+	const reset = R.royalResetTiming(S);
+	const royalMissing = _royalMissing(S);
+	if (royalMissing.length) return { available: false, days: dayCount, reset, nodes: [], byCurrency: {}, missing: royalMissing };
+	const allocation = options.allocation?.details ? options.allocation : resourceAllocationMetrics(S, { ...options, hours: 0 });
+	const refills = R.armoryBonus(S, 70) >= 1;
+	const gradeGainPerReset = refills && R.armoryBonus(S, 0) >= 1 ? 1 : 0;
+	const nodes = [];
+	let excluded = 0;
+	for (const detail of allocation.details) {
+		if (!(ROYAL_RESOURCES[detail.resourceIdx]?.baseCapacity > 0) || detail.currencySlot < 0) continue;
+		if (!detail.drained) { excluded++; continue; }
+		const grade = n(R.resourceGrade(S, detail.resourceIdx));
+		// Savage-only drains add no currency; unlinked drained nodes are assumed collected normally.
+		const currencyShare = detail.drainRate > 0 ? detail.currencyRate / detail.drainRate : 1;
+		let cumulative = 0; let availableOnDay = 0;
+		for (let day = 1; day <= dayCount; day++) {
+			availableOnDay = refills ? _resourceCapacityAtGrade(detail.resourceIdx, grade + day * gradeGainPerReset) : 0;
+			cumulative += availableOnDay * currencyShare;
+		}
+		nodes.push({ resourceIdx: detail.resourceIdx, currencySlot: detail.currencySlot, grade, projectedGrade: grade + (refills ? dayCount * gradeGainPerReset : 0), availableOnDay, cumulative, currencyShare });
+	}
+	const byCurrency = {};
+	for (const node of nodes) {
+		const entry = byCurrency[node.currencySlot] ||= { availableOnDay: 0, cumulative: 0, nodes: 0 };
+		entry.availableOnDay += node.availableOnDay; entry.cumulative += node.cumulative; entry.nodes++;
+	}
+	return {
+		available: true, days: dayCount, refills, gradeGainPerReset, reset,
+		hoursToDay: reset.available ? reset.hoursRemaining + 24 * (dayCount - 1) : null,
+		nodes, byCurrency, excludedNodes: excluded,
+		projection: 'Saved-drained nodes only; each refill is assumed fully drained before the next reset, so it refills (Armory 70) and gains one grade (Armory 0) every reset',
+	};
+}
 function _bankedProfessionAssignment(units, guardCount, workerCount) {
 	const desired = new Map(); const remaining = { 0: workerCount, 1: units.length - guardCount - workerCount, 2: guardCount };
 	for (const type of [0, 1, 2]) for (const unit of units) if (!desired.has(unit.slot) && unit.type === type && remaining[type] > 0) { desired.set(unit.slot, type); remaining[type]--; }
