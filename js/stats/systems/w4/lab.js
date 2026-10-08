@@ -416,8 +416,27 @@ export function mainframeBonus(e, saveData) {
   if (e === 100 && mainframeBonus(101, saveData) > 0 && mainframeBonus(102, saveData) > 0) doubler = 2;
   else if (e === 103 && mainframeBonus(104, saveData) > 0 && mainframeBonus(105, saveData) > 0 && mainframeBonus(106, saveData) > 0) doubler = 2;
   else if (e === 110 && mainframeBonus(107, saveData) > 0 && mainframeBonus(108, saveData) > 0 && mainframeBonus(109, saveData) > 0) doubler = 2;
-  else if (e === 112 && mainframeBonus(111, saveData) > 0 && mainframeBonus(113, saveData) > 0 && mainframeBonus(114, saveData) > 0 && mainframeBonus(115, saveData) > 0) doubler = 2;
-  return doubler * base * mainframeBonus(8, saveData);
+  else if (e === 112 && mainframeBonus(111, saveData) > 0 && mainframeBonus(113, saveData) > 0 && _rawJewel114(saveData) > 0 && mainframeBonus(115, saveData) > 0) doubler = 2;
+  var value = doubler * base * mainframeBonus(8, saveData);
+  // TalentCalc(-7) rescales the cached Jewel 114 after every jewel/doubler is computed.
+  if (e === 114) value *= kitchenUpgradeSteps25(saveData);
+  return value;
+}
+
+function _rawJewel114(saveData) {
+  return saveData.labJewelConnected[14] ? JEWEL_DESC[14][2] * mainframeBonus(8, saveData) : 0;
+}
+
+// floor((speed + fire + luck levels summed over the leading unlocked kitchens + 0.5) / 25); stops at the first locked kitchen.
+export function kitchenUpgradeSteps25(saveData) {
+  var rows = saveData && saveData.cookingData || [];
+  var total = 0;
+  for (var k = 0; k < 10; k++) {
+    var row = rows[k];
+    if (!row || (Number(row[0]) || 0) === 0) break;
+    total += (Number(row[6]) || 0) + (Number(row[7]) || 0) + (Number(row[8]) || 0);
+  }
+  return Math.floor((total + 0.5) / 25);
 }
 
 // ==================== CHIP BONUS BY KEY ====================

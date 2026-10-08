@@ -580,7 +580,7 @@ export function cookingSpeedTerms(model, k, levels) {
     ['Arcade 28', 1 + model.arcade28 / 100, 'x', ''],
     ['Vial 6turtle', 1 + model.vialTurtle / 100, 'x', ''],
     ['Vial MealCook', 1 + model.vialMealCook / 100, 'x', ''],
-    ['Stamp MealCook + Mainframe 114', 1 + (model.stampMealCook + Math.max(0, model.mf114)) / 100, 'x', ''],
+    ['Stamp MealCook + Mainframe 114', 1 + (model.stampMealCook + Math.max(0, model.mf114)) / 100, 'x', 'Jewel 114 ' + Math.max(0, model.mf114).toFixed(1) + '% (× floor(total kitchen levels / 25))'],
     ['Meal Mcook', 1 + mcook / 100, 'x', mcook.toFixed(2) + '%'],
     ['Star Sign 58', 1 + model.star58 / 100, 'x', ''],
     ['Summoning win bonus 15', 1 + model.win15 / 100, 'x', ''],
