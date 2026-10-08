@@ -622,6 +622,7 @@ function reasonBadges(list) {
   }).join('');
 }
 function ladleCell(ladles, hours) {
+  if (ladles <= 0 && hours <= 0) return '<span class="muted" title="Meals already in stock cover this level; just level it up">stock</span>';
   if (ladles <= 0 && hours > 0) return '<span class="muted" title="Covered by passive kitchen time after the day\'s ladles are spent">passive</span>';
   return ladleFull(ladles);
 }
@@ -677,14 +678,18 @@ function claimChips(ph) {
   return '<div class="claim-chips">' + shown + (claims.length > 12 ? '<span class="muted">+' + (claims.length - 12) + ' more</span>' : '') + '</div>';
 }
 function phaseBlock(d, ph) {
+  var phaseStart = ph.meals && ph.meals.length ? ph.meals[0].cumulativeLadles - ph.meals[0].ladles : 0;
   var rows = (ph.meals || []).map(function(g, i) {
     return '<tr><td class="num step-no">' + (i + 1) + '</td><td class="grow">' + mealCell(g.meal) + '</td>'
       + '<td class="nowrap">Lv ' + g.from + ' → <b>' + g.to + '</b>' + (g.levels > 1 ? ' <span class="muted">(' + g.levels + ')</span>' : '') + '</td>'
       + '<td class="num">' + ladleCell(g.ladles, g.hours) + '</td>'
+      + '<td class="num muted">' + ladleFull(g.cumulativeLadles - phaseStart) + '</td>'
       + '<td>' + reasonBadges(g.reasons) + '</td></tr>';
   }).join('');
-  var table = rows ? '<table class="data-table plan-table">' + head([
-    ['#', 1], ['Meal (spend order)', 0, '', 'grow'], ['Levels'], ['Ladles', 1, 'Ladles are spent first; passive kitchen time covers later steps'], ['Why'],
+  var table = rows ? '<div class="day-note muted">Go row by row: cook that meal in every kitchen, use the ladles, then level it up before the next row. Each row\'s ladles assume every row above it is done.</div>'
+    + '<table class="data-table plan-table">' + head([
+    ['#', 1], ['Meal (spend order)', 0, '', 'grow'], ['Levels'], ['Ladles', 1, 'Whole ladles for this row; overflow meals stay in stock'],
+    ['Used so far', 1, 'Ladles spent in this phase through this row'], ['Why'],
   ]) + '<tbody>' + rows + '</tbody></table>' : '';
   var save = '';
   if (ph.saving) {

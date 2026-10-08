@@ -1093,9 +1093,20 @@ export function planMealLeveling(S, opts) {
   }
 
   function buy(m, h, pool, reason, dayPurchases, dayLevels, day) {
-    var stepLadles = ladlesFor(h, pool);
+    // Ladles are whole items: the step's ladle share rounds up and the overflow stays in this meal's stock,
+    // so a level it already covers is bought next at zero cost.
+    var fromPool = Math.min(h, pool.ladle);
+    var used = h;
+    var stepLadles = 0;
+    if (fromPool > 0 && ladleMulti > 0) {
+      var whole = Math.ceil(fromPool / ladleMulti - 1e-9);
+      var wholeHours = Math.min(pool.ladle, whole * ladleMulti);
+      used = h + wholeHours - fromPool;
+      pool.ladle -= wholeHours;
+      stepLadles = wholeHours < whole * ladleMulti ? wholeHours / ladleMulti : whole;
+    }
     var paid = mealLevelCost(levels[m], inputs, ola);
-    stocks[m] = Math.max(0, stocks[m] + h * speed / mealRequirement(m) - paid);
+    stocks[m] = Math.max(0, stocks[m] + used * speed / mealRequirement(m) - paid);
     var before = speed;
     levels[m]++;
     gained[m]++;
@@ -1104,7 +1115,7 @@ export function planMealLeveling(S, opts) {
     speed = totalKitchenSpeed(model, levels);
     dayLevels.push(m);
     cumLadles += stepLadles;
-    var rec = { day: day, meal: m, fromLevel: levels[m] - 1, toLevel: levels[m], cost: paid, hours: h,
+    var rec = { day: day, meal: m, fromLevel: levels[m] - 1, toLevel: levels[m], cost: paid, hours: used,
       ladles: stepLadles, cumulativeLadles: cumLadles, speedBefore: before, speedAfter: speed, reason: reason };
     purchases.push(rec);
     dayPurchases.push(rec);
@@ -1114,7 +1125,13 @@ export function planMealLeveling(S, opts) {
     if (!pm.firstDay) pm.firstDay = day;
     pm.lastDay = day;
     steps++;
-    return h;
+    // Level up again right away while the overflow already covers the next level.
+    if (stepLadles > 0) {
+      while (levels[m] < maxLevel && stocks[m] >= mealLevelCost(levels[m], inputs, ola)) {
+        buy(m, 0, pool, reason, dayPurchases, dayLevels, day);
+      }
+    }
+    return used;
   }
 
   // Ladleable meals still below the lowest NMLB-target level, so tonight's NMLB hit lands on an expensive meal.
@@ -1207,7 +1224,7 @@ export function planMealLeveling(S, opts) {
     }
     var ladleHoursUsed = ph.ladles * ladleMulti - pool.ladle;
     ph.steps = phaseSteps;
-    ph.meals = _groupDaySteps(phaseSteps);
+    ph.meals = _spendOrderRows(phaseSteps);
     ph.saving = saving;
     ph.levelsBought = phaseSteps.length;
     ph.ladlesUsed = ladleMulti > 0 ? Math.min(ph.ladles, ladleHoursUsed / ladleMulti) : 0;
@@ -1326,6 +1343,25 @@ function _steerBlockers(levels, x, maxLevel) {
   for (var d = 0; d < levels.length; d++) {
     if (d === x || !(levels[d] >= 2 && levels[d] < maxLevel)) continue;
     if (levels[d] < (d > x ? Lx + 1 : Lx)) out.push(d);
+  }
+  return out;
+}
+
+// Executable phase order: one row per level in purchase order. A level already covered by stock (overflow from
+// the previous row's whole ladles) folds into that row, since the player just levels up again.
+function _spendOrderRows(steps) {
+  var out = [];
+  for (var i = 0; i < steps.length; i++) {
+    var st = steps[i];
+    var last = out[out.length - 1];
+    if (last && last.meal === st.meal && st.hours <= 0) {
+      last.to = st.toLevel;
+      last.levels++;
+      if (last.reasons.indexOf(st.reason) < 0) last.reasons.push(st.reason);
+      continue;
+    }
+    out.push({ meal: st.meal, from: st.fromLevel, to: st.toLevel, levels: 1, ladles: st.ladles, hours: st.hours,
+      cumulativeLadles: st.cumulativeLadles, speedBefore: st.speedBefore, reasons: [st.reason] });
   }
   return out;
 }
