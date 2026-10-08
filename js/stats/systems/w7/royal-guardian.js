@@ -442,7 +442,7 @@ export function outpostGuardRangeSteps(S, mapIdx, ext) {
 		for (const unit of converted) packed[unit.slot] = delta < 0 ? '2' : '4';
 		maps[mapIdx][11] = Number(packed.join(''));
 		const range = outpostRange({ ...S, royalMapsData: maps }, mapIdx, ext);
-		steps.push({ delta, movableGuards: guards.length + delta, range, radius: range + 15 });
+		steps.push({ delta, movableGuards: guards.length + delta, range, radius: range + 15, outpostRadius: range + 8 });
 	}
 	return steps;
 }
@@ -649,6 +649,22 @@ export function resourceReachable(S, mapIdx, resourceIdx, ext) { return outpostB
 export function outpostReachable(S, from, to, ext) { const target = outpostEligibility(S, to); return outpostWorld(from) === outpostWorld(to) && outpostBuilt(S, from) && (target.built || target.state === 'eligible') && outpostDistance(from, to) <= outpostRange(S, from, ext) + 8; }
 export function reachableResourcesForOutpost(S, mapIdx, ext) { const range = outpostRange(S, mapIdx, ext); const connected = outpostConnections(S, mapIdx).filter(endpoint => endpoint.kind === 'resource').length; return ROYAL_RESOURCES.map((resource, resourceIdx) => ({ resourceIdx, distance: resourceDistance(mapIdx, resourceIdx), range, connectedSlots: connected, reachable: resourceReachable(S, mapIdx, resourceIdx, ext) })).filter(value => resourceWorld(value.resourceIdx) === outpostWorld(mapIdx)).sort((a, b) => a.distance - b.distance); }
 export function reachableOutpostsForResource(S, resourceIdx, ext) { return (S?.royalMapsData || []).map((_, mapIdx) => { if (outpostWorld(mapIdx) !== resourceWorld(resourceIdx) || !outpostBuilt(S, mapIdx) || ![0, 2].includes(outpostType(S, mapIdx))) return null; const connections = outpostConnections(S, mapIdx); const used = connections.filter(endpoint => endpoint.kind !== 'empty').length; return { mapIdx, distance: resourceDistance(mapIdx, resourceIdx), range: outpostRange(S, mapIdx, ext), slotsUsed: used, slotsFree: Math.max(0, 2 - used), connectedCount: connections.filter(endpoint => endpoint.kind === 'resource' && endpoint.id === Number(resourceIdx)).length, reachable: resourceReachable(S, mapIdx, resourceIdx, ext) }; }).filter(Boolean).sort((a, b) => a.distance - b.distance); }
+// The connection editor accepts a Support target whose RoyalMaps row has length >= 2 (in progress or built) within floor(range) + 8 of the map anchors.
+export function supportTargetsForOutpost(S, mapIdx, ext) {
+	const from = Math.floor(n(mapIdx));
+	if (!outpostBuilt(S, from) || outpostType(S, from) !== 1) return [];
+	const range = outpostRange(S, from, ext);
+	const linked = outpostConnections(S, from).filter(endpoint => endpoint.kind === 'map').map(endpoint => endpoint.id);
+	const targets = [];
+	for (let target = outpostWorld(from) * 50; target < outpostWorld(from) * 50 + 50; target++) {
+		if (target === from || !outpostMapPosition(target)) continue;
+		const saved = S?.royalMapsData?.[target];
+		const linkable = Array.isArray(saved) && saved.length >= 2;
+		const distance = outpostDistance(from, target);
+		targets.push({ mapIdx: target, distance, range, radius: range + 8, built: outpostBuilt(S, target), linkable, linkedCount: linked.filter(id => id === target).length, reachable: linkable && distance <= range + 8 });
+	}
+	return targets.sort((a, b) => a.distance - b.distance);
+}
 export function nextResourceRangeTarget(S, mapIdx, ext) {
 	const next = reachableResourcesForOutpost(S, mapIdx, ext).find(value => ROYAL_RESOURCES[value.resourceIdx]?.currencySlot >= 0 && !value.reachable);
 	if (!next) return null;

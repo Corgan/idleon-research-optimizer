@@ -354,13 +354,15 @@
       .royal-counter-value { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
       .royal-currency-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin-top: 4px; }
       .royal-currency-chips > .note { grid-column: 1 / -1; }
-      .royal-counter-tabs { margin: 8px 0 5px; padding: 0; gap: 0; }
-      .royal-counter-tabs button { flex: 1 1 0; min-width: 0; padding: 3px 0; font-size: .7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .royal-counter-tabs { flex-wrap: nowrap; margin: 8px -8px 5px; padding: 0; gap: 0; border-bottom: 2px solid #334; }
+      .royal-counter-tabs button { position: relative; flex: 1 1 0; min-width: 0; margin-bottom: -4px; padding: 4px 0 3px; font-size: .7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .royal-counter-tabs button[aria-selected="true"] { background: var(--bg2); }
       .royal-counter-panel { font-size: .95em; }
       .royal-drained-days { display: grid; gap: 2px; font-size: .76em; color: var(--text2); }
       .royal-drained-days-head { display: flex; justify-content: space-between; gap: 4px; }
       #drained-projection-days-value { color: var(--gold); font-weight: 700; white-space: nowrap; }
       .royal-drained-days input { width: 100%; margin: 0; accent-color: #6fa8dc; }
+      .royal-map-counters .royal-project-all { display: block; margin: 0 0 5px; font-size: .72em; }
       .royal-currency-chip { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 3px; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; background: #132745; border: 1px solid #40536e; border-radius: 4px; color: var(--text); font-size: .72em; }
       .royal-partial { display: block; color: var(--gold); font-size: .82em; white-space: normal; overflow-wrap: anywhere; }
       .royal-map-layer { position: absolute; inset: 0; }
@@ -484,8 +486,21 @@
       .royal-map-outpost.built .royal-map-node-glyph { left: 28.571%; top: 0; width: 41.071%; height: 90%; }
       .royal-map-outpost-glyph { left: 0; top: 10%; width: 100%; height: 85%; }
       .royal-map-glory-glyph { left: 35.714%; top: 55%; width: 28.571%; height: 25%; z-index: 4; filter: drop-shadow(0 1px 2px rgba(3, 8, 18, .95)); }
-      .royal-map-assignments { position: absolute; left: 50%; top: calc(50% + 11.2px); display: flex; align-items: flex-end; justify-content: center; gap: 0; transform: translate(-50%, -100%); z-index: 1; pointer-events: none; }
-      .royal-map-assignments .royal-map-glyph { filter: drop-shadow(0 1px 1px rgba(3, 8, 18, .95)) drop-shadow(0 0 3px rgba(3, 8, 18, .85)); }
+      .royal-map-assignments { position: absolute; left: 50%; bottom: calc(100% - 2px); display: flex; gap: 2px; transform: translateX(-50%); z-index: 5; pointer-events: none; }
+      .royal-map-assign-count { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--assign-color); border-radius: 50%; background: #07101f; color: #fff; box-shadow: 0 1px 4px rgba(3, 8, 18, .98); font-family: Verdana, Geneva, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; text-align: center; text-shadow: 0 1px 1px #000; }
+      .royal-map-assign-count > span { display: block; transform: translateY(-.5px); }
+      .royal-map-assign-count.wide { font-size: 8px; }
+      .assign-worker { --assign-color: #ff9f43; }
+      .assign-trader { --assign-color: rgb(74, 229, 74); }
+      .assign-guard { --assign-color: #b8c4d6; }
+      .assign-surveyor { --assign-color: rgb(68, 138, 166); }
+      .assign-militia { --assign-color: #c084fc; }
+      .assign-commander { --assign-color: rgb(249, 130, 114); }
+      .assign-knight { --assign-color: rgb(255, 214, 97); }
+      .assign-priest { --assign-color: rgb(236, 214, 133); }
+      .royal-map-assign-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; }
+      .royal-map-assign-legend span { display: inline-flex; align-items: center; gap: 4px; }
+      .royal-map-assign-legend i { width: 10px; height: 10px; border: 2px solid var(--assign-color); border-radius: 50%; background: #07101f; }
       .royal-map-ranks { position: absolute; left: 50%; bottom: calc(100% - 2px); display: flex; gap: 2px; transform: translateX(-50%); z-index: 5; pointer-events: none; }
       .royal-map-rank { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--rank-color); border-radius: 50%; background: #07101f; color: #fff; box-shadow: 0 1px 4px rgba(3, 8, 18, .98); font-family: Verdana, Geneva, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; text-align: center; text-shadow: 0 1px 1px #000; }
       .royal-map-rank > span { display: block; transform: translateY(-.5px); }
@@ -506,11 +521,15 @@
       .royal-worker-icon .worker-profession { left: 3.2px; top: 0; width: 20.8px; height: 28.8px; }
       .royal-worker-icon .worker-shadow { left: 3.2px; top: 27.2px; width: 22.4px; height: 8px; }
       .royal-worker-icon .transient-profession { left: 4.8px; top: 3.2px; width: 19.2px; height: 20.8px; }
+      .royal-worker-icon[class*="assign-"] .worker-profession, .royal-worker-icon[class*="assign-"] .transient-profession { filter: drop-shadow(0 0 1.5px var(--assign-color)) drop-shadow(0 0 3px var(--assign-color)); }
+      .royal-worker-icon[class*="assign-"] .assignment-count { color: var(--assign-color); box-shadow: 0 0 0 1px var(--assign-color); }
       .assignment-count { position: absolute; right: -3.2px; top: -4.8px; min-width: 19.2px; padding: 0 4.8px; border-radius: 9.6px; background: #111827; color: var(--gold); font-size: 12.8px; line-height: 17.6px; text-align: center; }
       .royal-map-shell.map-size-small { grid-template-columns: 48px 600px 210px; max-width: 900px; }
       .map-size-small .royal-map { width: 600px; min-width: 600px; max-width: 600px; }
       .map-size-small .royal-map-counters { height: auto; min-height: 340px; }
-      .map-size-small .royal-map-assignments { top: calc(50% + 7px); }
+      .map-size-small .royal-map-assignments { bottom: calc(100% - 1px); gap: 1px; }
+      .map-size-small .royal-map-assign-count { width: 15px; height: 15px; border-width: 1px; font-size: 8px; }
+      .map-size-small .royal-map-assign-count.wide { font-size: 6px; }
       .map-size-small .royal-map-ranks { bottom: calc(100% - 1px); gap: 1px; }
       .map-size-small .royal-map-upgrades { bottom: calc(100% - 1px); gap: 2px; }
       .map-size-small .royal-map-upgrade-points { gap: 3px; min-width: 19px; padding: 2px 4px; font-size: 8px; }
@@ -1261,8 +1280,9 @@
         bankedProjectionMode: "current",
         bankedHoursAfterReset: 0,
         drainedProjectionDays: (() => { try { const v = Math.floor(Number(localStorage.getItem("royal-drained-projection-days"))); return v >= 1 ? Math.min(30, v) : 7; } catch { return 7; } })(),
+        drainedProjectAll: (() => { try { return localStorage.getItem("royal-drained-project-all") === "1"; } catch { return false; } })(),
         counterTab: (() => { try { const v = localStorage.getItem("royal-counter-tab"); return ["balances", "nodes", "forecast"].includes(v) ? v : "balances"; } catch { return "balances"; } })(),
-        assignmentLayers: { movable: true, permanent: true, transient: true },
+        assignmentLayers: { movable: true, permanent: false, transient: true },
         rangeFinderMode: false,
         largeMap: true,
         selectedResource: 0,
@@ -1420,9 +1440,16 @@
       function atlasGlyph(name, file, source, width, height, atlasWidth, atlasHeight) {
         return `<span class="royal-map-glyph ${name}" style="--gx:${source.x};--gy:${source.y};--gw:${width};--gh:${height};--aw:${atlasWidth};--ah:${atlasHeight}"><img src="./assets/royal-guardian/${file}" alt=""></span>`;
       }
+      const ASSIGNMENT_COUNT_STYLES = {
+        movable: { 0: { name: "Worker", key: "worker" }, 1: { name: "Trader", key: "trader" }, 2: { name: "Guard", key: "guard" }, 3: { name: "Surveyor", key: "surveyor" } },
+        transient: { 4: { name: "Militia", key: "militia" }, 5: { name: "Commander", key: "commander" }, 6: { name: "Knight", key: "knight" }, 7: { name: "Priest", key: "priest" } },
+      };
+      function assignmentCountBadge(style, count) {
+        return style && count > 0 ? `<span class="royal-map-assign-count assign-${style.key}${String(fi(count)).length > 2 ? " wide" : ""}"><span>${fi(count)}</span></span>` : "";
+      }
       function unitIcon(type, count = 1) {
         const source = [{ x: 149, y: 395 }, { x: 179, y: 395 }, { x: 205, y: 395 }, { x: 233, y: 395 }][n(type)];
-        return source ? `<span class="royal-worker-icon" aria-label="${R.movableProfessionName(type)}${count > 1 ? `, ${fi(count)} assigned` : ""}">${atlasGlyph("worker-profession", "font-784.png", source, 29, 32, 1000, 500)}${atlasGlyph("worker-shadow", "font-784.png", { x: 150, y: 382 }, 31, 10, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
+        return source ? `<span class="royal-worker-icon assign-${ASSIGNMENT_COUNT_STYLES.movable[n(type)].key}" aria-label="${R.movableProfessionName(type)}${count > 1 ? `, ${fi(count)} assigned` : ""}">${atlasGlyph("worker-profession", "font-784.png", source, 29, 32, 1000, 500)}${atlasGlyph("worker-shadow", "font-784.png", { x: 150, y: 382 }, 31, 10, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
       }
       function transientUnitIcon(type, count = 1) {
         const source = {
@@ -1432,7 +1459,7 @@
           7: { x: 215, y: 432, width: 16, height: 17 },
         }[Math.floor(n(type))];
         const name = R.transientUnitName(type);
-        return source && count > 0 ? `<span class="royal-worker-icon" aria-label="${esc(name)}, ${fi(count)} assigned">${atlasGlyph("transient-profession", "font-784.png", source, source.width, source.height, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
+        return source && count > 0 ? `<span class="royal-worker-icon assign-${ASSIGNMENT_COUNT_STYLES.transient[Math.floor(n(type))].key}" aria-label="${esc(name)}, ${fi(count)} assigned">${atlasGlyph("transient-profession", "font-784.png", source, source.width, source.height, 1000, 500)}${count > 1 ? `<b class="assignment-count">${fi(count)}</b>` : ""}</span>` : "";
       }
       function positionRoyalTooltip(clientX, clientY) {
         const margin = 10, pad = 12;
@@ -1560,7 +1587,9 @@
         const map = document.querySelector(".royal-map"), target = map?.querySelector(`[data-map-outpost="${mapIdx}"]`);
         const assumed = !R.outpostBuilt(saved, mapIdx);
         const S = assumed ? R.assumeConqueredOutpost(saved, mapIdx) : saved;
-        if (!map || !target || ![0, 2].includes(R.outpostType(S, mapIdx))) return;
+        if (!map || !target) return;
+        if (!assumed && R.outpostType(S, mapIdx) === 1) return showSupportRange(S, mapIdx, map, target);
+        if (![0, 2].includes(R.outpostType(S, mapIdx))) return;
         const position = R.outpostMapPosition(mapIdx), steps = R.outpostGuardRangeSteps(S, mapIdx);
         const resources = R.reachableResourcesForOutpost(S, mapIdx).filter(result => R.resourceCurrency(result.resourceIdx) >= 0);
         const matches = resources.filter(result => result.reachable);
@@ -1585,7 +1614,43 @@
         if (position) map.insertAdjacentHTML("beforeend", guardRangeMarkup(steps, position));
         fitRoyalRangeLabels(map);
         const status = document.querySelector("[data-range-status]");
-        if (status) status.innerHTML = `${esc(mapName(mapIdx))}${assumed ? " (not conquered; Current is a newly conquered Normal outpost with its starting Worker, +1 converts it to a Guard)" : ""}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in current range. Node colors show the smallest range that reaches them: +N needs N more Guards; -N stays reachable after removing N Guards. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Resource radii; shared labels mean identical capped ranges.`;
+        if (status) status.innerHTML = `${mapName(mapIdx)}${assumed ? " (not conquered; Current is a newly conquered Normal outpost with its starting Worker, +1 converts it to a Guard)" : ""}: ${matches.length} resource node${matches.length === 1 ? "" : "s"} in current range. Node colors show the smallest range that reaches them: +N needs N more Guards; -N stays reachable after removing N Guards. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Resource radii; shared labels mean identical capped ranges.`;
+      }
+      function showSupportRange(S, mapIdx, map, target) {
+        const position = R.outpostMapPosition(mapIdx);
+        const steps = R.outpostGuardRangeSteps(S, mapIdx).map(step => ({ ...step, radius: step.outpostRadius }));
+        const bands = guardRangeBands(steps);
+        const targets = new Map(R.supportTargetsForOutpost(S, mapIdx).filter(result => result.linkable).map(result => [result.mapIdx, result]));
+        const matches = [...targets.values()].filter(result => result.reachable);
+        target.classList.add("range-active");
+        map.querySelectorAll("[data-map-outpost]").forEach(element => {
+          const idx = n(element.dataset.mapOutpost);
+          if (idx === mapIdx) return;
+          const result = targets.get(idx), band = result ? guardRangeBandForDistance(bands, result.distance) : null;
+          element.classList.add(band ? "range-band" : "range-dimmed");
+          showRangeShortfall(element, result, bands);
+          if (result?.linkedCount) {
+            const linked = document.createElement("span");
+            linked.className = "royal-range-gap-label";
+            linked.style.setProperty("--range-color", "#31cef0");
+            linked.textContent = "Linked";
+            royalRangeBadgeStack(element).appendChild(linked);
+          }
+          if (!band) return;
+          element.style.setProperty("--range-color", band.color);
+          element.dataset.rangeDelta = String(band.delta);
+          const label = document.createElement("span");
+          label.className = "royal-range-node-label";
+          label.textContent = band.delta === 0 ? "Current" : band.delta > 0 ? `+${band.delta}` : String(band.delta);
+          label.setAttribute("aria-label", band.delta === 0 ? "Requires current Guard count"
+            : band.delta > 0 ? `Needs ${band.delta} more Guards` : `Still reachable after removing ${Math.abs(band.delta)} Guards`);
+          royalRangeBadgeStack(element).appendChild(label);
+        });
+        map.querySelectorAll("[data-map-resource]").forEach(element => element.classList.add("range-dimmed"));
+        if (position) map.insertAdjacentHTML("beforeend", guardRangeMarkup(steps, position));
+        fitRoyalRangeLabels(map);
+        const status = document.querySelector("[data-range-status]");
+        if (status) status.innerHTML = `${mapName(mapIdx)} (Support): ${matches.length} outpost${matches.length === 1 ? "" : "s"} in current Support range. Support links target built or in-progress outposts within range + 8; colors show the smallest Guard change that reaches them. Movable stationed slots only; permanent units stay fixed.<span class="royal-range-legend">${bands.map(band => `<span style="--range-color:${band.color}">${esc(band.label)}: ${band.radius}</span>`).join("")}</span>Outpost radii; shared labels mean identical capped ranges.`;
       }
       function showRangeShortfall(element, result, bands) {
         if (!result || !Number.isFinite(result.distance)) return;
@@ -2048,15 +2113,18 @@
         return `<aside class="royal-map-counters" aria-label="W${session.worldIdx + 1} counters"><h3>W${session.worldIdx + 1} counters</h3><div class="royal-counter-grid"><div class="royal-counter"><span>O</span><div><div class="royal-counter-label">Built outposts</div><div class="royal-counter-value">${built} / ${q.length}</div></div></div><div class="royal-counter"><span>M</span><div><div class="royal-counter-label">Militia assignments</div><div class="royal-counter-value">${militia}</div></div></div><div class="royal-counter"><span>$</span><div><div class="royal-counter-label">Nominal income / hr</div><div class="royal-counter-value">${f(income)}${counterCoverage(allocation)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/RGshard${session.worldIdx}.png" alt=""><div><div class="royal-counter-label">Royal Marble</div><div class="royal-counter-value">${ownedCounter(marble)}</div></div></div><div class="royal-counter"><img src="./assets/royal-guardian/Orblet.png" alt=""><div><div class="royal-counter-label">Account Orblets</div><div class="royal-counter-value">${ownedCounter(orblet)}</div></div></div></div>${tabs}${balancesPanel}${nodesPanel}${forecastPanel}</aside>`;
       }
       let drainedProjectionCache = null;
+      const drainedScopeLabel = () => session.drainedProjectAll ? "All nodes in" : "Drained nodes in";
       function drainedProjectionCounters(S, slots) {
         const days = session.drainedProjectionDays;
         const allocation = R.hasCompleteRoyalData(S) ? O.resourceAllocationMetrics(S, { hours: 0 }) : null;
         drainedProjectionCache = { S, slots, allocation };
-        const input = `<label class="royal-drained-days" title="Projects only nodes saved as fully drained and ready to grade up. Each refill is assumed fully drained before the next reset, so it refills and gains a grade every reset."><span class="royal-drained-days-head"><span>Drained nodes in</span><span id="drained-projection-days-value">${days} day${days === 1 ? "" : "s"}</span></span><input id="drained-projection-days" type="range" min="1" max="30" step="1" value="${days}" aria-label="Projection days"></label>`;
-        return `${input}<div id="drained-projection-body">${drainedProjectionBody(S, slots, days, allocation)}</div>`;
+        const pill = `<button type="button" id="drained-project-all" class="royal-map-range-toggle royal-project-all" aria-pressed="${session.drainedProjectAll ? "true" : "false"}" title="Project: Drained projects only nodes saved as fully drained. Project: All also projects nodes that are not fully drained: each is assumed fully drained before the next reset (its current remaining amount counts toward the cumulative total), then refills and gains a grade every reset like a drained node.">Project: ${session.drainedProjectAll ? "All" : "Drained"}</button>`;
+        const input = `<label class="royal-drained-days" title="Each projected node is assumed fully drained before every reset, so it refills and gains a grade every reset. By default only nodes saved as fully drained and ready to grade up are projected."><span class="royal-drained-days-head"><span id="drained-projection-scope">${drainedScopeLabel()}</span><span id="drained-projection-days-value">${days} day${days === 1 ? "" : "s"}</span></span><input id="drained-projection-days" type="range" min="1" max="30" step="1" value="${days}" aria-label="Projection days"></label>`;
+        return `${pill}${input}<div id="drained-projection-body">${drainedProjectionBody(S, slots, days, allocation)}</div>`;
       }
       function drainedProjectionBody(S, slots, days, allocation) {
-        const projection = O.drainedNodeDayProjection(S, days, allocation ? { allocation } : undefined);
+        const all = session.drainedProjectAll;
+        const projection = O.drainedNodeDayProjection(S, days, { ...(allocation ? { allocation } : {}), includeUndrained: all });
         if (!projection.available) return `<span class="note">Unavailable: ${esc((projection.missing || []).join(", "))}</span>`;
         const when = projection.hoursToDay == null ? "reset timing unavailable" : `in ${f(projection.hoursToDay)}h`;
         const world = slot => projection.nodes.filter(node => node.currencySlot === slot && R.resourceWorld(node.resourceIdx) === session.worldIdx);
@@ -2065,9 +2133,11 @@
           return `<span class="royal-currency-chip" title="${esc(titleFor(slot, world(slot)))}" aria-label="${label} currency slot ${slot}: ${value}"><img src="./assets/royal-guardian/RGres${slot}.png" alt="">${value}</span>`;
         }).join("") || '<span class="note">No world currencies.</span>';
         const sum = (nodes, key) => nodes.reduce((total, node) => total + n(node[key]), 0);
-        const gradeText = nodes => nodes.length ? `${nodes.length} drained node${nodes.length === 1 ? "" : "s"}: grades ${nodes.map(node => `${node.grade}→${node.projectedGrade}`).join(", ")}` : "No saved-drained nodes for this currency";
-        const availableChips = chipRow(`Available on day ${days}`, nodes => sum(nodes, "availableOnDay"), (slot, nodes) => `Day ${days} (${when}): amount refilled into saved-drained nodes at that reset. ${gradeText(nodes)}`);
-        const cumulativeChips = chipRow(`Cumulative through day ${days}`, nodes => sum(nodes, "cumulative"), (slot, nodes) => `Currency from fully draining every refill of saved-drained nodes through day ${days}, including that day. Balance + cumulative: ${f(n(S.royalGData?.[1]?.[slot]) + sum(nodes, "cumulative"))}. Savage-only drains add no currency.`);
+        const scope = all ? "projected" : "saved-drained";
+        const gradeText = nodes => nodes.length ? `${nodes.length} ${all ? "" : "drained "}node${nodes.length === 1 ? "" : "s"}: grades ${nodes.map(node => `${node.grade}→${node.projectedGrade}`).join(", ")}` : `No ${scope} nodes for this currency`;
+        const remainingText = nodes => all ? ` Includes ${f(sum(nodes, "remainingNow"))} currently remaining in not-yet-drained nodes, assumed drained before the first reset.` : "";
+        const availableChips = chipRow(`Available on day ${days}`, nodes => sum(nodes, "availableOnDay"), (slot, nodes) => `Day ${days} (${when}): amount refilled into ${scope} nodes at that reset. ${gradeText(nodes)}`);
+        const cumulativeChips = chipRow(`Cumulative through day ${days}`, nodes => sum(nodes, "cumulative"), (slot, nodes) => `Currency from fully draining every refill of ${scope} nodes through day ${days}, including that day.${remainingText(nodes)} Balance + cumulative: ${f(n(S.royalGData?.[1]?.[slot]) + sum(nodes, "cumulative"))}. Savage-only drains add no currency.`);
         const note = !projection.refills ? '<span class="royal-partial" role="status">Armory 70 not owned: drained nodes do not refill.</span>' : projection.gradeGainPerReset ? "" : '<span class="royal-partial" role="status">Node grade-ups not unlocked: refills stay at the current grade.</span>';
         return `${note}<div class="royal-counter-label" title="Day ${days}, ${when}">Available on day ${days}</div><div class="royal-currency-chips">${availableChips}</div><div class="royal-counter-label">Cumulative through day ${days}</div><div class="royal-currency-chips">${cumulativeChips}</div>`;
       }
@@ -2199,11 +2269,14 @@
           return `${esc(R.movableProfessionName(type))} x${fi(workerCounts.get(type))} (assignable ${fi(assignableCounts.get(type) || 0)}, fixed ${fi(fixedCount)}${sources ? `: ${sources}` : ""})`;
         }).join(", ");
         const transientSummary = `${transientAssignments.length ? `, transient: ${transientAssignments.map(assignment => `${esc(assignment.name)} x${fi(assignment.count)}`).join(", ")}` : ""}${rankValues.length ? `, ranks: ${rankValues.map(({ bar, rank }) => `${R.outpostRankName(bar)} ${fi(rank)}`).join(", ")}` : ""}`;
-        const movableWorkers = session.assignmentLayers.movable ? [...assignableCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("") : "";
-        const permanentWorkers = session.assignmentLayers.permanent ? [...permanentCounts].map(([workerType, count]) => unitIcon(workerType, count)).join("") : "";
-        const transientUnits = session.assignmentLayers.transient ? transientAssignments.map(assignment => transientUnitIcon(assignment.type, assignment.count)).join("") : "";
-        const assignmentItems = `${movableWorkers}${permanentWorkers}${transientUnits}`;
-        const assignmentIcons = session.mapOverlayMode === "assignments" && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments">${assignmentItems}</span>` : "";
+        const professionCounts = new Map();
+        for (const [layer, counts] of [["movable", assignableCounts], ["permanent", permanentCounts]]) {
+          if (session.assignmentLayers[layer]) for (const [workerType, count] of counts) professionCounts.set(workerType, (professionCounts.get(workerType) || 0) + count);
+        }
+        const professionUnits = [...professionCounts].sort((a, b) => a[0] - b[0]).map(([workerType, count]) => assignmentCountBadge(ASSIGNMENT_COUNT_STYLES.movable[workerType], count)).join("");
+        const transientUnits = session.assignmentLayers.transient ? transientAssignments.map(assignment => assignmentCountBadge(ASSIGNMENT_COUNT_STYLES.transient[assignment.type], assignment.count)).join("") : "";
+        const assignmentItems = `${professionUnits}${transientUnits}`;
+        const assignmentIcons = session.mapOverlayMode === "assignments" && !session.rangeFinderMode && assignmentItems ? `<span class="royal-map-assignments" aria-hidden="true">${assignmentItems}</span>` : "";
         const rankBadges = rankValues.length && session.mapOverlayMode === "ranks" && !session.rangeFinderMode ? `<span class="royal-map-ranks" aria-hidden="true">${rankValues.map(({ bar, rank }) => `<span class="royal-map-rank bar-${bar}${String(rank).length > 2 ? " wide" : ""}" title="${esc(R.outpostRankName(bar))}: ${fi(rank)}"><span>${fi(rank)}</span></span>`).join("")}</span>` : "";
         const upgradeLevels = row.built ? [0, 1, 2].map(index => Math.max(0, Math.floor(n(S.royalMapsData?.[row.mapIdx]?.[index])))) : [];
         const upgradeSummary = row.built ? `, upgrades: ${outpostUpgradeNames.map((name, index) => `${name} ${fi(upgradeLevels[index])}`).join(", ")}, ${fi(R.outpostPointsLeft(S, row.mapIdx))} points left` : "";
@@ -2253,7 +2326,7 @@
         return `<div class="tooltip-unit-group"><h4>Units</h4><div class="tooltip-units">${rows}</div><div class="tooltip-unit-key" aria-label="Unit source key">A Assignable · F Fixed · T Transient</div></div>`;
       }
       function bankedStaffingTooltip(S, recommendation) {
-        if (!recommendation?.available) return `<div class="tooltip-unit-group"><h4>Drain staffing</h4><div class="note">${recommendation?.mapIdx !== undefined ? `${esc(mapName(recommendation.mapIdx))}: ` : ""}${esc(recommendation?.reason || "No recommendation available")}</div></div>`;
+        if (!recommendation?.available) return `<div class="tooltip-unit-group"><h4>Drain staffing</h4><div class="note">${recommendation?.mapIdx !== undefined ? `${mapName(recommendation.mapIdx)}: ` : ""}${esc(recommendation?.reason || "No recommendation available")}</div></div>`;
         const actions = recommendation.changes.map(change => ({ kind: "profession", mapIdx: change.mapIdx, slot: change.slot, type: change.toType }));
         const after = O.cloneRoyalState(S);
         for (const outpost of recommendation.outposts) if (after.royalMapsData?.[outpost.mapIdx]) after.royalMapsData[outpost.mapIdx][11] = O.withPackedUnits(after.royalMapsData[outpost.mapIdx][11], outpost.units);
@@ -2281,7 +2354,9 @@
         const stateOptions = [["current", "Current save", true], ...(optimizedNow ? [["optimized", "Optimized now", true], ["post-reset", "Post-reset", optimizedPostReset]] : []), ...(shelfStep ? [["shelf-step", shelfStepLabel, true]] : [])];
         const shelfNavigation = shelfStep ? `<div class="shelf-step-navigation" role="group" aria-label="Optimizer step navigation"><button type="button" data-shelf-nav="-1" ${shelfPosition <= 0 ? "disabled" : ""} aria-label="Previous optimizer step">&larr; Previous</button><span class="shelf-step-position" aria-live="polite">${fi(shelfPosition + 1)} / ${fi(shelfIndices.length)}</span><button type="button" data-shelf-nav="1" ${shelfPosition < 0 || shelfPosition >= shelfIndices.length - 1 ? "disabled" : ""} aria-label="Next optimizer step">Next &rarr;</button><button type="button" class="go-to-step" data-go-shelf-step>Go to step</button></div>` : "";
         const mapViewToggle = `<div class="royal-map-view-group" role="group" aria-label="Map view">${[["none", "None"], ["resources", "Resources"], ["banked", "Banked Time"], ["grades", "Grades"], ["assignments", "Assignments"], ["ranks", "Ranks"], ["upgrades", "Upgrades"]].map(([value, label]) => `<button type="button" data-map-overlay="${value}" aria-pressed="${session.mapOverlayMode === value ? "true" : "false"}" ${session.rangeFinderMode ? "disabled" : ""}>${label}</button>`).join("")}</div>`;
-        const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Movable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>` : "";
+        const legendStyles = [...(session.assignmentLayers.movable || session.assignmentLayers.permanent ? Object.values(ASSIGNMENT_COUNT_STYLES.movable) : []), ...(session.assignmentLayers.transient ? Object.values(ASSIGNMENT_COUNT_STYLES.transient) : [])];
+        const assignmentLegendHtml = `${legendStyles.map(({ name, key }) => `<span><i class="assign-${key}"></i>${name}</span>`).join("")}`;
+        const assignmentFilters = session.mapOverlayMode === "assignments" ? `<div class="royal-map-assignment-filters" role="group" aria-label="Assignment types">${[["movable", "Changeable"], ["permanent", "Permanent"], ["transient", "Transient"]].map(([value, label]) => `<button type="button" data-assignment-layer="${value}" aria-pressed="${session.assignmentLayers[value] ? "true" : "false"}">${label}</button>`).join("")}</div>${assignmentLegendHtml ? `<span class="royal-map-assign-legend">${assignmentLegendHtml}</span>` : ""}` : "";
         const resourceKey = session.mapOverlayMode === "resources" ? `<span class="royal-map-resource-key">Resources: <b class="empty">&#10003;</b> Empty <b class="ready">&#10003;</b> Ready to reset</span>` : "";
         const bankedControl = session.mapOverlayMode === "banked" ? `<div class="royal-map-view-group" role="group" aria-label="Banked time baseline">${[["current", "Current"], ["post-reset", "Post-reset"]].map(([value, label]) => `<button type="button" data-banked-mode="${value}" aria-pressed="${session.bankedProjectionMode === value ? "true" : "false"}">${label}</button>`).join("")}</div>${session.bankedProjectionMode === "post-reset" ? `<label class="royal-map-banked-control">+ <input id="banked-hours-after-reset" type="number" min="0" step="0.5" value="${session.bankedHoursAfterReset}" aria-label="Additional hours after reset before opening Royal Guardian"> hr</label>` : ""}<span class="royal-map-resource-key">Total banked at pop: <b class="banked">${m.available ? fmtHours(m.bankedHoursAtPop) : "Unavailable"}</b></span>` : "";
         const stateToggle = `${stateOptions.length > 1 ? `<div class="royal-map-state-group" role="group" aria-label="Map state">${stateOptions.map(([value, label, enabled]) => `<button type="button" data-map-state="${value}" aria-pressed="${session.royalStateView === value ? "true" : "false"}" ${enabled ? "" : "disabled"}>${label}</button>`).join("")}</div>` : ""}${shelfNavigation}${mapViewToggle}${assignmentFilters}${bankedControl}`;
@@ -3964,6 +4039,17 @@
         });
         document.querySelector("#drained-projection-days")?.addEventListener("change", () => {
           try { localStorage.setItem("royal-drained-projection-days", String(session.drainedProjectionDays)); } catch {}
+        });
+        document.querySelector("#drained-project-all")?.addEventListener("click", event => {
+          session.drainedProjectAll = !session.drainedProjectAll;
+          try { localStorage.setItem("royal-drained-project-all", session.drainedProjectAll ? "1" : "0"); } catch {}
+          event.currentTarget.setAttribute("aria-pressed", session.drainedProjectAll ? "true" : "false");
+          event.currentTarget.textContent = `Project: ${session.drainedProjectAll ? "All" : "Drained"}`;
+          const heading = document.querySelector("#drained-projection-scope");
+          if (heading) heading.textContent = drainedScopeLabel();
+          const body = document.querySelector("#drained-projection-body");
+          const cache = drainedProjectionCache;
+          if (body && cache) body.innerHTML = drainedProjectionBody(cache.S, cache.slots, session.drainedProjectionDays, cache.allocation);
         });
         const counterTabButtons = [...document.querySelectorAll("[data-counter-tab]")];
         const selectCounterTab = (key, focus) => {
