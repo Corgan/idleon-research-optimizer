@@ -106,6 +106,7 @@ var SIGN_BONUSES = {
   pctCardDrop: { 41: 15 },
   CarryCap: { 11: 10, 25: 5, 29: 30 },
   MultiFish: { 6: 20 },
+  CookSpd: { 58: 15 },
 };
 
 // Game accumulates star sign bonuses from ALL unlocked signs (via RiftStuff enabledStarSigns)

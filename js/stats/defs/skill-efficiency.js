@@ -518,15 +518,46 @@ function _worship(charIdx, ctx, shared) {
 
 function _cooking(charIdx, ctx, shared) {
   var saveData = ctx.saveData;
-  var str = _totalStat('STR', charIdx, ctx);
-  var value = shared.allEfficiencies
-    * (1 + (_talentCalc146(charIdx, ctx) + rval(talent, 85, ctx)
-      + rval(etcBonus, '67', ctx)) / 100)
-    * (250 + Math.pow(str, 0.6) * (1 + rval(talent, 142, ctx) / 100)
-      + _stamp('CookingEff', charIdx, saveData) + rval(etcBonus, '62', ctx)
-      + 10 * computeRiftSkillBonus(9, 1, saveData) + _box(charIdx, '19a')
-      + shared.allBaseSkillEff);
-  return { value: value, statsDN: 0, stat: str, level: 0 };
+  var strResult = computeTotalStat('STR', charIdx, ctx);
+  var str = Number(strResult.computed) || 0;
+  var talent142 = resolverTerm(talent, 142, ctx);
+  var t142 = talent142.val;
+  var tc146 = _talentCalc146(charIdx, ctx);
+  var t85 = resolverTerm(talent, 85, ctx);
+  var etc67 = resolverTerm(etcBonus, '67', ctx);
+  var stamp = computeStampBonusOfTypeX('CookingEff', saveData, charIdx);
+  var stampVal = _num(stamp);
+  var etc62 = resolverTerm(etcBonus, '62', ctx);
+  var rift = 10 * computeRiftSkillBonus(9, 1, saveData);
+  var box19a = _box(charIdx, '19a');
+  // Source grouping: 250 + (STR term + (stamp + (etc62 + rift + box)) + AllBaseSkillEff).
+  var inner = 250 + (Math.pow(str, 0.6) * (1 + t142 / 100)
+    + (stampVal + (etc62.val + rift + box19a)) + shared.allBaseSkillEff);
+  var pct = tc146 + (t85.val + etc67.val);
+  var value = shared.allEfficiencies * (1 + pct / 100) * inner;
+  var tree = [
+    shared.allEfficienciesDetail,
+    pctGroup('Cooking Efficiency %', [
+      sourceTerm(label('Talent', 146) + ' × million-kill maps', tc146, {
+        note: 'Talent 146 × min(maps with 1M+ kills, tab 2 cap)',
+      }),
+      t85,
+      etc67,
+    ]),
+    { name: 'Base efficiency', val: inner, fmt: 'raw', children: [
+      { name: 'Base', val: 250, fmt: 'raw' },
+      { name: 'STR ^ 0.6 × Talent 142', val: Math.pow(str, 0.6) * (1 + t142 / 100), fmt: 'raw', children: [
+        { name: 'Total STR', val: str, fmt: 'raw', children: strResult.tree && strResult.tree.children || null },
+        Object.assign({}, talent142, { val: 1 + t142 / 100, fmt: 'x' }),
+      ] },
+      sourceTerm('Stamp: Cooking Efficiency', stamp, { fmt: 'raw', val: stampVal }),
+      Object.assign({}, etc62, { fmt: 'raw' }),
+      { name: '10 × Rift Skill Mastery (Cooking)', val: rift, fmt: 'raw' },
+      { name: 'Post Office: Cooking Efficiency', val: box19a, fmt: 'raw' },
+      shared.allBaseSkillEffDetail,
+    ] },
+  ];
+  return { value: value, statsDN: 0, stat: str, level: 0, tree: tree };
 }
 
 function _laboratory(charIdx, ctx, shared) {

@@ -39,6 +39,8 @@ export let fishingToolkitData = [];
 export let fishingToolkitDataAvailable = [];
 export let fishingSpotIndexData = [];
 export let fishingSpotIndexDataAvailable = [];
+// Per-character AFK start epoch seconds (`PTimeAway_X` × 1000 = TimeAway.Player); null when the key is missing.
+export let afkStartData = [];
 export let mapBonData = [];
 export let obolNamesData = [];
 export let obolMapsData = [];
@@ -87,6 +89,7 @@ export function assignSaveData(u) {
   if ('fishingToolkitDataAvailable' in u) fishingToolkitDataAvailable = u.fishingToolkitDataAvailable;
   if ('fishingSpotIndexData' in u) fishingSpotIndexData = u.fishingSpotIndexData;
   if ('fishingSpotIndexDataAvailable' in u) fishingSpotIndexDataAvailable = u.fishingSpotIndexDataAvailable;
+  if ('afkStartData' in u) afkStartData = u.afkStartData;
   if ('mapBonData' in u) mapBonData = u.mapBonData;
   if ('obolNamesData' in u) obolNamesData = u.obolNamesData;
   if ('obolMapsData' in u) obolMapsData = u.obolMapsData;

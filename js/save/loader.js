@@ -264,7 +264,7 @@ export function loadSaveData(raw) {
   assignSaveData({ obolFamilyMaps: parseSaveKey(save, 'ObolEqMAPz1') || {} });
 
   // Per-character prayers, post office, card equip, currentMap
-  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], currentMapDataAvailable = [], afkTargetData = [], attackLoadoutData = [], attackLoadoutDataAvailable = [], combatAfkInputDataAvailable = [], maxCarryCapData = [], maxCarryCapDataAvailable = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], fishingSpotIndexData = [], fishingSpotIndexDataAvailable = [], buffsActive = [];
+  const prayersPerChar = [], postOffice = [], cardEquip = [], csetEq = [], currentMapData = [], currentMapDataAvailable = [], afkTargetData = [], attackLoadoutData = [], attackLoadoutDataAvailable = [], combatAfkInputDataAvailable = [], maxCarryCapData = [], maxCarryCapDataAvailable = [], fishingToolkitData = [], fishingToolkitDataAvailable = [], fishingSpotIndexData = [], fishingSpotIndexDataAvailable = [], buffsActive = [], afkStartData = [];
   for (let ci = 0; ci < nChars; ci++) {
     prayersPerChar.push(parseSaveKey(save, 'Prayers_' + ci) || []);
     postOffice.push(parseSaveKey(save, 'POu_' + ci) || []);
@@ -302,7 +302,10 @@ export function loadSaveData(raw) {
     fishingSpotIndexData.push(Number(parseSaveKey(save, spotKey)) || 0);
     fishingSpotIndexDataAvailable.push(Object.prototype.hasOwnProperty.call(save, spotKey));
     buffsActive.push(parseSaveKey(save, 'BuffsActive_' + ci) || []);
+    const afkStart = Number(parseSaveKey(save, 'PTimeAway_' + ci));
+    afkStartData.push(Object.prototype.hasOwnProperty.call(save, 'PTimeAway_' + ci) && Number.isFinite(afkStart) && afkStart > 0 ? afkStart * 1000 : null);
   }
+  assignSaveData({ afkStartData: afkStartData });
   assignSaveData({ prayersPerCharData: prayersPerChar });
   assignSaveData({ postOfficeData: postOffice });
   assignSaveData({ cardEquipData: cardEquip });

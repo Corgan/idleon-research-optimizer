@@ -458,8 +458,8 @@ export function renderBreakdownTree(root, container, opts) {
     const id = prefix + (idCounter++);
     const has = node.children && node.children.length > 0;
     const pad = depth * 18;
-    // depth 0 = root (Total), depth 1 = additive group / multipliers - start expanded
-    const startOpen = depth <= 1;
+    // depth 0 = root (Total), depth 1 = additive group / multipliers - start expanded (opts.openDepth overrides)
+    const startOpen = depth <= (opts.openDepth != null ? opts.openDepth : 1);
     const arrow = has ? '<span class="bt-arrow" data-id="' + id + '">' + (startOpen ? '\u25be' : '\u25b8') + '</span>' : '<span style="display:inline-block;width:14px;"></span>';
     let cls = 'bt-row';
     if (depth === 0) cls += ' bt-root';

@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idleon Ladle Optimizer</title>
+<style>
+:root {
+  --bg:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --panel:#101b35;
+  --accent:#e94560; --text:#eee; --text2:#c0c0d4; --gold:#ffd700;
+  --green:#4caf50; --blue:#2196f3; --purple:#bb86fc; --cyan:#4dd0e1;
+  --red:#f44; --orange:#ffa060; --border:#425071;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+h1 { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:var(--bg2); border-bottom:2px solid var(--accent); font-size:1.35em; }
+h1 span { color:var(--accent); }
+h1 a { color:var(--text2); font-size:.62em; text-decoration:none; }
+.main { max-width:1500px; margin:0 auto; padding:14px; }
+.empty { padding:36px; text-align:center; color:var(--text2); }
+.section { background:var(--bg2); border-radius:8px; padding:14px; margin-bottom:14px; }
+.section h2 { margin-bottom:10px; color:var(--accent); font-size:1.08em; border-bottom:1px solid #34405f; padding-bottom:6px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.section h2 small { color:var(--text2); font-weight:400; font-size:.72em; }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+.card { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:9px 11px; min-height:74px; }
+.card-title { color:var(--cyan); font-size:.73em; font-weight:700; }
+.card-val { color:var(--gold); font-size:1.3em; font-weight:700; margin:3px 0; font-variant-numeric:tabular-nums; }
+.card-sub { color:var(--text2); font-size:.68em; line-height:1.35; }
+.toolbar { background:var(--bg2); border-bottom:1px solid #39435f; padding:10px 14px; display:flex; flex-wrap:wrap; gap:9px 14px; align-items:flex-end; position:sticky; top:0; z-index:20; }
+.toolbar[hidden] { display:none; }
+.control { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-size:.71em; }
+.control.check { flex-direction:row; align-items:center; gap:6px; min-height:31px; }
+select,input { min-height:31px; border:1px solid #586482; border-radius:4px; background:var(--panel); color:var(--text); padding:4px 7px; }
+input[type=number] { width:100px; }
+input[type=checkbox] { min-height:0; }
+.table-wrap { overflow:auto; max-height:640px; }
+.data-table { width:100%; border-collapse:collapse; font-size:.78em; white-space:nowrap; }
+.data-table th { position:sticky; top:0; z-index:1; text-align:left; padding:6px; color:var(--text2); background:var(--bg2); border-bottom:1px solid #46516c; }
+.data-table td { padding:5px 6px; border-bottom:1px solid rgba(255,255,255,.05); }
+.data-table tr:hover td { background:rgba(255,255,255,.035); }
+.data-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.data-table tr.current td { background:rgba(255,215,0,.07); }
+.data-table tr.inactive td { color:#7f8aa6; }
+.badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.72em; font-weight:700; margin-left:4px; }
+.badge-green { background:rgba(76,175,80,.2); color:#83db88; }
+.badge-gold { background:rgba(255,215,0,.15); color:var(--gold); }
+.badge-red { background:rgba(255,68,68,.16); color:#ff8b8b; }
+.badge-cyan { background:rgba(77,208,225,.16); color:var(--cyan); }
+.badge-muted { background:rgba(192,192,212,.12); color:var(--text2); }
+.callout-list { display:grid; gap:7px; margin-bottom:14px; }
+.callout { border-left:3px solid var(--gold); background:rgba(255,215,0,.065); padding:8px 10px; color:var(--text2); font-size:.76em; line-height:1.5; }
+.callout.warn { border-left-color:var(--red); background:rgba(255,68,68,.055); }
+.callout b { color:var(--text); }
+.split { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; }
+.split > .section { margin-bottom:0; }
+.muted { color:var(--text2); }
+.up { color:#83db88; font-weight:700; }
+h3.sub { margin:14px 0 8px; color:var(--cyan); font-size:.9em; }
+.breakdown-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.breakdown-panel { min-width:0; padding:10px; background:var(--panel); border:1px solid #40536e; border-radius:8px; }
+.breakdown-panel h3 { margin:0 0 8px; color:var(--cyan); font-size:.95rem; }
+.bt-controls { margin-bottom:8px; display:flex; gap:6px; }
+.bt-controls .btn-sm { padding:4px 10px; background:var(--bg3); color:var(--text2); border:1px solid #4a607e; border-radius:4px; cursor:pointer; font-size:.8em; }
+.bt-tree { font-size:.85em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-bottom:1px solid rgba(255,255,255,.04); min-height:26px; cursor:pointer; }
+.bt-row:hover { background:rgba(255,255,255,.07); }
+.bt-children { background:rgba(0,0,0,.12); border-left:2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight:700; font-size:1.05em; padding-top:6px; padding-bottom:6px; border-bottom:2px solid #445; }
+.bt-arrow { cursor:pointer; color:var(--text2); font-size:1em; width:14px; text-align:center; user-select:none; flex-shrink:0; }
+.bt-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bt-val { font-weight:600; text-align:right; flex-shrink:0; white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums; }
+.bt-tooltip { position:fixed; display:none; z-index:30; max-width:340px; padding:8px; background:var(--panel); color:var(--text); border:1px solid #4a607e; border-radius:4px; font-size:.8em; }
+.plan-table td { vertical-align:top; white-space:normal; }
+.plan-table td, .plan-table th { width:1%; white-space:nowrap; }
+.plan-table .grow { width:auto; white-space:normal; min-width:220px; }
+.plan-table .badge { white-space:nowrap; }
+.plan-table .nowrap { white-space:nowrap; }
+.plan-table .step-no { color:var(--text2); width:34px; }
+.plan-table .meal-name { font-weight:600; }
+.plan-table .meal-effect { color:var(--text2); font-size:.86em; }
+.plan-table .sub { color:var(--text2); font-size:.86em; margin-top:2px; line-height:1.5; }
+.plan-table .badge { margin:0 4px 2px 0; }
+.mini-bar { display:inline-block; width:70px; height:7px; border-radius:4px; background:#333; overflow:hidden; vertical-align:middle; }
+.mini-bar > span { display:block; height:100%; background:var(--cyan); }
+.chip { display:inline-block; margin:0 5px 3px 0; padding:1px 7px; border-radius:10px; font-size:.92em; white-space:nowrap; border:1px solid #4a607e; }
+.chip-nmlb { background:rgba(255,215,0,.08); border-color:rgba(255,215,0,.35); color:var(--gold); }
+.small-note { font-size:.75em; margin-top:6px; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid #39435f; margin:0 0 14px; flex-wrap:wrap; }
+.tab { padding:9px 18px; cursor:pointer; color:var(--text2); border:0; border-bottom:2px solid transparent; background:none; font-weight:600; font-size:.92em; }
+.tab:hover { color:var(--text); background:rgba(255,255,255,.04); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.plan-controls { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
+.day-grid { display:grid; grid-template-columns:70px minmax(280px,2.4fr) repeat(4,minmax(86px,.6fr)); gap:10px; align-items:center; }
+.day-legend { padding:0 12px 4px; color:var(--text2); font-size:.72em; font-weight:600; }
+.day-legend > div:nth-child(n+3) { text-align:right; }
+.day-list { display:grid; gap:5px; }
+details.day { background:var(--panel); border:1px solid #2f3c5a; border-radius:6px; }
+details.day[open] { border-color:#4f6488; }
+details.day > summary { list-style:none; cursor:pointer; padding:8px 12px; font-size:.82em; }
+details.day > summary::-webkit-details-marker { display:none; }
+details.day > summary:hover { background:rgba(255,255,255,.03); }
+.day-no { font-weight:700; white-space:nowrap; }
+.day-no::before { content:'\25B8'; color:var(--text2); display:inline-block; width:14px; }
+details.day[open] .day-no::before { content:'\25BE'; }
+.day-nmlb { min-width:0; }
+.day-nmlb .nm-meal { font-weight:700; color:var(--gold); }
+.day-nmlb .nm-sub { color:var(--text2); font-size:.88em; margin-top:1px; }
+.day-nmlb.wasted .nm-meal { color:var(--orange); }
+.day-stat { text-align:right; font-variant-numeric:tabular-nums; }
+.day-body { padding:6px 12px 10px 26px; border-top:1px solid #2f3c5a; }
+.day-body .plan-table { font-size:.76em; }
+.day-note { color:var(--text2); font-size:.76em; margin:4px 0 6px; line-height:1.5; }
+.day-note b { color:var(--text); }
+.phase { margin:6px 0 10px; }
+.phase-head { color:var(--cyan); font-weight:700; font-size:.8em; margin:8px 0 4px; padding-bottom:3px; border-bottom:1px solid #2f3c5a; }
+.phase-head.nmlb-head { color:var(--gold); border-bottom:0; }
+.day-no .nm-sub { color:var(--text2); font-size:.7em; font-weight:400; }
+.claim-chips { display:flex; flex-wrap:wrap; gap:4px; margin:2px 0 6px; }
+.claim-chip { font-size:.72em; padding:1px 6px; border-radius:10px; background:rgba(77,208,225,.1); color:var(--text2); border:1px solid rgba(77,208,225,.25); }
+.cls-row td { font-weight:700; color:var(--text); background:rgba(255,255,255,.035); }
+.rotation { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 4px; }
+.total-row td { font-weight:700; border-top:1px solid #46516c; }
+.exp-bar { display:inline-block; width:90px; height:8px; border-radius:4px; background:#333; overflow:hidden; vertical-align:middle; margin-right:6px; }
+.exp-bar > span { display:block; height:100%; background:var(--purple); }
+@media(max-width:1300px) { .breakdown-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:1000px) { .split { grid-template-columns:1fr; } .day-grid { grid-template-columns:60px minmax(0,1fr) repeat(2,minmax(70px,auto)); } .day-grid > .hide-sm { display:none; } }
+@media(max-width:700px) {
+  .main { padding:8px; } h1 { font-size:1.04em; padding:10px; }
+  .toolbar { position:static; padding:8px; }
+  .card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .breakdown-grid { grid-template-columns:1fr; }
+  .bt-label { white-space:normal; overflow-wrap:anywhere; }
+}
+</style>
+</head>
+<body>
+<h1><a href="index.html">Home</a><div>&#129348; <span>Idleon</span> Ladle Optimizer</div><a href="https://github.com/Corgan/idleon-research-optimizer">GitHub</a></h1>
+<div id="save-area"></div>
+<div id="toolbar" class="toolbar" hidden></div>
+<div id="app" class="main"><div class="empty">Load a save to calculate ladles, Cooking EXP balloons, meal costs, and a ladle meal-leveling plan.</div></div>
+<div id="ladle-bt-tooltip" class="bt-tooltip"></div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import { charClassData } from './js/save/data.js';
+import { ClassNames, MealINFO } from './js/stats/data/game/customlists.js';
+import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+import * as L from './js/stats/systems/w4/cooking-ladle.js';
+
+var state = {
+  loaded: false,
+  ladleChar: 0,
+  breakdownChar: 0,
+  claimHours: 24,
+  days: 30,
+  assigned: null,
+  manualPerDay: 0,
+  useOwned: true,
+  passive: true,
+  strategy: 'speed',
+  floorGuard: true,
+  tab: 'ladles',
+  openDays: { 1: true },
+  balloon: 'ExpBalloon1',
+  targetLevel: 0,
+  splitBalloons: false,
+};
+var cache = null;
+var pendingTrees = [];
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  statusText: function() { return characterCount() + ' characters'; },
+  onLoad: function() {
+    var firstLoad = !state.loaded;
+    state.loaded = true;
+    cache = null;
+    buildCache();
+    if (firstLoad || state.assigned == null) {
+      state.assigned = cache.stats.filter(function(s) { return s.cooking; }).map(function(s) { return s.charIdx; });
+      state.ladleChar = bestLadleChar();
+      state.breakdownChar = state.assigned.length ? state.assigned[0] : state.ladleChar;
+    }
+    state.ladleChar = Math.min(state.ladleChar, characterCount() - 1);
+    state.breakdownChar = Math.min(state.breakdownChar, characterCount() - 1);
+    render();
+  },
+});
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, function(c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+function num(value) {
+  value = Number(value);
+  if (value === Infinity) return '∞';
+  return Number.isFinite(value) ? fmtVal(value) : '—';
+}
+function whole(value) {
+  value = Number(value);
+  if (value === Infinity) return '∞';
+  if (!Number.isFinite(value)) return '—';
+  return Math.abs(value) < 1e6 ? Math.round(value).toLocaleString() : fmtVal(value);
+}
+function ladleNum(value) {
+  value = Number(value);
+  if (value === Infinity) return '∞';
+  if (!Number.isFinite(value)) return '—';
+  if (value > 0 && value < 1) return '<1';
+  return whole(Math.ceil(value));
+}
+// Unshortened ladle count for the day breakdown (rounded up, full digits).
+function ladleFull(value) {
+  value = Number(value);
+  if (value === Infinity) return '∞';
+  if (!Number.isFinite(value)) return '—';
+  if (value > 0 && value < 1) return '<1';
+  value = Math.ceil(value);
+  return value < 1e21 ? value.toLocaleString('en-US', { maximumFractionDigits: 0 }) : fmtVal(value);
+}
+function fullCount(value) {
+  value = Number(value);
+  if (!Number.isFinite(value)) return whole(value);
+  value = Math.round(value);
+  return value < 1e21 ? value.toLocaleString('en-US', { maximumFractionDigits: 0 }) : fmtVal(value);
+}
+function pct(value, digits) { return (Number(value) || 0).toFixed(digits == null ? 1 : digits) + '%'; }
+function badge(text, type) { return '<span class="badge badge-' + (type || 'muted') + '">' + esc(text) + '</span>'; }
+function card(title, value, sub) {
+  return '<div class="card"><div class="card-title">' + esc(title) + '</div><div class="card-val">' + value
+    + '</div><div class="card-sub">' + (sub || '') + '</div></div>';
+}
+function head(cols) {
+  return '<thead><tr>' + cols.map(function(c) {
+    var cls = (c[1] ? 'num' : '') + (c[3] ? ' ' + c[3] : '');
+    return '<th' + (cls ? ' class="' + cls.trim() + '"' : '') + (c[2] ? ' title="' + esc(c[2]) + '"' : '') + '>' + esc(c[0]) + '</th>';
+  }).join('') + '</tr></thead>';
+}
+function characterCount() { return Math.max(L.characterCount(saveData), 1); }
+function charLabel(ci) {
+  var cls = String(ClassNames[charClassData[ci]] || '').replace(/_/g, ' ');
+  return L.characterName(saveData, ci) + (cls ? ' (' + cls + ')' : '');
+}
+function mealLabel(m) { return '#' + (m + 1) + ' ' + L.mealName(m); }
+function mealEffect(m) {
+  var row = MealINFO[m] || [];
+  return String(row[3] || '').replace(/_/g, ' ').replace('{', '');
+}
+
+function buildCache() {
+  var stats = [];
+  for (var ci = 0; ci < characterCount(); ci++) {
+    try { stats.push(L.cookingLadleStats(saveData, ci, { claimHours: state.claimHours })); }
+    catch (e) { stats.push({ charIdx: ci, name: L.characterName(saveData, ci), error: e.message, perDay: 0, trees: {} }); }
+  }
+  var multis = stats.map(function(s) { return L.ladleMultiplier(saveData, s.charIdx); });
+  cache = {
+    stats: stats,
+    multis: multis,
+    models: Object.create(null),
+    inputs: L.mealCostInputs(saveData),
+    maxLevel: L.mealMaxLevel(saveData),
+    nmlb: L.nmlbInfo(saveData),
+    inventory: L.ladleInventory(saveData),
+    plan: null,
+  };
+}
+function model(ci) {
+  if (!cache.models[ci]) cache.models[ci] = L.cookingSpeedModel(saveData, ci);
+  return cache.models[ci];
+}
+function bestLadleChar() {
+  var best = 0;
+  cache.multis.forEach(function(m, i) { if (m.multiplier > cache.multis[best].multiplier) best = i; });
+  return best;
+}
+function assignedPerDay() {
+  var total = 0;
+  (state.assigned || []).forEach(function(ci) { total += cache.stats[ci] && cache.stats[ci].perDay || 0; });
+  return total + Math.max(0, Number(state.manualPerDay) || 0);
+}
+// Guaranteed ladles/day: per-claim floors without the Post Office doubling roll. The plan budgets this.
+function assignedMinPerDay() {
+  var total = 0;
+  (state.assigned || []).forEach(function(ci) { total += cache.stats[ci] && cache.stats[ci].minPerDay || 0; });
+  return total + Math.max(0, Number(state.manualPerDay) || 0);
+}
+function claimers() {
+  return (state.assigned || []).map(function(ci) { return cache.stats[ci]; }).filter(function(s) { return s && !s.error; }).map(function(s) {
+    return { rawPerHour: s.rawPerHour, doubleChance: s.doubleChance, capHours: s.claimCapHours, claimHours: state.claimHours,
+      pendingHours: s.pendingHours, charIdx: s.charIdx, name: s.name };
+  });
+}
+// Daily reset countdown from the snapshot (TimeAway.ShopRestock); the reset applies NMLB automatically.
+function resetInfo() {
+  var raw = Number(saveData.timeAwayData && saveData.timeAwayData.ShopRestock);
+  if (!Number.isFinite(raw)) return { hours: 24, known: false };
+  return { hours: Math.max(0, Math.min(24, raw / 3600)), known: true };
+}
+
+function renderToolbar() {
+  var bar = document.getElementById('toolbar');
+  bar.hidden = false;
+  var charOpts = function(sel, suffix) {
+    var html = '';
+    for (var ci = 0; ci < characterCount(); ci++) {
+      html += '<option value="' + ci + '"' + (ci === sel ? ' selected' : '') + '>' + esc(charLabel(ci)) + (suffix ? esc(suffix(ci)) : '') + '</option>';
+    }
+    return html;
+  };
+  bar.innerHTML = ''
+    + '<label class="control">Uses ladles (Talent 148 + kitchen speed)<select id="ladle-char">'
+    + charOpts(state.ladleChar, function(ci) { return ' · ×' + cache.multis[ci].multiplier.toFixed(3); }) + '</select></label>'
+    + '<label class="control">Breakdown character<select id="bd-char">' + charOpts(state.breakdownChar) + '</select></label>'
+    + '<label class="control">AFK claim every (h)<input id="claim-h" type="number" min="0.1" step="0.5" value="' + state.claimHours + '"></label>'
+    + '<label class="control">Extra ladles / day<input id="manual" type="number" min="0" step="1000" value="' + state.manualPerDay + '"></label>'
+    + '<label class="control">Plan days<input id="days" type="number" min="1" max="3650" step="1" value="' + state.days + '"></label>'
+    + '<label class="control check"><input id="use-owned" type="checkbox"' + (state.useOwned ? ' checked' : '') + '>Spend owned ladles on day 1</label>'
+    + '<label class="control check"><input id="passive" type="checkbox"' + (state.passive ? ' checked' : '') + '>Include 24h passive kitchens</label>';
+  bind('ladle-char', 'change', function(v) { state.ladleChar = Number(v); cache.plan = null; render(); });
+  bind('bd-char', 'change', function(v) { state.breakdownChar = Number(v); render(); });
+  bind('claim-h', 'change', function(v) { state.claimHours = Math.max(0.1, Number(v) || 24); buildCache(); render(); });
+  bind('manual', 'change', function(v) { state.manualPerDay = Math.max(0, Number(v) || 0); cache.plan = null; render(); });
+  bind('days', 'change', function(v) { state.days = Math.max(1, Math.min(3650, Math.floor(Number(v) || 30))); cache.plan = null; render(); });
+  bind('use-owned', 'change', function(v, el) { state.useOwned = el.checked; cache.plan = null; render(); });
+  bind('passive', 'change', function(v, el) { state.passive = el.checked; cache.plan = null; render(); });
+}
+function bind(id, ev, fn) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener(ev, function() { fn(el.value, el); });
+}
+
+var TABS = { ladles: 'Ladles', plan: 'Meal plan', exp: 'Cooking EXP' };
+
+// Kitchen hours available per day: passive kitchens plus the checked characters' ladles.
+function dayHours() {
+  return (state.passive ? 24 : 0) + assignedMinPerDay() * cache.multis[state.ladleChar].multiplier;
+}
+
+function render() {
+  if (!cache) return;
+  renderToolbar();
+  pendingTrees = [];
+  var app = document.getElementById('app');
+  var m = model(state.ladleChar);
+  var levels = L.mealLevels(saveData);
+  var speed = L.totalKitchenSpeed(m, levels);
+  if (!cache.plan) {
+    cache.plan = L.planMealLeveling(saveData, {
+      activeCharIdx: state.ladleChar,
+      model: m,
+      inputs: cache.inputs,
+      maxLevel: cache.maxLevel,
+      nmlb: cache.nmlb,
+      ladleMulti: cache.multis[state.ladleChar].multiplier,
+      days: state.days,
+      ladlesPerDay: assignedMinPerDay(),
+      claimers: claimers(),
+      extraPerDay: state.manualPerDay,
+      hoursToReset: resetInfo().hours,
+      startLadles: state.useOwned ? cache.inventory.ladle.value : 0,
+      passive: state.passive,
+      strategy: state.strategy,
+      floorGuard: state.floorGuard,
+    });
+    cache.floor = L.nmlbFloorPlan(saveData, {
+      levels: levels, stocks: L.mealStocks(saveData), maxLevel: cache.maxLevel, inputs: cache.inputs,
+      kitchenSpeed: speed, ladleMulti: cache.multis[state.ladleChar].multiplier, nmlb: cache.nmlb, dayHours: dayHours(),
+    });
+  }
+  var tab = TABS[state.tab] ? state.tab : 'ladles';
+  var body = tab === 'plan' ? renderPlan() + renderSteer() + renderMeals(levels, speed)
+    : tab === 'exp' ? renderExp()
+    : renderCharacters() + renderBreakdowns(m, levels);
+  app.innerHTML = renderNotes() + renderSummary(speed)
+    + '<div class="tabs" role="tablist">' + Object.keys(TABS).map(function(k) {
+      return '<button type="button" class="tab' + (k === tab ? ' active' : '') + '" role="tab" aria-selected="' + (k === tab) + '" data-tab="' + k + '">' + esc(TABS[k]) + '</button>';
+    }).join('') + '</div>' + body;
+  mountTrees();
+  wireApp();
+}
+
+function renderNotes() {
+  var notes = (cache.nmlb.active ? '' : '<div class="callout warn">No Meal Left Behind is not active (Emporium 16 or bundle bun_s), so the plan has no daily free levels.</div>')
+    + (state.assigned.length || state.manualPerDay ? '' : '<div class="callout warn">No character is AFK-ing Cooking, so ladle income is 0/day. Check characters in the Ladles tab (or enter extra ladles/day) to plan with their income.</div>')
+    + (resetInfo().known ? '' : '<div class="callout warn">The save has no daily reset countdown, so day 1 assumes a full 24 hours before No Meal Left Behind.</div>');
+  return notes ? '<div class="callout-list">' + notes + '</div>' : '';
+}
+
+function renderSummary(speed) {
+  var inv = cache.inventory;
+  var target = L.nmlbTarget(L.mealLevels(saveData), cache.maxLevel);
+  var multi = cache.multis[state.ladleChar];
+  var perDay = assignedPerDay();
+  var fp = cache.floor;
+  var ref = cache.stats[state.breakdownChar] && !cache.stats[state.breakdownChar].error ? cache.stats[state.breakdownChar] : cache.stats[0];
+  return '<div class="section"><h2>Summary<small>' + esc(charLabel(state.ladleChar)) + ' uses ladles</small></h2><div class="card-grid">'
+    + card('Ladles owned', whole(inv.ladle.value), inv.ladle.partial ? 'partial: ' + esc(inv.ladle.missing.join(', ')) : 'storage + inventories')
+    + card('Guaranteed ladles / day', whole(assignedMinPerDay()), (state.assigned.length || 0) + ' checked characters' + (state.manualPerDay ? ' + manual' : '')
+      + ' · claims may give more: ~' + whole(perDay) + ' expected with Post Office doubling')
+    + card('Daily reset', fmtHours(resetInfo().hours), resetInfo().known ? 'claim ladles before it; the reset applies NMLB' : 'countdown missing; assuming 24h')
+    + card('Ladle hours', '×' + multi.multiplier.toFixed(3), 'Talent 148 Overflowing Ladle ' + pct(multi.talent148, 2))
+    + card('Kitchen meal speed', num(speed) + '/hr', 'sum of ' + model(state.ladleChar).kitchens.filter(function(k) { return k.unlocked; }).length + ' kitchens')
+    + card('Meal max level', String(cache.maxLevel), 'Artifact 17, Emporium 20/21, Lore 5, Grimoire 26')
+    + card('NMLB', cache.nmlb.active ? '+' + cache.nmlb.levels + ' / day' : 'inactive',
+      target >= 0 ? 'next: ' + esc(mealLabel(target)) + ' Lv ' + L.mealLevels(saveData)[target]
+        + (fp ? (fp.currentOnTarget ? ' (target meal)' : ' (ladleable — wasted)') : '') : 'no eligible meal')
+    + card('Skill prowess', ref && Number.isFinite(ref.prowess) ? ref.prowess.toFixed(3) : '—',
+      'account-wide · ladle exponent 0.25 + min(0.1, prowess)')
+    + card('Dream 11 discount', 'Day ' + cache.inputs.ola193, cache.inputs.dream11 > 0 ? 'first purchase each day' : 'not unlocked')
+    + '</div></div>';
+}
+
+// Small tiers jump a lot per floor step; large tiers move smoothly, so show the gain from +10% efficiency instead.
+function outlookCell(s) {
+  var o = s.outlook;
+  if (!o) return '—';
+  if (o.smallTier) {
+    var tip = 'Ladle multi ' + whole(o.tier) + ' → ' + whole(o.tier + 1) + ' at ' + num(o.next.efficiency)
+      + ' efficiency: +' + pct(o.nextTierGainPct, 1) + ' ladles for +' + pct(o.nextTierEffPct, 1) + ' efficiency';
+    return '<span title="' + esc(tip) + '">+' + pct(o.nextTierGainPct, 1) + ' @ +' + pct(o.nextTierEffPct, 1) + ' eff</span>';
+  }
+  var tip2 = 'Ladle multi ' + whole(o.tier) + ' is large, so each next floor step adds only ' + pct(o.nextTierGainPct, 3)
+    + '. +10% efficiency gives +' + pct(o.plus10EffGainPct, 2) + ' ladles; +1% ladles needs +' + pct(o.effPctForPlus1Pct, 2) + ' efficiency';
+  return '<span title="' + esc(tip2) + '">+10% eff → <span class="up">+' + pct(o.plus10EffGainPct, 2) + '</span></span>';
+}
+
+function renderCharacters() {
+  var rows = cache.stats.map(function(s) {
+    if (s.error) return '<tr class="inactive"><td></td><td>' + esc(charLabel(s.charIdx)) + '</td><td colspan="9">' + esc(s.error) + '</td></tr>';
+    var assigned = state.assigned.indexOf(s.charIdx) >= 0;
+    return '<tr class="' + (assigned ? 'current' : '') + '">'
+      + '<td><input type="checkbox" data-assign="' + s.charIdx + '"' + (assigned ? ' checked' : '') + ' aria-label="Count ' + esc(charLabel(s.charIdx)) + ' ladles"></td>'
+      + '<td>' + esc(charLabel(s.charIdx)) + (s.cooking ? badge('cooking', 'green') : '') + '</td>'
+      + '<td class="num">' + s.level + '</td>'
+      + '<td class="num">' + num(s.efficiency) + '</td>'
+      + '<td class="num">×' + num(s.afk) + '</td>'
+      + '<td class="num">×' + whole(s.ladleMulti) + '</td>'
+      + '<td class="num">' + whole(s.panelPerDay) + '</td>'
+      + '<td class="num">' + whole(s.minPerDay) + (s.claimCapped ? badge('10h cap', 'red') : '') + '</td>'
+      + '<td class="num muted">' + whole(s.perDay) + '</td>'
+      + '<td class="num">' + whole(s.perHour) + '</td>'
+      + '<td class="num">' + outlookCell(s) + '</td>'
+      + '</tr>';
+  }).join('');
+  var total = assignedPerDay();
+  return '<div class="section"><h2>Characters<small>check characters AFK-ing Cooking to count their ladles · rates assume Cooking as the AFK target</small></h2>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['Use'], ['Character'], ['Cook Lv', 1], ['Efficiency', 1], ['AFK rate', 1],
+      ['Ladle multi', 1, 'Bonus Ladles from Efficiency: floor((efficiency / 1000)^(0.25 + prowess)); base ladles/day = 15 × this'],
+      ['Panel / day', 1, 'In-game AFK panel LADLES/DAY: 15 × Ladle multi × AFK rate (no Post Office roll)'],
+      ['Guaranteed / day', 1, 'Claims every ' + state.claimHours + 'h with no Post Office doubling, each claim floored. The plan budgets this'],
+      ['Expected / day', 1, 'Average including the Post Office 19c 2x roll on each claim — upside, not planned on'],
+      ['/ hr', 1],
+      ['Next gain', 1, 'Small ladle multis: ladle gain at the next floor step and the efficiency needed. Large multis: ladle gain from +10% efficiency'],
+    ]) + '<tbody>' + rows
+    + '<tr class="total-row"><td></td><td>Checked total' + (state.manualPerDay ? ' (+ manual)' : '') + '</td><td colspan="5"></td>'
+    + '<td class="num">' + whole(assignedMinPerDay()) + '</td><td class="num muted">' + whole(total) + '</td><td class="num">' + whole(total / 24) + '</td><td></td></tr>'
+    + '</tbody></table></div>'
+    + '<div class="muted small-note">The plan spends only guaranteed ladles. Each claim may give more (Post Office doubling), so expect extra ladles roughly half the time.</div></div>';
+}
+
+function treePanel(title, tree, openDepth) {
+  var id = 'ladle-tree-' + pendingTrees.length;
+  pendingTrees.push([id, tree, openDepth]);
+  return '<div class="breakdown-panel"><h3>' + esc(title) + '</h3><div id="' + id + '"></div></div>';
+}
+function mountTrees() {
+  resetTreeCounter();
+  pendingTrees.forEach(function(entry) {
+    var host = document.getElementById(entry[0]);
+    if (host && entry[1]) renderBreakdownTree(toRenderNode(entry[1]), host, { tooltipId: 'ladle-bt-tooltip', openDepth: entry[2] });
+  });
+  pendingTrees = [];
+}
+
+function renderBreakdowns(m, levels) {
+  var s = cache.stats[state.breakdownChar];
+  var t = s && s.trees || {};
+  return '<div class="section"><h2>Breakdowns<small>' + esc(charLabel(state.breakdownChar))
+    + ' · kitchen speed for ' + esc(charLabel(state.ladleChar)) + ' · click to expand</small></h2><div class="breakdown-grid">'
+    + (t.ladles ? treePanel('Ladles / day (AFK panel)', t.ladles) : '')
+    + (t.claims ? treePanel('Expected ladles from claims', t.claims) : '')
+    + (t.efficiency ? treePanel('Cooking Efficiency', t.efficiency) : '')
+    + (t.prowess ? treePanel('Skill Prowess', t.prowess) : '')
+    + (t.afk ? treePanel('Cooking AFK Rate', t.afk) : '')
+    + treePanel('Kitchen Meal Speed (all kitchens)', L.totalKitchenSpeedDetail(m, levels), 0)
+    + '</div></div>';
+}
+
+function fmtHours(h) {
+  if (h === Infinity) return '∞';
+  if (!Number.isFinite(h)) return '—';
+  if (h < 1) return Math.round(h * 60) + 'm';
+  if (h < 48) return h.toFixed(1) + 'h';
+  if (h < 24 * 3650) return num(h / 24) + 'd';
+  return num(h / 8760) + 'y';
+}
+function expToLevel(level, exp, target) {
+  var need = -exp;
+  for (var lv = level; lv < target; lv++) need += L.cookingExpReq(lv);
+  return Math.max(0, need);
+}
+
+function renderExp() {
+  var bal = state.balloon;
+  var owned = cache.inventory.balloons[bal].value;
+  var totNext = 0;
+  var totTarget = 0;
+  var split = state.splitBalloons ? L.splitBalloons(cache.stats.map(function(s) { return s.error ? null : s; }), owned, bal) : null;
+  var rows = cache.stats.map(function(s, si) {
+    if (s.error) return '<tr class="inactive"><td>' + esc(charLabel(s.charIdx)) + '</td><td colspan="9">' + esc(s.error) + '</td></tr>';
+    var target = state.targetLevel > s.level ? state.targetLevel : s.level + 1;
+    var next = L.balloonsToLevel(s.level, s.exp, s.level + 1, s.expMulti, bal).balloons;
+    var toTarget = L.balloonsToLevel(s.level, s.exp, target, s.expMulti, bal).balloons;
+    var spend = split ? split.chars[si] : L.levelsFromBalloons(s.level, s.exp, owned, s.expMulti, bal);
+    var afkHours = s.expPerHour > 0 ? expToLevel(s.level, s.exp, target) / s.expPerHour : Infinity;
+    totNext += next;
+    totTarget += toTarget;
+    var frac = s.expReq > 0 ? Math.max(0, Math.min(1, s.exp / s.expReq)) : 0;
+    return '<tr class="' + (s.cooking ? 'current' : '') + '">'
+      + '<td>' + esc(charLabel(s.charIdx)) + (s.cooking ? badge('cooking', 'green') : '') + '</td>'
+      + '<td class="num">' + s.level + '</td>'
+      + '<td title="' + esc(num(s.exp) + ' / ' + num(s.expReq) + ' EXP') + '"><span class="exp-bar"><span style="width:' + (frac * 100).toFixed(1) + '%"></span></span>' + pct(frac * 100, 0) + '</td>'
+      + '<td class="num">×' + num(s.expMulti) + '</td>'
+      + '<td class="num">' + num(s.expPerHour) + '</td>'
+      + '<td class="num">' + num(L.balloonGain(bal, s.level, s.expMulti)) + '</td>'
+      + '<td class="num">' + whole(next) + '</td>'
+      + '<td class="num">Lv ' + target + ': ' + whole(toTarget) + (toTarget <= owned ? badge('owned', 'green') : '') + '</td>'
+      + '<td class="num">' + fmtHours(afkHours) + '</td>'
+      + '<td class="num">' + (spend.level > s.level ? '<span class="up">' + s.level + ' → ' + spend.level + '</span>' : String(s.level))
+      + (split ? '<div class="muted">' + whole(spend.used) + ' balloons</div>' : '') + '</td>'
+      + '</tr>';
+  }).join('');
+  var s0 = cache.stats[state.breakdownChar];
+  var t = s0 && s0.trees || {};
+  return '<div class="section"><h2>Cooking EXP<small>balloons add item ID × (Cooking Lv + 1) × EXP multi, one at a time with overflow</small></h2>'
+    + '<div class="plan-controls">'
+    + '<label class="control">EXP balloon<select id="balloon">' + L.EXP_BALLOONS.map(function(b) {
+      return '<option value="' + b + '"' + (b === bal ? ' selected' : '') + '>' + b.replace('ExpBalloon', 'Balloon ') + ' (' + whole(cache.inventory.balloons[b].value) + ' owned)</option>';
+    }).join('') + '</select></label>'
+    + '<label class="control">Target Cooking level (blank = next level)<input id="target-lv" type="number" min="0" step="1" value="' + (state.targetLevel || '') + '"></label>'
+    + '<label class="control check"><input id="split-balloons" type="checkbox"' + (state.splitBalloons ? ' checked' : '') + '>Split owned balloons to keep levels even</label>'
+    + '</div>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['Character'], ['Cook Lv', 1], ['EXP progress'], ['EXP multi', 1], ['EXP / hr', 1, 'AFK Cooking EXP/hr: AFK rate × 100 × EXP multi'],
+      ['EXP / balloon', 1, 'At the current level; the gain grows with each level'],
+      ['Balloons → next Lv', 1], ['Balloons → target', 1], ['AFK time → target', 1, 'Time AFK-ing Cooking to reach the target without balloons'],
+      state.splitBalloons
+        ? ['Lv with split share', 1, 'Owned balloons shared out one level at a time, always to the lowest-level character']
+        : ['Lv if given all owned', 1, 'Spend every owned balloon of this type on this character'],
+    ]) + '<tbody>' + rows
+    + '<tr class="total-row"><td>All characters</td><td colspan="5"></td><td class="num">' + whole(totNext) + '</td><td class="num">' + whole(totTarget)
+    + '</td><td colspan="2" class="muted">' + (split ? whole(split.used) + ' of ' : '') + whole(owned) + ' owned' + (split ? ' used' : '') + '</td></tr>'
+    + '</tbody></table></div></div>'
+    + '<div class="section"><h2>Breakdowns<small>' + esc(charLabel(state.breakdownChar)) + '</small></h2><div class="breakdown-grid">'
+    + (t.exp ? treePanel('Cooking EXP Multiplier', t.exp) : '')
+    + (t.afk ? treePanel('Cooking AFK Rate', t.afk) : '')
+    + '</div></div>';
+}
+
+function classBadge(c) {
+  if (!c || !c.open) return '';
+  if (c.ladleable) return '<span class="badge badge-green" title="Next level costs ' + esc(fmtHours(c.nextHours)) + ' of kitchen time, within one day">ladleable</span>';
+  if (c.nmlbEligible) return '<span class="badge badge-gold" title="Next level costs ' + esc(fmtHours(c.nextHours)) + ' of kitchen time, more than one day: let NMLB level it">NMLB target</span>';
+  return '<span class="badge badge-red" title="Below Lv 2, so NMLB cannot pick it">expensive</span>';
+}
+
+function renderMeals(levels, speed) {
+  var multi = cache.multis[state.ladleChar].multiplier;
+  var stocks = L.mealStocks(saveData);
+  var target = L.nmlbTarget(levels, cache.maxLevel);
+  var gained = cache.plan.gained;
+  var classes = cache.floor.classes;
+  var rows = '';
+  for (var mi = 0; mi < MealINFO.length; mi++) {
+    var lv = levels[mi] || 0;
+    var step = L.ladlesForMealLevel(mi, lv, stocks[mi], speed, multi, cache.inputs);
+    var perLadle = L.mealsPerLadle(mi, speed, multi);
+    var cls = lv <= 0 ? 'inactive' : (mi === target ? 'current' : '');
+    rows += '<tr class="' + cls + '">'
+      + '<td>' + esc(mealLabel(mi)) + (mi === target ? badge('NMLB next', 'gold') : '') + (lv >= cache.maxLevel ? badge('max', 'green') : '') + '</td>'
+      + '<td>' + classBadge(classes[mi]) + '</td>'
+      + '<td class="muted">' + esc(mealEffect(mi)) + '</td>'
+      + '<td class="num">' + lv + '</td>'
+      + '<td class="num">' + num(stocks[mi]) + '</td>'
+      + '<td class="num">' + num(step.cost) + '</td>'
+      + '<td class="num">' + num(perLadle) + '</td>'
+      + '<td class="num">' + (lv <= 0 || lv >= cache.maxLevel ? '—' : ladleNum(step.ladles)) + '</td>'
+      + '<td class="num">' + (gained[mi] ? '<span class="up">+' + gained[mi] + '</span>' : '') + '</td>'
+      + '</tr>';
+  }
+  return '<div class="section"><h2>Meals<small>cost uses today\'s Dream 11 discount · stock counts toward the next level</small></h2>'
+    + '<div class="table-wrap"><table class="data-table">' + head([
+      ['Meal'], ['Class', 0, 'Ladleable: next level fits in one day of kitchen time. NMLB target: only No Meal Left Behind should level it'],
+      ['Bonus'], ['Level', 1], ['Stock', 1], ['Next level cost', 1], ['Meals / ladle', 1],
+      ['Ladles → next', 1, 'Ladles needed after existing stock'], ['Plan', 1, 'Levels gained in the plan horizon'],
+    ]) + '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+var PLAN_ROW_LIMIT = 400;
+var REASONS = {
+  floor: ['NMLB floor', 'gold', 'Raised so tonight\'s NMLB lands on an expensive target meal instead of this one'],
+  lv11: ['Lv 11 · MealSpdz', 'cyan', 'Reaching Lv 11 adds another meal to the MealSpdz bubble exponent'],
+  lv30: ['Lv 30 · Atom', 'cyan', 'Reaching Lv 30 adds another meal to the Atom 8 exponent'],
+  'speed-meal': ['speed meal', 'green', 'This meal\'s own bonus raises meal cooking speed'],
+  'total-level': ['total levels', 'muted', 'Cheapest level per kitchen hour for the Talent 59 total-meal-level bonus'],
+  cheapest: ['cheapest', 'muted', 'Cheapest next level first'],
+  steer: ['NMLB steer', 'gold', 'Raising a blocker so NMLB lands on the held meal'],
+};
+
+function reasonBadges(list) {
+  var seen = {};
+  return list.filter(function(r) { return !seen[r] && (seen[r] = true); }).map(function(r) {
+    var d = REASONS[r] || [r, 'muted', ''];
+    return '<span class="badge badge-' + d[1] + '" title="' + esc(d[2]) + '">' + esc(d[0]) + '</span>';
+  }).join('');
+}
+function ladleCell(ladles, hours) {
+  if (ladles <= 0 && hours > 0) return '<span class="muted" title="Covered by passive kitchen time after the day\'s ladles are spent">passive</span>';
+  return ladleFull(ladles);
+}
+function mealCell(m) {
+  return '<div class="meal-name">' + esc(mealLabel(m)) + '</div><div class="meal-effect">' + esc(mealEffect(m)) + '</div>';
+}
+
+function dayNmlb(d) {
+  if (d.nmlbMeal < 0) return '<div class="day-nmlb"><div class="muted">No NMLB hit</div></div>';
+  var sub = d.nmlbOnTarget
+    ? 'saves ' + ladleFull(d.nmlbSaved) + ' ladles'
+    : 'lands on a ladleable meal · ' + ladleFull(d.nmlbSaved) + ' ladles';
+  if (d.floor && !d.floor.applied) {
+    sub += d.floor.reachable ? ' · floor not held' : ' · floor ' + esc(L.mealName(d.floor.meal)) + ' Lv ' + d.floor.level + ' out of reach';
+  }
+  return '<div class="day-nmlb' + (d.nmlbOnTarget ? '' : ' wasted') + '">'
+    + '<div><span class="nm-meal">★ ' + esc(L.mealName(d.nmlbMeal)) + '</span> Lv ' + d.nmlbFrom + ' → ' + d.nmlbTo
+    + (d.nmlbOnTarget ? badge('target', 'gold') : badge('ladleable', 'red')) + '</div>'
+    + '<div class="nm-sub">' + sub + '</div></div>';
+}
+
+function dayBody(d) {
+  var notes = '';
+  if (d.floor) {
+    var f = d.floor;
+    var name = '<b>' + esc(L.mealName(f.meal)) + '</b> (Lv ' + f.level + ')';
+    if (f.applied && f.blockers) notes += 'Held the NMLB floor on ' + name + ': raised ' + f.blockers + ' ladleable blocker' + (f.blockers === 1 ? '' : 's') + ' for ' + ladleFull(f.ladles) + ' ladles first. ';
+    else if (f.applied) notes += 'NMLB floor ' + name + ' already held; no blockers to raise. ';
+    else if (f.reachable) notes += 'Tried to hold the floor on ' + name + ' but ran out of time. ';
+    else notes += 'Floor ' + name + ' needs ' + (f.hours === Infinity ? 'higher target meals raised first' : fmtHours(f.hours) + ' of kitchen time') + '; NMLB rises naturally until it is reachable. ';
+  }
+  var phases = (d.phases || []).map(function(ph) { return phaseBlock(d, ph); }).join('');
+  return '<div class="day-body">' + (notes ? '<div class="day-note">' + notes + '</div>' : '') + phases
+    + '<div class="phase-head nmlb-head">★ Daily reset — No Meal Left Behind' + (d.nmlbMeal >= 0
+      ? ': <b>' + esc(L.mealName(d.nmlbMeal)) + '</b> Lv ' + d.nmlbFrom + ' → ' + d.nmlbTo : ': no eligible meal') + '</div></div>';
+}
+
+function phaseTitle(d, ph) {
+  if (ph.kind === 'now') return 'Now — spend ' + fullCount(ph.ladles) + ' owned ladles';
+  var n = (ph.claims || []).length;
+  var when = d.day === 1 ? 'Claim before reset (in ' + fmtHours(ph.windowHours) + ')' : 'Claims through the day';
+  var upside = ph.expectedLadles > ph.ladles + 0.5 ? ' · may get ~' + fullCount(ph.expectedLadles) : '';
+  return when + ' — ' + (n ? n + ' claim' + (n === 1 ? '' : 's') + ', ' : '') + fullCount(ph.ladles) + ' guaranteed ladles' + upside;
+}
+function claimChips(ph) {
+  var claims = ph.claims || [];
+  if (!claims.length) return '';
+  var shown = claims.slice(0, 12).map(function(c) {
+    var at = c.now ? 'now' : 'in ' + fmtHours(c.atHours);
+    return '<span class="claim-chip" title="' + esc(fmtHours(c.creditedHours) + ' credited AFK time; ' + whole(c.min) + ' guaranteed, ~' + num(c.expected) + ' expected') + '">'
+      + esc(at) + ' · ' + esc(c.name || '') + ' · ' + fullCount(c.min) + '</span>';
+  }).join('');
+  return '<div class="claim-chips">' + shown + (claims.length > 12 ? '<span class="muted">+' + (claims.length - 12) + ' more</span>' : '') + '</div>';
+}
+function phaseBlock(d, ph) {
+  var rows = (ph.meals || []).map(function(g, i) {
+    return '<tr><td class="num step-no">' + (i + 1) + '</td><td class="grow">' + mealCell(g.meal) + '</td>'
+      + '<td class="nowrap">Lv ' + g.from + ' → <b>' + g.to + '</b>' + (g.levels > 1 ? ' <span class="muted">(' + g.levels + ')</span>' : '') + '</td>'
+      + '<td class="num">' + ladleCell(g.ladles, g.hours) + '</td>'
+      + '<td>' + reasonBadges(g.reasons) + '</td></tr>';
+  }).join('');
+  var table = rows ? '<table class="data-table plan-table">' + head([
+    ['#', 1], ['Meal (spend order)', 0, '', 'grow'], ['Levels'], ['Ladles', 1, 'Ladles are spent first; passive kitchen time covers later steps'], ['Why'],
+  ]) + '<tbody>' + rows + '</tbody></table>' : '';
+  var save = '';
+  if (ph.saving) {
+    var sv = ph.saving;
+    save = '<div class="day-note">⏳ Leftover ' + (sv.ladles > 0 ? ladleFull(sv.ladles) + ' ladles' : 'passive time') + ' banks into <b>'
+      + esc(L.mealName(sv.meal)) + '</b> toward Lv ' + sv.toLevel + ' (' + pct(sv.progress * 100, 0) + ' stocked)'
+      + (sv.floor ? ' — an NMLB floor blocker, finished next phase' : '')
+      + (sv.target ? ' — no ladleable level is left, so this is NMLB-target stock' : '') + '.</div>';
+  }
+  return '<div class="phase"><div class="phase-head">' + esc(phaseTitle(d, ph)) + '</div>' + claimChips(ph) + table + save
+    + (!rows && !save ? '<div class="day-note muted">No purchases.</div>' : '') + '</div>';
+}
+
+function renderPlan() {
+  var p = cache.plan;
+  var onTarget = 0;
+  var hits = 0;
+  var saved = 0;
+  p.timeline.forEach(function(d) {
+    if (d.nmlbMeal < 0) return;
+    hits++;
+    if (d.nmlbOnTarget) { onTarget++; saved += d.nmlbSaved; }
+  });
+  var shown = p.timeline.slice(0, PLAN_ROW_LIMIT);
+  var days = shown.map(function(d) {
+    var open = !!state.openDays[d.day];
+    return '<details class="day" data-day="' + d.day + '"' + (open ? ' open' : '') + '><summary class="day-grid">'
+      + '<div class="day-no">Day ' + d.day + '</div>'
+      + dayNmlb(d)
+      + '<div class="day-stat">' + ladleFull(d.ladlesUsed) + '</div>'
+      + '<div class="day-stat">' + (d.levelsBought || '<span class="muted">0</span>') + '</div>'
+      + '<div class="day-stat hide-sm">' + d.meals.length + '</div>'
+      + '<div class="day-stat hide-sm">' + num(d.kitchenSpeed) + '</div>'
+      + '</summary>' + (open ? dayBody(d) : '') + '</details>';
+  }).join('');
+  return '<div class="section"><h2>Meal leveling plan<small>' + p.days + ' days · ' + whole(p.dailyIncome) + ' guaranteed ladles/day (may get ~' + whole(p.dailyExpected) + ')'
+    + (state.useOwned ? ' + ' + whole(cache.inventory.ladle.value) + ' owned' : '') + '</small></h2>'
+    + '<div class="card-grid" style="margin-bottom:10px">'
+    + card('Levels from ladles', whole(p.bySource.ladle), p.strategy === 'speed' ? 'best kitchen speed return per hour' : 'cheapest next level first')
+    + card('Levels from NMLB', whole(p.bySource.nmlb), cache.nmlb.active ? '+' + cache.nmlb.levels + ' to the lowest meal each day' : 'inactive')
+    + card('NMLB on targets', hits ? onTarget + ' / ' + hits + ' days' : '—', 'hits that land on a meal too expensive to ladle')
+    + card('Ladles saved by NMLB', ladleNum(saved), 'what those target hits would cost in ladles')
+    + card('Ladles used', whole(p.ladlesUsed), 'leftover kitchen time banks into stock')
+    + card('Kitchen speed', '×' + num(p.endSpeed / Math.max(1e-300, p.startSpeed)), num(p.startSpeed) + ' → ' + num(p.endSpeed) + '/hr')
+    + '</div>'
+    + '<div class="plan-controls">'
+    + '<label class="control" style="max-width:440px">Leveling order for ladleable meals<select id="strategy">'
+    + '<option value="speed"' + (state.strategy === 'speed' ? ' selected' : '') + '>Kitchen speed per hour (Talent 59, speed meals, Lv 11 MealSpdz, Lv 30 Atom)</option>'
+    + '<option value="cheapest"' + (state.strategy === 'cheapest' ? ' selected' : '') + '>Cheapest next level first (most levels now)</option>'
+    + '</select></label>'
+    + '<label class="control check"><input id="floor-guard" type="checkbox"' + (state.floorGuard ? ' checked' : '') + '>Hold the NMLB floor first each day</label>'
+    + '</div>'
+    + '<div class="day-legend day-grid"><div>Day</div><div>No Meal Left Behind hit (at daily reset)</div><div>Ladles</div><div>Levels</div><div class="hide-sm">Meals</div><div class="hide-sm">Speed /hr</div></div>'
+    + '<div class="day-list">' + days + '</div>'
+    + (p.timeline.length > shown.length ? '<div class="muted small-note">Showing the first ' + shown.length + ' of ' + p.timeline.length + ' days.</div>' : '')
+    + '</div>';
+}
+
+function renderSteer() {
+  var fp = cache.floor;
+  var gain = cache.nmlb.active ? cache.nmlb.levels : 0;
+  if (!gain) return '';
+  var cur = fp.currentPick;
+  var cards = '<div class="card-grid" style="margin-bottom:10px">'
+    + card('Meal classes', fp.ladleableCount + ' / ' + fp.targetCount, 'ladleable / NMLB targets · split at ' + fmtHours(fp.dayHours) + ' of kitchen time per day')
+    + card('Tonight\'s NMLB', cur >= 0 ? esc(L.mealName(cur)) : '—', cur >= 0
+      ? 'Lv ' + L.mealLevels(saveData)[cur] + ' · ' + (fp.currentOnTarget ? 'target meal, saves ' + ladleNum(fp.currentSaved) + ' ladles' : 'ladleable meal — only ' + ladleNum(fp.currentSaved) + ' ladles of value') : '')
+    + card('NMLB floor', fp.floorMeal >= 0 ? esc(L.mealName(fp.floorMeal)) : '—', fp.floorMeal >= 0
+      ? 'lowest target meal, Lv ' + fp.floorLevel + ' · saves ' + ladleNum(fp.floorSaved) + ' ladles' : 'no NMLB target meals')
+    + card('Ladles to hold floor', fp.floorMeal >= 0 ? ladleNum(fp.blockerLadles) : '—', fp.floorMeal >= 0
+      ? fp.blockers.length + ' ladleable blockers · ' + (fp.fitsInDay ? '<span class="up">fits in one day</span>' : 'needs ' + fmtHours(fp.blockerHours) + ' of kitchen time') : '')
+    + '</div>';
+  var rotation = fp.rotation.length ? '<h3 class="sub">Predicted NMLB rotation while the floor is held</h3>'
+    + '<div class="muted small-note" style="margin:0 0 6px">Assumes only the floor blockers are raised. The Meal plan also levels meals with leftover ladles, which reorders later days.</div><div class="rotation">'
+    + fp.rotation.map(function(r) {
+      return '<span class="chip chip-nmlb" title="Saves ' + esc(ladleNum(r.ladlesSaved).replace('<', 'under ')) + ' ladles">Day ' + r.day + ': ' + esc(r.name) + ' ' + r.from + '→' + r.to + '</span>';
+    }).join('') + '</div>' : '';
+  var trows = fp.targets.map(function(t) {
+    var status = t.floor ? badge('floor', 'gold')
+      : t.feasible ? (t.fitsInDay ? badge('steerable today', 'green') : badge('steer ' + fmtHours(t.steerLadles * cache.multis[state.ladleChar].multiplier), 'cyan'))
+      : '<span class="badge badge-muted" title="Lower-level target meals must rise first; NMLB does that over the rotation">after ' + t.expensiveBlockers + ' target' + (t.expensiveBlockers === 1 ? '' : 's') + '</span>';
+    return '<tr class="' + (t.floor ? 'current' : '') + '"><td>' + esc(mealLabel(t.meal)) + (t.current ? badge('tonight', 'gold') : '') + '</td>'
+      + '<td class="num">' + t.level + '</td>'
+      + '<td class="num">' + ladleNum(t.nextLadles) + '</td>'
+      + '<td class="num"><b>' + ladleNum(t.ladlesSaved) + '</b></td>'
+      + '<td class="num">' + (t.rotationDay ? 'Day ' + t.rotationDay : '<span class="muted">later</span>') + '</td>'
+      + '<td class="num">' + (t.feasible ? t.ladleableBlockers + ' ladleable' : t.ladleableBlockers + ' + ' + t.expensiveBlockers + ' target') + '</td>'
+      + '<td class="num">' + (t.feasible ? ladleNum(t.steerLadles) : '—') + '</td>'
+      + '<td>' + status + '</td></tr>';
+  }).join('');
+  var brows = fp.blockers.map(function(b) {
+    return '<tr><td>' + esc(mealLabel(b.meal)) + '</td><td class="num">Lv ' + b.level + ' → ' + b.need + '</td>'
+      + '<td class="num">' + b.levels + '</td><td class="num">' + ladleNum(b.ladles) + '</td></tr>';
+  }).join('');
+  var blockTable = fp.floorMeal < 0 ? '<div class="muted">No NMLB target meals: every open meal is ladleable within a day.</div>'
+    : brows ? '<div class="table-wrap"><table class="data-table">' + head([['Blocker'], ['Raise to', 1], ['Levels', 1], ['Ladles', 1]]) + '<tbody>' + brows
+      + '<tr class="total-row"><td>Total</td><td></td><td class="num">' + fp.blockers.reduce(function(a, b) { return a + b.levels; }, 0) + '</td><td class="num">' + ladleNum(fp.blockerLadles) + '</td></tr>'
+      + '</tbody></table></div>'
+    : '<div class="muted">Already held: NMLB lands on ' + esc(L.mealName(fp.floorMeal)) + ' tonight.</div>';
+  return '<div class="section"><h2>No Meal Left Behind steering<small>NMLB raises the lowest meal at Lv 2+ below max; ties go to the highest meal number</small></h2>'
+    + '<div class="callout" style="margin-bottom:10px">Ladleable meals cost at most one day of kitchen time per level, so level them with ladles. '
+    + '<b>NMLB targets</b> cost more, so let NMLB\'s free +' + gain + ' levels handle them. To keep NMLB on targets, hold every ladleable meal above the '
+    + '<b>floor</b> (the lowest target level): higher-numbered meals at floor + 1, lower-numbered meals at the floor. NMLB then cycles through targets on its own.</div>'
+    + cards + rotation
+    + '<div class="split" style="margin-top:10px"><div><h3 class="sub">NMLB targets by ladles saved per hit</h3><div class="table-wrap"><table class="data-table">' + head([
+      ['Target meal'], ['Lv', 1], ['Ladles → next', 1], ['Saved per hit', 1, 'Ladles NMLB\'s free levels would otherwise cost'],
+      ['In rotation', 1], ['Blockers', 1, 'Meals that must be raised for NMLB to pick this meal'], ['Ladles to steer', 1], ['Status'],
+    ]) + '<tbody>' + (trows || '<tr><td colspan="8" class="muted">No target meals.</td></tr>') + '</tbody></table></div></div>'
+    + '<div><h3 class="sub">Ladleable blockers below the floor' + (fp.floorMeal >= 0 ? ' (' + esc(L.mealName(fp.floorMeal)) + ' Lv ' + fp.floorLevel + ')' : '') + '</h3>'
+    + blockTable + '</div></div></div>';
+}
+
+function wireApp() {
+  document.querySelectorAll('[data-assign]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var ci = Number(el.dataset.assign);
+      state.assigned = state.assigned.filter(function(x) { return x !== ci; });
+      if (el.checked) state.assigned.push(ci);
+      cache.plan = null;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-tab]').forEach(function(el) {
+    el.addEventListener('click', function() { state.tab = el.dataset.tab; render(); });
+  });
+  document.querySelectorAll('details.day').forEach(function(el) {
+    el.addEventListener('toggle', function() {
+      var day = Number(el.dataset.day);
+      if (!!state.openDays[day] === el.open) return;
+      state.openDays[day] = el.open;
+      var d = cache.plan.timeline[day - 1];
+      var old = el.querySelector('.day-body');
+      if (old) old.remove();
+      if (el.open && d) el.insertAdjacentHTML('beforeend', dayBody(d));
+    });
+  });
+  bind('strategy', 'change', function(v) { state.strategy = v === 'cheapest' ? 'cheapest' : 'speed'; cache.plan = null; render(); });
+  bind('floor-guard', 'change', function(v, el) { state.floorGuard = el.checked; cache.plan = null; render(); });
+  bind('balloon', 'change', function(v) { state.balloon = v; render(); });
+  bind('split-balloons', 'change', function(v, el) { state.splitBalloons = el.checked; render(); });
+  bind('target-lv', 'change', function(v) { state.targetLevel = Math.max(0, Math.floor(Number(v) || 0)); render(); });
+}
+</script>
+</body>
+</html>
