@@ -498,6 +498,8 @@ export function cookingSpeedModel(S, ci, opts) {
   var gems120 = Number(S.gemItemsData && S.gemItemsData[120]) || 0;
   var achTerm = Math.min(6 * _safe(computeCardLv, 'Boss4A', S)
     + (20 * _safe(achieveStatus, 225, S) + 10 * _safe(achieveStatus, 224, S)), 100);
+  var turkeyStock = Number(S.mealsData && S.mealsData[2] && S.mealsData[2][0]) || 0;
+  var art13 = _safe(computeArtifactBonus, 13, ci, { saveData: S });
   var model = {
     charIdx: ci,
     t59: t59,
@@ -512,7 +514,9 @@ export function cookingSpeedModel(S, ci, opts) {
     mealSpdzBase: _safe(bubbleValByKey, 'MealSpdz', ci, S),
     atom8PerLevel: atomLv * (Number(AtomInfo[8] && AtomInfo[8][4]) || 0),
     msa1: _safe(computeMSABonus, 1, S),
-    art13: _safe(computeArtifactBonus, 13, ci, { saveData: S }),
+    art13: art13,
+    art13PerLog: _art13PerLog(S, ci, art13, turkeyStock),
+    turkeyStock: turkeyStock,
     button7: _safe(computeButtonBonus, 7, S),
     arcade28: _safe(arcadeBonus, 28, S),
     vialTurtle: _safe(computeVialByKey, '6turtle', S, ci),
@@ -548,8 +552,29 @@ export function cookingSpeedModel(S, ci, opts) {
   return model;
 }
 
+// Artifact 13 is base × LOG(Turkey a la Thank stock). Its bonus is cached in SailzArtiBonusL and only
+// rebuilt by ArtifactBonus(-1) through TalentCalc(-9) on scene load, so it tracks the stock as of the last map change.
+function _art13PerLog(S, ci, art13, turkeyStock) {
+  var lg = getLOG(turkeyStock);
+  if (lg > 0) return art13 / lg;
+  var probeStock = 1e10;
+  var meals = S.mealsData || [];
+  var stocks = (meals[2] || []).slice();
+  stocks[0] = probeStock;
+  var probe = Object.assign({}, S, { mealsData: [meals[0] || [], meals[1] || [], stocks] });
+  return _safe(computeArtifactBonus, 13, ci, { saveData: probe }) / getLOG(probeStock);
+}
+
+// Artifact 13 CookingSPEED multiplier at a Turkey a la Thank stock (defaults to the save's stock).
+export function artifact13Term(model, turkeyStock) {
+  if (turkeyStock == null || turkeyStock === model.turkeyStock || model.art13PerLog == null) return 1 + model.art13 / 100;
+  return 1 + model.art13PerLog * getLOG(Number(turkeyStock) || 0) / 100;
+}
+
 // Ordered CookingSPEED factors (source line order) for one kitchen and meal-level vector.
-export function cookingSpeedTerms(model, k, levels) {
+// `turkeyStock` is the Turkey a la Thank stock the Artifact 13 cache was built from (defaults to the save's stock).
+export function cookingSpeedTerms(model, k, levels, turkeyStock) {
+  var art13Stock = turkeyStock == null ? model.turkeyStock : turkeyStock;
   var kit = model.kitchens[k] || { dn1: 0, speedLv: 0, fireLv: 0, luckLv: 0 };
   var mcook = _mealSum(model.mealCoef.Mcook, levels);
   var zFarm = _mealSum(model.mealCoef.zMealFarm, levels);
@@ -575,7 +600,8 @@ export function cookingSpeedTerms(model, k, levels) {
     ['Atom 8', Math.max(1, Math.pow(1 + model.atom8PerLevel / 100, meals30)), 'x', '(1 + ' + model.atom8PerLevel + '%) ^ ' + meals30 + ' meals Lv 30+'],
     ['Gaming MSA 1', 1 + model.msa1 / 100, 'x', ''],
     ['Kitchen speed level', 1 + kit.speedLv / 10, 'x', 'Lv ' + kit.speedLv],
-    ['Artifact 13', 1 + model.art13 / 100, 'x', ''],
+    ['Artifact 13', artifact13Term(model, turkeyStock), 'x',
+      'base × LOG(Turkey a la Thank stock ' + _sci(art13Stock) + '); refreshes on map change'],
     ['Minehead button 7', 1 + model.button7 / 100, 'x', ''],
     ['Arcade 28', 1 + model.arcade28 / 100, 'x', ''],
     ['Vial 6turtle', 1 + model.vialTurtle / 100, 'x', ''],
@@ -595,15 +621,20 @@ export function cookingSpeedTerms(model, k, levels) {
   ];
 }
 
-export function cookingSpeed(model, k, levels) {
-  var terms = cookingSpeedTerms(model, k, levels);
+function _sci(x) {
+  x = Number(x) || 0;
+  return Math.abs(x) >= 1e6 ? x.toExponential(4) : String(Math.round(x * 100) / 100);
+}
+
+export function cookingSpeed(model, k, levels, turkeyStock) {
+  var terms = cookingSpeedTerms(model, k, levels, turkeyStock);
   var value = 1;
   for (var i = 0; i < terms.length; i++) value *= terms[i][1];
   return value;
 }
 
-export function cookingSpeedDetail(model, k, levels) {
-  var terms = cookingSpeedTerms(model, k, levels);
+export function cookingSpeedDetail(model, k, levels, turkeyStock) {
+  var terms = cookingSpeedTerms(model, k, levels, turkeyStock);
   var value = 1;
   var children = [];
   for (var i = 0; i < terms.length; i++) {
@@ -613,21 +644,21 @@ export function cookingSpeedDetail(model, k, levels) {
   return { name: 'Kitchen ' + (k + 1) + ' meal speed /hr', val: value, fmt: 'raw', children: children };
 }
 
-export function totalKitchenSpeed(model, levels) {
+export function totalKitchenSpeed(model, levels, turkeyStock) {
   var total = 0;
   for (var k = 0; k < model.kitchens.length; k++) {
-    if (model.kitchens[k].unlocked) total += cookingSpeed(model, k, levels);
+    if (model.kitchens[k].unlocked) total += cookingSpeed(model, k, levels, turkeyStock);
   }
   return total;
 }
 
 // Total meal speed across every unlocked kitchen, with each kitchen's exact term product as a child.
-export function totalKitchenSpeedDetail(model, levels) {
+export function totalKitchenSpeedDetail(model, levels, turkeyStock) {
   var total = 0;
   var children = [];
   for (var k = 0; k < model.kitchens.length; k++) {
     if (!model.kitchens[k].unlocked) continue;
-    var detail = cookingSpeedDetail(model, k, levels);
+    var detail = cookingSpeedDetail(model, k, levels, turkeyStock);
     total += detail.val;
     children.push(detail);
   }
@@ -636,16 +667,18 @@ export function totalKitchenSpeedDetail(model, levels) {
 
 // Fast total kitchen speed: meal-dependent factors (Talent 59 total levels, zMealFarm, MealSpdz Lv 11+,
 // Atom 8 Lv 30+, Mcook, KitchenEff) multiply per-kitchen constants evaluated once at zero meal levels.
+// Artifact 13 is factored out so speed(a, turkeyStock) can follow the Turkey a la Thank stock.
 export function kitchenSpeedEvaluator(model, mealCount) {
   var n = Math.max(mealCount || 0, MealINFO.length);
   var zeros = [];
   for (var i = 0; i < n; i++) zeros.push(0);
+  var art13Save = artifact13Term(model);
   var kitchens = [];
   for (var k = 0; k < model.kitchens.length; k++) {
     var kit = model.kitchens[k];
     if (!kit.unlocked) continue;
     kitchens.push({
-      base: cookingSpeed(model, k, zeros) / 1.01,
+      base: cookingSpeed(model, k, zeros) / 1.01 / art13Save,
       steps: Math.floor((kit.speedLv + (kit.fireLv + kit.luckLv)) / 10),
     });
   }
@@ -678,12 +711,13 @@ export function kitchenSpeedEvaluator(model, mealCount) {
       m30: a.m30 + (to >= 30 ? 1 : 0) - (from >= 30 ? 1 : 0),
     };
   }
-  function speed(a) {
+  function speed(a, turkeyStock) {
     var shared = (1 + Math.pow(t59Base, Math.max(0, a.sum)) / 100)
       * (1 + a.zFarm * farmMul / 100)
       * Math.max(1, Math.pow(model.mealSpdzBase, a.m11))
       * Math.max(1, Math.pow(atomBase, a.m30))
-      * (1 + a.mcook / 100);
+      * (1 + a.mcook / 100)
+      * artifact13Term(model, turkeyStock);
     var total = 0;
     for (var k = 0; k < kitchens.length; k++) total += kitchens[k].base * (1 + a.kEff * kitchens[k].steps / 100);
     return shared * total;
@@ -1011,8 +1045,18 @@ export function planMealLeveling(S, opts) {
   var levels = (opts.levels || mealLevels(S)).slice();
   var stocks = (opts.stocks || mealStocks(S)).slice();
   var startLevels = levels.slice();
+  var startTurkey = stocks[0] || 0;
   var ola = inputs.ola193;
-  var speed = totalKitchenSpeed(model, levels);
+  // Artifact 13 reads the Turkey a la Thank stock cached at the last map change. A map change only helps when
+  // the stock has risen above that cache, so the plan flags one exactly then and otherwise keeps the cache.
+  var cachedTurkey = startTurkey;
+  function refreshTurkey() {
+    if (!((stocks[0] || 0) > cachedTurkey)) return false;
+    cachedTurkey = stocks[0];
+    speed = totalKitchenSpeed(model, levels, cachedTurkey);
+    return true;
+  }
+  var speed = totalKitchenSpeed(model, levels, cachedTurkey);
   var timeline = [];
   var bySource = { ladle: 0, nmlb: 0 };
   var totalLadlesUsed = 0;
@@ -1038,7 +1082,8 @@ export function planMealLeveling(S, opts) {
   // Lv 11 (MealSpdz bubble) and Lv 30 (Atom 8) thresholds so those steps are valued before they pay off.
   function pickSpeed(steerBlockers) {
     var agg = evaluator.aggregate(levels);
-    var baseLn = Math.log(evaluator.speed(agg));
+    var turkey = cachedTurkey;
+    var baseLn = Math.log(evaluator.speed(agg, turkey));
     var best = { meal: -1, score: -Infinity, hours: Infinity, reason: '' };
     for (var m = 0; m < levels.length; m++) {
       if (!(levels[m] >= 1 && levels[m] < maxLevel) || !mealRequirement(m)) continue;
@@ -1052,7 +1097,7 @@ export function planMealLeveling(S, opts) {
         var target = targets[t];
         if (t > 0 && target <= levels[m] + 1) continue;
         var h = bundleHours(m, target);
-        var gain = Math.log(evaluator.speed(evaluator.shift(agg, m, levels[m], target))) - baseLn;
+        var gain = Math.log(evaluator.speed(evaluator.shift(agg, m, levels[m], target), turkey)) - baseLn;
         var score = h <= 0 ? Infinity : gain / h;
         var firstHours = t === 0 ? h : bundleHours(m, levels[m] + 1);
         if (score > best.score || (score === best.score && firstHours < best.hours)) {
@@ -1092,7 +1137,7 @@ export function planMealLeveling(S, opts) {
     return ladleMulti > 0 ? fromLadles / ladleMulti : 0;
   }
 
-  function buy(m, h, pool, reason, dayPurchases, dayLevels, day) {
+  function buy(m, h, pool, reason, dayPurchases, dayLevels, day, chained) {
     // Ladles are whole items: the step's ladle share rounds up and the overflow stays in this meal's stock,
     // so a level it already covers is bought next at zero cost.
     var fromPool = Math.min(h, pool.ladle);
@@ -1112,11 +1157,12 @@ export function planMealLeveling(S, opts) {
     gained[m]++;
     bySource.ladle++;
     ola = 0;
-    speed = totalKitchenSpeed(model, levels);
+    speed = totalKitchenSpeed(model, levels, cachedTurkey);
     dayLevels.push(m);
     cumLadles += stepLadles;
     var rec = { day: day, meal: m, fromLevel: levels[m] - 1, toLevel: levels[m], cost: paid, hours: used,
-      ladles: stepLadles, cumulativeLadles: cumLadles, speedBefore: before, speedAfter: speed, reason: reason };
+      ladles: stepLadles, cumulativeLadles: cumLadles, speedBefore: before, speedAfter: speed, reason: reason,
+      mapRefresh: false, turkeyStock: stocks[0] || 0, cachedTurkeyStock: cachedTurkey };
     purchases.push(rec);
     dayPurchases.push(rec);
     var pm = perMeal[m];
@@ -1128,8 +1174,16 @@ export function planMealLeveling(S, opts) {
     // Level up again right away while the overflow already covers the next level.
     if (stepLadles > 0) {
       while (levels[m] < maxLevel && stocks[m] >= mealLevelCost(levels[m], inputs, ola)) {
-        buy(m, 0, pool, reason, dayPurchases, dayLevels, day);
+        buy(m, 0, pool, reason, dayPurchases, dayLevels, day, true);
       }
+    }
+    // The player finishes the whole row (including stock-covered levels) before deciding on a map change.
+    if (!chained && m === 0 && refreshTurkey()) {
+      rec.mapRefresh = true;
+      rec.cachedTurkeyStock = cachedTurkey;
+      var last = purchases[purchases.length - 1];
+      last.speedAfter = speed;
+      last.cachedTurkeyStock = cachedTurkey;
     }
     return used;
   }
@@ -1169,7 +1223,9 @@ export function planMealLeveling(S, opts) {
       stocks[m] += hours * speed / mealRequirement(m);
       var need = mealLevelCost(levels[m], inputs, ola);
       saving = { meal: m, toLevel: levels[m] + 1, hours: hours, ladles: savedLadles,
-        progress: need > 0 ? Math.min(1, stocks[m] / need) : 1, target: toTarget, steered: steered, floor: isFloor };
+        progress: need > 0 ? Math.min(1, stocks[m] / need) : 1, target: toTarget, steered: steered, floor: isFloor,
+        mapRefresh: m === 0 && refreshTurkey() };
+      saving.cachedTurkeyStock = cachedTurkey;
       perMeal[m].ladles += savedLadles;
       cumLadles += savedLadles;
       hours = 0;
@@ -1283,7 +1339,7 @@ export function planMealLeveling(S, opts) {
         gained[nmlbMeal] += to - nmlbFrom;
         perMeal[nmlbMeal].nmlbLevels += to - nmlbFrom;
         levels[nmlbMeal] = to;
-        speed = totalKitchenSpeed(model, levels);
+        speed = totalKitchenSpeed(model, levels, cachedTurkey);
       }
     }
     if (inputs.dream11 > 0) ola++;
@@ -1320,8 +1376,12 @@ export function planMealLeveling(S, opts) {
     thresholdPicks: thresholdPicks,
     maxLevel: maxLevel,
     ladleMultiplier: ladleMulti,
-    startSpeed: totalKitchenSpeed(model, startLevels),
+    startSpeed: totalKitchenSpeed(model, startLevels, startTurkey),
     endSpeed: speed,
+    startTurkeyStock: startTurkey,
+    endTurkeyStock: stocks[0] || 0,
+    cachedTurkeyStock: cachedTurkey,
+    mapRefreshes: _countMapRefreshes(timeline),
     startLevels: startLevels,
     levels: levels,
     stocks: stocks,
@@ -1347,6 +1407,18 @@ function _steerBlockers(levels, x, maxLevel) {
   return out;
 }
 
+// Spend-order rows and banked phases that raise the Turkey a la Thank stock above the cache (each needs a map change).
+function _countMapRefreshes(timeline) {
+  var n = 0;
+  timeline.forEach(function(d) {
+    (d.phases || []).forEach(function(ph) {
+      (ph.meals || []).forEach(function(r) { if (r.mapRefresh) n++; });
+      if (ph.saving && ph.saving.mapRefresh) n++;
+    });
+  });
+  return n;
+}
+
 // Executable phase order: one row per level in purchase order. A level already covered by stock (overflow from
 // the previous row's whole ladles) folds into that row, since the player just levels up again.
 function _spendOrderRows(steps) {
@@ -1357,11 +1429,12 @@ function _spendOrderRows(steps) {
     if (last && last.meal === st.meal && st.hours <= 0) {
       last.to = st.toLevel;
       last.levels++;
+      if (st.mapRefresh) last.mapRefresh = true;
       if (last.reasons.indexOf(st.reason) < 0) last.reasons.push(st.reason);
       continue;
     }
     out.push({ meal: st.meal, from: st.fromLevel, to: st.toLevel, levels: 1, ladles: st.ladles, hours: st.hours,
-      cumulativeLadles: st.cumulativeLadles, speedBefore: st.speedBefore, reasons: [st.reason] });
+      cumulativeLadles: st.cumulativeLadles, speedBefore: st.speedBefore, reasons: [st.reason], mapRefresh: !!st.mapRefresh });
   }
   return out;
 }

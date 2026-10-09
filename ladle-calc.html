@@ -76,6 +76,7 @@ h3.sub { margin:14px 0 8px; color:var(--cyan); font-size:.9em; }
 .plan-table .badge { white-space:nowrap; }
 .plan-table .nowrap { white-space:nowrap; }
 .plan-table .step-no { color:var(--text2); width:34px; }
+.plan-table tr.map-refresh td { white-space:normal; width:auto; color:var(--cyan); font-size:.92em; padding-top:2px; background:rgba(77,208,225,.05); }
 .plan-table .meal-name { font-weight:600; }
 .plan-table .meal-effect { color:var(--text2); font-size:.86em; }
 .plan-table .sub { color:var(--text2); font-size:.86em; margin-top:2px; line-height:1.5; }
@@ -677,6 +678,10 @@ function claimChips(ph) {
   }).join('');
   return '<div class="claim-chips">' + shown + (claims.length > 12 ? '<span class="muted">+' + (claims.length - 12) + ' more</span>' : '') + '</div>';
 }
+function mapRefreshRow() {
+  return '<tr class="map-refresh"><td></td><td colspan="5">↻ <b>Change map before spending more ladles.</b> This row raised your Turkey a la Thank stock, '
+    + 'and Artifact 13 only picks that up on a map change. Every row below assumes it did.</td></tr>';
+}
 function phaseBlock(d, ph) {
   var phaseStart = ph.meals && ph.meals.length ? ph.meals[0].cumulativeLadles - ph.meals[0].ladles : 0;
   var rows = (ph.meals || []).map(function(g, i) {
@@ -684,7 +689,8 @@ function phaseBlock(d, ph) {
       + '<td class="nowrap">Lv ' + g.from + ' → <b>' + g.to + '</b>' + (g.levels > 1 ? ' <span class="muted">(' + g.levels + ')</span>' : '') + '</td>'
       + '<td class="num">' + ladleCell(g.ladles, g.hours) + '</td>'
       + '<td class="num muted">' + ladleFull(g.cumulativeLadles - phaseStart) + '</td>'
-      + '<td>' + reasonBadges(g.reasons) + '</td></tr>';
+      + '<td>' + reasonBadges(g.reasons) + '</td></tr>'
+      + (g.mapRefresh ? mapRefreshRow() : '');
   }).join('');
   var table = rows ? '<div class="day-note muted">Go row by row: cook that meal in every kitchen, use the ladles, then level it up before the next row. Each row\'s ladles assume every row above it is done.</div>'
     + '<table class="data-table plan-table">' + head([
@@ -697,7 +703,8 @@ function phaseBlock(d, ph) {
     save = '<div class="day-note">⏳ Leftover ' + (sv.ladles > 0 ? ladleFull(sv.ladles) + ' ladles' : 'passive time') + ' banks into <b>'
       + esc(L.mealName(sv.meal)) + '</b> toward Lv ' + sv.toLevel + ' (' + pct(sv.progress * 100, 0) + ' stocked)'
       + (sv.floor ? ' — an NMLB floor blocker, finished next phase' : '')
-      + (sv.target ? ' — no ladleable level is left, so this is NMLB-target stock' : '') + '.</div>';
+      + (sv.target ? ' — no ladleable level is left, so this is NMLB-target stock' : '') + '.'
+      + (sv.mapRefresh ? ' This raises your Turkey a la Thank stock, so change map before spending more ladles.' : '') + '</div>';
   }
   return '<div class="phase"><div class="phase-head">' + esc(phaseTitle(d, ph)) + '</div>' + claimChips(ph) + table + save
     + (!rows && !save ? '<div class="day-note muted">No purchases.</div>' : '') + '</div>';
@@ -742,6 +749,8 @@ function renderPlan() {
     + '</select></label>'
     + '<label class="control check"><input id="floor-guard" type="checkbox"' + (state.floorGuard ? ' checked' : '') + '>Hold the NMLB floor first each day</label>'
     + '</div>'
+    + '<div class="day-note">↻ Before spending ladles, change map if your Turkey a la Thank stock has grown since your last map change: Artifact 13 uses the stock from your last map change, and this plan assumes it matches the save. Skip it if you have spent Turkey a la Thank since then, because a map change would lower the bonus'
+    + (p.mapRefreshes ? '. The plan marks ' + p.mapRefreshes + ' more map change' + (p.mapRefreshes === 1 ? '' : 's') + ', only where the stock rises above the last one.' : '.') + '</div>'
     + '<div class="day-legend day-grid"><div>Day</div><div>No Meal Left Behind hit (at daily reset)</div><div>Ladles</div><div>Levels</div><div class="hide-sm">Meals</div><div class="hide-sm">Speed /hr</div></div>'
     + '<div class="day-list">' + days + '</div>'
     + (p.timeline.length > shown.length ? '<div class="muted small-note">Showing the first ' + shown.length + ' of ' + p.timeline.length + ' days.</div>' : '')
