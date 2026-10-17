@@ -936,7 +936,8 @@ export default createDescriptor({
     var comp33 = rval(companion, 33, ctx);
     var comp160 = rval(companion, 160, ctx);
     var comp168 = rval(companion, 168, ctx);
-    var compMult = Math.max(1, (1 + comp12) * (1 + comp33) * (1 + 2 * comp160) * (1 + 0.5 * comp168));
+    var comp170 = rval(companion, 170, ctx);
+    var compMult = Math.max(1, (1 + comp12) * (1 + comp33) * (1 + 2 * comp160) * (1 + 0.5 * comp168) * (1 + comp170));
     var _crystal6 = safe(computeCardLv, 'Crystal6', s);
     var crystal6Lv = (typeof _crystal6 === 'object' && _crystal6) ? (_crystal6.val || 0) : Number(_crystal6) || 0;
     var crystal6Bonus = Math.min(1.5 * crystal6Lv, 15);
@@ -961,6 +962,11 @@ export default createDescriptor({
     if (reliquariumOwned) {
       ddl2 = Math.pow(ddl2, 4 / (5 + (Number(optionsListData[473]) || 0)));
     }
+
+    // Source applies Scurge after the normal damage chain, including Reliquarium.
+    var scurgeLevel = Number(ctx.mapIdx) === 306 ? (Number(s.menagerieData?.[5]?.[2]) || 0) : 0;
+    var scurgeDivisor = Math.pow(100, scurgeLevel);
+    ddl2 /= scurgeDivisor;
 
     // === Final: MaxDmg = DDL[0] * DDL[1] * DDL[2] ===
     var maxDmg = baseDmgRaw * pctMult * ddl2;
@@ -1012,18 +1018,18 @@ export default createDescriptor({
                 quests658: Math.min(totalQuests, talent658),
                 owlBonus2: owlBonus2, rooBonus4: rooBonus4, bubbaRoG4: bubbaRoG4,
                 talent463: talent463, minigameHS: minigameHS } });
-    children.push({ name: 'Multiplicative Damage Bonuses', val: ddl2, fmt: 'x', note: 'after softcaps',
+    children.push({ name: 'Multiplicative Damage Bonuses', val: ddl2, fmt: 'x', note: 'after softcaps' + (scurgeLevel ? '; Clamworks Scurge divides by 100^' + scurgeLevel : ''),
       _debug: { preSoftcap: _ddl2PreSoftcap, postSoftcap: _ddl2PostSoftcap, final: ddl2,
                 penaltyMult: penaltyMult, compMult: compMult,
                 etc72: etc72, etc75: etc75, etc104: etc104, votingDmg: votingDmg,
-                comp12: comp12, comp33: comp33, comp160: comp160, comp168: comp168,
+                comp12: comp12, comp33: comp33, comp160: comp160, comp168: comp168, comp170: comp170,
                 cglunkoDmg: cglunkoDmg, buff108: buff108, buff124: buff124,
                 fountainDmg: fountainDmg, stickerDmg: stickerDmg,
                 ola232: ola232, ola232Bonus: ola232Bonus, card96: card96,
                 ach371: ach371, ach384: ach384, rog49: rogBonus49, superBit64: superBit64,
                 tomeBonus6: tomeBonus6, crystal6Bonus: crystal6Lv,
                 meritoc5: meritoc5, famBonus80: famBonus80,
-                reliquariumOwned: reliquariumOwned,
+                reliquariumOwned: reliquariumOwned, scurgeLevel: scurgeLevel, scurgeDivisor: scurgeDivisor,
                 bundleApplied: !!(s.bundlesData && s.bundlesData.bon_a == 1),
                 steps: _ddl2Steps } });
 

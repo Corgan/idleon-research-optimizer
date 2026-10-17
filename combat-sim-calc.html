@@ -3474,7 +3474,7 @@ function mountReplay(r) {
       var wt = key.indexOf('WT') === 0, bf = key.indexOf('BF') === 0, D = wt ? DB2 : DB;
       var x = lerp(b.x, n2 && n2.x, frac), y = lerp(b.y, n2 && n2.y, frac), dir = b.dir < 0 ? -1 : 1;
       // AE7 growTo: Piercing Arrow (15) 1.5·dir x 1.5, Shockwave (25) 2·dir x 2 (src 97779).
-      var sc = key === '14' || key === '15' ? 1.5 : 2;
+      var sc = key === '14' || key === '15' || key === '22' ? 1.5 : 2;
       // Buff fx (actor 209) follow the player unmirrored and growTo their scale about the centre.
       var bfs = bf ? (b.scale != null ? lerp(b.scale, n2 && n2.scale, frac) : 2) : 0;
       var sx = bf ? bfs : wt ? (b.scale || 2) : key === '10' ? -2 * dir : sc * dir;

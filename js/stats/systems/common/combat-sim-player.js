@@ -710,6 +710,14 @@ function _anim22(sim, x, y, dir) {
   let dmage = TN(sim, 2, 482), MA = dir, DN1 = -1, LIST0 = -1;
   b.vx = 15 * MA; b.vy = -10;
   if (t587 >= 1) { DN1 = p.node; b.y += rng.randomInt(0, 33); b.vy = 0; dmage = 100; }
+  _playFrames(sim, b, 0, 15, DN1 === -1 ? 0 : 8);
+  b.frLoop = false;
+  for (let o = 0; o < 320; o++) {
+    sim.later(50 * o, () => {
+      const frame = _segFrame(b, sim.timeMs);
+      if (frame === 7 || frame === 15) _playFrames(sim, b, 0, 15, frame === 7 ? 0 : 8);
+    }, b);
+  }
   const ticks = Math.ceil(70 * (1 + t587 / 100));
   for (let o = 0; o < ticks; o++) {
     sim.later(100 + 100 * o, () => {
@@ -721,7 +729,7 @@ function _anim22(sim, x, y, dir) {
           if (i === LIST0 || !hitscanning(sim, m, _bxc(b) + 20, _byc(b) + 20, 40) || !(DN1 !== -1 || _noArc(m))) continue;
           LIST0 = i;
           b.x += 3 * MA;
-          if (DN1 === -1) { b.vx = -b.vx; MA *= -1; sim.later(350, () => { LIST0 = -1; }, b); }
+          if (DN1 === -1) { b.vx = -b.vx; MA *= -1; b.dir = MA; sim.later(350, () => { LIST0 = -1; }, b); }
           else sim.later(150, () => { LIST0 = -1; }, b);
           createDmgPixel(sim, m, [TN(sim, 1, 482) / 100], 1, 'skill482');
           dmage--;
@@ -733,7 +741,7 @@ function _anim22(sim, x, y, dir) {
         const nd = _node(sim, DN1), xc = _bxc(b);
         if (xc < N(nd.x) || xc > N(nd.length)) {
           _setXc(b, xc >= N(nd.length) ? N(nd.length) - 1 : N(nd.x) - 1);
-          b.vx = -b.vx; MA *= -1;
+          b.vx = -b.vx; MA *= -1; b.dir = MA;
         }
       }
     }, b);
