@@ -2578,11 +2578,14 @@ function _foodRecomputeLive(sim, f, item) {
   const v = _v(sim);
   let next = null;
   if (!sim.options?.inputs && sim.saveData) {
-    try {
+    if (sim.rebuildInputs) {
+      const rebuilt = sim.rebuildInputs().values;
+      next = Object.fromEntries(LIVE_FOOD_KEYS.map(k => [k, rebuilt[k]]));
+    } else {
       next = buildLiveFoodInputs(sim.saveData, sim.charIdx, sim.mapIdx,
         { rawSave: sim.options?.rawSave, overrides: sim.options?.inputOverrides },
         f.order.slice(0, f.count), f.qty.slice(0, f.count));
-    } catch (e) { next = null; }
+    }
   }
   if (!next) {
     if (!f.boostNotice) {

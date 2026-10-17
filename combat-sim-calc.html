@@ -43,6 +43,17 @@ h1 span { color: var(--accent); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .bar-outer { height: 10px; border-radius: 5px; background: #333; overflow: hidden; min-width: 80px; }
 .bar-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+.bt-controls { display:flex; gap:6px; margin:8px 0; }
+.bt-controls .btn-sm { padding:4px 10px; font-size:.8em; }
+.bt-tree { font-size:.85em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:4px; border-bottom:1px solid #ffffff0a; cursor:pointer; }
+.bt-row:hover, .bt-row:focus { background:#ffffff10; }
+.bt-root { font-weight:700; border-bottom:2px solid #445; }
+.bt-children { border-left:2px solid #ffffff14; background:#00000014; }
+.bt-arrow { width:14px; flex-shrink:0; text-align:center; }
+.bt-label { flex:1; min-width:0; overflow-wrap:anywhere; }
+.bt-val { flex-shrink:0; text-align:right; font-variant-numeric:tabular-nums; }
+.exp-tooltip { position:fixed; display:none; z-index:50; max-width:min(400px, calc(100vw - 16px)); padding:8px; background:var(--bg2); border:1px solid #555; border-radius:5px; font-size:.8em; pointer-events:none; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
 .toolbar label { display: flex; flex-direction: column; gap: 3px; font-size: .78em; color: var(--text2); }
@@ -362,6 +373,9 @@ import { normalizeTermOverrides } from './js/stats/term-overrides.js';
 import { loadSaveData } from './js/save/loader.js';
 import { combatDerivedValues } from './js/stats/systems/common/combat-sim-derived.js';
 import { createReplayEncoder, createReplayStore } from './js/stats/systems/common/combat-sim-replay.js';
+import { captureCombatExpStart, projectCombatExp } from './js/stats/systems/common/combat-sim-exp.js';
+import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
 import { label as entityLabel } from './js/stats/entity-names.js';
 import { createSetupSearch, setupSearchSpace, setupSearchStateSummary, SETUP_SEARCH_DIMENSIONS } from './js/stats/systems/common/combat-sim-setup-search.js';
 import { setupCompareVariants, setupCompareJobs, setupEditsBuffs, emptySetupCompareRow, addSetupCompareRun, setupCompareCell, setupCompareItems, setupCompareMetricKeys, setupCompareSignificant, SETUP_COMPARE_INPUTS, SETUP_COMPARE_METRICS } from './js/stats/systems/common/combat-sim-setup-compare.js';
@@ -1206,6 +1220,7 @@ function startWorkerRun(r) {
     else if (m.type === 'done') {
       r.summary = m.summary || {}; r.eventCounts = m.events || {}; r.events = m.eventLog || []; r.timeline = m.timeline || [];
       r.inputs = m.inputs || {}; r.timeMs = m.timeMs || 0; r.player = m.player || null; r.unmodelled = m.unmodelled || {};
+      r.expStart = m.expStart;
       if (m.replayOom) r.replayOom = true;
       finish(r, m.cancelled ? 'Cancelled at ' + fmtSec(r.timeMs) + '; partial results below.' : endedMessage(m.ended));
     } else if (m.type === 'error') {
@@ -1227,7 +1242,7 @@ function startWorkerRun(r) {
   w.postMessage({
     type: 'run', id: r.id, rawSave: r.raw, charIdx: r.ci, mapIdx: r.mapIdx, seconds: r.seconds, seed: r.seed,
     player: r.mode, playerOpts: { manualCasts: r.manualCasts }, killEveryMs: r.killEveryMs, inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs), toggles: r.toggles, termOverrides: r.terms, stopOn: r.stopOn,
-    encodeReplay: true, snapshotEveryMs: r.snapEvery, snapshotUntilMs: REPLAY_MAX_SECONDS * 1000, maxSnapshots: Infinity,
+    expBreakdown: true, encodeReplay: true, snapshotEveryMs: r.snapEvery, snapshotUntilMs: REPLAY_MAX_SECONDS * 1000, maxSnapshots: Infinity,
     snapshotBatch: 100, progressEveryMs: 1000, timelineEveryMs: 10000, eventLogMax: EVENT_LOG_MAX, eventLogSkip: EVENT_LOG_SKIP,
   });
   return true;
@@ -1240,10 +1255,11 @@ function startMainThreadRun(r) {
   try {
     sim = withCombatTerms(r.terms, function () {
       var ov = resolveToggleOverrides({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, rawSave: r.raw, toggles: r.toggles, baseOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs) });
-      return createCombatSim({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, seed: r.seed, options: { rawSave: r.raw, player: player, inputOverrides: ov, stopOn: r.stopOn } });
+      return createCombatSim({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, seed: r.seed, options: { rawSave: r.raw, player: player, inputOverrides: ov, stopOn: r.stopOn, expBreakdown: true } });
     });
   } catch (e) { console.error(e); failRun(r, 'Simulation setup failed: ' + (e && e.message || e)); return; }
   if (sim.unsupported) { failRun(r, 'This map is not supported: ' + sim.unsupported); return; }
+  r.expStart = captureCombatExpStart(saveData, r.ci, sim.inputs);
   r.sim = sim; r.steps = Math.round(r.seconds * 100); r.done = 0;
   r.player = { attacks: 0, casts: {}, deaths: 0, respawns: 0, nodeChanges: 0, damageDealt: 0, misses: 0, crits: 0, daggerangCatches: 0 };
   sim.on('*', function (name, p) {
@@ -1359,12 +1375,13 @@ function card(title, val, sub) {
 function render() {
   var r = result;
   if (!r) { $('results').innerHTML = ''; return; }
-  var tabs = [['summary', 'Summary'], ['drops', 'Drops'], ['replay', 'Replay'], ['events', 'Events'], ['inputs', 'Inputs']];
+  var tabs = [['summary', 'Summary'], ['drops', 'Drops'], ['exp', 'EXP & Levels'], ['replay', 'Replay'], ['events', 'Events'], ['inputs', 'Inputs']];
   var html = '<div class="tabs">' + tabs.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
   html += '<div class="section" style="border-radius:0 0 8px 8px">';
   html += runHeader(r);
   if (tab === 'summary') html += renderSummary(r);
   else if (tab === 'drops') html += renderDrops(r);
+  else if (tab === 'exp') html += renderExp(r);
   else if (tab === 'replay') html += renderReplayShell(r);
   else if (tab === 'events') html += renderEvents(r);
   else html += renderInputs(r);
@@ -1374,6 +1391,7 @@ function render() {
     b.addEventListener('click', function () { stopReplay(); tab = b.dataset.tab; render(); });
   });
   if (tab === 'replay') mountReplay(r);
+  if (tab === 'exp') mountExp(r);
 }
 
 function runHeader(r) {
@@ -1796,6 +1814,7 @@ function renderSummary(r) {
     + '</div>';
 
   html += renderPlayerStats(r);
+  html += renderCombatProgress(r);
   html += '<h3>Kills by monster</h3><table class="data-table"><thead><tr><th>Monster</th><th class="num">Kills</th><th class="num">Kills / hr</th><th class="num">EXP</th><th class="num">EXP / hr</th></tr></thead><tbody>';
   Object.keys(R.killsByType || {}).sort(function (a, b) { return R.killsByType[b] - R.killsByType[a]; }).forEach(function (k) {
     var e = (R.expByType || {})[k] || 0;
@@ -1822,6 +1841,36 @@ function renderSummary(r) {
     html += '</tbody></table><div class="note">These game paths were reached but are not modelled yet, so their effects are missing from the totals above.</div>';
   }
   return html;
+}
+
+function renderCombatProgress(r) {
+  var p = r.summary.progress;
+  if (!p) return '';
+  var h = '<h3>Combat-driven progress</h3><div class="card-grid cols-4">'
+    + card('Forge time from kills', fmtNum(p.forgeSeconds) + ' s', 'Extra smelting time; not hours')
+    + card('Pet time from kills', fmtNum(p.petSeconds) + ' s', fmtNum(p.state.petPendingSeconds) + ' s awaiting the native greater-than-10-second batch')
+    + card('Alchemy time from kills', fmtNum(p.alchemySeconds) + ' s', 'Credited time only; production is not simulated')
+    + card('Scurge EXP', fmtNum(p.scurgeExp), p.state.scurge ? 'Banked; open the Scurge menu to process levels' : 'Scurge not unlocked')
+    + '</div>';
+  var bars = Object.keys(p.bars || {});
+  if (p.state.forgeAvailable) {
+    h += '<h3>Smelting output</h3><div class="note">Includes ordinary online smelting plus combat-triggered time. Ore, oil, storage refills, gem slots and fractional-output rolls advance during the run. Bars remain in the furnace, not the drop inventory.</div>'
+      + '<table class="data-table"><thead><tr><th>Bar</th><th class="num">Produced</th><th class="num">Per hour</th></tr></thead><tbody>';
+    bars.forEach(function (k) { h += '<tr><td>' + escHtml(itemName(k)) + '</td><td class="num">' + fmtNum(p.bars[k]) + '</td><td class="num">' + fmtNum(perHr(r, p.bars[k])) + '</td></tr>'; });
+    h += (bars.length ? '' : '<tr><td colspan="3">No completed bars.</td></tr>') + '</tbody></table>';
+  } else if (p.forgeSeconds) h += '<div class="warn">Forge contents are unavailable; only earned smelting time is reported.</div>';
+  if (p.pets.length) {
+    h += '<h3>Shiny-pet progress from kills</h3><table class="data-table"><thead><tr><th>Pet</th><th class="num">Shiny days gained</th><th class="num">Level</th></tr></thead><tbody>';
+    p.pets.forEach(function (pet) { h += '<tr><td>' + escHtml(pet.name) + '</td><td class="num">' + fmtNum(pet.gained) + '</td><td class="num">' + fmtInt(pet.startLevel) + ' &rarr; ' + fmtInt(pet.level) + '</td></tr>'; });
+    h += '</tbody></table><div class="note">Only deployed shiny pets receive this progress. Ordinary passive pet time is excluded; cached shiny bonuses remain unchanged during combat.</div>';
+  }
+  if (p.state.scurge) h += '<div class="note">Scurge level ' + fmtInt(p.state.scurge.level) + ': '
+    + fmtNum(p.state.scurge.exp) + ' / ' + fmtNum(p.state.scurge.requirement) + ' EXP. Menu-gated levels are not auto-claimed.</div>';
+  if (p.omegaBalls) h += '<div class="note">Omega Arcade balls earned: ' + fmtInt(p.omegaBalls) + '.</div>';
+  if (p.state.coral) h += '<div class="note">Coral Kid Singularity: ' + fmtNum(p.coralKills)
+    + ' kills banked this run (' + fmtNum(p.state.coral.kills) + ' total).</div>';
+  p.notices.forEach(function (n) { h += '<div class="warn">' + escHtml(n.text) + '</div>'; });
+  return h;
 }
 
 function renderPlayerStats(r) {
@@ -1853,17 +1902,126 @@ function skillName(id) {
   return n && n !== '_' ? n.toLowerCase().replace(/(^|\s)(\w)/g, function (m, a, c) { return a + c.toUpperCase(); }) : 'Skill ' + id;
 }
 
-function timelineSvg(r) {
+function timelineSvg(r, metric) {
+  metric = metric || 'kills';
   var pts = r.timeline, W = 900, H = 160, pad = 30;
-  var maxT = pts[pts.length - 1].t, maxK = Math.max(1, pts[pts.length - 1].kills);
-  var path = pts.map(function (p, i) { return (i ? 'L' : 'M') + (pad + (W - pad - 8) * p.t / maxT).toFixed(1) + ',' + (H - pad - (H - pad - 10) * p.kills / maxK).toFixed(1); }).join('');
+  var maxT = pts[pts.length - 1].t, maxK = Math.max(1, pts[pts.length - 1][metric]);
+  var path = pts.map(function (p, i) { return (i ? 'L' : 'M') + (pad + (W - pad - 8) * p.t / maxT).toFixed(1) + ',' + (H - pad - (H - pad - 10) * p[metric] / maxK).toFixed(1); }).join('');
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-width:900px;background:#0b0f1f;border-radius:6px">'
     + '<line x1="' + pad + '" y1="' + (H - pad) + '" x2="' + (W - 8) + '" y2="' + (H - pad) + '" stroke="#555"/>'
     + '<line x1="' + pad + '" y1="10" x2="' + pad + '" y2="' + (H - pad) + '" stroke="#555"/>'
     + '<path d="' + path + '" fill="none" stroke="#e94560" stroke-width="2"/>'
     + '<text x="' + pad + '" y="' + (H - 10) + '" fill="#c0c0d4" font-size="11">0</text>'
     + '<text x="' + (W - 60) + '" y="' + (H - 10) + '" fill="#c0c0d4" font-size="11">' + fmtSec(maxT) + '</text>'
-    + '<text x="' + (pad + 4) + '" y="20" fill="#c0c0d4" font-size="11">' + fmtInt(maxK) + ' kills</text></svg>';
+    + '<text x="' + (pad + 4) + '" y="20" fill="#c0c0d4" font-size="11">' + (metric === 'exp' ? fmtNum(maxK) + ' EXP' : fmtInt(maxK) + ' kills') + '</text></svg>';
+}
+
+function expHours(hours) {
+  if (hours == null) return 'Not estimable';
+  if (!Number.isFinite(hours)) return 'Beyond numerical range';
+  if (hours === 0) return 'Reached';
+  if (hours < 1 / 60) return Math.max(1, Math.ceil(hours * 3600)) + 's';
+  if (hours < 1) return (hours * 60).toFixed(1) + 'm';
+  if (hours < 48) return hours.toFixed(2) + 'h';
+  return fmtNum(hours / 24) + 'd';
+}
+
+function renderExpDetails(r) {
+  var R = r.summary.rewards || {}, p;
+  try { p = projectCombatExp(r.expStart, R.expTotal || 0, r.timeMs, r.expTarget, r.summary.classExp); }
+  catch (e) { return '<div class="err" role="alert">' + escHtml(e.message) + '</div>'; }
+  var h = '<div class="card-grid cols-4">'
+    + card('Class EXP earned', fmtNum(p.gained), 'Actual simulated awards')
+    + card('Class EXP / hr', fmtNum(p.perHour), 'Average over ' + fmtSec(r.timeMs));
+  if (!p.available) return h + '</div><div class="warn" role="status">' + escHtml(p.reason) + ' Level projections are unavailable.</div>';
+  var live = r.summary.classExp && r.summary.classExp.available;
+  h += card(live ? 'Simulated level' : 'Projected level', fmtInt(p.start.level) + ' &rarr; ' + fmtInt(p.end.level), '+' + fmtInt(p.levelsGained) + ' levels; ' + (100 * p.end.progress).toFixed(2) + '% toward next')
+    + card('Time to next level', live && p.end.exp >= p.end.requirement ? 'Pending level-up tick' : expHours(p.nextLevelHours), 'From the end of this run') + '</div>';
+  if (live && !r.summary.classExp.statsAvailable) h += '<div class="warn">Prebuilt inputs: levels advanced, but level-dependent stats could not be rebuilt.</div>';
+  h += '<h3>Level progress</h3><table class="data-table"><thead><tr><th>Snapshot</th><th class="num">Level</th><th class="num">EXP toward next</th><th class="num">Next-level requirement</th><th class="num">Progress</th></tr></thead><tbody>';
+  [['Run start', p.start], [live ? 'Simulated run end' : 'Projected run end', p.end]].forEach(function (row) {
+    var s = row[1];
+    h += '<tr><td>' + row[0] + '</td><td class="num">' + fmtInt(s.level) + '</td><td class="num">' + fmtNum(s.exp) + '</td><td class="num">' + fmtNum(s.requirement) + '</td><td class="num">' + (100 * s.progress).toFixed(2) + '%</td></tr>';
+  });
+  h += '</tbody></table><h3>Target: Level ' + fmtInt(p.targetLevel) + '</h3><div class="card-grid cols-4">'
+    + card('EXP needed at run start', fmtNum(p.targetExp), 'Includes saved progress')
+    + card('EXP still needed', fmtNum(p.targetRemaining), 'After this run')
+    + card('Estimated time from start', expHours(p.targetHours), 'At this run\'s average EXP / hr')
+    + card('Estimated time remaining', p.targetReached ? 'Reached' : live && p.targetRemaining === 0 ? 'Pending level-up tick' : expHours(p.targetRemainingHours), 'From the run end') + '</div>';
+  h += '<h3>Level milestones</h3><div class="scroll"><table class="data-table"><thead><tr><th>Reach level</th><th class="num">EXP needed from start</th><th class="num">Time from start</th><th class="num">Time remaining</th></tr></thead><tbody>';
+  p.milestones.forEach(function (m) {
+    h += '<tr><td>' + fmtInt(m.level) + (m.level === p.targetLevel ? ' <span class="badge badge-cyan">Target</span>' : '') + '</td><td class="num">' + fmtNum(m.needed) + '</td><td class="num">' + expHours(m.hoursFromStart) + '</td><td class="num">' + (m.reached ? 'Reached' : live && m.hoursRemaining === 0 ? 'Pending level-up tick' : expHours(m.hoursRemaining)) + '</td></tr>';
+  });
+  return h + '</tbody></table></div><div class="note">Shows up to the next 20 levels plus the selected target. Reached levels use their simulated level-up times; future times use the full-run average.</div>';
+}
+
+function renderExp(r) {
+  var R = r.summary.rewards || {};
+  if (r.expTarget == null && r.expStart && r.expStart.available) r.expTarget = r.expStart.level + 1;
+  var h = '<div class="toolbar" style="margin-bottom:12px"><label>Target Class level<input id="exp-target" type="number" min="1" step="1" value="' + (Number.isFinite(r.expTarget) ? r.expTarget : '') + '"></label></div>'
+    + '<div id="exp-details">' + renderExpDetails(r) + '</div>'
+    + '<div class="note">Class level-ups happen during the run, one per 150 ms check, carrying excess EXP and healing HP without refilling MP. Level-dependent inputs rebuild without resetting combat state; cached combat stats refresh on the one-second tick. The imported save stays unchanged. Future target ETAs hold the measured average rate constant; longer runs can differ. No earned EXP means the ETA is not estimable.</div>';
+  h += '<h3>EXP by monster</h3><div class="scroll"><table class="data-table"><thead><tr><th>Monster</th><th class="num">Kills</th><th class="num">EXP earned</th><th class="num">EXP / kill</th><th class="num">EXP / hr</th><th class="num">Share</th></tr></thead><tbody>';
+  var types = Object.keys(R.expByType || {}).sort(function (a, b) { return R.expByType[b] - R.expByType[a]; });
+  types.forEach(function (type) {
+    var e = R.expByType[type], kills = (R.killsByType || {})[type] || 0;
+    h += '<tr><td>' + escHtml(monName(type)) + '</td><td class="num">' + fmtInt(kills) + '</td><td class="num">' + fmtNum(e) + '</td><td class="num">' + (kills ? fmtNum(e / kills) : 'Not applicable') + '</td><td class="num">' + fmtNum(perHr(r, e)) + '</td><td class="num">' + (R.expTotal > 0 ? (100 * e / R.expTotal).toFixed(2) : '0') + '%</td></tr>';
+  });
+  h += (types.length ? '' : '<tr><td colspan="6" class="note">No Class EXP awarded.</td></tr>') + '</tbody></table></div>';
+  var stages = R.expStages;
+  if (stages) {
+    var names = ['Base monster EXP', 'Class EXP multiplier', 'Family, cards, and Vault', 'Active star signs and EXP shrine', 'Orb kill counter', 'Bonus EXP status', 'Party monsters', 'Pirate Plunder', 'Wormhole streak'];
+    h += '<h3>How the run earned its EXP</h3><table class="data-table"><thead><tr><th>Applied in source order</th><th class="num">Effective factor</th><th class="num">Added EXP</th><th class="num">Running EXP</th></tr></thead><tbody>';
+    stages.forEach(function (value, i) {
+      var previous = i ? stages[i - 1] : 0;
+      h += '<tr><td>' + names[i] + '</td><td class="num">' + (i && previous > 0 ? fmtNum(value / previous) + 'x' : '&mdash;') + '</td><td class="num">' + fmtNum(value - previous) + '</td><td class="num">' + fmtNum(value) + '</td></tr>';
+    });
+    h += '</tbody></table><div class="note">Only kills that actually awarded EXP are included. Each row sums the awards after that step; effective factors are weighted by the preceding EXP. Orb and status bonuses vary per kill. Kill credit and multikill do not multiply Class EXP.</div>';
+  }
+  var e = r.inputs.expMulti;
+  h += '<h3>Starting Class EXP multiplier</h3>';
+  if (e && e.overridden) h += '<div class="note">Overridden to ' + fmtNum(e.value) + 'x. The normal save-derived formula was not used.</div>';
+  else if (e && e.breakdown) {
+    if (e.partial) h += '<div class="warn">' + escHtml(e.note) + '</div>';
+    h += '<div id="exp-multiplier-tree"></div><div id="exp-tree-tooltip" class="exp-tooltip" role="tooltip"></div>';
+  } else h += '<div class="warn">Multiplier breakdown unavailable for this run.</div>';
+  var points = [{ t: 0, exp: 0 }].concat(r.timeline || []).filter(function (p) { return p.t < r.timeMs; });
+  if (r.timeMs > 0) {
+    points.push({ t: r.timeMs, exp: R.expTotal || 0 });
+    h += '<h3>Class EXP over time</h3>' + timelineSvg({ timeline: points }, 'exp');
+  }
+  return h;
+}
+
+function mountExp(r) {
+  $('exp-target').addEventListener('change', function () {
+    r.expTarget = this.value === '' ? NaN : Number(this.value);
+    $('exp-details').innerHTML = renderExpDetails(r);
+  });
+  var host = $('exp-multiplier-tree'), entry = r.inputs.expMulti;
+  if (!host || !entry || !entry.breakdown) return;
+  renderBreakdownTree(toRenderNode(entry.breakdown), host, { tooltipId: 'exp-tree-tooltip', openDepth: 0 });
+  var tip = $('exp-tree-tooltip');
+  function hideTip() { tip.style.display = 'none'; }
+  function showTip(ev) {
+    var row = ev.target.closest('.bt-row[data-bt-note]');
+    if (!row) { hideTip(); return; }
+    tip.textContent = row.dataset.btNote;
+    tip.style.display = 'block';
+    var rect = row.getBoundingClientRect();
+    var x = ev.clientX == null ? rect.left : ev.clientX, y = ev.clientY == null ? rect.bottom : ev.clientY;
+    tip.style.left = Math.max(8, Math.min(x + 14, innerWidth - tip.offsetWidth - 8)) + 'px';
+    tip.style.top = Math.max(8, Math.min(y + 14, innerHeight - tip.offsetHeight - 8)) + 'px';
+  }
+  host.querySelectorAll('.bt-row').forEach(function (row) {
+    row.tabIndex = 0;
+    row.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); row.click(); } });
+  });
+  host.onmouseover = host.onmousemove = showTip;
+  host.onmouseout = hideTip;
+  host.onfocusin = showTip;
+  host.onfocusout = hideTip;
+  host.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') hideTip(); });
 }
 
 function renderDrops(r) {
@@ -2227,6 +2385,20 @@ function flattenMetrics(obj, prefix, out, depth) {
   });
 }
 
+function cmpMetricLabel(key) {
+  var labels = {
+    'combatProgress.forgeSeconds': 'Forge time (s)',
+    'combatProgress.petSeconds': 'Pet time (s)',
+    'combatProgress.alchemySeconds': 'Alchemy time (s; production not simulated)',
+    'combatProgress.scurgeExp': 'Scurge EXP',
+    'combatProgress.coralKills': 'Coral Kid kills banked',
+    'combatProgress.omegaBalls': 'Omega Arcade balls',
+  };
+  if (key.indexOf('forgeBars.') === 0) return 'Smelting: ' + itemName(key.slice(10));
+  if (key.indexOf('shinyDays.') === 0) return 'Shiny days: ' + key.slice(10);
+  return labels[key] || key;
+}
+
 function addCompareRun(row, m) {
   var R = (m.summary && m.summary.rewards) || {};
   row.runs++; row.timeMs += m.timeMs || 0;
@@ -2350,7 +2522,7 @@ function renderCompare() {
 
   var colDefs = [['map', 'Map'], ['kills', 'Kills / hr'], ['kla', 'Kill credit / hr'], ['exp', 'EXP / hr'], ['coins', 'Coins / hr'], ['cards', 'Cards / hr']];
   sel.forEach(function (k) { colDefs.push(['item:' + k, itemName(k)]); });
-  cols.metrics.forEach(function (k) { colDefs.push(['metric:' + k, k + ' / hr']); });
+  cols.metrics.forEach(function (k) { colDefs.push(['metric:' + k, cmpMetricLabel(k) + ' / hr']); });
 
   var best = {};
   colDefs.forEach(function (d) {

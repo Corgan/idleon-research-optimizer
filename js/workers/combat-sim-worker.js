@@ -4,7 +4,7 @@
 //        progressEveryMs = 250, player = 'auto' | 'idle' | 'scripted', playerOpts,
 //        killEveryMs (scripted), timelineEveryMs = 10000, eventLogMax = 0, eventLogSkip = [names],
 //        inputOverrides, toggles (combat-sim-toggles state; resolved per map, inputOverrides win),
-//        termOverrides ({ termKey: { mode: 'off'|'set'|'scale', value } } component terms), buffs, lite,
+//        termOverrides ({ termKey: { mode: 'off'|'set'|'scale', value } } component terms), buffs, lite, expBreakdown,
 //        encodeReplay (post binary delta-encoded 'replay' batches instead of 'snapshots'; uncapped),
 //        replayKeyframeEvery = 300,
 //        stopOn ([{ event, match?, count?, label? }]; see combat-sim-core) }
@@ -17,7 +17,7 @@
 //      { type: 'snapshots', id, frames: [snapshot...] }   (batched, capped)
 //      { type: 'replay', id, keysFrom, keys, buf, lens }  (encodeReplay: packed binary frames + new dictionary entries; feed to createReplayStore().append)
 //      { type: 'done', id, summary, player, events, eventLog, timeline, inputs, timeMs, cancelled,
-//        unmodelled, snapshotsSent, snapshotsDropped, replayBytes, replayOom }   (lite: inputs/eventLog/timeline omitted)
+//        unmodelled, snapshotsSent, snapshotsDropped, replayBytes, replayOom, expStart }   (lite: inputs/eventLog/timeline omitted)
 //      { type: 'error', id, message, unsupported?, timeMs? }
 // The run yields every CHUNK_STEPS steps so cancel messages are processed; worker.terminate() also works.
 
@@ -31,6 +31,7 @@ import { withCombatTerms, collectCombatTerms } from '../stats/systems/common/com
 import { createReplayEncoder, packReplayFrames } from '../stats/systems/common/combat-sim-replay.js';
 import { applyCombatSetup } from '../stats/systems/common/combat-sim-setup.js';
 import { stableHash } from '../stats/systems/common/combat-sim-setup-search.js';
+import { captureCombatExpStart } from '../stats/systems/common/combat-sim-exp.js';
 
 const CHUNK_STEPS = 4000;
 const cancelled = new Set();
@@ -67,7 +68,7 @@ function prepare(msg) {
   if (!raw) throw new Error('No save loaded in worker');
   if (msg.setup && Array.isArray(msg.setup.patches) && msg.setup.patches.length) raw = applyCombatSetup(raw, msg.setup);
   loadSaveData(raw);
-  const opts = { rawSave: raw };
+  const opts = { rawSave: raw, expBreakdown: !!msg.expBreakdown };
   const p = makePlayer(msg);
   if (p) opts.player = p;
   const ci = Number(msg.charIdx) || 0;
@@ -85,6 +86,7 @@ function prepare(msg) {
 function run(msg) {
   const id = msg.id;
   const { sim, terms } = prepare(msg);
+  const expStart = msg.expBreakdown ? captureCombatExpStart(saveData, sim.charIdx, sim.inputs) : null;
   if (sim.unsupported) {
     self.postMessage({ type: 'error', id, message: sim.unsupported, unsupported: true });
     return;
@@ -149,6 +151,7 @@ function run(msg) {
     self.postMessage({
       type: 'done', id, summary: cloneable(sim.summary()), player, events, eventLog: lite ? [] : eventLog, timeline: lite ? [] : timeline,
       inputs: lite ? {} : (cloneable(sim.inputs && sim.inputs.entries) || {}), timeMs: sim.timeMs, cancelled: wasCancelled, ended: sim.ended ? cloneable(sim.ended) : null,
+      expStart,
       unmodelled: Object.assign({}, sim.state.unmodelled || {}), snapshotsSent: sent, snapshotsDropped: dropped, replayBytes: enc ? enc.bytes : 0, replayOom,
     });
   };

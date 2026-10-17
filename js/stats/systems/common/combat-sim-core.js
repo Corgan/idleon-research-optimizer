@@ -115,6 +115,8 @@ import { buildCombatInputs } from './combat-sim-inputs.js';
 import * as world from './combat-sim-world.js';
 import * as rewards from './combat-sim-rewards.js';
 import * as special from './combat-sim-special.js'; // class/mode kill mechanics (combat-sim-special.js)
+import { initCombatLevels, combatLevelSummary } from './combat-sim-levels.js';
+import { initCombatProgress, combatProgressSummary } from './combat-sim-progress.js';
 
 export const STEP_MS = 10;
 export const SCENE_FADE_MS = 200;
@@ -418,7 +420,9 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
   rewards.initRewards(sim);
   special.initSpecial(sim); // installs sim.special hooks; before startScene so clam HP applies to initial spawns
   player.init(sim);
+  initCombatProgress(sim);
   world.startScene(sim);
+  initCombatLevels(sim);
   return sim;
 }
 
@@ -594,7 +598,8 @@ function _snapshot(sim) {
   return {
     t: sim.timeMs,
     player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy, w: p.width, h: p.height, node: p.node, hp: p.hp, hpMax: p.hpMax, mp: p.mp, anim: p.animation,
-      dir: p.facing ?? (p.dir === 1 ? 1 : -1), state: p.animState ?? (p.dead ? 'dead' : 'idle'), attackAnim: p.attackAnim ?? null, srcDir: p.dir, equip: sim._replayEquip },
+      dir: p.facing ?? (p.dir === 1 ? 1 : -1), state: p.animState ?? (p.dead ? 'dead' : 'idle'), attackAnim: p.attackAnim ?? null, srcDir: p.dir, equip: sim._replayEquip,
+      level: sim.state.classExp?.level, exp: sim.state.classExp?.exp },
     // Replay HUD: buffs [id, remaining s, total s], nonzero cooldowns [id, remaining s, full s],
     // the AttackLoadout rows (constant, so the delta codec stores them once per keyframe), and the last cast.
     hud: _hud(sim),
@@ -644,6 +649,8 @@ function _summary(sim) {
     timeMs: sim.timeMs, steps: sim.stepCount, frames: sim.frameCount, rngCalls: sim.rng.calls,
     world: sim.unsupported ? null : world.worldSummary(sim),
     rewards: sim.unsupported ? null : rewards.ledgerSummary(sim),
+    classExp: sim.unsupported ? null : combatLevelSummary(sim),
+    progress: sim.unsupported ? null : combatProgressSummary(sim),
     special: sim.unsupported ? null : (sim.special?.summary?.() ?? null), // combat-sim-special.js
   };
 }

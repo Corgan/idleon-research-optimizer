@@ -11,6 +11,8 @@
 
 import { createStatContext } from '../../stat-context.js';
 import * as D from '../../../save/data.js';
+import { saveData as sharedSaveData } from '../../../state.js';
+import { currentTermScope, withTermScope } from '../../term-overrides.js';
 import { MONSTERS } from '../../data/game/monsters.js';
 import { ITEMS } from '../../data/game/items.js';
 import { combatTarget, effectiveMonsterHP, effectiveRespawnTime, actionWaitTimeAfk, computeHitChance, autoRespawnTime, healthFoodHealingPerHour } from './combat-outcomes.js';
@@ -62,8 +64,46 @@ import { computeGambitBonus, computeBUpg } from '../w5/hole.js';
 import { respawnBonus as cglunkoRespawnBonus, withCglunkoLevels, UPGRADE_COUNT as CGLUNKO_UPGRADES } from '../w5/cglunko.js';
 import { grimoireUpgBonus } from '../mc/grimoire.js';
 import { GrimoireUpg } from '../../data/game/customlists.js';
+import { combatProgressInputs } from './combat-sim-progress.js';
 
 export const CRYSTAL_SPAWN_CAP_DEFAULT = 0.1;
+
+// Loader assignments replace these arrays. Retain the run's bindings rather
+// than consulting whichever save a later refresh/another simulation loaded.
+export function captureCombatInputState(S) {
+  const data = {};
+  for (const [key, value] of Object.entries(D)) if (typeof value !== 'function') data[key] = value;
+  return { save: { ...S }, data, termScope: currentTermScope() };
+}
+
+export function buildLiveLevelInputs(captured, ci, map, opts, level, exp, runtime = {}) {
+  const S = { ...captured.save, lv0AllData: (captured.save.lv0AllData || []).slice(),
+    exp0AllData: (captured.save.exp0AllData || []).slice() };
+  S.lv0AllData[ci] = (S.lv0AllData[ci] || []).slice();
+  S.lv0AllData[ci][0] = level;
+  S.exp0AllData[ci] = (S.exp0AllData[ci] || []).slice();
+  S.exp0AllData[ci][0] = exp;
+  const data = { ...captured.data, buffsActiveData: (captured.data.buffsActiveData || []).slice() };
+  if (runtime.buffs) data.buffsActiveData[ci] = runtime.buffs.map(b => b.slice());
+  if (runtime.food) {
+    data.equipOrderData = (data.equipOrderData || []).slice();
+    data.equipQtyData = (data.equipQtyData || []).slice();
+    data.equipOrderData[ci] = (data.equipOrderData[ci] || []).slice();
+    data.equipQtyData[ci] = (data.equipQtyData[ci] || []).slice();
+    data.equipOrderData[ci][2] = runtime.food.order.slice(0, runtime.food.count);
+    data.equipQtyData[ci][2] = runtime.food.qty.slice(0, runtime.food.count);
+  }
+  const previousSave = { ...sharedSaveData }, previousData = {};
+  for (const key of Object.keys(data)) previousData[key] = D[key];
+  try {
+    Object.assign(sharedSaveData, S);
+    D.assignSaveData(data);
+    return withTermScope(captured.termScope, () => buildCombatInputs(S, ci, map, { ...opts, live: true }));
+  } finally {
+    D.assignSaveData(previousData);
+    Object.assign(sharedSaveData, previousSave);
+  }
+}
 
 function _num(x) {
   if (x && typeof x === 'object') return Number(x.val ?? x.value ?? 0) || 0;
@@ -138,7 +178,7 @@ function _withStartBuffs(charIdx, opts, fn) {
   const ci = Number(charIdx) || 0;
   const all = D.buffsActiveData;
   const saved = Array.isArray(all) ? all[ci] : undefined;
-  if (opts.overrides?.useSavedBuffs || !Array.isArray(saved)) return fn(saved);
+  if (opts.live || opts.overrides?.useSavedBuffs || !Array.isArray(saved)) return fn(saved);
   const kept = saved.filter((b) => FORM_TOGGLE_BUFFS.has(Number(b?.[0])));
   if (kept.length === saved.length) return fn(saved);
   all[ci] = kept;
@@ -204,6 +244,13 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   // ---------------------------------------------------------------------------
   put('charClass', () => Number(D.charClassData?.[ci]) || 0, 'CharacterClass_X');
   put('level', () => Number(S.lv0AllData?.[ci]?.[0]) || 0, 'Lv0_X[0]');
+  put('levelUpGiftChance', () => _num(finalBubbleValByKey('LevelUpACTIVE', ci, S)) / 100, 'DNSM.AlchBubbles.LevelUpACTIVE / 100 (src 76826)');
+  unavailable('levelUpGiftCount', 0, 'OptionsList[32]', 'session-local level-up gift counter is not exported; starts at zero');
+  put('levelUpStampA23', () => Number(D.stampLvData?.[0]?.[22]) || 0, 'StampLevel[0][22]');
+  put('levelUpStampC9', () => Number(D.stampLvData?.[2]?.[8]) || 0, 'StampLevel[2][8]');
+  if (!opts.live) put('combatProgress', () => combatProgressInputs(S, ci, key => _raw(raw, key)),
+    'ForgeItemOrder/ForgeItemQty/ForgeIntProg, Pets/Breeding, Menagerie; native combat progress');
+  unavailable('otherPlayersCount', 0, 'OtherPlayers', 'Nearby players are not exported; used by Scurge EXP upgrades.');
   const target = (() => { try { return combatTarget(S, ci, map); } catch { return null; } })();
   put('afkTarget', () => target?.key || '', 'MapAFKtarget (combatTarget)');
 
@@ -292,7 +339,14 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   // ---------------------------------------------------------------------------
   // EXP side (AE1 KILL ~1226)
   // ---------------------------------------------------------------------------
-  put('expMulti', () => _num(resolveId('monster-exp')), 'ExpMulti(ExpType) via monster-exp descriptor', { note: 'descriptor resolved for ExpType 0 (combat)' });
+  const expDetail = { note: 'descriptor resolved for ExpType 0 (combat)' };
+  put('expMulti', () => {
+    const node = resolveId('monster-exp');
+    expDetail.breakdown = _clone({ ...node, fmt: 'x' });
+    expDetail.partial = !!node.partial;
+    if (node.reason) expDetail.note = node.reason;
+    return _num(node);
+  }, 'ExpMulti(ExpType) via monster-exp descriptor', expDetail);
   put('fam40', () => Number(computeFamBonusQTYs(ci, S)?.[40]) || 0, 'DNSM.FamBonusQTYs[40]');
   put('card20', () => _num(computeCardBonusByType(20, ci, S)), 'CardBonusREAL(20)');
   put('vault39', () => _num(vaultUpgBonus(39, S)), 'VaultUpgBonus(39)');

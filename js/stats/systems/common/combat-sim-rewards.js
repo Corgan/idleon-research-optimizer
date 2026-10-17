@@ -683,24 +683,36 @@ export function onKill(sim, mon) {
   }
   // EXP (dummyDamageDealt chain).
   let exp = N(def.ExpGiven) * N(v.expMulti);
+  const expStages = sim.options.expBreakdown ? [N(def.ExpGiven), exp] : null;
   exp = exp * (1 + (N(v.fam40) + (N(v.card20) + N(v.vault39))) / 100);
+  if (expStages) expStages.push(exp);
   exp = exp * (1 + (N(v.expActive) + N(v.shrine6)) / 100);
+  if (expStages) expStages.push(exp);
   exp = exp * (1 + N(st.gi[77]) / 100);
+  if (expStages) expStages.push(exp);
   const has = (s) => mon.statusList.some((x) => x.name === s);
   if (has('StatusExp')) exp *= 1.25;
+  if (expStages) expStages.push(exp);
   if (has('StatusPtyMob')) exp *= 3;
+  if (expStages) expStages.push(exp);
   if (has('StatusPlunder')) exp *= 1 + N(v.talent318_2) / 100;
+  if (expStages) expStages.push(exp);
   if (has('StatusWormhole')) {
     // ActionBlock("WormholeMob", type, 1): GenINFO[84]++ and [85] = type.
     W.wormholeMob(sim, mon.type, 1);
     st.gi[83] = N(st.gi[83]) + 1;
     exp *= 1 + (N(v.talent498_1) * st.gi[83]) / 100;
   }
+  if (expStages) expStages.push(exp);
   // src 63662: 1 != IsWorshipMob && -1 == Dungon() && 0 == NONdummies[46] && -1 == GenINFO[8].
   const nonDungeon = true;
   if (N(mon.worship) !== 1 && nonDungeon && st.nd46 === 0 && st.gi7_8 === -1) {
     L.expTotal += exp;
     L.expByType[mon.type] = (L.expByType[mon.type] || 0) + exp;
+    if (expStages) {
+      const totals = sim.rewardsState.expStages || (sim.rewardsState.expStages = Array(9).fill(0));
+      for (let i = 0; i < totals.length; i++) totals[i] += expStages[i];
+    }
     sim.emit('exp', { amount: exp, type: mon.type, uid: mon.uid, t: sim.timeMs });
     if (def.Type === 'Monster') {
       st.nd3 = N(st.nd3) + 1;
@@ -749,12 +761,24 @@ export function monsterKill(sim, mon) {
   const has = (s) => mon.statusList.some((x) => x.name === s);
   const dx = mon.x + mon.offX - 18;
   // AFKcode("Forge", T280_2) / AFKcode("Pets", 3): instant AFK-gain grants.
-  if (N(v.talent280_1) / 100 > rng.randomFloat()) { L.afkForge = (L.afkForge || 0) + 1; L.afkForgeHours = (L.afkForgeHours || 0) + _tn(sim, 2, 280); }
-  if (0.5 < N(v.talent362_1) && 0.5 < N(v.talentEnh362) && 0.5 > rng.randomFloat()) { L.afkPets = (L.afkPets || 0) + 1; L.afkPetsHours = (L.afkPetsHours || 0) + 3; }
+  if (N(v.talent280_1) / 100 > rng.randomFloat()) {
+    const seconds = _tn(sim, 2, 280);
+    L.afkForge = (L.afkForge || 0) + 1;
+    L.afkForgeSeconds = (L.afkForgeSeconds || 0) + seconds;
+    L.afkForgeHours = L.afkForgeSeconds / 3600;
+    sim.progress.grant('forge', seconds);
+  }
+  if (0.5 < N(v.talent362_1) && 0.5 < N(v.talentEnh362) && 0.5 > rng.randomFloat()) {
+    L.afkPets = (L.afkPets || 0) + 1;
+    L.afkPetsSeconds = (L.afkPetsSeconds || 0) + 3;
+    L.afkPetsHours = L.afkPetsSeconds / 3600;
+    sim.progress.grant('pets', 3);
+  }
   if (0 < _buff(sim, 490)) {
     const add = N(v.talent490_1) * (1 + N(v.alchemyActive) / 100);
     st.generalInfo19 = N(st.generalInfo19) + add;
     L.afkCauldron = (L.afkCauldron || 0) + add;
+    sim.progress.grant('alchemy', add);
   }
   if (0 < _buff(sim, 585) && st.arcanist === 1) {
     const mb = st.mapBon?.[map];
@@ -818,6 +842,7 @@ export function monsterKill(sim, mon) {
     const credit = (1 + N(v.vault43) / 100) * kpk;
     _klaDecrement(st.kla, credit);
     L.klaCredit += credit;
+    sim.progress.coralKill(credit);
   }
   // StatusPtyMob credit is gated only by DefaultExpType (not by TempMonster).
   if (has('StatusPtyMob') && N(v.defaultExpType) === 0) {
@@ -901,7 +926,7 @@ function _monsterKillTail(sim, mon, dx) {
       const add = c * N(v.xtraMushKillz);
       h[27] = N(h[27]) + add; h[28] = N(h[28]) + add;
     } else h[63] = N(h[63]) + c;
-  }
+  } else if (type === 'w7a6') sim.progress.scurgeKill();
   if (type === 'mimicA' && N(v.npcBanditBob) > 17 && rng.randomInt(1, 100) === 1) drop('Quest45', 1);
   if (type === 'mushP' && rng.randomInt(1, 50) === 1) drop('OilBarrel2', 1);
   if (type === 'fm_rat') {
@@ -931,6 +956,7 @@ function _monsterKillTail(sim, mon, dx) {
       drop(name, 1);
     }
   }
+  sim.progress.omegaKill(mon);
   const nk = (NinjaInfo[30] || []).indexOf(type);
   if (String(sim.scene.name || '').indexOf('Tutorial') === -1 && 0.5 <= N(v.emporium7) && nk !== -1) {
     const n105 = st.ninja105 || (st.ninja105 = []);
@@ -1518,6 +1544,7 @@ export function ledgerSummary(sim) {
   return {
     kills: L.kills, killsByType: Object.assign({}, L.killsByType),
     expTotal: L.expTotal, expByType: Object.assign({}, L.expByType),
+    ...(sim.options.expBreakdown ? { expStages: (RS.expStages || Array(9).fill(0)).slice() } : {}),
     coinsDropped: L.coins, coinsPicked: L.coinsPicked, money: N(sim.state.money),
     klaCredit: L.klaCredit, kla: _clone(sim.state.kla || []),
     byItem: _clone(L.byItem), bySource: _clone(L.bySource), cards: Object.assign({}, L.cards),

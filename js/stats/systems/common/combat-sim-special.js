@@ -775,6 +775,9 @@ export function specialSummary(sim) {
   const qd = (k) => N(byItem[k]?.qtyDropped);
   const hours = sim.timeMs / 3.6e6;
   const out = {
+    combatProgress: { ...(sim.state.progress?.gains || {}) },
+    forgeBars: { ...(sim.state.progress?.bars || {}) },
+    shinyDays: Object.fromEntries((sim.state.progress?.pets || []).map(p => [p.name, p.gained])),
     bonesDropped: { ...C.bonesDropped },
     dustDropped: { ...C.dustDropped },
     tachyonsDropped: { ...C.tachyonsDropped },
