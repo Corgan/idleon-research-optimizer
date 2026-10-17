@@ -364,17 +364,19 @@ export const directCardAverageTime = createDescriptor({
     var rewardKills = ctx.resolve('reward-roll-kills-per-hour');
     if (rewardKills.unavailable || rewardKills.notApplicable) return rewardKills;
     var cardChance = ctx.resolve('card-drop-chance-multiplier');
+    var dropRate = ctx.resolve('drop-rate');
     var target = _target(ctx);
     var result = directMonsterCardOutcome(
       target.key,
       ctx.saveData,
       cardChance.val,
-      rewardKills.val
+      rewardKills.val,
+      dropRate.val
     );
     if (!result.applicable) {
       return { val: 0, notApplicable: true, reason: result.reason };
     }
-    var status = _statusFrom([rewardKills, cardChance]);
+    var status = _statusFrom([rewardKills, cardChance, dropRate]);
     return {
       val: result.val,
       children: [
@@ -383,6 +385,7 @@ export const directCardAverageTime = createDescriptor({
         { name: 'First Discovery Multiplier', val: result.firstDiscoveryMultiplier, fmt: 'x',
           note: result.hasDiscoveryEntry ? 'Discovery key: ' + result.discoveryKey : 'Discovery key absent from save map' },
         { name: 'Card Drop Chance Multiplier', val: result.cardChanceMultiplier, fmt: 'x' },
+        { name: 'Drop Rate', val: result.dropRate, fmt: 'x', note: 'DropOdds multiplies every row by Drop_Rarity' },
         { name: 'Effective Chance per Reward Roll', val: result.effectiveChance, fmt: 'raw' },
         { name: 'Reward-Roll Kills/hr', val: result.rewardRollKillsPerHour, fmt: 'raw' },
         { name: 'Expected Cards/hr', val: result.cardsPerHour, fmt: 'raw' },

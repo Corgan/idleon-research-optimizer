@@ -8,6 +8,11 @@ import { computeDivinityBless } from './divinity.js';
 
 var GOALS = ['divinity-points', 'divinity-exp', 'class-exp', 'minor-links', 'blessing-cap', 'daily-reef-coral', 'balanced'];
 
+// Total Divinity LV across all players required per upgrade (source Coral Kid UI list);
+// the first upgrade of each page is always available.
+export const CORAL_KID_UNLOCK_LEVELS = [0, 600, 900, 1200, 1500, 1750];
+export const CORAL_KID_SINGULARITY_UNLOCK_LEVELS = [0, 3000, 5000, 8000, 10000, 12000];
+
 function _num(value, fallback) {
   var n = Number(value);
   return Number.isFinite(n) ? n : (fallback == null ? 0 : fallback);
@@ -38,13 +43,23 @@ function _reefCount(saveData, options) {
 export function coralKidLevel(index, saveData, options) {
   options = options || {};
   if (options.levels && options.levels[index] != null) return Math.max(0, Math.floor(_num(options.levels[index])));
-  return Math.max(0, Math.floor(_arrayValue(_options(saveData), 427 + index)));
+  return Math.max(0, Math.floor(_arrayValue(_options(saveData), coralKidLevelSlot(index))));
 }
 
+// Upgrades 0-5 use OLA[427+i]; Singularity upgrades 6-11 use OLA[616+(i-6)].
+export function coralKidLevelSlot(index) {
+  var idx = Math.max(0, Math.floor(_num(index)));
+  return idx >= 6 ? 616 + idx - 6 : 427 + idx;
+}
+
+// Singularity upgrades (6-11) are paid in Singularity currency, not Divinity points.
 export function coralKidUpgradeCost(index, level) {
   var idx = Math.max(0, Math.floor(_num(index)));
   var lv = Math.max(0, Math.floor(_num(level)));
-  return 1e7 * Math.pow(6, idx) * Math.pow(idx === 1 ? 1.25 : 1.1, lv);
+  if (idx === 1) return 1e7 * Math.pow(6, idx) * Math.pow(1.25, lv);
+  if (idx < 6) return 1e7 * Math.pow(6, idx) * Math.pow(1.1, lv);
+  if (idx === 10 || idx === 11) return Math.pow(5 + 2 * (idx - 6), idx - 6) * Math.pow(1.85, lv);
+  return Math.pow(7 + 2 * (idx - 6), idx - 6) * Math.pow(1.13, lv);
 }
 
 export function coralKidUpgradeEffect(index, level) {
@@ -56,6 +71,12 @@ export function coralKidUpgradeEffect(index, level) {
     case 3: return Math.round(lv);
     case 4: return Math.round(2 * lv);
     case 5: return lv / (40 + lv) * 100;
+    case 6: return Math.round(100 * lv);
+    case 7: return Math.round(10 * lv);
+    case 8: return Math.round(50 * lv);
+    case 9: return Math.round(125 * lv / (lv + 100));
+    case 10: return Math.round(5 * lv);
+    case 11: return Math.round(lv);
     default: return 0;
   }
 }
@@ -68,6 +89,9 @@ export function coralKidMetrics(saveData, options) {
   var minor = coralKidUpgradeEffect(3, levels[3]);
   var pointsBonus = coralKidUpgradeEffect(4, levels[4]);
   var classBonus = coralKidUpgradeEffect(2, levels[2]);
+  var singularity = options.singularityLevels || [6, 7, 8, 9, 10, 11].map(function (index) { return coralKidLevel(index, saveData); });
+  var singularityPoints = 1 + coralKidUpgradeEffect(6, singularity[0]) / 100;
+  var singularityExp = 1 + coralKidUpgradeEffect(8, singularity[2]) / 100;
   var capMissing = [];
   var mineheadBonus;
   if (options.mineheadBonus != null) mineheadBonus = _num(options.mineheadBonus);
@@ -82,10 +106,11 @@ export function coralKidMetrics(saveData, options) {
     levels: levels.slice(),
     godRank: rank,
     reefUpgradeCount: reefCount,
-    divinityExp: 1 + coralKidUpgradeEffect(0, levels[0]) / 100,
+    singularityLevels: singularity.slice(),
+    divinityExp: (1 + coralKidUpgradeEffect(0, levels[0]) / 100) * singularityExp,
     classExp: Math.pow(1 + classBonus / 100, Math.max(0, rank - 10)),
     minorLinks: 1 + minor / 100,
-    divinityPoints: 1 + reefCount * pointsBonus / 100,
+    divinityPoints: (1 + reefCount * pointsBonus / 100) * singularityPoints,
     blessingCap: Math.round(_num(options.blessingBase, 100) + coralKidUpgradeEffect(1, levels[1]) + mineheadBonus + vaultBonus),
     dailyReefCoral: 1 + coralKidUpgradeEffect(5, levels[5]) / 100,
   };
@@ -245,14 +270,14 @@ export function optimizeCoralGodRank(saveData, goal, options) {
 function _upgradeStatus(index, options) {
   if (options.coralKidUnlocked === false || (Array.isArray(options.unlocks) && options.unlocks[index] === false)) return { unlocked: false, known: true, reason: 'Upgrade is locked' };
   if (Array.isArray(options.unlocks) && options.unlocks[index] === true) return { unlocked: true, known: true, reason: null };
-  var requirements = options.unlockRequirements || options.coralKidUnlockLevels;
+  var requirements = options.unlockRequirements || options.coralKidUnlockLevels || (options.totalDivinityLevels != null ? CORAL_KID_UNLOCK_LEVELS : null);
   if (requirements && options.totalDivinityLevels != null) return _num(options.totalDivinityLevels) >= _num(requirements[index]) ? { unlocked: true, known: true, reason: null } : { unlocked: false, known: true, reason: 'Divinity level requirement not met' };
   if (options.assumeUnlocked === true) return { unlocked: true, known: false, reason: 'Assumed unlocked' };
   return { unlocked: false, known: false, reason: 'Upgrade unlock is unknown' };
 }
 
 function _upgradeUnlocked(index, options) { return _upgradeStatus(index, options).unlocked; }
-function _hasKnownUnlocks(options) { return options.coralKidUnlocked === false || Array.isArray(options.unlocks) || ((options.unlockRequirements || options.coralKidUnlockLevels) && options.totalDivinityLevels != null); }
+function _hasKnownUnlocks(options) { return options.coralKidUnlocked === false || Array.isArray(options.unlocks) || options.totalDivinityLevels != null; }
 function _stateSignature(state) { return state.levels.join(',') + '|' + state.godRank; }
 
 function _computeBlessing(saveData, options) {
@@ -311,7 +336,7 @@ export function coralGodRankInputs(saveData, options) {
     availability: {
       budget: Object.prototype.hasOwnProperty.call(div, 24), godRank: Object.prototype.hasOwnProperty.call(div, 25),
       tier: Object.prototype.hasOwnProperty.call(div, 26 + Math.floor(_num(options.god, 0))), coralKidLevels: Array.isArray(ola),
-      coralKidUnlock: { known: false, reason: 'No source-backed Coral Kid unlock gate was verified' }, reefUpgradeCount: reefAvailable,
+      coralKidUnlock: { known: false, reason: 'Requires total Divinity LV across all players (CORAL_KID_UNLOCK_LEVELS); pass totalDivinityLevels' }, reefUpgradeCount: reefAvailable,
       minehead: stateAvailable, vault76: vaultAvailable, y4: y4Available, divCostAfter3: divCostAfter3Available,
     },
     unlockMetadata: { known: unlocks != null, assumeUnlocked: options.assumeUnlocked === true, reason: unlocks != null ? 'Manual unlock override' : 'Unknown source-backed unlock state' },

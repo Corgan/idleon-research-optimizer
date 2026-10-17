@@ -6,6 +6,7 @@
 //   { name: string, val: number, children?: Array, note?: string, fmt?: string }
 
 import { _bNode } from './node-helpers.js';
+import { overrideSourceItem, sourceTermKey, enterTermDescriptor, exitTermDescriptor } from './term-overrides.js';
 
 /**
  * Build a breakdown tree for a stat descriptor.
@@ -50,6 +51,10 @@ export function buildTree(desc, catalog, ctx) {
       }
 
       var result = system.resolve(src.id, ctx, src.args);
+      if (ctx && ctx.termScope) {
+        result = overrideSourceItem(ctx, sourceTermKey(src.system, src.id, src.args, system), result,
+          { desc: desc.id, descName: desc.name, pool: poolName, group: desc.name });
+      }
       items.push(result);
 
       var v = result.val || 0;
@@ -60,7 +65,9 @@ export function buildTree(desc, catalog, ctx) {
     pools[poolName] = { items: items, sum: sum, product: product };
   }
 
-  var result = desc.combine(pools, ctx);
+  enterTermDescriptor(ctx, desc);
+  var result;
+  try { result = desc.combine(pools, ctx); } finally { exitTermDescriptor(ctx); }
   return Object.assign({}, result, {
     name: result.name || desc.name,
     val: result.val,

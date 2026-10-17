@@ -19,7 +19,8 @@ import {
 } from '../../data/w7/jelly-operator.js';
 import { SHAPE_BONUS_PCT, SHAPE_NAMES, gridBonusPerLv } from '../../data/w7/research.js';
 import { gbWith } from './research-math.js';
-import { computePaletteBonus } from './spelunking.js';
+import { computePaletteBonus, legendPTSbonus } from './spelunking.js';
+import { isUpgradeDoubled } from './menagerie.js';
 import { rogBonusQTY } from './sushi.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { fmtVal } from '../../../renderers/format.js';
@@ -29,6 +30,22 @@ const FIRST_CLEAR_SLOTS = [76, 94];
 const SECOND_CLEAR_SLOTS = [75, 93];
 const PROXIMITY_ANCHORS = new Set([43, 44, 45, 46, 60, 65, 78, 83, 96, 101, 114, 119, 133, 134, 135, 136]);
 const FEVER_MODE_NAMES = ['COLD', 'RASH', 'SEPSIS', 'NAUSEA', 'RABIES', 'PLAGUE'];
+
+// CurrencyMulti innermost pool adds a flat +11% (2026-10-16 build).
+export const JELLY_BASE_BLOODCELL_BONUS_PCT = 11;
+// Stronkroid: GenINFO[238] is set to SteroidTimeTOT (300) and drains 0.61 per frame while > 0.
+export const JELLY_ROID_TIME_TOTAL = 300;
+export const JELLY_ROID_DECREMENT_PER_FRAME = 0.61;
+export const JELLY_ROID_ACTIVE_FRAMES = (() => {
+  let remaining = JELLY_ROID_TIME_TOTAL;
+  let frames = 0;
+  while (remaining > 0) {
+    remaining -= JELLY_ROID_DECREMENT_PER_FRAME;
+    if (remaining > 0) frames++;
+  }
+  return frames;
+})();
+export const JELLY_ROID_DURATION_SECONDS = JELLY_ROID_ACTIVE_FRAMES / 60;
 
 function n(value) {
   const result = Number(value);
@@ -74,8 +91,16 @@ export function jellyUpgradeLevel(S, id) {
   return Math.max(0, Math.floor(n(researchRow(S, 17)[id])));
 }
 
+// Menagerie Upgrade Doublers: Spelunk[53] lists Jelly upgrade indices whose quantity is doubled.
+export function jellyUpgradeDoubled(S, id) {
+  return isUpgradeDoubled(S, 'jelly', Math.round(n(id)));
+}
+
 export function jellyUpgradeQuantity(S, id) {
-  return n(jellyUpgradeData(id)?.perLevel) * jellyUpgradeLevel(S, id);
+  const perLevel = n(jellyUpgradeData(id)?.perLevel);
+  return jellyUpgradeDoubled(S, id)
+    ? 2 * perLevel * jellyUpgradeLevel(S, id)
+    : perLevel * jellyUpgradeLevel(S, id);
 }
 
 export function jellyUpgradeAtOrder(order) {
@@ -143,15 +168,19 @@ export function jellyUpgradeDisplay(S, id) {
   if (!data) return null;
   const quantity = jellyUpgradeQuantity(S, id);
   const level = jellyUpgradeLevel(S, id);
-  let perLevelText = `+${data.perLevel} per level`;
+  const doubled = jellyUpgradeDoubled(S, id);
+  const doublerMulti = doubled ? 2 : 1;
+  const step = n(data.perLevel) * doublerMulti;
+  let perLevelText = `+${step} per level`;
   if (data.maxLevel === 1 && data.perLevel === 1) perLevelText = 'One-time unlock';
-  else if (id === 16) perLevelText = `+${data.perLevel} Fever mode${data.perLevel === 1 ? '' : 's'} per level`;
-  else if ([8, 9, 15, 35].includes(id)) perLevelText = `+${data.perLevel} use${data.perLevel === 1 ? '' : 's'} per level`;
-  else if (id === 17) perLevelText = `+${data.perLevel} percentage point per cell level`;
-  else if (id === 29) perLevelText = '+0.01x Stronkroid speed per level, starting at 1.51x';
-  else if (id === 34) perLevelText = '+1 cost-divisor point per level; effective reduction is diminishing';
-  else if (id === 38) perLevelText = `+${data.perLevel}% of best operation Bloodcells daily per level`;
-  else if (data.description.includes('{') || data.description.includes('}')) perLevelText = `+${data.perLevel}% per level`;
+  else if (id === 16) perLevelText = `+${step} Fever mode${step === 1 ? '' : 's'} per level`;
+  else if ([8, 9, 15, 35].includes(id)) perLevelText = `+${step} use${step === 1 ? '' : 's'} per level`;
+  else if (id === 17) perLevelText = `+${step} percentage point${step === 1 ? '' : 's'} per cell level`;
+  else if (id === 29) perLevelText = `+${displayNumber(step / 100)}x Stronkroid speed per level, starting at 1.51x`;
+  else if (id === 34) perLevelText = `+${step} cost-divisor point${step === 1 ? '' : 's'} per level; effective reduction is diminishing`;
+  else if (id === 38) perLevelText = `+${step}% of best operation Bloodcells daily per level`;
+  else if (data.description.includes('{') || data.description.includes('}')) perLevelText = `+${step}% per level`;
+  if (doubled && perLevelText !== 'One-time unlock') perLevelText += ' (Upgrade Doubler 2x)';
 
   let description = data.description
     .replace('{', String(quantity))
@@ -204,7 +233,7 @@ export function jellyUpgradeDisplay(S, id) {
   else if (id === 32) effectText = `+${quantity * Math.floor(jellyTotalCellLevel(S) / 100)}% total damage`;
   else if (id === 33) effectText = `+${quantity * jellyTotalCellLevel(S)}% total Bloodcells`;
   else if (id === 38) effectText = `${displayNumber(jellyDailyBloodcells(S))} Bloodcells per day`;
-  return { ...data, level, quantity, effectText, perLevelText, description, sourceNote };
+  return { ...data, level, quantity, doubled, doublerMulti, effectText, perLevelText, description, sourceNote };
 }
 
 export function jellyCompletionBonus(index, S, includeLocked = false) {
@@ -251,13 +280,18 @@ export function jellyUnlockedSlots(S) {
   return slots;
 }
 
+// Legend Talent 41 grants up to three extra plot tokens: min(3, ceil(Spelunk[18][41] / 2)).
+export function jellyLegendSlotTokens(S) {
+  return Math.min(3, Math.ceil(n(S?.spelunkData?.[18]?.[41]) / 2));
+}
+
 export function jellySlotPurchasesLeft(S) {
   const bundle = S?.bundlesData?.ban_j ? 1 : 0;
   return Math.round(
-    jellyUpgradeQuantity(S, 8)
-    + jellyUpgradeQuantity(S, 9)
-    + jellyCompletionBonus(44, S)
-    + bundle
+    jellyUpgradeQuantity(S, 9)
+    + (jellyUpgradeQuantity(S, 8)
+      + (jellyCompletionBonus(44, S)
+        + (bundle + jellyLegendSlotTokens(S))))
     - researchRow(S, 18).length
   );
 }
@@ -462,6 +496,16 @@ export function jellyShapeSummary(S) {
   });
 }
 
+// Legend Talent 41 Jelly damage percentage (source LegendPTS_bonus(41)).
+export function jellyLegendDamageBonus(S) {
+  return n(legendPTSbonus(41, S || {}));
+}
+
+// Artifact 40 (Bloodclot) reads the raw artifact tier: 1 + 10 * Sailing[3][40] / 100.
+export function jellyBloodclotTier(S) {
+  return n(S?.sailingData?.[3]?.[40]);
+}
+
 export function jellyCellDamageMultiplier(S, options = {}) {
   const fever = options.fever;
   const grid185 = jellyGridBonus(S, 185);
@@ -470,6 +514,8 @@ export function jellyCellDamageMultiplier(S, options = {}) {
       + (jellyUpgradeQuantity(S, 20)
         + computePaletteBonus(1, S)));
   return (1 + additive / 100)
+    * (1 + jellyLegendDamageBonus(S) / 100)
+    * (1 + 10 * jellyBloodclotTier(S) / 100)
     * (1 + jellyUpgradeQuantity(S, 21) / 100)
     * (1 + jellyUpgradeQuantity(S, 22) / 100)
     * (1 + grid185 / 100)
@@ -517,7 +563,7 @@ function _jellyCurrencyRuntimeFactors(S, fever, totalCellLevel) {
     jellyUpgradeQuantity(S, 23)
     + (jellyUpgradeQuantity(S, 24)
       + (jellyUpgradeQuantity(S, 25)
-        + jellyUpgradeQuantity(S, 33) * totalCellLevel))
+        + (jellyUpgradeQuantity(S, 33) * totalCellLevel + JELLY_BASE_BLOODCELL_BONUS_PCT)))
   ) / 100)
     * (1 + valueOf(arcadeBonus(72, S)) / 100)
     * (1 + grid187 / 100)
@@ -557,11 +603,28 @@ export function jellyCellDamageBreakdown(S, options = {}) {
     { label: jellyUpgradeData(20)?.name || 'Cell Destruction III', value: jellyUpgradeQuantity(S, 20), unit: '%', unlockId: 20 },
     { label: 'Spelunking Palette bonus', value: computePaletteBonus(1, S), unit: '%' },
   ];
+  const legendDamage = jellyLegendDamageBonus(S);
+  const bloodclotTier = jellyBloodclotTier(S);
   const feverValue = jellyFeverBonus(S, 0, 0, options.feverRampPct, fever)
     + jellyFeverBonus(S, 1, 0, 0, fever)
     + jellyFeverBonus(S, 4, 0, 0, fever);
   const factors = [
     { label: 'Additive Cell Damage', value: 1 + additive.reduce((sum, row) => sum + row.value, 0) / 100, unit: 'x', children: additive },
+    {
+      label: 'Legend Talent 41',
+      value: 1 + legendDamage / 100,
+      unit: 'x',
+      children: [
+        { label: 'Legend 41 points', value: n(S?.spelunkData?.[18]?.[41]), unit: '' },
+        { label: 'Legend bonus', value: legendDamage, unit: '%' },
+      ],
+    },
+    {
+      label: 'Bloodclot artifact',
+      value: 1 + 10 * bloodclotTier / 100,
+      unit: 'x',
+      children: [{ label: 'Artifact 40 tier (10% per tier)', value: bloodclotTier, unit: '' }],
+    },
     { label: jellyUpgradeData(21)?.name || 'Cell Desolation I', value: 1 + jellyUpgradeQuantity(S, 21) / 100, unit: 'x', unlockId: 21 },
     { label: jellyUpgradeData(22)?.name || 'Cell Desolation II', value: 1 + jellyUpgradeQuantity(S, 22) / 100, unit: 'x', unlockId: 22 },
     { label: 'Research Grid Cell Damage', value: 1 + gridBonus / 100, unit: 'x', children: [{ label: 'Grid bonus', value: gridBonus, unit: '%' }] },
@@ -646,6 +709,7 @@ export function jellyBloodcellBreakdown(S, fever, options = {}) {
         { label: 'Bloodcell gain per level', value: jellyUpgradeQuantity(S, 33), unit: '%' },
       ],
     },
+    { label: 'Base Bloodcell bonus', value: JELLY_BASE_BLOODCELL_BONUS_PCT, unit: '%' },
   ];
   const factors = [
     { label: 'Additive Bloodcell Gain', value: 1 + additive.reduce((sum, row) => sum + row.value, 0) / 100, unit: 'x', children: additive },
@@ -1253,9 +1317,9 @@ export function simulateJellyOperation(layout, S, options = {}) {
     }
     if (!roidUsed && time >= roidStart) {
       roidUsed = true;
-      roidRemaining = 300;
+      roidRemaining = JELLY_ROID_TIME_TOTAL;
     }
-    roidRemaining--;
+    roidRemaining = roidRemaining - JELLY_ROID_DECREMENT_PER_FRAME;
     const roidActive = roidRemaining > 0;
     const roidMultiplier = roidActive ? 1 + (50 + jellyUpgradeQuantity(S, 29)) / 100 : 1;
 
@@ -1829,7 +1893,7 @@ function availableRoidTimings(S, obstruction, requested) {
   const standardTime = jellyBossTime(obstruction);
   const timings = [];
   for (let second = 0; second <= standardTime; second += 5) timings.push(second);
-  timings.push(Math.max(0, standardTime - 5), standardTime);
+  timings.push(Math.max(0, Math.floor(standardTime - JELLY_ROID_DURATION_SECONDS)), standardTime);
   return Array.from(new Set(timings));
 }
 
@@ -3285,7 +3349,7 @@ export function jellyOperationSurrogate(layout, S, options = {}) {
   if (!metrics.valid) return { valid: false, reason: metrics.reason, score: -Infinity };
   const hp = jellyBossHp(obstruction);
   const roidStart = jellyUpgradeQuantity(S, 29) >= 1 ? roidActivationTime(options) : Infinity;
-  const roidEnd = roidStart + 5;
+  const roidEnd = roidStart + JELLY_ROID_DURATION_SECONDS;
   const roidFactor = 1 + (50 + jellyUpgradeQuantity(S, 29)) / 100;
   const coldAverage = fever === 0 ? 1 + duration / 200 : 1;
   const amoebaUnlocked = jellyUpgradeQuantity(S, 28) >= 1;

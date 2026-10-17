@@ -144,9 +144,11 @@ function _w7MultiKillScale(value) {
   return value;
 }
 
-function _isCglunkoMap(charIdx, mapIdx, saveData) {
-  return mapIdx === 216
-    && Number(saveData.holesData && saveData.holesData[0] && saveData.holesData[0][charIdx]) === 17;
+// ctx.holeCavern (combat sim cavern picker) overrides the saved Holes[0][char].
+function _isCglunkoMap(charIdx, mapIdx, saveData, ctx) {
+  var cavern = ctx && ctx.holeCavern != null ? ctx.holeCavern
+    : (saveData.holesData && saveData.holesData[0] && saveData.holesData[0][charIdx]);
+  return mapIdx === 216 && Number(cavern) === 17;
 }
 
 /** Compute WorkbenchStuff("MultiKill_base", 0, 0). */
@@ -173,7 +175,7 @@ export function computeMultiKillBase(charIdx, ctx, opts) {
     + onyxOwned * _resolverVal(talent, 654, ctx);
 
   if (mapIdx >= 300) value = _w7MultiKillScale(value);
-  if (_isCglunkoMap(charIdx, mapIdx, saveData)) value = mkBase(saveData);
+  if (_isCglunkoMap(charIdx, mapIdx, saveData, ctx)) value = mkBase(saveData);
   return value;
 }
 
@@ -209,7 +211,7 @@ export function computeMultiKillPerTier(charIdx, ctx, opts) {
     + _num(cardSet11);
 
   if (mapIdx >= 300 && !opts.skipWorld7Scale) value = _w7MultiKillScale(value);
-  if (_isCglunkoMap(charIdx, mapIdx, saveData)) value = mkTier(saveData);
+  if (_isCglunkoMap(charIdx, mapIdx, saveData, ctx)) value = mkTier(saveData);
   return value;
 }
 

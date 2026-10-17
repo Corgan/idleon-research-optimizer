@@ -7,6 +7,7 @@ import {
   computeConstMasteryBonus,
   computeSmallCogBonusTOTAL,
   computeExtraBuildSPDmulti,
+  constBuildBonus,
   computeOwnedItemCount,
 } from '../systems/w3/construction.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
@@ -135,6 +136,7 @@ export default createDescriptor({
         { name: 'Extra Build Speed Multiplier', val: extraBuildMulti, fmt: 'x', children: [
           { name: 'Small Cog Build Speed', val: 1 + computeSmallCogBonusTOTAL(1, ctx.saveData) / 100, fmt: 'x' },
           { name: label('Companion', 157), val: 1 + rval(companion, 157, ctx) / 100, fmt: 'x' },
+          { name: 'Menagerie Build Speed', val: 1 + constBuildBonus(ctx.saveData, 0) / 100, fmt: 'x' },
         ] },
       ],
       _debug: {

@@ -8,6 +8,7 @@ import {
   computePlayerConExp,
   computeSmallCogBonusTOTAL,
   computeCogBoardTotals,
+  constBuildBonus,
 } from '../systems/w3/construction.js';
 import { bubbleValByKey, computeVialByKey } from '../systems/w2/alchemy.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
@@ -53,6 +54,7 @@ export default createDescriptor({
     var buildSpd = computePlayerBuildSpd(ci, null, ctx.saveData);
     var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
     var smallCogExp = computeSmallCogBonusTOTAL(2, ctx.saveData);
+    var menaConExp = constBuildBonus(ctx.saveData, 1);
 
     var total = computePlayerConExp(ci, isActive, ctx.saveData);
 
@@ -93,7 +95,8 @@ export default createDescriptor({
           { name: 'Star Sign: Construction EXP', val: starConstExp },
           { name: label('Post Office', 17), val: poBonus, note: '0.5×(' + postOffice17 + '-100)' },
         ], note: 'sum=' + addPool.toFixed(1) },
-        { name: 'Small Cog Construction EXP', val: 1 + smallCogExp / 100, fmt: 'x', note: '+' + smallCogExp + '%' }
+        { name: 'Small Cog Construction EXP', val: 1 + smallCogExp / 100, fmt: 'x', note: '+' + smallCogExp + '%' },
+        { name: 'Menagerie Construction EXP', val: 1 + menaConExp / 100, fmt: 'x', note: '+' + menaConExp + '%' }
       );
     }
 

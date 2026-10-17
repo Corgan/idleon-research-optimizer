@@ -25,6 +25,8 @@ import { computeArtifactBonus } from '../w5/sailing.js';
 import { computeCropSC } from '../w6/farming.js';
 import { computeWinBonus } from '../w6/summoning.js';
 import { computeButtonBonus } from '../w7/minehead.js';
+import { clamWorkBonus } from '../w7/clamworks.js';
+import { menagerieBoostQTY, menagerieUnlockOwned, petArenaCrucBonus } from '../w7/menagerie.js';
 import { itemCount } from '../w7/royal-guardian.js';
 import { computePrayerReal } from '../w3/prayer.js';
 import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
@@ -507,6 +509,7 @@ export function cookingSpeedModel(S, ci, opts) {
     cropSC3: _safe(computeCropSC, 3, S),
     enh146: enh,
     eventShop53: eventShopOwned(53, S.cachedEventShopStr) ? 1 : 0,
+    clam10: _safe(clamWorkBonus, 10),
     gems120: gems120,
     vote13: _vote(13, ctx, S),
     vault54: _safe(vaultUpgBonus, 54, S),
@@ -515,6 +518,8 @@ export function cookingSpeedModel(S, ci, opts) {
     atom8PerLevel: atomLv * (Number(AtomInfo[8] && AtomInfo[8][4]) || 0),
     msa1: _safe(computeMSABonus, 1, S),
     art13: art13,
+    cruc5: _safe(petArenaCrucBonus, S, 5),
+    cruc12: _safe(petArenaCrucBonus, S, 12),
     art13PerLog: _art13PerLog(S, ci, art13, turkeyStock),
     turkeyStock: turkeyStock,
     button7: _safe(computeButtonBonus, 7, S),
@@ -525,6 +530,7 @@ export function cookingSpeedModel(S, ci, opts) {
     mf114: _safe(mainframeBonus, 114, S),
     star58: _safe(computeStarSignBonus, 'CookSpd', ci, S),
     win15: _safe(computeWinBonus, 15, { charIdx: ci }, S),
+    menagerie4: _safe(menagerieBoostQTY, S, 4),
     monument: _safe(computeMonumentROGbonus, 0, 2, S),
     bupg56: _safe(computeBUpg, 56, bupg56Val, S),
     cardW6c1: _safe(computeCardLv, 'w6c1', S),
@@ -591,6 +597,7 @@ export function cookingSpeedTerms(model, k, levels, turkeyStock) {
     ['Talent 146 Apocalypse Chow (enhanced)', Math.max(1, model.enh146.val), 'x',
       'Talent 49 ' + model.enh146.gate.toFixed(1) + (model.enh146.gate >= 125 ? ' ≥ 125: 1.1^' + model.enh146.maps + ' maps with 100M kills' : ' < 125')],
     ['Event Shop 53', 1 + model.eventShop53, 'x', model.eventShop53 ? 'owned' : 'not owned'],
+    ['Clamworks 10 × 9', 1 + 9 * (model.clam10 || 0), 'x', model.clam10 ? 'owned' : 'not owned'],
     ['Gem Shop kitchen doubler', 1 + kit.dn1, 'x', 'Gem item 120 = ' + model.gems120],
     ['Vote 13', 1 + model.vote13 / 100, 'x', ''],
     ['Vault 54', 1 + model.vault54 / 100, 'x', ''],
@@ -602,6 +609,8 @@ export function cookingSpeedTerms(model, k, levels, turkeyStock) {
     ['Kitchen speed level', 1 + kit.speedLv / 10, 'x', 'Lv ' + kit.speedLv],
     ['Artifact 13', artifact13Term(model, turkeyStock), 'x',
       'base × LOG(Turkey a la Thank stock ' + _sci(art13Stock) + '); refreshes on map change'],
+    ['Breeding Crucible 5 (10x) + 12 (20x)', 9 * (model.cruc5 || 0) + 20 * (model.cruc12 || 0) + 1, 'x',
+      'Crucible 5 ' + (model.cruc5 ? 'cleared' : 'not cleared') + ', Crucible 12 ' + (model.cruc12 ? 'cleared' : 'not cleared')],
     ['Minehead button 7', 1 + model.button7 / 100, 'x', ''],
     ['Arcade 28', 1 + model.arcade28 / 100, 'x', ''],
     ['Vial 6turtle', 1 + model.vialTurtle / 100, 'x', ''],
@@ -610,6 +619,7 @@ export function cookingSpeedTerms(model, k, levels, turkeyStock) {
     ['Meal Mcook', 1 + mcook / 100, 'x', mcook.toFixed(2) + '%'],
     ['Star Sign 58', 1 + model.star58 / 100, 'x', ''],
     ['Summoning win bonus 15', 1 + model.win15 / 100, 'x', ''],
+    ['Menagerie Boost 4 (Cooking speed)', 1 + (model.menagerie4 || 0) / 100, 'x', ''],
     ['Monument 0 bonus 2', 1 + model.monument / 100, 'x', ''],
     ['Cavern upgrade 56', Math.max(1, model.bupg56), 'x', ''],
     ['Card w6c1 × 5', 1 + 5 * model.cardW6c1 / 100, 'x', 'Lv ' + model.cardW6c1],
@@ -734,7 +744,8 @@ export function mealMaxLevel(S) {
   var emp21 = _safe(emporiumBonus, 21, ninja);
   var lore5 = (Number(S.spelunkData && S.spelunkData[0] && S.spelunkData[0][5]) || 0) >= 1 ? 1 : 0;
   var grim26 = _grimoireBonus(26, S);
-  return Math.round(30 + (art17 + (10 * emp20 + (10 * emp21 + 30 * lore5)) + Math.min(20, grim26)));
+  var u20 = _safe(menagerieUnlockOwned, S, 20);
+  return Math.round(30 + (art17 + (10 * emp20 + (10 * emp21 + 30 * lore5)) + (Math.min(20, grim26) + 10 * u20)));
 }
 
 export function mealCostInputs(S) {
@@ -787,6 +798,13 @@ export function nmlbInfo(S) {
   return { active: emp16 || bun, levels: (bun ? 2 : 0) + (emp16 ? 1 : 0), emporium16: emp16, bundle: bun };
 }
 
+// Daily reset result: min(150, min(CookingMealMaxLVlol, level + gain)). The 150 cap is literal, so a target
+// already above Lv 150 is set back to 150.
+export var NMLB_LEVEL_CAP = 150;
+export function nmlbResultLevel(from, gain, maxLevel) {
+  return Math.min(NMLB_LEVEL_CAP, Math.min(maxLevel, (Number(from) || 0) + (Number(gain) || 0)));
+}
+
 // Daily reset scan: lowest eligible level, ties go to the highest index.
 export function nmlbTarget(levels, maxLevel) {
   var min = 999;
@@ -831,7 +849,8 @@ export function nmlbSteerPlan(S, opts) {
     }
     var saved = 0;
     var stockX = stocks[x] || 0;
-    for (var g = 0; g < nmlb.levels && Lx + g < maxLevel; g++) {
+    var toX = nmlbResultLevel(Lx, nmlb.levels, maxLevel);
+    for (var g = 0; Lx + g < toX; g++) {
       var stepX = ladlesForMealLevel(x, Lx + g, 0, speed, ladleMulti, inputs, 0);
       saved += stepX.ladles;
     }
@@ -921,7 +940,7 @@ export function nmlbFloorPlan(S, opts) {
   var gain = nmlb.active ? nmlb.levels : 0;
 
   function savedFor(m, from) {
-    var to = Math.min(maxLevel, from + Math.max(1, gain));
+    var to = nmlbResultLevel(from, Math.max(1, gain), maxLevel);
     return _ladlesForLevels(m, from, to, 0, speed, ladleMulti, inputs);
   }
   function blockersFor(x) {
@@ -948,7 +967,7 @@ export function nmlbFloorPlan(S, opts) {
   for (var day = 1; day <= rotationDays && gain > 0; day++) {
     var p = _nmlbPickAmong(rot, maxLevel, isTarget);
     if (p < 0) break;
-    var to = Math.min(maxLevel, rot[p] + gain);
+    var to = nmlbResultLevel(rot[p], gain, maxLevel);
     rotation.push({ day: day, meal: p, name: mealName(p), from: rot[p], to: to, ladlesSaved: savedFor(p, rot[p]) });
     if (rotationDay[p] == null) rotationDay[p] = day;
     rot[p] = to;
@@ -1006,9 +1025,85 @@ export function ladleInventory(S) {
   return out;
 }
 
+export function blueJellyfishInfo(S) {
+  return {
+    available: !!S.menagerieDataAvailable,
+    unlocked: menagerieUnlockOwned(S, 5) === 1,
+    dailyHours: Math.max(0, Number(S.menagerieData && S.menagerieData[0] && S.menagerieData[0][5]) || 0),
+  };
+}
+
+export function optimizeBlueJellyfish(S, opts, onProgress) {
+  var baseOpts = { ...opts, jellyDonations: undefined };
+  var baseline = planMealLeveling(S, baseOpts);
+  var best = baseline;
+  var bestPolicy = { ownedFraction: 0, incomeFraction: 0, untilDay: 0 };
+  var seen = new Set();
+  var evaluated = 1;
+  function evaluate(policy) {
+    var schedule = {
+      owned: Math.floor((Number(baseOpts.startLadles) || 0) * policy.ownedFraction),
+      daily: baseline.timeline.map(function(d) {
+        return d.day <= policy.untilDay ? Math.floor(d.ladleIncome * policy.incomeFraction) : 0;
+      }),
+    };
+    var key = JSON.stringify(schedule);
+    if (seen.has(key)) return;
+    seen.add(key);
+    var plan = planMealLeveling(S, { ...baseOpts, jellyDonations: schedule });
+    evaluated++;
+    if (plan.endSpeed > best.endSpeed * (1 + 1e-12)
+      || (Math.abs(plan.endSpeed - best.endSpeed) <= best.endSpeed * 1e-12 && plan.jelly.donated < best.jelly.donated)) {
+      best = plan;
+      bestPolicy = { ...policy };
+    }
+  }
+  var days = baseline.days;
+  var cutoffs = [...new Set([0, 1, Math.floor(days / 4), Math.floor(days / 2), Math.floor(3 * days / 4),
+    Math.max(0, days - Math.ceil(baseline.ladleMultiplier)), days].map(function(d) { return Math.max(0, Math.min(days, d)); }))];
+  var policies = [];
+  if (baseline.jelly.unlocked) {
+    for (var until of cutoffs) for (var owned of [0, 0.5, 1]) for (var income of [0, 0.5, 1]) {
+      policies.push({ ownedFraction: owned, incomeFraction: income, untilDay: until });
+    }
+  }
+  for (var i = 0; i < policies.length; i++) {
+    evaluate(policies[i]);
+    if (onProgress) onProgress({ phase: 'Comparing donation schedules', fraction: 0.75 * (i + 1) / policies.length, evaluated: evaluated });
+  }
+  // Refine fractions and the donate-until cutoff around the strongest coarse policy.
+  if (baseline.jelly.unlocked) for (var step of [0.25, 0.125, 0.0625]) {
+    var center = { ...bestPolicy };
+    for (var dimension of ['ownedFraction', 'incomeFraction', 'untilDay']) {
+      for (var direction of [-1, 1]) {
+        var candidate = { ...center };
+        candidate[dimension] += direction * (dimension === 'untilDay' ? Math.max(1, Math.round(days * step)) : step);
+        candidate[dimension] = Math.max(0, Math.min(dimension === 'untilDay' ? days : 1, candidate[dimension]));
+        evaluate(candidate);
+      }
+    }
+    if (onProgress) onProgress({ phase: 'Refining the best split', fraction: 0.75 + (1 - step * 4) * 0.2, evaluated: evaluated });
+  }
+  if (!(best.endSpeed > baseline.endSpeed * (1 + 1e-12))) {
+    best = baseline;
+    bestPolicy = { ownedFraction: 0, incomeFraction: 0, untilDay: 0 };
+  }
+  if (onProgress) onProgress({ phase: 'Complete', fraction: 1, evaluated: evaluated });
+  return {
+    plan: best,
+    baseline: { endSpeed: baseline.endSpeed, levels: baseline.levels, jellyHours: baseline.jelly.totalHours },
+    policy: bestPolicy,
+    schedule: { owned: best.jelly.ownedDonation, daily: best.jelly.dailyDonations },
+    improved: best.endSpeed > baseline.endSpeed * (1 + 1e-12),
+    gain: baseline.endSpeed > 0 ? best.endSpeed / baseline.endSpeed - 1 : 0,
+    evaluated: evaluated,
+    proven: false,
+  };
+}
+
 // Greedy daily simulation: kitchens are fungible, every ladle adds 1h × (1 + T148) to every kitchen.
-// Each day spends passive kitchen hours plus ladle hours on the cheapest next meal level; NMLB then applies
-// and the Dream 11 discount counter advances.
+// Each day spends passive and ladle hours using the selected strategy, then applies NMLB,
+// advances the Dream 11 counter, and processes the saved/new jellyfish grant as one batch.
 export function planMealLeveling(S, opts) {
   opts = opts || {};
   var ci = opts.activeCharIdx || 0;
@@ -1020,6 +1115,21 @@ export function planMealLeveling(S, opts) {
   var days = Math.max(1, Math.min(3650, Math.floor(Number(opts.days) || 30)));
   var ladlesPerDayIn = Math.max(0, Number(opts.ladlesPerDay) || 0);
   var startLadles = Math.max(0, Number(opts.startLadles) || 0);
+  var jelly = blueJellyfishInfo(S);
+  var donations = opts.jellyDonations || {};
+  function donation(value, available) {
+    if (value == null) return 0;
+    if (!Number.isSafeInteger(value) || value < 0 || value > available) {
+      throw new Error('Blue Jellyfish donations must be whole ladles within the available budget.');
+    }
+    if (value > 0 && !jelly.unlocked) throw new Error('Blue Jellyfish is not unlocked in this save.');
+    return value;
+  }
+  var ownedDonation = donation(donations.owned, startLadles);
+  startLadles -= ownedDonation;
+  var jellyHours = jelly.dailyHours + ownedDonation;
+  var totalDonated = ownedDonation;
+  var totalJellyHours = 0;
   var passiveHours = opts.passive === false ? 0 : 24;
   var steer = opts.steerTarget != null && opts.steerTarget >= 0 ? Number(opts.steerTarget) : -1;
   var strategy = opts.strategy === 'cheapest' ? 'cheapest' : 'speed';
@@ -1058,7 +1168,8 @@ export function planMealLeveling(S, opts) {
   }
   var speed = totalKitchenSpeed(model, levels, cachedTurkey);
   var timeline = [];
-  var bySource = { ladle: 0, nmlb: 0 };
+  var bySource = { ladle: 0, nmlb: 0, jelly: 0 };
+  var purchaseSource = 'ladle';
   var totalLadlesUsed = 0;
   var gained = levels.map(function() { return 0; });
   var steps = 0;
@@ -1127,7 +1238,7 @@ export function planMealLeveling(S, opts) {
   });
   var purchases = [];
   var perMeal = levels.map(function(L, m) {
-    return { meal: m, startLevel: L, ladleLevels: 0, nmlbLevels: 0, ladles: 0, firstDay: 0, lastDay: 0, speedMeal: speedMeal[m] };
+    return { meal: m, startLevel: L, ladleLevels: 0, jellyLevels: 0, nmlbLevels: 0, ladles: 0, firstDay: 0, lastDay: 0, speedMeal: speedMeal[m] };
   });
   var cumLadles = 0;
   // Ladles are spent at login before kitchens cook passively, so each step draws ladle hours first and passive hours after.
@@ -1155,7 +1266,7 @@ export function planMealLeveling(S, opts) {
     var before = speed;
     levels[m]++;
     gained[m]++;
-    bySource.ladle++;
+    bySource[purchaseSource]++;
     ola = 0;
     speed = totalKitchenSpeed(model, levels, cachedTurkey);
     dayLevels.push(m);
@@ -1166,7 +1277,8 @@ export function planMealLeveling(S, opts) {
     purchases.push(rec);
     dayPurchases.push(rec);
     var pm = perMeal[m];
-    pm.ladleLevels++;
+    if (purchaseSource === 'jelly') pm.jellyLevels++;
+    else pm.ladleLevels++;
     pm.ladles += stepLadles;
     if (!pm.firstDay) pm.firstDay = day;
     pm.lastDay = day;
@@ -1288,15 +1400,57 @@ export function planMealLeveling(S, opts) {
     return ph;
   }
 
+  function runJellyBatch(day, dayLevels) {
+    var ph = { kind: 'jelly', windowHours: 0, ladles: 0, claims: [], jellyHours: jellyHours,
+      steps: [], meals: [], ladlesUsed: 0, passiveHoursUsed: 0, levelsBought: 0, saving: null };
+    var pick = strategy === 'speed' ? pickSpeed(null) : pickCheapest(null);
+    var m = pick.meal;
+    if (m < 0) {
+      var cheapest = Infinity;
+      for (var i = 0; i < levels.length; i++) {
+        if (!(levels[i] >= 1 && levels[i] < maxLevel) || !mealRequirement(i)) continue;
+        var h = bundleHours(i, levels[i] + 1);
+        if (h < cheapest) { cheapest = h; m = i; }
+      }
+    }
+    ph.targetMeal = m;
+    if (m < 0) return ph;
+    // Native reset queues one cooking batch. All its time uses the pre-purchase
+    // speed; buying levels cannot retroactively speed up the rest of that batch.
+    stocks[m] += jellyHours * speed / mealRequirement(m);
+    purchaseSource = 'jelly';
+    while (levels[m] < maxLevel && stocks[m] >= mealLevelCost(levels[m], inputs, ola)) {
+      buy(m, 0, { ladle: 0 }, 'jelly', ph.steps, dayLevels, day);
+    }
+    purchaseSource = 'ladle';
+    var refreshed = m === 0 && refreshTurkey();
+    if (refreshed && ph.steps.length) {
+      ph.steps[ph.steps.length - 1].mapRefresh = true;
+      ph.steps[ph.steps.length - 1].cachedTurkeyStock = cachedTurkey;
+      ph.steps[ph.steps.length - 1].speedAfter = speed;
+    }
+    if (!ph.steps.length) {
+      var need = mealLevelCost(levels[m], inputs, ola);
+      ph.saving = { meal: m, toLevel: levels[m] + 1, hours: jellyHours, ladles: 0,
+        progress: Math.min(1, stocks[m] / need), mapRefresh: refreshed, cachedTurkeyStock: cachedTurkey };
+    }
+    ph.meals = _spendOrderRows(ph.steps);
+    ph.levelsBought = ph.steps.length;
+    return ph;
+  }
+
   for (var day = 1; day <= days; day++) {
     var firstDay = day === 1;
     var windowHours = firstDay ? hoursToReset : 24;
     var income = firstDay ? claimIncome(windowHours, true) : fullDayIncome;
+    var dailyDonation = donation(donations.daily && donations.daily[day - 1], income.min);
+    jellyHours += dailyDonation;
+    totalDonated += dailyDonation;
     var phases = [];
     if (firstDay && startLadles > 0) {
       phases.push({ kind: 'now', windowHours: 0, ladles: startLadles, expectedLadles: startLadles, claims: [], passiveHours: 0 });
     }
-    phases.push({ kind: 'claim', windowHours: windowHours, ladles: income.min, expectedLadles: income.expected,
+    phases.push({ kind: 'claim', windowHours: windowHours, ladles: income.min - dailyDonation, expectedLadles: income.expected - dailyDonation,
       claims: income.claims, passiveHours: passiveHours * windowHours / 24 });
     var dayHoursTotal = 0;
     for (var pi = 0; pi < phases.length; pi++) dayHoursTotal += phases[pi].passiveHours + phases[pi].ladles * ladleMulti;
@@ -1332,7 +1486,7 @@ export function planMealLeveling(S, opts) {
       nmlbMeal = nmlbTarget(levels, maxLevel);
       if (nmlbMeal >= 0) {
         nmlbFrom = levels[nmlbMeal];
-        var to = Math.min(maxLevel, nmlbFrom + nmlb.levels);
+        var to = nmlbResultLevel(nmlbFrom, nmlb.levels, maxLevel);
         nmlbOnTarget = !ladleable(nmlbMeal);
         nmlbSaved = _ladlesForLevels(nmlbMeal, nmlbFrom, to, 0, speed, ladleMulti, inputs);
         bySource.nmlb += to - nmlbFrom;
@@ -1343,12 +1497,21 @@ export function planMealLeveling(S, opts) {
       }
     }
     if (inputs.dream11 > 0) ola++;
+    var nmlbTo = nmlbMeal >= 0 ? levels[nmlbMeal] : 0;
+    if (jellyHours > 0) {
+      var jellyPhase = runJellyBatch(day, dayLevels);
+      phases.push(jellyPhase);
+      totalJellyHours += jellyHours;
+      for (var ji = 0; ji < jellyPhase.steps.length; ji++) dayPurchases.push(jellyPhase.steps[ji]);
+    }
     timeline.push({
       day: day,
       windowHours: windowHours,
       phases: phases,
       ladleIncome: income.min,
       expectedIncome: income.expected,
+      jellyDonation: dailyDonation + (firstDay ? ownedDonation : 0),
+      jellyHours: jellyHours,
       purchases: _groupPurchases(dayLevels, startLevels),
       steps: dayPurchases,
       meals: _groupDaySteps(dayPurchases),
@@ -1360,7 +1523,7 @@ export function planMealLeveling(S, opts) {
       ladlesUsed: ladlesUsed,
       nmlbMeal: nmlbMeal,
       nmlbFrom: nmlbFrom,
-      nmlbTo: nmlbMeal >= 0 ? levels[nmlbMeal] : 0,
+      nmlbTo: nmlbTo,
       nmlbSaved: nmlbSaved,
       nmlbOnTarget: nmlbOnTarget,
       kitchenSpeed: speed,
@@ -1372,6 +1535,8 @@ export function planMealLeveling(S, opts) {
     hoursToReset: hoursToReset,
     dailyIncome: fullDayIncome.min,
     dailyExpected: fullDayIncome.expected,
+    jelly: { ...jelly, donated: totalDonated, dailyHoursEnd: jellyHours, totalHours: totalJellyHours,
+      ownedDonation: ownedDonation, dailyDonations: timeline.map(function(d, i) { return d.jellyDonation - (i === 0 ? ownedDonation : 0); }) },
     strategy: strategy,
     thresholdPicks: thresholdPicks,
     maxLevel: maxLevel,
@@ -1391,7 +1556,7 @@ export function planMealLeveling(S, opts) {
     nextNmlb: nmlb.active ? nmlbTarget(levels, maxLevel) : -1,
     timeline: timeline,
     purchases: purchases,
-    perMeal: perMeal.filter(function(r) { r.endLevel = levels[r.meal]; return r.ladleLevels || r.nmlbLevels || r.ladles > 0; }),
+    perMeal: perMeal.filter(function(r) { r.endLevel = levels[r.meal]; return r.ladleLevels || r.jellyLevels || r.nmlbLevels || r.ladles > 0; }),
     steps: steps,
   };
 }

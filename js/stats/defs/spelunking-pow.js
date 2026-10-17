@@ -15,6 +15,8 @@ import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeMSABonus, computeSlabboBonus } from '../systems/w4/gaming.js';
 import { spelunkPowTaskLevel } from '../data/w7/tasks.js';
 import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
+import { clamWorkBonus } from '../systems/w7/clamworks.js';
+import { menagerieBoostQTY, petArenaCrucBonus } from '../systems/w7/menagerie.js';
 
 export default createDescriptor({
   id: 'spelunking-pow',
@@ -38,17 +40,22 @@ export default createDescriptor({
     var bb6 = computeButtonBonus(6, s);
     var gemPurchase43 = Number(s.gemItemsData && s.gemItemsData[43]) || 0;
     var gemMulti = Math.max(1, Math.pow(2, gemPurchase43));
+    var clamWork11 = safe(clamWorkBonus, 11);
+    // Crucible terms are additive inside one factor: 1.30x, 1.50x, or 1.80x with both.
+    var crucibleMulti = 30 * safe(petArenaCrucBonus, s, 3) + 50 * safe(petArenaCrucBonus, s, 8) + 1;
+    var menagerie22 = safe(menagerieBoostQTY, s, 22);
 
     // Chapter bonuses (multiplicative, each max(1, ...))
     var chapter1_2 = Math.max(1, chapterBonus(1, 2, s));
     var chapter5_0 = Math.max(1, chapterBonus(5, 0, s));
     var chapter4_2 = Math.max(1, chapterBonus(4, 2, s));
+    var chapter6_2 = Math.max(1, chapterBonus(6, 2, s));
     var comp143 = Math.max(1, rval(companion, 143, ctx));
 
     // Outside a delve, GenINFO[107][9] and [10] are both 0, so this ratio is exactly 1.
     var genRatio = 1;
 
-    var chapterComps = chapter1_2 * chapter5_0 * chapter4_2 * comp143 * genRatio;
+    var chapterComps = chapter1_2 * chapter5_0 * chapter4_2 * chapter6_2 * comp143 * genRatio;
 
     var shop1 = shopUpgBonus(1, s);
     var dancingCoral1 = computeDancingCoralBonus(1, s);
@@ -67,16 +74,22 @@ export default createDescriptor({
     var paletteBonus13 = safe(computePaletteBonus, 13, s);
     var taskPowLevel = spelunkPowTaskLevel(s);
 
+    var shop46 = shopUpgBonus(46, s);
+    var shop54 = shopUpgBonus(54, s);
+    var exoticCard = safe(computeExoticBonus, 42, s) + Math.min(4 * safe(cardLv, 'w7a5', s), 30);
+    var shop14to17 = shopUpgBonus(14, s) + shopUpgBonus(15, s) + shopUpgBonus(16, s) + shopUpgBonus(17, s);
+
     var powMulti = (1 + winBonus27 / 100) * (1 + rog20 / 100)
+      * (1 + clamWork11) * crucibleMulti * (1 + menagerie22 / 100)
       * (1 + jelly38 / 100) * (1 + jelly21 / 100)
       * (1 + bb6 / 100) * gemMulti
       * chapterComps * (1 + shop1 / 100) * (1 + dancingCoral1 / 100)
       * (1 + addGroup1 / 100) * (1 + shop2 / 100)
       * (1 + ola500 / 100) * (1 + shop3 / 100)
       * (1 + stickerBonus6 / 100) * (1 + paletteBonus13 / 100)
-      * (1 + shopUpgBonus(46, s) / 100)
-      * (1 + (safe(computeExoticBonus, 42, s) + Math.min(4 * safe(cardLv, 'w7a5', s), 30)) / 100)
-      * (1 + (shopUpgBonus(14, s) + shopUpgBonus(15, s) + shopUpgBonus(16, s) + shopUpgBonus(17, s)) / 100);
+      * (1 + shop46 / 100) * (1 + shop54 / 100)
+      * (1 + exoticCard / 100)
+      * (1 + shop14to17 / 100);
     var taskPowMulti = 1 + 15 * taskPowLevel / 100;
 
     // Outside a delve, GenINFO[107][4] is 0 and SpelunkyDNpow remains exactly 1.
@@ -97,7 +110,14 @@ export default createDescriptor({
     children.push({ name: label('Spelunking', 0), val: powBase, fmt: 'raw',
       note: 'Upgrade bonus ' + shop0 });
     if (ola478 >= 8) {
-      children.push({ name: 'POW Multi', val: powMulti, fmt: 'x' });
+      children.push({ name: 'POW Multi', val: powMulti, fmt: 'x', children: [
+        { name: 'Clamworks Promotion Bonus 11', val: 1 + clamWork11, fmt: 'x', note: '1 + ClamWorkBonus(11)' },
+        { name: 'Pet Arena Crucibles 3 + 8', val: crucibleMulti, fmt: 'x', note: '1 + 30% Crucible 3 + 50% Crucible 8 (additive)' },
+        { name: 'Menagerie Boost 22', val: 1 + menagerie22 / 100, fmt: 'x' },
+        { name: 'Chapter 7 POW', val: chapter6_2, fmt: 'x', note: 'max(1, ChapterBonus(6,2))' },
+        { name: label('Spelunking', 54), val: 1 + shop54 / 100, fmt: 'x' },
+        { name: 'Other POW factors', val: powMulti / ((1 + clamWork11) * crucibleMulti * (1 + menagerie22 / 100) * chapter6_2 * (1 + shop54 / 100)), fmt: 'x' },
+      ] });
       children.push({ name: 'W7 Task: Spelunk POW', val: taskPowMulti, fmt: 'x',
         note: 'Level ' + taskPowLevel });
       if (elixirMod !== 1) children.push({ name: 'Elixir Modifier', val: elixirMod, fmt: 'x' });

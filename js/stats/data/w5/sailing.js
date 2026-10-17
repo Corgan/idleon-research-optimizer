@@ -6,7 +6,8 @@ export function artifactCount() { return ArtifactInfo.length; }
 export function artifactName(idx) { return String(ArtifactInfo[idx]?.[0] || ('Artifact ' + idx)).replace(/_/g, ' '); }
 export function artifactBaseOdds(idx) { return Number(ArtifactInfo[idx]?.[2]) || Infinity; }
 export function artifactTierBonus(idx, tier) {
-	if (tier < 2 || tier > 6) return 0;
+	// Tiers 2-7 (Ancient..Verisimilitude) store their value at [2*tier+2]; tier 7 is [16].
+	if (tier < 2 || tier > 7) return 0;
 	return Number(ArtifactInfo[idx]?.[2 * tier + 2]) || 0;
 }
 

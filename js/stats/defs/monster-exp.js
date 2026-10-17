@@ -22,7 +22,8 @@ import { computeStatueBonusGiven, computeMealBonus, computeCardBonusByType, comp
 import { computeVialByKey, bubbleValByKey, getPrismaBonusMult } from '../systems/w2/alchemy.js';
 import { DungPassiveStats2, MapAFKtarget, StatueInfo,
   SaltLicks, ZenithMarket } from '../data/game/customlists.js';
-import { divinityData, optionsListData } from '../../save/data.js';
+import { divinityData, optionsListData, equipOrderData, equipQtyData, foodSlotsOwnedData } from '../../save/data.js';
+import { ITEMS } from '../data/game/items.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
 import { guild } from '../systems/common/guild.js';
 import { friend } from '../systems/common/friend.js';
@@ -49,6 +50,8 @@ import { computeWorkbenchStuff as _computeWorkbenchStuff } from '../systems/comm
 import { computeCompassBonus, computeTotalTitanKills } from '../systems/w7/compass.js';
 import { computeArcaneMapMultiBon } from '../systems/mc/tesseract.js';
 import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
+import { menagerieBoostQTY, petArenaCrucBonus } from '../systems/w7/menagerie.js';
+import { statueBonus } from '../systems/w7/royal-guardian.js';
 import { computeCardSetBonus } from '../systems/common/cards.js';
 import { safe, rval, createDescriptor, computeButtonBonus } from './helpers.js';
 import { computeFlurboShop } from '../systems/w2/dungeon.js';
@@ -189,8 +192,12 @@ export default createDescriptor({
     var comp168 = rval(companion, 168, ctx);
     var jellyClassExp30 = jellyRewardBonus(s, 30);
     var jellyClassExp62 = jellyRewardBonus(s, 62);
+    // Source multiplies Crucible 15 by 20 (21x), although its label reads "1.20X CLASS EXP".
+    var crucible15 = petArenaCrucBonus(s, 15);
+    var menagerieB23 = menagerieBoostQTY(s, 23);
     var compMult = (1 + 9 * comp37) * (1 + comp33) * (1 + 4 * comp160)
-      * (1 + comp32) * (1 + comp34) * (1 + comp145)
+      * (1 + comp32) * (1 + 20 * crucible15) * (1 + menagerieB23 / 100)
+      * (1 + comp34) * (1 + comp145)
       * (1 + 0.4 * comp168) * (1 + Math.min(0.5, comp128))
       * (1 + jellyClassExp30 / 100) * (1 + jellyClassExp62 / 100);
 
@@ -262,16 +269,15 @@ export default createDescriptor({
       * (1 + dancingCoralVal / 100) * coralKidPow
       * (1 + cardSet12 / 100) * (1 + bubbaRoG6 / 100) * (1 + rog15 / 100)
       * (1 + 5 * _cloudBonus(70, s.weeklyBossData) / 100)
-      * (1 + fountainBonTOT(s.holesData && s.holesData[31] || [], s.holesData && s.holesData[32] || [], 0, 16) / 100);
+      * (1 + fountainBonTOT(s.holesData && s.holesData[31] || [], s.holesData && s.holesData[32] || [], 0, 16) / 100)
+      * (1 + (Number(safe(statueBonus, s, 3)) || 0) / 100);
 
-    // Third chain: Spelunk6.length as pow(1.03, count), SuperBit(24), MeritocBonusz(27), OLA[464]
+    // Third chain: Spelunk6.length as pow(1.03, count), SuperBit(24), MeritocBonusz(27)
     var spelunk6len = (s.spelunkData && s.spelunkData[6]) ? s.spelunkData[6].length : 0;
     var superBit24 = superBitType(24, s.gamingData) === 1 ? 1 : 0;
     var meritoc27 = safe(computeMeritocBonusz, 27, s, ci);
-    var ola464 = Number(optionsListData[464]) || 0;
-    var ola464bonus = Math.max(0, 5 * (ola464 - 8));
     egl5 *= Math.max(1, Math.pow(1.03, spelunk6len) * superBit24
-      * (1 + meritoc27 / 100) * (1 + ola464bonus / 100));
+      * (1 + meritoc27 / 100));
 
     // ======= STAGE 6: ExpGainLUK6 (additive pool) =======
     var cardSpringEvent1 = 2 * safe(cardLv, 'springEvent1', s);
@@ -315,11 +321,17 @@ export default createDescriptor({
     var etc4 = rval(etcBonus, '4', ctx);
     var _br = safe(computeBoxReward, ci, 'monsterExp');
     var boxMonsterExp = (typeof _br === 'object' && _br) ? (_br.val || 0) : Number(_br) || 0;
+    // TotalFoodBonuses("ClassEXP") src 69253: equipped boost foods (EXP potions),
+    // each Amount × FoodBonuses("ClassEXPEffectBonus"), which falls through to 1.
     var totalFoodClassEXP = 0;
-    try {
-      var _gfCE = goldFoodBonuses('ClassEXP', ci, undefined, ctx.saveData);
-      totalFoodClassEXP = (_gfCE && typeof _gfCE === 'object') ? (Number(_gfCE.total) || 0) : (Number(_gfCE) || 0);
-    } catch(e) {}
+    var foodBag = (equipOrderData[ci] && equipOrderData[ci][2]) || {};
+    var foodQty = (equipQtyData[ci] && equipQtyData[ci][2]) || {};
+    var foodSlots = Math.max(0, Math.floor(Number(foodSlotsOwnedData[ci]) || 0));
+    for (var fi = 0; fi < foodSlots; fi++) {
+      var fname = foodBag[fi];
+      if (!fname || fname === 'Blank' || Number(foodQty[fi]) === 0) continue;
+      if (ITEMS[fname] && ITEMS[fname].Effect === 'ClassEXP') totalFoodClassEXP += Number(ITEMS[fname].Amount) || 0;
+    }
     var starSignMainXP = safe(computeStarSignBonus, 'MainXP', ci, s);
     var vialMonsterEXP = safe(computeVialByKey, 'MonsterEXP', s);
     var bubbleExpActive = safe(bubbleValByKey, 'expACTIVE', ci, s);
@@ -376,6 +388,7 @@ export default createDescriptor({
     if (etc4 > 0) addCh.push({ name: label('EtcBonus', 4), val: etc4, fmt: 'raw' });
     if (boxMonsterExp > 0) addCh.push({ name: 'Box Rewards: Monster EXP', val: boxMonsterExp, fmt: 'raw' });
     if (gfoodClassEXP > 0) addCh.push({ name: 'Golden Food: Class EXP', val: gfoodClassEXP, fmt: 'raw' });
+    if (totalFoodClassEXP > 0) addCh.push({ name: 'Boost Food: Class EXP', val: totalFoodClassEXP, fmt: 'raw' });
     if (vialMonsterEXP > 0) addCh.push({ name: 'Vial: Monster EXP', val: vialMonsterEXP, fmt: 'raw' });
     if (bubbleExpActive > 0) addCh.push({ name: 'Bubble: Active EXP', val: bubbleExpActive, fmt: 'raw' });
     if (card44 > 0) addCh.push({ name: 'Cards: Monster EXP', val: card44, fmt: 'raw' });

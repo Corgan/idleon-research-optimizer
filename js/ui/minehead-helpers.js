@@ -2,7 +2,11 @@
 import { saveData } from '../state.js';
 import { superBitType, cloudBonus, emporiumBonus } from '../game-helpers.js';
 import { MINEHEAD_UPG, MINEHEAD_NAMES, GRID_DIMS } from '../stats/data/w7/minehead.js';
-import { upgradeQTY, bluecrownMulti, jackpotOdds, jackpotTiles } from '../stats/systems/w7/minehead.js';
+import {
+  upgradeQTY, bluecrownMulti, jackpotOdds, jackpotTiles,
+  mineheadDoublers, mineheadQtyLevels, legend40MineReduction,
+} from '../stats/systems/w7/minehead.js';
+import { legendPTSbonus } from '../stats/systems/w7/spelunking.js';
 
 // ===== Shared mutable state =====
 export const mhState = {
@@ -51,10 +55,27 @@ export function clearInferred() {
   try { localStorage.removeItem(_LS_DECISIONS_KEY); } catch (e) { /* */ }
 }
 
+// Mines_Opp reduction: SuperBit 66 + Cloud 41 + Emporium 45 (each 0/1) + min(3, ceil(Legend40 pts / 2)).
 export function mineReduction() {
   return Math.min(1, superBitType(66, saveData.gamingData?.[12]))
        + Math.min(1, cloudBonus(41, saveData.weeklyBossData))
-       + Math.min(1, emporiumBonus(45, saveData.ninjaData?.[102]?.[9]));
+       + Math.min(1, emporiumBonus(45, saveData.ninjaData?.[102]?.[9]))
+       + legend40MineReduction(saveData.spelunkData?.[18]?.[40]);
+}
+
+// Menagerie doublers (Spelunk[51]) and Legend 40 damage multiplier for the simulator.
+export function mineheadUpgOpts() {
+  return { doublers: mineheadDoublers(saveData), legend40: legendPTSbonus(40, saveData) };
+}
+
+// QTY-equivalent levels (doubled upgrades ×2) for value functions; never for costs or grid size.
+export function mhQtyLevels(lvs) {
+  return mineheadQtyLevels(lvs || [], mineheadDoublers(saveData));
+}
+
+// UpgradeQTY including the Menagerie doubler.
+export function mhQty(i, lv) {
+  return upgradeQTY(i, lv || 0, mineheadDoublers(saveData).indexOf(i) >= 0 ? 2 : 1);
 }
 
 // ===== Upgrade description formatter =====
@@ -84,17 +105,17 @@ export function fmtUpgDesc(i, lv, qty, lvs, highestDmg) {
     if (qty === 0) d = 'Unlocks Multiplier Tiles!';
     else d = d.replace(/\$/g, (_MULTI_TILE_VALUES[qty] || 1) + 'x');
   } else if (i === 14) {
-    const bcm = bluecrownMulti(lvs);
+    const bcm = bluecrownMulti(mhQtyLevels(lvs));
     d = d.replace(/\$/g, bcm.toFixed(2) + 'x');
   } else if (i === 17) {
     if (qty === 0) d = 'Unlocks Additive Tiles!';
     else d = d.replace(/\$/g, (_ADDITIVE_PCT[qty] || 0) + '%');
   } else if (i === 23) {
-    const jo = jackpotOdds(lvs);
+    const jo = jackpotOdds(mhQtyLevels(lvs));
     if (jo === 0) d = 'Unlocks JACKPOT Tiles!';
     else d = d.replace(/\$/g, String(Math.ceil(1 / jo)));
   } else if (i === 24) {
-    d = d.replace(/\$/g, String(Math.ceil(jackpotTiles(lvs))));
+    d = d.replace(/\$/g, String(Math.ceil(jackpotTiles(mhQtyLevels(lvs)))));
   } else if (i === 26) {
     const disc = Math.round(1e4 * (1 - 1 / (1 + qty / 100))) / 100;
     d = d.replace(/\$/g, String(disc));

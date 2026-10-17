@@ -35,6 +35,7 @@ import { computeButtonBonus, computeKillroyBonus } from '../stats/defs/helpers.j
 import { label } from '../stats/entity-names.js';
 import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
 import { outpostROGBonus } from '../stats/systems/w7/royal-guardian.js';
+import { petArenaCrucBonus, arenaCrucibleCount } from '../stats/systems/w7/menagerie.js';
 
 // ===== Tree node helpers =====
 // _bNode imported from stats/node-helpers.js
@@ -100,7 +101,9 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const evShop37 = dSaveCtx.cachedEvShop37;
   const stkCrownMulti = 1 + (gb68mode2 + 30 * evShop37) / 100;
   const stkSB62 = 1 + 20 * (dSaveCtx.sb[62]||0) / 100;
-  addChildren.push(_bNode(label('Farming', 1), stkCrownMulti * stkSB62 * stkLv * stkBase, [
+  const stickerVal = stkCrownMulti * stkSB62 * stkLv * stkBase;
+  const stickerMultiplicative = !!dCtx.stickerMultiplicative;
+  const stickerNode = _bNode(label('Farming', 1), stickerMultiplicative ? 1 + stickerVal / 100 : stickerVal, [
     _bNode('Sticker', stkBase * stkLv, [
       _bNode('Base', stkBase, null, { fmt: '%' }),
       _bNode('Count', stkLv, null, { fmt: 'x' })
@@ -113,7 +116,10 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
       _bNode(label('Event', 37), 30 * evShop37, null, { fmt: '%' })
     ], { fmt: 'x' }),
     _bNode(label('Super Bit', 62), stkSB62, null, { fmt: 'x' }),
-  ], { fmt: '%' }));
+  ], stickerMultiplicative
+    ? { fmt: 'x', note: 'Menagerie unlock 22: separate multiplier' }
+    : { fmt: '%' });
+  if (!stickerMultiplicative) addChildren.push(stickerNode);
 
   // Dancing Coral
   const tower22 = saveData.towerData[22] || 0;
@@ -163,8 +169,13 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
     ], { fmt: 'x' })
   ] : null, { fmt: '%', note: hasSB34 ? '' : 'Slabby Research locked' }));
 
-  // Arcade
-  addChildren.push(_bNode(label('Arcade', 63), arcadeBonus(63, saveData), null, { fmt: '%' }));
+  // Pet Arena Crucible 2 (+25%) and 8 (+35%)
+  const cruc2 = petArenaCrucBonus(saveData, 2);
+  const cruc8 = petArenaCrucBonus(saveData, 8);
+  addChildren.push(_bNode('Pet Arena Crucible', 25 * cruc2 + 35 * cruc8, [
+    _bNode('Crucible 2', 25 * cruc2, null, { fmt: '%' }),
+    _bNode('Crucible 8', 35 * cruc8, null, { fmt: '%' })
+  ], { fmt: '%', note: arenaCrucibleCount(saveData) + ' crucibles reached' }));
 
   // Meal (Giga Chip) - deep decomposition
   const mealLv = saveData.mealsData?.[0]?.[72] || 0;
@@ -321,9 +332,17 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const fountainNode = _bNode('Fountain: Pen N Paper', 1 + (dCtx.fountain2_16 || 0) / 100, null, { fmt: 'x' });
   const royalResearch = Math.max(1, outpostROGBonus(saveData, 1));
   const royalNode = _bNode('Royal Guardian: Research Focus', royalResearch, null, { fmt: 'x', note: saveData.royalGDataAvailable === false ? 'RoyalG unavailable' : '' });
+  const stickerMultiVal = stickerMultiplicative ? 1 + stickerVal / 100 : 1;
+  const clamWork9 = dCtx.clamWork9 || 0;
+  const clamNode = _bNode('ClamWork Promotion 9', 1 + 0.25 * clamWork9, null, { fmt: 'x', note: clamWork9 ? 'Promoted' : 'Not promoted' });
+  const arcade63 = dCtx.arcade63 != null ? (Number(dCtx.arcade63) || 0) : (Number(arcadeBonus(63, saveData)) || 0);
+  const arcadeNode = _bNode(label('Arcade', 63), 1 + arcade63 / 100, null, { fmt: 'x' });
+  const menagerieB3 = dCtx.menagerieB3 || 0;
+  const menagerieNode = _bNode('Menagerie Boost 3', 1 + menagerieB3 / 100, null, { fmt: 'x' });
+  const jellyResearchMulti = dCtx.jellyResearchMulti || 1;
 
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * (1 + 3 * dream14val / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.15 * comp54Level2)) * (1 + rog0val) * (1 + buttonBonus0 / 100) * (1 + killroy5raw / 100) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * royalResearch;
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * stickerMultiVal * (1 + 0.25 * clamWork9) * (1 + 3 * dream14val / 100) * (1 + buttonBonus0 / 100) * (1 + arcade63 / 100) * (1 + killroy5raw / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.15 * comp54Level2)) * (1 + rog0val) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * jellyResearchMulti * (1 + menagerieB3 / 100) * royalResearch;
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -333,15 +352,20 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   tnNode.val = 1 + takinNotesVal / 100;
   tnNode.fmt = 'x';
   rootChildren.push(tnNode);
+  if (stickerMultiplicative) rootChildren.push(stickerNode);
+  rootChildren.push(clamNode);
   rootChildren.push(nonstopNode);
   rootChildren.push(jellyNode);
   rootChildren.push(nightmareNode);
   rootChildren.push(comp54Node);
   rootChildren.push(rog0Node);
   rootChildren.push(buttonNode);
+  rootChildren.push(arcadeNode);
   rootChildren.push(killroyNode);
   rootChildren.push(cglunkoNode);
   rootChildren.push(fountainNode);
+  rootChildren.push(_bNode('Jelly Operator Rewards', jellyResearchMulti, null, { fmt: 'x', note: 'Rewards 0, 23, 46, 54' }));
+  rootChildren.push(menagerieNode);
   rootChildren.push(royalNode);
   rootChildren.push(_bNode('Final Multiplier', finalMulti, null, { fmt: 'x' }));
 

@@ -14,7 +14,7 @@ import {
   islandDistance,
   zenithMarketPerLevel,
 } from '../../data/w5/sailing.js';
-import { computeArtifactBonus } from './sailing.js';
+import { computeArtifactBonus, maxArtifactTier, verisimilitudeUnlocked } from './sailing.js';
 import { sigilBonus, bubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { votingBonusz } from '../w2/voting.js';
@@ -25,6 +25,7 @@ import { computeFamBonusQTYs, computeMealBonus, computeStatueBonusGiven } from '
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 import { companions } from '../common/companions.js';
+import { companionLevel2 } from '../../data/common/companions.js';
 import { legendPTSbonus, computeLoreEpisodeBonus, computePaletteBonus } from '../w7/spelunking.js';
 import { computeButtonBonus } from '../w7/minehead.js';
 import { rogBonusQTY } from '../w7/sushi.js';
@@ -44,6 +45,7 @@ import { eventShopOwned, superBitType } from '../../../game-helpers.js';
 import { getLOG } from '../../../formulas.js';
 import { achieveStatus } from '../common/achievement.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
+import { menagerieBoostQTY, menagerieUnlockOwned, nightmarinerBonus } from '../w7/menagerie.js';
 
 export var CHEST_TIER_NAMES = ['Tier 0', 'Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'];
 export var CHEST_LOOT_MULTIS = [1, 1.85, Math.pow(1.85, 2), Math.pow(1.85, 3), Math.pow(1.85, 4), 20];
@@ -135,15 +137,36 @@ export function captainExpRequirement(level) {
 }
 
 export function captainExpPerTrip(islandIdx, saveData, activeCharIdx) {
+  return islandCaptainExp(islandIdx) * captainExpMultiplierDetail(saveData, activeCharIdx).value;
+}
+
+// Source CaptainEXPmulti: DaveyJones(0) * (1+Vote24) * max(1, 4*Comp56) * (1+RoG45)
+//   * NightmarinerBon(1) * (1 + (talent327 + 20*Ach301 + 3*Ach310 + Shiny17 + Vault75)/100)
+export function captainExpMultiplierDetail(saveData, activeCharIdx) {
   var davey = daveyJonesBonus(0, saveData);
   var vote = votingBonusz(24, null, saveData);
+  var comp56 = companions(56, saveData);
   var sushi = rogBonusQTY(45, saveData.cachedUniqueSushi || 0);
+  var nightmariner = nightmarinerBonus(saveData, 1);
   var talent = maxTalentBonus(327, activeCharIdx || 0, saveData);
   var achievement = 20 * achieveStatus(301, saveData) + 3 * achieveStatus(310, saveData);
   var shiny = computeShinyBonusS(17, saveData);
   var vault = vaultUpgBonus(75, saveData);
-  return islandCaptainExp(islandIdx) * davey * (1 + vote / 100) * (1 + sushi / 100)
-    * (1 + (talent + achievement + shiny + vault) / 100);
+  var factors = {
+    davey: davey,
+    vote: 1 + vote / 100,
+    companion56: Math.max(1, 4 * comp56),
+    sushi: 1 + sushi / 100,
+    nightmariner: nightmariner,
+    additive: 1 + (talent + achievement + shiny + vault) / 100,
+  };
+  return {
+    value: factors.davey * factors.vote * factors.companion56 * factors.sushi
+      * factors.nightmariner * factors.additive,
+    factors: factors,
+    sources: { vote: vote, companion56: comp56, sushi: sushi, talent: talent,
+      achievement: achievement, shiny: shiny, vault: vault },
+  };
 }
 
 export function captainLevelTime(captainIdx, boatIdx, islandIdx, saveData, options) {
@@ -374,17 +397,25 @@ export function boatLootValue(boatIdx, saveData, options) {
   var lamp = _lampBonus(1, 0, saveData);
   var sushi = rogBonusQTY(57, saveData.cachedUniqueSushi || 0);
   var fountain = _fountainBonus(saveData, 0, 17);
-  var additive = sigil + captain + artifact + legendary + arcade + vault;
-  var value = boatBaseLoot(level) * (1 + additive / 100) * (1 + talent / 100)
-    * davey * (1 + lamp / 100) * (1 + sushi / 100) * (1 + fountain / 100);
+  var companion56 = companions(56, saveData);
+  var menagerie9 = menagerieBoostQTY(saveData, 9);
+  // BoatValue = base * (1 + CaptBonus(1)/100) * DaveyJones * LootMulti; captain loot is
+  // its own multiplier, no longer part of LootMulti's additive pool.
+  var additive = sigil + artifact + legendary + arcade + vault;
+  var lootMulti = (1 + additive / 100) * (1 + talent / 100) * (1 + lamp / 100)
+    * Math.max(1, companion56) * (1 + sushi / 100) * (1 + fountain / 100)
+    * (1 + menagerie9 / 100);
+  var value = boatBaseLoot(level) * (1 + captain / 100) * davey * lootMulti;
 
   return {
     value: value,
     base: boatBaseLoot(level),
     additive: additive,
+    lootMulti: lootMulti,
+    captainMulti: 1 + captain / 100,
     factors: { sigil: sigil, captain: captain, artifact: artifact, legendary: legendary,
       arcade: arcade, vault: vault, talent: talent, davey: davey, lamp: lamp,
-      sushi: sushi, fountain: fountain },
+      sushi: sushi, fountain: fountain, companion56: companion56, menagerie9: menagerie9 },
   };
 }
 
@@ -647,6 +678,7 @@ function _artifactTierUnlocked(currentTier, saveData) {
   }
   if (currentTier === 4) return _num(saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][0]) >= 1;
   if (currentTier === 5) return _gridBonus(109, saveData) >= 1;
+  if (currentTier === 6) return verisimilitudeUnlocked(saveData) === 1;
   return false;
 }
 
@@ -668,6 +700,12 @@ export function artifactOddsDenominator(islandIdx, artifactIdx, currentTier, ser
     : 1000000 * (1 + islandIdx - 5) * Math.max(1, Math.pow(1.7, Math.max(0, islandIdx - 7)))
       * (1 + 0.5 * Math.max(0, islandIdx - 9))
       * ((10000 + 5000 * (islandIdx - 5) * (ancientStep / 960)) / serverMulti);
+  // Source VerisimilitudeChances (6 -> 7, Menagerie unlock 0).
+  if (currentTier === 6) return islandIdx < 6 ? 5 * Math.pow(10, 14) * Math.pow(3, islandIdx)
+    : Math.pow(10, 16) * (1 + 10 * (islandIdx - 5) / 100)
+      * Math.max(1, Math.pow(1.4, Math.max(0, islandIdx - 7)))
+      * (1 + 10 * Math.max(0, islandIdx - 9) / 100)
+      * ((10000 + 1000 * (islandIdx - 5) * (ancientStep / 960)) / serverMulti);
   return Infinity;
 }
 
@@ -685,13 +723,20 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
   var arcade32 = _num(arcadeBonus(32, saveData));
   var arcade66 = _num(arcadeBonus(66, saveData));
   var hole55 = _bUpg55(saveData);
-  var sticker = computeStickerBonus(2, saveData);
+  // Source StickerBonus(2, 99) is additive and StickerBonus(2, 100) multiplicative;
+  // Menagerie unlock 22 routes the Artifact Find sticker from the former to the latter.
+  var stickerRaw = computeStickerBonus(2, saveData);
+  var stickerMultiplied = menagerieUnlockOwned(saveData, 22) === 1;
+  var sticker = stickerMultiplied ? 0 : stickerRaw;
+  var stickerMulti = stickerMultiplied ? stickerRaw : 0;
   var grid109 = _gridBonus(109, saveData);
   var vault63 = vaultUpgBonus(63, saveData);
   var additive = artifact + captain + shiny + fractal + bribe + legendary
     + arcade32 + arcade66 + hole55 + sticker + grid109 + vault63;
   var star = _treeVal(computeStarSignBonus('ArtifactFind', activeCharIdx, saveData));
   var companion154 = companions(154, saveData);
+  var companion154Lv2 = companionLevel2(154, saveData);
+  var nightmariner = nightmarinerBonus(saveData, 0);
   var killroy = computeKillroyBonus(0, saveData);
   var minehead = computeButtonBonus(3, saveData);
   var grid106 = _gridBonus(106, saveData);
@@ -706,27 +751,33 @@ export function boatArtifactMultiplier(boatIdx, saveData, options) {
   var pristine = pristineBon(2, saveData);
   var vote = votingBonusz(20, null, saveData);
   var companion43 = companions(43, saveData);
+  var companion56 = companions(56, saveData);
   var monument = computeMonumentROGbonus(1, 2, saveData);
   var exotic = computeExoticBonus(45, saveData);
   var palette = computePaletteBonus(5, saveData);
   var spelunkCount = (saveData.spelunkData && saveData.spelunkData[6] || []).length;
   var spelunk = Math.max(1, Math.pow(1.02, spelunkCount) * superBitType(26, saveData.gamingData && saveData.gamingData[12]));
   var value = Math.max(1, 1 + additive / 100) * (1 + star / 100)
-    * Math.max(1, Math.min(2, 1 + 2 * companion154)) * Math.max(1, killroy)
+    * (1 + stickerMulti / 100) * nightmariner
+    * Math.max(1, Math.min(2, 1 + 2 * companion154) + companion154Lv2) * Math.max(1, killroy)
     * (1 + minehead / 100) * (1 + grid106 / 100) * (1 + vial / 100)
     * Math.max(1, Math.pow(1.5, purpleSlugs)) * (1 + sushi / 100) * (1 + win / 100)
     * (1 + jelly / 100)
     * davey * (1 + lab / 100) * (1 + lore / 100) * (1 + pristine / 100)
-    * (1 + vote / 100) * (1 + companion43) * (1 + monument / 100)
+    * (1 + vote / 100) * (1 + companion43) * Math.max(1, companion56 / 5)
+    * (1 + monument / 100)
     * (1 + exotic / 100) * (1 + palette / 100) * spelunk;
 
   return { value: value, additive: additive, factors: { artifact: artifact, captain: captain,
     shiny: shiny, fractal: fractal, bribe: bribe, legendary: legendary,
     arcade32: arcade32, arcade66: arcade66, hole55: hole55, sticker: sticker,
+    stickerMulti: stickerMulti, stickerMultiplied: stickerMultiplied, nightmariner: nightmariner,
     grid109: grid109, vault63: vault63, star: star, companion154: companion154,
+    companion154Lv2: companion154Lv2,
     killroy: killroy, minehead: minehead, grid106: grid106, vial: vial,
     purpleSlugs: purpleSlugs, sushi: sushi, win: win, jelly: jelly, davey: davey, lab: lab,
     lore: lore, pristine: pristine, vote: vote, companion43: companion43,
+    companion56: companion56,
     monument: monument, exotic: exotic, palette: palette, spelunk: spelunk } };
 }
 
@@ -740,7 +791,7 @@ export function islandArtifactOdds(islandIdx, artifactMultiplier, saveData, opti
     var artifactIdx = offset + i;
     var currentTier = _num(saveData.sailingData && saveData.sailingData[3]
       && saveData.sailingData[3][artifactIdx]);
-    var unlocked = currentTier < 6 && _artifactTierUnlocked(currentTier, saveData);
+    var unlocked = currentTier < 7 && _artifactTierUnlocked(currentTier, saveData);
     var denominator = unlocked
       ? artifactOddsDenominator(islandIdx, artifactIdx, currentTier, options.serverVars)
       : Infinity;
@@ -917,7 +968,8 @@ export function optimizeCaptainAssignment(islandIdx, goal, saveData, options) {
 
 export function allArtifactsMaxed(saveData) {
   var tiers = saveData.sailingData && saveData.sailingData[3] || [];
-  for (var i = 0; i < artifactCount(); i++) if (_num(tiers[i]) < 6) return false;
+  var max = maxArtifactTier(saveData);
+  for (var i = 0; i < artifactCount(); i++) if (_num(tiers[i]) < max) return false;
   return true;
 }
 

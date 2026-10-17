@@ -15,7 +15,7 @@ import {
   knowledgeBonusTotals, computeOrangeFireSum, fireplaceEffectBase,
   fuelGenPerHr, fuelCapacity, slotsOwned, countActiveSlots,
   upgradeQTY, computeOvertunedMulti,
-  currencyPerSlot, slotEffectBase, comboMeterDetails,
+  currencyPerSlot, slotEffectBase, comboMeterDetails, sushiDoublers,
 } from '../systems/w7/sushi.js';
 
 function _gatherExternal(S) {
@@ -31,6 +31,7 @@ function _gatherExternal(S) {
     hasBundleV: !!(S.bundlesData && S.bundlesData.bon_v),
     gamingSuperBit67: superBitType(67, S.gamingData && S.gamingData[12]),
     buttonBonus2: computeButtonBonus(2, S),
+    doublers: sushiDoublers(S),
   };
 }
 
@@ -58,7 +59,7 @@ export default createDescriptor({
     var children = [];
 
     // Currency multi breakdown
-    var surchargeSum = upgradeQTY(30, ul) + upgradeQTY(31, ul) + upgradeQTY(32, ul) + upgradeQTY(33, ul) + upgradeQTY(34, ul) + 100 * (ext.gamingSuperBit67 || 0);
+    var surchargeSum = upgradeQTY(30, ul, ext.doublers) + upgradeQTY(31, ul, ext.doublers) + upgradeQTY(32, ul, ext.doublers) + upgradeQTY(33, ul, ext.doublers) + upgradeQTY(34, ul, ext.doublers) + 100 * (ext.gamingSuperBit67 || 0);
     var overtunedMulti = computeOvertunedMulti(sd);
     var multiCh = [
       { name: label('Arcade', 67), val: ext.arcade67, fmt: 'raw' },
@@ -68,9 +69,9 @@ export default createDescriptor({
       { name: 'Knowledge: Sushi Bucks', val: kt[0] || 0, fmt: 'raw' },
       { name: 'Button Bonus: Sushi', val: ext.buttonBonus2, fmt: 'raw' },
       { name: label('Grid', 189), val: ext.gridBonus189, fmt: 'raw' },
-      { name: label('Sushi', 40), val: upgradeQTY(40, ul), fmt: 'raw' },
+      { name: label('Sushi', 40), val: upgradeQTY(40, ul, ext.doublers), fmt: 'raw' },
       { name: label('Minehead Floor', 11), val: ext.mineheadBonus11, fmt: 'raw', note: 'min(1.25x)' },
-      { name: label('Sushi', 41) + '+' + label('Sushi', 43), val: upgradeQTY(41, ul) + upgradeQTY(43, ul), fmt: 'raw' },
+      { name: label('Sushi', 41) + '+' + label('Sushi', 43), val: upgradeQTY(41, ul, ext.doublers) + upgradeQTY(43, ul, ext.doublers), fmt: 'raw' },
       { name: 'Overtuned', val: overtunedMulti, fmt: 'raw' },
       { name: label('Atom', 14), val: ext.atom14, fmt: 'raw' },
       { name: label('Artifact', 39), val: 100 * (ext.sailing39 || 0), fmt: 'raw' },
@@ -100,8 +101,8 @@ export default createDescriptor({
     // Fuel info
     var fpBase = fireplaceEffectBase(kt, Number(sd[4] && sd[4][2]) || 0);
     var orangeFire = computeOrangeFireSum(sd, fpBase);
-    var fuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV);
-    var fuelCap = fuelCapacity(ul, kt, ext.hasBundleV);
+    var fuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
+    var fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers);
     children.push({ name: 'Fuel Gen/hr', val: fuelGen, fmt: 'raw' });
     children.push({ name: 'Fuel Cap', val: fuelCap, fmt: 'raw' });
 

@@ -13,11 +13,10 @@ import { ninjaInfo } from '../../data/w5/farming.js';
 import { stickerBase } from '../../data/w7/research.js';
 import { gbWith } from '../w7/research-math.js';
 import { eventShopOwned, superBitType } from '../../../game-helpers.js';
+import { isExoticOrganic, menagerieUnlockOwned } from '../w7/menagerie.js';
 
 export function exoticBonusQTY40(saveData) {
-  var lv = (saveData.farmUpgData && saveData.farmUpgData[60]) || 0;
-  if (lv <= 0) return 0;
-  return 20 * lv / (1000 + lv);
+  return computeExoticBonus(40, saveData);
 }
 
 // Talent helpers (for getbonus2)
@@ -59,7 +58,7 @@ export var farm = {
       var d207 = getbonus2Detail(207, TAL207, ctx.charIdx, saveData, ctx.dnsmCache);
       var tal207 = d207.val;
       var exotic14Lv = Number((saveData.farmUpgData && saveData.farmUpgData[34]) || 0);
-      var exotic14 = exotic14Lv > 0 ? 60 * exotic14Lv / (1000 + exotic14Lv) : 0;
+      var exotic14 = computeExoticBonus(14, saveData);
       if (ninjaVal <= 0 || rankLv <= 0) return node(label('Farming', id), 0, null, { note: 'farm ' + id });
       var val = Math.max(1, tal207) * (1 + exotic14 / 100) * ninjaVal * rankLv;
       var talChildren = tal207 > 0 ? [
@@ -72,7 +71,7 @@ export var farm = {
         node('Rank Level', rankLv, null, { fmt: 'raw' }),
         node('Ninja Base', ninjaVal, null, { fmt: 'raw' }),
         node(label('Talent', 207, ' Bonus'), Math.max(1, tal207), talChildren, { fmt: 'x', note: 'decayMulti(2,200,' + d207.effLv + ')' }),
-        node(label('Exotic', 14, ' Bonus'), 1 + exotic14 / 100, null, { fmt: 'x', note: 'Level ' + exotic14Lv }),
+        node(label('Exotic', 14, ' Bonus'), 1 + exotic14 / 100, null, { fmt: 'x', note: _exoticNote(14, exotic14Lv, saveData) }),
       ], { fmt: '+', note: 'farm ' + id });
     }
 
@@ -84,7 +83,7 @@ export var farm = {
       var mf17 = mainframeBonus(17, saveData);
       var grim22 = grimoireUpgBonus22(saveData);
       var exotic40Lv = Number((saveData.farmUpgData && saveData.farmUpgData[60]) || 0);
-      var exotic40 = exotic40Lv > 0 ? 20 * exotic40Lv / (1000 + exotic40Lv) : 0;
+      var exotic40 = computeExoticBonus(40, saveData);
       var vault79 = vaultUpgBonus(79, saveData);
       var multi = (1 + mf17 / 100) * (1 + (grim22 + exotic40 + vault79) / 100);
       if (excess <= 0) return node(label('Farming', 'cropSC7'), 0, null, { note: 'farm cropSC7' });
@@ -95,7 +94,7 @@ export var farm = {
         node('Multi', multi, [
           node(label('Mainframe', 17), mf17, null, { fmt: 'raw' }),
           node(label('Grimoire', 22), grim22, null, { fmt: 'raw' }),
-          node(label('Exotic', 40), exotic40, null, { fmt: 'raw', note: 'Level ' + exotic40Lv }),
+          node(label('Exotic', 40), exotic40, null, { fmt: 'raw', note: _exoticNote(40, exotic40Lv, saveData) }),
           node(label('Vault', 79), vault79, null, { fmt: 'raw' }),
         ], { fmt: 'x' }),
       ], { fmt: '+', note: 'farm cropSC7' });
@@ -104,10 +103,11 @@ export var farm = {
     if (id === 'exotic59') {
       var lv = Number((saveData.farmUpgData && saveData.farmUpgData[79]) || 0);
       if (lv <= 0) return node(label('Exotic', 59), 0, null, { note: 'farm exotic59' });
-      var val = 25 * lv / (1000 + lv);
+      var val = computeExoticBonus(59, saveData);
+      var organic59 = isExoticOrganic(saveData, 59);
       return node(label('Exotic', 59), val, [
         node('Level', lv, null, { fmt: 'raw' }),
-        node('Formula Result', val, null, { fmt: 'raw', note: '25 × lv / (1000 + lv)' }),
+        node('Formula Result', val, null, { fmt: 'raw', note: organic59 ? '2 × 25 × lv / (1000 + lv) (Organic Label)' : '25 × lv / (1000 + lv)' }),
       ], { fmt: '+', note: 'farm exotic59' });
     }
 
@@ -154,8 +154,27 @@ function _safe(fn) {
 
 // ==================== STICKER BONUS ====================
 
-export function computeStickerBonus(stickerIdx, saveData) {
+// Source StickerBonus(t, i). Stickers 1 (Research EXP) and 2 (Artifact find)
+// are read through two call routes: i = 99 is the additive pool and i = 100 is
+// the separate multiplier. Menagerie unlock 22 moves them from the additive
+// route to the multiplicative route; the inactive route returns 0. Every other
+// route (including the default) returns the raw sticker value.
+export var STICKER_ROUTE_ADDITIVE = 99;
+export var STICKER_ROUTE_MULTIPLICATIVE = 100;
+
+export function stickerRouteActive(stickerIdx, route, saveData) {
+  stickerIdx = Number(stickerIdx);
+  route = Number(route);
+  if (stickerIdx !== 1 && stickerIdx !== 2) return true;
+  var unlock22 = menagerieUnlockOwned(saveData, 22) === 1;
+  if (route === STICKER_ROUTE_ADDITIVE && unlock22) return false;
+  if (route === STICKER_ROUTE_MULTIPLICATIVE && !unlock22) return false;
+  return true;
+}
+
+export function computeStickerBonus(stickerIdx, saveData, route) {
   var s = saveData;
+  if (route != null && !stickerRouteActive(stickerIdx, route, s)) return 0;
   var stickerLv = Number(s.research && s.research[9] && s.research[9][stickerIdx]) || 0;
   if (stickerLv <= 0) return 0;
   var grid68 = gbWith(s.gridLevels || [], s.shapeOverlay || [], 68, { abm: s.allBonusMulti || 1 });
@@ -165,6 +184,14 @@ export function computeStickerBonus(stickerIdx, saveData) {
   return (1 + (grid68 * boonyCount + 30 * event37) / 100)
     * (1 + 20 * superBit62 / 100)
     * stickerLv * stickerBase(stickerIdx);
+}
+
+export function stickerBonusAdditive(stickerIdx, saveData) {
+  return computeStickerBonus(stickerIdx, saveData, STICKER_ROUTE_ADDITIVE);
+}
+
+export function stickerBonusMultiplicative(stickerIdx, saveData) {
+  return computeStickerBonus(stickerIdx, saveData, STICKER_ROUTE_MULTIPLICATIVE);
 }
 
 export function computeStickerDmgMulti(saveData) {
@@ -179,11 +206,28 @@ export function computeStickerDmgMulti(saveData) {
 
 // ==================== EXOTIC BONUS (GENERIC) ====================
 
+// Source ExoticBonusQTY: Organic Labels (Spelunk[50]) double a labeled exotic's
+// bonus, then exotic 39 is capped at 50 regardless of labeling.
+export function exoticBonusAtLevel(idx, level, saveData, organicOverride) {
+  var ex = exoticParams(idx);
+  if (!ex) return 0;
+  var lv = Number(level) || 0;
+  if (lv <= 0) return 0;
+  var val = ex.type === 'decay' ? ex.base * lv / (ex.denom + lv) : ex.base * lv;
+  var organic = organicOverride == null ? isExoticOrganic(saveData || {}, idx) : !!organicOverride;
+  if (organic) val *= 2;
+  if (Number(idx) === 39) val = Math.min(50, val);
+  return val;
+}
+
 export function computeExoticBonus(idx, saveData) {
   var s = saveData;
   var ex = exoticParams(idx);
   if (!ex) return 0;
   var lv = Number(s.farmUpgData && s.farmUpgData[ex.farmSlot]) || 0;
-  if (lv <= 0) return 0;
-  return ex.type === 'decay' ? ex.base * lv / (ex.denom + lv) : ex.base * lv;
+  return exoticBonusAtLevel(idx, lv, s);
+}
+
+function _exoticNote(idx, lv, saveData) {
+  return 'Level ' + lv + (isExoticOrganic(saveData, idx) ? ' (Organic Label 2x)' : '');
 }

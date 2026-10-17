@@ -17,7 +17,7 @@ import {
   maxHPYou, floorHP, minesOnFloor, baseDMG,
   dailyTries, currencyPerHour,
 } from '../stats/systems/w7/minehead.js';
-import { mhState, mineReduction, fmtUpgDesc, _fmt } from './minehead-helpers.js';
+import { mhState, mineReduction, mhQty, mhQtyLevels, fmtUpgDesc, _fmt } from './minehead-helpers.js';
 
 export function renderDashboard() {
   const container = document.getElementById('mh-dashboard');
@@ -32,7 +32,8 @@ export function renderDashboard() {
   const { cols, rows } = gridDims(gridExp);
   const tiles = totalTiles(gridExp);
   const mines = minesOnFloor(floor, mineReduction());
-  const lives = maxHPYou(lvs);
+  const qtyLvs = mhQtyLevels(lvs);
+  const lives = maxHPYou(qtyLvs);
   const svarHP = saveData.serverVarMineHP || 1;
   const svarCost = saveData.serverVarMineCost || 1;
   const hp = floorHP(floor, svarHP);
@@ -45,13 +46,13 @@ export function renderDashboard() {
   const uniqueSushi = saveData.cachedUniqueSushi || 0;
   const gb167 = _gb(167);
   const dancingCoral5 = computeDancingCoralBonus(5, saveData);
-  const base = baseDMG(lvs, gb167, sail38, dancingCoral5, jellyRewardBonus(saveData, 9));
+  const mhSrc = computeMineheadCurrSources(saveData);
+  const base = baseDMG(qtyLvs, gb167, sail38, dancingCoral5, jellyRewardBonus(saveData, 9), mhSrc.legend40);
   const gb129 = _gb(129);
   const gb148 = _gb(148);
   const gb147 = _gb(147);
   const gb166 = _gb(166);
   const bqty6 = floor > 6 ? FLOOR_REWARD_QTY[6] : 0;
-  const mhSrc = computeMineheadCurrSources(saveData);
   const rogB12 = rogBonusQTY(12, uniqueSushi);
   const cph = currencyPerHour({
     gridBonus129: gb129, gridBonus148: gb148, gridBonus147: gb147, gridBonus166: gb166,
@@ -65,6 +66,7 @@ export function renderDashboard() {
     bundleJ: mhSrc.bundleJ,
     taskCurrencyLevel: mhSrc.taskCurrencyLevel,
     dancingCoral5: mhSrc.dancingCoral5,
+    legend40: mhSrc.legend40, doublers: mhSrc.doublers,
     upgLevels: lvs, highestDmg,
   });
   const rLv = saveData.researchLevel || 0;
@@ -113,8 +115,8 @@ export function renderDashboard() {
         <tbody>
           ${MINEHEAD_UPG.map((u, i) => {
             const lv = lvs[i] || 0;
-            const qty = upgradeQTY(i, lv);
-            const cost = lv < u.maxLv || u.maxLv > 998 ? upgCost(i, lv, upgradeQTY(26, lvs[26] || 0), svarCost, rogCostPct) : '--';
+            const qty = mhQty(i, lv);
+            const cost = lv < u.maxLv || u.maxLv > 998 ? upgCost(i, lv, mhQty(26, lvs[26] || 0), svarCost, rogCostPct) : '--';
             const reqLv = upgLvReq(i);
             const maxed = u.maxLv <= 998 && lv >= u.maxLv;
             const infinite = u.maxLv > 998;
@@ -217,6 +219,7 @@ export function renderCurrencyTab() {
     bundleJ: mhSrc.bundleJ,
     dancingCoral5: mhSrc.dancingCoral5,
     taskCurrencyLevel: mhSrc.taskCurrencyLevel,
+    legend40: mhSrc.legend40, doublers: mhSrc.doublers,
     upgLevels: lvs, highestDmg,
   });
 
@@ -237,11 +240,12 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   const eventShop44 = mhSrc.eventShop44 || 0;
   const taskCurrencyMulti = mhSrc.taskCurrencyMulti || 1;
   const logDmg = getLOG(highestDmg);
-  const upg5 = upgradeQTY(5, lvs[5]);
-  const upg22 = upgradeQTY(22, lvs[22]);
-  const upg28raw = upgradeQTY(28, lvs[28]);
+  const upg5 = mhQty(5, lvs[5]);
+  const upg22 = mhQty(22, lvs[22]);
+  const upg28raw = mhQty(28, lvs[28]);
   const upg28 = upg28raw * logDmg;
-  const upgAddSum = upg5 + upg22 + upg28 + mhSrc.arcade62 + mhSrc.dancingCoral5;
+  const upgAddSum = upg5 + upg22 + upg28 + mhSrc.dancingCoral5;
+  const dblNote = i => (mhSrc.doublers || []).indexOf(i) >= 0 ? ' (Doubled: Menagerie)' : '';
   const comp143mult = Math.max(1, Math.min(2, mhSrc.comp143) + mhSrc.comp143Level2);
   const bqMult = Math.min(3, 1 + bqty6 / 100);
   const atomMult = 1 + mhSrc.atom13 / 100;
@@ -268,19 +272,22 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
   if (gb148node.children?.[0]) gb148node.children[0].label = 'Base';
 
   const upgChildren = [];
-  upgChildren.push(_bNode(label('Minehead', 5), upg5, null, { fmt: '%', note: `Upg 5, Lv ${lvs[5] || 0}` }));
-  upgChildren.push(_bNode(label('Minehead', 22), upg22, null, { fmt: '%', note: `Upg 22, Lv ${lvs[22] || 0}` }));
+  upgChildren.push(_bNode(label('Minehead', 5), upg5, null, { fmt: '%', note: `Upg 5, Lv ${lvs[5] || 0}${dblNote(5)}` }));
+  upgChildren.push(_bNode(label('Minehead', 22), upg22, null, { fmt: '%', note: `Upg 22, Lv ${lvs[22] || 0}${dblNote(22)}` }));
   upgChildren.push(_bNode(label('Minehead', 28), upg28, [
-    _bNode('Base per Lv', upg28raw, null, { fmt: '%', note: `Upg 28, Lv ${lvs[28] || 0}` }),
+    _bNode('Base per Lv', upg28raw, null, { fmt: '%', note: `Upg 28, Lv ${lvs[28] || 0}${dblNote(28)}` }),
     _bNode('log\u2081\u2080(Highest Dmg)', logDmg, null, { fmt: 'x', note: `Highest Dmg = ${_fmt(highestDmg)}` }),
   ], { fmt: '%' }));
-  upgChildren.push(_bNode(label('Arcade', 62), mhSrc.arcade62, null, {
-    fmt: '%', note: `Arcade 62, Lv ${mhSrc.arcade62lv}, decay(25, 100)`,
-  }));
   upgChildren.push(_bNode('Dancing Coral 5: Minehead Currency', mhSrc.dancingCoral5, null, {
     fmt: '%', note: 'Spelunky[24][5], Tower 23',
   }));
-  const upgNode = _bNode('Upgrade & Arcade Bonus', 1 + upgAddSum / 100, upgChildren, { fmt: 'x' });
+  const upgNode = _bNode('Upgrade & Coral Bonus', 1 + upgAddSum / 100, upgChildren, { fmt: 'x' });
+  const arcadeNode = _bNode(label('Arcade', 62), 1 + mhSrc.arcade62 / 100, null, {
+    fmt: 'x', note: `Arcade 62, Lv ${mhSrc.arcade62lv}, separate multiplier`,
+  });
+  const legendNode = _bNode('Legend: Minehead My Beloved', 1 + (mhSrc.legend40 || 0) / 100, null, {
+    fmt: 'x', note: `${mhSrc.legend40Pts || 0} pts (Spelunk[18][40])`,
+  });
 
   const atomNode = _bNode(label('Atom', 13), atomMult, null, {
     fmt: 'x', note: `Atom 13, Lv ${mhSrc.atom13}`,
@@ -365,6 +372,6 @@ function _buildCurrencyTree(gb129, gb148, gb147, gb166, bqty6, lvs, highestDmg, 
 
   return _bNode('Mine Currency/hr', cph, [
     gb129node, eventShopNode, gb148node, royalNode, rogNode, jellyNode, bundleNode, comp143node, bossNode,
-    upgNode, buttonNode, atomNode, taskNode, passiveNode,
+    upgNode, buttonNode, arcadeNode, atomNode, legendNode, taskNode, passiveNode,
   ], { fmt: '/hr' });
 }

@@ -3,8 +3,10 @@
 // Game: Grid(129) × (1+EventShop44) × (1+Grid(148)/100) × max(1,OutpostROGbon(3)) × (1+RoG(12)/100)
 //   × (1+Jelly8/100) × (1+ban_j) × (1+10×Task[2][6][4]/100) × max(1,min(2,Comp143)+CompLV2(143))
 //   × min(3, 1+BonusQTY(6)/100)
-//   × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+Arcade62+DancingCoral5)/100)
-//   × (1+Button_Bonuses(1)/100) × (1+Atom(13)/100) × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
+//   × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+DancingCoral5)/100)
+//   × (1+Button_Bonuses(1)/100) × (1+Arcade62/100) × (1+Atom(13)/100) × (1+Legend40/100)
+//   × (1+(Grid(147)+Grid(166)+MealMineCurr)/100)
+// UpgQTY doubles when the upgrade is in Spelunk[51] (Menagerie Upgrade Doublers).
 
 import { rogBonusQTY } from '../systems/w7/sushi.js';
 import {
@@ -73,20 +75,20 @@ export default createDescriptor({
     var floorMult = Math.min(3, 1 + bonusQTY6 / 100);
     children.push({ name: label('Minehead Floor', 6), val: floorMult, fmt: 'x' });
 
-    // 6. × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+Arcade62)/100)
+    // 6. × (1+(UpgQTY(5)+UpgQTY(22)+UpgQTY(28)*LOG(Research[7][6])+DancingCoral5)/100)
     var upg5 = mhUpgradeQTY(5, saveData);
     var upg22 = mhUpgradeQTY(22, saveData);
     var research76 = (saveData.research && saveData.research[7] && Number(saveData.research[7][6])) || 0;
     var upg28 = mhUpgradeQTY(28, saveData) * getLOG(research76);
     var arcade62 = sources.arcade62;
     var dancingCoral5 = sources.dancingCoral5;
-    var additive6 = upg5 + upg22 + upg28 + arcade62 + dancingCoral5;
-    children.push({ name: 'Minehead Upgrades and Arcade', val: 1 + additive6 / 100, fmt: 'x',
+    var additive6 = upg5 + upg22 + upg28 + dancingCoral5;
+    var _dbl = function(i) { return sources.doublers.indexOf(i) >= 0 ? 'Doubled (Menagerie)' : ''; };
+    children.push({ name: 'Minehead Upgrades', val: 1 + additive6 / 100, fmt: 'x',
       children: [
-        { name: label('Minehead', 5), val: upg5, fmt: 'raw' },
-        { name: label('Minehead', 22), val: upg22, fmt: 'raw' },
+        { name: label('Minehead', 5), val: upg5, fmt: 'raw', note: _dbl(5) },
+        { name: label('Minehead', 22), val: upg22, fmt: 'raw', note: _dbl(22) },
         { name: label('Minehead', 28), val: upg28, fmt: 'raw', note: 'scaled by Research progress' },
-        { name: label('Arcade', 62), val: arcade62, fmt: 'raw' },
         { name: 'Dancing Coral 5: Minehead Currency', val: dancingCoral5, fmt: 'raw',
           note: 'Spelunky[24][5], Tower 23' },
       ] });
@@ -102,9 +104,15 @@ export default createDescriptor({
         { name: label('Grid', 125), val: bd1.grid125Multi, fmt: 'x', note: 'Grid bonus ' + bd1.grid125.toFixed(2) + '%' },
       ] });
 
+    // 7b. × (1+Arcade62/100) — separate multiplier since 2026-10-16
+    children.push({ name: label('Arcade', 62), val: 1 + arcade62 / 100, fmt: 'x', note: 'Arcade level ' + sources.arcade62lv });
+
     // 8. × (1+Atom(13)/100)
     var atom13 = sources.atom13;
     children.push({ name: label('Atom', 13), val: 1 + atom13 / 100, fmt: 'x' });
+
+    // 8b. × (1+Legend40/100)
+    children.push({ name: 'Legend: Minehead My Beloved', val: 1 + sources.legend40 / 100, fmt: 'x', note: sources.legend40Pts + ' points' });
 
     var eventShop44 = sources.eventShop44;
     children.push({ name: 'Event Shop: Minehead Currency', val: 1 + eventShop44, fmt: 'x' });
@@ -135,6 +143,8 @@ export default createDescriptor({
       atom13: atom13,
       mealMineCurr: mealMineCurr,
       arcade62: arcade62,
+      legend40: sources.legend40,
+      doublers: sources.doublers,
       rogBonus12: rog12,
       buttonBonus1: bb1,
       eventShop44: eventShop44,

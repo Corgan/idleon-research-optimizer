@@ -131,6 +131,7 @@ var targetCropId = 1;
 var rankMode = 'unspent';
 var selectedPlot = 0;
 var showTargets = true;
+var assumeOrganicLabels = false;
 
 var OBJECTIVES = [
   ['rankXp','Land Rank XP'], ['farmingExp','Farming EXP'], ['evolution','Crop Evolution'],
@@ -424,6 +425,7 @@ function renderMarkets(snapshot,diagnostics) {
   html+=card('Prior Best',fmt(bean.previousBest),bean.newRecord?pct(bean.recordGain,1)+' improvement':'No new record');
   html+=card('Rebuild Prior Trade',time(bean.estimatedSecondsToPreviousBest),'Current-layout lower bound');
   html+=card('Rebuild Current Trade',time(bean.estimatedSecondsToCurrentTrade),'Current-layout lower bound');
+  html+=card('Medal Growth Reset',bean.growthResetPlots+' plots',bean.growthResetPlots?'Trading zeroes Medal seed growth immediately':'No Medal seeds planted');
   html+='</div><h3>GMO Reset Impact</h3><div class="table-wrap"><table class="data-table">'+tableHead([['Threshold'],['Before',1],['After Trade',1],['Loss',1]])+'<tbody>';
   var thresholds=['200','1K','2.5K','10K','100K'];
   for(var i=0;i<5;i++)html+='<tr><td>'+thresholds[i]+' crops</td><td class="num">'+bean.gmoCountsBefore[i]+'</td><td class="num">0</td><td class="num">-'+bean.gmoCountsBefore[i]+'</td></tr>';
@@ -435,18 +437,20 @@ function renderMarkets(snapshot,diagnostics) {
 }
 
 function renderExotics() {
-  var plan=exoticOfferRows(saveData);
-  var limits=plan.limits;
+  var plan=exoticOfferRows(saveData,null,{assumeOrganic:assumeOrganicLabels});
+  var limits=plan.limits,labels=plan.organicLabels;
   var html='<div class="section"><div class="card-grid">';
   html+=card('Weekly Rotation','Week '+plan.week.week,time(plan.week.secondsRemaining)+' remaining');
   html+=card('Purchases',limits.used+' / '+limits.allowed,limits.remaining+' remaining');
   html+=card('Free Purchases',limits.freePurchases,limits.freePercent+'% of allowance');
-  html+=card('No-Count Chance',pct(limits.noCountChance,2),'Per Exotic purchase');
+  html+=card('No-Count Chance',pct(limits.noCountChance,2),'Per Exotic purchase (max 50%)');
+  html+=card('Organic Labels',labels.left+' left',labels.used+' / '+labels.owned+' applied; labeled exotics give 2x bonus and 1.5x levels');
   html+=card('Save Rollover',limits.rolledOver?'Pending':'Current',limits.rolledOver?'Counter resets on market refresh':'Week marker matches');
-  html+='</div></div><div class="section"><h2>Current Offers</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Priority'],['Offer'],['Cost Crop'],['Owned',1],['Current Lv',1],['Level Gain',1],['Bonus Gain',1],['Purchase']])+'<tbody>';
+  html+='</div><label class="check-control"><input data-control="assumeOrganic" type="checkbox"'+(assumeOrganicLabels?' checked':'')+'>Assume every offer is Organic-labeled</label></div><div class="section"><h2>Current Offers</h2><div class="table-wrap"><table class="data-table">'+tableHead([['Priority'],['Offer'],['Cost Crop'],['Owned',1],['Current Lv',1],['Level Gain',1],['Bonus Gain',1],['Organic Label'],['Purchase']])+'<tbody>';
   for(var i=0;i<plan.rows.length;i++){
     var row=plan.rows[i];
-    html+='<tr'+(row.capRelevant?' class="recommended"':'')+'><td>'+(row.capRelevant?badge('Raises value cap','gold'):badge('Bonus','cyan'))+'</td><td>'+title(row.name)+' <span class="row-note">slot '+(row.slot+1)+'</span></td><td>Crop #'+row.cropId+'</td><td class="num">'+fmt(row.cropQuantity)+'</td><td class="num">'+fmt(row.currentLevel)+'</td><td class="num">+'+fmt(row.levelGain)+'</td><td class="num">+'+fmt(row.bonusGain)+'</td><td>'+(limits.remaining<=0?badge('Limit reached','red'):row.affordable?(limits.used<limits.freePurchases?badge('Free next','green'):badge('Consumes stack','gold')):badge('No crop','red'))+'</td></tr>';
+    var organicCell=row.organicSaved?badge('Labeled','green'):row.organicAssumed?badge('Assumed','cyan'):row.canLabel?badge('Label: +'+fmt(row.labelBonusGain),'gold'):badge('Unlabeled','muted');
+    html+='<tr'+(row.capRelevant?' class="recommended"':'')+'><td>'+(row.capRelevant?badge('Raises value cap','gold'):badge('Bonus','cyan'))+'</td><td>'+title(row.name)+' <span class="row-note">slot '+(row.slot+1)+'</span></td><td>Crop #'+row.cropId+'</td><td class="num">'+fmt(row.cropQuantity)+'</td><td class="num">'+fmt(row.currentLevel)+'</td><td class="num">+'+fmt(row.levelGain)+'</td><td class="num">+'+fmt(row.bonusGain)+'</td><td>'+organicCell+'</td><td>'+(limits.remaining<=0?badge('Limit reached','red'):row.affordable?(limits.used<limits.freePurchases?badge('Free next','green'):badge('Consumes stack','gold')):badge('No crop','red'))+'</td></tr>';
   }
   return html+'</tbody></table></div></div>';
 }
@@ -476,6 +480,7 @@ document.addEventListener('change',function(event){
   else if(key==='target')targetCropId=Math.max(1,Math.min(maxCropId(),Math.floor(Number(event.target.value)||1)));
   else if(key==='rankMode')rankMode=event.target.value;
   else if(key==='targets')showTargets=event.target.checked;
+  else if(key==='assumeOrganic')assumeOrganicLabels=event.target.checked;
   render();
 });
 </script>

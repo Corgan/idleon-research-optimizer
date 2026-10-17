@@ -22,6 +22,7 @@ import { maxTalentBonusDetail } from '../common/talent.js';
 import { legendPTSbonus } from './spelunking.js';
 import { etcBonus } from '../common/etcBonus.js';
 import { label } from '../../entity-names.js';
+import { menagerieUnlockOwned } from './menagerie.js';
 
 const n = value => Number(value) || 0;
 const arr = (S, index) => Array.isArray(S?.royalGData?.[index]) ? S.royalGData[index] : [];
@@ -240,7 +241,7 @@ export function royalStatueDescription(S, index, levelOverride) {
 	const value = (1 + armoryBonus(S, 45) / 100) * (level > 0 ? n(OUTPOST_RANK_REQUIREMENTS[index]) + n(OUTPOST_RANK_COSTS[index]) * Math.max(0, level - 1) : 0);
 	return _replaceMarkers(info.description, value);
 }
-export function statueFlairMax() { return 3; }
+export function statueFlairMax(S) { return Math.round(3 + Math.min(1, S ? menagerieUnlockOwned(S, 17) : 0)); }
 export function statueFlairLevel(S, statueIdx) { return royalG(S, 22, statueIdx); }
 export function statueFlairCost(S, statueIdx) { return 10 * (statueIdx + 1) * 5 ** statueFlairLevel(S, statueIdx); }
 function _statueFlairBonusAtLevel(level) { return 2 * (300 * level + 100 * Math.floor(level / 2) + 200 * Math.floor(level / 3)); }
@@ -263,8 +264,8 @@ export function statueFlairBonus(S, statueIdx) { return _statueFlairBonusAtLevel
 export function statueFlairMultiplier(S, statueIdx) { return 1 + statueFlairBonus(S, statueIdx) / 100; }
 export function statueFlairRow(S, statueIdx, ext) {
 	const level = statueFlairLevel(S, statueIdx); const material = statueFlairMaterial(statueIdx); const owned = statueFlairOwnedDetail(S, statueIdx, ext);
-	const maxed = level >= statueFlairMax(); const cost = maxed ? Infinity : statueFlairCost(S, statueIdx);
-	return { statueIdx, level, maxed, currentMultiplier: statueFlairMultiplier(S, statueIdx), nextMultiplier: maxed ? null : 1 + _statueFlairBonusAtLevel(level + 1) / 100, cost, material, owned: owned.value, affordable: !maxed && !owned.partial && owned.value >= cost, partial: owned.partial, missing: owned.missing };
+	const maxLevel = statueFlairMax(S); const maxed = level >= maxLevel; const cost = maxed ? Infinity : statueFlairCost(S, statueIdx);
+	return { statueIdx, level, maxLevel, maxed, currentMultiplier: statueFlairMultiplier(S, statueIdx), nextMultiplier: maxed ? null : 1 + _statueFlairBonusAtLevel(level + 1) / 100, cost, material, owned: owned.value, affordable: !maxed && !owned.partial && owned.value >= cost, partial: owned.partial, missing: owned.missing };
 }
 export function royalStatueUpgradeDetail(S, idx) {
 	const initial = royalG(S, 0, idx) === 0; const material = initial ? royalMarbleOwnedDetail(S, idx) : parchmentOwnedDetail(S);

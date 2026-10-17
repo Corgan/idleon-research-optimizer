@@ -58,6 +58,8 @@ export const saveData = {
   royalGDataAvailable: false,
   royalMapsDataAvailable: false,
   royalDataAvailable: false,
+  menagerieData: [],
+  menagerieDataAvailable: false,
   riftData: [],
   breedingData: [],
   summonData: [],
@@ -103,6 +105,10 @@ export const saveData = {
   cachedCglunko11: 0,
   cachedFountain2_16: 0,
   cachedRoyalResearch: 1,
+  cachedStickerMultiplicative: 0,
+  cachedArcade63: 0,
+  cachedClamWork9: 0,
+  cachedMenagerieB3: 0,
   guildData: [],
   cyTalentPointsData: [],
   prayOwnedData: [],
@@ -255,6 +261,8 @@ export function restoreState(s) {
   if (!Object.prototype.hasOwnProperty.call(s, 'royalGDataAvailable')) saveData.royalGDataAvailable = false;
   if (!Object.prototype.hasOwnProperty.call(s, 'royalMapsDataAvailable')) saveData.royalMapsDataAvailable = false;
   if (!Object.prototype.hasOwnProperty.call(s, 'royalDataAvailable')) saveData.royalDataAvailable = false;
+  if (!Object.prototype.hasOwnProperty.call(s, 'menagerieData')) saveData.menagerieData = [];
+  if (!Object.prototype.hasOwnProperty.call(s, 'menagerieDataAvailable')) saveData.menagerieDataAvailable = false;
   if (!saveData.riftData) saveData.riftData = [];
   if (!saveData.breedingData) saveData.breedingData = [];
   if (!saveData.summonData) saveData.summonData = [];

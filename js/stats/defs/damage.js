@@ -63,6 +63,9 @@ import { computeFlurboShop } from '../systems/w2/dungeon.js';
 import { isDungeonMap } from '../systems/w2/dungeon.js';
 import { computeCalcTalent } from '../systems/common/calcTalent.js';
 import { guild } from '../systems/common/guild.js';
+import { obolMiscMulti } from '../systems/w7/menagerie.js';
+import { statueBonus } from '../systems/w7/royal-guardian.js';
+import { coralKidUpgradeEffect } from '../systems/w5/coral-god-rank.js';
 import { safe, rval, getBuffBonus, createDescriptor } from './helpers.js';
 
 // computeStatueBonusGiven is now in systems/common/stats.js
@@ -192,6 +195,8 @@ export default createDescriptor({
           }
         }
       } catch(e) {}
+      // TotalStats("Weapon_Power") obol (DN2) sum × MenagerieStuff("ObolMISCmulti")
+      _obolWP *= obolMiscMulti(s);
       // Flat adds: 5 + BoxRewards["12a"] + CardLv(w5b2)
       var _br12a = safe(computeBoxReward, ci, '12a');
       var _box12a = (typeof _br12a === 'object' && _br12a) ? (_br12a.val || 0) : Number(_br12a) || 0;
@@ -865,9 +870,15 @@ export default createDescriptor({
       }
     } catch(e) {}
     var jellyDamage37 = jellyRewardBonus(s, 37);
+    var royalStatue0 = Number(safe(statueBonus, s, 0)) || 0;
+    var coralKid11 = coralKidUpgradeEffect(11, Number(optionsListData[621]) || 0);
+    var coralKid11Multi = Math.pow(1 + coralKid11 / 100, Math.max(0, (Number(divinityData && divinityData[25]) || 0) - 35));
     ddl2 *= (1 + mhBonusQTY0 / 100)
       * (1 + mhWepPowDmgPCT / 100)
-      * (1 + jellyDamage37 / 100);
+      * (1 + jellyDamage37 / 100)
+      * (1 + royalStatue0 / 100)
+      * coralKid11Multi;
+    _ddl2Steps.push(['Minehead, Jelly, Royal Statue & Coral Kid Singularity', ddl2]);
 
     // WeeklyBoss.g bonus
     try {

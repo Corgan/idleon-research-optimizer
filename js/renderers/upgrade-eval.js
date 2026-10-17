@@ -880,6 +880,11 @@ function _renderShapeBreakdown(sc, opt) {
   const placements = (opt && opt.placements) || [];
   if (placements.length === 0) { host.innerHTML = ''; return; }
   const current = sc.shapePositions || [];
+  // Shared with the combat-sim Research grid ("Copy layout from Research optimizer").
+  try {
+    localStorage.setItem('idleon_shapeLayout', JSON.stringify({ v: 1, savedAt: Date.now(),
+      shapes: placements.map(p => [p.shapeIdx, Math.round(Number(p.x) || 0), Math.round(Number(p.y) || 0), Number(p.rot) || 0]) }));
+  } catch (e) { /* storage unavailable */ }
 
   let html = '<div class="sb-head"><span>Placement</span>'
     + '<span class="sb-hint">Exact shape positions in game coordinates. Drop in this order; a node keeps the first shape that covers it.</span></div>'

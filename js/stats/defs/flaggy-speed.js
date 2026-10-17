@@ -6,6 +6,7 @@ import {
   computeExtraFlaggyRatemulti,
   computeSmallCogBonusTOTAL,
   computeCogBoardTotals,
+  constBuildBonus,
 } from '../systems/w3/construction.js';
 import { computeCardLv } from '../systems/common/cards.js';
 import { safe, createDescriptor, gridBonusFinal } from './helpers.js';
@@ -24,6 +25,7 @@ export default createDescriptor({
     var smallCogFlaggy = computeSmallCogBonusTOTAL(0, ctx.saveData);
     var grid89 = gridBonusFinal(saveData, 89);
     var cardW7b3 = safe(computeCardLv, 'w7b3', saveData);
+    var menaFlaggy = constBuildBonus(saveData, 2);
 
     var total = computeExtraFlaggyRatemulti(ctx.saveData);
     var cogTotals = computeCogBoardTotals(ctx.saveData);
@@ -33,6 +35,7 @@ export default createDescriptor({
       children: [
         { name: 'Small Cog Flaggy Rate', val: 1 + smallCogFlaggy / 100, fmt: 'x', note: '+' + smallCogFlaggy + '%' },
         { name: label('Grid', 89), val: 1 + grid89 / 100, fmt: 'x', note: '+' + grid89.toFixed(1) + '%' },
+        { name: 'Menagerie Flaggy Rate', val: 1 + menaFlaggy / 100, fmt: 'x', note: '+' + menaFlaggy + '%' },
         { name: 'Card: Pirate Underling', val: 1 + 10 * cardW7b3 / 100, fmt: 'x', note: 'Level ' + cardW7b3 + ', 10% per level' },
         { name: 'Cog Board Flat Flaggy Rate/hr', val: cogTotals.flatFlaggy, note: 'from big cogs' },
         { name: 'Cog Board % Flaggy Rate', val: cogTotals.pctFlaggyRate, note: 'from big cogs' },

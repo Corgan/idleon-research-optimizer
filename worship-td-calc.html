@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Worship Tower Defense</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460; --panel: #1d2a48;
+  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
+  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
+  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+h1 { display:flex; justify-content:space-between; align-items:center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
+h1 a { color: var(--text2); font-size: .6em; text-decoration: none; }
+h1 span { color: var(--accent); }
+.main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.section h3 { margin: 12px 0 8px; color: var(--cyan); font-size: 1em; }
+.card-grid { display: grid; gap: 10px; }
+.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card-grid.cols-5 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
+.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
+.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
+.card .card-sub { color: var(--text2); font-size: .75em; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.data-table tr:hover td { background: rgba(255,255,255,.03); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tr.sel td { background: rgba(77,208,225,.08); }
+.badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
+.badge-green { background: rgba(76,175,80,.2); color: var(--green); }
+.badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); }
+.badge-cyan { background: rgba(77,208,225,.15); color: var(--cyan); }
+.badge-purple { background: rgba(187,134,252,.15); color: var(--purple); }
+.tabs { display: flex; background: var(--bg2); border-bottom: 1px solid #333; flex-wrap: wrap; border-radius: 8px 8px 0 0; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border: 0; border-bottom: 2px solid transparent; background: none; font-weight: 600; font-size: .9em; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.bar-outer { height: 10px; border-radius: 5px; background: #333; overflow: hidden; min-width: 80px; }
+.bar-fill { height: 100%; border-radius: 5px; background: var(--cyan); }
+.toolbar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; background: var(--bg2); padding: 10px 16px; border-bottom: 1px solid #333; font-size: .85em; }
+.toolbar label, .controls label { display:flex; flex-direction:column; gap:3px; color: var(--text2); }
+.controls { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; margin-bottom: 12px; font-size: .85em; }
+.controls label.inline { flex-direction:row; align-items:center; gap:6px; }
+select, input[type=number] { background: var(--bg3); color: var(--text); border: 1px solid #4a607e; border-radius: 4px; padding: 4px 6px; font: inherit; }
+input[type=number] { width: 90px; }
+.btn { border:1px solid #586482; background: var(--panel); color: var(--text); border-radius:4px; padding:5px 12px; cursor:pointer; font: inherit; }
+.btn:hover { border-color: var(--cyan); }
+.btn.primary { border-color: var(--accent); background: rgba(233,69,96,.2); }
+.btn:disabled { opacity:.5; cursor:default; }
+.btn.speed { padding:5px 8px; }
+.btn.on { border-color: var(--cyan); background: rgba(77,208,225,.18); color: var(--cyan); }
+.muted { color: var(--text2); }
+.note { color: var(--text2); font-size: .8em; margin-top: 8px; line-height: 1.45; }
+.err { color: var(--red); font-weight: 600; margin: 8px 0; }
+.empty { color: var(--text2); padding: 24px; text-align:center; }
+.split { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+.scroll { max-height: 420px; overflow:auto; }
+.breakdown-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.breakdown-panel { min-width:0; padding:10px; background:var(--panel); border:1px solid #40536e; border-radius:8px; }
+.breakdown-panel h3 { margin:0 0 8px; color:var(--cyan); font-size:.95rem; }
+.bt-controls { margin-bottom:8px; display:flex; gap:6px; }
+.bt-controls .btn-sm { padding:4px 10px; background:var(--bg3); color:var(--text2); border:1px solid #4a607e; border-radius:4px; cursor:pointer; font-size:.8em; }
+.bt-tree { font-size:.85em; }
+.bt-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-bottom:1px solid rgba(255,255,255,.04); min-height:26px; cursor:pointer; }
+.bt-row:hover { background:rgba(255,255,255,.07); }
+.bt-children { background:rgba(0,0,0,.12); border-left:2px solid rgba(255,255,255,.08); }
+.bt-root { font-weight:700; font-size:1.05em; padding-top:6px; padding-bottom:6px; border-bottom:2px solid #445; }
+.bt-arrow { cursor:pointer; color:var(--text2); font-size:1em; width:14px; text-align:center; user-select:none; flex-shrink:0; }
+.bt-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bt-val { font-weight:600; text-align:right; flex-shrink:0; white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums; }
+.bt-tooltip { position:fixed; display:none; z-index:30; max-width:340px; padding:8px; background:var(--panel); color:var(--text); border:1px solid #4a607e; border-radius:4px; font-size:.8em; }
+.dmg-bar { display:inline-block; height:8px; background: var(--gold); border-radius: 3px; vertical-align: middle; }
+.td-map-wrap { position:relative; background:#0b1020; border:1px solid #40536e; border-radius:8px; overflow:auto; max-height:760px; }
+.td-map-wrap canvas { display:block; margin:0 auto; image-rendering: pixelated; }
+.td-map-bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:8px 0; font-size:.85em; }
+.td-map-bar label { display:flex; align-items:center; gap:6px; color:var(--text2); }
+.td-map-bar input[type=range] { width:min(520px, 60vw); }
+.td-hud { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.82em; color:var(--text2); }
+.td-hud b { color:var(--gold); font-weight:600; font-variant-numeric:tabular-nums; }
+.td-legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:.75em; color:var(--text2); margin-top:6px; }
+.td-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+.td-slot-note { font-size:.8em; color:var(--text2); margin-top:4px; min-height:0; }
+@media(max-width:1200px) { .breakdown-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:900px) { .split, .breakdown-grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<h1><a href="index.html">Home</a><div>&#x1F5FF; <span>Idleon</span> Worship Tower Defense</div><a href="https://github.com/Corgan/idleon-research-optimizer">GitHub</a></h1>
+<div id="save-area"></div>
+<div id="toolbar" class="toolbar" hidden></div>
+<div id="app" class="main"><div class="empty">Load a save to analyze Worship Tower Defense.</div></div>
+<div id="td-bt-tooltip" class="bt-tooltip"></div>
+
+<script type="module">
+import { saveData } from './js/state.js';
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { fmtVal } from './js/renderers/format.js';
+import { MapDispName } from './js/stats/data/game/customlists.js';
+import { TD_TRIAL_COUNT, tdMob, tdMobSprite, tdMobFilter, tdTrialScene, tdTrialBackground, tdTowerIcon, tdTrialPath, tdGeometry, tdTrialBase, TD_ASSET_DIR } from './js/stats/data/w3/worship-td.js';
+import {
+  TD_ASSUMPTIONS, TD_TOWER_NAMES, TD_SKIP_POLICIES, TD_ROOT_POLICIES,
+  worshipTdInputs, trialSummary, heuristicPlan, guidePresetsForTrial, guidePresetPlan, towerCenters,
+  placeableNodes, validatePlacement, planPlacementLayouts, createWorshipTdRun,
+} from './js/stats/systems/w3/worship-td.js';
+import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
+import { toRenderNode } from './js/stats/tree-builder.js';
+
+var state = {
+  loaded: false,
+  tab: 'overview',
+  charIdx: 0,
+  trial: 0,
+  planSource: '',
+  start: 'fresh',
+  hours: 4.5,
+  maxWave: 239,
+  seeds: 3,
+  rootPolicy: '',
+  opt: { mode: 'layout', objective: 'wave', restarts: 2, iterations: 16, budget: 30, seeds: 2, hours: 4, seedPreset: true },
+};
+var inputsCache = Object.create(null);
+var sim = { running: false, result: null, trials: null, error: '', key: '' };
+var opt = { running: false, progress: null, result: null, error: '', key: '' };
+var worker = null;
+var reqId = 0;
+var pendingTrees = [];
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  statusText: function() { return characterCount() + ' characters'; },
+  onLoad: function(_s, _raw, meta) {
+    var first = !state.loaded;
+    state.loaded = true;
+    inputsCache = Object.create(null);
+    if (!(meta && meta.source === 'auto-refresh')) { stopWorker(); sim.result = null; sim.trials = null; opt.result = null; }
+    else { if (sim.result) sim.stale = true; if (opt.result) opt.stale = true; }
+    state.charIdx = Math.min(state.charIdx, characterCount() - 1);
+    if (first) state.charIdx = defaultCharacter();
+    render();
+  },
+});
+
+function esc(v) { return String(v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function fmtNum(n) { return fmtVal(Number(n) || 0); }
+function fmtTime(sec) {
+  if (sec == null) return '—';
+  var h = sec / 3600;
+  if (h < 1) return Math.round(sec / 60) + 'm';
+  return Math.floor(h) + 'h ' + String(Math.round((h % 1) * 60)).padStart(2, '0') + 'm';
+}
+function characterCount() { return Math.max(saveData.charNames?.length || 0, saveData.lv0AllData?.length || 0, 1); }
+function charName(ci) { return saveData.charNames?.[ci] || ('Character ' + (ci + 1)); }
+function inputs(ci) {
+  if (ci == null) ci = state.charIdx;
+  if (!inputsCache[ci]) inputsCache[ci] = worshipTdInputs(saveData, ci);
+  return inputsCache[ci];
+}
+// Prefer the highest-level Worshipper that owns the root talent, else the highest Worship level.
+function defaultCharacter() {
+  var best = 0, bestKey = -1;
+  for (var c = 0; c < characterCount(); c++) {
+    var i = inputs(c);
+    var key = (i.root.available ? 1e6 : 0) + i.level;
+    if (key > bestKey) { bestKey = key; best = c; }
+  }
+  return best;
+}
+function trialName(t) {
+  var mob = tdMob(t);
+  var map = trialSummary(inputs(), t).map;
+  return (mob ? mob.name : 'Trial ' + (t + 1)) + ' — ' + (MapDispName[map] || ('Map ' + map)).replace(/_/g, ' ');
+}
+function card(title, val, sub) {
+  return '<div class="card"><div class="card-title">' + esc(title) + '</div><div class="card-val">' + val + '</div><div class="card-sub">' + (sub || '') + '</div></div>';
+}
+
+function currentPlan() {
+  var inp = inputs();
+  var src = state.planSource || defaultPlanSource();
+  var plan;
+  if (src === 'optimizer' && opt.result && opt.result.plan) plan = JSON.parse(JSON.stringify(opt.result.plan, function(k, v) { return v === Infinity ? null : v; }));
+  else if (src.indexOf('preset:') === 0) plan = guidePresetPlan(src.slice(7));
+  if (!plan) plan = heuristicPlan(inp, state.trial, { skipPolicy: 'spam' });
+  plan.roots = Object.assign({}, plan.roots || {});
+  if (state.rootPolicy) plan.roots.policy = state.rootPolicy;
+  return plan;
+}
+function defaultPlanSource() {
+  var presets = guidePresetsForTrial(state.trial);
+  return presets.length ? 'preset:' + presets[0].id : 'heuristic';
+}
+
+// ---------- Worker ----------
+
+function stopWorker() {
+  if (worker) { worker.terminate(); worker = null; }
+  sim.running = false; opt.running = false; opt.progress = null;
+}
+function post(msg, onDone, onProgress) {
+  if (!worker) worker = new Worker(new URL('./js/workers/worship-td-worker.js', import.meta.url), { type: 'module' });
+  var id = ++reqId;
+  worker.onmessage = function(e) {
+    var m = e.data || {};
+    if (m.id !== id) return;
+    if (m.type === 'progress') { if (onProgress) onProgress(m); }
+    else if (m.type === 'done') onDone(null, m.result);
+    else if (m.type === 'error') onDone(m.message || 'Worker error');
+  };
+  worker.onerror = function(e) { onDone((e && e.message) || 'Worker failed to start'); };
+  msg.id = id;
+  try { worker.postMessage(msg); } catch (err) { onDone(err.message || String(err)); }
+}
+function stripInputs(i) { var c = Object.assign({}, i); delete c.breakdowns; return c; }
+function simOpts() {
+  return { trial: state.trial, start: state.start, maxTimeSec: Math.max(60, state.hours * 3600), maxWave: state.maxWave, timeline: true };
+}
+
+function runSim() {
+  stopWorker();
+  sim = { running: true, result: null, trials: null, error: '', key: state.charIdx + ':' + state.trial };
+  render();
+  var inp = stripInputs(inputs()), plan = currentPlan(), o = simOpts();
+  var seeds = [];
+  var base = Math.floor(Math.random() * 1e9);
+  for (var s = 0; s < Math.max(1, state.seeds); s++) seeds.push(base + s * 7919);
+  liveReset();
+  sim.args = { inp: inp, plan: plan, o: o, seed: seeds[0] };
+  post({ type: 'simulate', inputs: inp, plan: plan, opts: Object.assign({ seed: seeds[0], replay: { interval: 1, maxFrames: 4000 } }, o) }, function(err, res) {
+    if (err) { sim.running = false; sim.error = err; render(); return; }
+    sim.result = res;
+    player.frame = 0; setPlaying(false);
+    if (seeds.length < 2) { sim.running = false; render(); return; }
+    render();
+    post({ type: 'trials', inputs: inp, plan: plan, opts: o, seeds: seeds.slice(1) }, function(err2, agg) {
+      sim.running = false;
+      if (err2) sim.error = err2; else sim.trials = agg;
+      render();
+    });
+  });
+}
+
+function runOpt() {
+  stopWorker();
+  opt = { running: true, progress: null, result: null, error: '', key: state.charIdx + ':' + state.trial };
+  render();
+  var o = state.opt;
+  var presets = guidePresetsForTrial(state.trial);
+  var seedPlan = o.seedPreset && presets.length ? guidePresetPlan(presets[0].id) : null;
+  var done = function(err, res) {
+    opt.running = false;
+    if (err) opt.error = err;
+    else if (!res || !res.ok) opt.error = (res && res.reason) || 'Optimizer returned no result';
+    else opt.result = res;
+    render();
+  };
+  if (o.mode === 'layout') {
+    post({ type: 'layout', inputs: stripInputs(inputs()), opts: {
+      trial: state.trial, objective: o.objective, budget: o.budget, seeds: o.seeds, finalSeeds: o.seeds * 2,
+      maxTimeSec: o.hours * 3600, maxWave: state.maxWave, start: state.start,
+      baseSeed: Math.floor(Math.random() * 1e9),
+    } }, done, function(p) { opt.progress = p; renderOptProgress(); });
+    return;
+  }
+  post({ type: 'optimize', inputs: stripInputs(inputs()), opts: {
+    trial: state.trial, objective: o.objective, restarts: o.restarts, iterations: o.iterations, seeds: o.seeds,
+    maxTimeSec: o.hours * 3600, maxWave: state.maxWave, start: state.start, seedPlan: seedPlan,
+    baseSeed: Math.floor(Math.random() * 1e9),
+  } }, done, function(p) { opt.progress = p; renderOptProgress(); });
+}
+
+// ---------- Render ----------
+
+function render() {
+  var app = document.getElementById('app');
+  if (!state.loaded) return;
+  var inp = inputs();
+  if (!inp.hasData) { app.innerHTML = '<div class="empty">This save has no Worship tower data.</div>'; return; }
+  renderToolbar();
+  var html = '<div class="tabs">' + [['overview', 'Overview'], ['breakdowns', 'Breakdowns'], ['simulator', 'Simulator'], ['optimizer', 'Optimizer']].map(function(t) {
+    return '<button class="tab' + (state.tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>';
+  }).join('') + '</div>';
+  if (state.tab === 'overview') html += renderOverview(inp);
+  else if (state.tab === 'breakdowns') html += renderBreakdowns(inp);
+  else if (state.tab === 'simulator') html += renderSimulator(inp);
+  else html += renderOptimizer(inp);
+  app.innerHTML = html;
+  mountTrees();
+  mountMaps();
+  bind();
+}
+
+function renderToolbar() {
+  var tb = document.getElementById('toolbar');
+  tb.hidden = false;
+  var chars = '';
+  for (var c = 0; c < characterCount(); c++) {
+    var i = inputs(c);
+    if (!i.level) continue;
+    chars += '<option value="' + c + '"' + (c === state.charIdx ? ' selected' : '') + '>' + esc(charName(c)) + ' — Lv ' + i.level + (i.root.available ? ' · root' : '') + '</option>';
+  }
+  var trials = '';
+  for (var t = 0; t < TD_TRIAL_COUNT; t++) trials += '<option value="' + t + '"' + (t === state.trial ? ' selected' : '') + '>' + esc(trialName(t)) + '</option>';
+  tb.innerHTML = '<label>Character<select id="tb-char">' + chars + '</select></label><label>Trial<select id="tb-trial">' + trials + '</select></label>';
+  tb.querySelector('#tb-char').onchange = function(e) { state.charIdx = Number(e.target.value); stopWorker(); render(); };
+  tb.querySelector('#tb-trial').onchange = function(e) { state.trial = Number(e.target.value); state.planSource = ''; stopWorker(); render(); };
+}
+
+function renderOverview(inp) {
+  var html = '<div class="section"><div class="card-grid cols-5">';
+  html += card('Charge rate', fmtNum(inp.worshipSpeed * 24) + '/day', fmtNum(inp.worshipSpeed) + ' per hour');
+  html += card('Charge max', fmtNum(inp.chargeMax), 'Current ' + fmtNum(inp.charge));
+  html += card('Starting points', fmtNum(inp.startPts), 'Kill points ×' + fmtNum(inp.killPtsMult));
+  html += card('Totem HP', fmtNum(inp.totemHp), 'Leaked mobs cost 1 each');
+  html += card('Tower damage', '×' + fmtNum(1 + inp.atom5 / 100), 'Atom 5 +' + fmtNum(inp.atom5) + '%, Equinox ' + inp.dream7);
+  html += card('Root talent', inp.root.available ? 'Lv ' + inp.root.level : 'None',
+    inp.root.available ? inp.root.seconds + ' s root, ' + inp.root.cooldown + ' s cooldown, radius ' + fmtNum(inp.root.radius) : 'This character cannot root mobs');
+  html += '</div></div>';
+  html += '<div class="section"><h2>Trials</h2><table class="data-table"><thead><tr><th>Trial</th><th class="num">Best wave</th><th class="num">Checkpoint</th><th class="num">Charge cost</th><th class="num">Efficiency bonus</th><th class="num">Souls / claim</th><th class="num">Souls / hr</th><th class="num">+5 waves</th><th class="num">+10 waves</th><th>Guide preset</th></tr></thead><tbody>';
+  for (var t = 0; t < TD_TRIAL_COUNT; t++) {
+    var s = trialSummary(inp, t);
+    var n5 = s.nextSoulsPerHour.find(function(x) { return x.waves === 5; }).soulsPerHour;
+    var n10 = s.nextSoulsPerHour.find(function(x) { return x.waves === 10; }).soulsPerHour;
+    var presets = guidePresetsForTrial(t);
+    html += '<tr' + (t === state.trial ? ' class="sel"' : '') + '><td>' + esc(trialName(t)) + '</td><td class="num">' + s.best + '</td><td class="num">' + (s.checkpointWave || '—') + '</td><td class="num">' + fmtNum(s.charge) + '</td><td class="num">' + (s.effBonus ? '+' + s.effBonus + '%' : '<span class="badge badge-red">below ' + fmtNum(s.effReq) + '</span>') + '</td><td class="num">' + fmtNum(s.souls) + '</td><td class="num">' + fmtNum(s.soulsPerHour) + '</td><td class="num">' + fmtNum(n5) + '</td><td class="num">' + fmtNum(n10) + '</td><td>' + (presets.length ? presets.map(function(p) { return '<span class="badge badge-cyan">' + esc(p.label) + '</span>'; }).join(' ') : '<span class="muted">—</span>') + '</td></tr>';
+  }
+  html += '</tbody></table><p class="note">The game stores a best wave only after the board is fully cleared. A saved best wave above 239 is reset to 160 when the trial loads, so 239 is the practical ceiling.</p></div>';
+  return html;
+}
+
+function treePanel(title, tree) {
+  var id = 'td-tree-' + pendingTrees.length;
+  pendingTrees.push([id, tree]);
+  return '<div class="breakdown-panel"><h3>' + esc(title) + '</h3><div id="' + id + '"></div></div>';
+}
+function mountTrees() {
+  resetTreeCounter();
+  pendingTrees.forEach(function(e) {
+    var host = document.getElementById(e[0]);
+    if (host) renderBreakdownTree(toRenderNode(e[1]), host, { tooltipId: 'td-bt-tooltip' });
+  });
+  pendingTrees = [];
+}
+
+// ---------- Map, layout, and replay ----------
+
+var images = Object.create(null);
+var pendingMaps = [];
+var planMapPhase = { sim: 0, opt: 0 };
+var player = { frame: 0, playing: false, speed: 60, ranges: false, raf: 0, last: 0, acc: 0, hover: null };
+var mapOpts = { slots: false };
+var TYPE_COLOR = ['#ffb74d', '#ff7043', '#a1887f', '#4dd0e1', '#ffee58', '#f06292', '#7986cb', '#81c784', '#9575cd'];
+
+function img(src) {
+  var im = images[src];
+  if (!im) {
+    im = images[src] = new Image();
+    im.onload = function() { redrawMaps(); };
+    im.src = src;
+  }
+  return im.complete && im.naturalWidth ? im : null;
+}
+function mapScale(trial, host) {
+  var sc = tdTrialScene(trial);
+  var w = Math.max(320, (host && host.clientWidth) || 1000);
+  return Math.min(w / sc.w, 740 / sc.h, 1.5);
+}
+function sizeCanvas(cv, trial) {
+  var sc = tdTrialScene(trial), s = mapScale(trial, cv.parentElement);
+  var dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.round(sc.w * s) + 'px';
+  cv.style.height = Math.round(sc.h * s) + 'px';
+  cv.width = Math.round(sc.w * s * dpr);
+  cv.height = Math.round(sc.h * s * dpr);
+  var ctx = cv.getContext('2d');
+  ctx.setTransform(s * dpr, 0, 0, s * dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  cv._scale = s;
+  return ctx;
+}
+function drawScene(ctx, trial) {
+  var sc = tdTrialScene(trial), bg = img(sc.src), pb = tdTrialBackground(trial), par = pb && img(pb.src);
+  ctx.fillStyle = '#0b1020';
+  ctx.fillRect(0, 0, sc.w, sc.h);
+  // The game's backdrop is a camera-following parallax layer; a whole-scene view covers the
+  // scene with it, centered horizontally and bottom-aligned.
+  if (par) {
+    var k = Math.max(sc.w / pb.w, sc.h / pb.h);
+    ctx.drawImage(par, (sc.w - pb.w * k) / 2, sc.h - pb.h * k, pb.w * k, pb.h * k);
+  }
+  if (bg) ctx.drawImage(bg, 0, 0);
+  var geom = tdGeometry(trial), p = tdTrialPath(trial);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,215,0,.55)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 8]);
+  var prev = null;
+  p.path.forEach(function(n, i) {
+    var g = geom.nodes[n], rev = p.flags[i] === 1;
+    var a = rev ? g.length : g.x, b = rev ? g.x : g.length;
+    ctx.beginPath();
+    if (prev) ctx.moveTo(prev[0], prev[1]); else ctx.moveTo(a, g.y - 4);
+    ctx.lineTo(a, g.y - 4);
+    ctx.lineTo(b, g.y - 4);
+    ctx.stroke();
+    prev = [b, g.y - 4];
+  });
+  ctx.restore();
+  var base = tdTrialBase(trial), heart = img(TD_ASSET_DIR + 'WorshipBattleHeart.png');
+  if (heart) ctx.drawImage(heart, base.totemX - 27, base.totemY - 21);
+  else { ctx.fillStyle = '#e94560'; ctx.beginPath(); ctx.arc(base.totemX, base.totemY, 14, 0, 7); ctx.fill(); }
+}
+// In-map Tower actor (sprite 359 "Tower", 54x55 frames, 5 across, grown 2x about its bottom-centre
+// animation origin (27,55), sent to back). Created with top-left (x-29, NodeY-37), so the origin sits at
+// (cx, cy+27.5) = (x-2, NodeY+18) and the body's base lands on the platform surface.
+// Frame 0 is bare stone; once the tower's trait string is non-empty it shows 1 + type, and the upgraded
+// look 10 + type from level 15 (ActorEvents_358 Tower frame rule). Plan towers have no level yet, so a
+// planned trait count stands in for it (one trait per five levels).
+var TOWER_SHEET = { w: 54, h: 55, across: 5, ox: 27, oy: 55 };
+function towerFrame(t) {
+  var traits = t.traits || '', lvl = t.lvl != null ? t.lvl : 5 * traits.length;
+  return traits.length > 0.5 ? 1 + t.type + 9 * Math.max(0, Math.min(1, Math.floor((lvl - 5) / 10))) : 0;
+}
+function drawTower(ctx, t, label) {
+  var im = img(TD_ASSET_DIR + 'tower.png'), f = towerFrame(t), x = t.cx, y = t.cy;
+  if (im) {
+    var S = TOWER_SHEET;
+    ctx.save();
+    ctx.translate(x - S.w / 2 + S.ox, y - S.h / 2 + S.oy);
+    ctx.scale(2, 2);
+    ctx.drawImage(im, (f % S.across) * S.w, Math.floor(f / S.across) * S.h, S.w, S.h, -S.ox, -S.oy, S.w, S.h);
+    ctx.restore();
+  } else {
+    var icon = img(tdTowerIcon(t.type));
+    if (icon) ctx.drawImage(icon, x - 22, y - 36);
+    else { ctx.fillStyle = TYPE_COLOR[t.type]; ctx.fillRect(x - 14, y - 28, 28, 28); }
+  }
+  if (label) drawTowerLabel(ctx, t, label);
+}
+function drawTowerLabel(ctx, t, label) {
+  var x = t.cx, y = t.cy - 8;
+  ctx.font = 'bold 13px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+  ctx.strokeText(label, x, y);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(label, x, y);
+}
+// Static maps: tower body, then the wizard in its ready/scanning frame (15t + 4), then the label on top.
+function drawTowers(ctx, list, labelOf) {
+  list.forEach(function(t) { drawTower(ctx, t); });
+  list.forEach(function(t) { drawWizardFrame(ctx, t, 15 * t.type + 4); });
+  list.forEach(function(t) { drawTowerLabel(ctx, t, labelOf(t)); });
+}
+
+// Legal placement: tower x positions where validatePlacement accepts the exact x (no nudge), merged into
+// spans per platform, plus a greedy left-to-right count of how many more towers fit.
+var slotCache = new Map();
+function slotInfo(trial, towers) {
+  var key = trial + '|' + towers.map(function(t) { return t.node + ':' + t.x; }).join(',');
+  var hit = slotCache.get(key);
+  if (hit) return hit;
+  var geom = tdGeometry(trial), spans = [], extra = [];
+  placeableNodes(trial).forEach(function(n) {
+    var nd = geom.nodes[n], start = null, prev = null;
+    for (var x = nd.x + 30; x <= nd.length - 30; x += 2) {
+      var v = validatePlacement(trial, towers, n, x);
+      var ok = v.ok && v.x === x;
+      if (ok && start == null) start = x;
+      if (!ok && start != null) { spans.push({ node: n, y: nd.y, a: start, b: prev }); start = null; }
+      if (ok) prev = x;
+    }
+    if (start != null) spans.push({ node: n, y: nd.y, a: start, b: prev });
+  });
+  var packed = towers.slice();
+  spans.forEach(function(s) {
+    for (var x = s.a; x <= s.b; x += 2) {
+      var v = validatePlacement(trial, packed, s.node, x);
+      if (v.ok && v.x === x) { packed.push({ node: s.node, x: x }); extra.push({ node: s.node, x: x, y: s.y }); x += 60; }
+    }
+  });
+  var info = { trial: trial, spans: spans, extra: extra };
+  if (slotCache.size > 64) slotCache.clear();
+  slotCache.set(key, info);
+  return info;
+}
+function drawSlots(ctx, trial, towers) {
+  var info = slotInfo(trial, towers), ghost = img(TD_ASSET_DIR + 'TowerDefPlace1.png');
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  info.extra.forEach(function(s) { if (ghost) ctx.drawImage(ghost, s.x - 36, s.y - 84); });
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#76ff03';
+  info.spans.forEach(function(s) { ctx.fillRect(s.a - 2, s.y - 6, s.b - s.a + 4, 5); });
+  ctx.restore();
+}
+// The game's placement cursor (ActorEvents PixelType 2): the first node whose zone
+// [NodeX-5, NodeLength+5] x [NodeY-80, NodeY+40] contains the mouse snaps x into [NodeX+30, NodeLength-30],
+// nudges 62 px off an overlapping tower, sits at NodeY-29, and shows TowerDefPlace1 (valid) or 2 at (-36,-55).
+function placementGhost(trial, towers, mx, my) {
+  var geom = tdGeometry(trial);
+  for (var n = 0; n < geom.nodes.length; n++) {
+    var nd = geom.nodes[n];
+    if (mx > nd.x - 5 && mx < nd.length + 5 && my > nd.y - 80 && my < nd.y + 40) {
+      var v = validatePlacement(trial, towers, n, mx);
+      var x = Math.round(Math.max(nd.x + 30, Math.min(nd.length - 30, v.x)));
+      return { node: n, x: x, y: nd.y, ok: v.ok, reason: v.reason || '' };
+    }
+  }
+  return null;
+}
+function drawGhost(ctx, g) {
+  if (!g) return;
+  var im = img(TD_ASSET_DIR + 'TowerDefPlace' + (g.ok ? 1 : 2) + '.png');
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  if (im) ctx.drawImage(im, g.x - 36, g.y - 84);
+  else { ctx.fillStyle = g.ok ? '#76ff03' : '#f44'; ctx.fillRect(g.x - 30, g.y - 80, 60, 80); }
+  ctx.restore();
+}
+
+// Mob sheets pre-tinted per mod with the game's hue/saturation filters.
+var tintCache = Object.create(null);
+function mobSheet(trial, mod) {
+  var sp = tdMobSprite(trial);
+  if (!sp) return null;
+  var key = sp.src + '|' + mod;
+  if (tintCache[key]) return tintCache[key];
+  var src = img(sp.src);
+  if (!src) return null;
+  var c = document.createElement('canvas');
+  c.width = src.naturalWidth; c.height = src.naturalHeight;
+  var cx = c.getContext('2d');
+  cx.filter = tdMobFilter(trial, mod);
+  cx.drawImage(src, 0, 0);
+  return (tintCache[key] = c);
+}
+// The sim tracks the unscaled frame centre (getXCenter/getYCenter); the sprite is drawn about its
+// bottom-centre animation origin, which is where Stencyl's growTo scales and mirrors it.
+function drawMob(ctx, sp, sheet, x, y, size, left, walking, phase) {
+  var range = walking ? sp.walk : sp.idle, len = range[1] - range[0] + 1;
+  var fr = range[0] + Math.floor(phase / sp.frameMs) % len;
+  var sx = (fr % sp.across) * sp.frameW, sy = Math.floor(fr / sp.across) * sp.frameH;
+  ctx.save();
+  ctx.translate(x - sp.frameW / 2 + sp.originX, y - sp.frameH / 2 + sp.originY);
+  ctx.scale(left ? -size : size, size);
+  ctx.drawImage(sheet, sx, sy, sp.frameW, sp.frameH, -sp.originX, -sp.originY, sp.frameW, sp.frameH);
+  ctx.restore();
+}
+function paintMob(ctx, trial, sp, x, y, hp, size, mod, ring, left, walking, phase) {
+  var sheet = mobSheet(trial, mod);
+  var hw = sp ? sp.frameW * size / 2 : 6 + 5 * size, hh = sp ? sp.frameH * size / 2 : hw;
+  var r = Math.max(8, Math.min(hw, hh) * 0.75);
+  // Feet (origin) and top of the scaled frame; without a sprite fall back to a centred disc.
+  var feet = sp ? y - sp.frameH / 2 + sp.originY : y + hh, top = sp ? feet - sp.originY * size : y - hh;
+  if (ring) {
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = ring;
+    ctx.beginPath(); ctx.ellipse(x, feet - r * 0.15, r, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = ring; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  }
+  if (sheet) drawMob(ctx, sp, sheet, x, y, size, left, walking, phase);
+  else {
+    ctx.fillStyle = mod ? '#ef5350' : '#9e9e9e';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#300'; ctx.fillRect(x - r, top - 6, 2 * r, 3);
+  ctx.fillStyle = '#76ff03'; ctx.fillRect(x - r, top - 6, 2 * r * hp, 3);
+}
+
+// Source sprite sheets for the wizard (MBS 359 anim 3) and tower projectiles (Projectile anims 0-7).
+// MBS 359 anim 3 has origin (25,73); created at top-left (x-31, NodeY-46) and grown 2*facing about it.
+var WIZ = { w: 51, h: 73, across: 12, ox: 25, oy: 73 };
+var PROJ = {
+  0: { w: 35, h: 33, across: 3, n: 7 }, 1: { w: 72, h: 80, across: 4, n: 12 }, 2: { w: 30, h: 28, across: 4, n: 15 },
+  3: { w: 72, h: 23, across: 4, n: 12 }, 5: { w: 34, h: 50, across: 3, n: 7 }, 6: { w: 66, h: 18, across: 3, n: 6 },
+  7: { w: 72, h: 23, across: 4, n: 12 },
+};
+function drawSheet(ctx, src, d, frame, x, y, sx, sy, alpha) {
+  var im = img(src);
+  if (!im) return false;
+  frame = Math.max(0, Math.min(d.n ? d.n - 1 : 999, frame | 0));
+  ctx.save();
+  if (alpha != null) ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.translate(x, y);
+  ctx.scale(sx, sy);
+  ctx.drawImage(im, (frame % d.across) * d.w, Math.floor(frame / d.across) * d.h, d.w, d.h, -d.w / 2, -d.h / 2, d.w, d.h);
+  ctx.restore();
+  return true;
+}
+function drawProj(ctx, anim, frame, x, y, sx, sy, alpha) {
+  return drawSheet(ctx, TD_ASSET_DIR + 'proj-' + anim + '.png', PROJ[anim], frame, x, y, sx, sy, alpha);
+}
+// Wizard frame from the source state machine: 15t placement (hidden), 15t+1..3 popup (100 ms each),
+// 15t+4 ready/scanning, 15t+5..13 attack, 15t+14 hidden while the cooldown runs.
+function wizardFrame(t, tick) {
+  var sub;
+  if (t.state === 2) sub = 4;
+  else if (t.state === 1) sub = Math.max(0, Math.min(3, 4 - (t.readyAt - tick)));
+  else sub = t.lastFire >= 0 && tick - t.lastFire < 9 ? 5 + (tick - t.lastFire) : 14;
+  return sub === 0 || sub === 14 ? -1 : 15 * t.type + sub;
+}
+function drawWizard(ctx, t, tick) {
+  var f = wizardFrame(t, tick);
+  if (f >= 0) drawWizardFrame(ctx, t, f);
+}
+function drawWizardFrame(ctx, t, f) {
+  var im = img(TD_ASSET_DIR + 'wizard.png');
+  if (!im) return;
+  ctx.save();
+  ctx.translate(t.wx - WIZ.w / 2 + WIZ.ox, t.wy - WIZ.h / 2 + WIZ.oy);
+  // The native sheet faces left; the game grows it by 2 * facing about the animation origin.
+  ctx.scale(2 * (t.facing || 1), 2);
+  ctx.drawImage(im, (f % WIZ.across) * WIZ.w, Math.floor(f / WIZ.across) * WIZ.h, WIZ.w, WIZ.h, -WIZ.ox, -WIZ.oy, WIZ.w, WIZ.h);
+  ctx.restore();
+}
+
+// ---------- Live mode: the stepper rendered tick by tick ----------
+
+var LIVE_SPEEDS = [0.5, 1, 2, 5];
+var live = { run: null, prev: null, cur: null, playing: false, speed: 1, raf: 0, last: 0, acc: 0, ranges: false, hover: null, busy: '', gen: 0, forResult: null };
+
+function liveReset() {
+  liveStop();
+  live.gen++;
+  live.run = null; live.prev = null; live.cur = null; live.acc = 0; live.busy = ''; live.forResult = null;
+}
+function liveEnsure() {
+  if (live.run && live.forResult === sim.result) return true;
+  if (!sim.result || !sim.args) return false;
+  live.gen++;
+  live.forResult = sim.result;
+  live.run = createWorshipTdRun(sim.args.inp, sim.args.plan, Object.assign({}, sim.args.o, { seed: sim.args.seed, fx: true, timeline: false }));
+  live.cur = live.prev = live.run.view();
+  live.acc = 0;
+  return true;
+}
+function liveStop() {
+  live.playing = false;
+  live.last = 0;
+  if (live.raf) { cancelAnimationFrame(live.raf); live.raf = 0; }
+  var b = document.getElementById('live-play');
+  if (b) b.textContent = 'Play';
+}
+function liveSetPlaying(on) {
+  if (!on) { liveStop(); return; }
+  if (live.busy || !liveEnsure()) return;
+  if (live.run.done) { live.run = null; liveEnsure(); }
+  live.playing = true;
+  live.last = 0;
+  if (!live.raf) live.raf = requestAnimationFrame(liveFrame);
+  var b = document.getElementById('live-play');
+  if (b) b.textContent = 'Pause';
+}
+function liveAdvance(n) {
+  if (n <= 0 || !live.run || live.run.done) return;
+  if (n > 1) live.run.step(n - 1);
+  live.prev = n > 1 ? live.run.view() : live.cur;
+  live.run.step(1);
+  live.cur = live.run.view();
+}
+function liveFrame(now) {
+  live.raf = 0;
+  if (!live.playing || !live.run) return;
+  var dt = live.last ? Math.min(0.25, (now - live.last) / 1000) : 0;
+  live.last = now;
+  live.acc += dt * 10 * live.speed;
+  var n = Math.floor(live.acc);
+  if (n > 0) { live.acc -= n; liveAdvance(n); }
+  if (live.run.done) { live.acc = 0; liveStop(); }
+  drawLive();
+  if (live.playing) live.raf = requestAnimationFrame(liveFrame);
+}
+// Fast-forward in yielding chunks; seeking backwards replays from the start with the same seed.
+async function liveJump(wave) {
+  if (live.busy || !liveEnsure()) return;
+  var playing = live.playing;
+  liveStop();
+  if (live.cur && wave < live.cur.wave) { live.run = null; live.forResult = null; liveEnsure(); }
+  var gen = live.gen;
+  live.busy = 'Fast-forwarding';
+  var t0 = performance.now();
+  while (!live.run.done && live.run.view().wave < wave) {
+    live.run.step(10);
+    if (performance.now() - t0 > 30) {
+      live.cur = live.prev = live.run.view();
+      live.busy = 'Fast-forwarding — wave ' + live.cur.wave + ' / ' + wave;
+      drawLive();
+      await new Promise(function(r) { setTimeout(r, 0); });
+      if (gen !== live.gen) return;
+      t0 = performance.now();
+    }
+  }
+  live.cur = live.prev = live.run.view();
+  live.acc = 0;
+  live.busy = '';
+  drawLive();
+  if (playing && !live.run.done) liveSetPlaying(true);
+}
+
+function liveHtml() {
+  if (!sim.args) return '';
+  pendingMaps.push({ kind: 'live' });
+  var html = '<h3>Live</h3><div class="td-map-bar">';
+  html += '<button class="btn" id="live-play">' + (live.playing ? 'Pause' : 'Play') + '</button>';
+  html += '<button class="btn" id="live-restart">Restart</button>';
+  html += '<span class="muted">Speed</span>' + LIVE_SPEEDS.map(function(s) { return '<button class="btn speed' + (s === live.speed ? ' on' : '') + '" data-livespeed="' + s + '" aria-pressed="' + (s === live.speed) + '">' + s + '×</button>'; }).join('');
+  html += '<label>Jump to wave<input type="number" id="live-wave" min="0" style="width:70px"></label>';
+  html += '<label><input type="checkbox" id="live-ranges"' + (live.ranges ? ' checked' : '') + '> Ranges</label></div>';
+  html += '<div class="td-hud" id="live-hud"></div>';
+  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-live" tabindex="0" aria-label="Live simulation"></canvas></div>';
+  html += '<p class="note">Runs the first simulated run again on this page, tick by tick at the game\'s 10 ticks per second (1× is real time), with the same seed. Wizards pop out, attack, and hide on the source timing; fireballs, boulders, storm bolts, Frozone and Void rings, poison clouds, and Kraken underlings use the game\'s projectile sprites.</p>';
+  return html;
+}
+
+function drawLive() {
+  var cv = document.getElementById('td-map-live');
+  if (!cv || !sim.result) return;
+  if (!live.cur) liveEnsure();
+  var V = live.cur, P = live.prev || V;
+  if (!V) return;
+  var trial = sim.result.trial;
+  var ctx = cv._ctx && cv._trial === trial && cv._w === cv.parentElement.clientWidth ? cv._ctx : null;
+  if (!ctx) { ctx = cv._ctx = sizeCanvas(cv, trial); cv._trial = trial; cv._w = cv.parentElement.clientWidth; }
+  var a = Math.max(0, Math.min(1, live.acc));
+  var rt = P.tick + (V.tick - P.tick) * a;
+  var lerp = function(x0, x1) { return x0 + (x1 - x0) * a; };
+  drawScene(ctx, trial);
+  if (live.ranges || live.hover != null) {
+    ctx.save();
+    V.towers.forEach(function(t, i) {
+      if (!live.ranges && live.hover !== i) return;
+      ctx.strokeStyle = TYPE_COLOR[t.type]; ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(t.wx, t.wy, t.range, 0, Math.PI * 2); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  V.clouds.forEach(function(c) {
+    var age = rt - c.born, left = c.until - rt;
+    if (age < 0 || left < 0) return;
+    drawProj(ctx, 6, Math.floor(age) % 6, c.x, c.y, 2, 2, left < 7 ? left / 7 : Math.min(1, age / 2));
+  });
+  V.towers.forEach(function(t) { drawTower(ctx, t); });
+  V.towers.forEach(function(t) { drawWizard(ctx, t, V.tick); });
+  V.towers.forEach(function(t) { drawTowerLabel(ctx, t, String(t.lvl)); });
+  var sp = tdMobSprite(trial), now = performance.now();
+  var prevMob = new Map();
+  P.mobs.forEach(function(m) { prevMob.set(m.id, m); });
+  V.mobs.forEach(function(m) {
+    var p = prevMob.get(m.id), x = m.x, y = m.y;
+    if (p && Math.abs(p.x - m.x) < 80 && Math.abs(p.y - m.y) < 80) { x = lerp(p.x, m.x); y = lerp(p.y, m.y); }
+    paintMob(ctx, trial, sp, x, y, m.hpFrac, m.size, m.mod, m.frozen ? '#4dd0e1' : m.rooted ? '#66bb6a' : m.healing ? '#f48fb1' : null, m.faceLeft, m.walking, now + m.id * 37);
+  });
+  var prevB = new Map();
+  P.boulders.forEach(function(b) { prevB.set(b.id, b); });
+  V.boulders.forEach(function(b) {
+    var p = prevB.get(b.id), x = p ? lerp(p.x, b.x) : b.x;
+    drawProj(ctx, 0, Math.floor(rt - b.born) % 7, x, b.y - 30, 2 * b.dir, 2);
+  });
+  var prevK = new Map();
+  P.krakens.forEach(function(u) { prevK.set(u.id, u); });
+  V.krakens.forEach(function(u) {
+    var p = prevK.get(u.id), x = p ? lerp(p.x, u.x) : u.x, y = p ? lerp(p.y, u.y) : u.y;
+    // The eye fills only the bottom rows of its 34x50 frame; lift it so it rests on the platform.
+    if (!drawProj(ctx, 5, Math.floor(rt / 1.5) % 7, x, y - 25, u.vx < 0 ? 2 : -2, 2)) {
+      ctx.fillStyle = '#ff9800'; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  V.fx.forEach(function(f) {
+    var dur = Math.max(1, f.end - f.t), age = rt - f.t, p = age / dur;
+    if (age < 0 || p > 1) return;
+    switch (f.k) {
+      case 'fb': {
+        var fx = f.x0 + (f.x - f.x0) * p, fy = f.y0 + (f.y - 30 - f.y0) * p - Math.sin(Math.PI * p) * 70;
+        if (!drawProj(ctx, 1, Math.floor(age * 100 / 80) % 3, fx, fy, -2 * f.dir, 2)) {
+          ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.arc(fx, fy, 8, 0, Math.PI * 2); ctx.fill();
+        }
+        break;
+      }
+      case 'boom':
+        if (!drawProj(ctx, 1, 7 + Math.floor(age * 100 / 80), f.x, f.y - 50, -2 * f.dir, 2)) {
+          ctx.save(); ctx.globalAlpha = 1 - p; ctx.fillStyle = '#ff7043';
+          ctx.beginPath(); ctx.arc(f.x, f.y - 20, f.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
+        break;
+      case 'storm':
+        drawProj(ctx, 2, Math.floor(p * 15), f.x, f.y, 2, 2);
+        break;
+      case 'ring':
+        ctx.save(); ctx.globalAlpha = 0.5 * (1 - p); ctx.strokeStyle = f.anim === 7 ? '#9575cd' : '#4dd0e1'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        drawProj(ctx, f.anim, Math.floor(age * 100 / 80), f.x, f.y, 2, 2);
+        break;
+      case 'pulse':
+        ctx.save(); ctx.globalAlpha = 1 - p; ctx.strokeStyle = '#ffb74d'; ctx.lineWidth = 2 + Math.min(4, f.n);
+        ctx.beginPath(); ctx.moveTo(f.x0, f.y0); ctx.lineTo(f.x, f.y); ctx.stroke();
+        ctx.fillStyle = '#fff3e0'; ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        break;
+      case 'dmg': {
+        ctx.save(); ctx.globalAlpha = 1 - p * p; ctx.textAlign = 'center';
+        ctx.font = 'bold ' + (f.crit ? 15 : 12) + 'px Segoe UI, sans-serif';
+        var txt = f.blocked ? 'Blocked' : fmtNum(f.v), ty = f.y - 6 - p * 24;
+        ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(txt, f.x, ty);
+        ctx.fillStyle = f.blocked ? '#9e9e9e' : f.crit ? '#ffd700' : '#fff'; ctx.fillText(txt, f.x, ty);
+        ctx.restore();
+        break;
+      }
+      case 'stun':
+        ctx.save(); ctx.globalAlpha = 1 - p; ctx.textAlign = 'center'; ctx.font = 'bold 13px Segoe UI, sans-serif';
+        ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText('Stunned', f.x, f.y);
+        ctx.fillStyle = '#ce93d8'; ctx.fillText('Stunned', f.x, f.y); ctx.restore();
+        break;
+    }
+  });
+  drawGhost(ctx, cv._ghost);
+  cv._trialId = trial;
+  cv._placed = V.towers;
+  cv._towers = V.towers.map(function(t) { return Object.assign({ tip: TD_TOWER_NAMES[t.type] + ' lv ' + t.lvl + (t.traits ? ' — traits ' + t.traits : '') + ' — range ' + Math.round(t.range) + ' — cooldown ' + (Math.round(t.cdMax * 100) / 100) + ' s' }, t); });
+  var hud = document.getElementById('live-hud');
+  if (hud) {
+    hud.innerHTML = '<span>Time <b>' + fmtTime(V.t) + '</b></span><span>Wave <b>' + V.wave + '</b></span><span>Alive <b>' + V.alive + '</b></span><span>Underlings <b>' + V.krakens.length + '</b></span><span>Points <b>' + fmtNum(V.pts) + '</b></span><span>Totem <b>' + V.totem + '</b></span><span>Towers <b>' + V.towers.length + '</b></span>'
+      + (live.busy ? '<span><b>' + esc(live.busy) + '</b></span>' : V.done ? '<span>Ended <b>' + esc(V.endReason || '') + '</b></span>' : '');
+  }
+}
+
+// Plan layout: initial towers, then each phase's sells and builds in order, snapped exactly as the sim places them.
+function planLayouts(plan, trial) {
+  return planPlacementLayouts(trial, plan).map(function(l) {
+    return Object.assign({}, l, { towers: l.towers.map(function(t) { return Object.assign({}, t, towerCenters(trial, t.node, t.x)); }) });
+  });
+}
+function planMapHtml(plan, id) {
+  var layouts = planLayouts(plan, state.trial);
+  var k = Math.min(planMapPhase[id] || 0, layouts.length - 1);
+  pendingMaps.push({ kind: 'plan', id: id, plan: plan });
+  var html = '<div class="td-map-bar"><b style="color:var(--cyan)">Layout</b>';
+  if (layouts.length > 1) html += '<label>Stage<select data-planmap="' + id + '">' + layouts.map(function(l, i) { return '<option value="' + i + '"' + (i === k ? ' selected' : '') + '>' + esc(l.label) + ' (' + l.towers.length + ' towers)</option>'; }).join('') + '</select></label>';
+  html += slotsToggleHtml();
+  html += '<span class="muted">Labels are plan order. Hover a tower for traits, or a platform to preview the game\'s placement cursor.</span></div>';
+  html += '<div class="td-map-wrap"><canvas id="td-map-' + id + '" tabindex="0" aria-label="Plan layout map"></canvas></div>';
+  return html + '<div class="td-slot-note" data-slotnote="' + id + '"></div>';
+}
+function slotsToggleHtml() {
+  return '<label><input type="checkbox" data-slots' + (mapOpts.slots ? ' checked' : '') + '> Open slots</label>';
+}
+function slotNote(trial, towers) {
+  if (!mapOpts.slots) return '';
+  var info = slotInfo(trial, towers);
+  return '<span class="badge badge-green">' + info.extra.length + '</span> more towers fit (packed left to right, 62 px apart). Green bars are every legal centre; faded ghosts show one packing.';
+}
+function drawPlanMap(entry) {
+  var cv = document.getElementById('td-map-' + entry.id);
+  if (!cv) return;
+  var layouts = planLayouts(entry.plan, state.trial);
+  var lay = layouts[Math.min(planMapPhase[entry.id] || 0, layouts.length - 1)];
+  var ctx = sizeCanvas(cv, state.trial);
+  drawScene(ctx, state.trial);
+  if (mapOpts.slots) drawSlots(ctx, state.trial, lay.towers);
+  drawTowers(ctx, lay.towers, function(t) { return '#' + t.planIdx; });
+  drawGhost(ctx, cv._ghost);
+  cv._trialId = state.trial;
+  cv._placed = lay.towers;
+  var note = document.querySelector('[data-slotnote="' + entry.id + '"]');
+  if (note) {
+    var warn = '';
+    var nudged = lay.towers.filter(function(t) { return t.x !== t.reqX; });
+    if (lay.rejected.length) warn += '<span class="badge badge-red">' + lay.rejected.length + ' not placed</span> ' + lay.rejected.map(function(r) { return '#' + r.planIdx + ' ' + esc(TD_TOWER_NAMES[r.type]) + ': ' + esc(r.reason); }).join('; ') + '. ';
+    if (nudged.length) warn += '<span class="badge badge-gold">' + nudged.length + ' nudged</span> ' + nudged.map(function(t) { return '#' + t.planIdx + ' x ' + t.reqX + '→' + t.x; }).join(', ') + ' (the game shifts an overlapping tower 62 px). ';
+    note.innerHTML = warn + slotNote(state.trial, lay.towers);
+  }
+  cv._towers = lay.towers.map(function(t) { return Object.assign({ tip: TD_TOWER_NAMES[t.type] + ' #' + t.planIdx + (t.traits ? ' — traits ' + t.traits : '') + ' — node ' + t.node + ', x ' + t.x }, t); });
+}
+
+function replayHtml(r) {
+  if (!r.replay || !r.replay.frames.length) return '';
+  var R = r.replay, n = R.frames.length;
+  player.frame = Math.min(player.frame, n - 1);
+  pendingMaps.push({ kind: 'replay' });
+  var speeds = [10, 30, 60, 120, 300, 600, 1200];
+  var html = '<h3>Replay</h3><div class="td-map-bar">';
+  html += '<button class="btn" id="rp-play">' + (player.playing ? 'Pause' : 'Play') + '</button>';
+  html += '<input type="range" id="rp-scrub" min="0" max="' + (n - 1) + '" value="' + player.frame + '" aria-label="Replay position">';
+  html += '<label>Speed<select id="rp-speed">' + speeds.map(function(s) { return '<option value="' + s + '"' + (s === player.speed ? ' selected' : '') + '>' + s + '×</option>'; }).join('') + '</select></label>';
+  html += '<label>Jump to wave<input type="number" id="rp-wave" min="0" style="width:70px"></label>';
+  html += '<label><input type="checkbox" id="rp-ranges"' + (player.ranges ? ' checked' : '') + '> Ranges</label>' + slotsToggleHtml() + '</div>';
+  html += '<div class="td-hud" id="rp-hud"></div>';
+  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-replay" tabindex="0" aria-label="Simulation replay"></canvas></div>';
+  html += '<div class="td-slot-note" data-slotnote="replay"></div>';
+  html += '<div class="td-legend"><span>Mob tint = its mod (greyscale = no mod or voided)</span><span><i style="border:2px solid #4dd0e1"></i>Frozen</span><span><i style="border:2px solid #66bb6a"></i>Rooted</span><span><i style="border:2px solid #f48fb1"></i>Healing</span><span><i style="background:#ff9800"></i>Kraken underling</span><span><i style="background:rgba(120,200,255,.5)"></i>Storm cloud</span><span><i style="border:2px dashed #66bb6a"></i>Root cast</span><span><i style="background:#76ff03"></i>Open slot</span></div>';
+  html += '<p class="note">Recorded every ' + R.interval + ' s of game time (' + n + ' frames, ' + R.towerSets.length + ' tower layouts). Mobs use the game\'s own animated sprite sheets and mod hue filters; hover a platform to see the game\'s placement cursor against the towers standing at that moment.</p>';
+  return html;
+}
+function drawReplay() {
+  var cv = document.getElementById('td-map-replay');
+  if (!cv || !sim.result || !sim.result.replay) return;
+  var R = sim.result.replay, trial = sim.result.trial;
+  var f = R.frames[Math.max(0, Math.min(R.frames.length - 1, Math.floor(player.frame)))];
+  var ctx = cv._ctx && cv._trial === trial && cv._w === cv.parentElement.clientWidth ? cv._ctx : null;
+  if (!ctx) { ctx = cv._ctx = sizeCanvas(cv, trial); cv._trial = trial; cv._w = cv.parentElement.clientWidth; }
+  drawScene(ctx, trial);
+  var set = R.towerSets[f.set] || [];
+  if (player.ranges || player.hover != null) {
+    ctx.save();
+    set.forEach(function(t, i) {
+      if (!player.ranges && player.hover !== i) return;
+      ctx.strokeStyle = TYPE_COLOR[t.type];
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(t.wx, t.wy, t.range, 0, Math.PI * 2); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  ctx.save();
+  for (var c = 0; c < f.clouds.length; c += 2) {
+    ctx.fillStyle = 'rgba(120,200,255,.28)';
+    ctx.beginPath(); ctx.arc(f.clouds[c], f.clouds[c + 1], 34, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  if (mapOpts.slots) drawSlots(ctx, trial, set);
+  drawTowers(ctx, set, function(t) { return String(t.lvl); });
+  var sp = tdMobSprite(trial), now = performance.now();
+  var M = f.mobs, stride = R.mobStride || 6;
+  for (var i = 0; i < M.length; i += stride) {
+    var fl = M[i + 3], mo = M[i + 5] || 0;
+    paintMob(ctx, trial, sp, M[i], M[i + 1], M[i + 2] / 1000, (M[i + 4] >> 5) / 10, fl & 8 ? (fl >> 4) & 15 : 0,
+      fl & 1 ? '#4dd0e1' : fl & 2 ? '#66bb6a' : fl & 4 ? '#f48fb1' : null, mo & 1, mo & 2, now + i * 37);
+  }
+  ctx.fillStyle = '#ff9800';
+  for (var u = 0; u < f.unders.length; u += 2) { ctx.beginPath(); ctx.arc(f.unders[u], f.unders[u + 1] - 8, 5, 0, Math.PI * 2); ctx.fill(); }
+  if (R.root) {
+    var recent = R.roots.some(function(e) { return e.t <= f.t && f.t - e.t < Math.max(2, R.interval * 1.5); });
+    if (recent) {
+      ctx.save(); ctx.strokeStyle = '#66bb6a'; ctx.lineWidth = 4; ctx.setLineDash([12, 8]);
+      ctx.beginPath(); ctx.arc(R.root.x, R.root.y, Math.min(R.root.radius, 4000), 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#66bb6a'; ctx.beginPath(); ctx.arc(R.root.x, R.root.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+  drawGhost(ctx, cv._ghost);
+  cv._trialId = trial;
+  if (cv._placed !== set) {
+    cv._placed = set;
+    var note = document.querySelector('[data-slotnote="replay"]');
+    if (note) note.innerHTML = slotNote(trial, set);
+  }
+  cv._towers = set.map(function(t) { return Object.assign({ tip: TD_TOWER_NAMES[t.type] + ' lv ' + t.lvl + (t.traits ? ' — traits ' + t.traits : '') + ' — range ' + Math.round(t.range) }, t); });
+  var hud = document.getElementById('rp-hud');
+  if (hud) {
+    var leaks = R.leaks.filter(function(e) { return e.t <= f.t; }).length;
+    hud.innerHTML = '<span>Time <b>' + fmtTime(f.t) + '</b></span><span>Wave <b>' + f.wave + '</b></span><span>Alive <b>' + f.alive + '</b></span><span>Underlings <b>' + (f.unders.length / 2) + '</b></span><span>Points <b>' + fmtNum(f.pts) + '</b></span><span>Totem <b>' + f.totem + '</b></span><span>Leaks so far <b>' + leaks + '</b></span><span>Towers <b>' + set.length + '</b></span>';
+  }
+  var scrub = document.getElementById('rp-scrub');
+  if (scrub && document.activeElement !== scrub) scrub.value = Math.floor(player.frame);
+}
+function tick(now) {
+  player.raf = 0;
+  if (!player.playing || !sim.result || !sim.result.replay) return;
+  var R = sim.result.replay;
+  var dt = player.last ? Math.min(0.25, (now - player.last) / 1000) : 0;
+  player.last = now;
+  player.frame += dt * player.speed / R.interval;
+  if (player.frame >= R.frames.length - 1) { player.frame = R.frames.length - 1; player.playing = false; var b = document.getElementById('rp-play'); if (b) b.textContent = 'Play'; }
+  drawReplay();
+  if (player.playing) player.raf = requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  player.playing = on;
+  player.last = 0;
+  if (player.raf) { cancelAnimationFrame(player.raf); player.raf = 0; }
+  if (on && sim.result && sim.result.replay) {
+    if (player.frame >= sim.result.replay.frames.length - 1) player.frame = 0;
+    player.raf = requestAnimationFrame(tick);
+  }
+  var b = document.getElementById('rp-play');
+  if (b) b.textContent = on ? 'Pause' : 'Play';
+}
+function showTip(text, ev) {
+  var tip = document.getElementById('td-bt-tooltip');
+  if (!text) { tip.style.display = 'none'; return; }
+  tip.textContent = text;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14) + 'px';
+  tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, ev.clientY + 14) + 'px';
+}
+function hoverTower(cv, ev) {
+  var rect = cv.getBoundingClientRect(), s = cv._scale || 1;
+  var mx = (ev.clientX - rect.left) / s, my = (ev.clientY - rect.top) / s;
+  var best = -1, bd = 30;
+  (cv._towers || []).forEach(function(t, i) { var d = Math.hypot(t.cx - mx, t.cy - 14 - my); if (d < bd) { bd = d; best = i; } });
+  var g = best < 0 && cv._trialId != null ? placementGhost(cv._trialId, cv._placed || [], mx, my) : null;
+  var changed = !g !== !cv._ghost || (g && (g.x !== cv._ghost.x || g.node !== cv._ghost.node || g.ok !== cv._ghost.ok));
+  cv._ghost = g;
+  if (best >= 0) showTip(cv._towers[best].tip, ev);
+  else if (g) showTip(g.ok ? 'Valid placement — platform ' + g.node + ', x ' + g.x : 'Can\'t place here: ' + g.reason, ev);
+  else showTip('', ev);
+  return { tower: best < 0 ? null : best, ghostChanged: changed };
+}
+function mountMaps() {
+  var list = pendingMaps;
+  pendingMaps = [];
+  list.forEach(function(e) {
+    var cv = document.getElementById(e.kind === 'replay' ? 'td-map-replay' : e.kind === 'live' ? 'td-map-live' : 'td-map-' + e.id);
+    if (!cv) return;
+    cv._entry = e;
+    var tip = document.getElementById('td-bt-tooltip');
+    cv.onmouseleave = function() {
+      tip.style.display = 'none';
+      var had = !!cv._ghost;
+      cv._ghost = null;
+      if (e.kind === 'replay') { if (player.hover != null || had) { player.hover = null; drawReplay(); } }
+      else if (e.kind === 'live') { if (live.hover != null || had) { live.hover = null; drawLive(); } }
+      else if (had) drawPlanMap(e);
+    };
+    cv.onkeydown = function(ev) { if (ev.key === 'Escape') { tip.style.display = 'none'; if (cv._ghost) { cv._ghost = null; redrawMaps(); } } };
+    cv.onmousemove = function(ev) {
+      var h = hoverTower(cv, ev);
+      if (e.kind === 'replay') {
+        if (h.tower !== player.hover || h.ghostChanged) { player.hover = h.tower; if (!player.playing) drawReplay(); }
+      } else if (e.kind === 'live') {
+        if (h.tower !== live.hover || h.ghostChanged) { live.hover = h.tower; if (!live.playing) drawLive(); }
+      } else if (h.ghostChanged) drawPlanMap(e);
+    };
+    drawEntry(e);
+  });
+  document.querySelectorAll('input[data-slots]').forEach(function(cb) {
+    cb.onchange = function() {
+      mapOpts.slots = cb.checked;
+      document.querySelectorAll('input[data-slots]').forEach(function(o) { o.checked = cb.checked; });
+      var rcv = document.getElementById('td-map-replay');
+      if (rcv) rcv._placed = null;
+      redrawMaps();
+    };
+  });
+  document.querySelectorAll('select[data-planmap]').forEach(function(sel) {
+    sel.onchange = function() {
+      planMapPhase[sel.dataset.planmap] = Number(sel.value) || 0;
+      var cv = document.getElementById('td-map-' + sel.dataset.planmap);
+      if (cv && cv._entry) drawPlanMap(cv._entry);
+    };
+  });
+  if (player.playing && !player.raf) { player.last = 0; player.raf = requestAnimationFrame(tick); }
+  if (live.playing && !live.raf) { live.last = 0; live.raf = requestAnimationFrame(liveFrame); }
+}
+function drawEntry(e) {
+  if (e.kind === 'plan') drawPlanMap(e);
+  else if (e.kind === 'live') drawLive();
+  else drawReplay();
+}
+function redrawMaps() {
+  document.querySelectorAll('canvas[id^="td-map-"]').forEach(function(cv) { if (cv._entry) drawEntry(cv._entry); });
+}
+window.addEventListener('resize', function() {
+  ['td-map-replay', 'td-map-live'].forEach(function(id) { var cv = document.getElementById(id); if (cv) cv._ctx = null; });
+  redrawMaps();
+});
+
+function renderBreakdowns(inp) {
+  var b = inp.breakdowns;
+  return '<div class="section"><div class="breakdown-grid">'
+    + treePanel('Charge rate', b.speed) + treePanel('Charge max', b.chargeMax) + treePanel('Starting points', b.startPts)
+    + treePanel('Totem HP', b.totemHp) + treePanel('Kill points', b.killPts) + treePanel('Tower damage', b.damage)
+    + treePanel('Soul multiplier', b.souls) + treePanel('Worship efficiency', b.efficiency) + treePanel('Worship EXP', b.exp)
+    + '</div></div>';
+}
+
+function planSourceOptions() {
+  var opts = guidePresetsForTrial(state.trial).map(function(p) { return ['preset:' + p.id, 'Guide: ' + p.label]; });
+  opts.push(['heuristic', 'Coverage heuristic']);
+  if (opt.result && opt.result.trial === state.trial) opts.push(['optimizer', 'Optimizer result']);
+  var cur = state.planSource || defaultPlanSource();
+  return opts.map(function(o) { return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
+}
+
+function renderPlan(plan, mapId) {
+  var html = '';
+  if (mapId) html += planMapHtml(plan, mapId);
+  html += '<table class="data-table"><thead><tr><th>#</th><th>Tower</th><th class="num">Node</th><th class="num">X</th><th>Traits</th><th class="num">Max level</th><th class="num">Weight</th></tr></thead><tbody>';
+  plan.towers.forEach(function(t, i) {
+    html += '<tr><td>' + i + '</td><td>' + TD_TOWER_NAMES[t.type] + '</td><td class="num">' + t.slot.node + '</td><td class="num">' + t.slot.x + '</td><td>' + esc(t.traits || '') + '</td><td class="num">' + (t.maxLevel == null || t.maxLevel === Infinity ? '—' : t.maxLevel) + '</td><td class="num">' + fmtNum(t.weight == null ? 1 : t.weight) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  (plan.phases || []).forEach(function(ph) {
+    var w = ph.when || {};
+    var conds = [];
+    if (w.minWave != null) conds.push('wave ≥ ' + w.minWave);
+    if (w.aliveMax != null) conds.push('≤ ' + w.aliveMax + ' mobs alive');
+    if (w.bossHpFracMax != null) conds.push('boss HP ≤ ' + Math.round(w.bossHpFracMax * 100) + '%');
+    if (w.bossHold) conds.push('boss hold');
+    var sold = [];
+    if (ph.sell && ph.sell.all) sold.push('all towers');
+    if (ph.sell && ph.sell.types && ph.sell.types.length) sold.push(ph.sell.types.map(function(t) { return TD_TOWER_NAMES[t]; }).join(', '));
+    if (ph.sell && ph.sell.planIdx && ph.sell.planIdx.length) sold.push('plan #' + ph.sell.planIdx.join(', #'));
+    html += '<h3>Phase: ' + esc(ph.label || 'unnamed') + '</h3><p class="note">When ' + esc(conds.join(' and ') || 'immediately') + ': sell ' + esc(sold.join('; ') || 'nothing') + ', then build:</p>';
+    html += '<table class="data-table"><tbody>' + ph.towers.map(function(t) {
+      return '<tr><td>' + TD_TOWER_NAMES[t.type] + '</td><td class="num">node ' + t.slot.node + ' x ' + t.slot.x + '</td><td>' + esc(t.traits || '') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+  });
+  return html;
+}
+
+function renderSimulator(inp) {
+  var plan = currentPlan();
+  var html = '<div class="section"><h2>Simulator</h2><div class="controls">';
+  html += '<label>Plan<select id="sim-plan">' + planSourceOptions() + '</select></label>';
+  html += '<label>Start<select id="sim-start"><option value="fresh"' + (state.start === 'fresh' ? ' selected' : '') + '>Fresh run</option><option value="checkpoint"' + (state.start === 'checkpoint' ? ' selected' : '') + '>Saved checkpoint (wave ' + (inp.checkpointWaves[state.trial] || 0) + ')</option></select></label>';
+  html += '<label>Root<select id="sim-root"><option value="">Plan default</option>' + TD_ROOT_POLICIES.map(function(p) { return '<option value="' + p + '"' + (state.rootPolicy === p ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</select></label>';
+  html += '<label>Max hours<input type="number" id="sim-hours" min="0.1" step="0.5" value="' + state.hours + '"></label>';
+  html += '<label>Stop after wave<input type="number" id="sim-wave" min="1" value="' + state.maxWave + '"></label>';
+  html += '<label>Runs<input type="number" id="sim-seeds" min="1" max="12" value="' + state.seeds + '"></label>';
+  html += '<button class="btn primary" id="sim-run"' + (sim.running ? ' disabled' : '') + '>' + (sim.running ? 'Simulating…' : 'Run') + '</button>';
+  if (sim.running) html += '<button class="btn" id="sim-stop">Cancel</button>';
+  html += '</div>';
+  if (!inp.root.available && plan.roots && plan.roots.policy !== 'off') html += '<p class="note"><span class="badge badge-gold">No root</span> This character lacks the root talent, so the plan runs without roots. Guide holds rely on an Archer casting it.</p>';
+  if (sim.error) html += '<div class="err">' + esc(sim.error) + '</div>';
+  if (sim.result && sim.key === state.charIdx + ':' + state.trial) html += renderSimResult(sim.result, sim.trials);
+  html += '</div><div class="section"><h2>Plan</h2><p class="note">Towers are placed in order and upgraded by weight per point; traits are chosen at every fifth level. Skip policy: ' + esc(plan.skipPolicy || 'never') + ', root policy: ' + esc((plan.roots && plan.roots.policy) || 'off') + '.</p>' + renderPlan(plan, 'sim') + '</div>';
+  html += '<div class="section"><h2>Model assumptions</h2><ul class="note" style="padding-left:18px">' + TD_ASSUMPTIONS.map(function(a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></div>';
+  return html;
+}
+
+function renderSimResult(r, agg) {
+  var html = '';
+  if (sim.stale) html += '<p class="note"><span class="badge badge-gold">Stale</span> Simulated before the latest save refresh.</p>';
+  html += '<div class="card-grid cols-5">';
+  html += card('Best wave cleared', String(r.bestWave), r.newBest ? '<span class="badge badge-green">New best</span> saved ' + r.savedBest : 'Saved best ' + r.savedBest);
+  html += card('Time to best', fmtTime(r.bestWaveTimeSec), 'Game time');
+  html += card('Highest wave', String(r.highestWave), 'Ended: ' + esc(r.endReason));
+  html += card('Totem', r.totemLeft + ' left', r.leaks + ' leaks');
+  html += card('Points', fmtNum(r.killPts + r.skipPts + r.sellPts), 'Kills ' + fmtNum(r.killPts) + ', skips ' + fmtNum(r.skipPts) + ', sales ' + fmtNum(r.sellPts));
+  html += card('Kills', fmtNum(r.kills), fmtNum(r.exp) + ' EXP');
+  html += card('Root casts', String(r.rootCasts), '');
+  if (agg) html += card('Across ' + (agg.runs.length + 1) + ' runs', fmtNum((agg.meanBestWave * agg.runs.length + r.bestWave) / (agg.runs.length + 1)), 'Best wave range ' + Math.min(agg.minBestWave, r.bestWave) + '–' + Math.max(agg.maxBestWave, r.bestWave));
+  html += '</div>';
+  html += liveHtml();
+  html += replayHtml(r);
+  if (r.phases && r.phases.length) {
+    html += '<h3>Phases</h3><table class="data-table"><thead><tr><th>Phase</th><th class="num">Time</th><th class="num">Wave</th><th class="num">Alive</th><th class="num">Sold</th><th class="num">Refund</th><th class="num">Queued</th></tr></thead><tbody>';
+    r.phases.forEach(function(p) { html += '<tr><td>' + esc(p.label) + '</td><td class="num">' + fmtTime(p.t) + '</td><td class="num">' + p.wave + '</td><td class="num">' + p.alive + '</td><td class="num">' + p.sold + '</td><td class="num">' + fmtNum(p.refund) + '</td><td class="num">' + p.queued + '</td></tr>'; });
+    html += '</tbody></table>';
+  }
+  var totalDmg = r.towers.reduce(function(s, t) { return s + t.damage; }, 0) || 1;
+  html += '<div class="split"><div><h3>Final towers</h3><div class="scroll"><table class="data-table"><thead><tr><th>Tower</th><th class="num">Node / X</th><th class="num">Level</th><th>Traits</th><th class="num">Damage share</th></tr></thead><tbody>';
+  r.towers.forEach(function(t) {
+    var share = t.damage / totalDmg;
+    html += '<tr><td>' + esc(t.name) + '</td><td class="num">' + t.node + ' / ' + t.x + '</td><td class="num">' + t.lvl + '</td><td>' + esc(t.traits) + '</td><td class="num"><span class="dmg-bar" style="width:' + Math.round(share * 60) + 'px"></span> ' + (share * 100).toFixed(1) + '%</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  var waves = (r.timeline || []).filter(function(e) { return e.kind === 'wave' && e.wave % 10 === 0; });
+  var leaks = (r.timeline || []).filter(function(e) { return e.kind === 'leak'; });
+  html += '<div><h3>Wave timeline</h3><div class="scroll"><table class="data-table"><thead><tr><th class="num">Wave</th><th class="num">Time</th><th class="num">Unspent points</th><th class="num">Towers</th><th class="num">Levels</th><th class="num">Totem</th></tr></thead><tbody>';
+  waves.forEach(function(e) { html += '<tr><td class="num">' + e.wave + '</td><td class="num">' + fmtTime(e.t) + '</td><td class="num">' + fmtNum(e.pts) + '</td><td class="num">' + e.towers + '</td><td class="num">' + e.levels + '</td><td class="num">' + e.totem + '</td></tr>'; });
+  html += '</tbody></table></div>';
+  if (leaks.length) html += '<p class="note"><span class="badge badge-red">' + leaks.length + ' leaks</span> first at wave ' + leaks[0].wave + ' (' + fmtTime(leaks[0].t) + ').</p>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderOptimizer(inp) {
+  var o = state.opt;
+  var presets = guidePresetsForTrial(state.trial);
+  var html = '<div class="section"><h2>Optimizer</h2><div class="controls">';
+  var layout = o.mode === 'layout';
+  html += '<label>Mode<select id="opt-mode"><option value="layout"' + (layout ? ' selected' : '') + '>Guide strategy layout</option><option value="search"' + (!layout ? ' selected' : '') + '>Free search</option></select></label>';
+  html += '<label>Objective<select id="opt-obj"><option value="wave"' + (o.objective === 'wave' ? ' selected' : '') + '>Highest cleared wave</option><option value="souls"' + (o.objective === 'souls' ? ' selected' : '') + '>Souls per hour</option></select></label>';
+  if (layout) {
+    html += '<label>Layouts to test<input type="number" id="opt-budget" min="4" max="120" value="' + o.budget + '"></label>';
+  } else {
+    html += '<label>Restarts<input type="number" id="opt-restarts" min="1" max="12" value="' + o.restarts + '"></label>';
+    html += '<label>Iterations<input type="number" id="opt-iters" min="1" max="400" value="' + o.iterations + '"></label>';
+  }
+  html += '<label>Runs per plan<input type="number" id="opt-seeds" min="1" max="8" value="' + o.seeds + '"></label>';
+  html += '<label>Max hours per run<input type="number" id="opt-hours" min="0.1" step="0.5" value="' + o.hours + '"></label>';
+  if (presets.length && !layout) html += '<label class="inline"><input type="checkbox" id="opt-seedpreset"' + (o.seedPreset ? ' checked' : '') + '> Start from guide preset</label>';
+  html += '<button class="btn primary" id="opt-run"' + (opt.running ? ' disabled' : '') + '>' + (opt.running ? 'Optimizing…' : 'Optimize') + '</button>';
+  if (opt.running) html += '<button class="btn" id="opt-stop">Cancel</button>';
+  html += '</div><div id="opt-progress">' + optProgressHtml() + '</div>';
+  html += layout
+    ? '<p class="note">Applies the guides\' hold strategy: a Kraken wall with Frozones (KKFK) on a path platform to stack knockback, a Void near the spawn to strip passives, Storm and Poisonic on the platform that best covers the wall, and Parties buffing both. Before the target wave it sells the wall and spare Voids and rebuilds Frozone, Party, and Poisonic for boss waves. The search tests every wall platform and the trial\'s guide presets, then tunes wall offset and length, DPS platform, Party count, kept Krakens, the boss split, and the target wave. Leaders are rescored with twice the runs.</p>'
+    : '<p class="note">Bounded random-restart local search over tower order, slots, types, traits, and upgrade weights. Each plan is simulated in full for every run, so long runs take several seconds each.</p>';
+  if (opt.error) html += '<div class="err">' + esc(opt.error) + '</div>';
+  var r = opt.result;
+  if (r && r.trial === state.trial && opt.key === state.charIdx + ':' + state.trial) {
+    if (opt.stale) html += '<p class="note"><span class="badge badge-gold">Stale</span> Optimized before the latest save refresh.</p>';
+    html += '<div class="card-grid cols-4">';
+    html += card('Best wave cleared', String(Math.round(r.meanBestWave * 10) / 10), 'Range ' + r.minBestWave + '–' + r.maxBestWave + ', saved ' + r.savedBest);
+    html += card('Souls / hr now', fmtNum(r.soulsPerHourNow), 'At saved best wave');
+    html += card('Souls / hr with plan', fmtNum(r.soulsPerHourPlan), r.soulsPerHourNow > 0 ? '×' + fmtNum(r.soulsPerHourPlan / r.soulsPerHourNow) : '');
+    html += card('Plans evaluated', String(r.evaluations), r.seeds.length + ' runs each');
+    html += '</div><p style="margin-top:10px"><button class="btn" id="opt-use">Open in Simulator</button></p>';
+    if (r.layout) html += renderLayoutSummary(r);
+    html += '<h3>Recommended plan</h3>' + renderPlan(r.plan, 'opt');
+  }
+  return html + '</div>';
+}
+
+function renderLayoutSummary(r) {
+  var html = '<h3>Layout</h3>';
+  if (r.kind === 'preset') {
+    html += '<p class="note"><span class="badge badge-gold">Guide preset</span> ' + esc(r.label) + ' beat every generated layout.</p>';
+  } else if (r.roles) {
+    var R = r.roles, P = r.params;
+    html += '<div class="card-grid cols-4">';
+    html += card('Wall', 'Platform ' + R.wall.node, R.wall.xs.length + ' towers: ' + esc(R.wall.pattern || '') + ', ' + P.wallOffset + ' px from entry');
+    html += card('Damage cluster', R.dps ? 'Platform ' + R.dps.node : 'None', R.dps ? R.dps.xs.length + ' Storm/Poisonic, ' + R.dps.coverage + ' wall samples in range' : 'No platform covers the wall');
+    html += card('Parties', String(R.parties ? R.parties.length : 0), 'Speed/damage buffs placed by coverage');
+    html += card('Boss switch', 'Wave ' + P.targetWave, 'Keeps ' + P.keepKraken + ' Kraken, rebuilds ' + Math.round(P.phasePartyFrac * 100) + '% Party');
+    html += '</div>';
+  }
+  if (r.screen && r.screen.length) {
+    html += '<h3>Candidates screened</h3><table class="data-table"><thead><tr><th>Layout</th><th class="num">Best wave (mean)</th><th class="num">Worst run</th></tr></thead><tbody>';
+    r.screen.slice().sort(function(a, b) { return b.wave - a.wave; }).forEach(function(c) {
+      html += '<tr><td>' + esc(c.label) + '</td><td class="num">' + Math.round(c.wave * 10) / 10 + '</td><td class="num">' + c.minWave + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  return html;
+}
+
+function optProgressHtml() {
+  if (!opt.running) return '';
+  var p = opt.progress;
+  var pct = p && p.total ? p.completed / p.total : 0;
+  var txt = !p ? ' — starting' : p.restarts ? ' — restart ' + p.restart + '/' + p.restarts + ', best wave ' + Math.round(p.bestWave * 10) / 10
+    : ' — ' + (p.phase === 'final' ? 'rescoring leaders' : 'layout ' + p.completed + '/' + (p.total - 1)) + ', best wave ' + Math.round((p.bestWave || 0) * 10) / 10 + (p.label ? ' (' + esc(p.label) + ')' : '');
+  return '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><div class="bar-outer" style="width:240px"><div class="bar-fill" style="width:' + (pct * 100).toFixed(1) + '%"></div></div><span class="muted">' + (pct * 100).toFixed(0) + '%' + txt + '</span></div>';
+}
+function renderOptProgress() {
+  var el = document.getElementById('opt-progress');
+  if (el) el.innerHTML = optProgressHtml();
+}
+
+function num(id, lo, hi, dflt) {
+  var el = document.getElementById(id);
+  var v = el ? Number(el.value) : NaN;
+  if (!isFinite(v)) return dflt;
+  return Math.min(hi, Math.max(lo, v));
+}
+
+function bind() {
+  document.querySelectorAll('.tab').forEach(function(b) { b.onclick = function() { state.tab = b.dataset.tab; render(); }; });
+  var on = function(id, ev, fn) { var el = document.getElementById(id); if (el) el[ev] = fn; };
+  on('sim-plan', 'onchange', function(e) { state.planSource = e.target.value; render(); });
+  on('sim-start', 'onchange', function(e) { state.start = e.target.value; });
+  on('sim-root', 'onchange', function(e) { state.rootPolicy = e.target.value; render(); });
+  on('sim-hours', 'onchange', function() { state.hours = num('sim-hours', 0.1, 48, state.hours); });
+  on('sim-wave', 'onchange', function() { state.maxWave = Math.round(num('sim-wave', 1, 1000, state.maxWave)); });
+  on('sim-seeds', 'onchange', function() { state.seeds = Math.round(num('sim-seeds', 1, 12, state.seeds)); });
+  on('sim-run', 'onclick', function() {
+    state.hours = num('sim-hours', 0.1, 48, state.hours);
+    state.maxWave = Math.round(num('sim-wave', 1, 1000, state.maxWave));
+    state.seeds = Math.round(num('sim-seeds', 1, 12, state.seeds));
+    runSim();
+  });
+  on('sim-stop', 'onclick', function() { stopWorker(); render(); });
+  on('opt-mode', 'onchange', function(e) { state.opt.mode = e.target.value; render(); });
+  on('opt-obj', 'onchange', function(e) { state.opt.objective = e.target.value; });
+  on('opt-seedpreset', 'onchange', function(e) { state.opt.seedPreset = e.target.checked; });
+  on('opt-run', 'onclick', function() {
+    var o = state.opt;
+    o.budget = Math.round(num('opt-budget', 4, 120, o.budget));
+    o.restarts = Math.round(num('opt-restarts', 1, 12, o.restarts));
+    o.iterations = Math.round(num('opt-iters', 1, 400, o.iterations));
+    o.seeds = Math.round(num('opt-seeds', 1, 8, o.seeds));
+    o.hours = num('opt-hours', 0.1, 48, o.hours);
+    runOpt();
+  });
+  on('opt-stop', 'onclick', function() { stopWorker(); render(); });
+  on('opt-use', 'onclick', function() { state.planSource = 'optimizer'; state.tab = 'simulator'; render(); });
+  on('rp-play', 'onclick', function() { setPlaying(!player.playing); });
+  on('rp-scrub', 'oninput', function(e) { player.frame = Number(e.target.value) || 0; drawReplay(); });
+  on('rp-speed', 'onchange', function(e) { player.speed = Number(e.target.value) || 60; });
+  on('rp-ranges', 'onchange', function(e) { player.ranges = e.target.checked; drawReplay(); });
+  on('rp-wave', 'onchange', function(e) {
+    var w = Number(e.target.value), R = sim.result && sim.result.replay;
+    if (!R || !isFinite(w)) return;
+    var i = R.frames.findIndex(function(f) { return f.wave >= w; });
+    player.frame = i < 0 ? R.frames.length - 1 : i;
+    drawReplay();
+  });
+  on('live-play', 'onclick', function() { liveSetPlaying(!live.playing); });
+  on('live-restart', 'onclick', function() {
+    var playing = live.playing;
+    liveReset();
+    liveEnsure();
+    drawLive();
+    if (playing) liveSetPlaying(true);
+  });
+  on('live-ranges', 'onchange', function(e) { live.ranges = e.target.checked; drawLive(); });
+  on('live-wave', 'onchange', function(e) { var w = Number(e.target.value); if (isFinite(w) && w >= 0) liveJump(Math.floor(w)); });
+  document.querySelectorAll('[data-livespeed]').forEach(function(b) {
+    b.onclick = function() {
+      live.speed = Number(b.dataset.livespeed) || 1;
+      document.querySelectorAll('[data-livespeed]').forEach(function(o) {
+        var on = o === b;
+        o.classList.toggle('on', on);
+        o.setAttribute('aria-pressed', String(on));
+      });
+    };
+  });
+  if (state.tab !== 'simulator' || !document.getElementById('td-map-replay')) setPlaying(false);
+  if (state.tab !== 'simulator' || !document.getElementById('td-map-live')) { liveStop(); live.gen++; live.busy = ''; }
+}
+</script>
+</body>
+</html>

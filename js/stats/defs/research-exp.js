@@ -2,9 +2,10 @@
 // Replaces computeExternalBonuses() from save/external.js.
 // Computes the additive research EXP percentage and true multipliers.
 //
-// Additive pool: sticker, dancingCoral, zenith, cardW7b1, cardW7b4, cardW7a11,
-//   prehistoricSet, slabbo, arcade, meal, cropSC, msa, loreEpi
-// True multipliers: comp52 (1.5x), comp153 (2x), rog0 (2x), button0, killroy5
+// Additive pool: sticker (unless Menagerie unlock 22), dancingCoral, zenith, cards,
+//   prehistoricSet, slabbo, meal, cropSC, msa, loreEpi, grid, Pet Arena Crucible 2/8
+// True multipliers: grid70, sticker (unlock 22), ClamWork9, dream14, button0, arcade63,
+//   killroy5, comp52/153/54, rog0, cglunko11, fountain2_16, jelly, Menagerie B3, royal
 
 import { dancingCoralBase, stickerBase } from '../data/w7/research.js';
 import { gbWith } from '../../sim-math.js';
@@ -24,6 +25,8 @@ import { createDescriptor, gridBonusFinal, computeButtonBonus, computeKillroyBon
 import { cosmoBonus, gambitBonus15 } from '../systems/w5/hole.js';
 import { companionBonusForSave, companionLevel2 } from '../data/common/companions.js';
 import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
+import { menagerieUnlockOwned, menagerieBoostQTY, menagerieBoostLevel, petArenaCrucBonus, arenaCrucibleCount } from '../systems/w7/menagerie.js';
+import { clamWorkBonus } from '../systems/w7/clamworks.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
@@ -54,14 +57,21 @@ export default createDescriptor({
     var stkCrownMulti = 1 + (gb68 * boonyCount + 30 * evShop37) / 100;
     var sb62 = superBitType(62, gd12);
     var stkSb62 = 1 + 20 * sb62 / 100;
-    var sticker = stkCrownMulti * stkSb62 * stkLv * stkBase;
-    items.push({ name: 'Sticker Bonus', val: sticker,
-      children: stkLv > 0 ? [
+    var stickerRaw = stkCrownMulti * stkSb62 * stkLv * stkBase;
+    // StickerBonus(1,99) is additive unless Menagerie unlock 22 is owned; then StickerBonus(1,100)
+    // becomes a separate (1 + sticker/100) multiplier instead.
+    var stickerMultiplicative = menagerieUnlockOwned(saveData, 22) === 1;
+    var sticker = stickerMultiplicative ? 0 : stickerRaw;
+    var stickerMultiPct = stickerMultiplicative ? stickerRaw : 0;
+    var stickerChildren = stkLv > 0 ? [
         { name: 'Sticker Lv', val: stkLv, fmt: 'raw' },
         { name: 'Base', val: stkBase, fmt: 'raw' },
         { name: 'Crown Multi', val: stkCrownMulti, fmt: 'x', note: 'GB68=' + gb68.toFixed(1) + ' x' + boonyCount + ' boonies + 30x' + evShop37 + ' evShop' },
         { name: label('Super Bit', 62), val: stkSb62, fmt: 'x' },
-      ] : null });
+      ] : null;
+    items.push({ name: 'Sticker Bonus', val: sticker,
+      note: stickerMultiplicative ? 'Moved to a separate multiplier by Menagerie unlock 22' : '',
+      children: stickerMultiplicative ? null : stickerChildren });
 
     // 2. Dancing Coral
     var tower22 = saveData.towerData[22] || 0;
@@ -112,9 +122,9 @@ export default createDescriptor({
         ] },
       ] : null });
 
-    // 8. Arcade
+    // 8. Arcade 63 is a separate true multiplier as of 2026-10-16 (see multItems below).
     var _arcade63 = arcadeBonus(63, ctx.saveData);
-    items.push({ name: label('Arcade', 63), val: _arcade63, children: _arcade63.children });
+    var arcade63 = Number(_arcade63) || 0;
 
     // 9. Meal (Giga Chip)
     var mealLv = saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][72] || 0;
@@ -184,7 +194,7 @@ export default createDescriptor({
     var _rog53 = rogBonusQTY(53, saveData.cachedUniqueSushi);
     var abmVal = 1 + (_comp55 + _comp0 + _cbGA + _rog53) / 100;
     var _abmChildren = [
-      { name: label('Companion', 55, ' (+15%)'), val: _comp55, note: saveData.companionIds.has(55) ? 'Owned' : 'Not owned' },
+      { name: label('Companion', 55), val: _comp55, note: saveData.companionIds.has(55) ? (saveData.enhancedCompanionIds && saveData.enhancedCompanionIds.has(55) ? 'Enhanced' : 'Owned') : 'Not owned' },
       { name: label('Companion', 0, ' (+5%)'), val: _comp0, note: saveData.companionIds.has(0) ? 'Owned' : 'Not owned' },
       { name: 'Cloud Bonus: Grid', val: _cbGA },
       { name: label('RoG', 53), val: _rog53, note: saveData.cachedUniqueSushi + ' unique sushi' },
@@ -222,17 +232,38 @@ export default createDescriptor({
     items.push({ name: label('Grid', 94) + ' ×' + totalObsLVs + ' obsLv', val: g94val,
       children: [{ name: 'Grid Base', val: g94base }, { name: 'Total Obs Levels', val: totalObsLVs, fmt: 'raw' }] });
 
+    // Pet Arena Crucible 2 (+25%) and 8 (+35%), the last additive group in the source.
+    var cruc2 = petArenaCrucBonus(saveData, 2);
+    var cruc8 = petArenaCrucBonus(saveData, 8);
+    var crucible = 25 * cruc2 + 35 * cruc8;
+    items.push({ name: 'Pet Arena Crucible', val: crucible,
+      note: 'Crucibles reached: ' + arenaCrucibleCount(saveData),
+      children: crucible > 0 ? [
+        { name: 'Crucible 2', val: 25 * cruc2, note: cruc2 ? 'Reached' : 'Not reached' },
+        { name: 'Crucible 8', val: 35 * cruc8, note: cruc8 ? 'Reached' : 'Not reached' },
+      ] : null });
+
     // ---- Sum additive ----
     var totalAdd = 0;
     for (var i = 0; i < items.length; i++) totalAdd += items[i].val;
 
     // ---- True multipliers ----
-    // Game: (1+add/100) × (1+Grid70/100) × (1+3*Dream14/100) × (1+Button(0)/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)) × (1+RoG0/100)
+    // Game: (1+add/100) × (1+Grid70/100) × (1+Sticker(1,100)/100) × (1+.25*ClamWork9) × (1+3*Dream14/100)
+    //   × (1+Button(0)/100) × (1+Arcade63/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)×(1+.15*C54L2))
+    //   × (1+RoG0/100) × (1+Cglunko11/100) × (1+Fountain2_16/100) × Jelly0/23/46/54 × (1+B3/100) × max(1,Royal)
     var multItems = [];
 
     var grid70 = gridBonusFinal(saveData, 70);
     multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x',
       children: [{ name: 'Research Grid All-Bonus Multiplier', val: abmVal, fmt: 'x', children: _abmChildren }] });
+
+    if (stickerMultiplicative) {
+      multItems.push({ name: 'Sticker Bonus', val: 1 + stickerMultiPct / 100, fmt: 'x',
+        note: 'Menagerie unlock 22 multiplier', children: stickerChildren });
+    }
+
+    var clamWork9 = clamWorkBonus(9);
+    multItems.push({ name: 'ClamWork Promotion 9', val: 1 + 0.25 * clamWork9, fmt: 'x', note: clamWork9 ? 'Promoted' : 'Not promoted' });
 
     // Nonstop_Studies: DreamUpg[12], coeff 3. Dream save array uses +2 offset, so Dream[14] is correct.
     var dream14Lv = Number((dreamData && dreamData[14]) || 0);
@@ -242,6 +273,8 @@ export default createDescriptor({
     var buttonPresses = Number(saveData.olaData[594]) || 0;
     var buttonBonus0 = computeButtonBonus(0, saveData);
     multItems.push({ name: label('Button', 0), val: 1 + buttonBonus0 / 100, fmt: 'x', note: buttonPresses + ' presses' });
+
+    multItems.push({ name: label('Arcade', 63), val: 1 + arcade63 / 100, fmt: 'x', children: _arcade63.children });
 
     // KillroyBonuses(5): game uses (1 + KB(5)/100) where KB(5) = 1 + OLA[469]/(150+OLA[469])*0.8
     var killroy5raw = computeKillroyBonus(5, saveData);
@@ -284,6 +317,9 @@ export default createDescriptor({
       });
     }
 
+    var menagerieB3 = menagerieBoostQTY(saveData, 3);
+    multItems.push({ name: 'Menagerie Boost 3', val: 1 + menagerieB3 / 100, fmt: 'x', note: 'Level ' + menagerieBoostLevel(saveData, 3) });
+
     var royalResearch = outpostROGBonus(saveData, 1);
     multItems.push({ name: 'Royal Guardian: Research Focus', val: Math.max(1, royalResearch), fmt: 'x', note: saveData.royalGDataAvailable === false ? 'RoyalG unavailable' : 'Research focus selection' });
 
@@ -303,6 +339,12 @@ export default createDescriptor({
       val: fullMultiplier,
       additivePct: totalAdd,
       stickerBonus: sticker,
+      stickerMultiplicative: stickerMultiplicative,
+      stickerMultiPct: stickerMultiPct,
+      crucibleBonus: crucible,
+      arcade63: arcade63,
+      clamWork9: clamWork9,
+      menagerieB3: menagerieB3,
       trueMultiplier: trueMultiplier,
       children: [
         { name: 'Additive Research EXP', val: totalAdd, children: additiveItems, fmt: 'raw' },

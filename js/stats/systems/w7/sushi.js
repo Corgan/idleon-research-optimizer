@@ -14,6 +14,7 @@ import { companions } from '../common/companions.js';
 import { optionsListData } from '../../../save/data.js';
 import { getLOG } from '../../../formulas.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
+import { doubledUpgrades } from './menagerie.js';
 
 // ===== ROG & UNIQUE SUSHI =====
 
@@ -79,13 +80,28 @@ export function upgLvReq(t) {
     + Math.floor(t / 6) + Math.floor(t / 17)));
 }
 
+/** Sushi upgrade indices doubled by Menagerie Upgrade Doublers (Spelunk[52]). */
+export function sushiDoublers(saveData) {
+  return doubledUpgrades(saveData, 'sushi');
+}
+
+/** 2 when `doublers` (array of upgrade indices) contains upgIdx, else 1. */
+export function sushiDoublerMulti(upgIdx, doublers) {
+  if (!doublers || !doublers.length) return 1;
+  for (var i = 0; i < doublers.length; i++) {
+    if (Math.round(Number(doublers[i])) === upgIdx) return 2;
+  }
+  return 1;
+}
+
 /**
  * Upgrade quantity (bonus) for SushiUPG[upgIdx] at its current level.
- * Game formula: SushiUPG[upgIdx][3] * Sushi[2][upgIdx]
+ * Game formula: (Spelunk[52] contains upgIdx ? 2 : 1) * SushiUPG[upgIdx][3] * Sushi[2][upgIdx]
+ * `doublers` is the Spelunk[52] index list (see sushiDoublers); omitted = no doubling.
  */
-export function upgradeQTY(upgIdx, upgLevels) {
+export function upgradeQTY(upgIdx, upgLevels, doublers) {
   var lv = Number(upgLevels[upgIdx]) || 0;
-  return (SUSHI_UPG[upgIdx]?.[3] || 0) * lv;
+  return sushiDoublerMulti(upgIdx, doublers) * (SUSHI_UPG[upgIdx]?.[3] || 0) * lv;
 }
 
 /**
@@ -105,7 +121,7 @@ export function upgCost(slot, upgLevels, knowledgeTotals, saveData) {
   if (!upg) return Infinity;
   var costDN = upg[4] !== 0 ? Math.max(0.1, upg[4]) : 1;
   var t = slot;
-  var wholesaleReduction = 1 / (1 + upgradeQTY(36, upgLevels) / 100);
+  var wholesaleReduction = 1 / (1 + upgradeQTY(36, upgLevels, sushiDoublers(saveData)) / 100);
   var uniqueSushi = Number(saveData && saveData.cachedUniqueSushi) || 0;
   var rogCheaper = Math.max(0.1, 1 - Math.max(rogBonusQTY(26, uniqueSushi), rogBonusQTY(44, uniqueSushi)) / 100);
   var knowledgeCheaper = 1 / (1 + (knowledgeTotals?.[6] || 0) / 100);
@@ -151,10 +167,11 @@ export function knowledgeBonusTotals(sushiData) {
 /**
  * Fuel generation rate (per hour).
  */
-export function fuelGenPerHr(upgLevels, sushiData, knowledgeTotals, orangeFireSum, hasBundleV) {
+export function fuelGenPerHr(upgLevels, sushiData, knowledgeTotals, orangeFireSum, hasBundleV, doublers) {
   var bundleMult = 1 + Math.min(1, hasBundleV ? 1 : 0);
-  var upgFuel = upgradeQTY(8, upgLevels) + upgradeQTY(9, upgLevels)
-    + upgradeQTY(10, upgLevels) + upgradeQTY(11, upgLevels) + upgradeQTY(12, upgLevels);
+  var upgFuel = upgradeQTY(8, upgLevels, doublers) + upgradeQTY(9, upgLevels, doublers)
+    + upgradeQTY(10, upgLevels, doublers) + upgradeQTY(11, upgLevels, doublers) + upgradeQTY(12, upgLevels, doublers);
+  // The per-upgrade (1 + Sushi[2][9..12]/100) factors read raw levels; Menagerie doublers do not apply.
   var knowledgeFuel = knowledgeTotals?.[4] || 0;
   var knowledgeSpec27 = knowledgeBonusSpecific(27, sushiData);
   var knowledgeSpec36 = knowledgeBonusSpecific(36, sushiData);
@@ -174,10 +191,11 @@ export function fuelGenPerHr(upgLevels, sushiData, knowledgeTotals, orangeFireSu
 /**
  * Fuel capacity.
  */
-export function fuelCapacity(upgLevels, knowledgeTotals, hasBundleV) {
+export function fuelCapacity(upgLevels, knowledgeTotals, hasBundleV, doublers) {
   var bundleMult = 1 + Math.min(1, hasBundleV ? 1 : 0);
-  var upgCap = upgradeQTY(1, upgLevels) + upgradeQTY(2, upgLevels)
-    + upgradeQTY(3, upgLevels) + upgradeQTY(4, upgLevels) + upgradeQTY(5, upgLevels);
+  var upgCap = upgradeQTY(1, upgLevels, doublers) + upgradeQTY(2, upgLevels, doublers)
+    + upgradeQTY(3, upgLevels, doublers) + upgradeQTY(4, upgLevels, doublers) + upgradeQTY(5, upgLevels, doublers);
+  // The per-upgrade (1 + Sushi[2][2..5]/100) factors read raw levels; Menagerie doublers do not apply.
   var knowledgeCap = knowledgeTotals?.[3] || 0;
   var capMulti2 = 1 + (Number(upgLevels[2]) || 0) / 100;
   var capMulti3 = 1 + (Number(upgLevels[3]) || 0) / 100;
@@ -288,9 +306,10 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
   var gamingSuperBit67 = externalSources?.gamingSuperBit67 || 0;
   var buttonBonus2 = externalSources?.buttonBonus2 || 0;
   var comboMulti = computeComboMultiplier(sushiData?.[4]?.[8]);
+  var dbl = externalSources?.doublers;
 
-  var surchargeSum = upgradeQTY(30, upgLevels) + upgradeQTY(31, upgLevels)
-    + upgradeQTY(32, upgLevels) + upgradeQTY(33, upgLevels) + upgradeQTY(34, upgLevels)
+  var surchargeSum = upgradeQTY(30, upgLevels, dbl) + upgradeQTY(31, upgLevels, dbl)
+    + upgradeQTY(32, upgLevels, dbl) + upgradeQTY(33, upgLevels, dbl) + upgradeQTY(34, upgLevels, dbl)
     + 100 * gamingSuperBit67;
 
   return (1 + arcade67 / 100)
@@ -300,9 +319,9 @@ export function computeCurrencyMulti(upgLevels, sushiData, uniqueSushi, knowledg
     * (1 + (knowledgeTotals?.[0] || 0) / 100)
     * (1 + buttonBonus2 / 100)
     * (1 + gridBonus189 / 100)
-    * (1 + upgradeQTY(40, upgLevels) / 100)
+    * (1 + upgradeQTY(40, upgLevels, dbl) / 100)
     * Math.max(1, Math.min(1.25, 1 + mineheadBonus11 / 100))
-    * (1 + (upgradeQTY(41, upgLevels) + upgradeQTY(43, upgLevels)) / 100)
+    * (1 + (upgradeQTY(41, upgLevels, dbl) + upgradeQTY(43, upgLevels, dbl)) / 100)
     * (1 + overtunedMulti / 100)
     * (1 + atom14 / 100)
     * (1 + 100 * sailing39 / 100)
@@ -353,12 +372,12 @@ export function bonusCookTierPct(upgLevels, knowledgeTotals) {
   return upgradeQTY(7, upgLevels) + (knowledgeTotals?.[2] || 0);
 }
 
-export function freeShakerChance(upgLevels, knowledgeTotals, gridBonus188) {
-  return Math.min(0.6, (upgradeQTY(21, upgLevels) + (knowledgeTotals?.[5] || 0) + (gridBonus188 || 0)) / 100);
+export function freeShakerChance(upgLevels, knowledgeTotals, gridBonus188, doublers) {
+  return Math.min(0.6, (upgradeQTY(21, upgLevels, doublers) + (knowledgeTotals?.[5] || 0) + (gridBonus188 || 0)) / 100);
 }
 
-export function saffronHrs(upgLevels) {
-  return Math.round(1 + upgradeQTY(22, upgLevels));
+export function saffronHrs(upgLevels, doublers) {
+  return Math.round(1 + upgradeQTY(22, upgLevels, doublers));
 }
 
 export function perfectoOdds(tier, knowledgeTotals) {
@@ -371,18 +390,18 @@ export function knowledgeXPReq(lv) {
   return (3 + lv + Math.pow(lv, 1.5)) * Math.pow(1.5, Math.max(0, lv - 2));
 }
 
-export function knowledgeXPBase(upgLevels) {
-  return 1 + upgradeQTY(37, upgLevels) / 10;
+export function knowledgeXPBase(upgLevels, doublers) {
+  return 1 + upgradeQTY(37, upgLevels, doublers) / 10;
 }
 
-export function knowledgeXPMulti(slotIdx, sushiData, upgLevels, knowledgeTotals) {
+export function knowledgeXPMulti(slotIdx, sushiData, upgLevels, knowledgeTotals, doublers) {
   var fireType = Number(sushiData?.[3]?.[slotIdx % 15]) || 0;
   var pinkBonus = 0;
   if (fireType === 3) {
     var fpBase = fireplaceEffectBase(knowledgeTotals, Number(sushiData?.[4]?.[2]) || 0);
     pinkBonus = 100 * fpBase;
   }
-  return (1 + upgradeQTY(38, upgLevels) / 100)
+  return (1 + upgradeQTY(38, upgLevels, doublers) / 100)
     * (1 + pinkBonus / 100)
     * (1 + (knowledgeTotals?.[1] || 0) / 100);
 }
@@ -413,8 +432,8 @@ export function buildSushiSummary(sushiData, upgLevels, uniqueSushi, knowledgeTo
   var totalBucks = totalBucksPerHr(sushiData, upgLevels, uniqueSushi, knowledgeTotals, externalSources);
   var fuelGen = fuelGenPerHr(upgLevels, sushiData, knowledgeTotals,
     computeOrangeFireSum(sushiData, fireplaceEffectBase(knowledgeTotals, Number(sushiData?.[4]?.[2]) || 0)),
-    externalSources?.hasBundleV);
-  var fuelCap = fuelCapacity(upgLevels, knowledgeTotals, externalSources?.hasBundleV);
+    externalSources?.hasBundleV, externalSources?.doublers);
+  var fuelCap = fuelCapacity(upgLevels, knowledgeTotals, externalSources?.hasBundleV, externalSources?.doublers);
   var activeSlots = countActiveSlots(sushiData);
   var maxCook = maxCookTier(upgLevels);
 

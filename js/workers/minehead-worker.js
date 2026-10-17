@@ -1,6 +1,6 @@
 // Minehead Monte Carlo Web Worker
 // Receives tasks:
-//   { type: 'mc', id, floor, upgLevels, params, nTrials, seed }
+//   { type: 'mc', id, floor, upgLevels, params, nTrials, seed, doublers, legend40, legend40Pts }
 //   { type: 'optimize', id, floor, upgLevels, params, nTrials, seed }
 // Posts back: { type: 'done', id, result [, params] }
 // Also handles: { type: 'ping' } → { type: 'pong' }
@@ -29,6 +29,9 @@ onmessage = function(e) {
         mineReduction: d.mineReduction || 0,
         jellyDamage9: d.jellyDamage9 || 0,
         jellyGoldTiles45: d.jellyGoldTiles45 || 0,
+        legend40: d.legend40 || 0,
+        legend40Pts: d.legend40Pts || 0,
+        doublers: d.doublers || [],
       });
       postMessage({ type: 'done', id: d.id, result });
     } catch (err) {
@@ -48,7 +51,11 @@ onmessage = function(e) {
         svarHP: d.svarHP || 1,
         maxTurns: d.maxTurns || 200,
         jellyDamage9: d.jellyDamage9 || 0,
+        mineReduction: d.mineReduction || 0,
         jellyGoldTiles45: d.jellyGoldTiles45 || 0,
+        legend40: d.legend40 || 0,
+        legend40Pts: d.legend40Pts || 0,
+        doublers: d.doublers || [],
       });
       postMessage({ type: 'done', id: d.id, result, params: d.params });
     } catch (err) {

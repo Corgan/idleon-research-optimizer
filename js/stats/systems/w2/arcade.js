@@ -13,12 +13,12 @@ export function arcadeBonus(idx, saveData) {
   if (lv <= 0) return treeResult(0);
   var type = params[0], base = params[1], denom = params[2];
   var raw = type === 'add' ? (denom !== 0 ? ((base + denom) / denom + 0.5 * (lv - 1)) / (base / denom) * lv * base : base * lv) : base * lv / (lv + denom);
-  var maxedM = lv === 101 ? 2 : 1;
+  var maxedM = lv === 101 ? 2 : lv === 102 ? 6 : 1;
   var comp27M = companionBonusForSave(27, saveData) === 1 ? 2 : 1;
   var val = maxedM * comp27M * raw;
   return treeResult(val, [
     { name: 'Raw (lv=' + lv + ')', val: raw, fmt: 'raw' },
-    { name: 'Maxed Multi (101)', val: maxedM, fmt: 'x' },
+    { name: lv === 102 ? 'Omega Multi (102)' : 'Maxed Multi (101)', val: maxedM, fmt: 'x' },
     { name: label('Companion', 27), val: comp27M, fmt: 'x' },
   ]);
 }
@@ -32,12 +32,12 @@ export var arcade = {
     if (lv <= 0) return node(label('Arcade', id), 0, null, { note: 'arcade ' + id });
     var result = arcadeBonus(id, saveData);
     var val = Number(result) || 0;
-    var maxedM = lv === 101 ? 2 : 1;
+    var maxedM = lv === 101 ? 2 : lv === 102 ? 6 : 1;
     var comp27M = companionBonusForSave(27, saveData) === 1 ? 2 : 1;
     return node(label('Arcade', id), val, [
       node('Level', lv, null, { fmt: 'raw' }),
       node('Raw Value', val / maxedM / comp27M, null, { fmt: 'raw' }),
-      node('Maxed Bonus', maxedM, null, { fmt: 'x', note: lv === 101 ? 'Level 101' : 'Not maxed' }),
+      node('Maxed Bonus', maxedM, null, { fmt: 'x', note: lv === 102 ? 'Level 102 (Omega)' : lv === 101 ? 'Level 101 (Super)' : 'Not maxed' }),
       node(label('Companion', 27), comp27M, null, { fmt: 'x' }),
     ].concat(result.children || []), { fmt: '+' });
   },

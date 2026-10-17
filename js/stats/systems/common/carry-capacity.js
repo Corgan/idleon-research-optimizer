@@ -49,13 +49,13 @@ export function computeMaxCapacity(saveData, charIdx, itemType, ctx) {
   var type = String(itemType || '');
   if (type.charAt(0) === 'a') return { val: 1, fixed: true };
   if (type === 'dCurrency' || type === 'dQuest' || type === 'dExpOrb'
-      || type === 'dStone' || type === 'dFishToolkit') return { val: 9999999, fixed: true };
+      || type === 'dStone' || type === 'dFishToolkit') return { val: 999999999, fixed: true };
   if (type === 'dStatueStone') return { val: 999999999, fixed: true };
   if (type === 'fillerz') {
     return { val: Number(maxCarryCapData[charIdx]?.fillerz) || 0, fixed: true };
   }
   var config = TYPE_CONFIG[type];
-  if (!config) return { val: type.charAt(0) === 'd' ? 9999999 : 2, fixed: true };
+  if (!config) return { val: type.charAt(0) === 'd' ? 999999999 : 2, fixed: true };
   if (maxCarryCapDataAvailable[charIdx] === false) {
     return { val: 0, unavailable: true, reason: 'MaxCarryCap_' + charIdx + ' is missing from the imported save.' };
   }

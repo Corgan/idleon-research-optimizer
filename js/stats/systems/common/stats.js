@@ -30,6 +30,7 @@ import {
   buffsActiveData,
 } from '../../../save/data.js';
 import { ITEMS } from '../../data/game/items.js';
+import { obolMiscMulti } from '../w7/menagerie.js';
 import { formulaEval } from '../../../formulas.js';
 import { superBitType } from '../../../game-helpers.js';
 import { isBubblePrismad, getPrismaBonusMult, sigil as sigilResolver } from '../w2/alchemy.js';
@@ -246,6 +247,12 @@ export function computeCardBonusByType(typeId, charIdx, saveData, options) {
   if (!targetDesc) return { val: 0, children: [] };
   var legend21 = legendPTSbonus(21, saveData);
   var legendMulti = 1 + legend21 / 100;
+  // CardBonusS (-4 builder): Vault 44 zeroes equipped Card Drop Chance cards and
+  // re-adds every card with that description passively (CardLv × per-star, no Legend 21).
+  if (String(typeId) === '12' && !(options && options.passive === false)
+      && !(options && options.passive) && (Number(vaultUpgBonus(44, saveData)) || 0) > 0.1) {
+    options = Object.assign({}, options || {}, { passive: true });
+  }
   if (options && options.passive) {
     var passiveTotal = 0;
     var passiveChildren = [];
@@ -475,6 +482,20 @@ export function computeObolBaseStat(charIdx, statName) {
     }
   }
   return { val: total, children: children };
+}
+
+// TotalStats multiplies the obol (DN2) sum of every stat other than STR/AGI/WIS/LUK
+// by MenagerieStuff("ObolMISCmulti"); calcEtcBonuses UQ lines are unaffected.
+export function computeObolMiscStat(charIdx, statName, S) {
+  var base = computeObolBaseStat(charIdx, statName);
+  var mult = obolMiscMulti(S);
+  return {
+    val: base.val * mult,
+    children: [
+      node('Obol Base ' + statName, base.val, base.children, { fmt: 'raw' }),
+      node('Menagerie: Obol Misc Multiplier', mult, null, { fmt: 'x' }),
+    ],
+  };
 }
 
 // ==================== STAMP BONUS BY TYPE ====================

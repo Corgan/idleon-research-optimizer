@@ -13,6 +13,7 @@ import {
 } from '../stats/data/w5/hole.js';
 import { dancingCoralBase, stickerBase } from '../stats/data/w7/research.js';
 import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
+import { companionBonusForSave } from '../stats/data/common/companions.js';
 import { MINEHEAD_BONUS_QTY } from '../stats/data/w7/minehead.js';
 import { DN_MOB_DATA } from '../stats/data/w7/deathNote.js';
 import { gbWith, deathNoteRank } from '../sim-math.js';
@@ -150,7 +151,7 @@ export function computeExternalBonuses() {
   const _olaStr379 = S.olaData[379];
 
   // Compute S.allBonusMulti early so getGridBonusFinal calls below use the correct value
-  const _comp55val = S.companionIds.has(55) ? 15 : 0;
+  const _comp55val = S.companionIds.has(55) ? companionBonusForSave(55, S) : 0;
   const _comp0val = S.companionIds.has(0) && S.cachedComp0DivOk && (S.gridLevels[173] || 0) > 0 ? 5 : 0;
   const _cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);
   const _rog53val = S.cachedUniqueSushi > 53 ? 1 : 0;
@@ -287,7 +288,7 @@ export function computeExternalBonuses() {
 
   // Grid_Bonus_Allmulti: 1 + (Companions(55) + 5*min(1, R[0][173]*Companions(0)))/100
   const comp55owned = S.companionIds.has(55);
-  const comp55val = comp55owned ? 15 : 0; // CompanionDB[55][2] = 15  1.15x all grid bonuses
+  const comp55val = comp55owned ? companionBonusForSave(55, S) : 0; // CompanionDB[55]: 15 normal, 25 Pet+
   const comp0owned = S.companionIds.has(0);
   const comp0val = comp0owned && (S.lv0AllData[0]?.[14] || 0) >= 2 && (S.gridLevels[173] || 0) > 0 ? 5 : 0; // 5*min(1, lv*1)
   const cbGridAll = cloudBonus(71, S.weeklyBossData) + cloudBonus(72, S.weeklyBossData) + cloudBonus(76, S.weeklyBossData);

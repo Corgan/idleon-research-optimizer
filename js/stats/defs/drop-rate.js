@@ -1,10 +1,14 @@
 // ===== DROP RATE DESCRIPTOR =====
 // Defines all sources, pools, and the combine() formula for Drop Rate.
 
-import { createDescriptor } from './helpers.js';
+import { createDescriptor, safe } from './helpers.js';
+import { statueBonus } from '../systems/w7/royal-guardian.js';
+import { computeFamBonusQTYs } from '../systems/common/stats.js';
+import { companionLevel2 } from '../data/common/companions.js';
 import { drBonus as cglunkoDropRate } from '../systems/w5/cglunko.js';
 import { computeDungeonDropRate, isDungeonMap } from '../systems/w2/dungeon.js';
 import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
+import { menagerieBoostQTY } from '../systems/w7/menagerie.js';
 
 export default createDescriptor({
   id: 'drop-rate',
@@ -83,8 +87,8 @@ export default createDescriptor({
       { system: 'bundle', id: 'bun_p' },
       { system: 'arcaneMap' },
       { system: 'card', id: 101 },
-      { system: 'compMulti', id: 168, args: [1.3] },
-      { system: 'compMulti', id: 132, args: [1.5] },
+      { system: 'companion', id: 168 },
+      { system: 'companion', id: 132 },
       { system: 'sushiRoG', id: 48 },
       { system: 'glimbo' },
       { system: 'tome', id: 7 },
@@ -94,9 +98,9 @@ export default createDescriptor({
       { system: 'pristine', id: 3 },
       { system: 'etcBonus', id: 91 },
       { system: 'vial', id: '7drMulto' },
-      { system: 'compMulti', id: 26, args: [1.3] },
-      { system: 'compMulti', id: 160, args: [1.5, 2] },
-      { system: 'compMulti', id: 50, args: [1.01, 2500] },
+      { system: 'companion', id: 26 },
+      { system: 'companion', id: 160 },
+      { system: 'companion', id: 50 },
     ],
   },
 
@@ -154,28 +158,47 @@ export default createDescriptor({
     dr += pf[1] ? pf[1].val : 0;          // +ola232
     dr *= pm[1] ? pm[1].val : 1;          // ×bunP (raw mult, no fmt but val=1.2)
 
-    // Remaining multipliers
-    for (var i = 2; i < pm.length; i++) {
-      var item = pm[i];
-      var v = item.val || 0;
-      if (item.fmt === 'x') {
-        dr *= v;                            // raw multiplier (glimbo, compMulti)
-      } else {
-        dr *= (1 + v / 100);               // percentage → multiplier
-      }
-    }
-    var jelly14 = jellyRewardBonus(ctx.saveData, 14);
-    dr *= 1 + jelly14 / 100;
+    // Remaining multipliers, in TotalStats("Drop_Rarity") source order and grouping.
+    var S = ctx.saveData;
+    function pv(i) { return pm[i] ? Number(pm[i].val) || 0 : 0; }
+    var royalStatue1 = safe(statueBonus, S, 1);
+    var menagerieB24 = menagerieBoostQTY(S, 24);
+    var famMap = safe(computeFamBonusQTYs, ctx.charIdx || 0, S);
+    var fam32 = Number(famMap && famMap[32]) || 0;
+    var compLv2_132 = companionLevel2(132, S);
+    var jelly14 = jellyRewardBonus(S, 14);
+    var c168 = pv(4), c132 = pv(5), c26 = pv(15), c160 = pv(16), c50 = pv(17);
+    var comp168Mult = 1 + 0.3 * c168;
+    var comp132Mult = 1 + (Math.min(0.5, c132) + 0.2 * compLv2_132);
+    var rogJellyMult = 1 + (pv(6) + jelly14) / 100;
+    var comp26x160 = Math.max(1, Math.min(1.3, 1 + c26) * (1 + 0.5 * c160));
+    var comp50Mult = Math.max(1, Math.min(1.01, 1 + c50 / 2500));
+    dr = dr * (1 + pv(2) / 100) * (1 + royalStatue1 / 100) * (1 + menagerieB24 / 100) * (1 + pv(3) / 100) * (1 + fam32 / 100)
+      * comp168Mult * comp132Mult * rogJellyMult * Math.max(1, pv(7)) * (1 + pv(8) / 100)
+      * (1 + pv(9) / 100) * (1 + pv(10) / 100) * (1 + pv(11) / 100);
+    dr = dr * (1 + pv(12) / 100) * (1 + pv(13) / 100) * (1 + pv(14) / 100);
+    dr = dr * comp26x160 * comp50Mult;
 
     // Build tree
     var postMult = base > 0 ? dr / base : 1;
+    function xnode(name, val, kids, note) { return { name: name, val: val, fmt: 'x', children: kids || null, note: note }; }
     var allPostItems = [];
     if (pf[0]) allPostItems.push(pf[0]);
     if (pm[0]) allPostItems.push(pm[0]);
     if (pf[1]) allPostItems.push(pf[1]);
     if (pm[1]) allPostItems.push(pm[1]);
-    for (var postIdx = 2; postIdx < pm.length; postIdx++) allPostItems.push(pm[postIdx]);
-    allPostItems.push({ name: 'Jelly Reward 14', val: jelly14, fmt: '+', note: 'Gold Bangle' });
+    allPostItems.push(pm[2]);
+    allPostItems.push({ name: 'Royal Statue 1', val: royalStatue1, fmt: '+', note: 'RoyalG StatueBon(1)' });
+    allPostItems.push({ name: 'Menagerie Drop Rate Boost', val: menagerieB24, fmt: '+', note: 'Menagerie Boost 24 (+1% per LV)' });
+    allPostItems.push(pm[3]);
+    allPostItems.push({ name: 'Family Bonus 32', val: fam32, fmt: '+' });
+    allPostItems.push(xnode('Companion 168 Multiplier', comp168Mult, [pm[4]], '1 + 0.3 × Companion 168'));
+    allPostItems.push(xnode('Companion 132 Multiplier', comp132Mult, [pm[5], { name: 'CompLV2(132)', val: compLv2_132, fmt: 'raw' }], '1 + (min(0.5, Comp132) + 0.2 × CompLV2(132))'));
+    allPostItems.push(xnode('RoG 48 + Jelly Reward 14', rogJellyMult, [pm[6], { name: 'Jelly Reward 14', val: jelly14, fmt: '+', note: 'Gold Bangle' }], '1 + (RoG 48 + Jelly 14) / 100'));
+    for (var postIdx = 7; postIdx <= 14; postIdx++) allPostItems.push(pm[postIdx]);
+    allPostItems.push(xnode('Companions 26 × 160', comp26x160, [pm[15], pm[16]], 'max(1, min(1.3, 1 + Comp26) × (1 + 0.5 × Comp160))'));
+    allPostItems.push(xnode('Companion 50 Multiplier', comp50Mult, [pm[17]], 'max(1, min(1.01, 1 + Comp50 / 2500))'));
+    allPostItems = allPostItems.filter(Boolean);
 
     var children = [
       { name: 'Drop Rate from Total LUK', val: lukVal,
@@ -193,7 +216,7 @@ export default createDescriptor({
     children.push({ name: 'Final Drop Rate Modifiers (Applied in Order)', val: postMult,
       children: allPostItems, fmt: 'x' });
 
-    var cavern = Number(ctx.saveData.holesData?.[0]?.[ctx.charIdx]);
+    var cavern = Number(ctx.holeCavern != null ? ctx.holeCavern : ctx.saveData.holesData?.[0]?.[ctx.charIdx]);
     if (ctx.mapIdx === 216 && cavern === 17) {
       var cglunko = cglunkoDropRate(ctx.saveData);
       return {

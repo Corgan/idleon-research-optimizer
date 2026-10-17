@@ -60,9 +60,18 @@ export var shrine = {
 
 import { cardLv as _consCardLv } from '../common/cards.js';
 
-export function computeShrine(idx, saveData) {
+// Pass mapIdx to apply the source Shrine() activity gate (Moai artifact,
+// same map, or Shrine World Tour same world); omit it for the ungated value.
+export function computeShrine(idx, saveData, mapIdx) {
   var shrineLv = Number(saveData.shrineData && saveData.shrineData[idx] && saveData.shrineData[idx][3]) || 0;
-  if (shrineLv <= 0) return 0;
+  if (shrineLv <= .5) return 0;
+  if (mapIdx != null) {
+    var currentMap = Number(mapIdx) || 0;
+    var shrineMap = Number(saveData.shrineData[idx][0]) || 0;
+    var artifactGlobal = Number(saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][0]) >= 1;
+    var worldTour = mainframeBonus(5, saveData) === 1 && Math.floor(currentMap / 50) === Math.floor(shrineMap / 50);
+    if (!artifactGlobal && currentMap !== shrineMap && !worldTour) return 0;
+  }
   var base = shrineBase(idx);
   var perLv = shrinePerLevel(idx);
   var rawVal = base + perLv * (shrineLv - 1);
@@ -301,7 +310,6 @@ export function computePlayerConExp(ci, isActive, saveData) {
   var constLv = Number(s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][8]) || 0;
   var buildSpd = computePlayerBuildSpd(ci, null, saveData);
   var basePart = Math.pow(buildSpd, 0.7) / 2 + (2 + 6 * constLv);
-  var smallCogExp = computeSmallCogBonusTOTAL(2, saveData);
 
   if (isActive) {
     // Active char: full additive pool
@@ -325,7 +333,7 @@ export function computePlayerConExp(ci, isActive, saveData) {
       + vialConsExp + statue18 + stampConstExp
       + voting18 + starConstExp + poBonus;
 
-    return basePart * (1 + addPool / 100) * (1 + smallCogExp / 100);
+    return basePart * (1 + addPool / 100) * computeExtraConEXPmulti(saveData);
   }
 
   // Inactive char: simplified formula
@@ -370,7 +378,7 @@ export function computePlayerConExp(ci, isActive, saveData) {
   var postOffice17 = Number(postOfficeData[ci] && postOfficeData[ci][17]) || 0;
   dn2 += Math.max(0, 0.5 * (postOffice17 - 100));
 
-  dn2 = (1 + dn2 / 100) * (1 + smallCogExp / 100);
+  dn2 = (1 + dn2 / 100) * computeExtraConEXPmulti(saveData);
 
   // Star sign "45" bonus
   var starSignPV = s.lv0AllData && s.lv0AllData[ci] && s.lv0AllData[ci][19];
@@ -399,12 +407,12 @@ function _computeTalentVal(talentIdx, ci, saveData) {
 
 // ==================== EXTRA BUILD SPEED MULTIPLIER ====================
 // Game: WorkbenchStuff("ExtraBuildSPDmulti", 0, 0)
-// (1 + SmallCogBonusTOTAL(1)/100) × (1 + Companions(157)/100)
+// (1 + SmallCogBonusTOTAL(1)/100) × (1 + Companions(157)/100) × (1 + ConstBuildBONUSES(0)/100)
 
 export function computeExtraBuildSPDmulti(saveData) {
   var smallCogBuild = computeSmallCogBonusTOTAL(1, saveData);
   var comp157 = _safe(companions, 157);
-  return (1 + smallCogBuild / 100) * (1 + comp157 / 100);
+  return (1 + smallCogBuild / 100) * (1 + comp157 / 100) * (1 + constBuildBonus(saveData, 0) / 100);
 }
 
 // ==================== EXTRA FLAGGY RATE MULTIPLIER ====================
@@ -417,5 +425,22 @@ export function computeExtraFlaggyRatemulti(saveData) {
   var smallCogFlaggy = computeSmallCogBonusTOTAL(0, saveData);
   var grid89 = gridBonusFinal(saveData, 89);
   var cardW7b3 = _safe(computeCardLv, 'w7b3');
-  return (1 + smallCogFlaggy / 100) * (1 + grid89 / 100) * (1 + 10 * cardW7b3 / 100);
+  return (1 + smallCogFlaggy / 100) * (1 + grid89 / 100) * (1 + constBuildBonus(saveData, 2) / 100) * (1 + 10 * cardW7b3 / 100);
+}
+
+// ==================== MENAGERIE CONSTRUCTION BONUSES ====================
+// Game: MenagerieStuff("ConstBuildBONUSES", t) = [25,15,10,3][t] * Menagerie[0][11 + t]
+// t: 0 build speed, 1 construction EXP, 2 flaggy rate, 3 Lumi.
+var CONST_BUILD_BONUS_PER = [25, 15, 10, 3];
+
+export function constBuildBonus(saveData, t) {
+  var row = saveData && Array.isArray(saveData.menagerieData) ? saveData.menagerieData[0] : null;
+  var per = CONST_BUILD_BONUS_PER[t | 0] || 0;
+  return per * (Number(row && row[Math.round(11 + t)]) || 0);
+}
+
+// Game: WorkbenchStuff("ExtraConEXPmulti", 0, 0)
+// (1 + SmallCogBonusTOTAL(2)/100) × (1 + ConstBuildBONUSES(1)/100)
+export function computeExtraConEXPmulti(saveData) {
+  return (1 + computeSmallCogBonusTOTAL(2, saveData) / 100) * (1 + constBuildBonus(saveData, 1) / 100);
 }

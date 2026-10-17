@@ -12,6 +12,7 @@ import { vaultUpgBonus } from '../common/vault.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { computeTotalStat } from '../common/stats.js';
 import { computePlayerBuildSpd } from '../w3/construction.js';
+import { menagerieUnlockOwned } from '../w7/menagerie.js';
 
 var ARTIFACT_TIER_MULTIPLIER_TEXT = {
   2: "The_artifact's_main_bonus_is_doubled!",
@@ -19,7 +20,35 @@ var ARTIFACT_TIER_MULTIPLIER_TEXT = {
   4: "The_artifact's_main_bonus_is_quadrupled!",
   5: "The_artifact's_main_bonus_is_quintupled!",
   6: "The_artifact's_main_bonus_is_sixtupled!",
+  7: "The_artifact's_main_bonus_is_seventupled!",
 };
+
+// The October 16 hotfix corrects the tier-7 description lookup to [15].
+var ARTIFACT_TIER_TEXT_INDEX = { 2: 5, 3: 7, 4: 9, 5: 11, 6: 13, 7: 15 };
+
+export var MAX_ARTIFACT_TIER = 7;
+
+// Raw saved artifact tier, Sailing[3][idx].
+export function artifactTier(artIdx, saveData) {
+  return Number(saveData && saveData.sailingData && saveData.sailingData[3]
+    && saveData.sailingData[3][artIdx]) || 0;
+}
+
+// Source VerisimilitudeUnlocked: Menagerie unlock 0 gates the 7th artifact tier.
+export function verisimilitudeUnlocked(saveData) {
+  return menagerieUnlockOwned(saveData, 0) === 1 ? 1 : 0;
+}
+
+// Highest artifact tier currently obtainable (7 with Verisimilitude, else 6).
+export function maxArtifactTier(saveData) {
+  return verisimilitudeUnlocked(saveData) ? 7 : 6;
+}
+
+// Bloodclot (artifact 40). Jelly CellDMG uses (1 + 10 * Sailing[3][40] / 100):
+// the raw TIER, not ArtifactBonus(40), so tiers 1-7 give 1.10x-1.70x.
+export function bloodclotJellyDamageMulti(saveData) {
+  return 1 + 10 * artifactTier(40, saveData) / 100;
+}
 
 function _highestCharacterLevel(saveData) {
   var levels = saveData.lv0AllData || [];
@@ -120,9 +149,9 @@ export function computeArtifactBonus(artIdx, ci, ctx) {
   }
 
   // Only artifacts whose tier description explicitly multiplies the main
-  // bonus receive the generic 2x-6x scaling.
-  if (tier >= 2 && ArtifactInfo[artIdx]
-    && ArtifactInfo[artIdx][2 * tier + 1] === ARTIFACT_TIER_MULTIPLIER_TEXT[tier]) {
+  // bonus receive the generic 2x-7x scaling.
+  if (tier >= 2 && ArtifactInfo[artIdx] && ARTIFACT_TIER_TEXT_INDEX[tier] != null
+    && ArtifactInfo[artIdx][ARTIFACT_TIER_TEXT_INDEX[tier]] === ARTIFACT_TIER_MULTIPLIER_TEXT[tier]) {
     val *= tier;
   }
 

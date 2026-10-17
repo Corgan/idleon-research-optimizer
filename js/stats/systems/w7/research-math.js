@@ -249,7 +249,8 @@ export function deathNoteRank(kills, mode, riftLv) {
 /**
  * Compute total research EXP/hr from full simulation state.
  * Pure - all mutable state comes through params + ctx.
- * ctx = { abm, c52, stickerFixed, boonyCount, evShop37, extPctExSticker }
+ * ctx = { abm, c52, stickerFixed, boonyCount, evShop37, extPctExSticker, stickerMultiplicative,
+ *         clamWork9, arcade63, menagerieB3, ... }
  */
 export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const _c52 = ctx.c52;
@@ -271,7 +272,10 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const dynSticker = ctx.stickerFixed > 0
     ? (1 + (gbWith(gl, so, 68, ctx) * ctx.boonyCount + 30 * ctx.evShop37) / 100) * ctx.stickerFixed
     : 0;
-  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + gbWith(gl, so, 51, ctx) + ctx.extPctExSticker + dynSticker;
+  // Menagerie unlock 22 moves the sticker from the additive pool (StickerBonus(1,99)) to a
+  // separate (1 + StickerBonus(1,100)/100) multiplier.
+  const stickerMulti = ctx.stickerMultiplicative ? 1 + dynSticker / 100 : 1;
+  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + gbWith(gl, so, 51, ctx) + ctx.extPctExSticker + (ctx.stickerMultiplicative ? 0 : dynSticker);
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
   additive += gbWith(gl, so, 112, ctx) * occFoundCount;
@@ -284,7 +288,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * Math.max(1, ctx.royalResearch || 1);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * stickerMulti * (1 + 0.25 * (ctx.clamWork9 || 0)) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.arcade63 || 0) / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * (1 + (ctx.menagerieB3 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -440,6 +444,7 @@ function gridPointSources(saveCtx) {
     { label: 'W7 Task Research Points', level: Number.isFinite(taskLevel) ? taskLevel : 0, perLevel: 1, value: Number.isFinite(taskLevel) ? taskLevel : 0 },
     { label: 'Jelly Reward 4', value: (saveCtx && saveCtx.jellyGridPoint4) || 0 },
     { label: 'Jelly Reward 57', value: (saveCtx && saveCtx.jellyGridPoint57) || 0 },
+    { label: 'Bundle (ban_k)', value: 5 * ((saveCtx && saveCtx.bundleBanK) ? 1 : 0) },
   ];
 }
 
@@ -532,11 +537,12 @@ export function computeMagnifiersOwnedWith(gl, rLv, ctx) {
 
 /**
  * Compute how many shapes are owned at a given research level.
- * ctx must provide: evShop[], hasComp54, spelunkyUpg7.
+ * ctx must provide: evShop[], hasComp54, spelunkyUpg7; optional banM (bundle ban_m owned).
  */
 export function computeShapesOwnedAt(lv, ctx) {
   return Math.min(10, Math.round(
-    (ctx.evShop[36]||0)
+    (ctx.banM ? 1 : 0)
+    + (ctx.evShop[36]||0)
     + Math.min(1, Math.max(0, Math.floor(lv / 20) * (ctx.hasComp54 ? 1 : 0)))
     + Math.min(1, Math.floor(lv / 20) * (ctx.spelunkyUpg7 >= 1 ? 1 : 0))
     + Math.min(1, Math.floor(lv / 20))

@@ -1,11 +1,13 @@
 // ========== CLAMWORKS (W7) ==========
 // Save data: OLA[454] = pearl balance, OLA[455+i] = upgrade levels (i=0..8)
+//            Menagerie[5][i] = Scurge upgrade levels, Menagerie[0][8] = Scurge level
 //            OLA[456] = extra clams, OLA[464] = promotion level
 // Game data: Spelunky[27] = descriptions, [28] = perLvVal, [29] = costBase
 
 import { getLOG } from '../../../formulas.js';
 import { Spelunky } from '../../data/game/customlists.js';
 import { optionsListData } from '../../../save/data.js';
+import { saveData } from '../../../state.js';
 
 var _descs = Spelunky[27];   // 9 description strings
 var _perLv = Spelunky[28];   // 9 per-level bonus values
@@ -77,14 +79,36 @@ export function upgBonus3(multikillTotal) {
   return (multikillTotal || 0) / 1000 * upgPerLvVal(3) * upgLevel(3);
 }
 
+// ========== SCURGE (Menagerie unlock 4) ==========
+// ClamBonuses(t, 1) = Spelunky[28][t + 9] * Menagerie[5][t]
+export function scurgeUpgLevel(idx) {
+  var row = saveData.menagerieData && saveData.menagerieData[5];
+  return Number(row && row[idx | 0]) || 0;
+}
+
+export function scurgeLevel() {
+  var row = saveData.menagerieData && saveData.menagerieData[0];
+  return Number(row && row[8]) || 0;
+}
+
+export function scurgeBonus(idx) {
+  return (Number(_perLv[Math.round(idx + 9)]) || 0) * scurgeUpgLevel(idx);
+}
+
+// Pearl-value multipliers from Scurge 1 and Scurge 8 × Scurge level
+export function scurgePearlMulti() {
+  return (1 + scurgeBonus(1) / 100) * (1 + scurgeBonus(8) * scurgeLevel() / 100);
+}
+
 // ========== PEARL VALUE ==========
 // ClamPearlValue = (1 + bonus0) * (1 + bonus3/100) * (1 + bonus7/100)
+//   * (1 + Scurge1/100) * (1 + Scurge8 × ScurgeLv/100)
 export function pearlValue(ext) {
   ext = ext || {};
   var b0 = upgBonus(0);
   var b3 = upgBonus3(ext.multikillTotal);
   var b7 = upgBonus(7);
-  return (1 + b0) * (1 + b3 / 100) * (1 + b7 / 100);
+  return (1 + b0) * (1 + b3 / 100) * (1 + b7 / 100) * scurgePearlMulti();
 }
 
 // 10x pearl chance
@@ -110,9 +134,12 @@ export function effectivePearlsPerDrop(ext) {
 }
 
 // ========== COSTS ==========
-// Cost reduction from upgrades 4 and 8
-export function costReduction() {
-  return (1 / (1 + upgBonus(4) / 100)) * (1 / (1 + upgBonus(8) / 100));
+// Cost reduction from upgrades 4 and 8; with idx, also Scurge 3 and
+// Menagerie[5][idx] × Scurge 5 in source order.
+export function costReduction(idx) {
+  if (idx == null) return (1 / (1 + upgBonus(4) / 100)) * (1 / (1 + upgBonus(8) / 100));
+  return (1 / (1 + upgBonus(4) / 100)) * (1 / (1 + scurgeBonus(3) / 100))
+    * (1 / (1 + scurgeUpgLevel(idx) * scurgeBonus(5) / 100)) * (1 / (1 + upgBonus(8) / 100));
 }
 
 // Clam_PearlUpgReq(t)
@@ -123,7 +150,7 @@ export function pearlUpgReq(t) {
 // Clam_Cost(t) — cost for next level of upgrade t
 export function upgCost(idx) {
   var lv = upgLevel(idx);
-  var cr = costReduction();
+  var cr = costReduction(idx);
   if (idx === 0) {
     return cr * (Math.pow(upgCostBase(0), lv) + 3 * lv + Math.pow(lv, 2.5));
   }
@@ -133,7 +160,7 @@ export function upgCost(idx) {
 // Cost for next level (+1)
 export function upgNextCost(idx) {
   var lv = upgLevel(idx) + 1;
-  var cr = costReduction();
+  var cr = costReduction(idx);
   if (idx === 0) {
     return cr * (Math.pow(upgCostBase(0), lv) + 3 * lv + Math.pow(lv, 2.5));
   }
@@ -206,12 +233,12 @@ export function pearlValueMarginalGain(idx, ext) {
 
   var newVal;
   if (idx === 0) {
-    newVal = (1 + b0 + plv) * (1 + b3 / 100) * (1 + b7 / 100);
+    newVal = (1 + b0 + plv) * (1 + b3 / 100) * (1 + b7 / 100) * scurgePearlMulti();
   } else if (idx === 3) {
     var newB3 = (ext.multikillTotal || 0) / 1000 * plv * (upgLevel(3) + 1);
-    newVal = (1 + b0) * (1 + newB3 / 100) * (1 + b7 / 100);
+    newVal = (1 + b0) * (1 + newB3 / 100) * (1 + b7 / 100) * scurgePearlMulti();
   } else if (idx === 7) {
-    newVal = (1 + b0) * (1 + b3 / 100) * (1 + (b7 + plv) / 100);
+    newVal = (1 + b0) * (1 + b3 / 100) * (1 + (b7 + plv) / 100) * scurgePearlMulti();
   } else {
     return 0; // doesn't affect pearl value directly
   }

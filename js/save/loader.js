@@ -103,6 +103,11 @@ export function loadSaveData(raw) {
     royalDataAvailable: Object.prototype.hasOwnProperty.call(save, 'RoyalG')
       || Object.prototype.hasOwnProperty.call(save, 'RoyalMaps'),
   });
+  const menagerieRaw = parseSaveKey(save, 'Menagerie');
+  assignState({
+    menagerieData: Array.isArray(menagerieRaw) ? menagerieRaw : [],
+    menagerieDataAvailable: Object.prototype.hasOwnProperty.call(save, 'Menagerie'),
+  });
   assignState({ riftData: parseSaveKey(save, 'Rift') || [] });
   assignState({ breedingData: parseSaveKey(save, 'Breeding') || [] });
   assignState({ summonData: parseSaveKey(save, 'Summon') || [] });
@@ -516,6 +521,11 @@ export function recomputeDerivedBonuses() {
     cachedExtPctExSticker: _researchAdditivePct - _stickerVal - _gridAdd,
     comp52TrueMulti: (1 + companionBonusForSave(52, saveData)) * (1 + companionBonusForSave(153, saveData) + companionLevel2(153, saveData)),
     cachedRoyalResearch: Math.max(1, outpostROGBonus(saveData, 1)),
+    // 2026-10-16 Research EXP terms the sim cannot recompute from grid levels.
+    cachedStickerMultiplicative: rexp.stickerMultiplicative ? 1 : 0,
+    cachedArcade63: Number(rexp.arcade63) || 0,
+    cachedClamWork9: Number(rexp.clamWork9) || 0,
+    cachedMenagerieB3: Number(rexp.menagerieB3) || 0,
   });
 
   // Button_Bonuses(0): presses rotate through 9 slots, slot 0 rate = 2

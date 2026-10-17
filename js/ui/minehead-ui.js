@@ -7,7 +7,7 @@ import {
   maxHPYou, floorHP, minesOnFloor, canBuyUpg,
 } from '../stats/systems/w7/minehead.js';
 import { expandGrid, OPTIMIZE_GRID, evaluateTunableParams, DEFAULT_PARAMS } from '../minehead/sim.js';
-import { mhState, mineReduction, getInferredParams, loadInferred, _fmt } from './minehead-helpers.js';
+import { mhState, mineReduction, mineheadUpgOpts, mhQty, getInferredParams, loadInferred, _fmt } from './minehead-helpers.js';
 import { renderDashboard, renderCurrencyTab } from './minehead-dashboard.js';
 import { renderPlayfield } from './minehead-play.js';
 import { rogBonusQTY } from '../stats/systems/w7/sushi.js';
@@ -17,6 +17,7 @@ function _mineheadJellyOpts() {
   return {
     jellyDamage9: jellyRewardBonus(saveData, 9),
     jellyGoldTiles45: jellyRewardBonus(saveData, 45),
+    ...mineheadUpgOpts(),
   };
 }
 
@@ -611,7 +612,7 @@ function _runOptimize(lvs, floor, svarHP) {
 }
 
 function _dispatchOptTask(worker, task, floor, upgLevels, nTrials, seed, svarHP) {
-  worker.postMessage({ type: 'optimize', id: task.id, floor, upgLevels: [...upgLevels], params: task.params, nTrials, seed, svarHP, ..._mineheadJellyOpts() });
+  worker.postMessage({ type: 'optimize', id: task.id, floor, upgLevels: [...upgLevels], params: task.params, nTrials, seed, svarHP, mineReduction: mineReduction(), ..._mineheadJellyOpts() });
 }
 
 function _onOptComplete(topResults, floor, upgLevels, svarHP) {
@@ -838,7 +839,7 @@ function _runUpgradeRank(lvs, floor, svarHP) {
   const nTrials = _rankTrials;
   const seed = 42 + floor;
   const mineCurrency = saveData.stateR7?.[5] || 0;
-  const qty26 = upgradeQTY(26, lvs[26] || 0);
+  const qty26 = mhQty(26, lvs[26] || 0);
   const stratEl = document.getElementById('mh-rank-strat');
   const params = (stratEl?.value === 'yours' && getInferredParams()) || _getParams(floor);
 
@@ -914,7 +915,7 @@ function _dispatchRankTask(worker, task, floor, params, nTrials, seed, svarHP) {
 function _onRankComplete(results, affordable, floor, nTrials, lvs) {
   if (_rankWorkers) { for (const w of _rankWorkers) w.terminate(); _rankWorkers = null; }
 
-  const qty26 = upgradeQTY(26, lvs[26] || 0);
+  const qty26 = mhQty(26, lvs[26] || 0);
   const mineCurrency = saveData.stateR7?.[5] || 0;
   const svarHP = saveData.serverVarMineHP || 1;
   const svarCost = saveData.serverVarMineCost || 1;
@@ -1100,7 +1101,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
 
   // Find candidates for this step
   const candidates = [];
-  const qty26 = upgradeQTY(26, currentLvs[26] || 0);
+  const qty26 = mhQty(26, currentLvs[26] || 0);
   const svarCost = saveData.serverVarMineCost || 1;
   const _uSushiPath = saveData.cachedUniqueSushi || 0;
   const _rogCostPath = Math.max(rogBonusQTY(1, _uSushiPath), rogBonusQTY(16, _uSushiPath));
@@ -1138,7 +1139,7 @@ function _runPathStep(currentLvs, path, baseline, step, steps, params, nTrials, 
         const r = candResults[`path_s${step}_u${idx}`];
         if (!r) continue;
         const lv = currentLvs[idx] || 0;
-        const q = upgradeQTY(26, currentLvs[26] || 0);
+        const q = mhQty(26, currentLvs[26] || 0);
         const c = upgCost(idx, lv, q, svarCostLocal, _rogCostLocal);
         const dmgInc = r.avgDmg - prevDmg;
         const winInc = r.winRate - (path.length > 0 ? path[path.length - 1].result.winRate : (baseline?.winRate || 0));

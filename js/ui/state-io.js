@@ -50,7 +50,9 @@ async function exportState() {
     cachedEventShopStr: saveData.cachedEventShopStr, cachedResearchExp: saveData.cachedResearchExp, cachedSpelunkyUpg7: saveData.cachedSpelunkyUpg7, cachedFailedRolls: saveData.cachedFailedRolls, cachedAFKRate, cachedComp0DivOk: saveData.cachedComp0DivOk,
     cachedStickerFixed: saveData.cachedStickerFixed, cachedBoonyCount: saveData.cachedBoonyCount, cachedEvShop37: saveData.cachedEvShop37, cachedExtPctExSticker: saveData.cachedExtPctExSticker,
     cachedButtonBonus0: saveData.cachedButtonBonus0, cachedBtnBaseNoGrid: saveData.cachedBtnBaseNoGrid, cachedKillroy5: saveData.cachedKillroy5, cachedDream14: saveData.cachedDream14, cachedCglunko11: saveData.cachedCglunko11, cachedFountain2_16: saveData.cachedFountain2_16,
-    extBonusOverrides: saveData.extBonusOverrides, loadedSaveFormat,
+        cachedStickerMultiplicative: saveData.cachedStickerMultiplicative, cachedArcade63: saveData.cachedArcade63, cachedClamWork9: saveData.cachedClamWork9, cachedMenagerieB3: saveData.cachedMenagerieB3,
+    bundlesData: saveData.bundlesData || {},
+        extBonusOverrides: saveData.extBonusOverrides, loadedSaveFormat,
     shapeTiers: { above: saveData.shapeTiers.above.slice(), below: saveData.shapeTiers.below.slice() },
   };
   return await compressState(state);
@@ -140,6 +142,13 @@ function importState(raw) {
   assignState({ cachedDream14: raw.cachedDream14 || 0 });
   assignState({ cachedCglunko11: raw.cachedCglunko11 || 0 });
   assignState({ cachedFountain2_16: raw.cachedFountain2_16 || 0 });
+  assignState({
+    cachedStickerMultiplicative: raw.cachedStickerMultiplicative ? 1 : 0,
+    cachedArcade63: Number(raw.cachedArcade63) || 0,
+    cachedClamWork9: Number(raw.cachedClamWork9) || 0,
+    cachedMenagerieB3: Number(raw.cachedMenagerieB3) || 0,
+    bundlesData: raw.bundlesData && typeof raw.bundlesData === 'object' ? raw.bundlesData : {},
+  });
   // Backward compat: old state exports lack sticker cache fields - derive from saveData.extBonuses
   if ('saveData.cachedStickerFixed' in raw) {
     assignState({ cachedStickerFixed: raw.cachedStickerFixed || 0 });

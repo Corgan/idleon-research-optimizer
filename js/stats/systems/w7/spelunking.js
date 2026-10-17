@@ -43,6 +43,7 @@ import { formulaEval } from '../../../formulas.js';
 import { computeArtifactBonus } from '../w5/sailing.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
 import { spelunkMaxStaminaTaskLevel } from '../../data/w7/tasks.js';
+import { blackStarsOwned } from './menagerie.js';
 
 export function spelunkMaxStaminaTaskBonus(saveData) {
   return 20 * spelunkMaxStaminaTaskLevel(saveData);
@@ -70,9 +71,25 @@ export function computePaletteBonus(paletteIdx, saveData) {
     }
   }
   var palLegendMulti = 1 + (legendPTSbonus(10, saveData) || 0) / 100;
+  var palBlackStarMulti = paletteBlackStarMultiplier(paletteIdx, saveData);
   var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
   var palLoreMulti = 1 + 0.5 * loreFlag8;
-  return raw * palLegendMulti * palLoreMulti;
+  return raw * palLegendMulti * palBlackStarMulti * palLoreMulti;
+}
+
+// Black Stars placed on a palette slot (Spelunk[49][idx]): 0 -> 1x, 1 -> 2x, 2 -> 4x.
+// Source: max(1, 1 + (s + floor(s / 2))).
+export function paletteBlackStarMultiplier(paletteIdx, saveData) {
+  var stars = Number(saveData && saveData.spelunkData && saveData.spelunkData[49] && saveData.spelunkData[49][paletteIdx]) || 0;
+  return Math.max(1, 1 + (stars + Math.floor(stars / 2)));
+}
+
+// Game: GamingStatType("BlackStarsLEFT") = round(BlackStarsOwned - sum Spelunk[49][0..36]).
+export function blackStarsLeft(saveData) {
+  var placed = 0;
+  var row = (saveData && saveData.spelunkData && saveData.spelunkData[49]) || [];
+  for (var i = 0; i < 37; i++) placed += Number(row[i]) || 0;
+  return Math.round(blackStarsOwned(saveData) - placed);
 }
 
 // Game: LoreEpiBon(idx). Spelunky[21][idx] stores "base|tome threshold".
@@ -97,9 +114,10 @@ export var palette = {
   resolve: function(id, ctx) {
     var val = computePaletteBonus(id, ctx.saveData);
     var paletteLv = Number(ctx.saveData.spelunkData && ctx.saveData.spelunkData[9] && ctx.saveData.spelunkData[9][id]) || 0;
-    return node(label('Palette', id), val, [
-      node('Palette Level', paletteLv, null, { fmt: 'raw' }),
-    ], { fmt: '+', note: 'palette ' + id });
+    var children = [node('Palette Level', paletteLv, null, { fmt: 'raw' })];
+    var blackStarMulti = paletteBlackStarMultiplier(id, ctx.saveData);
+    if (blackStarMulti !== 1) children.push(node('Black Stars', blackStarMulti, null, { fmt: 'x' }));
+    return node(label('Palette', id), val, children, { fmt: '+', note: 'palette ' + id });
   },
 };
 
@@ -166,6 +184,15 @@ export function shopUpgBonus(idx, saveData) {
   else if (idx === 25) value = 1 + value;
   else if (idx === 38) value = 20 + value;
   else if (idx === 44 || idx === 45 || idx === 46) value *= grandDiscoveries;
+  else if (idx === 54 || idx === 55 || idx === 56) {
+    // Source sums Spelunk[47][r] over the Spelunk[1] (cave depth) row count.
+    var row47 = spelunk[47] || [];
+    var row47Sum = 0;
+    for (var r47 = 0; r47 < depths.length; r47++) row47Sum = Math.round(row47Sum + (Number(row47[r47]) || 0));
+    value *= 1 + 5 * row47Sum / 100;
+  } else if (idx === 59 || idx === 60 || idx === 61) {
+    value *= Number(spelunk[4] && spelunk[4][8]) || 0;
+  }
   return value;
 }
 

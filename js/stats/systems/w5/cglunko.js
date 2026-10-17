@@ -17,8 +17,19 @@ export var UPGRADE_COUNT = 24;
 export var PAGE_SIZE = 12;
 
 // ========== SAVE HELPERS ==========
+// Hypothetical upgrade levels (OLA[630..653]) installed by withCglunkoLevels.
+var _levelOverride = null;
+
 function _ola(idx) {
+  if (_levelOverride && idx >= 630 && idx < 630 + UPGRADE_COUNT) return Number(_levelOverride[idx - 630]) || 0;
   return Number(optionsListData[idx]) || 0;
+}
+
+// Run fn with upgrade levels replaced by `levels` (24 entries, index = upgrade).
+export function withCglunkoLevels(levels, fn) {
+  var prev = _levelOverride;
+  _levelOverride = Array.isArray(levels) ? levels : null;
+  try { return fn(); } finally { _levelOverride = prev; }
 }
 
 // ========== UPGRADE DATA ==========

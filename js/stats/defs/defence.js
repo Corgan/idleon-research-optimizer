@@ -2,7 +2,7 @@
 // _customBlock_TotalStats("Defence"): Equipment DN × pct, + stamps/cards/etc,
 // then × shrine/prayer/goldfood/talent/chip/set multipliers.
 
-import { computeEquipBaseStat, computeObolBaseStat, computeGalleryBaseStat,
+import { computeEquipBaseStat, computeObolMiscStat, computeGalleryBaseStat,
   computeStatueBonusGiven, computeCardBonusByType, computeBoxReward,
   computeMealBonus } from '../systems/common/stats.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
@@ -43,7 +43,7 @@ export default createDescriptor({
     var equipDef = _equipDefT.val;
     var _galleryDefT = safeTree(computeGalleryBaseStat, ci, ctx, 'Defence');
     var galleryDef = _galleryDefT.val;
-    var _obolDefT = safeTree(computeObolBaseStat, ci, 'Defence');
+    var _obolDefT = safeTree(computeObolMiscStat, ci, 'Defence', s);
     var obolDef = _obolDefT.val;
 
     var totalStatsDN = equipDef + galleryDef + obolDef;

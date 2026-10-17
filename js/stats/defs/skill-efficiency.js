@@ -41,6 +41,7 @@ import { computeRiftSkillBonus } from '../systems/w4/rift.js';
 import { computeMonumentROGbonus } from '../systems/w5/hole.js';
 import { computeRooBonus } from '../systems/w7/sushi.js';
 import { chapterBonus, shopUpgBonus } from '../systems/w7/spelunking.js';
+import { obolMiscMulti } from '../systems/w7/menagerie.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
 import { createDescriptor } from './helpers.js';
 import { label } from '../entity-names.js';
@@ -140,6 +141,17 @@ function _powerFromNamedRows(skillType, names, maps) {
   return _namedRowsDetail(skillType, names, maps, '').val;
 }
 
+// TotalStats multiplies the summed obol (DN2) skill power by MenagerieStuff("ObolMISCmulti").
+function _obolSkillPowerDetail(skillType, charIdx, saveData) {
+  var personal = _namedRowsDetail(skillType, obolNamesData[charIdx], obolMapsData[charIdx], 'Obols');
+  var family = _namedRowsDetail(skillType, obolFamilyNames, obolFamilyMaps, 'Family obols');
+  var mult = obolMiscMulti(saveData);
+  return { name: 'Obols', val: (personal.val + family.val) * mult, fmt: 'raw', children: [
+    personal, family,
+    { name: 'Menagerie: Obol Misc Multiplier', val: mult, fmt: 'x' },
+  ] };
+}
+
 function _totalSkillPowerDetail(skillType, charIdx, ctx) {
   var saveData = ctx.saveData;
   var config = SKILL_POWER[skillType];
@@ -148,8 +160,7 @@ function _totalSkillPowerDetail(skillType, charIdx, ctx) {
     { name: 'Tool: ' + (toolKey && toolKey !== 'Blank' ? _itemName(toolKey) : 'none'), val: _toolPower(skillType, charIdx), fmt: 'raw' },
     _namedRowsDetail(skillType, equipOrderData[charIdx] && equipOrderData[charIdx][0],
       emmData[charIdx] && emmData[charIdx][0], 'Equipment'),
-    _namedRowsDetail(skillType, obolNamesData[charIdx], obolMapsData[charIdx], 'Obols'),
-    _namedRowsDetail(skillType, obolFamilyNames, obolFamilyMaps, 'Family obols'),
+    _obolSkillPowerDetail(skillType, charIdx, saveData),
   ];
   if (config.statue != null) {
     var statue = computeStatueBonusGiven(config.statue, charIdx, saveData);

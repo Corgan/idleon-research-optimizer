@@ -30,6 +30,7 @@ import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { computeMultiKillTotal, computeOverkillActive } from '../systems/common/overkill.js';
 import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
+import { statueBonus } from '../systems/w7/royal-guardian.js';
 
 export default createDescriptor({
   id: 'kill-per-kill',
@@ -76,6 +77,7 @@ export default createDescriptor({
     // Multiplicative chain (when overkill active)
     var mf4 = Math.max(1, safe(mainframeBonus, 4, s));
     var comp14 = 1 + rval(companion, 14, ctx);
+    var royalStatue2 = 1 + safe(statueBonus, s, 2) / 100;
     var comp168 = 1 + 0.2 * rval(companion, 168, ctx);
     var comp29 = 1 + rval(companion, 29, ctx);
     var comp154 = 1 + rval(companion, 154, ctx);
@@ -116,7 +118,7 @@ export default createDescriptor({
         + prayer13 + pristine6 + exotic56 + legend16 + bubbaRoG5 + vault64 + friend6) / 100;
     }
 
-    var val = mf4 * comp14 * comp168 * comp29 * comp154 * etc96 * etc103
+    var val = mf4 * comp14 * royalStatue2 * comp168 * comp29 * comp154 * etc96 * etc103
       * kpkAdditive1 * divMajorMult * kpkAdditive2;
 
     if (val !== val || val == null) val = 1;
@@ -124,6 +126,7 @@ export default createDescriptor({
     var children = [];
     children.push({ name: label('Mainframe', 4), val: mf4, fmt: 'x' });
     if (comp14 > 1) children.push({ name: label('Companion', 14), val: comp14, fmt: 'x' });
+    if (royalStatue2 > 1) children.push({ name: 'Royal Statue 2', val: royalStatue2, fmt: 'x' });
     if (comp168 > 1) children.push({ name: label('Companion', 168), val: comp168, fmt: 'x' });
     if (comp29 > 1) children.push({ name: label('Companion', 29), val: comp29, fmt: 'x' });
     if (comp154 > 1) children.push({ name: label('Companion', 154), val: comp154, fmt: 'x' });

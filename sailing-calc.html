@@ -167,6 +167,7 @@ import {
   sailingCurrencyMeta,
   unendingLootSearch,
 } from './js/stats/systems/w5/sailing-chests.js';
+import { maxArtifactTier } from './js/stats/systems/w5/sailing.js';
 import {
   captainBonusName,
   islandArtifactCount,
@@ -641,9 +642,9 @@ function currencyPayoutCell(currency){
   return '<td class="num"><span class="payout-value">'+fmt(currency.expectedValuePerChest)+'</span><span class="payout-detail">'+currency.expectedPayoutsPerChest.toFixed(2)+' payouts avg · '+pct(currency.chancePerPayout,1)+'</span></td>';
 }
 
-function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No active fleet route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>'+(fleetAssignmentMode==='optimized'?'Optimized':'Current Save')+' Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+captainCode(r.captainIdx)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',fmt(r.artifactFindsPerHour)+'/hr','Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<6)incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+fmt(x.artifactFindsPerHour)+'/hr</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat and captain from the active <strong>'+(fleetAssignmentMode==='optimized'?'optimized':'current save')+' assignment</strong>. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
+function renderArtifacts(fleet){var r=breakdownRoute(fleet);if(!r)return '<div class="section"><div class="empty">No active fleet route available.</div></div>';var rows=[];for(var i=0;i<islandCount();i++){var x=route(r.boatIdx,i,r.captainIdx);rows.push(x);}rows.sort(function(a,b){return b.artifactFindsPerHour-a.artifactFindsPerHour;});var h='<div class="section"><h2>'+(fleetAssignmentMode==='optimized'?'Optimized':'Current Save')+' Artifact Route Ranking · Boat '+(r.boatIdx+1)+' / Captain '+captainCode(r.captainIdx)+'</h2><div class="card-grid">'+card('Boat artifact multi',fmt(r.artifactBase.value)+'x','Before chest tier')+card('Selected island',chance(r.artifactChancePerTrip),'direct chance per generated chest')+card('Direct finds/hr',fmt(r.artifactFindsPerHour)+'/hr','Natural tiers and filter included')+'</div><div class="table-wrap" style="margin-top:10px"><table class="data-table"><thead><tr><th>Island</th><th class="num">Incomplete</th><th class="num">Trip</th><th class="num">Per chest</th><th class="num">Direct finds/hr</th></tr></thead><tbody>';rows.forEach(function(x,idx){var incomplete=0;var offset=islandArtifactOffset(x.islandIdx),count=islandArtifactCount(x.islandIdx);for(var j=0;j<count;j++)if(Number(saveData.sailingData?.[3]?.[offset+j])<maxArtifactTier(saveData))incomplete++;h+='<tr class="'+(idx===0?'best':'')+'"><td>'+islandLabel(x.islandIdx)+'</td><td class="num">'+incomplete+'</td><td class="num">'+time(x.timing.tripSeconds)+'</td><td class="num">'+chance(x.artifactChancePerTrip)+'</td><td class="num">'+fmt(x.artifactFindsPerHour)+'/hr</td></tr>';});h+='</tbody></table></div><div class="callout" style="margin-top:10px">Uses the selected boat and captain from the active <strong>'+(fleetAssignmentMode==='optimized'?'optimized':'current save')+' assignment</strong>. Near-full tier upgrades can improve a banked chest\'s artifact multiplier, but changing pile state is excluded from this route ranking.</div></div>';
   h+='<div class="section"><h2>Selected Island Artifacts</h2>'+artifactDetail(r)+'</div>';return h;}
-function artifactDetail(r){var weighted={};r.tiers.forEach(function(t){if(!t.kept)return;var odds=islandArtifactOdds(r.islandIdx,t.artifactMultiplier,saveData,{serverVars:rawServerVars});odds.artifacts.forEach(function(a){if(!weighted[a.artifactIdx])weighted[a.artifactIdx]=Object.assign({},a,{chance:0});weighted[a.artifactIdx].chance+=t.probability*a.exactChance;});});var list=Object.values(weighted);if(!list.length)return '<div class="empty">No artifacts on this island.</div>';var h='<table class="data-table"><thead><tr><th>Artifact</th><th class="num">Current tier</th><th class="num">Next odds</th><th class="num">Per generated chest</th><th>Status</th></tr></thead><tbody>';list.forEach(function(a){h+='<tr><td>'+esc(a.name)+'</td><td class="num">'+a.currentTier+'</td><td class="num">'+(isFinite(a.denominator)?'1 in '+fmt(a.denominator):'—')+'</td><td class="num">'+chance(a.chance)+'</td><td>'+(a.currentTier>=6?'<span class="badge badge-green">max</span>':a.unlocked?'available':'locked')+'</td></tr>';});return h+'</tbody></table>';}
+function artifactDetail(r){var weighted={};r.tiers.forEach(function(t){if(!t.kept)return;var odds=islandArtifactOdds(r.islandIdx,t.artifactMultiplier,saveData,{serverVars:rawServerVars});odds.artifacts.forEach(function(a){if(!weighted[a.artifactIdx])weighted[a.artifactIdx]=Object.assign({},a,{chance:0});weighted[a.artifactIdx].chance+=t.probability*a.exactChance;});});var list=Object.values(weighted);if(!list.length)return '<div class="empty">No artifacts on this island.</div>';var h='<table class="data-table"><thead><tr><th>Artifact</th><th class="num">Current tier</th><th class="num">Next odds</th><th class="num">Per generated chest</th><th>Status</th></tr></thead><tbody>';list.forEach(function(a){h+='<tr><td>'+esc(a.name)+'</td><td class="num">'+a.currentTier+'</td><td class="num">'+(isFinite(a.denominator)?'1 in '+fmt(a.denominator):'—')+'</td><td class="num">'+chance(a.chance)+'</td><td>'+(a.currentTier>=maxArtifactTier(saveData)?'<span class="badge badge-green">max</span>':a.unlocked?'available':'locked')+'</td></tr>';});return h+'</tbody></table>';}
 
 function breakdownRoute(fleet){
   if(!fleet.length)return null;
@@ -675,21 +676,26 @@ function buildLootTree(r){
   var factors=r.loot.factors;
   var additiveChildren=[
     _bNode('Loot Pile (Sigil)',factors.sigil,null,{fmt:'%'}),
-    _bNode('Captain Loot Value',factors.captain,null,{fmt:'%'}),
     _bNode('Genie Lamp (Artifact)',factors.artifact,null,{fmt:'%'}),
     _bNode('Legendary Captains',factors.legendary,null,{fmt:'%',note:'25% per legendary captain, capped at 30'}),
     _bNode('Sailing Loot (Arcade)',factors.arcade,null,{fmt:'%'}),
     _bNode('Sailing Loot (Vault)',factors.vault,null,{fmt:'%'})
   ];
-  return _bNode('Boat '+(r.boatIdx+1)+' Loot Value',r.loot.value,[
-    _bNode('Base Loot',r.loot.base,null,{note:'5 + (2 + floor(loot level / 8)^2) × loot level'}),
+  var lootMultiChildren=[
     _bNode('Additive Bonuses',1+r.loot.additive/100,additiveChildren,{fmt:'x',note:'1 + sum / 100'}),
     pctFactorNode('Unending Loot Search',factors.talent,'1 + talent bonus / 100'),
-    _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
     pctFactorNode('Lamp: World 5 Things',factors.lamp),
+    _bNode(label('Companion',56),Math.max(1,factors.companion56||0),null,{fmt:'x',note:'max(1, companion bonus)'}),
     pctFactorNode(label('RoG',57),factors.sushi),
-    pctFactorNode('Treasure Boost (Fountain)',factors.fountain)
-  ],{note:'Base × additive × talent × Davey Jones × Lamp × Ring of Glory × Fountain'});
+    pctFactorNode('Treasure Boost (Fountain)',factors.fountain),
+    pctFactorNode('Menagerie Boost: Sailing Loot',factors.menagerie9)
+  ];
+  return _bNode('Boat '+(r.boatIdx+1)+' Loot Value',r.loot.value,[
+    _bNode('Base Loot',r.loot.base,null,{note:'5 + (2 + floor(loot level / 8)^2) × loot level'}),
+    pctFactorNode('Captain Loot Value',factors.captain),
+    _bNode('Davey Jones',factors.davey,null,{fmt:'x'}),
+    _bNode('Loot Multi',r.loot.lootMulti,lootMultiChildren,{fmt:'x',note:'Additive × talent × Lamp × Companion × Ring of Glory × Fountain × Menagerie'})
+  ],{note:'Base × captain × Davey Jones × Loot Multi'});
 }
 
 function buildSpeedTree(r){
@@ -752,14 +758,16 @@ function buildArtifactTree(r){
     _bNode(label('Arcade',32),factors.arcade32,null,{fmt:'%'}),
     _bNode(label('Arcade',66),factors.arcade66,null,{fmt:'%'}),
     _bNode('Tune of Artifaction (The Hole)',factors.hole55,null,{fmt:'%'}),
-    _bNode('Farming Stickers: Artifact Find Chance',factors.sticker,null,{fmt:'%'}),
+    _bNode('Farming Stickers: Artifact Find Chance',factors.sticker,null,{fmt:'%',note:factors.stickerMultiplied?'Moved to its own multiplier by Menagerie unlock 22':'Additive until Menagerie unlock 22'}),
     _bNode(label('Grid',109),factors.grid109,null,{fmt:'%'}),
     _bNode(label('Vault',63),factors.vault63,null,{fmt:'%'})
   ];
   var multiplierChildren=[
     _bNode('Additive Sources',Math.max(1,1+r.artifactBase.additive/100),additiveChildren,{fmt:'x',note:'max(1, 1 + sum / 100)'}),
     pctFactorNode('Artifact Find Star Sign',factors.star),
-    _bNode('Glimbo (Companion)',Math.max(1,Math.min(2,1+2*factors.companion154)),null,{fmt:'x'}),
+    pctFactorNode('Farming Stickers: Artifact Find Multiplier',factors.stickerMulti,'1 + sticker bonus / 100 (Menagerie unlock 22)'),
+    _bNode('Nightmariners',factors.nightmariner,null,{fmt:'x',note:'1 + levels / (levels + 10000) × 1999'}),
+    _bNode('Glimbo (Companion)',Math.max(1,Math.min(2,1+2*factors.companion154)+(factors.companion154Lv2||0)),null,{fmt:'x'}),
     _bNode('Killroy',Math.max(1,factors.killroy),null,{fmt:'x'}),
     pctFactorNode('Minehead Button: Artifact Find Chance',factors.minehead),
     pctFactorNode(label('Grid',106),factors.grid106),
@@ -773,6 +781,7 @@ function buildArtifactTree(r){
     pctFactorNode(label('Pristine',2),factors.pristine),
     pctFactorNode(label('Voting',20),factors.vote),
     _bNode(label('Companion',43),1+factors.companion43,null,{fmt:'x'}),
+    _bNode(label('Companion',56),Math.max(1,(factors.companion56||0)/5),null,{fmt:'x',note:'max(1, companion bonus / 5)'}),
     pctFactorNode('Justice: Artifact Find Chance',factors.monument),
     pctFactorNode(label('Exotic',45),factors.exotic),
     pctFactorNode(label('Palette',5),factors.palette),

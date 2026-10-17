@@ -176,21 +176,8 @@ export function gambitPTSmulti(S, saveData) {
 
   var bUpg78 = (Number(S.holesData && S.holesData[13] && S.holesData[13][78]) || 0) === 1 ? 10 : 0;
 
-  var mon29Lv = Number(S.holesData && S.holesData[15] && S.holesData[15][29]) || 0;
-  var mon29Bonus = holesMonBonus(29);
-  var mon29 = mon29Bonus >= 30
-    ? 0.1 * Math.ceil(mon29Lv / (250 + mon29Lv) * 10 * mon29Bonus)
-    : mon29Lv * mon29Bonus;
-  var cosmo00 = cosmoBonus(S, 0, 0);
-  var holeozDN = (1 + mon29 / 100) + cosmo00 / 100;
-  var mon27Lv = Number(S.holesData && S.holesData[15] && S.holesData[15][27]) || 0;
-  var mon27Bonus = holesMonBonus(27);
-  var monROG27;
-  if (mon27Bonus >= 30) {
-    monROG27 = 0.1 * Math.ceil(mon27Lv / (250 + mon27Lv) * 10 * mon27Bonus * Math.max(1, holeozDN));
-  } else {
-    monROG27 = mon27Lv * mon27Bonus * Math.max(1, holeozDN);
-  }
+  // MonumentROGbonuses(2,7) includes the Fountain monument multiplier on HoleozDN.
+  var monROG27 = computeMonumentROGbonus(2, 7, saveData || S);
 
   var legend29 = legendPTSbonus(29, saveData);
   var jar23 = (Number(S.holesData && S.holesData[24] && S.holesData[24][23]) || 0) * (HOLES_JAR_BONUS_PER_LV[23] || 0) * (1 + legend29 / 100);
@@ -214,6 +201,25 @@ export function gambitBonus15(S, saveData) {
   var totalPts = rawPts * multi;
   var req = 2000 + 1000 * 16 * (1 + 15 / 5) * Math.pow(1.26, 15);
   return totalPts >= req ? 3 : 0;
+}
+
+// Holes("GambitBonuses", idx) for idx >= 1 (src: GambitPts >= GambitPtsREQ,
+// then HolesInfo[71][idx] "bonus|isLog").
+export function computeGambitBonus(idx, saveData) {
+  var scores = saveData.holesData && saveData.holesData[11];
+  if (!Array.isArray(scores)) return 0;
+  var rawPoints = 0;
+  for (var scoreIdx = 0; scoreIdx < 6; scoreIdx++) {
+    var score = Number(scores[65 + scoreIdx]) || 0;
+    var base = score + 3 * Math.floor(score / 10) + 10 * Math.floor(score / 60);
+    rawPoints += (scoreIdx === 0 ? 100 : 200) * base;
+  }
+  var totalPoints = rawPoints * gambitPTSmulti(saveData, saveData);
+  var required = 2000 + 1000 * (idx + 1) * (1 + idx / 5) * Math.pow(1.26, idx);
+  if (totalPoints < required) return 0;
+  var parts = String(HolesInfo[71] && HolesInfo[71][idx] || '0|0').split('|');
+  var bonus = Number(parts[0]) || 0;
+  return Number(parts[1]) === 1 ? bonus * getLOG(totalPoints) : bonus;
 }
 
 // ==================== COSMO BONUS (save-based) ====================

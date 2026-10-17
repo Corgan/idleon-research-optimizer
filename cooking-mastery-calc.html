@@ -98,6 +98,7 @@ import { gbWith } from './js/stats/systems/w7/research-math.js';
 import { mainframeBonus } from './js/stats/systems/w4/lab.js';
 import { vaultUpgBonus } from './js/stats/systems/common/vault.js';
 import { computeMeritocBonusz } from './js/stats/systems/w7/meritoc.js';
+import { menagerieBoostQTY } from './js/stats/systems/w7/menagerie.js';
 
 // ========== FORMAT HELPERS ==========
 function fmtNum(n) {
@@ -207,6 +208,7 @@ function computeExternalMulti() {
   var g12 = saveData.gamingData && saveData.gamingData[12];
   var superBit68 = _safe(function() { return superBitType(68, g12); });
   var comp87 = _safe(function() { return companions(87, saveData); });
+  var menagerie21 = _safe(function() { return menagerieBoostQTY(saveData, 21); });
   var fountainBonus = 0;
   try {
     var uLvs = upgLvs(saveData);
@@ -250,13 +252,15 @@ function computeExternalMulti() {
     grid190: grid190,
     superBit68: superBit68,
     comp87: comp87,
+    menagerie21: menagerie21,
     fountain: fountainBonus,
     vialBonus: vialBonus,
     arcade69: arcade69,
     saltLick10: saltLick10,
     additivePct: additivePct,
     _vialLv: _vialLv, _vialBase: _vialBase, _mf10: _mf10, _dNzz: _dNzz, _meritoc20: _meritoc20,
-    total: (1 + grid190 / 100)
+    total: (1 + menagerie21 / 100)
+      * (1 + grid190 / 100)
       * (1 + 40 * superBit68 / 100)
       * (1 + 2 * comp87)
       * (1 + fountainBonus / 100)
@@ -485,6 +489,7 @@ function render() {
   // External multipliers
   var em = _extMulti;
   var extChildren = [
+    _bNode('Menagerie Boost 21 (Cooking Mastery EXP)', 1 + em.menagerie21 / 100, null, { fmt: 'x' }),
     _bNode('Masterius Cookerius (Research)', 1 + em.grid190 / 100, null, { fmt: 'x' }),
     _bNode('Cooking Master (Zuperbit)', 1 + 40 * em.superBit68 / 100, null, { fmt: 'x', note: em.superBit68 ? 'Unlocked (+40%)' : 'Not unlocked' }),
     _bNode('Rift Spooker', 1 + 2 * em.comp87, null, { fmt: 'x' }),

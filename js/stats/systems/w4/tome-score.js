@@ -1,6 +1,6 @@
 // ===== TOME SCORE COMPUTATION =====
 // Computes totalTomePoints from save data instead of relying on stale extraData.
-// Covers 118 Tome slots with 5 scoring modes.
+// Covers every Tome slot (0-123) with 5 scoring modes.
 // Game source: _customEvent_TomeQTY() + TomePCT/TomePTS in N.formatted.js lines 91347-91348, 71553-71650.
 // All slots implemented.
 
@@ -29,6 +29,7 @@ import { createStatContext } from '../../stat-context.js';
 import { computeArcaneMapMultiBon } from '../mc/tesseract.js';
 import { label } from '../../entity-names.js';
 import { TotalStatz } from '../w7/royal-guardian.js';
+import { menagerieRank, menagerieTotalBoostLevels } from '../w7/menagerie.js';
 
 // ===== Static Tome data: [half, mode, maxPts] per slot =====
 // Derived from CustomLists.Tome: each entry is [name, half, mode, maxPts, ...].
@@ -602,6 +603,8 @@ function tomeQTY(slot, S) {
     case 120: return TotalStatz(S)[0]; // Total_Resource_Grade — RoyalG("TotalStatz", 0)
     case 121: // Successful_Jelly_Operations — Research[7][9]
       return num(S.research && S.research[7] && S.research[7][9]);
+    case 122: return menagerieRank(S); // Luminous_Menagerie_Rank — Menagerie[0][2]
+    case 123: return menagerieTotalBoostLevels(S); // Total_Menagerie_Boosts_Upg_LV — sum Menagerie[3]
 
     default: return 0;
   }
@@ -1206,6 +1209,8 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     case 119: return { val: val, children: [_n('Built Royal outposts', val)] };
     case 120: return { val: val, children: [_n('sum RoyalG[5] resource grades', val)] };
     case 121: return { val: val, children: [_n('Research[7][9]', val)] };
+    case 122: return { val: val, children: [_n('Menagerie[0][2] rank', val)] };
+    case 123: return { val: val, children: [_n('sum Menagerie[3] boost levels', val)] };
 
     default: return { val: val, children: [] };
   }

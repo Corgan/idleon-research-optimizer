@@ -17,6 +17,8 @@ import { mineheadCurrencyTaskLevel } from '../../data/w7/tasks.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { outpostROGBonus } from './royal-guardian.js';
 import { SHAPE_BONUS_PCT } from '../../data/w7/research.js';
+import { legendPTSbonus } from './spelunking.js';
+import { doubledUpgrades, upgradeDoublerMulti } from './menagerie.js';
 
 // ===== FLOOR REWARD BONUS =====
 
@@ -74,7 +76,8 @@ export function computeMineheadCurrSources(saveData, charIdx) {
   var taskCurrencyLevel = mineheadCurrencyTaskLevel(saveData);
   var arcade62tree = arcadeBonus(62, saveData);
   var arcade62val = (arcade62tree && arcade62tree.val) || 0;
-  var arcade62lv = saveData.arcadeUpgData[62] || 0;
+  var arcade62lv = (saveData.arcadeUpgData && saveData.arcadeUpgData[62]) || 0;
+  var legend40Pts = Number(saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][40]) || 0;
   var mealLv = (saveData.mealsData && saveData.mealsData[0] && saveData.mealsData[0][73]) || 0;
   var olaStr379 = String(saveData.olaData[379] || '');
   var mealMineCurr = 0;
@@ -105,6 +108,8 @@ export function computeMineheadCurrSources(saveData, charIdx) {
     taskCurrencyLevel: taskCurrencyLevel,
     taskCurrencyMulti: 1 + 10 * taskCurrencyLevel / 100,
     arcade62: arcade62val, arcade62lv: arcade62lv,
+    legend40: legendPTSbonus(40, saveData), legend40Pts: legend40Pts,
+    doublers: mineheadDoublers(saveData),
     mealMineCurr: mealMineCurr, mealLv: mealLv, mealRibBon: mealRibBon, mealRibT: mealRibT,
     mealCookMulti: mealCookMulti, mealMfb116: mealMfb116, mealShinyS20: mealShinyS20, mealWinBon26: mealWinBon26, mealComp162: mealComp162,
   };
@@ -137,10 +142,33 @@ export function upgLvReq(t) {
 }
 
 /**
- * upgradeQTY(t, level) - total bonus from upgrade `t` at `level`.
+ * upgradeQTY(t, level, doubled) - total bonus from upgrade `t` at `level`.
+ * Game: UpgradeQTY = (Spelunk[51] contains t ? 2 : 1) * MineheadUPG[t][3] * Research[8][t].
+ * `doubled` may be a boolean or a numeric multiplier (default 1).
  */
-export function upgradeQTY(t, level) {
-  return MINEHEAD_UPG[t].bonus * level;
+export function upgradeQTY(t, level, doubled) {
+  var m = doubled === true ? 2 : (Number(doubled) || 1);
+  return m * MINEHEAD_UPG[t].bonus * level;
+}
+
+/** Minehead upgrade indices doubled by Menagerie Upgrade Doublers (Spelunk[51]). */
+export function mineheadDoublers(saveData) {
+  return doubledUpgrades(saveData, 'minehead');
+}
+
+/**
+ * QTY-equivalent level array: doubled upgrade indices have their level ×2.
+ * UpgradeQTY is linear in level, so value functions receiving this array match the
+ * source. Use only for upgrade values — never for costs, max-level checks, or gridDims.
+ */
+export function mineheadQtyLevels(upgLevels, doublers) {
+  var lvs = Array.isArray(upgLevels) ? upgLevels.slice() : [];
+  if (!doublers || !doublers.length) return lvs;
+  for (var i = 0; i < doublers.length; i++) {
+    var idx = Math.round(Number(doublers[i]));
+    if (idx >= 0 && idx < MINEHEAD_UPG.length && lvs[idx] != null) lvs[idx] = 2 * (Number(lvs[idx]) || 0);
+  }
+  return lvs;
 }
 
 /**
@@ -215,9 +243,15 @@ export function floorHP(floor, svar) {
     * Math.pow(Math.max(1, svar), Math.max(0, t - 9));
 }
 
-export function minesOnFloor(floor, reduction) {
+/** Legend 40 Mines_Opp reduction: min(3, ceil(Spelunk[18][40] / 2)). */
+export function legend40MineReduction(legend40Pts) {
+  return Math.min(3, Math.ceil((Number(legend40Pts) || 0) / 2));
+}
+
+export function minesOnFloor(floor, reduction, legend40Pts) {
   var t = floor;
-  var red = reduction || 0;  // sum of SuperBit(66) + CB(41) + EmporiumBonus(45), each 0 or 1
+  // SuperBit(66) + CB(41) + EmporiumBonus(45), each 0 or 1, plus the Legend 40 term (0-3)
+  var red = (reduction || 0) + legend40MineReduction(legend40Pts);
   return Math.round(Math.min(40,
     Math.max(1, 1 - red + Math.floor(t / 3) + Math.floor(t / 7) + Math.floor(t / 13)
       + Math.min(1, Math.floor(t / 15)) + Math.floor(t / 17))
@@ -226,11 +260,12 @@ export function minesOnFloor(floor, reduction) {
 
 // ===== DAMAGE PIPELINE =====
 
-export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9) {
+export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9, legend40) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (sailing38 === undefined) sailing38 = 0;
   if (dancingCoral5 === undefined) dancingCoral5 = 0;
   if (jellyDamage9 === undefined) jellyDamage9 = 0;
+  legend40 = Number(legend40) || 0;
   var flat = 1 + upgradeQTY(0, upgLevels[0])
                + upgradeQTY(7, upgLevels[7])
                + upgradeQTY(25, upgLevels[25])
@@ -240,7 +275,7 @@ export function baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jelly
                     + upgradeQTY(27, upgLevels[27])) / 100;
   var gridMulti = 1 + gridBonus167 / 100;
   var sailMulti = 1 + 50 * sailing38 / 100;
-  return flat * pctMega * gridMulti * sailMulti * (1 + jellyDamage9 / 100);
+  return flat * pctMega * gridMulti * sailMulti * (1 + legend40 / 100) * (1 + jellyDamage9 / 100);
 }
 
 export function bonusDMGperTilePCT(upgLevels, gridBonus146) {
@@ -268,7 +303,7 @@ export function jackpotTiles(upgLevels) {
 
 export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
                                     upgLevels, gridBonus167, gridBonus146,
-                                    wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9) {
+                                    wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9, legend40) {
   if (gridBonus167 === undefined) gridBonus167 = 0;
   if (gridBonus146 === undefined) gridBonus146 = 0;
   if (wepPowDmgPCT === undefined) wepPowDmgPCT = 0;
@@ -293,7 +328,7 @@ export function currentOutgoingDMG(revealedValues, bluecrownCount, isLastLife,
     tileCount++;
   }
 
-  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9);
+  var dmg = addSum * baseDMG(upgLevels, gridBonus167, sailing38, dancingCoral5, jellyDamage9, legend40);
   dmg *= multiProd;
   dmg *= (1 + wepPowDmgPCT / 100);
   dmg *= (1 + tileCount * bonusDMGperTilePCT(upgLevels, gridBonus146) / 100);
@@ -317,6 +352,7 @@ export function currencyPerHour(opts) {
   var atom13 = opts.atom13 || 0;
   var mealMineCurr = opts.mealMineCurr || 0;
   var arcade62 = opts.arcade62 || 0;
+  var legend40 = opts.legend40 || 0;
   var rogBonus12 = opts.rogBonus12 || 0;
   var eventShop44 = opts.eventShop44 || 0;
   var royalCurrencyMulti = opts.royalCurrencyMulti || 1;
@@ -324,7 +360,7 @@ export function currencyPerHour(opts) {
   var bundleJ = opts.bundleJ || 0;
   var dancingCoral5 = opts.dancingCoral5 || 0;
   var taskCurrencyLevel = opts.taskCurrencyLevel || 0;
-  var upgLevels = opts.upgLevels;
+  var upgLevels = mineheadQtyLevels(opts.upgLevels, opts.doublers);
   var highestDmg = opts.highestDmg || 1;
 
   var base = gridBonus129;
@@ -338,10 +374,11 @@ export function currencyPerHour(opts) {
   var farmPCT = 1 + (upgradeQTY(5, upgLevels[5])
                     + upgradeQTY(22, upgLevels[22])
                     + upgradeQTY(28, upgLevels[28]) * logDmg
-                    + arcade62
                     + dancingCoral5) / 100;
   var atomMulti = 1 + atom13 / 100;
   var buttonMulti = 1 + (opts.buttonBonus1 || 0) / 100;
+  var arcadeMulti = 1 + arcade62 / 100;
+  var legendMulti = 1 + legend40 / 100;
   var passiveMulti = 1 + (gridBonus147 + gridBonus166 + mealMineCurr) / 100;
 
   var taskCurrencyMulti = 1 + 10 * taskCurrencyLevel / 100;
@@ -349,7 +386,7 @@ export function currencyPerHour(opts) {
   var bundleMulti = 1 + bundleJ;
   return base * eventShopMulti * multi148 * royalCurrencyMulti * rogMulti * jellyMulti
     * bundleMulti * taskCurrencyMulti * compMulti * bqMulti * farmPCT
-    * buttonMulti * atomMulti * passiveMulti;
+    * buttonMulti * arcadeMulti * atomMulti * legendMulti * passiveMulti;
 }
 
 // ===== RESEARCH GRID SHAPE VALUE =====
@@ -386,7 +423,7 @@ export function mineheadGridShapeValues(saveData, shapePct, opts) {
   var btnNoGrid = btn.presses > 0 ? btn.hits * btn.rate * btn.comp147Multi : 0;
   var bb1 = btnNoGrid * (1 + g125 / 100);
   var bb1Shaped = btnNoGrid * (1 + grown(g125) / 100);
-  var perTile = upgradeQTY(9, Number((saveData.mineheadUpgLevels || [])[9]) || 0);
+  var perTile = upgradeQTY(9, Number((saveData.mineheadUpgLevels || [])[9]) || 0, upgradeDoublerMulti(saveData, 'minehead', 9));
 
   function row(idx, kind, bonus, ratio, factor) {
     return {
@@ -437,9 +474,9 @@ export function glimboCost(t, tradeLv, costExp, eventShop38) {
   return raw;
 }
 
-// Minehead upgrade quality: MINEHEAD_UPG[idx].bonus * upgrade level
+// Minehead UpgradeQTY: (Spelunk[51] doubler ? 2 : 1) * MINEHEAD_UPG[idx].bonus * upgrade level
 export function mhUpgradeQTY(idx, saveData) {
   var bonus = MINEHEAD_UPG[idx] ? MINEHEAD_UPG[idx].bonus : 0;
   var lv = (saveData.research && saveData.research[8] && Number(saveData.research[8][idx])) || 0;
-  return bonus * lv;
+  return upgradeDoublerMulti(saveData, 'minehead', idx) * bonus * lv;
 }

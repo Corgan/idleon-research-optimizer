@@ -6,6 +6,7 @@ import { arcanePerLevel } from '../../data/common/arcane.js';
 import { ARCANE_NO_MULTI } from '../../data/game-constants.js';
 import { maxTalentBonus } from '../common/talent.js';
 import { getLOG } from '../../../formulas.js';
+import { applyTermOverride } from '../../term-overrides.js';
 
 var arcaneNoMultiSet = ARCANE_NO_MULTI;
 
@@ -32,22 +33,37 @@ function arcaneMapMultiBonMax(activeCharIdx, saveData) {
   return 100 * (t589 - 1) + Math.min(10, arcaneUpgBonus(58, saveData));
 }
 
+var ARCANE_MAP_TERM = ['Drop Rate', 'Monster EXP', 'AFK gains'];
+
+// Shared ArcaneMapMulti_bon(idx) parts with component term overrides:
+// `arcaneMapKills:<idx>` (MapBon[map][idx]) and `arcaneMapCap` (ArcaneMapMulti_bonMAX).
+function _arcaneMapParts(idx, ctx) {
+  var saveData = ctx.saveData;
+  var what = ARCANE_MAP_TERM[idx] || ('#' + idx);
+  var meta = { group: 'Arcane map', fmt: 'raw', function: true };
+  var kills = applyTermOverride(ctx, 'arcaneMapKills:' + idx, Number(ctx.mapBon[ctx.mapIdx][idx]) || 0,
+    Object.assign({ name: 'Arcane map kills (' + what + ')' }, meta));
+  var raw = arcaneMapBonus(kills, saveData);
+  var cap = applyTermOverride(ctx, 'arcaneMapCap', arcaneMapMultiBonMax(ctx.charIdx, saveData),
+    Object.assign({ name: 'Arcane map multiplier cap' }, meta));
+  return { kills: kills, raw: raw, cap: cap, val: Math.min(cap, raw) };
+}
+
 // ArcaneMapMulti_bon(idx): capped per-map kill-count bonus
 // Requires ctx.mapBon[ctx.mapIdx] — array of 3+ kill counts per map
 export function computeArcaneMapMultiBon(idx, ctx) {
-  var saveData = ctx.saveData;
   if (!ctx || !ctx.mapBon || ctx.mapIdx == null) return 0;
   var mapData = ctx.mapBon[ctx.mapIdx];
   if (!mapData || mapData.length < 3) return 0;
-  var kills = Number(mapData[idx]) || 0;
-  var raw = arcaneMapBonus(kills, saveData);
-  var cap = arcaneMapMultiBonMax(ctx.charIdx, saveData);
-  return Math.min(cap, raw);
+  var parts = _arcaneMapParts(idx, ctx);
+  return applyTermOverride(ctx, 'arcaneMapMulti:' + idx, parts.val,
+    { name: 'Arcane map multiplier (' + (ARCANE_MAP_TERM[idx] || '#' + idx) + ')', fmt: '+', group: 'Arcane map', function: true });
 }
 
 export var arcaneMap = {
+  // Same component key as computeArcaneMapMultiBon(0); tree-builder applies it.
+  termKey: function() { return 'arcaneMapMulti:0'; },
   resolve: function(id, ctx) {
-    var saveData = ctx.saveData;
     // Arcane map bonus requires MapBon data + current map selection
     if (!ctx.mapBon || ctx.mapIdx == null) {
       return node('Arcane Map Bonus', 0, [
@@ -58,15 +74,12 @@ export var arcaneMap = {
     if (!mapData || mapData.length < 3) return node('Arcane Map Bonus', 0, [
       node('Map data row is incomplete', mapData ? mapData.length : 0, null, { fmt: 'raw' }),
     ]);
-    var kills = mapData[0] || 0;
-    var raw = arcaneMapBonus(kills, saveData);
-    var cap = arcaneMapMultiBonMax(ctx.charIdx, saveData);
-    var val = Math.min(cap, raw);
-    return node('Arcane Map Bonus', val, [
-      node('Map Kills', kills, null, { fmt: 'raw' }),
-      node('Raw Bonus', raw, null, { fmt: '+' }),
-      node('Cap', cap, null, { fmt: 'raw' }),
-      node('Capped Bonus', val, null, { fmt: '+' }),
+    var p = _arcaneMapParts(0, ctx);
+    return node('Arcane Map Bonus', p.val, [
+      node('Map Kills', p.kills, null, { fmt: 'raw' }),
+      node('Raw Bonus', p.raw, null, { fmt: '+' }),
+      node('Cap', p.cap, null, { fmt: 'raw' }),
+      node('Capped Bonus', p.val, null, { fmt: '+' }),
     ], { fmt: '+', note: 'arcane map' });
   },
 };

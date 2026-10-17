@@ -449,8 +449,8 @@ export function computeChipBonus(effectKey, charIdx) {
   var chips = labData[1 + (charIdx == null ? 0 : charIdx)];
   if (!chips) return 0;
   for (var slot = 0; slot < chips.length; slot++) {
-    var chipType = Number(chips[slot]) || 0;
-    if (chipType <= 0) continue;
+    var chipType = Number(chips[slot]);
+    if (!(chipType >= 0)) continue; // -1 is an empty slot; 0 is Grounded Nanochip (RecalcChipBonuses)
     if (!ChipDesc[chipType]) continue;
     var chipKey = ChipDesc[chipType][10];
     if (chipKey !== effectKey) continue;
@@ -465,8 +465,8 @@ export function charHasChip(charIdx, effectKey) {
   var chips = labData[1 + charIdx];
   if (!chips) return false;
   for (var slot = 0; slot < chips.length; slot++) {
-    var chipType = Number(chips[slot]) || 0;
-    if (chipType <= 0) continue;
+    var chipType = Number(chips[slot]);
+    if (!(chipType >= 0)) continue; // -1 is an empty slot; 0 is Grounded Nanochip (RecalcChipBonuses)
     if (!ChipDesc[chipType]) continue;
     if (ChipDesc[chipType][10] === effectKey) return true;
   }

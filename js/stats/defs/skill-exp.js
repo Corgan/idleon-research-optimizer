@@ -23,7 +23,7 @@ import {
   computeBonusLineWidth, computeBubonicGreen, computeChipBonus, mainframeBonus
 } from '../systems/w4/lab.js';
 import { fishingToolkitDataAvailable, klaData } from '../../save/data.js';
-import { HolesInfo, MapAFKtarget, MapDetails } from '../data/game/customlists.js';
+import { MapAFKtarget, MapDetails } from '../data/game/customlists.js';
 import { MONSTERS } from '../data/game/monsters.js';
 import {
   rval, safe, computeAllBaseSkillEff, computeAllEfficiencies,
@@ -48,7 +48,7 @@ import {
   chapterBonus, computePaletteBonus, legendPTSbonus, shopUpgBonus
 } from '../systems/w7/spelunking.js';
 import { getSetBonus } from '../systems/w3/setBonus.js';
-import { gambitPTSmulti } from '../systems/w5/hole.js';
+import { computeGambitBonus } from '../systems/w5/hole.js';
 import { zenithMarketPerLevel } from '../data/w5/sailing.js';
 import { getLOG } from '../../formulas.js';
 import { createDescriptor } from './helpers.js';
@@ -233,20 +233,7 @@ function _lampBonus(tier, bonusIdx, saveData) {
 }
 
 function _gambitBonus(idx, saveData) {
-  var scores = saveData.holesData && saveData.holesData[11];
-  if (!Array.isArray(scores)) return 0;
-  var rawPoints = 0;
-  for (var scoreIdx = 0; scoreIdx < 6; scoreIdx++) {
-    var score = Number(scores[65 + scoreIdx]) || 0;
-    var base = score + 3 * Math.floor(score / 10) + 10 * Math.floor(score / 60);
-    rawPoints += (scoreIdx === 0 ? 100 : 200) * base;
-  }
-  var totalPoints = rawPoints * gambitPTSmulti(saveData, saveData);
-  var required = 2000 + 1000 * (idx + 1) * (1 + idx / 5) * Math.pow(1.26, idx);
-  if (totalPoints < required) return 0;
-  var parts = String(HolesInfo[71] && HolesInfo[71][idx] || '0|0').split('|');
-  var bonus = Number(parts[0]) || 0;
-  return Number(parts[1]) === 1 ? bonus * getLOG(totalPoints) : bonus;
+  return computeGambitBonus(idx, saveData);
 }
 
 function _computeCookingExp(ci, ctx) {

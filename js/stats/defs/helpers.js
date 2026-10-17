@@ -3,6 +3,8 @@
 import { gbWith } from '../../sim-math.js';
 import { buffsActiveData } from '../../save/data.js';
 import { talent } from '../systems/common/talent.js';
+import { activeTermContext, applyTermOverride, functionTermKey, functionTermName,
+  overrideSourceItem, resolverTermName, sourceTermKey } from '../term-overrides.js';
 
 // ===== DESCRIPTOR FACTORY =====
 // Creates a validated stat descriptor object.
@@ -35,17 +37,33 @@ export function gridBonusFinal(S, idx) {
   return gbWith(S.gridLevels, S.shapeOverlay, idx, { abm: S.allBonusMulti });
 }
 
+// safe()/rval() are the component-term hook points for direct-compute
+// descriptors: inside a term scope (term-overrides.js) their numeric results
+// can be traced and overridden. Non-numeric results pass through untouched.
 export function safe(fn) {
   try {
     var args = [];
     for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
     var v = fn.apply(null, args);
-    return (v !== v || v == null) ? 0 : v;
+    v = (v !== v || v == null) ? 0 : v;
+    var tctx = typeof v === 'number' ? activeTermContext() : null;
+    if (tctx) {
+      var key = functionTermKey(fn, args);
+      if (key) v = applyTermOverride(tctx, key, v, { name: functionTermName(key), fmt: '', function: true });
+    }
+    return v;
   } catch(e) { return 0; }
 }
 
 export function rval(resolver, id, ctx, args) {
-  try { return resolver.resolve(id, ctx, args).val || 0; }
+  try {
+    var item = resolver.resolve(id, ctx, args);
+    if (ctx && ctx.termScope) {
+      var sys = resolverTermName(resolver);
+      if (sys) item = overrideSourceItem(ctx, sourceTermKey(sys, id, args, resolver), item);
+    }
+    return item.val || 0;
+  }
   catch(e) { return 0; }
 }
 

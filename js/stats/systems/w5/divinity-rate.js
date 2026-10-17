@@ -44,6 +44,16 @@ function _num(value) {
 }
 
 function _coralKidBonus(idx) {
+  if (idx >= 6) {
+    var sLevel = Number(optionsListData[616 + idx - 6]) || 0;
+    if (idx === 6) return Math.round(100 * sLevel);
+    if (idx === 7) return Math.round(10 * sLevel);
+    if (idx === 8) return Math.round(50 * sLevel);
+    if (idx === 9) return Math.round(125 * sLevel / (sLevel + 100));
+    if (idx === 10) return Math.round(5 * sLevel);
+    if (idx === 11) return Math.round(sLevel);
+    return 0;
+  }
   var level = Number(optionsListData[427 + idx]) || 0;
   if (idx === 0) return 10 * level;
   if (idx === 1) return Math.round(2 * level);
@@ -84,6 +94,8 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
   var gemMulti = 1 + (Number(saveData.gemItemsData && saveData.gemItemsData[130]) || 0) / 4;
   var rog46 = rogBonusQTY(46, saveData.cachedUniqueSushi || 0);
   var rogMulti = 1 + rog46 / 100;
+  var coralKid6 = _coralKidBonus(6);
+  var coralKid6Multi = 1 + coralKid6 / 100;
 
   var divinityMultipliers = [
     1 + computeDivinityBless(0, saveData) / 100,
@@ -124,7 +136,7 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
   var additive = box22c + achievement298 + achievement304 + rift13 + bribe38 + vault71;
   var additiveMulti = 1 + additive / 100;
 
-  var value = styleBase * gemMulti * rogMulti * divinityMulti * talentMulti
+  var value = styleBase * gemMulti * rogMulti * coralKid6Multi * divinityMulti * talentMulti
     * purrmepMulti * votingMulti * lampMulti * spelunkMulti * additiveMulti;
   return treeResult(value, [
     node('Divinity Style Base Points/hr', styleBase, [
@@ -132,6 +144,7 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
     ], { fmt: 'raw' }),
     node('Gem Shop Divinity Sparkie', gemMulti, null, { fmt: 'x' }),
     node(label('RoG', 46), rogMulti, null, { fmt: 'x' }),
+    node('Coral Kid Singularity: Divinity PTS', coralKid6Multi, null, { fmt: 'x' }),
     node('Divinity Blessing Multiplier', divinityMulti, [
       node(label('Divinity Blessing', 0), divinityMultipliers[0], null, { fmt: 'x' }),
       node(label('Divinity Blessing', 1), divinityMultipliers[1], null, { fmt: 'x' }),
@@ -167,6 +180,7 @@ export function computeDivinityExpPerHour(charIdx, ctx) {
   var legendMulti = 1 + legendPTSbonus(15, saveData) / 100;
   var allSkillXpMulti = _allSkillXpMulti(charIdx, saveData);
   var coralMulti = 1 + _coralKidBonus(0) / 100;
+  var coral8Multi = 1 + _coralKidBonus(8) / 100;
   var purrmepMulti = Math.max(1, 1 + computeDivinityMajor(0, 6, saveData));
   var talent506 = maxTalentBonus(506, charIdx, saveData);
   var talentMulti = 1 + talent506 / 100;
@@ -200,7 +214,7 @@ export function computeDivinityExpPerHour(charIdx, ctx) {
     + rift13 + starSign62 + guild14 + arcade37 + etc74 + voting23
     + magmaSet + vault72;
   var additiveMulti = 1 + additive / 100;
-  var value = styleBase * gemMulti * legendMulti * allSkillXpMulti * coralMulti
+  var value = styleBase * gemMulti * legendMulti * allSkillXpMulti * coralMulti * coral8Multi
     * purrmepMulti * talentMulti * companionMulti * additiveMulti;
 
   return treeResult(value, [
@@ -211,6 +225,7 @@ export function computeDivinityExpPerHour(charIdx, ctx) {
     node(label('Legend', 15), legendMulti, null, { fmt: 'x' }),
     node('All Skill EXP Multiplier', allSkillXpMulti, null, { fmt: 'x' }),
     node('Coral Kid Divinity EXP', coralMulti, null, { fmt: 'x' }),
+    node('Coral Kid Singularity: Divinity EXP', coral8Multi, null, { fmt: 'x' }),
     node('Purrmep Major Bonus', purrmepMulti, null, { fmt: 'x' }),
     node(label('Talent', 506), talentMulti, null, { fmt: 'x' }),
     node(label('Companion', 16), companionMulti, null, { fmt: 'x' }),

@@ -7,11 +7,14 @@ import {
   PET_SHINY_TYPE, PET_NAMES, SHINY_BONUS_PER_LV, SHINY_TYPE_TO_CAT,
   SHINY_CAT_NAMES,
 } from '../../data/w4/breeding.js';
+import { menagerieUnlockOwned } from '../w7/menagerie.js';
 
-function shinyLvFromExp(exp) {
+// Source Breeding("SpecialPassives", "Lv"): 19 thresholds, +10 with Menagerie unlock 11.
+function shinyLvFromExp(exp, saveData) {
   if (exp <= 0) return 0;
   var lv = 1;
-  for (var e = 0; e < 19; e++) {
+  var thresholds = Math.round(19 + 10 * menagerieUnlockOwned(saveData, 11));
+  for (var e = 0; e < thresholds; e++) {
     if (exp > Math.floor((1 + Math.pow(e + 1, 1.6)) * Math.pow(1.7, e + 1)))
       lv = e + 2;
   }
@@ -31,7 +34,7 @@ function _shinyBonusParts(catKey, saveData) {
       var shinyTypeIdx = petTypes[pet];
       var cat = SHINY_TYPE_TO_CAT[shinyTypeIdx];
       if (cat !== catKey) continue;
-      var shinyLv = shinyLvFromExp(exp);
+      var shinyLv = shinyLvFromExp(exp, saveData);
       var bonusPerLv = SHINY_BONUS_PER_LV[shinyTypeIdx] || 0;
       var val = Math.round(shinyLv * bonusPerLv);
       total += val;

@@ -2,7 +2,7 @@
 // _customBlock_PlayerAccTot: secondary stat through AccPct bubbles, cards, etc.
 // Then: pow(DN/4, 1.4) + DN + TotalStats("Accuracy"), × prayer/chip/meal/set multipliers.
 
-import { computeTotalStat, computeEquipBaseStat, computeObolBaseStat,
+import { computeTotalStat, computeEquipBaseStat, computeObolMiscStat,
   computeGalleryBaseStat, computeStatueBonusGiven, computeCardBonusByType,
   computeBoxReward, computeMealBonus, primaryStatForClass } from '../systems/common/stats.js';
 import { computeStampBonusOfTypeX } from '../systems/w1/stamp.js';
@@ -49,7 +49,7 @@ export default createDescriptor({
     var equipAcc = _equipAccT.val;
     var _galleryAccT = safeTree(computeGalleryBaseStat, ci, ctx, 'Accuracy');
     var galleryAcc = _galleryAccT.val;
-    var _obolAccT = safeTree(computeObolBaseStat, ci, 'Accuracy');
+    var _obolAccT = safeTree(computeObolMiscStat, ci, 'Accuracy', s);
     var obolAcc = _obolAccT.val;
     var _vialBaseACCT = safeTree(computeVialByKey, 'baseACC', s, ci);
     var vialBaseACC = _vialBaseACCT.val;

@@ -2,7 +2,7 @@
 
 import { MONSTERS } from '../../data/game/monsters.js';
 import { ATTACKS } from '../../data/game/attacks.js';
-import { TalentIconNames } from '../../data/game/customlists.js';
+import { TalentIconNames, RANDOlist, DeathNoteMobs } from '../../data/game/customlists.js';
 import { mapMonsterCount, mapTravelDistance } from '../../data/common/maps.js';
 import {
   attackLoadoutData,
@@ -74,11 +74,15 @@ export function combatTarget(saveData, charIdx, mapIdx, opts) {
     name: monster ? String(monster.Name || key).replace(/_/g, ' ') : '',
     hp: monster ? Number(monster.MonsterHPTotal) || 0 : 0,
     defence: monster ? Number(monster.Defence) || 0 : 0,
-    type: 'Monster',
+    type: monster && monster.Type ? String(monster.Type) : 'Monster',
   };
 }
 
 export function combatMapApplicability(ctx, opts) {
+  // The active combat sim plays every spawning scene (Rift, Royal Castle,
+  // boss-adjacent maps), where these formulas still run at kill time; only
+  // AFK dashboards need the normal-fighting-map gate.
+  if (ctx && ctx.activeCombat) return true;
   var target = combatTarget(ctx && ctx.saveData, Number(ctx && ctx.charIdx) || 0,
     Number(ctx && ctx.mapIdx) || 0, opts);
   return target.applicable ? true : { applicable: false, reason: target.reason };
@@ -221,11 +225,26 @@ export function effectiveMonsterHP(charIdx, ctx, target) {
   };
 }
 
+// World index whose respawn bonus the source applies to a monster def
+// (src 74353 if-else order), -1 for defs that are never rescaled, or null for
+// cave/rift/rat defs with bespoke formulas (callers fall back to the map world).
+export function respawnListWorld(type) {
+  var lists = [RANDOlist[0], RANDOlist[1], RANDOlist[15], DeathNoteMobs[3], DeathNoteMobs[4], DeathNoteMobs[5]];
+  for (var w = 0; w < lists.length; w++) if (lists[w] && lists[w].indexOf(type) !== -1) return w;
+  if (type === 'caveB' || type === 'caveC' || type === 'caveD' || type === 'fm_rat' || type === 'riftAll') return null;
+  if (DeathNoteMobs[6] && DeathNoteMobs[6].indexOf(type) !== -1) return 6;
+  return MONSTERS[type] ? -1 : null;
+}
+
 export function effectiveRespawnTime(charIdx, ctx, target, opts) {
   opts = opts || {};
   var saveData = ctx.saveData;
   var mapIdx = Number(ctx.mapIdx) || 0;
   var worldIdx = Math.floor(mapIdx / 50);
+  // MonsterRespawnTimeReset (src 74353) picks the divisor by the def's list
+  // membership, not the current map; unlisted defs keep their raw RespawnTime.
+  var listWorld = target && target.key ? respawnListWorld(target.key) : null;
+  if (listWorld != null) worldIdx = listWorld;
   var common = computeBUpg(44, 10, saveData)
     + _resolverValue(shrine, 7, ctx)
     + _value(computeChipBonus('resp', charIdx))
@@ -243,6 +262,8 @@ export function effectiveRespawnTime(charIdx, ctx, target, opts) {
     + computeBigFishBonus(0, saveData);
   var w7TaskBonus = worldIdx === 6 ? w7RespawnTaskLevel(saveData) : 0;
   worldBonus += w7TaskBonus;
+  if (worldIdx === -1 || !(saveData.tasksGlobalData && saveData.tasksGlobalData.length)
+    || (worldIdx === 6 && !(saveData.spelunkData && saveData.spelunkData.length))) worldBonus = 0;
 
   var base = Number(target.monster && target.monster.RespawnTime) || 0;
   var respawn = base / (1 + worldBonus / 100);
@@ -533,7 +554,11 @@ export function computeCombatSurvivability(charIdx, ctx, opts) {
   });
 }
 
-export function directMonsterCardOutcome(targetKey, saveData, cardChanceMultiplier, rewardRollKillsPerHour) {
+// Card rows are rolled by GenerateMonsterDrops → DropOdds (src 66955), whose
+// per-roll chance is `row × TotalStats("Drop_Rarity")`; LootDropOddsReset has
+// already multiplied the row by first-discovery 5x and CardChanceMulti.
+export function directMonsterCardOutcome(targetKey, saveData, cardChanceMultiplier, rewardRollKillsPerHour, dropRate) {
+  var dropRarity = dropRate == null ? 1 : Number(dropRate) || 0;
   var rows = MonsterDrops[targetKey] || [];
   var cardRow = null;
   for (var rowIdx = 0; rowIdx < rows.length; rowIdx++) {
@@ -554,7 +579,7 @@ export function directMonsterCardOutcome(targetKey, saveData, cardChanceMultipli
   var discoveredQty = hasDiscoveryEntry ? Number(saveData.cards0Data[discoveryKey]) || 0 : null;
   var firstDiscoveryMultiplier = cardId.indexOf('CardsZ') === -1
     && hasDiscoveryEntry && discoveredQty === 0 ? 5 : 1;
-  var effectiveChance = rawChance * firstDiscoveryMultiplier * (Number(cardChanceMultiplier) || 0);
+  var effectiveChance = rawChance * firstDiscoveryMultiplier * (Number(cardChanceMultiplier) || 0) * dropRarity;
   var cardsPerHour = effectiveChance * Math.max(Number(rewardRollKillsPerHour) || 0, 0);
   var hours = cardsPerHour > 0 ? Math.max(1, 1 / cardsPerHour) : Infinity;
   return {
@@ -568,6 +593,7 @@ export function directMonsterCardOutcome(targetKey, saveData, cardChanceMultipli
     rawChance: rawChance,
     firstDiscoveryMultiplier: firstDiscoveryMultiplier,
     cardChanceMultiplier: Number(cardChanceMultiplier) || 0,
+    dropRate: dropRarity,
     effectiveChance: effectiveChance,
     rewardRollKillsPerHour: Number(rewardRollKillsPerHour) || 0,
     cardsPerHour: cardsPerHour,

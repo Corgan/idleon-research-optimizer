@@ -7,7 +7,8 @@ import { optionsListData } from '../../../save/data.js';
 import { getLOG } from '../../../formulas.js';
 import { computeFreshTalentCalcBubbleCache, computeAllSkillxpMULTI } from '../../defs/skill-helpers.js';
 import { computeWinBonus } from './summoning.js';
-import { computeExoticBonus, computeStickerBonus } from './farming.js';
+import { computeExoticBonus, computeStickerBonus, exoticBonusAtLevel } from './farming.js';
+import { isExoticOrganic, menagerieBoostQTY, organicLabelsOwned } from '../w7/menagerie.js';
 import { farmRankUpgBonusAtLevel } from './farmRank.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 import { maxTalentBonus } from '../common/talent.js';
@@ -343,7 +344,8 @@ export function farmingAccountSnapshot(saveData, options) {
     productBonus: productBonus,
     vineBonus: vineBonus,
     expectedVines: 1 + vineBonus / 100,
-    plotRankDisplay: (1 + maxTalentBonus(206, activeCharIdx, saveData) / 100)
+    plotRankDisplay: (1 + menagerieBoostQTY(saveData, 19) / 100)
+      * (1 + maxTalentBonus(206, activeCharIdx, saveData) / 100)
       * (1 + (basketUpgrade(0, 7, saveData, counts, marketLevels) + computeExoticBonus(9, saveData)
         + computeExoticBonus(10, saveData) + computeExoticBonus(11, saveData)) / 100)
       * (1 + computeExoticBonus(12, saveData) / 100)
@@ -1083,35 +1085,73 @@ export function exoticPurchaseLimits(saveData) {
     savedWeek: savedWeek,
     currentWeek: week,
     rolledOver: savedWeek !== week,
-    noCountChance: Math.max(0, Math.min(1, computeExoticBonus(39, saveData) / 100)),
+    noCountChance: Math.max(0, Math.min(0.5, computeExoticBonus(39, saveData) / 100)),
   };
 }
 
-export function exoticLevelGain(cropQuantity, saveData) {
+// Source ExoticLVQTY(cropQty, exoticIdx): Organic-labeled exotics gain 1.5x
+// levels inside the ceil. `organicOverride` lets planners assume a label.
+export function exoticLevelGain(cropQuantity, saveData, exoticIdx, organicOverride) {
   var quantity = Math.max(1, Number(cropQuantity) || 0);
-  return Math.ceil((Math.log2(quantity) / 2 + getLOG(quantity))
+  var organic = organicOverride != null ? !!organicOverride
+    : exoticIdx != null && isExoticOrganic(saveData, exoticIdx);
+  return Math.ceil((organic ? 1.5 : 1) * (Math.log2(quantity) / 2 + getLOG(quantity))
     * (1 + computeExoticBonus(38, saveData) / 100)
     * (1 + legendPTSbonus(8, saveData) / 100));
 }
 
-function _exoticBonusAtLevel(data, level) {
-  return data.decay ? data.base * level / (1000 + level) : data.base * level;
+// Source ExoticOrganicsLEFT = round(OrganicLabelOwned - Spelunk[50].length).
+export function exoticOrganicLabels(saveData) {
+  var labeled = saveData.spelunkData && Array.isArray(saveData.spelunkData[50])
+    ? saveData.spelunkData[50] : [];
+  var owned = organicLabelsOwned(saveData);
+  return {
+    owned: owned,
+    used: labeled.length,
+    left: Math.round(owned - labeled.length),
+    labeled: labeled.map(Number),
+  };
 }
 
-export function exoticOfferRows(saveData, globalTimeOverride) {
+function _assumedOrganic(options, offerId) {
+  var assume = options && options.assumeOrganic;
+  if (assume === true) return true;
+  if (Array.isArray(assume)) return assume.map(Number).indexOf(Number(offerId)) !== -1;
+  return false;
+}
+
+export function exoticOfferRows(saveData, globalTimeOverride, options) {
+  options = options || {};
   var ids = exoticOfferIds(saveData, globalTimeOverride);
   var limits = exoticPurchaseLimits(saveData);
+  var labels = exoticOrganicLabels(saveData);
   var crops = saveData.farmCropData || {};
   var rows = [];
   for (var slot = 0; slot < ids.length; slot++) {
     var data = exoticUpgrade(ids[slot]);
     var quantity = Number(crops[data.cropId]) || 0;
     var level = Number(saveData.farmUpgData && saveData.farmUpgData[data.farmSlot]) || 0;
-    var gain = quantity >= 1 ? exoticLevelGain(quantity, saveData) : 0;
-    var before = _exoticBonusAtLevel(data, level);
-    var after = _exoticBonusAtLevel(data, level + gain);
+    var savedOrganic = isExoticOrganic(saveData, data.id);
+    var assumed = !savedOrganic && _assumedOrganic(options, data.id);
+    var organic = savedOrganic || assumed;
+    var gain = quantity >= 1 ? exoticLevelGain(quantity, saveData, data.id, organic) : 0;
+    var before = exoticBonusAtLevel(data.id, level, saveData, organic);
+    var after = exoticBonusAtLevel(data.id, level + gain, saveData, organic);
+    var plainGain = quantity >= 1 ? exoticLevelGain(quantity, saveData, data.id, false) : 0;
+    var plainAfter = exoticBonusAtLevel(data.id, level + plainGain, saveData, false);
+    var labeledGain = quantity >= 1 ? exoticLevelGain(quantity, saveData, data.id, true) : 0;
+    var labeledBefore = exoticBonusAtLevel(data.id, level, saveData, true);
+    var labeledAfter = exoticBonusAtLevel(data.id, level + labeledGain, saveData, true);
     var purchaseNumber = limits.used + slot + 1;
     rows.push({
+      organic: organic,
+      organicSaved: savedOrganic,
+      organicAssumed: assumed,
+      canLabel: !savedOrganic && labels.left >= 1,
+      labeledLevelGain: labeledGain,
+      labeledBonus: labeledBefore,
+      labeledNextBonus: labeledAfter,
+      labelBonusGain: savedOrganic ? 0 : labeledAfter - plainAfter,
       slot: slot,
       offerId: data.id,
       name: data.name,
@@ -1134,7 +1174,7 @@ export function exoticOfferRows(saveData, globalTimeOverride) {
     if (a.capRelevant !== b.capRelevant) return a.capRelevant ? -1 : 1;
     return b.bonusGain - a.bonusGain;
   });
-  return { week: exoticWeekInfo(saveData, globalTimeOverride), limits: limits, rows: rows };
+  return { week: exoticWeekInfo(saveData, globalTimeOverride), limits: limits, organicLabels: labels, rows: rows };
 }
 
 export function farmingDiagnostics(saveData, snapshot) {
@@ -1176,14 +1216,22 @@ export function beanResetPlan(saveData, snapshot, options) {
   });
   var harvestRawPerSecond = 0;
   var initialRaw = 0;
+  var delayedHarvests = [];
   var plots = [];
   for (var plotIdx = 0; plotIdx < 36; plotIdx++) {
     var plot = saveData.farmPlotData && saveData.farmPlotData[plotIdx] || [];
     var cropId = cropType(plotIdx, saveData, plot);
     if (cropId < 0) continue;
     var weight = _cropWeight(cropId);
+    // Trading for Magic Beans immediately zeroes growth and overflow progress on
+    // every plot with seed family >= 6 (Medal seeds).
+    var growthReset = Number(plot[0]) >= 6;
+    var tradePlot = plot.slice ? plot.slice() : Array.from(plot);
+    if (growthReset) { tradePlot[1] = 0; tradePlot[6] = 0; }
+    var firstHarvestSeconds = growthReset ? growthSeconds(plotIdx, saveData, resetSnapshot, tradePlot) : 0;
     var initialHarvest = cropValueDetails(plotIdx, saveData, resetSnapshot, plot).expectedHarvest;
-    initialRaw += initialHarvest * weight;
+    if (growthReset) delayedHarvests.push({ seconds: firstHarvestSeconds, raw: initialHarvest * weight });
+    else initialRaw += initialHarvest * weight;
     var ogPlan = optimalOvergrowthTarget(plotIdx, saveData, resetSnapshot);
     var repeatPlot = plot.slice ? plot.slice() : Array.from(plot);
     repeatPlot[5] = ogPlan.best.targetOg;
@@ -1193,6 +1241,9 @@ export function beanResetPlan(saveData, snapshot, options) {
     plots.push({
       plotIdx: plotIdx,
       cropId: cropId,
+      growthResetOnTrade: growthReset,
+      growthProgressLost: growthReset ? Number(plot[1]) || 0 : 0,
+      firstHarvestSeconds: firstHarvestSeconds,
       initialHarvest: initialHarvest,
       repeatHarvest: repeatHarvest,
       repeatOg: ogPlan.best.targetOg,
@@ -1202,6 +1253,8 @@ export function beanResetPlan(saveData, snapshot, options) {
   }
   var targetRaw = previousBest > 0 ? Math.pow(previousBest / snapshot.beanMultiplier, 2) : 0;
   var currentRaw = trade.raw;
+  var delayedRaw = 0;
+  for (var d = 0; d < delayedHarvests.length; d++) delayedRaw += delayedHarvests[d].raw;
   return {
     tradeValue: trade.value,
     currentBeans: currentBeans,
@@ -1214,12 +1267,31 @@ export function beanResetPlan(saveData, snapshot, options) {
     contributions: trade.contributions,
     harvestRawPerSecond: harvestRawPerSecond,
     initialRawAfterReset: initialRaw,
-    estimatedSecondsToPreviousBest: harvestRawPerSecond > 0
-      ? Math.max(0, targetRaw - initialRaw) / harvestRawPerSecond : Infinity,
-    estimatedSecondsToCurrentTrade: harvestRawPerSecond > 0
-      ? Math.max(0, currentRaw - initialRaw) / harvestRawPerSecond : Infinity,
+    delayedRawAfterReset: delayedRaw,
+    growthResetPlots: delayedHarvests.length,
+    estimatedSecondsToPreviousBest: _secondsToBeanRaw(targetRaw, initialRaw, delayedHarvests, harvestRawPerSecond),
+    estimatedSecondsToCurrentTrade: _secondsToBeanRaw(currentRaw, initialRaw, delayedHarvests, harvestRawPerSecond),
     plots: plots,
   };
+}
+
+function _secondsToBeanRaw(target, initialRaw, delayed, rate) {
+  var events = delayed.slice().sort(function(a, b) { return a.seconds - b.seconds; });
+  var raw = initialRaw;
+  var time = 0;
+  if (raw >= target) return 0;
+  for (var i = 0; i <= events.length; i++) {
+    var nextTime = i < events.length ? events[i].seconds : Infinity;
+    if (rate > 0) {
+      var reach = time + (target - raw) / rate;
+      if (reach <= nextTime) return reach;
+    }
+    if (nextTime === Infinity) return Infinity;
+    raw += rate * (nextTime - time) + events[i].raw;
+    time = nextTime;
+    if (raw >= target) return time;
+  }
+  return Infinity;
 }
 
 export function stickerOddsMultiplier(saveData, activeCharIdx) {

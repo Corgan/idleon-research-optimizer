@@ -131,6 +131,7 @@ function render() {
       _bNode(CW.upgName(0), 1 + b0, null, { fmt: 'x', note: 'Pearl base: 1 + ' + b0 }),
       _bNode(CW.upgName(3), 1 + b3 / 100, null, { fmt: 'x', note: 'Multikill-based: ' + b3.toFixed(1) + '%' }),
       _bNode(CW.upgName(7), 1 + b7 / 100, null, { fmt: 'x', note: '+' + b7 + '%' }),
+      _bNode('Scurge Pearl Value', CW.scurgePearlMulti(), null, { fmt: 'x', note: 'Scurge 1: +' + CW.scurgeBonus(1) + '%; Scurge 8: ' + CW.scurgeBonus(8) + '% × Scurge LV ' + CW.scurgeLevel() }),
     ];
     var pvRoot = _bNode('Pearl Value', CW.pearlValue(_ext), pvChildren, { fmt: 'x' });
     renderBreakdownTree(pvRoot, pvTree, { tooltipId: 'bt-tooltip' });

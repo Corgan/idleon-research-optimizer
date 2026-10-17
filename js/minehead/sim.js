@@ -38,7 +38,7 @@ import {
   minesOnFloor, floorHP, maxHPYou,
   bluecrownOdds, jackpotOdds, jackpotTiles, upgradeQTY,
   gridDims, goldTilesTotal, blocksTotal, instaRevealsTotal,
-  currentOutgoingDMG, bonusDMGperTilePCT,
+  currentOutgoingDMG, bonusDMGperTilePCT, mineheadQtyLevels,
   WIGGLE_CHANCE, wiggleMaxPerGame,
 } from '../stats/systems/w7/minehead.js';
 
@@ -397,11 +397,14 @@ export function simulateGame({
   gridBonus167 = 0, gridBonus146 = 0, gridBonus166_1 = 0, wepPowDmgPCT = 0, sailing38 = 0, dancingCoral5 = 0,
   jellyDamage9 = 0, jellyGoldTiles45 = 0,
   svarHP = 1, maxTurns = 200, rng = Math.random, mineReduction = 0,
+  legend40 = 0, legend40Pts = 0, doublers = [],
 }) {
   const { cols, rows } = gridDims(upgLevels[2]);
   const numTiles = cols * rows;
-  const mines = minesOnFloor(floor, mineReduction);
+  const mines = minesOnFloor(floor, mineReduction, legend40Pts);
   const hp = floorHP(floor, svarHP);
+  // Raw levels keep grid dimensions; every UpgradeQTY value uses Menagerie-doubled levels.
+  upgLevels = mineheadQtyLevels(upgLevels, doublers);
   let livesLeft = maxHPYou(upgLevels);
 
   // Per-game resources
@@ -574,7 +577,7 @@ export function simulateGame({
       const perTilePct = bonusDMGperTilePCT(upgLevels, gridBonus146);
       const turnDmgNow = turnValues.length > 0
         ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9)
+            upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9, legend40)
         : 0;
 
       const decision = strategy({
@@ -693,7 +696,7 @@ export function simulateGame({
     if (turnOutcome !== 'mine' && turnValues.length > 0) {
       const dmg = currentOutgoingDMG(
         turnValues, crownSets, livesLeft <= 1,
-        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9,
+        upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9, legend40,
       );
       if (dmg > 0) {
         if (totalCommits === 0) firstTurnDmg = dmg;
@@ -716,7 +719,7 @@ export function simulateGame({
         dmgThisTurn: turnOutcome === 'mine' ? 0
           : (turnValues.length > 0
             ? currentOutgoingDMG(turnValues, crownSets, livesLeft <= 1,
-                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9)
+                upgLevels, gridBonus167, gridBonus146, wepPowDmgPCT, sailing38, dancingCoral5, jellyDamage9, legend40)
             : 0),
         livesLeft,
         totalDmg,
@@ -950,6 +953,7 @@ export function evaluateTunableParams({ params, floor, upgLevels, nTrials, seed,
  * @param {number}   [opts.nTrials=500]       trials per candidate eval
  * @param {number}   [opts.seed=42]
  * @param {number}   [opts.svarHP=1]
+ * (other simulateGame opts such as doublers, legend40, legend40Pts pass through)
  * @param {Function} [opts.canBuy]            (idx, currentLvs) => boolean; filters at each step
  * @param {Function} [opts.onBuy]             (idx, currentLvs) => void; called after each purchase
  * @param {Function} [opts.onProgress]        (step, totalSteps, candidatesDone, candidatesTotal)
@@ -961,6 +965,7 @@ export function greedyUpgradePath({
   candidates, steps = 10, nTrials = 500,
   seed = 42, svarHP = 1,
   canBuy, onBuy, onProgress,
+  ...gameOpts
 }) {
   const strat = tunableStrategy(params || DEFAULT_PARAMS);
   const hp = floorHP(floor, svarHP);
@@ -968,7 +973,7 @@ export function greedyUpgradePath({
 
   // Baseline
   const baseline = monteCarloFloor({
-    floor, upgLevels: currentLvs, strategy: strat, nTrials, seed, svarHP,
+    floor, upgLevels: currentLvs, strategy: strat, nTrials, seed, svarHP, ...gameOpts,
   });
 
   const path = [];
@@ -983,7 +988,7 @@ export function greedyUpgradePath({
       const modLvs = [...currentLvs];
       modLvs[idx] = (modLvs[idx] || 0) + 1;
       const r = monteCarloFloor({
-        floor, upgLevels: modLvs, strategy: strat, nTrials, seed, svarHP,
+        floor, upgLevels: modLvs, strategy: strat, nTrials, seed, svarHP, ...gameOpts,
       });
       const score = _optimizerScore(r, hp);
       if (score > bestScore) {
@@ -1002,7 +1007,7 @@ export function greedyUpgradePath({
 
   // Final evaluation with more trials
   const finalResult = monteCarloFloor({
-    floor, upgLevels: currentLvs, strategy: strat, nTrials: nTrials * 2, seed, svarHP,
+    floor, upgLevels: currentLvs, strategy: strat, nTrials: nTrials * 2, seed, svarHP, ...gameOpts,
   });
 
   return { path, finalLvs: currentLvs, baseline, finalResult };

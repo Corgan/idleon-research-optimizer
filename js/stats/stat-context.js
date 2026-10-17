@@ -13,6 +13,7 @@
 
 import { getDescriptor, getCatalog } from './registry.js';
 import { buildTree } from './tree-builder.js';
+import { currentTermScope, registerTermResolvers } from './term-overrides.js';
 import { currentMapData, mapBonData } from '../save/data.js';
 
 /**
@@ -45,6 +46,9 @@ export function createStatContext(opts) {
   ctx.saveData = saveData;
   ctx.mapBon   = mapBon;
   ctx.dnsmCache = opts.dnsmCache || null;
+  // Component term overrides (term-overrides.js), captured at creation.
+  ctx.termScope = opts.termScope !== undefined ? opts.termScope : currentTermScope();
+  if (ctx.termScope) registerTermResolvers(_catalog);
 
   // Spread Layer 1 (save-frozen)
   var k;

@@ -30,6 +30,7 @@ table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;col
 @media(max-width:900px){.sim-workspace{grid-template-columns:1fr}.sim-palette{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}}
 @media(max-width:1400px){.grid-pair{grid-template-columns:1fr}}
 @media(max-width:700px){.main{padding:8px}.breakdown-grid,.planner-controls{grid-template-columns:1fr}.section{padding:10px}.bt-label{white-space:normal;overflow-wrap:anywhere}}
+.doubler-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:rgba(255,196,64,.18);border:1px solid rgba(255,196,64,.6);color:#ffd36b;font-size:.72rem;font-weight:700;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -44,6 +45,7 @@ import { fmtVal } from './js/renderers/format.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
 import { CELL_NAMES, JELLY_COLS, JELLY_OBSTRUCTION_SLOTS, JELLY_SIZE, jellyRewards, jellyRewardTarget, jellySlotPlots, jellyUpgradeData, jellyUpgradeOrder } from './js/stats/data/w7/jelly-operator.js';
 import * as J from './js/stats/systems/w7/jelly-operator.js';
+import { doubledUpgrades, menagerieDoublersOwned } from './js/stats/systems/w7/menagerie.js';
 import { buildSaveContext, computeShapesOwned } from './js/save/context.js';
 
 const FEVER_MODES=[
@@ -200,7 +202,7 @@ function feverizerTooltip(){
   return heading+'\n'+FEVER_MODES.slice(0,visible).map((mode,index)=>`Level ${index+1}: ${mode.name} - ${mode.bonus}`).join('\n');
 }
 function stronkroidTooltip(){
-  return 'One activation per operation. Stronkroid lasts 300 frames (5 seconds). In the simulator, use -1 to disable it or 0 to activate immediately.';
+  return `One activation per operation. Stronkroid sets a ${J.JELLY_ROID_TIME_TOTAL}-point timer that drains ${J.JELLY_ROID_DECREMENT_PER_FRAME} per frame, lasting ${J.JELLY_ROID_ACTIVE_FRAMES} frames (about ${J.JELLY_ROID_DURATION_SECONDS.toFixed(1)} seconds at 60 FPS). In the simulator, use -1 to disable it or 0 to activate immediately.`;
 }
 function positionJsTooltip(tip,x,y){
   const margin=10,offset=12;
@@ -458,6 +460,11 @@ function jellySaveFingerprint(){
     // Shape overrides change Cell Damage and Bloodcell multipliers, so results checkpointed
     // under a different shape must not be restored into the current context.
     saveData.jellyShapeOverrides||null,
+    // 2026-10-16 cross-system inputs: Jelly Upgrade Doublers (Spelunk[53]), Legend 41 (damage
+    // and plot tokens), and Bloodclot artifact tier (Sailing[3][40]).
+    saveData.spelunkData?.[53]||[],
+    saveData.spelunkData?.[18]?.[41]||0,
+    saveData.sailingData?.[3]?.[40]||0,
   ]));
 }
 function jellyWorkerContextFingerprint(){
@@ -2443,9 +2450,14 @@ function upgradesHtml(){
     const name=id===16
       ? `<strong class="upgrade-tip" tabindex="0" data-tooltip="${esc(feverizerTooltip())}">${esc(data.name)}</strong>`
       : `<strong>${esc(data.name)}</strong>`;
-    rows+=`<tr><td>${orderIdx+1}</td><td>${name}<div class="sub">${esc(display.description)}</div></td><td class="num">${level}${data.maxLevel<999?'/'+data.maxLevel:''}</td><td class="num">${esc(display.effectText)}</td><td>${esc(display.perLevelText)}</td><td class="num">${fmt(cost)}</td></tr>`;
+    const doublerBadge=display.doubled?` <span class="doubler-badge" title="Menagerie Upgrade Doubler: this upgrade's per-level quantity is doubled.">2x Doubled</span>`:'';
+    rows+=`<tr><td>${orderIdx+1}</td><td>${name}${doublerBadge}<div class="sub">${esc(display.description)}</div></td><td class="num">${level}${data.maxLevel<999?'/'+data.maxLevel:''}</td><td class="num">${esc(display.effectText)}</td><td>${esc(display.perLevelText)}</td><td class="num">${fmt(cost)}</td></tr>`;
   });
-  return `<div class="section"><h2>Upgrade reference</h2><div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  const doublersOwned=menagerieDoublersOwned(saveData,'jelly'),doublersUsed=doubledUpgrades(saveData,'jelly').length;
+  const doublerNote=doublersOwned>0||doublersUsed>0
+    ?`<p class="note">Menagerie Upgrade Doublers: ${doublersUsed} assigned / ${doublersOwned} owned. A doubled upgrade's quantity is 2x its normal per-level value, so each purchase is worth twice as much.</p>`
+    :'';
+  return `<div class="section"><h2>Upgrade reference</h2>${doublerNote}<div class="table-scroll"><table><thead><tr><th>#</th><th>Upgrade and game description</th><th class="num">Level</th><th class="num">Current effect</th><th>Gain / level</th><th class="num">Next cost</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function plotSlots(plotIds){

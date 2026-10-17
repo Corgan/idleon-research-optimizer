@@ -171,12 +171,15 @@ var state = {
 };
 var cache = null;
 var pendingTrees = [];
+var saveRevision = 0;
+var jellySearch = { signature: '', worker: null, result: null, applied: false, progress: null, error: '' };
 
 initSaveLoader({
   target: '#save-area',
   auth: true,
   statusText: function() { return characterCount() + ' characters'; },
   onLoad: function() {
+    saveRevision++;
     var firstLoad = !state.loaded;
     state.loaded = true;
     cache = null;
@@ -321,7 +324,7 @@ function renderToolbar() {
     + '<label class="control">AFK claim every (h)<input id="claim-h" type="number" min="0.1" step="0.5" value="' + state.claimHours + '"></label>'
     + '<label class="control">Extra ladles / day<input id="manual" type="number" min="0" step="1000" value="' + state.manualPerDay + '"></label>'
     + '<label class="control">Plan days<input id="days" type="number" min="1" max="3650" step="1" value="' + state.days + '"></label>'
-    + '<label class="control check"><input id="use-owned" type="checkbox"' + (state.useOwned ? ' checked' : '') + '>Spend owned ladles on day 1</label>'
+    + '<label class="control check"><input id="use-owned" type="checkbox"' + (state.useOwned ? ' checked' : '') + '>Use owned ladles on day 1</label>'
     + '<label class="control check"><input id="passive" type="checkbox"' + (state.passive ? ' checked' : '') + '>Include 24h passive kitchens</label>';
   bind('ladle-char', 'change', function(v) { state.ladleChar = Number(v); cache.plan = null; render(); });
   bind('bd-char', 'change', function(v) { state.breakdownChar = Number(v); render(); });
@@ -343,6 +346,71 @@ function dayHours() {
   return (state.passive ? 24 : 0) + assignedMinPerDay() * cache.multis[state.ladleChar].multiplier;
 }
 
+function mealPlanOptions(m) {
+  return {
+    activeCharIdx: state.ladleChar, model: m, inputs: cache.inputs, maxLevel: cache.maxLevel, nmlb: cache.nmlb,
+    ladleMulti: cache.multis[state.ladleChar].multiplier, days: state.days, ladlesPerDay: assignedMinPerDay(),
+    claimers: claimers(), extraPerDay: state.manualPerDay, hoursToReset: resetInfo().hours,
+    startLadles: state.useOwned ? cache.inventory.ladle.value : 0,
+    passive: state.passive, strategy: state.strategy, floorGuard: state.floorGuard,
+  };
+}
+
+function stopJellySearch() {
+  if (jellySearch.worker) jellySearch.worker.terminate();
+  jellySearch.worker = null;
+}
+
+function startJellySearch() {
+  stopJellySearch();
+  jellySearch.error = '';
+  jellySearch.progress = { phase: 'Starting donation comparison', fraction: 0, evaluated: 0 };
+  function fail(message) {
+    stopJellySearch();
+    jellySearch.result = null;
+    jellySearch.applied = false;
+    cache.plan = null;
+    jellySearch.error = message;
+    jellySearch.progress = null;
+    render();
+  }
+  try {
+    var worker = new Worker(new URL('./js/workers/ladle-jelly-worker.js', import.meta.url), { type: 'module' });
+    jellySearch.worker = worker;
+    worker.onmessage = function(event) {
+      if (jellySearch.worker !== worker) return;
+      var message = event.data;
+      if (message.type === 'progress') {
+        jellySearch.progress = message.progress;
+        var host = document.getElementById('jelly-search-status');
+        if (host) host.innerHTML = jellySearchStatus();
+      } else if (message.type === 'error') {
+        fail(message.message);
+      } else if (message.type === 'done') {
+        if (!message.result || !message.result.plan || !Array.isArray(message.result.plan.timeline)) {
+          fail('The donation worker returned an empty or invalid plan.');
+          return;
+        }
+        stopJellySearch();
+        jellySearch.result = message.result;
+        jellySearch.applied = message.result.improved;
+        jellySearch.progress = null;
+        cache.plan = null;
+        try { render(); } catch (error) { fail('Could not render the donation plan: ' + error.message); }
+      }
+    };
+    worker.onerror = function(event) { event.preventDefault(); fail(event.message || 'The donation worker failed.'); };
+    worker.onmessageerror = function() { fail('The donation worker result could not be read.'); };
+    worker.postMessage({
+      save: { menagerieData: saveData.menagerieData, menagerieDataAvailable: saveData.menagerieDataAvailable, mealsData: saveData.mealsData },
+      options: mealPlanOptions(model(state.ladleChar)),
+    });
+    render();
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
 function render() {
   if (!cache) return;
   renderToolbar();
@@ -351,24 +419,14 @@ function render() {
   var m = model(state.ladleChar);
   var levels = L.mealLevels(saveData);
   var speed = L.totalKitchenSpeed(m, levels);
+  var options = mealPlanOptions(m);
+  var signature = JSON.stringify([saveRevision, options]);
+  if (signature !== jellySearch.signature) {
+    stopJellySearch();
+    jellySearch = { signature: signature, worker: null, result: null, applied: false, progress: null, error: '' };
+  }
   if (!cache.plan) {
-    cache.plan = L.planMealLeveling(saveData, {
-      activeCharIdx: state.ladleChar,
-      model: m,
-      inputs: cache.inputs,
-      maxLevel: cache.maxLevel,
-      nmlb: cache.nmlb,
-      ladleMulti: cache.multis[state.ladleChar].multiplier,
-      days: state.days,
-      ladlesPerDay: assignedMinPerDay(),
-      claimers: claimers(),
-      extraPerDay: state.manualPerDay,
-      hoursToReset: resetInfo().hours,
-      startLadles: state.useOwned ? cache.inventory.ladle.value : 0,
-      passive: state.passive,
-      strategy: state.strategy,
-      floorGuard: state.floorGuard,
-    });
+    cache.plan = jellySearch.applied && jellySearch.result ? jellySearch.result.plan : L.planMealLeveling(saveData, options);
     cache.floor = L.nmlbFloorPlan(saveData, {
       levels: levels, stocks: L.mealStocks(saveData), maxLevel: cache.maxLevel, inputs: cache.inputs,
       kitchenSpeed: speed, ladleMulti: cache.multis[state.ladleChar].multiplier, nmlb: cache.nmlb, dayHours: dayHours(),
@@ -613,6 +671,7 @@ var REASONS = {
   'total-level': ['total levels', 'muted', 'Cheapest level per kitchen hour for the Talent 59 total-meal-level bonus'],
   cheapest: ['cheapest', 'muted', 'Cheapest next level first'],
   steer: ['NMLB steer', 'gold', 'Raising a blocker so NMLB lands on the held meal'],
+  jelly: ['jellyfish grant', 'blue', 'Purchased from the daily cooking batch after No Meal Left Behind'],
 };
 
 function reasonBadges(list) {
@@ -655,18 +714,26 @@ function dayBody(d) {
     else if (f.reachable) notes += 'Tried to hold the floor on ' + name + ' but ran out of time. ';
     else notes += 'Floor ' + name + ' needs ' + (f.hours === Infinity ? 'higher target meals raised first' : fmtHours(f.hours) + ' of kitchen time') + '; NMLB rises naturally until it is reachable. ';
   }
-  var phases = (d.phases || []).map(function(ph) { return phaseBlock(d, ph); }).join('');
+  var phases = (d.phases || []).filter(function(ph) { return ph.kind !== 'jelly'; }).map(function(ph) { return phaseBlock(d, ph); }).join('');
+  var jelly = (d.phases || []).find(function(ph) { return ph.kind === 'jelly'; });
+  var donation = d.jellyDonation > 0 ? '<div class="callout">After the planned spending, donate <b>' + fullCount(d.jellyDonation)
+    + ' ladles</b> to the Blue Jellyfish before reset. Its button takes all ladles it can see; keep any surplus separate.</div>' : '';
+  var setup = jelly && jelly.targetMeal >= 0 ? '<div class="day-note"><b>Before reset:</b> set every unlocked kitchen to '
+    + esc(L.mealName(jelly.targetMeal)) + ' for the jellyfish grant. Buy the resulting stock-covered levels after the reset.</div>' : '';
   return '<div class="day-body">' + (notes ? '<div class="day-note">' + notes + '</div>' : '') + phases
+    + donation + setup
     + '<div class="phase-head nmlb-head">★ Daily reset — No Meal Left Behind' + (d.nmlbMeal >= 0
-      ? ': <b>' + esc(L.mealName(d.nmlbMeal)) + '</b> Lv ' + d.nmlbFrom + ' → ' + d.nmlbTo : ': no eligible meal') + '</div></div>';
+      ? ': <b>' + esc(L.mealName(d.nmlbMeal)) + '</b> Lv ' + d.nmlbFrom + ' → ' + d.nmlbTo : ': no eligible meal') + '</div>'
+    + (jelly ? phaseBlock(d, jelly) : '') + '</div>';
 }
 
 function phaseTitle(d, ph) {
+  if (ph.kind === 'jelly') return 'After reset — ' + fullCount(ph.jellyHours) + ' jellyfish hours per kitchen';
   if (ph.kind === 'now') return 'Now — spend ' + fullCount(ph.ladles) + ' owned ladles';
   var n = (ph.claims || []).length;
   var when = d.day === 1 ? 'Claim before reset (in ' + fmtHours(ph.windowHours) + ')' : 'Claims through the day';
   var upside = ph.expectedLadles > ph.ladles + 0.5 ? ' · may get ~' + fullCount(ph.expectedLadles) : '';
-  return when + ' — ' + (n ? n + ' claim' + (n === 1 ? '' : 's') + ', ' : '') + fullCount(ph.ladles) + ' guaranteed ladles' + upside;
+  return when + ' — ' + (n ? n + ' claim' + (n === 1 ? '' : 's') + ', ' : '') + fullCount(ph.ladles) + ' ladles allocated to meals' + upside;
 }
 function claimChips(ph) {
   var claims = ph.claims || [];
@@ -687,12 +754,14 @@ function phaseBlock(d, ph) {
   var rows = (ph.meals || []).map(function(g, i) {
     return '<tr><td class="num step-no">' + (i + 1) + '</td><td class="grow">' + mealCell(g.meal) + '</td>'
       + '<td class="nowrap">Lv ' + g.from + ' → <b>' + g.to + '</b>' + (g.levels > 1 ? ' <span class="muted">(' + g.levels + ')</span>' : '') + '</td>'
-      + '<td class="num">' + ladleCell(g.ladles, g.hours) + '</td>'
+      + '<td class="num">' + (ph.kind === 'jelly' ? '<span class="up">jelly grant</span>' : ladleCell(g.ladles, g.hours)) + '</td>'
       + '<td class="num muted">' + ladleFull(g.cumulativeLadles - phaseStart) + '</td>'
       + '<td>' + reasonBadges(g.reasons) + '</td></tr>'
       + (g.mapRefresh ? mapRefreshRow() : '');
   }).join('');
-  var table = rows ? '<div class="day-note muted">Go row by row: cook that meal in every kitchen, use the ladles, then level it up before the next row. Each row\'s ladles assume every row above it is done.</div>'
+  var table = rows ? '<div class="day-note muted">' + (ph.kind === 'jelly'
+    ? 'The daily grant cooks one batch at the speed before these purchases. Buy these levels from its resulting meal stock; no ladles are spent.'
+    : 'Go row by row: cook that meal in every kitchen, use the ladles, then level it up before the next row. Each row\'s ladles assume every row above it is done.') + '</div>'
     + '<table class="data-table plan-table">' + head([
     ['#', 1], ['Meal (spend order)', 0, '', 'grow'], ['Levels'], ['Ladles', 1, 'Whole ladles for this row; overflow meals stay in stock'],
     ['Used so far', 1, 'Ladles spent in this phase through this row'], ['Why'],
@@ -700,14 +769,52 @@ function phaseBlock(d, ph) {
   var save = '';
   if (ph.saving) {
     var sv = ph.saving;
-    save = '<div class="day-note">⏳ Leftover ' + (sv.ladles > 0 ? ladleFull(sv.ladles) + ' ladles' : 'passive time') + ' banks into <b>'
+    save = '<div class="day-note">⏳ Leftover ' + (ph.kind === 'jelly' ? 'jellyfish time' : (sv.ladles > 0 ? ladleFull(sv.ladles) + ' ladles' : 'passive time')) + ' banks into <b>'
       + esc(L.mealName(sv.meal)) + '</b> toward Lv ' + sv.toLevel + ' (' + pct(sv.progress * 100, 0) + ' stocked)'
       + (sv.floor ? ' — an NMLB floor blocker, finished next phase' : '')
       + (sv.target ? ' — no ladleable level is left, so this is NMLB-target stock' : '') + '.'
       + (sv.mapRefresh ? ' This raises your Turkey a la Thank stock, so change map before spending more ladles.' : '') + '</div>';
   }
   return '<div class="phase"><div class="phase-head">' + esc(phaseTitle(d, ph)) + '</div>' + claimChips(ph) + table + save
-    + (!rows && !save ? '<div class="day-note muted">No purchases.</div>' : '') + '</div>';
+    + (!rows && !save ? '<div class="day-note muted">' + (ph.kind === 'jelly' && ph.targetMeal >= 0
+      ? 'The grant banks into ' + esc(L.mealName(ph.targetMeal)) + ' stock; no level is affordable yet.' : 'No purchases.') + '</div>' : '') + '</div>';
+}
+
+function jellySearchStatus() {
+  if (jellySearch.error) return '<div class="callout warn" role="alert">' + esc(jellySearch.error) + '</div>';
+  var p = jellySearch.progress;
+  if (!p) return '';
+  return '<div role="status">' + esc(p.phase) + ' — ' + Math.floor(p.fraction * 100) + '% · ' + p.evaluated + ' schedules evaluated'
+    + '<div class="bar-outer"><div class="bar-fill" style="width:' + (p.fraction * 100) + '%;background:var(--cyan)"></div></div></div>';
+}
+
+function renderJellyfish() {
+  var info = L.blueJellyfishInfo(saveData);
+  var r = jellySearch.result;
+  var disabled = !info.unlocked || (state.useOwned && cache.inventory.ladle.partial);
+  return '<div class="section"><h2>Blue Jellyfish donation planner<small>Objective: kitchen speed after ' + state.days + ' resets</small></h2>'
+    + '<div class="card-grid">' + card('Saved daily grant', fullCount(info.dailyHours) + ' h', 'per kitchen, every daily reset')
+    + card('Direct-use multiplier', '×' + num(cache.multis[state.ladleChar].multiplier), 'jellyfish hours do not receive Overflowing Ladle')
+    + card('Simple time payback', Math.ceil(cache.multis[state.ladleChar].multiplier) + ' resets', 'equal raw hours only; the search also values earlier meal upgrades')
+    + '</div><div class="plan-controls">'
+    + '<button type="button" id="jelly-start"' + (disabled || jellySearch.worker ? ' disabled' : '') + '>Compare donation vs spending</button>'
+    + (jellySearch.worker ? '<button type="button" id="jelly-cancel">Cancel</button>' : '')
+    + (r && r.improved ? '<label class="control check"><input type="checkbox" id="jelly-apply"' + (jellySearch.applied ? ' checked' : '') + '>Use recommendation in meal plan</label>' : '')
+    + '</div><div id="jelly-search-status">' + jellySearchStatus() + '</div>'
+    + (!info.available ? '<div class="callout warn">Menagerie data is missing; saved daily jellyfish hours are unknown.</div>'
+      : !info.unlocked ? '<div class="muted">Unlock the Blue Jellyfish through Menagerie rank 6 to compare new donations.</div>' : '')
+    + (state.useOwned && cache.inventory.ladle.partial ? '<div class="callout warn">Owned ladle counts are incomplete. Load a complete save or turn off spending owned ladles to compare future income only.</div>' : '')
+    + (r ? '<div class="card-grid">' + card('Donate over the plan', fullCount(r.plan.jelly.donated), fullCount(r.schedule.owned) + ' owned + donations from future claims')
+      + card('Permanent daily grant', fullCount(r.plan.jelly.dailyHoursEnd) + ' h', 'per kitchen after the last planned donation')
+      + card('Horizon kitchen speed', (r.gain > 0 ? '+' + pct(r.gain * 100, 2) : 'No improvement found'), num(r.baseline.endSpeed) + ' without new donations → ' + num(r.plan.endSpeed) + '/hr')
+      + '</div><div class="day-note">' + (r.improved ? (jellySearch.applied
+        ? 'Best found split; exact whole-ladle donations appear in each day below.'
+        : 'Enable the recommendation to show its donations and meal purchases below.')
+        : 'Keep spending normally: no tested donation schedule improves horizon kitchen speed. Existing donations still pay out.')
+      + ' Compared ' + r.evaluated + ' schedules. This is a bounded search, not a global-optimum proof.</div>' : '')
+    + '<div class="day-note">Compares owned-ladle splits and donating a share of guaranteed claim income until a cutoff day, with local refinement. '
+    + 'Both plans include saved donations, reset timing, meal-speed growth, Dream discounts and NMLB. The horizon includes the final reset grant. '
+    + 'Jellyfish time arrives as one batch after NMLB, not as ladles you can spend between meals. All kitchens are assumed available for meal production; future unlocks, other account upgrades and recipe-fire goals are not modeled.</div></div>';
 }
 
 function renderPlan() {
@@ -732,11 +839,12 @@ function renderPlan() {
       + '<div class="day-stat hide-sm">' + num(d.kitchenSpeed) + '</div>'
       + '</summary>' + (open ? dayBody(d) : '') + '</details>';
   }).join('');
-  return '<div class="section"><h2>Meal leveling plan<small>' + p.days + ' days · ' + whole(p.dailyIncome) + ' guaranteed ladles/day (may get ~' + whole(p.dailyExpected) + ')'
+  return renderJellyfish() + '<div class="section"><h2>Meal leveling plan<small>' + p.days + ' days · ' + whole(p.dailyIncome) + ' guaranteed ladles/day (may get ~' + whole(p.dailyExpected) + ')'
     + (state.useOwned ? ' + ' + whole(cache.inventory.ladle.value) + ' owned' : '') + '</small></h2>'
     + '<div class="card-grid" style="margin-bottom:10px">'
     + card('Levels from ladles', whole(p.bySource.ladle), p.strategy === 'speed' ? 'best kitchen speed return per hour' : 'cheapest next level first')
     + card('Levels from NMLB', whole(p.bySource.nmlb), cache.nmlb.active ? '+' + cache.nmlb.levels + ' to the lowest meal each day' : 'inactive')
+    + card('Levels from jellyfish', whole(p.bySource.jelly), 'stock purchases after daily reset grants')
     + card('NMLB on targets', hits ? onTarget + ' / ' + hits + ' days' : '—', 'hits that land on a meal too expensive to ladle')
     + card('Ladles saved by NMLB', ladleNum(saved), 'what those target hits would cost in ladles')
     + card('Ladles used', whole(p.ladlesUsed), 'leftover kitchen time banks into stock')
@@ -798,7 +906,7 @@ function renderSteer() {
       + '<tr class="total-row"><td>Total</td><td></td><td class="num">' + fp.blockers.reduce(function(a, b) { return a + b.levels; }, 0) + '</td><td class="num">' + ladleNum(fp.blockerLadles) + '</td></tr>'
       + '</tbody></table></div>'
     : '<div class="muted">Already held: NMLB lands on ' + esc(L.mealName(fp.floorMeal)) + ' tonight.</div>';
-  return '<div class="section"><h2>No Meal Left Behind steering<small>NMLB raises the lowest meal at Lv 2+ below max; ties go to the highest meal number</small></h2>'
+  return '<div class="section"><h2>No Meal Left Behind steering<small>NMLB raises the lowest meal at Lv 2+ below max, up to Lv 150; ties go to the highest meal number</small></h2>'
     + '<div class="callout" style="margin-bottom:10px">Ladleable meals cost at most one day of kitchen time per level, so level them with ladles. '
     + '<b>NMLB targets</b> cost more, so let NMLB\'s free +' + gain + ' levels handle them. To keep NMLB on targets, hold every ladleable meal above the '
     + '<b>floor</b> (the lowest target level): higher-numbered meals at floor + 1, lower-numbered meals at the floor. NMLB then cycles through targets on its own.</div>'
@@ -812,6 +920,11 @@ function renderSteer() {
 }
 
 function wireApp() {
+  bind('jelly-start', 'click', startJellySearch);
+  bind('jelly-cancel', 'click', function() {
+    stopJellySearch(); jellySearch.progress = null; jellySearch.error = 'Donation search cancelled; the previous meal plan is unchanged.'; render();
+  });
+  bind('jelly-apply', 'change', function(v, el) { jellySearch.applied = el.checked; cache.plan = null; render(); });
   document.querySelectorAll('[data-assign]').forEach(function(el) {
     el.addEventListener('change', function() {
       var ci = Number(el.dataset.assign);
