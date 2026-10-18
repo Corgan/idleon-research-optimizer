@@ -1926,6 +1926,34 @@ function expHours(hours) {
   return fmtNum(hours / 24) + 'd';
 }
 
+function levelTimelineSvg(r) {
+  var st = r.summary.classExp, startLevel = r.expStart.level;
+  var gained = st.level - startLevel, W = 900, H = 220;
+  var left = 60, right = 880, top = 25, bottom = 175;
+  var step = Math.max(1, Math.ceil(gained / 4)), maxY = Math.max(step, Math.ceil(gained / step) * step);
+  var maxT = Math.max(1, r.timeMs);
+  function x(t) { return (left + (right - left) * t / maxT).toFixed(2); }
+  function y(n) { return (bottom - (bottom - top) * n / maxY).toFixed(2); }
+  var path = 'M' + left + ',' + bottom;
+  st.levels.forEach(function (e) { path += 'H' + x(e.t) + 'V' + y(e.level - startLevel); });
+  path += 'H' + right;
+  var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
+    + escHtml('Class levels gained over time: ' + gained + ' levels, from level ' + startLevel + ' to ' + st.level + ' in ' + fmtSec(r.timeMs))
+    + '" data-levels-gained="' + gained + '" data-time-ms="' + r.timeMs + '" style="width:100%;max-width:900px;background:#0b0f1f;border-radius:6px">';
+  for (var n = 0; n <= maxY; n += step) {
+    h += '<line x1="' + left + '" y1="' + y(n) + '" x2="' + right + '" y2="' + y(n) + '" stroke="#333"/>'
+      + '<text x="' + (left - 10) + '" y="' + (Number(y(n)) + 4) + '" text-anchor="end" fill="#c0c0d4" font-size="11">' + fmtInt(n) + '</text>';
+  }
+  for (var i = 0; i <= 4; i++) {
+    var t = r.timeMs * i / 4;
+    h += '<text x="' + x(t) + '" y="' + (bottom + 19) + '" text-anchor="'
+      + (i === 0 ? 'start' : i === 4 ? 'end' : 'middle') + '" fill="#c0c0d4" font-size="11">' + escHtml(fmtSec(t)) + '</text>';
+  }
+  return h + '<path d="' + path + '" fill="none" stroke="#4dd0e1" stroke-width="2"/>'
+    + '<text x="' + left + '" y="16" fill="#c0c0d4" font-size="11">Levels gained</text>'
+    + '<text x="' + ((left + right) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" fill="#c0c0d4" font-size="11">Elapsed simulation time</text></svg>';
+}
+
 function renderExpDetails(r) {
   var R = r.summary.rewards || {}, p;
   try { p = projectCombatExp(r.expStart, R.expTotal || 0, r.timeMs, r.expTarget, r.summary.classExp); }
@@ -1938,6 +1966,9 @@ function renderExpDetails(r) {
   h += card(live ? 'Simulated level' : 'Projected level', fmtInt(p.start.level) + ' &rarr; ' + fmtInt(p.end.level), '+' + fmtInt(p.levelsGained) + ' levels; ' + (100 * p.end.progress).toFixed(2) + '% toward next')
     + card('Time to next level', live && p.end.exp >= p.end.requirement ? 'Pending level-up tick' : expHours(p.nextLevelHours), 'From the end of this run') + '</div>';
   if (live && !r.summary.classExp.statsAvailable) h += '<div class="warn">Prebuilt inputs: levels advanced, but level-dependent stats could not be rebuilt.</div>';
+  if (live) h += '<h3>Class levels gained over time</h3>' + levelTimelineSvg(r)
+    + '<div class="note">Each step is an actual simulated level-up, not an average-rate projection. '
+    + (p.levelsGained ? fmtInt(p.levelsGained) + ' levels gained.' : 'No full Class levels gained during this run.') + '</div>';
   h += '<h3>Level progress</h3><table class="data-table"><thead><tr><th>Snapshot</th><th class="num">Level</th><th class="num">EXP toward next</th><th class="num">Next-level requirement</th><th class="num">Progress</th></tr></thead><tbody>';
   [['Run start', p.start], [live ? 'Simulated run end' : 'Projected run end', p.end]].forEach(function (row) {
     var s = row[1];

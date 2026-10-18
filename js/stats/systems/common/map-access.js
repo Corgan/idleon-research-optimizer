@@ -19,7 +19,7 @@ var TOWN_MAPS = new Set([0, 50, 100, 150, 200, 250, 300]);
 var BOSS_MAPS = new Set([29, 66, 114, 165, 214, 266]);
 var FEATURE_MAPS = new Set([41, 42, 73, 120, 166, 216]);
 var RUNTIME_MAPS = new Set([37, 69]);
-var INTERNAL_MAPS = new Set([3, 4, 5, 20, 21, 22, 23, 25, 34, 35, 56, 313, 314, 323, 324]);
+var INTERNAL_MAPS = new Set([3, 4, 5, 20, 21, 22, 23, 25, 34, 35, 56, 313, 314]);
 var WORLD_STARTERS = [
   { gate: -1, maps: [0, 6] },
   { gate: 0, maps: [50, 51, 54] },

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Am I shadow banned? - Idleon Builds</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --accent: #e94560;
+  --text: #eee; --text2: #c0c0d4; --green: #4caf50;
+  --red: #f44; --gold: #ffd700; --cyan: #4dd0e1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+h1 { text-align: center; padding: 16px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.5rem; }
+main { flex: 1; display: grid; place-content: center; text-align: center; padding: 24px; gap: 12px; }
+#answer { font-size: clamp(3rem, 18vw, 12rem); font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+#answer.yes { color: var(--red); }
+#answer.no { color: var(--green); }
+</style>
+</head>
+<body>
+<h1>Am I shadow banned?</h1>
+<div id="save-area"></div>
+<main aria-live="polite" aria-atomic="true">
+  <div id="answer">UNKNOWN</div>
+</main>
+<script type="module">
+import { initSaveLoader } from './js/ui/save-loader.js';
+import { parseSaveKey } from './js/save/helpers.js';
+
+const answer = document.getElementById('answer');
+
+function readRestrictionFlag(raw) {
+  const save = raw?.data ?? raw;
+  if (!save || typeof save !== 'object') throw new Error('Invalid save data.');
+  const options = parseSaveKey(save, 'OptLacc');
+  if (!options || typeof options !== 'object') {
+    throw new Error('This save does not contain a valid multiplayer restriction flag.');
+  }
+  const value = options?.[26];
+  if ((typeof value !== 'number' && typeof value !== 'string') ||
+      (typeof value === 'string' && !value.trim()) || !Number.isFinite(Number(value))) {
+    throw new Error('This save does not contain a valid multiplayer restriction flag.');
+  }
+  return Number(value);
+}
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  skipLoad: true,
+  onLoad(_saveData, raw) {
+    answer.textContent = 'UNKNOWN';
+    answer.className = '';
+    const restricted = readRestrictionFlag(raw) !== 0;
+    answer.textContent = restricted ? 'YES' : 'NO';
+    answer.className = restricted ? 'yes' : 'no';
+  }
+});
+</script>
+</body>
+</html>
