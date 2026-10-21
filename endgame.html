@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Are you endgame? - Idleon Builds</title>
+<style>
+:root {
+  --bg: #1a1a2e; --bg2: #16213e; --accent: #e94560;
+  --text: #eee; --green: #4caf50;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+h1 { text-align: center; padding: 16px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.5rem; }
+main { flex: 1; display: grid; place-content: center; text-align: center; padding: 24px; gap: 12px; }
+#answer { color: var(--green); font-size: clamp(3rem, 18vw, 12rem); font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<h1>Are you endgame?</h1>
+<div id="save-area"></div>
+<main aria-live="polite" aria-atomic="true">
+  <div id="answer">NO</div>
+</main>
+<script type="module">
+import { initSaveLoader } from './js/ui/save-loader.js';
+
+initSaveLoader({
+  target: '#save-area',
+  auth: true,
+  skipLoad: true
+});
+</script>
+</body>
+</html>
