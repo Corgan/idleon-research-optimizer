@@ -45,7 +45,7 @@
 //   kill EXP are rebuilt without it; damage/TotalStats stay TotStatMAP-cached.
 // NOT MODELLED (emit unmodelled once): inputReq-1 thrown items (auto mode
 //   never clicks), the Arcane Crystal failure popup actor, dungeon branches.
-// Modelled elsewhere in this file: type-2 portal scene transitions, summons
+// Combat navigation never activates map exits. Modelled below: summons
 // 361/363/526 (Pet2/Pet5/pghost), and Tempest/Arcanist form ActionWaitTime.
 // Spawn skills Graveyard 198, Reindeer 423, Wormhole 498 and Arcane Crystal
 // 588 create their ActorEvents_575 actors (WT16/17, WT18, WT13, WT19) and feed
@@ -2102,6 +2102,8 @@ function _findNewNode(sim) {
   const XC = _xc(p), YC = _yc(p), lv = N(_v(sim).level);
   for (const m of sim.world.monsters(sim)) {
     if (!(_eligibleTarget(sim, m) && !String(m.type || '').includes('Nest') && p.autoMove)) continue;
+    // Some scenes include exit pads inside _NumberOfNodes, so spawn skills can put mobs there.
+    if (m.node !== p.node && portalDestination(map, m.node)) continue;
     const d = (XC - _mox(m)) ** 2 + (1.5 * (YC - (m.y + N(m.offY)))) ** 2;
     if (d < bestD && !((map === 216 && N(m.node) === 3) || (lv < 50 && map === 16 && N(m.node) === 3))) {
       bestD = d;
@@ -2115,11 +2117,7 @@ function _findNewNode(sim) {
   }
 }
 
-// Type-2 connection (src 69766-69776): PlayerDestination = PMM[2]; the first
-// SceneTransitions[CurrentMap] row whose node equals it switches scene unless
-// NONdummies[46] == 1, and map 0 -> node 8 always switches to scene 6. A
-// switch leaves the simulated map, so the session ends there. Without a
-// matching row the player just stands still every frame, as in the source.
+// Identify native scene exits, without activating them in combat auto navigation.
 export function portalDestination(mapIdx, node) {
   const rows = SceneTransitions[mapIdx];
   if (Array.isArray(rows)) {
@@ -2128,16 +2126,6 @@ export function portalDestination(mapIdx, node) {
   }
   if (Number(mapIdx) === 0 && Number(node) === 8) return { node: 8, scene: 'scene 6', map: -1, guarded: false };
   return null;
-}
-
-function _portalTransition(sim) {
-  const p = sim.player, dest = portalDestination(sim.mapIdx, p.pmm[2]);
-  if (!dest || (dest.guarded && N(sim.state.nd46) === 1)) return;
-  const target = p.target;
-  sim.endSession({
-    reason: 'sceneTransition', from: p.node, node: dest.node, scene: dest.scene, map: dest.map,
-    target: target ? { type: target.type, node: target.node, temp: N(target.temp), flag: target.flag || null } : null,
-  });
 }
 
 function _landing(sim, nb) {
@@ -2215,7 +2203,6 @@ function _movement(sim) {
       p.x = connX - 6 * p.dir - p.width / 2;
     } else if (typ === 2) {
       p.vx = 0; p.animation = '0';
-      _portalTransition(sim);
     } else if (typ === 3) {
       p.vx = XC() < N(nbn.x) ? SPD : -SPD;
       pmm[0] = 6;

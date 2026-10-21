@@ -104,11 +104,11 @@ import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
 import { fmtVal } from './js/renderers/format.js';
 import { MapDispName } from './js/stats/data/game/customlists.js';
-import { TD_TRIAL_COUNT, tdMob, tdMobSprite, tdMobFilter, tdTrialScene, tdTrialBackground, tdTowerIcon, tdTrialPath, tdGeometry, tdTrialBase, TD_ASSET_DIR } from './js/stats/data/w3/worship-td.js';
+import { TD_TRIAL_COUNT, tdMob, tdMobSprite, tdMobFilter, tdTrialScene, tdTrialBackground, tdTowerIcon, tdTrialPath, tdGeometry, tdTrialBase, tdTrialNpcZones, TD_ASSET_DIR } from './js/stats/data/w3/worship-td.js';
 import {
   TD_ASSUMPTIONS, TD_TOWER_NAMES, TD_SKIP_POLICIES, TD_ROOT_POLICIES,
   worshipTdInputs, trialSummary, heuristicPlan, guidePresetsForTrial, guidePresetPlan, towerCenters,
-  placeableNodes, validatePlacement, planPlacementLayouts, createWorshipTdRun,
+  legalSlots, placementNodeAt, validatePlacement, validatePlanningPlacement, towerAuras, towerRange, tdDistance, planPlacementLayouts, createWorshipTdRun,
 } from './js/stats/systems/w3/worship-td.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
 import { toRenderNode } from './js/stats/tree-builder.js';
@@ -124,7 +124,7 @@ var state = {
   maxWave: 239,
   seeds: 3,
   rootPolicy: '',
-  opt: { mode: 'layout', objective: 'wave', restarts: 2, iterations: 16, budget: 30, seeds: 2, hours: 4, seedPreset: true },
+  opt: { mode: 'search', objective: 'wave', restarts: 4, iterations: 24, budget: 64, seeds: 2, hours: 4 },
 };
 var inputsCache = Object.create(null);
 var sim = { running: false, result: null, trials: null, error: '', key: '' };
@@ -251,10 +251,9 @@ function runSim() {
 function runOpt() {
   stopWorker();
   opt = { running: true, progress: null, result: null, error: '', key: state.charIdx + ':' + state.trial };
+  opt.inputs = stripInputs(inputs());
   render();
   var o = state.opt;
-  var presets = guidePresetsForTrial(state.trial);
-  var seedPlan = o.seedPreset && presets.length ? guidePresetPlan(presets[0].id) : null;
   var done = function(err, res) {
     opt.running = false;
     if (err) opt.error = err;
@@ -263,16 +262,16 @@ function runOpt() {
     render();
   };
   if (o.mode === 'layout') {
-    post({ type: 'layout', inputs: stripInputs(inputs()), opts: {
+    post({ type: 'layout', inputs: opt.inputs, opts: {
       trial: state.trial, objective: o.objective, budget: o.budget, seeds: o.seeds, finalSeeds: o.seeds * 2,
       maxTimeSec: o.hours * 3600, maxWave: state.maxWave, start: state.start,
       baseSeed: Math.floor(Math.random() * 1e9),
     } }, done, function(p) { opt.progress = p; renderOptProgress(); });
     return;
   }
-  post({ type: 'optimize', inputs: stripInputs(inputs()), opts: {
+  post({ type: 'optimize', inputs: opt.inputs, opts: {
     trial: state.trial, objective: o.objective, restarts: o.restarts, iterations: o.iterations, seeds: o.seeds,
-    maxTimeSec: o.hours * 3600, maxWave: state.maxWave, start: state.start, seedPlan: seedPlan,
+    maxTimeSec: o.hours * 3600, maxWave: state.maxWave, start: state.start,
     baseSeed: Math.floor(Math.random() * 1e9),
   } }, done, function(p) { opt.progress = p; renderOptProgress(); });
 }
@@ -321,6 +320,7 @@ function renderOverview(inp) {
   html += card('Starting points', fmtNum(inp.startPts), 'Kill points ×' + fmtNum(inp.killPtsMult));
   html += card('Totem HP', fmtNum(inp.totemHp), 'Leaked mobs cost 1 each');
   html += card('Tower damage', '×' + fmtNum(1 + inp.atom5 / 100), 'Atom 5 +' + fmtNum(inp.atom5) + '%, Equinox ' + inp.dream7);
+  html += card('Menagerie precooking', fmtTime(inp.slowRoastPreCookSec), 'Slow Roast Wiz clock floor, applied on the next 1 s tick');
   html += card('Root talent', inp.root.available ? 'Lv ' + inp.root.level : 'None',
     inp.root.available ? inp.root.seconds + ' s root, ' + inp.root.cooldown + ' s cooldown, radius ' + fmtNum(inp.root.radius) : 'This character cannot root mobs');
   html += '</div></div>';
@@ -356,7 +356,7 @@ var images = Object.create(null);
 var pendingMaps = [];
 var planMapPhase = { sim: 0, opt: 0 };
 var player = { frame: 0, playing: false, speed: 60, ranges: false, raf: 0, last: 0, acc: 0, hover: null };
-var mapOpts = { slots: false };
+var mapOpts = { slots: false, ranges: false, previewLevel: 30 };
 var TYPE_COLOR = ['#ffb74d', '#ff7043', '#a1887f', '#4dd0e1', '#ffee58', '#f06292', '#7986cb', '#81c784', '#9575cd'];
 
 function img(src) {
@@ -470,22 +470,20 @@ function slotInfo(trial, towers) {
   var hit = slotCache.get(key);
   if (hit) return hit;
   var geom = tdGeometry(trial), spans = [], extra = [];
-  placeableNodes(trial).forEach(function(n) {
-    var nd = geom.nodes[n], start = null, prev = null;
-    for (var x = nd.x + 30; x <= nd.length - 30; x += 2) {
-      var v = validatePlacement(trial, towers, n, x);
+  legalSlots(trial, 1).forEach(function(s) {
+      var n = s.node, x = s.x, nd = geom.nodes[n];
+      var v = validatePlanningPlacement(trial, towers, n, x);
       var ok = v.ok && v.x === x;
-      if (ok && start == null) start = x;
-      if (!ok && start != null) { spans.push({ node: n, y: nd.y, a: start, b: prev }); start = null; }
-      if (ok) prev = x;
-    }
-    if (start != null) spans.push({ node: n, y: nd.y, a: start, b: prev });
+      if (!ok) return;
+      var last = spans[spans.length - 1];
+      if (last && last.node === n && x === last.b + 1) last.b = x;
+      else spans.push({ node: n, y: nd.y, a: x, b: x });
   });
   var packed = towers.slice();
   spans.forEach(function(s) {
-    for (var x = s.a; x <= s.b; x += 2) {
-      var v = validatePlacement(trial, packed, s.node, x);
-      if (v.ok && v.x === x) { packed.push({ node: s.node, x: x }); extra.push({ node: s.node, x: x, y: s.y }); x += 60; }
+    for (var x = s.a; x <= s.b; x++) {
+      var v = validatePlanningPlacement(trial, packed, s.node, x);
+      if (v.ok && v.x === x) { packed.push({ node: s.node, x: x }); extra.push({ node: s.node, x: x, y: s.y }); x += 61; }
     }
   });
   var info = { trial: trial, spans: spans, extra: extra };
@@ -507,16 +505,10 @@ function drawSlots(ctx, trial, towers) {
 // [NodeX-5, NodeLength+5] x [NodeY-80, NodeY+40] contains the mouse snaps x into [NodeX+30, NodeLength-30],
 // nudges 62 px off an overlapping tower, sits at NodeY-29, and shows TowerDefPlace1 (valid) or 2 at (-36,-55).
 function placementGhost(trial, towers, mx, my) {
-  var geom = tdGeometry(trial);
-  for (var n = 0; n < geom.nodes.length; n++) {
-    var nd = geom.nodes[n];
-    if (mx > nd.x - 5 && mx < nd.length + 5 && my > nd.y - 80 && my < nd.y + 40) {
-      var v = validatePlacement(trial, towers, n, mx);
-      var x = Math.round(Math.max(nd.x + 30, Math.min(nd.length - 30, v.x)));
-      return { node: n, x: x, y: nd.y, ok: v.ok, reason: v.reason || '' };
-    }
-  }
-  return null;
+  var n = placementNodeAt(trial, mx, my);
+  if (n < 0) return null;
+  var v = validatePlacement(trial, towers, n, mx), p = validatePlanningPlacement(trial, towers, n, mx);
+  return { node: n, x: v.x, y: tdGeometry(trial).nodes[n].y, ok: v.ok, reason: v.reason || '', warning: v.ok && !p.ok ? p.reason : '' };
 }
 function drawGhost(ctx, g) {
   if (!g) return;
@@ -526,6 +518,60 @@ function drawGhost(ctx, g) {
   if (im) ctx.drawImage(im, g.x - 36, g.y - 84);
   else { ctx.fillStyle = g.ok ? '#76ff03' : '#f44'; ctx.fillRect(g.x - 30, g.y - 80, 60, 80); }
   ctx.restore();
+}
+
+function drawNpcZones(ctx, trial) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,100,100,.16)'; ctx.strokeStyle = '#ff8888'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+  ctx.font = '12px Segoe UI, sans-serif'; ctx.textAlign = 'center';
+  tdTrialNpcZones(trial).forEach(function(z) {
+    ctx.fillRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.fillStyle = '#ffaaaa'; ctx.fillText(z.name, (z.left + z.right) / 2, z.top - 5); ctx.fillStyle = 'rgba(255,100,100,.16)';
+  });
+  ctx.restore();
+}
+function rangeLegendHtml() {
+  return '<div class="td-legend"><span>Solid: attack range</span><span>Dashed cyan: Party speed / Storm crit aura</span><span>Green rings: selected aura recipients</span><span>Party / Void damage: map-wide</span><span>Octagons follow the game\'s distance formula</span></div>';
+}
+function rangePath(ctx, x, y, range) {
+  var axis = range / tdDistance(1, 0), diag = range / tdDistance(1, 1);
+  ctx.beginPath();
+  [[axis, 0], [diag, diag], [0, axis], [-diag, diag], [-axis, 0], [-diag, -diag], [0, -axis], [diag, -diag]].forEach(function(p, i) {
+    if (i) ctx.lineTo(x + p[0], y + p[1]); else ctx.moveTo(x + p[0], y + p[1]);
+  });
+  ctx.closePath();
+}
+function drawRanges(ctx, towers, inp, hover, all) {
+  var auras = towerAuras(towers, inp.towerLevels, inp.firstTraitMulti);
+  ctx.save(); ctx.lineWidth = 2;
+  towers.forEach(function(t, i) {
+    if (!all && i !== hover) return;
+    ctx.strokeStyle = TYPE_COLOR[t.type]; ctx.globalAlpha = 0.6; ctx.setLineDash([]);
+    rangePath(ctx, t.wx, t.wy, t.range); ctx.stroke();
+    auras.filter(function(a) { return a.source === i && !a.global; }).forEach(function(a) {
+      ctx.strokeStyle = '#4dd0e1'; ctx.setLineDash([9, 6]);
+      rangePath(ctx, t.cx, t.cy, a.range); ctx.stroke();
+    });
+  });
+  ctx.restore();
+  return auras;
+}
+function drawAuraRecipients(ctx, towers, auras, hover) {
+  var selected = auras.filter(function(a) { return a.source === hover; });
+  var targets = new Set();
+  selected.forEach(function(a) { a.targets.forEach(function(i) { targets.add(i); }); });
+  ctx.save(); ctx.lineWidth = 3; ctx.globalAlpha = 0.9; ctx.strokeStyle = '#76ff03'; ctx.setLineDash([]);
+  targets.forEach(function(i) {
+    var t = towers[i]; ctx.beginPath(); ctx.arc(t.cx, t.cy - 12, 28, 0, Math.PI * 2); ctx.stroke();
+  });
+  ctx.restore();
+}
+function auraTip(auras, i) {
+  return auras.filter(function(a) { return a.source === i; }).map(function(a) {
+    var name = a.key === 0 ? 'speed' : a.key === 1 ? 'crit chance' : 'damage';
+    return ' | ' + a.side + ': +' + a.value + '% ' + name + (a.global ? ' map-wide' : ' within ' + a.range + ' px') + ', ' + a.targets.length + ' aura recipients';
+  }).join('');
 }
 
 // Mob sheets pre-tinted per mod with the game's hue/saturation filters.
@@ -716,7 +762,7 @@ function liveHtml() {
   html += '<label>Jump to wave<input type="number" id="live-wave" min="0" style="width:70px"></label>';
   html += '<label><input type="checkbox" id="live-ranges"' + (live.ranges ? ' checked' : '') + '> Ranges</label></div>';
   html += '<div class="td-hud" id="live-hud"></div>';
-  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-live" tabindex="0" aria-label="Live simulation"></canvas></div>';
+  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-live" tabindex="0" aria-label="Live simulation"></canvas></div>' + rangeLegendHtml();
   html += '<p class="note">Runs the first simulated run again on this page, tick by tick at the game\'s 10 ticks per second (1× is real time), with the same seed. Wizards pop out, attack, and hide on the source timing; fireballs, boulders, storm bolts, Frozone and Void rings, poison clouds, and Kraken underlings use the game\'s projectile sprites.</p>';
   return html;
 }
@@ -734,15 +780,7 @@ function drawLive() {
   var rt = P.tick + (V.tick - P.tick) * a;
   var lerp = function(x0, x1) { return x0 + (x1 - x0) * a; };
   drawScene(ctx, trial);
-  if (live.ranges || live.hover != null) {
-    ctx.save();
-    V.towers.forEach(function(t, i) {
-      if (!live.ranges && live.hover !== i) return;
-      ctx.strokeStyle = TYPE_COLOR[t.type]; ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(t.wx, t.wy, t.range, 0, Math.PI * 2); ctx.stroke();
-    });
-    ctx.restore();
-  }
+  var auras = drawRanges(ctx, V.towers, sim.args.inp, live.hover, live.ranges);
   V.clouds.forEach(function(c) {
     var age = rt - c.born, left = c.until - rt;
     if (age < 0 || left < 0) return;
@@ -751,6 +789,7 @@ function drawLive() {
   V.towers.forEach(function(t) { drawTower(ctx, t); });
   V.towers.forEach(function(t) { drawWizard(ctx, t, V.tick); });
   V.towers.forEach(function(t) { drawTowerLabel(ctx, t, String(t.lvl)); });
+  drawAuraRecipients(ctx, V.towers, auras, live.hover);
   var sp = tdMobSprite(trial), now = performance.now();
   var prevMob = new Map();
   P.mobs.forEach(function(m) { prevMob.set(m.id, m); });
@@ -834,7 +873,10 @@ function drawLive() {
 // Plan layout: initial towers, then each phase's sells and builds in order, snapped exactly as the sim places them.
 function planLayouts(plan, trial) {
   return planPlacementLayouts(trial, plan).map(function(l) {
-    return Object.assign({}, l, { towers: l.towers.map(function(t) { return Object.assign({}, t, towerCenters(trial, t.node, t.x)); }) });
+    return Object.assign({}, l, { towers: l.towers.map(function(t) {
+      var lvl = Math.max(1, Math.min(mapOpts.previewLevel, t.maxLevel == null ? Infinity : t.maxLevel));
+      return Object.assign({}, t, towerCenters(trial, t.node, t.x), { lvl: lvl, traits: t.traits.slice(0, Math.floor(lvl / 5)) });
+    }) });
   });
 }
 function planMapHtml(plan, id) {
@@ -844,9 +886,11 @@ function planMapHtml(plan, id) {
   var html = '<div class="td-map-bar"><b style="color:var(--cyan)">Layout</b>';
   if (layouts.length > 1) html += '<label>Stage<select data-planmap="' + id + '">' + layouts.map(function(l, i) { return '<option value="' + i + '"' + (i === k ? ' selected' : '') + '>' + esc(l.label) + ' (' + l.towers.length + ' towers)</option>'; }).join('') + '</select></label>';
   html += slotsToggleHtml();
-  html += '<span class="muted">Labels are plan order. Hover a tower for traits, or a platform to preview the game\'s placement cursor.</span></div>';
+  html += '<label><input type="checkbox" data-planranges' + (mapOpts.ranges ? ' checked' : '') + '> Ranges</label>';
+  html += '<label>Preview trial level<input type="number" data-previewlevel min="1" max="100" value="' + mapOpts.previewLevel + '" style="width:70px"></label>';
+  html += '<span class="muted">Hypothetical levels, capped by each tower\'s plan. Only earned traits are active. Hover or focus the map and use arrow keys.</span></div>';
   html += '<div class="td-map-wrap"><canvas id="td-map-' + id + '" tabindex="0" aria-label="Plan layout map"></canvas></div>';
-  return html + '<div class="td-slot-note" data-slotnote="' + id + '"></div>';
+  return html + rangeLegendHtml() + '<div class="td-slot-note" data-slotnote="' + id + '"></div>';
 }
 function slotsToggleHtml() {
   return '<label><input type="checkbox" data-slots' + (mapOpts.slots ? ' checked' : '') + '> Open slots</label>';
@@ -854,7 +898,7 @@ function slotsToggleHtml() {
 function slotNote(trial, towers) {
   if (!mapOpts.slots) return '';
   var info = slotInfo(trial, towers);
-  return '<span class="badge badge-green">' + info.extra.length + '</span> more towers fit (packed left to right, 62 px apart). Green bars are every legal centre; faded ghosts show one packing.';
+  return '<span class="badge badge-green">' + info.extra.length + '</span> more towers fit (packed left to right, 62 px apart). Green bars exclude NPC-blocked upgrade clicks and camera-sensitive spawn/exit slots; faded ghosts show one packing.';
 }
 function drawPlanMap(entry) {
   var cv = document.getElementById('td-map-' + entry.id);
@@ -862,9 +906,14 @@ function drawPlanMap(entry) {
   var layouts = planLayouts(entry.plan, state.trial);
   var lay = layouts[Math.min(planMapPhase[entry.id] || 0, layouts.length - 1)];
   var ctx = sizeCanvas(cv, state.trial);
+  var inp = entry.id === 'opt' && opt.inputs ? opt.inputs : entry.id === 'sim' && sim.args ? sim.args.inp : inputs();
+  lay.towers.forEach(function(t) { t.range = towerRange(t.type, t.lvl, inp.towerLevels[t.type]); });
   drawScene(ctx, state.trial);
+  drawNpcZones(ctx, state.trial);
   if (mapOpts.slots) drawSlots(ctx, state.trial, lay.towers);
+  var auras = drawRanges(ctx, lay.towers, inp, cv._hover, mapOpts.ranges);
   drawTowers(ctx, lay.towers, function(t) { return '#' + t.planIdx; });
+  drawAuraRecipients(ctx, lay.towers, auras, cv._hover);
   drawGhost(ctx, cv._ghost);
   cv._trialId = state.trial;
   cv._placed = lay.towers;
@@ -874,9 +923,15 @@ function drawPlanMap(entry) {
     var nudged = lay.towers.filter(function(t) { return t.x !== t.reqX; });
     if (lay.rejected.length) warn += '<span class="badge badge-red">' + lay.rejected.length + ' not placed</span> ' + lay.rejected.map(function(r) { return '#' + r.planIdx + ' ' + esc(TD_TOWER_NAMES[r.type]) + ': ' + esc(r.reason); }).join('; ') + '. ';
     if (nudged.length) warn += '<span class="badge badge-gold">' + nudged.length + ' nudged</span> ' + nudged.map(function(t) { return '#' + t.planIdx + ' x ' + t.reqX + '→' + t.x; }).join(', ') + ' (the game shifts an overlapping tower 62 px). ';
+    lay.towers.forEach(function(t) {
+      var p = validatePlanningPlacement(state.trial, [], t.node, t.x);
+      if (!p.ok) warn += '<span class="badge badge-gold">#' + t.planIdx + '</span> ' + esc(p.reason) + '. ';
+    });
+    if (tdTrialNpcZones(state.trial).length) warn += 'Red zones block NPC clicks; a tower needs some uncovered upgrade-click area. ';
+    if (state.trial === 7) warn += 'Bloo Radley\'s original position is reserved even after his quest. ';
     note.innerHTML = warn + slotNote(state.trial, lay.towers);
   }
-  cv._towers = lay.towers.map(function(t) { return Object.assign({ tip: TD_TOWER_NAMES[t.type] + ' #' + t.planIdx + (t.traits ? ' — traits ' + t.traits : '') + ' — node ' + t.node + ', x ' + t.x }, t); });
+  cv._towers = lay.towers.map(function(t, i) { return Object.assign({ tip: TD_TOWER_NAMES[t.type] + ' #' + t.planIdx + ' — preview level ' + t.lvl + (t.traits ? ' — active traits ' + t.traits : '') + ' — attack range ' + t.range + ' px' + auraTip(auras, i) }, t); });
 }
 
 function replayHtml(r) {
@@ -892,7 +947,7 @@ function replayHtml(r) {
   html += '<label>Jump to wave<input type="number" id="rp-wave" min="0" style="width:70px"></label>';
   html += '<label><input type="checkbox" id="rp-ranges"' + (player.ranges ? ' checked' : '') + '> Ranges</label>' + slotsToggleHtml() + '</div>';
   html += '<div class="td-hud" id="rp-hud"></div>';
-  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-replay" tabindex="0" aria-label="Simulation replay"></canvas></div>';
+  html += '<div class="td-map-wrap" style="margin-top:6px"><canvas id="td-map-replay" tabindex="0" aria-label="Simulation replay"></canvas></div>' + rangeLegendHtml();
   html += '<div class="td-slot-note" data-slotnote="replay"></div>';
   html += '<div class="td-legend"><span>Mob tint = its mod (greyscale = no mod or voided)</span><span><i style="border:2px solid #4dd0e1"></i>Frozen</span><span><i style="border:2px solid #66bb6a"></i>Rooted</span><span><i style="border:2px solid #f48fb1"></i>Healing</span><span><i style="background:#ff9800"></i>Kraken underling</span><span><i style="background:rgba(120,200,255,.5)"></i>Storm cloud</span><span><i style="border:2px dashed #66bb6a"></i>Root cast</span><span><i style="background:#76ff03"></i>Open slot</span></div>';
   html += '<p class="note">Recorded every ' + R.interval + ' s of game time (' + n + ' frames, ' + R.towerSets.length + ' tower layouts). Mobs use the game\'s own animated sprite sheets and mod hue filters; hover a platform to see the game\'s placement cursor against the towers standing at that moment.</p>';
@@ -907,17 +962,7 @@ function drawReplay() {
   if (!ctx) { ctx = cv._ctx = sizeCanvas(cv, trial); cv._trial = trial; cv._w = cv.parentElement.clientWidth; }
   drawScene(ctx, trial);
   var set = R.towerSets[f.set] || [];
-  if (player.ranges || player.hover != null) {
-    ctx.save();
-    set.forEach(function(t, i) {
-      if (!player.ranges && player.hover !== i) return;
-      ctx.strokeStyle = TYPE_COLOR[t.type];
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(t.wx, t.wy, t.range, 0, Math.PI * 2); ctx.stroke();
-    });
-    ctx.restore();
-  }
+  var auras = drawRanges(ctx, set, sim.args.inp, player.hover, player.ranges);
   ctx.save();
   for (var c = 0; c < f.clouds.length; c += 2) {
     ctx.fillStyle = 'rgba(120,200,255,.28)';
@@ -926,6 +971,7 @@ function drawReplay() {
   ctx.restore();
   if (mapOpts.slots) drawSlots(ctx, trial, set);
   drawTowers(ctx, set, function(t) { return String(t.lvl); });
+  drawAuraRecipients(ctx, set, auras, player.hover);
   var sp = tdMobSprite(trial), now = performance.now();
   var M = f.mobs, stride = R.mobStride || 6;
   for (var i = 0; i < M.length; i += stride) {
@@ -987,8 +1033,8 @@ function showTip(text, ev) {
   if (!text) { tip.style.display = 'none'; return; }
   tip.textContent = text;
   tip.style.display = 'block';
-  tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14) + 'px';
-  tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, ev.clientY + 14) + 'px';
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14)) + 'px';
+  tip.style.top = Math.max(8, Math.min(window.innerHeight - tip.offsetHeight - 8, ev.clientY + 14)) + 'px';
 }
 function hoverTower(cv, ev) {
   var rect = cv.getBoundingClientRect(), s = cv._scale || 1;
@@ -999,7 +1045,7 @@ function hoverTower(cv, ev) {
   var changed = !g !== !cv._ghost || (g && (g.x !== cv._ghost.x || g.node !== cv._ghost.node || g.ok !== cv._ghost.ok));
   cv._ghost = g;
   if (best >= 0) showTip(cv._towers[best].tip, ev);
-  else if (g) showTip(g.ok ? 'Valid placement — platform ' + g.node + ', x ' + g.x : 'Can\'t place here: ' + g.reason, ev);
+  else if (g) showTip(g.ok ? 'Valid with camera at far left — platform ' + g.node + ', x ' + g.x + (g.warning ? '. Excluded from plans: ' + g.warning : '') : 'Can\'t place here: ' + g.reason, ev);
   else showTip('', ev);
   return { tower: best < 0 ? null : best, ghostChanged: changed };
 }
@@ -1011,22 +1057,45 @@ function mountMaps() {
     if (!cv) return;
     cv._entry = e;
     var tip = document.getElementById('td-bt-tooltip');
-    cv.onmouseleave = function() {
-      tip.style.display = 'none';
-      var had = !!cv._ghost;
+    function selectTower(i) {
+      cv._hover = i;
       cv._ghost = null;
-      if (e.kind === 'replay') { if (player.hover != null || had) { player.hover = null; drawReplay(); } }
-      else if (e.kind === 'live') { if (live.hover != null || had) { live.hover = null; drawLive(); } }
-      else if (had) drawPlanMap(e);
+      if (e.kind === 'replay') player.hover = i;
+      if (e.kind === 'live') live.hover = i;
+      drawEntry(e);
+    }
+    function clearSelection() {
+      tip.style.display = 'none';
+      selectTower(null);
+    }
+    function keyboardTip() {
+      var t = (cv._towers || [])[cv._hover];
+      if (!t) return;
+      var r = cv.getBoundingClientRect(), s = cv._scale || 1;
+      showTip(t.tip, { clientX: r.left + t.cx * s, clientY: r.top + (t.cy - 35) * s });
+    }
+    cv.onmouseleave = clearSelection;
+    cv.onblur = clearSelection;
+    cv.onfocus = function() { if ((cv._towers || []).length) { selectTower(0); keyboardTip(); } };
+    cv.onkeydown = function(ev) {
+      if (ev.key === 'Escape') { ev.preventDefault(); clearSelection(); }
+      else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && (cv._towers || []).length) {
+        ev.preventDefault();
+        var dir = ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1;
+        var len = cv._towers.length;
+        selectTower(cv._hover == null ? 0 : (cv._hover + dir + len) % len);
+        keyboardTip();
+      }
     };
-    cv.onkeydown = function(ev) { if (ev.key === 'Escape') { tip.style.display = 'none'; if (cv._ghost) { cv._ghost = null; redrawMaps(); } } };
     cv.onmousemove = function(ev) {
       var h = hoverTower(cv, ev);
       if (e.kind === 'replay') {
+        cv._hover = h.tower;
         if (h.tower !== player.hover || h.ghostChanged) { player.hover = h.tower; if (!player.playing) drawReplay(); }
       } else if (e.kind === 'live') {
+        cv._hover = h.tower;
         if (h.tower !== live.hover || h.ghostChanged) { live.hover = h.tower; if (!live.playing) drawLive(); }
-      } else if (h.ghostChanged) drawPlanMap(e);
+      } else if (h.tower !== cv._hover || h.ghostChanged) { cv._hover = h.tower; drawPlanMap(e); }
     };
     drawEntry(e);
   });
@@ -1039,11 +1108,25 @@ function mountMaps() {
       redrawMaps();
     };
   });
+  document.querySelectorAll('input[data-planranges]').forEach(function(cb) {
+    cb.onchange = function() {
+      mapOpts.ranges = cb.checked;
+      document.querySelectorAll('input[data-planranges]').forEach(function(o) { o.checked = cb.checked; });
+      redrawMaps();
+    };
+  });
+  document.querySelectorAll('input[data-previewlevel]').forEach(function(el) {
+    el.onchange = function() {
+      mapOpts.previewLevel = Math.max(1, Math.min(100, Math.round(Number(el.value) || 1)));
+      document.querySelectorAll('input[data-previewlevel]').forEach(function(o) { o.value = mapOpts.previewLevel; });
+      redrawMaps();
+    };
+  });
   document.querySelectorAll('select[data-planmap]').forEach(function(sel) {
     sel.onchange = function() {
       planMapPhase[sel.dataset.planmap] = Number(sel.value) || 0;
       var cv = document.getElementById('td-map-' + sel.dataset.planmap);
-      if (cv && cv._entry) drawPlanMap(cv._entry);
+      if (cv && cv._entry) { cv._hover = null; cv._ghost = null; showTip('', {}); drawPlanMap(cv._entry); }
     };
   });
   if (player.playing && !player.raf) { player.last = 0; player.raf = requestAnimationFrame(tick); }
@@ -1139,6 +1222,7 @@ function renderSimResult(r, agg) {
   html += card('Root casts', String(r.rootCasts), '');
   if (agg) html += card('Across ' + (agg.runs.length + 1) + ' runs', fmtNum((agg.meanBestWave * agg.runs.length + r.bestWave) / (agg.runs.length + 1)), 'Best wave range ' + Math.min(agg.minBestWave, r.bestWave) + '–' + Math.max(agg.maxBestWave, r.bestWave));
   html += '</div>';
+  if (r.placementFails && r.placementFails.length) html += '<p class="note"><span class="badge badge-gold">Tower action warnings</span> ' + r.placementFails.map(function(f) { return '#' + f.planIdx + ': ' + esc(f.reason); }).join('; ') + '.</p>';
   html += liveHtml();
   html += replayHtml(r);
   if (r.phases && r.phases.length) {
@@ -1165,26 +1249,24 @@ function renderSimResult(r, agg) {
 
 function renderOptimizer(inp) {
   var o = state.opt;
-  var presets = guidePresetsForTrial(state.trial);
   var html = '<div class="section"><h2>Optimizer</h2><div class="controls">';
   var layout = o.mode === 'layout';
-  html += '<label>Mode<select id="opt-mode"><option value="layout"' + (layout ? ' selected' : '') + '>Guide strategy layout</option><option value="search"' + (!layout ? ' selected' : '') + '>Free search</option></select></label>';
+  html += '<label>Mode<select id="opt-mode"><option value="layout"' + (layout ? ' selected' : '') + '>Hold-strategy search</option><option value="search"' + (!layout ? ' selected' : '') + '>Strategy + tower search</option></select></label>';
   html += '<label>Objective<select id="opt-obj"><option value="wave"' + (o.objective === 'wave' ? ' selected' : '') + '>Highest cleared wave</option><option value="souls"' + (o.objective === 'souls' ? ' selected' : '') + '>Souls per hour</option></select></label>';
   if (layout) {
     html += '<label>Layouts to test<input type="number" id="opt-budget" min="4" max="120" value="' + o.budget + '"></label>';
   } else {
-    html += '<label>Restarts<input type="number" id="opt-restarts" min="1" max="12" value="' + o.restarts + '"></label>';
-    html += '<label>Iterations<input type="number" id="opt-iters" min="1" max="400" value="' + o.iterations + '"></label>';
+    html += '<label>Beam families<input type="number" id="opt-restarts" min="1" max="12" value="' + o.restarts + '"></label>';
+    html += '<label>Refinement depth<input type="number" id="opt-iters" min="1" max="400" value="' + o.iterations + '"></label>';
   }
   html += '<label>Runs per plan<input type="number" id="opt-seeds" min="1" max="8" value="' + o.seeds + '"></label>';
   html += '<label>Max hours per run<input type="number" id="opt-hours" min="0.1" step="0.5" value="' + o.hours + '"></label>';
-  if (presets.length && !layout) html += '<label class="inline"><input type="checkbox" id="opt-seedpreset"' + (o.seedPreset ? ' checked' : '') + '> Start from guide preset</label>';
   html += '<button class="btn primary" id="opt-run"' + (opt.running ? ' disabled' : '') + '>' + (opt.running ? 'Optimizing…' : 'Optimize') + '</button>';
   if (opt.running) html += '<button class="btn" id="opt-stop">Cancel</button>';
   html += '</div><div id="opt-progress">' + optProgressHtml() + '</div>';
-  html += layout
-    ? '<p class="note">Applies the guides\' hold strategy: a Kraken wall with Frozones (KKFK) on a path platform to stack knockback, a Void near the spawn to strip passives, Storm and Poisonic on the platform that best covers the wall, and Parties buffing both. Before the target wave it sells the wall and spare Voids and rebuilds Frozone, Party, and Poisonic for boss waves. The search tests every wall platform and the trial\'s guide presets, then tunes wall offset and length, DPS platform, Party count, kept Krakens, the boss split, and the target wave. Leaders are rescored with twice the runs.</p>'
-    : '<p class="note">Bounded random-restart local search over tower order, slots, types, traits, and upgrade weights. Each plan is simulated in full for every run, so long runs take several seconds each.</p>';
+  html += '<p class="note">First compares every wall platform and multiple wall lengths, freeze densities, damage/support balances, and boss rebuilds. A diverse beam refines several competing layouts instead of just one winner.'
+    + (layout ? '' : ' Also tests direct relocations of low-output damage towers, trait recipes, and tower/group/phase mutations.')
+    + ' Every candidate is simulated. Several finalists, the baseline, and available guide presets are compared on fresh shared seeds with twice the runs. This is a bounded best-found search, not a global optimum.</p>';
   if (opt.error) html += '<div class="err">' + esc(opt.error) + '</div>';
   var r = opt.result;
   if (r && r.trial === state.trial && opt.key === state.charIdx + ':' + state.trial) {
@@ -1193,9 +1275,11 @@ function renderOptimizer(inp) {
     html += card('Best wave cleared', String(Math.round(r.meanBestWave * 10) / 10), 'Range ' + r.minBestWave + '–' + r.maxBestWave + ', saved ' + r.savedBest);
     html += card('Souls / hr now', fmtNum(r.soulsPerHourNow), 'At saved best wave');
     html += card('Souls / hr with plan', fmtNum(r.soulsPerHourPlan), r.soulsPerHourNow > 0 ? '×' + fmtNum(r.soulsPerHourPlan / r.soulsPerHourNow) : '');
-    html += card('Plans evaluated', String(r.evaluations), r.seeds.length + ' runs each');
+    html += card('Plan evaluations', String(r.evaluations), r.search
+      ? r.search.screeningSeeds.length + ' screening runs; ' + r.seeds.length + ' final runs'
+      : r.seeds.length + ' runs each');
     html += '</div><p style="margin-top:10px"><button class="btn" id="opt-use">Open in Simulator</button></p>';
-    if (r.layout) html += renderLayoutSummary(r);
+    html += renderLayoutSummary(r);
     html += '<h3>Recommended plan</h3>' + renderPlan(r.plan, 'opt');
   }
   return html + '</div>';
@@ -1204,18 +1288,28 @@ function renderOptimizer(inp) {
 function renderLayoutSummary(r) {
   var html = '<h3>Layout</h3>';
   if (r.kind === 'preset') {
-    html += '<p class="note"><span class="badge badge-gold">Guide preset</span> ' + esc(r.label) + ' beat every generated layout.</p>';
+    html += '<p class="note"><span class="badge badge-gold">Guide preset</span> ' + esc(r.label) + ' was selected in the final comparison.</p>';
   } else if (r.roles) {
     var R = r.roles, P = r.params;
     html += '<div class="card-grid cols-4">';
     html += card('Wall', 'Platform ' + R.wall.node, R.wall.xs.length + ' towers: ' + esc(R.wall.pattern || '') + ', ' + P.wallOffset + ' px from entry');
     html += card('Damage cluster', R.dps ? 'Platform ' + R.dps.node : 'None', R.dps ? R.dps.xs.length + ' Storm/Poisonic, ' + R.dps.coverage + ' wall samples in range' : 'No platform covers the wall');
     html += card('Parties', String(R.parties ? R.parties.length : 0), 'Speed/damage buffs placed by coverage');
-    html += card('Boss switch', 'Wave ' + P.targetWave, 'Keeps ' + P.keepKraken + ' Kraken, rebuilds ' + Math.round(P.phasePartyFrac * 100) + '% Party');
+    html += card('Boss switch', r.plan.phases.length ? 'Wave ' + P.targetWave : 'No rebuild', r.plan.phases.length ? 'Keeps ' + P.keepKraken + ' Kraken, rebuilds ' + Math.round(P.phasePartyFrac * 100) + '% Party' : 'Keeps the hold layout');
     html += '</div>';
   }
+  if (r.search) {
+    var S = r.search;
+    html += '<p class="note">' + S.families + ' structural families, ' + S.screeningEvaluations + ' screened plans, ' + S.finalEvaluations + ' finalists on fresh shared seeds. Baseline: '
+      + S.baselines.map(function(b) { return esc(b.label) + ' — wave ' + Math.round(b.score.wave * 10) / 10; }).join('; ') + '.</p>';
+    html += '<details><summary>Search comparison</summary><table class="data-table"><thead><tr><th>Finalist</th><th class="num">Cleared wave</th><th class="num">Worst run</th></tr></thead><tbody>';
+    S.finalists.forEach(function(f) {
+      html += '<tr><td>' + esc(f.label) + '</td><td class="num">' + Math.round(f.score.wave * 10) / 10 + '</td><td class="num">' + f.score.minWave + '</td></tr>';
+    });
+    html += '</tbody></table><p class="note">' + S.duplicatesSkipped + ' identical plans skipped. Screening and final comparison use separate seed batches.</p></details>';
+  }
   if (r.screen && r.screen.length) {
-    html += '<h3>Candidates screened</h3><table class="data-table"><thead><tr><th>Layout</th><th class="num">Best wave (mean)</th><th class="num">Worst run</th></tr></thead><tbody>';
+    html += '<h3>Initial wall screening</h3><table class="data-table"><thead><tr><th>Layout</th><th class="num">Best wave (mean)</th><th class="num">Worst run</th></tr></thead><tbody>';
     r.screen.slice().sort(function(a, b) { return b.wave - a.wave; }).forEach(function(c) {
       html += '<tr><td>' + esc(c.label) + '</td><td class="num">' + Math.round(c.wave * 10) / 10 + '</td><td class="num">' + c.minWave + '</td></tr>';
     });
@@ -1228,8 +1322,8 @@ function optProgressHtml() {
   if (!opt.running) return '';
   var p = opt.progress;
   var pct = p && p.total ? p.completed / p.total : 0;
-  var txt = !p ? ' — starting' : p.restarts ? ' — restart ' + p.restart + '/' + p.restarts + ', best wave ' + Math.round(p.bestWave * 10) / 10
-    : ' — ' + (p.phase === 'final' ? 'rescoring leaders' : 'layout ' + p.completed + '/' + (p.total - 1)) + ', best wave ' + Math.round((p.bestWave || 0) * 10) / 10 + (p.label ? ' (' + esc(p.label) + ')' : '');
+  var txt = !p ? ' — starting' : ' — ' + (p.phase === 'final' ? 'comparing finalists on fresh seeds' : p.phase === 'construction' ? 'comparing structural families' : 'refining competing layouts')
+    + ', best wave ' + Math.round((p.bestWave || 0) * 10) / 10 + (p.families ? ', ' + p.families + ' families' : '');
   return '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><div class="bar-outer" style="width:240px"><div class="bar-fill" style="width:' + (pct * 100).toFixed(1) + '%"></div></div><span class="muted">' + (pct * 100).toFixed(0) + '%' + txt + '</span></div>';
 }
 function renderOptProgress() {
@@ -1262,7 +1356,6 @@ function bind() {
   on('sim-stop', 'onclick', function() { stopWorker(); render(); });
   on('opt-mode', 'onchange', function(e) { state.opt.mode = e.target.value; render(); });
   on('opt-obj', 'onchange', function(e) { state.opt.objective = e.target.value; });
-  on('opt-seedpreset', 'onchange', function(e) { state.opt.seedPreset = e.target.checked; });
   on('opt-run', 'onclick', function() {
     var o = state.opt;
     o.budget = Math.round(num('opt-budget', 4, 120, o.budget));

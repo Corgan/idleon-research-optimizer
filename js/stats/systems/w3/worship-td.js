@@ -34,6 +34,7 @@ import { computeSaltLick } from './construction.js';
 import { getSetBonus } from './setBonus.js';
 import { bubbaRoGBonuses } from '../w7/bubba.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
+import { menagerieBoostQTY, menagerieUnlockOwned } from '../w7/menagerie.js';
 import {
   charClassData,
   dreamData,
@@ -59,6 +60,7 @@ import {
   tdTrait,
   tdTrialBase,
   tdTrialScene,
+  tdTrialNpcZones,
   tdTrialPath,
   tdWaveRow,
 } from '../../data/w3/worship-td.js';
@@ -78,7 +80,7 @@ export var TD_ASSUMPTIONS = [
   'Poisonic clouds are centered on the target at NodeY - 24.',
   'The map-100 TrialType override is ignored.',
   'Each direct hit rolls its own critical, except a Pulse volley, which rolls once for all of its hits.',
-  'A portal blocks placement when its endpoint node or that endpoint\'s neighbor is the placement node.',
+  'Planning excludes off-scene cursor zones, NPC-obscured upgrade clicks, and spawn/exit placements that fail with either a leftmost or tower-centred camera. Native spawn/exit checks mix screen and world X; other camera positions can change their validity. Bloo Radley\'s pre-quest click zone is conservatively reserved.',
   'Frozone fires only while its target is on the side the wizard faces; its ring then hits every mob in range.',
 ];
 
@@ -271,7 +273,7 @@ export function towerStatsAt(type, level, TI, M) {
 }
 
 // Trait "z": rebuild every tower's trait map and cooldown.
-export function applyTraits(towers, towerLevels) {
+export function applyTraits(towers, towerLevels, firstTraitMulti) {
   var i, j, k;
   for (i = 0; i < towers.length; i++) {
     var tw = towers[i];
@@ -279,7 +281,7 @@ export function applyTraits(towers, towerLevels) {
     var tr = tdTrait(tw.type);
     for (k = 0; k < tw.traits.length; k++) {
       var side = tw.traits[k] === 'A' ? tr.A : tr.B;
-      tw.map[side.key] += side.value;
+      tw.map[side.key] += side.value * (k === 0 ? firstTraitMulti || 1 : 1);
     }
   }
   for (i = 0; i < towers.length; i++) {
@@ -288,15 +290,12 @@ export function applyTraits(towers, towerLevels) {
     var srcRange = towerRange(src.type, src.lvl, towerLevels[src.type]) + 10;
     for (k = 0; k < src.traits.length; k++) {
       var isA = src.traits[k] === 'A';
+      var multi = k === 0 ? firstTraitMulti || 1 : 1;
       for (j = 0; j < towers.length; j++) {
         var dst = towers[j];
-        var d = tdDistance(dst.cx - src.cx, dst.cy - src.cy);
-        if (src.type === 5 && isA) {
-          if (d < srcRange) dst.map[trs.A.key] += trs.A.value;
-        } else if (src.type === 4 && !isA) {
-          if (j !== i && d < srcRange) dst.map[trs.B.key] += trs.B.value;
-        } else if ((src.type === 5 || src.type === 8) && !isA) {
-          if (j !== i) dst.map[trs.B.key] += trs.B.value;
+        if (towerAuraApplies(src, dst, isA, srcRange, i === j)) {
+          var side2 = isA ? trs.A : trs.B;
+          dst.map[side2.key] += side2.value * multi;
         }
       }
     }
@@ -308,23 +307,90 @@ export function applyTraits(towers, towerLevels) {
   return towers;
 }
 
+export function towerAuraApplies(src, dst, isA, range, self) {
+  if (src.type === 5 && isA) return tdDistance(dst.cx - src.cx, dst.cy - src.cy) < range;
+  if (self) return false;
+  if (src.type === 4 && !isA) return tdDistance(dst.cx - src.cx, dst.cy - src.cy) < range;
+  return (src.type === 5 || src.type === 8) && !isA;
+}
+
+export function towerAuras(towers, towerLevels, firstTraitMulti) {
+  var out = [];
+  towers.forEach(function(src, i) {
+    ['A', 'B'].forEach(function(side) {
+      var isA = side === 'A', count = 0;
+      for (var k = 0; k < src.traits.length; k++) if ((src.traits[k] === 'A') === isA) count += k === 0 ? firstTraitMulti || 1 : 1;
+      if (!count || !(src.type === 5 || (!isA && (src.type === 4 || src.type === 8)))) return;
+      var global = !isA && src.type !== 4;
+      var range = towerRange(src.type, src.lvl, towerLevels[src.type]) + 10;
+      var targets = [];
+      towers.forEach(function(dst, j) { if (towerAuraApplies(src, dst, isA, range, i === j)) targets.push(j); });
+      var tr = tdTrait(src.type)[side];
+      out.push({ source: i, side: side, key: tr.key, value: count * tr.value, global: global, range: global ? null : range, targets: targets });
+    });
+  });
+  return out;
+}
+
 // ---------- Geometry / placement ----------
 
 function _node(geom, n) { return geom && geom.nodes[n]; }
 
-function _validNode(geom, n) {
-  var nd = _node(geom, n);
-  if (!nd) return false;
-  if (n >= geom.numberOfNodes - 1) return false;
-  if (nd.length < nd.x + 60) return false;
-  return true;
+export function placementNodeAt(trial, x, y) {
+  var geom = tdGeometry(trial), scene = tdTrialScene(trial);
+  if (!geom || !scene || x < 0 || x > scene.w || y < 0 || y > scene.h) return -1;
+  for (var n = 0; n < geom.numberOfNodes; n++) {
+    var nd = _node(geom, n);
+    if (nd && x > nd.x - 5 && x < nd.length + 5 && y > nd.y - 80 && y < nd.y + 40) return n;
+  }
+  return -1;
+}
+
+function _clampPlacementX(nd, x) { return Math.round(Math.min(nd.length - 30, Math.max(nd.x + 30, x))); }
+
+var _placementBandCache = {};
+function _placementBands(trial) {
+  if (_placementBandCache[trial]) return _placementBandCache[trial];
+  var geom = tdGeometry(trial), scene = tdTrialScene(trial), bands = [];
+  var xs = [0, scene.w], ys = [0, scene.h];
+  geom.nodes.slice(0, geom.numberOfNodes).forEach(function(nd) {
+    xs.push(Math.max(0, Math.min(scene.w, nd.x - 5)), Math.max(0, Math.min(scene.w, nd.length + 5)));
+    ys.push(Math.max(0, Math.min(scene.h, nd.y - 80)), Math.max(0, Math.min(scene.h, nd.y + 40)));
+  });
+  function cuts(a) { return a.sort(function(x, y) { return x - y; }).filter(function(x, i) { return !i || x !== a[i - 1]; }); }
+  xs = cuts(xs); ys = cuts(ys);
+  var probes = ys.slice();
+  for (var j = 1; j < ys.length; j++) probes.push((ys[j - 1] + ys[j]) / 2);
+  function add(left, right, x) {
+    var seen = {};
+    probes.forEach(function(y) {
+      var n = placementNodeAt(trial, x, y);
+      if (n < 0 || seen[n]) return;
+      seen[n] = true;
+      var nd = geom.nodes[n];
+      (bands[n] || (bands[n] = [])).push([_clampPlacementX(nd, left), _clampPlacementX(nd, right)]);
+    });
+  }
+  for (var i = 0; i < xs.length; i++) {
+    add(xs[i], xs[i], xs[i]);
+    if (i) add(xs[i - 1] + 1e-7, xs[i] - 1e-7, (xs[i - 1] + xs[i]) / 2);
+  }
+  bands.forEach(function(a, n) {
+    a.sort(function(x, y) { return x[0] - y[0]; });
+    bands[n] = a.reduce(function(out, b) {
+      var last = out[out.length - 1];
+      if (last && b[0] <= last[1] + 1) last[1] = Math.max(last[1], b[1]);
+      else out.push(b.slice());
+      return out;
+    }, []);
+  });
+  return (_placementBandCache[trial] = bands);
 }
 
 export function placeableNodes(trial) {
-  var geom = tdGeometry(trial);
   var out = [];
-  if (!geom) return out;
-  for (var n = 0; n < geom.nodes.length; n++) if (_validNode(geom, n)) out.push(n);
+  if (!tdGeometry(trial)) return out;
+  _placementBands(trial).forEach(function(b, n) { if (b.length) out.push(n); });
   return out;
 }
 
@@ -343,18 +409,19 @@ function _portalBlocks(geom, node, x) {
     if (Math.abs(pt[0] + 20 - x) >= 60) continue;
     var end = Number(pt[2]);
     var endNode = geom.nodes[end];
-    if (end === node || (endNode && (endNode.neighbors || []).map(Number).indexOf(node) >= 0)) return true;
+    if (endNode && Number(endNode.neighbors[0]) === node) return true;
   }
   return false;
 }
 
 // Validate a requested tower position (with the game's clamp and snap).
-export function validatePlacement(trial, towers, node, x) {
+export function validatePlacement(trial, towers, node, x, options) {
   var geom = tdGeometry(trial);
-  if (!geom || !_validNode(geom, node)) return { ok: false, x: x, reason: 'Not a placeable platform' };
+  var bands = geom && _placementBands(trial)[node];
+  if (!bands || !bands.length) return { ok: false, x: x, reason: 'Not a selectable platform' };
   var nd = geom.nodes[node];
-  var lo = nd.x + 30, hi = nd.length - 30;
-  var px = Math.round(Math.max(lo, Math.min(hi, x)));
+  var px = _clampPlacementX(nd, x);
+  if (!bands.some(function(b) { return px >= b[0] && px <= b[1]; })) return { ok: false, x: px, reason: 'An earlier platform captures the placement cursor' };
   towers = towers || [];
   // Placement cursor: every same-platform tower within 61 px nudges it to 62 px on the side it is
   // strictly greater than (ties go left), in list order without stopping; then it is clamped again.
@@ -362,14 +429,16 @@ export function validatePlacement(trial, towers, node, x) {
     var o = towers[i];
     if (o.node === node && Math.abs(o.x - px) < 61) px = px > o.x ? o.x + 62 : o.x - 62;
   }
-  px = Math.round(Math.max(lo, Math.min(hi, px)));
+  px = _clampPlacementX(nd, px);
+  var screenX = options && options.screenX || 0;
+  var cursorX = px - screenX;
   var p = tdTrialPath(trial);
   var first = p.path[0], last = p.path[p.path.length - 1];
   var ff = p.flags[0], lf = p.flags[p.flags.length - 1];
-  if (node === first && ((ff === 1 && px > nd.length - 80) || (ff === 0 && px < nd.x + 80))) {
+  if (node === first && ((ff === 1 && cursorX > nd.length - 80) || (ff === 0 && cursorX < nd.x + 80))) {
     return { ok: false, x: px, reason: 'Too close to the mob spawn' };
   }
-  if (node === last && ((lf === 0 && px > nd.length - 80) || (lf === 1 && px < nd.x + 80))) {
+  if (node === last && ((lf === 0 && cursorX > nd.length - 80) || (lf === 1 && cursorX < nd.x + 80))) {
     return { ok: false, x: px, reason: 'Too close to the totem exit' };
   }
   for (var j = 0; j < towers.length; j++) {
@@ -377,6 +446,37 @@ export function validatePlacement(trial, towers, node, x) {
   }
   if (_portalBlocks(geom, node, px)) return { ok: false, x: px, reason: 'Blocked by a portal' };
   return { ok: true, x: px, reason: '' };
+}
+
+export function towerUpgradeAccess(trial, node, x) {
+  var c = towerCenters(trial, node, x), zones = tdTrialNpcZones(trial);
+  var left = c.cx - 35, right = c.cx + 29, top = c.cy - 105, bottom = c.cy - 37;
+  var xs = [left, right], ys = [top, bottom];
+  zones.forEach(function(z) {
+    if (z.left > left && z.left < right) xs.push(z.left);
+    if (z.right > left && z.right < right) xs.push(z.right);
+    if (z.top > top && z.top < bottom) ys.push(z.top);
+    if (z.bottom > top && z.bottom < bottom) ys.push(z.bottom);
+  });
+  xs.sort(function(a, b) { return a - b; }); ys.sort(function(a, b) { return a - b; });
+  for (var i = 1; i < xs.length; i++) for (var j = 1; j < ys.length; j++) {
+    if (xs[i] <= xs[i - 1] || ys[j] <= ys[j - 1]) continue;
+    var px = (xs[i] + xs[i - 1]) / 2, py = (ys[j] + ys[j - 1]) / 2;
+    if (!zones.some(function(z) { return px > z.left && px < z.right && py > z.top && py < z.bottom; })) {
+      return { ok: true, click: { x: px, y: py }, reason: '' };
+    }
+  }
+  return { ok: false, click: null, reason: 'NPC blocks the tower upgrade click zone' };
+}
+
+export function validatePlanningPlacement(trial, towers, node, x) {
+  var v = validatePlacement(trial, towers, node, x);
+  if (!v.ok) return v;
+  var camera = Math.max(0, Math.min(tdTrialScene(trial).w - 960, v.x - 480));
+  var centred = validatePlacement(trial, towers, node, x, { screenX: camera });
+  if (!centred.ok) return { ok: false, x: v.x, reason: centred.reason + ' (camera-sensitive placement)' };
+  var access = towerUpgradeAccess(trial, node, v.x);
+  return access.ok ? v : { ok: false, x: v.x, reason: access.reason };
 }
 
 // Stage-by-stage layouts as the sim places them: every initial tower, then each phase's sells and
@@ -388,7 +488,7 @@ export function planPlacementLayouts(trial, plan) {
     var i = idx++;
     var v = validatePlacement(trial, list, t.slot.node, t.slot.x);
     if (!v.ok) { rejected.push({ planIdx: i, type: t.type, node: t.slot.node, x: t.slot.x, reason: v.reason }); return; }
-    list.push({ type: t.type, node: t.slot.node, x: v.x, reqX: t.slot.x, traits: t.traits || '', planIdx: i });
+    list.push({ type: t.type, node: t.slot.node, x: v.x, reqX: t.slot.x, traits: t.traits || '', maxLevel: t.maxLevel, planIdx: i });
   }
   (plan.towers || []).forEach(add);
   out.push({ label: 'Initial build', towers: list.slice(), rejected: rejected.slice() });
@@ -396,6 +496,7 @@ export function planPlacementLayouts(trial, plan) {
     var s = ph.sell || {};
     var keepTypes = s.keepTypes || [], types = s.types || [], ids = s.planIdx || [];
     list = list.filter(function(t) {
+      if (!towerUpgradeAccess(trial, t.node, t.x).ok) return true;
       return s.all ? keepTypes.indexOf(t.type) >= 0 : !(types.indexOf(t.type) >= 0 || ids.indexOf(t.planIdx) >= 0);
     });
     rejected = [];
@@ -414,14 +515,14 @@ export function legalizePlan(trial, plan, slots) {
   slots = slots || legalSlots(trial, 10);
   var placed = [], map = [], g = 0, kept = 0;
   function fit(t) {
-    var v = validatePlacement(trial, placed, t.slot.node, t.slot.x);
+    var v = validatePlanningPlacement(trial, placed, t.slot.node, t.slot.x);
     if (!v.ok) {
       var best = null, bestD = Infinity;
       for (var k = 0; k < slots.length; k++) {
         var s = slots[k];
         var d = (s.node === t.slot.node ? 0 : 1e6) + Math.abs(s.x - t.slot.x);
         if (d >= bestD) continue;
-        var w = validatePlacement(trial, placed, s.node, s.x);
+        var w = validatePlanningPlacement(trial, placed, s.node, s.x);
         if (w.ok && w.x === s.x) { best = s; bestD = d; }
       }
       if (!best) return false;
@@ -458,11 +559,12 @@ export function legalSlots(trial, step) {
   var geom = tdGeometry(trial);
   var out = [];
   placeableNodes(trial).forEach(function(n) {
-    var nd = geom.nodes[n];
-    for (var x = nd.x + 30; x <= nd.length - 30; x += step) {
-      var v = validatePlacement(trial, [], n, x);
-      if (v.ok && v.x === x) out.push({ node: n, x: x });
-    }
+    _placementBands(trial)[n].forEach(function(b) {
+      for (var x = b[0]; x <= b[1]; x += step) {
+        var v = validatePlanningPlacement(trial, [], n, x);
+        if (v.ok && v.x === x) out.push({ node: n, x: x });
+      }
+    });
   });
   return out;
 }
@@ -644,6 +746,7 @@ export function worshipTdInputs(saveData, charIdx) {
   for (var t = 0; t < TD_TOWER_COUNT; t++) towerLevels.push(Number(saveData.towerData && saveData.towerData[9 + t]) || 0);
   var atom5 = atom5Bonus(towerLevels);
   var dream7 = Number(dreamData && dreamData[7]) || 0;
+  var slowRoastPreCookSec = Math.min(14400, menagerieBoostQTY(saveData, 15));
   var saltLick = _num(_raw(function() { return computeSaltLick(6, saveData); }));
   var saltLickX = 1 + saltLick / 100;
   var meal = _term('Meals: TD points', function() { return computeMealBonus('TDpts', saveData, ci); });
@@ -656,7 +759,7 @@ export function worshipTdInputs(saveData, charIdx) {
   ] };
   var damageTree = { name: 'Tower damage multiplier (wave start)', val: 1 + atom5 / 100, fmt: 'x', children: [
     { name: 'Atom 5: 2 x levels above 50', val: 1 + atom5 / 100, fmt: 'x', note: '+' + atom5 + '%' },
-    { name: 'Dream 7 per second into wave', val: dream7, fmt: '%', note: 'Grows from -10 s at wave start, cap 14400 s' },
+    { name: 'Dream 7 per second into wave', val: dream7, fmt: '%', note: 'Resets to -10 s at wave start; next 1 s tick applies the Menagerie floor of ' + slowRoastPreCookSec + ' s, then grows to the 14400 s cap' },
   ] };
 
   // Soul rewards
@@ -712,8 +815,10 @@ export function worshipTdInputs(saveData, charIdx) {
     startPts: startPts,
     totemHp: totemHp,
     towerLevels: towerLevels,
+    firstTraitMulti: menagerieUnlockOwned(saveData, 18) ? 2 : 1,
     atom5: atom5,
     dream7: dream7,
+    slowRoastPreCookSec: slowRoastPreCookSec,
     saltLickX: saltLickX,
     killPtsMult: killPtsMult,
     efficiency: efficiency,
@@ -816,6 +921,7 @@ function _mkTower(trial, inputs, type, node, x) {
     state: 1, readyAt: 0, lastFire: -1, id: 0,
     refund: 0, map: new Array(10).fill(0), wx: c.wx, wy: c.wy, cx: c.cx, cy: c.cy,
     facing: c.facing, underlings: 0, shots: 0, damage: 0, planIdx: -1,
+    upgradeAccess: towerUpgradeAccess(trial, node, x).ok,
   };
 }
 
@@ -991,7 +1097,7 @@ export function createWorshipTdRun(inputs, plan, opts) {
     if (k >= PUSH_TICKS) obj.push = null;
     return pos;
   }
-  function trigZ() { applyTraits(towers, TL); }
+  function trigZ() { applyTraits(towers, TL, inputs.firstTraitMulti); }
 
   function damageMulti() {
     return towerDamageMulti(inputs, towers.length ? towers[0].map[9] : 0, G85);
@@ -1237,7 +1343,7 @@ export function createWorshipTdRun(inputs, plan, opts) {
     for (var i = 0; i < towers.length; i++) {
       var tw = towers[i];
       var pp = plan.towers[tw.planIdx];
-      if (tw.lvl >= pp.maxLevel) continue;
+      if (tw.lvl >= pp.maxLevel || !tw.upgradeAccess) continue;
       var c = towerUpgradeCost(tw.type, tw.lvl, TL[tw.type]);
       var s = pp.weight / Math.max(1, c);
       if (!best || s > best.score) best = { kind: 'upgrade', tower: tw, cost: c, score: s };
@@ -1265,6 +1371,7 @@ export function createWorshipTdRun(inputs, plan, opts) {
         pts -= a.cost; spent += a.cost;
         tw.refund = Math.ceil(0.6 * a.cost);
         towers.push(tw);
+        if (!tw.upgradeAccess) placementFails.push({ planIdx: nextPlan, reason: 'Placed at level 1, but NPC blocks upgrade clicks' });
         nextPlan++;
         trigZ();
         towersChanged();
@@ -1319,6 +1426,10 @@ export function createWorshipTdRun(inputs, plan, opts) {
         var tw = towers[i];
         var hitSell = s.all ? s.keepTypes.indexOf(tw.type) < 0
           : (s.types.indexOf(tw.type) >= 0 || s.planIdx.indexOf(tw.planIdx) >= 0);
+        if (hitSell && !tw.upgradeAccess) {
+          placementFails.push({ planIdx: tw.planIdx, reason: 'NPC blocks the requested tower sale' });
+          hitSell = false;
+        }
         if (hitSell) { refund += tw.refund; sold++; tw.sold = true; } else keep.push(tw);
       }
       if (sold) {
@@ -1502,6 +1613,8 @@ export function createWorshipTdRun(inputs, plan, opts) {
     if (tick % 10 === 0) {
       G13 = Math.round(G13 - 1);
       G85 = Math.min(14400, G85 + 1);
+      // The floor applies before starting a new wave, whose reset lasts until the next 1 s tick.
+      if (G85 < (inputs.slowRoastPreCookSec || 0)) G85 = Math.min(14400, inputs.slowRoastPreCookSec || 0);
       if (G13 < 0) {
         G8++;
         G55 = Math.max(G55, G8);
@@ -1912,7 +2025,7 @@ export function guidePresetPlan(id) {
 // Waves are spam-skipped and roots are cast when mobs get dangerous.
 export var TD_HOLD_DEFAULTS = {
   wallNode: null, wallCount: 9, wallOffset: 56, dpsRank: 0, poisonCount: 4,
-  partyCount: 11, keepKraken: 1, phasePartyFrac: 2 / 3, targetWave: null,
+  partyCount: 11, freezeEvery: 4, keepKraken: 1, phasePartyFrac: 2 / 3, targetWave: null,
 };
 
 var _legalXCache = {};
@@ -1921,10 +2034,12 @@ function _legalXs(trial, node) {
   if (_legalXCache[key]) return _legalXCache[key];
   var nd = tdGeometry(trial).nodes[node];
   var out = [];
-  for (var x = nd.x + 30; x <= nd.length - 30; x++) {
-    var v = validatePlacement(trial, [], node, x);
-    if (v.ok && v.x === x) out.push(x);
-  }
+  _placementBands(trial)[node].forEach(function(b) {
+    for (var x = b[0]; x <= b[1]; x++) {
+      var v = validatePlanningPlacement(trial, [], node, x);
+      if (v.ok && v.x === x) out.push(x);
+    }
+  });
   return (_legalXCache[key] = out);
 }
 
@@ -2019,8 +2134,9 @@ export function holdTemplatePlan(inputs, trial, params) {
   var wallXs = _walkSlots(xs, W.entryX + W.dir * Math.max(0, P.wallOffset), W.dir, Math.max(1, Math.min(P.wallCount, W.capacity)), 62);
   if (!wallXs.length) wallXs = _walkSlots(xs, W.entryX, W.dir, Math.max(1, Math.min(P.wallCount, W.capacity)), 62);
   P.wallCount = wallXs.length;
+  P.freezeEvery = Math.max(2, Math.round(P.freezeEvery));
   var wall = wallXs.map(function(x, i) {
-    var frz = has(3) && (!has(6) || i % 4 === 2);
+    var frz = has(3) && (!has(6) || i % P.freezeEvery === P.freezeEvery - 2);
     return frz ? _gt(3, W.node, x, 'AAAAAA', null, 1) : _gt(6, W.node, x, 'BAAAAA', 25, 1);
   });
   var occupied = wall.map(function(t) { return t.slot; });
@@ -2467,7 +2583,7 @@ function _score(inputs, trial, objective, agg) {
     wave: w,
     minWave: agg.minBestWave,
     reached: agg.meanHighestWave,
-    endFrac: Math.round(meanOf(function(r) { return r.endPendingFrac || 0; }) * 100) / 100,
+    endFrac: meanOf(function(r) { return r.endPendingFrac || 0; }),
     savePts: meanOf(function(r) { var s = r.saves || []; return s.length ? s[s.length - 1].pts : 0; }),
     time: meanOf(function(r) { return r.bestWaveTimeSec || 0; }),
   };
@@ -2484,193 +2600,251 @@ function _better(a, b) {
   return a.time < b.time;
 }
 
-// Bounded random-restart local search over build plans.
+// Diverse simulation-backed beam search over build plans.
 // opts: { trial, objective: 'wave'|'souls', restarts, iterations, seeds, start,
 //         maxWave, maxTimeSec, skipPolicy, maxTowers, seedPlan, baseSeed }
 export function optimizeWorshipTd(inputs, opts, onProgress) {
-  opts = opts || {};
-  var trial = Number(opts.trial) || 0;
-  var objective = opts.objective === 'souls' ? 'souls' : 'wave';
-  var restarts = Math.max(1, opts.restarts || 4);
-  var iterations = Math.max(1, opts.iterations || 60);
-  var nSeeds = Math.max(1, opts.seeds || 3);
-  var baseSeed = Number(opts.baseSeed) || 12345;
-  var seeds = [];
-  for (var s = 0; s < nSeeds; s++) seeds.push(baseSeed + s * 7919);
-  var simOpts = { trial: trial, start: opts.start || 'fresh', maxWave: opts.maxWave || 1000, maxTimeSec: opts.maxTimeSec || 4 * 3600 };
-  var startWave = opts.start === 'checkpoint' ? (inputs.checkpointWaves[trial] || 0)
-    : opts.start && typeof opts.start === 'object' ? Math.round(Number(opts.start.wave) || 0) : 0;
-  var rng = mulberry32(baseSeed ^ 0x9e3779b9);
-  var slots = legalSlots(trial, 10);
-  var ctx = {
-    slots: slots,
-    idx: slots.map(function(_, i) { return i; }),
-    cov: slots.map(function(sl) { return slotCoverage(trial, sl, 160); }),
-    types: _unlockedTypes(inputs),
-    maxTowers: opts.maxTowers || 30,
-    // Phase triggers are drawn from boss waves between the start and well past the saved best.
-    waveLo: startWave + 10,
-    waveHi: Math.max(startWave, inputs.bestWaves[trial] || 0) + 40,
-  };
-  if (!ctx.types.length || !slots.length) return { ok: false, reason: ctx.types.length ? 'No legal tower slots' : 'No unlocked tower types' };
-  var total = restarts * (iterations + 1);
-  var done = 0;
-  var evaluations = 0;
-  var bestPlan = null, bestScore = null, bestAgg = null;
-  var history = [];
-  function evaluate(plan) {
-    evaluations++;
-    var agg = simulateWorshipTdTrials(inputs, plan, simOpts, seeds);
-    return { agg: agg, score: _score(inputs, trial, objective, agg) };
-  }
-  for (var r = 0; r < restarts; r++) {
-    var cur;
-    if (r === 0 && opts.seedPlan && opts.seedPlan.towers && opts.seedPlan.towers.length) cur = _normalizePlan(opts.seedPlan);
-    else if (r === 0 || (r === 1 && opts.seedPlan)) cur = _normalizePlan(heuristicPlan(inputs, trial, { skipPolicy: opts.skipPolicy }));
-    else cur = randomPlan(inputs, trial, rng, { slots: slots, coverage: ctx.cov, maxTowers: ctx.maxTowers, skipPolicy: opts.skipPolicy, ctx: ctx });
-    if (opts.skipPolicy) cur.skipPolicy = opts.skipPolicy;
-    cur = legalizePlan(trial, cur, slots);
-    var ce = evaluate(cur);
-    done++;
-    for (var it = 0; it < iterations; it++) {
-      var cand = _mutate(cur, inputs, trial, rng, ctx);
-      if (!opts.skipPolicy && rng() < 0.05) cand.skipPolicy = TD_SKIP_POLICIES[(TD_SKIP_POLICIES.indexOf(cand.skipPolicy) + 1 + Math.floor(rng() * 2)) % TD_SKIP_POLICIES.length];
-      var ev = evaluate(cand);
-      if (!_better(ce.score, ev.score)) { cur = cand; ce = ev; }
-      done++;
-      if (!bestScore || _better(ce.score, bestScore)) { bestScore = ce.score; bestPlan = _clonePlan(cur); bestAgg = ce.agg; }
-      if (onProgress && (it % 2 === 0 || it === iterations - 1)) {
-        onProgress({ phase: 'search', completed: done, total: total, restart: r + 1, restarts: restarts, bestWave: bestScore.wave, bestPrimary: bestScore.primary, plan: bestPlan });
-      }
-    }
-    if (!bestScore || _better(ce.score, bestScore)) { bestScore = ce.score; bestPlan = _clonePlan(cur); bestAgg = ce.agg; }
-    history.push({ restart: r + 1, wave: ce.score.wave, primary: ce.score.primary });
-  }
-  var detail = simulateWorshipTdRun(inputs, bestPlan, Object.assign({}, simOpts, { seed: seeds[0] }));
-  var saved = inputs.bestWaves[trial] || 0;
-  return {
-    ok: true,
-    trial: trial,
-    objective: objective,
-    plan: bestPlan,
-    score: bestScore,
-    meanBestWave: bestAgg.meanBestWave,
-    minBestWave: bestAgg.minBestWave,
-    maxBestWave: bestAgg.maxBestWave,
-    savedBest: saved,
-    soulsPerHourNow: soulsPerHour(inputs, trial, saved),
-    soulsPerHourPlan: soulsPerHour(inputs, trial, Math.max(saved, Math.floor(bestAgg.meanBestWave))),
-    evaluations: evaluations,
-    seeds: seeds,
-    history: history,
-    startWave: startWave,
-    saveAt: commonSavePoint(bestAgg.runs, startWave),
-    detail: detail,
-  };
+  return _searchTdLayouts(inputs, opts || {}, onProgress, true);
 }
 
-// Guide-strategy layout search: the hold template is fixed, only its placement and counts are
-// searched. Screens every wall platform (and the trial's guide presets), then coordinate-descends
-// wall offset/length, DPS cluster, Party count, kept Krakens, boss-phase split, and target wave on
-// the leader, and finally re-scores the winner with more seeds.
+// Guide-family beam search, with joint structural seeds and several independently refined leaders.
 // opts: { trial, objective, start, seeds, finalSeeds, budget, maxWave, maxTimeSec, baseSeed, params }
 export function optimizeWorshipTdLayout(inputs, opts, onProgress) {
-  opts = opts || {};
+  return _searchTdLayouts(inputs, opts || {}, onProgress, false);
+}
+
+function _tdTemplateNeighbors(P) {
+  return [
+    { wallCount: P.wallCount - 2 }, { wallCount: P.wallCount + 2 },
+    { wallOffset: Math.max(0, P.wallOffset - 62) }, { wallOffset: P.wallOffset + 62 },
+    { dpsRank: 0 }, { dpsRank: 1 }, { dpsRank: 2 }, { dpsRank: 3 },
+    { freezeEvery: 2 }, { freezeEvery: 3 }, { freezeEvery: 4 },
+    { poisonCount: Math.max(1, P.poisonCount - 2) }, { poisonCount: P.poisonCount + 2 },
+    { partyCount: Math.max(0, P.partyCount - 4) }, { partyCount: P.partyCount + 4 },
+    { keepKraken: 0 }, { keepKraken: 1 }, { keepKraken: 2 },
+    { phasePartyFrac: 0 }, { phasePartyFrac: 0.5 }, { phasePartyFrac: 1 },
+    { targetWave: Math.max(10, P.targetWave - 10) }, { targetWave: P.targetWave + 10 },
+  ];
+}
+
+function _tdPlanNeighbors(entry, trial, ctx) {
+  var plan = entry.plan, out = [];
+  var runs = entry.agg.runs;
+  var damage = {};
+  runs.forEach(function(r) {
+    r.towers.forEach(function(t) { damage[t.planIdx] = (damage[t.planIdx] || 0) + t.damage; });
+  });
+  // Relocate low-output damage towers as a whole move, rather than removing them and
+  // hoping a later random insertion survives the temporary score loss.
+  var weak = plan.towers.map(function(t, i) { return i; }).filter(function(i) {
+    return [0, 1, 2, 4, 7].indexOf(plan.towers[i].type) >= 0;
+  }).sort(function(a, b) { return (damage[a] || 0) - (damage[b] || 0) || a - b; }).slice(0, 2);
+  weak.forEach(function(i) {
+    var standing = plan.towers.filter(function(_, j) { return j !== i; }).map(function(t) { return t.slot; });
+    var choices = ctx.slots.map(function(s, k) { return { slot: s, cov: ctx.cov[k] }; })
+      .filter(function(c) {
+        var v = validatePlacement(trial, standing, c.slot.node, c.slot.x);
+        return v.ok && v.x === c.slot.x;
+      }).sort(function(a, b) { return b.cov - a.cov || a.slot.node - b.slot.node || a.slot.x - b.slot.x; });
+    var nodes = {};
+    choices.forEach(function(c) {
+      if (nodes[c.slot.node]) return;
+      nodes[c.slot.node] = true;
+      var p = _clonePlan(plan);
+      p.towers[i].slot = { node: c.slot.node, x: c.slot.x };
+      out.push(p);
+    });
+  });
+  var types = [];
+  plan.towers.forEach(function(t) { if (types.indexOf(t.type) < 0) types.push(t.type); });
+  types.forEach(function(type) {
+    ['AAAAAA', 'BBBBBB', 'ABABBB', 'BAAAAA'].forEach(function(traits) {
+      var p = _clonePlan(plan);
+      _allTowers(p).forEach(function(t) { if (t.type === type) t.traits = traits; });
+      out.push(p);
+    });
+  });
+  return out;
+}
+
+function _searchTdLayouts(inputs, opts, onProgress, free) {
   var trial = Number(opts.trial) || 0;
   var objective = opts.objective === 'souls' ? 'souls' : 'wave';
   var baseSeed = Number(opts.baseSeed) || 12345;
   var nSeeds = Math.max(1, opts.seeds || 2);
   var nFinal = Math.max(nSeeds, opts.finalSeeds || nSeeds * 2);
   var seeds = [], finalSeeds = [];
-  for (var s = 0; s < nFinal; s++) { finalSeeds.push(baseSeed + s * 7919); if (s < nSeeds) seeds.push(baseSeed + s * 7919); }
+  for (var s = 0; s < nSeeds; s++) seeds.push((baseSeed + s * 7919) >>> 0);
+  for (var fs = 0; fs < nFinal; fs++) finalSeeds.push((baseSeed + 1000003 + fs * 7919) >>> 0);
   var cp = inputs.checkpointWaves[trial] || 0;
-  var start = opts.start || (cp ? 'checkpoint' : 'fresh');
+  var start = opts.start || (free ? 'fresh' : cp ? 'checkpoint' : 'fresh');
   var simOpts = { trial: trial, start: start, maxWave: opts.maxWave || 1000, maxTimeSec: opts.maxTimeSec || 4 * 3600 };
   var startWave = start === 'checkpoint' ? cp : start && typeof start === 'object' ? Math.round(Number(start.wave) || 0) : 0;
   var walls = holdWallNodes(trial);
-  var first = holdTemplatePlan(inputs, trial, Object.assign({ wallNode: walls.length ? walls[0].node : null }, opts.params || {}));
-  if (!first) return { ok: false, reason: walls.length ? 'Needs Kraken or Frozone unlocked' : 'No path platform can hold a wall' };
-  var budget = Math.max(walls.length + 1, opts.budget || 30);
-  var evaluations = 0;
-  var cache = {};
-  var screen = [];
+  var slots = legalSlots(trial, 10);
+  var ctx = {
+    slots: slots, idx: slots.map(function(_, i) { return i; }),
+    cov: slots.map(function(sl) { return slotCoverage(trial, sl, 160); }),
+    types: _unlockedTypes(inputs), maxTowers: opts.maxTowers || 30,
+    waveLo: startWave + 10, waveHi: Math.max(startWave, inputs.bestWaves[trial] || 0) + 40,
+  };
+  if (!ctx.types.length || !slots.length) return { ok: false, reason: ctx.types.length ? 'No legal tower slots' : 'No unlocked tower types' };
+  var first = holdTemplatePlan(inputs, trial, opts.params);
+  if (!free && !first) return { ok: false, reason: walls.length ? 'Needs Kraken or Frozone unlocked' : 'No path platform can hold a wall' };
+  var presets = guidePresetsForTrial(trial);
+  var budget = Math.max(walls.length + presets.length + 2, Math.floor(opts.budget || (free
+    ? Math.max(1, opts.restarts || 4) * (Math.max(1, opts.iterations || 60) + 1) : 64)));
+  var rng = mulberry32(baseSeed ^ 0x9e3779b9);
+  var evaluations = 0, duplicates = 0, finalEvaluations = 0;
+  var seen = new Set(), entries = [], baselines = [], screen = [];
+  var queue = [], families = new Set(), neighborhoods = new Map();
   var best = null;
-  function key(P) { return JSON.stringify([P.wallNode, P.wallCount, P.wallOffset, P.dpsRank, P.poisonCount, P.partyCount, P.keepKraken, Math.round(P.phasePartyFrac * 100), P.targetWave]); }
-  function consider(e) {
-    if (!best || _better(e.score, best.score)) best = e;
-  }
+  var finalCount = Math.max(2, Math.min(8, Math.round(opts.finalists || 4)));
+  var finalReserve = finalCount + presets.length + 1;
   function report(phase) {
-    if (onProgress) onProgress({ phase: phase, completed: Math.min(evaluations, budget), total: budget + 1, bestWave: best ? best.score.wave : 0, bestPrimary: best ? best.score.primary : 0, plan: best ? best.plan : null, params: best ? best.params : null, label: best ? best.label : '' });
+    if (onProgress) onProgress({
+      phase: phase, completed: evaluations + finalEvaluations, total: budget + finalReserve,
+      bestWave: best ? best.score.wave : 0, bestPrimary: best ? best.score.primary : 0,
+      plan: best ? best.plan : null, label: best ? best.label : '',
+      families: families.size, finalists: finalEvaluations,
+    });
   }
-  function evalTemplate(params, label) {
-    var built = holdTemplatePlan(inputs, trial, params);
-    if (!built) return null;
-    var k = key(built.params);
-    if (cache[k]) return cache[k];
-    if (evaluations >= budget) return null;
+  function evaluate(candidate, phase) {
+    if (!candidate || evaluations >= budget) return null;
+    var plan = legalizePlan(trial, _normalizePlan(candidate.plan), slots);
+    if (opts.skipPolicy) plan.skipPolicy = opts.skipPolicy;
+    var key = JSON.stringify(plan);
+    if (seen.has(key)) { duplicates++; return null; }
+    seen.add(key);
     evaluations++;
-    var agg = simulateWorshipTdTrials(inputs, built.plan, simOpts, seeds);
-    var e = { kind: 'template', label: label, params: built.params, roles: built.roles, plan: built.plan, agg: agg, score: _score(inputs, trial, objective, agg) };
-    cache[k] = e;
-    consider(e);
-    report('layout');
+    var agg = simulateWorshipTdTrials(inputs, plan, simOpts, seeds);
+    var e = Object.assign({}, candidate, { plan: plan, agg: agg, score: _score(inputs, trial, objective, agg), key: key });
+    entries.push(e);
+    families.add(e.family);
+    if (!best || _better(e.score, best.score)) best = e;
+    report(phase);
     return e;
   }
-  // 1) Screen every wall platform with default parameters, plus the trial's guide presets.
+  function template(params, label) {
+    var built = holdTemplatePlan(inputs, trial, params);
+    if (free && built && built.plan.towers.length > ctx.maxTowers) {
+      built = holdTemplatePlan(inputs, trial, Object.assign({}, built.params, {
+        partyCount: Math.max(0, built.params.partyCount - (built.plan.towers.length - ctx.maxTowers)),
+      }));
+      if (built.plan.towers.length > ctx.maxTowers) return null;
+    }
+    return built ? {
+      kind: 'template', label: label, params: built.params, roles: built.roles, plan: built.plan,
+      family: 'wall:' + built.params.wallNode + ':' + built.params.freezeEvery,
+    } : null;
+  }
+  function ranked(list) {
+    return list.slice().sort(function(a, b) { return _better(a.score, b.score) ? -1 : _better(b.score, a.score) ? 1 : 0; });
+  }
+  function diverse(list, count) {
+    var order = ranked(list), picked = [], used = new Set();
+    order.forEach(function(e) {
+      if (picked.length < count && !used.has(e.family)) { picked.push(e); used.add(e.family); }
+    });
+    order.forEach(function(e) { if (picked.length < count && picked.indexOf(e) < 0) picked.push(e); });
+    return picked;
+  }
+  report('construction');
+  if (opts.seedPlan && opts.seedPlan.towers && opts.seedPlan.towers.length) {
+    var supplied = evaluate({ kind: 'seed', label: 'Supplied plan', family: 'supplied', plan: opts.seedPlan }, 'construction');
+    if (supplied) baselines.push(supplied);
+  }
+  var heuristic = evaluate({ kind: 'heuristic', label: 'Mixed-tower baseline', family: 'mixed', plan: heuristicPlan(inputs, trial, { skipPolicy: opts.skipPolicy }) }, 'construction');
+  if (!baselines.length && heuristic) baselines.push(heuristic);
+  presets.forEach(function(g) {
+    var e = evaluate({ kind: 'preset', label: g.label, family: 'preset:' + g.id, presetId: g.id, plan: g.build() }, 'construction');
+    if (e) baselines.push(e);
+  });
   walls.forEach(function(w) {
-    var e = evalTemplate(Object.assign({}, opts.params || {}, { wallNode: w.node }), 'Wall on platform ' + w.node);
+    var e = evaluate(template(Object.assign({}, opts.params, { wallNode: w.node }), 'Wall on platform ' + w.node), 'construction');
     if (e) screen.push({ label: e.label, wallNode: w.node, wave: e.score.wave, minWave: e.score.minWave });
   });
-  guidePresetsForTrial(trial).forEach(function(g) {
-    if (evaluations >= budget) return;
-    evaluations++;
-    var plan = _normalizePlan(g.build());
-    var agg = simulateWorshipTdTrials(inputs, plan, simOpts, seeds);
-    var e = { kind: 'preset', label: g.label, presetId: g.id, params: null, roles: null, plan: plan, agg: agg, score: _score(inputs, trial, objective, agg) };
-    screen.push({ label: g.label, wallNode: null, wave: e.score.wave, minWave: e.score.minWave });
-    consider(e);
-    report('layout');
-  });
-  // 2) Coordinate descent on the best template (presets stay as fixed baselines).
-  var lead = best.kind === 'template' ? best : Object.keys(cache).map(function(k) { return cache[k]; }).reduce(function(a, b) { return !a || _better(b.score, a.score) ? b : a; }, null);
-  var tweaks = [
-    function(P) { return [{ targetWave: P.targetWave - 10 }, { targetWave: P.targetWave + 10 }, { targetWave: P.targetWave - 20 }, { targetWave: P.targetWave + 20 }]; },
-    function(P) { return [{ wallOffset: Math.max(0, P.wallOffset - 31) }, { wallOffset: P.wallOffset + 31 }]; },
-    function(P) { return [{ wallCount: P.wallCount - 1 }, { wallCount: P.wallCount + 1 }, { wallCount: P.wallCount + 2 }]; },
-    function(P) { return [{ dpsRank: P.dpsRank + 1 }, { dpsRank: P.dpsRank + 2 }, { dpsRank: Math.max(0, P.dpsRank - 1) }]; },
-    function(P) { return [{ partyCount: Math.max(0, P.partyCount - 3) }, { partyCount: P.partyCount + 3 }]; },
-    function(P) { return [{ keepKraken: P.keepKraken === 1 ? 2 : 1 }]; },
-    function(P) { return [{ poisonCount: Math.max(1, P.poisonCount - 1) }, { poisonCount: P.poisonCount + 1 }]; },
-    function(P) { return [{ phasePartyFrac: P.phasePartyFrac > 0.5 ? 0.34 : 2 / 3 }]; },
+  // Cross layout families before local tuning: short/long walls, freeze density,
+  // damage/support balance, offsets, and boss retention change together.
+  var structures = [
+    { wallCount: 5, freezeEvery: 2, poisonCount: 2, partyCount: 6, wallOffset: 0, keepKraken: 2 },
+    { wallCount: 11, freezeEvery: 3, poisonCount: 6, partyCount: 11, wallOffset: 118, keepKraken: 2 },
+    { wallCount: 7, freezeEvery: 4, poisonCount: 6, partyCount: 7, wallOffset: 0, phasePartyFrac: 0 },
+    { wallCount: 9, freezeEvery: 2, poisonCount: 3, partyCount: 15, wallOffset: 180, phasePartyFrac: 1 },
+    { wallCount: 3, freezeEvery: 3, poisonCount: 6, partyCount: 11, wallOffset: 56, keepKraken: 0 },
   ];
-  var improved = true;
-  while (lead && improved && evaluations < budget) {
-    improved = false;
-    for (var ti = 0; ti < tweaks.length && evaluations < budget; ti++) {
-      var opts2 = tweaks[ti](lead.params);
-      for (var oi = 0; oi < opts2.length && evaluations < budget; oi++) {
-        var e2 = evalTemplate(Object.assign({}, lead.params, opts2[oi]), lead.label);
-        if (e2 && _better(e2.score, lead.score)) { lead = e2; improved = true; }
+  structures.forEach(function(structure, si) {
+    walls.forEach(function(w) {
+      queue.push(template(Object.assign({}, opts.params, structure, { wallNode: w.node }), 'Platform ' + w.node + ', structure ' + (si + 1)));
+    });
+  });
+  var constructionLimit = Math.max(evaluations, Math.min(budget, Math.ceil(budget * 0.45)));
+  while (queue.length && evaluations < constructionLimit) evaluate(queue.shift(), 'construction');
+  queue = [];
+  var attempts = 0;
+  while (evaluations < budget && attempts++ < budget * 20) {
+    if (!queue.length) {
+      var leaders = diverse(entries, Math.max(2, opts.restarts || 4));
+      var batches = [];
+      leaders.forEach(function(e) {
+        if (!neighborhoods.has(e.key)) {
+          var structural = e.params ? _tdTemplateNeighbors(e.params).map(function(delta) {
+            return template(Object.assign({}, e.params, delta), e.label);
+          }) : [];
+          var edits = free ? _tdPlanNeighbors(e, trial, ctx).map(function(p) {
+            return { kind: 'refined', label: 'Tower refinement: ' + e.family, family: e.family, plan: p };
+          }) : [];
+          var neighbors = [];
+          for (var ni = 0; ni < Math.max(structural.length, edits.length); ni++) {
+            if (ni < structural.length) neighbors.push(structural[ni]);
+            if (ni < edits.length) neighbors.push(edits[ni]);
+          }
+          if (free) for (var mi = 0; mi < 4; mi++) neighbors.splice(Math.min(2 + mi * 8, neighbors.length), 0, {
+            kind: 'refined', label: 'Beam mutation: ' + e.family, family: e.family,
+            plan: _mutate(e.plan, inputs, trial, rng, ctx),
+          });
+          neighborhoods.set(e.key, { list: neighbors, at: 0 });
+        }
+        var neighborhood = neighborhoods.get(e.key);
+        batches.push(neighborhood.list.slice(neighborhood.at, neighborhood.at + 2));
+        neighborhood.at += 2;
+      });
+      // Interleave independent neighborhoods so the first wall cannot consume the budget.
+      for (var bi = 0; batches.some(function(b) { return bi < b.length; }); bi++) {
+        batches.forEach(function(b) { if (bi < b.length) queue.push(b[bi]); });
+      }
+      if (!queue.length) {
+        if (!free) break;
+        var parent = _pick(rng, leaders);
+        queue.push({ kind: 'refined', label: 'Beam mutation', family: parent.family, plan: _mutate(parent.plan, inputs, trial, rng, ctx) });
+        queue.push({ kind: 'random', label: 'Independent construction', family: 'random', plan: randomPlan(inputs, trial, rng, { ctx: ctx, slots: slots, maxTowers: ctx.maxTowers, skipPolicy: opts.skipPolicy }) });
       }
     }
+    evaluate(queue.shift(), 'refinement');
   }
-  // 3) Re-score the leaders with the final seed set.
-  var finals = [best];
-  if (lead && lead !== best) finals.push(lead);
+  // Always compare the same final seeds, including the baseline and guide. Fresh
+  // randomness cannot erase a baseline just because it screened poorly.
+  var finals = ranked(entries).slice(0, Math.min(2, finalCount));
+  diverse(entries, finalCount).forEach(function(e) {
+    if (finals.length < finalCount && finals.indexOf(e) < 0) finals.push(e);
+  });
+  baselines.forEach(function(e) { if (finals.indexOf(e) < 0) finals.push(e); });
   var winner = null;
   finals.forEach(function(e) {
-    var agg = nFinal > nSeeds ? simulateWorshipTdTrials(inputs, e.plan, simOpts, finalSeeds) : e.agg;
+    var agg = simulateWorshipTdTrials(inputs, e.plan, simOpts, finalSeeds);
     var sc = _score(inputs, trial, objective, agg);
     var f = Object.assign({}, e, { agg: agg, score: sc });
+    e.finalScore = sc;
     if (!winner || _better(sc, winner.score)) winner = f;
+    finalEvaluations++;
+    report('final');
   });
-  evaluations += nFinal > nSeeds ? finals.length : 0;
-  report('final');
+  if (onProgress) onProgress({ phase: 'done', completed: budget + finalReserve, total: budget + finalReserve, bestWave: winner.score.wave, bestPrimary: winner.score.primary });
   var detail = simulateWorshipTdRun(inputs, winner.plan, Object.assign({}, simOpts, { seed: finalSeeds[0] }));
   var saved = inputs.bestWaves[trial] || 0;
   return {
     ok: true,
-    layout: true,
+    layout: !free,
     trial: trial,
     objective: objective,
     kind: winner.kind,
@@ -2686,12 +2860,19 @@ export function optimizeWorshipTdLayout(inputs, opts, onProgress) {
     savedBest: saved,
     soulsPerHourNow: soulsPerHour(inputs, trial, saved),
     soulsPerHourPlan: soulsPerHour(inputs, trial, Math.max(saved, Math.floor(winner.agg.meanBestWave))),
-    evaluations: evaluations,
+    evaluations: evaluations + finalEvaluations,
     seeds: finalSeeds,
     screen: screen,
     startWave: startWave,
     saveAt: commonSavePoint(winner.agg.runs, startWave),
     detail: detail,
+    search: {
+      method: 'diverse-beam', bounded: true, screeningEvaluations: evaluations,
+      finalEvaluations: finalEvaluations, duplicatesSkipped: duplicates, families: families.size,
+      screeningSeeds: seeds,
+      finalists: finals.map(function(e) { return { label: e.label, family: e.family, score: e.finalScore }; }),
+      baselines: baselines.map(function(e) { return { label: e.label, score: e.finalScore }; }),
+    },
   };
 }
 

@@ -15,7 +15,7 @@
 // (assets/combat-sim/metadata.json "items/<key>.png") and then a text tile.
 
 import { ITEMS } from '../stats/data/game/items.js';
-import { formatUq, statLabel } from '../stats/systems/common/combat-sim-stones.js';
+import { formatUq, statLabel, slotsLeft } from '../stats/systems/common/combat-sim-stones.js';
 
 const REPO_BASE = new URL('../../', import.meta.url).href;
 const UI_BASE = REPO_BASE + 'assets/combat-sim/ui/';
@@ -302,11 +302,11 @@ export function itemCardHtml(key, inst) {
       lines.push('<div class="css-setup-card-uq">' + esc(formatUq(txt, bv + av)) + (inst && av ? ' <span class="css-setup-muted">(' + _fmt(bv) + ' base ' + _signed(av) + ')</span>' : '') + '</div>');
     });
     const total = _n(def.Upgrade_Slots_Left);
-    if (inst && inst.slotsTotal != null) lines.push('<div class="css-setup-card-meta">Upgrade slots: ' + _fmt(inst.slotsLeft) + ' left of ' + _fmt(inst.slotsTotal) + '</div>');
+    if (inst) lines.push('<div class="css-setup-card-meta">Upgrade slots: ' + _fmt(slotsLeft(key, added)) + ' remaining (' + _fmt(total) + ' base slots)</div>');
     else if (total) lines.push('<div class="css-setup-card-meta">Upgrade slots: ' + _fmt(total) + '</div>');
     if (inst && inst.stones && inst.stones.length) lines.push('<div class="css-setup-card-meta">Stones: ' + inst.stones.map(s => esc(s.name) + (s.failed ? ' (failed)' : '')).join(', ') + '</div>');
     if (inst && inst.unattributed) {
-      const u = Object.keys(inst.unattributed).filter(k => _n(inst.unattributed[k]) && !/txt$/.test(k)).map(k => statLabel(k) + ' ' + _signed(inst.unattributed[k]));
+      const u = Object.keys(inst.unattributed).filter(k => k !== 'Upgrade_Slots_Left' && _n(inst.unattributed[k]) && !/txt$/.test(k)).map(k => statLabel(k) + ' ' + _signed(inst.unattributed[k]));
       if (u.length) lines.push('<div class="css-setup-card-meta">Unattributed: ' + esc(u.join(', ')) + '</div>');
     }
   } else {

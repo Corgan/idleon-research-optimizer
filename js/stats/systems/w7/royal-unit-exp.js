@@ -5,7 +5,7 @@ const n = value => Number(value) || 0;
 const MAX_HOURS = 87600;
 const MAX_EVENTS = 50000;
 const TARGET_BARS = { trading: 0, command: 2, military: 3 };
-// Purity targets and purification changes are intentionally excluded; saved purified states stay fixed.
+// No Purity target or Priest moves; existing Priests can still reach Purity rank 1.
 const TRANSIENT_TYPES = [4, 5, 6];
 const EPSILON = 1e-9;
 const CHART_SAMPLES = 240;
@@ -42,20 +42,20 @@ function _model(S, mapIdx, ext) {
 	const pool = units.filter(unit => unit.type === 1 || unit.type === 3).length;
 	const current = units.filter(unit => unit.type === 1).length;
 	return {
-		a72, unlocked, pool, current, order, counts, feed: R.armoryLevel(S, 17) >= 1,
+		a72, unlocked, pool, current, order, counts, feed: R.armoryLevel(S, 17) >= 1, purified: R.outpostIsPurified(S, mapIdx),
 		K: [0, 1, 2, 3, 4].map(bar => R.barExpRate(S, bar, mapIdx, ext) / mult),
 		legal: unlocked ? Array.from({ length: pool + 1 }, (_, traders) => traders) : [...new Set([current, pool])].sort((a, b) => a - b),
 	};
 }
 
 function _rates(m, ranks, traders, counts, out) {
-	const mult = 1 + ranks[1] * m.a72;
-	out[0] = m.K[0] * mult * (traders + Math.ceil(Math.max(0, ranks[2] - 1) / 4));
-	out[1] = m.K[1] * mult * (m.pool - traders + Math.ceil(Math.max(0, ranks[2] - 3) / 4));
-	out[2] = m.K[2] * mult * counts[5];
-	out[3] = m.K[3] * mult * counts[6];
-	out[4] = m.K[4] * mult * counts[7];
-	if (m.feed && counts[4]) out[_highest(ranks)] += m.K[3] * mult / 2 * counts[4];
+	const mult = 1 + ranks[1] * m.a72; const purityGain = !m.purified && ranks[4] >= 1 ? 3 : 1;
+	out[0] = m.K[0] * purityGain * mult * (traders + Math.ceil(Math.max(0, ranks[2] - 1) / 4));
+	out[1] = m.K[1] * purityGain * mult * (m.pool - traders + Math.ceil(Math.max(0, ranks[2] - 3) / 4));
+	out[2] = m.K[2] * purityGain * mult * counts[5];
+	out[3] = m.K[3] * purityGain * mult * counts[6];
+	out[4] = m.K[4] * purityGain * mult * counts[7];
+	if (m.feed && counts[4]) out[_highest(ranks)] += m.K[3] * purityGain * mult / 2 * counts[4];
 	return out;
 }
 
@@ -72,9 +72,9 @@ function _collectOnce(m, state, hours) {
 	_add(state, 0, rate[0] * hours);
 	_add(state, 1, rate[1] * hours);
 	for (const type of m.order) {
-		const mult = 1 + state.ranks[1] * m.a72;
-		if (type >= 5) _add(state, type - 3, m.K[type - 3] * mult * hours);
-		else if (m.feed) _add(state, _highest(state.ranks), m.K[3] * mult / 2 * hours);
+		const mult = 1 + state.ranks[1] * m.a72; const purityGain = !m.purified && state.ranks[4] >= 1 ? 3 : 1;
+		if (type >= 5) _add(state, type - 3, m.K[type - 3] * purityGain * mult * hours);
+		else if (m.feed) _add(state, _highest(state.ranks), m.K[3] * purityGain * mult / 2 * hours);
 	}
 }
 

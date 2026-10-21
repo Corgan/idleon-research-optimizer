@@ -13,6 +13,14 @@ import {
   menagerieMissionCount,
   arenaCrucibleThresholds,
 } from '../../data/w7/menagerie.js';
+import { AtomInfo } from '../../data/game/customlists.js';
+import { zenithMarketPerLevel } from '../../data/w5/sailing.js';
+import { SHAPE_BONUS_PCT } from '../../data/w7/research.js';
+import { gbWith } from './research-math.js';
+import { computeDancingCoralBonus } from './spelunking.js';
+import { constBuildBonus } from '../w3/construction.js';
+import { computeVialByKey } from '../w2/alchemy.js';
+import { computeCardLv } from '../common/cards.js';
 
 function _m(S) {
   var m = S && S.menagerieData;
@@ -35,6 +43,40 @@ export function hasMenagerieData(S) {
 
 export function menagerieRank(S) {
   return Number(_row(S, 0)[2]) || 0;
+}
+
+// LumiGainRate: 165 is a separate multiplier; 164 shares the final additive pool.
+// Every other multiplier cancels when comparing a shape against an unshaped baseline.
+export function menagerieLumiGridShapeValues(S, shapePct = Math.max(...SHAPE_BONUS_PCT)) {
+  var gl = S.gridLevels || [];
+  var ctx = { abm: Math.max(1, Number(S.allBonusMulti) || 1) };
+  var g164 = gbWith(gl, [], 164, ctx), g165 = gbWith(gl, [], 165, ctx);
+  var atom = (Number(S.atomsData?.[16]) || 0) * (Number(AtomInfo[16]?.[4]) || 0);
+  var zenith = Math.floor(zenithMarketPerLevel(11) * (Number(S.spelunkData?.[45]?.[11]) || 0));
+  var vial = Number(computeVialByKey('7lumiadd', S, 0).val) || 0;
+  var card = Math.min(5 * computeCardLv('w7b10', S), 50);
+  var pool = (Number(_row(S, 0)[4]) || 0)
+    + (25 * (_ola(S, 464) > 8 ? 1 : 0)
+    + (10 * petArenaCrucBonus(S, 4)
+    + (25 * petArenaCrucBonus(S, 14)
+    + (constBuildBonus(S, 3) + (atom + (zenith
+    + (computeDancingCoralBonus(6, S) + (vial + (g164 + card)))))))));
+  var active = menagerieRank(S) > 0;
+  return [164, 165].map(function(idx) {
+    var bonus = idx === 164 ? g164 : g165;
+    var shapedBonus = bonus * (1 + shapePct / 100);
+    var ratio = !active ? 1 : idx === 164
+      ? (100 + pool + shapedBonus - bonus) / (100 + pool)
+      : (100 + shapedBonus) / (100 + bonus);
+    return { idx, bonus, shapedBonus, ratio, gainPct: (ratio - 1) * 100, additivePool: pool };
+  });
+}
+
+export function menagerieLumiShapePriority(S, shapePct) {
+  return menagerieLumiGridShapeValues(S, shapePct)
+    .filter(function(r) { return r.ratio > 1; })
+    .sort(function(a, b) { return b.ratio - a.ratio || a.idx - b.idx; })
+    .map(function(r) { return r.idx; });
 }
 
 export function menagerieUnlockOwned(S, idx) {

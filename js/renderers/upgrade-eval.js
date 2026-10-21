@@ -35,7 +35,7 @@ import {
 import { attachTooltip } from '../ui/tooltip.js';
 import { showGridTooltip } from '../ui/dashboard.js';
 import { formatDesc } from './grid-desc.js';
-import { mineheadShapePriority } from '../stats/systems/w7/minehead.js';
+import { SHAPE_PRESETS as SP_BASE_PRESETS, shapePresetData } from '../optimizers/shape-presets.js';
 
 // ===== SHAPE PRIORITY SYSTEM =====
 // All non-EXP node indices that can appear in shape tier lists
@@ -98,27 +98,8 @@ _loadShapeTiers();
 const SP_STORAGE_KEY = 'idleon_shapePresets';
 const SP_ACTIVE_KEY = 'idleon_shapePresetActive';
 
-const SP_BASE_PRESETS = [
-  { id: '_none',     name: 'Res EXP',   data: '|' },
-  // Save-aware: currency nodes by exact shape gain, then damage nodes (static order is the no-save fallback).
-  { id: '_minehead', name: 'Minehead',  data: 'J6,I5,H5,G4,F6,H4,G5|', build: _mineheadPresetData },
-  { id: '_dr',       name: 'DR',        data: 'N4,M4,I4|' },
-  { id: '_daily',    name: 'Daily',     data: 'K5,L5|' },
-  { id: '_classexp', name: 'Class EXP', data: 'K6,L6,M6,M5|' },
-  { id: '_insight',  name: 'Insight',   data: 'L8,M8|' },
-];
-
-function _mineheadPresetData() {
-  if (!saveData.gridLevels || !saveData.gridLevels.some(lv => lv > 0)) return null;
-  try {
-    return mineheadShapePriority(saveData).map(i => gridCoord(i)).join(',') + '|';
-  } catch (e) {
-    console.warn('Minehead preset ranking failed:', e);
-    return null;
-  }
-}
 function _presetData(preset) {
-  return (preset.build && preset.build()) || preset.data;
+  return shapePresetData(preset, saveData);
 }
 
 function _coordToIdx(coord) {

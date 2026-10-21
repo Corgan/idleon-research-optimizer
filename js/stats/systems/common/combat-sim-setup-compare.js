@@ -1,7 +1,7 @@
 // ===== COMBAT SIM SETUP COMPARISON (common) =====
 // Pure helpers for running one character/map under several setup variants
 // (the imported save, the editor's current edits, named saved setups) on
-// shared seeds, then aggregating paired per-hour results. No DOM, no workers.
+// shared seeds, then aggregating paired hourly rates (Omega: run totals). No DOM, no workers.
 
 import { applyCombatSetup, diffCombatSetup, normalizeCombatSetup } from './combat-sim-setup.js';
 
@@ -117,11 +117,16 @@ export function addSetupCompareRun(row, seed, m) {
   return row;
 }
 
-function _perHr(run, key) {
+/** Omega odds diminish after each drop, so compare finite-run totals, not a stationary rate. */
+export function setupCompareUnit(key) {
+  return key === 'item:ArcBallOmega' || key === 'metric:combatProgress.omegaBalls' ? 'run' : 'hr';
+}
+
+function _runValue(run, key) {
   if (!run || !(run.hours > 0)) return null;
   const q = key.indexOf('item:') === 0 ? (run.items[key.slice(5)] || 0)
     : key.indexOf('metric:') === 0 ? ((run.metrics || {})[key.slice(7)] || 0) : (run[key] || 0);
-  return q / run.hours;
+  return setupCompareUnit(key) === 'run' ? q : q / run.hours;
 }
 
 /** Items that dropped in any finished run, most common first. */
@@ -139,19 +144,19 @@ export function setupCompareMetricKeys(rows) {
 }
 
 /**
- * Per-hour mean for one row and key, plus the paired difference versus the
+ * Mean in setupCompareUnit(key) units, plus the paired difference versus the
  * baseline row over seeds both finished: `{ mean, n, delta, deltaPct, se }`.
  * `se` is the standard error of the mean paired difference (null below 2 pairs).
  */
 export function setupCompareCell(row, baseRow, key) {
   const seeds = Object.keys(row.runs);
-  const vals = seeds.map(s => _perHr(row.runs[s], key)).filter(x => x != null);
+  const vals = seeds.map(s => _runValue(row.runs[s], key)).filter(x => x != null);
   const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   const cell = { mean, n: vals.length, delta: null, deltaPct: null, se: null, baseMean: null };
   if (!baseRow || baseRow === row) return cell;
   const diffs = [], bases = [];
   seeds.forEach(s => {
-    const a = _perHr(row.runs[s], key), b = _perHr(baseRow.runs[s], key);
+    const a = _runValue(row.runs[s], key), b = _runValue(baseRow.runs[s], key);
     if (a != null && b != null) { diffs.push(a - b); bases.push(b); }
   });
   if (!diffs.length) return cell;

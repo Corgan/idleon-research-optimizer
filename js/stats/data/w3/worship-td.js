@@ -188,6 +188,21 @@ export function tdTrialScene(trial) {
   return { plat: plat, src: TD_ASSET_DIR + 'Plat' + plat + '.png', w: size[0], h: size[1] };
 }
 
+// Scene MBS actors 83, with scene-init animations and sprite 84 frame sizes (2026-10-16-hotfix-2).
+// Animation changes preserve the default TP_Pete centre (41x33); getWidth/Height ignore growTo.
+// Bloo moves off-map after his first quest; reserve his original position conservatively.
+var TD_NPCS = {
+  1: [{ name: 'Loominadi', x: 685, y: 76, w: 67, h: 58 }],
+  6: [{ name: 'Sussy Gene', x: 506, y: 919, w: 34, h: 53 }],
+  7: [{ name: 'Bloo Radley', x: 1249, y: 784, w: 29, h: 29 }],
+};
+export function tdTrialNpcZones(trial) {
+  return (TD_NPCS[trial] || []).map(function(n) {
+    return { name: n.name, left: n.x - n.w / 2 - 10, right: n.x + 3 * n.w / 2 + 10,
+      top: n.y - n.h - 10, bottom: n.y + n.h + 10 };
+  });
+}
+
 // ActorEvents_81 draws addImgInst(i + "bg.png") where i is the _AllMapsForAnimationX group
 // containing CurrentMap (maps 26/63/30/107/155/208/259/308 -> groups 10/11/4/7/21/25/28/32).
 // The 1200x675 image is a camera parallax layer: X = screenX - screenX / (sceneW - 960) * 240

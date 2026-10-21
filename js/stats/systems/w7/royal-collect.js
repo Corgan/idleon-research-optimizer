@@ -125,8 +125,7 @@ export function royalCollectAll(S, hours, ext) {
 	return out;
 }
 
-// Lightweight per-outpost EXP model for previews: K excludes the Intel multiplier, which can change mid-pass.
-// It ignores the source's cross-map isMapPurified(bar) refresh, which royalCollectAll applies exactly.
+// K excludes Intel but includes the initial Purified multiplier; either can change during a pass.
 export function royalCollectExpModels(S, ext) {
 	ext = _passExt(S, royalCollectExt(S, ext));
 	const a72 = R.armoryBonus(S, 72) / 100; const feed = R.armoryBonus(S, 17) >= 1;
@@ -158,8 +157,9 @@ export function previewRoyalCollectExp(model, hours) {
 	add(1, model.K[1] * mult0 * model.surveyors * hours);
 	for (const type of model.order) {
 		const mult = 1 + ranks[1] * model.a72;
-		if (type >= 5) add(type - 3, model.K[type - 3] * mult * hours);
-		else if (model.feed) { let bar = 0; for (let index = 1; index < 5; index++) if (ranks[index] > ranks[bar]) bar = index; add(bar, model.K[3] * mult / 2 * hours); }
+		const purityGain = model.ranks[4] < 1 && ranks[4] >= 1 ? 3 : 1;
+		if (type >= 5) add(type - 3, model.K[type - 3] * purityGain * mult * hours);
+		else if (model.feed) { let bar = 0; for (let index = 1; index < 5; index++) if (ranks[index] > ranks[bar]) bar = index; add(bar, model.K[3] * purityGain * mult / 2 * hours); }
 	}
 	return { exp, ranks };
 }

@@ -31,6 +31,11 @@ h1 span { color: var(--accent); }
 .data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: top; }
 .data-table tr:hover td { background: rgba(255,255,255,.03); }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.coin-amount { display:inline-block; max-width:100%; vertical-align:middle; font-variant-numeric:tabular-nums; }
+.coin-part { display:inline-flex; align-items:center; gap:2px; max-width:100%; margin-left:.25em; vertical-align:middle; }
+.coin-part:first-child { margin-left:0; }
+.coin-part > span:first-child { min-width:0; overflow-wrap:anywhere; }
+.coin-icon { display:inline-block; width:1.3em; height:1.3em; flex:none; background-repeat:no-repeat; image-rendering:pixelated; }
 .badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: .72em; font-weight: 700; }
 .badge-green { background: rgba(76,175,80,.2); color: var(--green); }
 .badge-gold { background: rgba(255,215,0,.15); color: var(--gold); }
@@ -107,6 +112,8 @@ button.btn:disabled { opacity: .45; cursor: default; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 code { color: var(--cyan); font-size: .92em; }
 .cmp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cmp-column-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
+.cmp-column-options label { display: inline-flex; align-items: center; gap: 5px; font-size: .85em; }
 .cmp-chip { background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 12px; padding: 3px 10px; font-size: .78em; cursor: pointer; }
 .cmp-chip span { color: var(--cyan); margin-left: 3px; }
 .tbl-wrap { overflow-x: auto; max-width: 100%; }
@@ -352,6 +359,7 @@ import { currentMapData, currentMapDataAvailable, dreamData, klaData, optionsLis
 import { buildCharacterMapOptions } from './js/stats/systems/common/map-access.js';
 import { isDungeonMap } from './js/stats/systems/w2/dungeon.js';
 import { fmtVal } from './js/renderers/format.js';
+import { fmtCoins } from './js/renderers/coins.js';
 import { MapDispName, TalentIconNames, AnimationOffsets, HolesInfo } from './js/stats/data/game/customlists.js';
 import { MonsterDrops, XYoffsetCape, NumberOfWeaponsMAP, TotalFramesPerSpriteForAnimationABC } from './js/stats/data/game/custommaps.js';
 import { MONSTERS } from './js/stats/data/game/monsters.js';
@@ -378,7 +386,7 @@ import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { toRenderNode } from './js/stats/tree-builder.js';
 import { label as entityLabel } from './js/stats/entity-names.js';
 import { createSetupSearch, setupSearchSpace, setupSearchStateSummary, SETUP_SEARCH_DIMENSIONS } from './js/stats/systems/common/combat-sim-setup-search.js';
-import { setupCompareVariants, setupCompareJobs, setupEditsBuffs, emptySetupCompareRow, addSetupCompareRun, setupCompareCell, setupCompareItems, setupCompareMetricKeys, setupCompareSignificant, SETUP_COMPARE_INPUTS, SETUP_COMPARE_METRICS } from './js/stats/systems/common/combat-sim-setup-compare.js';
+import { setupCompareVariants, setupCompareJobs, setupEditsBuffs, emptySetupCompareRow, addSetupCompareRun, setupCompareCell, setupCompareItems, setupCompareMetricKeys, setupCompareSignificant, setupCompareUnit, SETUP_COMPARE_INPUTS, SETUP_COMPARE_METRICS } from './js/stats/systems/common/combat-sim-setup-compare.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -1804,7 +1812,7 @@ function renderSummary(r) {
     + card('Kills / hr', fmtNum(perHr(r, R.kills)), fmtInt(R.kills) + ' kills')
     + card('Kill credit / hr', fmtNum(perHr(r, R.klaCredit)), 'Kills-to-advance progress')
     + card('EXP / hr', fmtNum(perHr(r, R.expTotal)), fmtNum(R.expTotal) + ' total')
-    + card('Coins / hr', fmtNum(perHr(r, R.coinsDropped)), fmtNum(R.coinsPicked) + ' picked up')
+    + card('Coins / hr', fmtCoins(perHr(r, R.coinsDropped)), fmtCoins(R.coinsPicked) + ' picked up')
     + card('Items / hr', fmtNum(perHr(r, drops)), fmtNum(picked) + ' picked up')
     + card('Cards / hr', fmtNum(perHr(r, cardTotal)), Object.keys(R.cards || {}).length + ' card types')
     + card('Crystals spawned', fmtInt(r.eventCounts.crystalSpawn || 0), 'Chip respawns: ' + fmtInt(r.eventCounts.crystalRespawn || 0) + ' · Giants: ' + fmtInt(r.eventCounts.giantSpawn || 0))
@@ -2060,14 +2068,15 @@ function renderDrops(r) {
   var keys = Object.keys(R.byItem || {}).sort(function (a, b) { return R.byItem[b].qtyDropped - R.byItem[a].qtyDropped; });
   var html = '<h3>Every drop</h3><div class="scroll"><table class="data-table"><thead><tr><th>Item</th><th class="num">Drops</th><th class="num">Quantity</th><th class="num">Quantity / hr</th><th class="num">Picked up</th><th class="num">Filtered</th><th class="num">Expired</th><th class="num">Lost (bag full)</th><th class="num">On ground</th></tr></thead><tbody>';
   keys.forEach(function (k) {
-    var b = R.byItem[k];
-    html += '<tr><td>' + escHtml(itemName(k)) + ' <span class="note">' + escHtml(k) + '</span></td><td class="num">' + fmtInt(b.dropped) + '</td><td class="num">' + fmtNum(b.qtyDropped)
-      + '</td><td class="num">' + fmtNum(perHr(r, b.qtyDropped)) + '</td><td class="num">' + fmtNum(b.qtyPicked) + '</td><td class="num">' + fmtInt(b.filtered)
-      + '</td><td class="num">' + fmtInt(b.expired) + '</td><td class="num">' + fmtNum(b.lost) + '</td><td class="num">' + fmtNum((R.onGround || {})[k] || 0) + '</td></tr>';
+    var b = R.byItem[k], amount = k === 'COIN' ? fmtCoins : fmtNum;
+    html += '<tr><td>' + escHtml(itemName(k)) + ' <span class="note">' + escHtml(k) + '</span></td><td class="num">' + fmtInt(b.dropped) + '</td><td class="num">' + amount(b.qtyDropped)
+      + '</td><td class="num">' + (k === 'ArcBallOmega' ? '<span class="note">Run total only</span>' : amount(perHr(r, b.qtyDropped))) + '</td><td class="num">' + amount(b.qtyPicked) + '</td><td class="num">' + fmtInt(b.filtered)
+      + '</td><td class="num">' + fmtInt(b.expired) + '</td><td class="num">' + amount(b.lost) + '</td><td class="num">' + amount((R.onGround || {})[k] || 0) + '</td></tr>';
   });
   if (!keys.length) html += '<tr><td colspan="9" class="note">No drops.</td></tr>';
   html += '</tbody></table></div>';
 
+  if (keys.includes('ArcBallOmega')) html += '<div class="note">Omega Arcade balls are shown as run totals: each drop lowers the next drop chance, so longer runs do not scale linearly.</div>';
   var src = R.bySource || {};
   html += '<h3>Drop sources</h3><table class="data-table"><thead><tr><th>Source</th><th class="num">Rolls</th><th class="num">Items</th><th class="num">Quantity</th></tr></thead><tbody>';
   Object.keys(src).forEach(function (k) {
@@ -2141,7 +2150,7 @@ function reachableMapSet(ci) {
 // Compare map selection, persisted across reloads.
 var CMP_PICK_KEY = 'combat-sim-cmp-pick';
 var cmpPick = (function () {
-  var d = { worlds: [1, 2, 3, 4, 5, 6, 7], maps: [], drop: 'group:statue', source: 'any', search: '', reach: true, chipGroup: '' };
+  var d = { worlds: [1, 2, 3, 4, 5, 6, 7], maps: [], drop: 'group:statue', source: 'any', search: '', reach: true, chipGroup: '', metricColumns: null };
   try { var s = JSON.parse(localStorage.getItem(CMP_PICK_KEY) || 'null'); if (s && typeof s === 'object') Object.assign(d, s); } catch (_) {}
   return d;
 })();
@@ -2424,10 +2433,15 @@ function cmpMetricLabel(key) {
     'combatProgress.scurgeExp': 'Scurge EXP',
     'combatProgress.coralKills': 'Coral Kid kills banked',
     'combatProgress.omegaBalls': 'Omega Arcade balls',
+    'clamPearls.dropped': 'Pearls dropped',
+    'clamPearls.black': 'Black pearls dropped',
+    'clamPearls.pearlsGained': 'Pearls collected',
+    'clamPearls.tenX': '10x pearl pickups',
+    'collected.evaporatePickups': 'Evaporating pickups collected',
   };
   if (key.indexOf('forgeBars.') === 0) return 'Smelting: ' + itemName(key.slice(10));
   if (key.indexOf('shinyDays.') === 0) return 'Shiny days: ' + key.slice(10);
-  return labels[key] || key;
+  return labels[key] || key.split('.').map(function (p) { return p.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, function (x) { return x.toUpperCase(); }); }).join(': ');
 }
 
 function addCompareRun(row, m) {
@@ -2497,6 +2511,10 @@ function compareColumns(c) {
 
 function compareValue(c, row, key) {
   if (key === 'map') return row.mapIdx;
+  if (setupCompareUnit(key) === 'run') {
+    var total = key.indexOf('item:') === 0 ? row.items[key.slice(5)] : row.metrics[key.slice(7)];
+    return row.runs > 0 ? (total || 0) / row.runs : 0;
+  }
   if (key === 'kills') return cmpPerHr(row, row.kills);
   if (key === 'kla') return cmpPerHr(row, row.klaCredit);
   if (key === 'exp') return cmpPerHr(row, row.exp);
@@ -2513,6 +2531,9 @@ function compareValue(c, row, key) {
 function renderCompare() {
   var host = $('cmp-results'), c = cmp;
   if (!c) { host.innerHTML = ''; return; }
+  var columnPanel = host.querySelector('[data-cmp-columns-panel]');
+  var columnsOpen = columnPanel && columnPanel.open;
+  var focusedColumn = host.contains(document.activeElement) && document.activeElement.dataset.cmpExtra;
   var cols = compareColumns(c);
   if (!c.selected) {
     var half = Math.max(2, Math.ceil(cols.rows.length / 2));
@@ -2551,9 +2572,19 @@ function renderCompare() {
   h += '<div class="toolbar" style="margin-top:8px"><label>Item columns<select id="cmp-metric"><option value="qty"' + (c.metric === 'qty' ? ' selected' : '') + '>Quantity per hour</option><option value="perKill"' + (c.metric === 'perKill' ? ' selected' : '') + '>Quantity per kill</option></select></label>'
     + '<label>Rows<select id="cmp-rows">' + [['maps', 'Each map'], ['grouped', 'Grouped by world'], ['worlds', 'World averages']].map(function (o) { return '<option value="' + o[0] + '"' + (c.rowMode === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label></div>';
 
+  var shownMetrics = cols.metrics.filter(function (k) { return !Array.isArray(cmpPick.metricColumns) || cmpPick.metricColumns.includes(k); });
+  if (cols.metrics.length) {
+    h += '<details data-cmp-columns-panel' + (columnsOpen ? ' open' : '') + '><summary>Extra columns (' + shownMetrics.length + ' of ' + cols.metrics.length + ' shown)</summary>'
+      + '<div class="toolbar"><button type="button" data-cmp-columns="all">Show all</button><button type="button" data-cmp-columns="none">Hide all</button></div>'
+      + '<div class="cmp-column-options">' + cols.metrics.map(function (k) {
+        return '<label><input type="checkbox" data-cmp-extra="' + escHtml(k) + '"' + (shownMetrics.includes(k) ? ' checked' : '') + '> ' + escHtml(cmpMetricLabel(k) + ' / ' + setupCompareUnit('metric:' + k)) + '</label>';
+      }).join('') + '</div></details>';
+  }
+  if (cols.metrics.includes('combatProgress.omegaBalls') || sel.includes('ArcBallOmega')) h += '<div class="note">Omega Arcade balls are the mean earned per simulated run, starting from the saved drop counter. Each drop lowers the next drop chance; these totals are not steady hourly rates.</div>';
   var colDefs = [['map', 'Map'], ['kills', 'Kills / hr'], ['kla', 'Kill credit / hr'], ['exp', 'EXP / hr'], ['coins', 'Coins / hr'], ['cards', 'Cards / hr']];
-  sel.forEach(function (k) { colDefs.push(['item:' + k, itemName(k)]); });
-  cols.metrics.forEach(function (k) { colDefs.push(['metric:' + k, cmpMetricLabel(k) + ' / hr']); });
+  sel.forEach(function (k) { colDefs.push(['item:' + k, itemName(k) + (setupCompareUnit('item:' + k) === 'run' ? ' / run' : '')]); });
+  shownMetrics.forEach(function (k) { colDefs.push(['metric:' + k, cmpMetricLabel(k) + ' / ' + setupCompareUnit('metric:' + k)]); });
+  if (!colDefs.some(function (d) { return d[0] === c.sortKey; })) { c.sortKey = 'map'; c.sortDir = 1; }
 
   var best = {};
   colDefs.forEach(function (d) {
@@ -2567,7 +2598,7 @@ function renderCompare() {
     h += '<h3>Best map per drop</h3><div class="card-grid cols-4">';
     sel.forEach(function (k) {
       var b = best['item:' + k];
-      h += card(escHtml(itemName(k)), b.map == null ? '—' : fmtNum(b.v), b.map == null ? '' : escHtml(mapName(b.map)) + ' (map ' + b.map + ')' + (c.metric === 'perKill' ? ' per kill' : ' per hour'));
+      h += card(escHtml(itemName(k)), b.map == null ? '—' : (k === 'COIN' ? fmtCoins : fmtNum)(b.v), b.map == null ? '' : escHtml(mapName(b.map)) + ' (map ' + b.map + ')' + (setupCompareUnit('item:' + k) === 'run' ? ' per run' : c.metric === 'perKill' ? ' per kill' : ' per hour'));
     });
     h += '</div>';
   }
@@ -2598,7 +2629,7 @@ function renderCompare() {
   var cell = function (r, d, isBest) {
     if (!r.runs) return '<td class="num note">' + (r.errors.length ? '—' : '…') + '</td>';
     var v = compareValue(c, r, d[0]);
-    return '<td class="num' + (isBest && v > 0 ? ' cmp-best' : '') + '">' + (v ? fmtNum(v) : '<span class="note">0</span>') + '</td>';
+    return '<td class="num' + (isBest && v > 0 ? ' cmp-best' : '') + '">' + (d[0] === 'coins' || d[0] === 'item:COIN' ? fmtCoins(v) : v ? fmtNum(v) : '<span class="note">0</span>') + '</td>';
   };
   var mapRowHtml = function (r) {
     var s = '<tr><td><a href="#" data-cmp-open="' + r.mapIdx + '">' + r.mapIdx + ' · ' + escHtml(mapName(r.mapIdx)) + '</a>' + mapDropBadges(r.mapIdx);
@@ -2637,6 +2668,10 @@ function renderCompare() {
   h += '</tbody></table></div>';
   h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or a map name to load it in the single-map simulator above. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
   host.innerHTML = h;
+  if (focusedColumn) {
+    var focus = Array.from(host.querySelectorAll('[data-cmp-extra]')).find(function (el) { return el.dataset.cmpExtra === focusedColumn; });
+    if (focus) focus.focus({ preventScroll: true });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2786,21 +2821,20 @@ function cancelSetupCompare() {
   endSetupCompare(scmp, 'Cancelled after ' + scmp.done + ' of ' + scmp.jobs.length + ' runs; changes use only runs both setups finished.');
 }
 
-function scmpFmt(v) { return v == null ? '—' : fmtNum(v); }
-
-function scmpCellHtml(cell, isBase) {
+function scmpCellHtml(cell, isBase, coins) {
   if (cell.mean == null) return '<td class="num">—</td>';
-  var h = '<td class="num">' + scmpFmt(cell.mean);
+  var amount = coins ? fmtCoins : fmtNum;
+  var h = '<td class="num">' + amount(cell.mean);
   if (!isBase && cell.delta != null) {
     var sig = setupCompareSignificant(cell), cls = cell.delta > 0 ? 'scmp-up' : cell.delta < 0 ? 'scmp-down' : 'scmp-same';
-    var txt = cell.deltaPct != null ? (cell.deltaPct >= 0 ? '+' : '') + (cell.deltaPct * 100).toFixed(1) + '%' : (cell.delta > 0 ? '+' : '') + fmtNum(cell.delta);
-    h += '<br><span class="' + cls + (sig ? ' scmp-sig' : '') + '">' + txt + (cell.se != null ? ' <small>±' + (cell.baseMean ? (2 * cell.se / Math.abs(cell.baseMean) * 100).toFixed(1) + '%' : fmtNum(2 * cell.se)) + '</small>' : '') + '</span>';
+    var txt = cell.deltaPct != null ? (cell.deltaPct >= 0 ? '+' : '') + (cell.deltaPct * 100).toFixed(1) + '%' : (cell.delta > 0 ? '+' : '') + amount(cell.delta);
+    h += '<br><span class="' + cls + (sig ? ' scmp-sig' : '') + '">' + txt + (cell.se != null ? ' <small>±' + (cell.baseMean ? (2 * cell.se / Math.abs(cell.baseMean) * 100).toFixed(1) + '%' : amount(2 * cell.se)) + '</small>' : '') + '</span>';
   }
   return h + '</td>';
 }
 
 function scmpMetricLabel(k) {
-  return k.split('.').map(function (p) { return p.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, function (x) { return x.toUpperCase(); }); }).join(' · ') + ' / hr';
+  return cmpMetricLabel(k) + ' / ' + setupCompareUnit('metric:' + k);
 }
 
 function renderSetupCompare() {
@@ -2820,20 +2854,21 @@ function renderSetupCompare() {
   h += manualRunText(c.manualCasts) + stopOnRunText(c.stopOn);
   h += '</div>';
 
-  var head = '<tr><th>Per hour</th>' + vars.map(function (v, i) {
+  var head = '<tr><th>Outcome</th>' + vars.map(function (v, i) {
     return '<th class="num">' + escHtml(v.label) + (i === 0 ? ' <span class="badge badge-cyan">baseline</span>' : '') + (v.duplicateOf ? '<br><small class="note">same as ' + escHtml(c.byId[v.duplicateOf].label) + '</small>' : '') + '</th>';
   }).join('') + '</tr>';
   var body = '';
   function line(label, key) {
-    body += '<tr><td>' + label + '</td>' + rows.map(function (r, i) { return scmpCellHtml(setupCompareCell(r, baseRow, key), i === 0); }).join('') + '</tr>';
+    body += '<tr><td>' + label + '</td>' + rows.map(function (r, i) { return scmpCellHtml(setupCompareCell(r, baseRow, key), i === 0, key === 'coins' || key === 'item:COIN'); }).join('') + '</tr>';
   }
-  SETUP_COMPARE_METRICS.forEach(function (m) { line(escHtml(m[1].replace(' / hr', '')), m[0]); });
+  SETUP_COMPARE_METRICS.forEach(function (m) { line(escHtml(m[1]), m[0]); });
   var items = setupCompareItems(rows), metrics = setupCompareMetricKeys(rows);
-  metrics.forEach(function (k) { line(escHtml(scmpMetricLabel(k).replace(' / hr', '')), 'metric:' + k); });
+  metrics.forEach(function (k) { line(escHtml(scmpMetricLabel(k)), 'metric:' + k); });
   var itemBody = body; body = '';
-  items.forEach(function (k) { line(escHtml(itemName(k)), 'item:' + k); });
+  items.forEach(function (k) { line(escHtml(itemName(k) + ' / ' + setupCompareUnit('item:' + k)), 'item:' + k); });
   h += '<div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head + '</thead><tbody>' + itemBody + '</tbody></table></div>';
   if (items.length) h += '<details' + (items.length <= 15 ? ' open' : '') + '><summary>Item drops (' + items.length + ')</summary><div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></details>';
+  if (metrics.includes('combatProgress.omegaBalls') || items.includes('ArcBallOmega')) h += '<div class="note">Omega Arcade balls use mean totals per simulated run, not hourly projections: the odds decrease after every drop.</div>';
 
   // Resolved combat inputs from each setup's first run; only rows that differ.
   var inRows = '';
@@ -2844,7 +2879,7 @@ function renderSetupCompare() {
     inRows += '<tr><td>' + escHtml(p[1]) + '</td>' + vals.map(function (x) { return '<td class="num">' + (x === undefined ? '—' : fmtNum(x)) + '</td>'; }).join('') + '</tr>';
   });
   h += '<h3>Resolved stats that differ</h3>';
-  h += inRows ? '<div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head.replace('Per hour', 'Stat') + '</thead><tbody>' + inRows + '</tbody></table></div>'
+  h += inRows ? '<div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head.replace('Outcome', 'Stat') + '</thead><tbody>' + inRows + '</tbody></table></div>'
     : '<div class="note">' + (c.running ? 'Waiting for each setup\'s first run.' : 'None of the summarized stats (drop rate, damage, accuracy, multikill, …) differ between these setups.') + '</div>';
 
   h += '<h3>Setup changes</h3>';
@@ -3022,11 +3057,12 @@ function ssPctText(pct) {
   var a = Math.abs(pct * 100);
   return a === 0 ? '0%' : a < 0.1 ? (pct * 100).toPrecision(2) + '%' : (pct * 100).toFixed(1) + '%';
 }
-function ssDeltaHtml(delta, se, pct) {
+function ssDeltaHtml(delta, se, pct, coins) {
   if (delta == null) return '—';
+  var amount = coins ? fmtCoins : fmtNum;
   var sig = se != null && Math.abs(delta) > 2 * se, cls = delta > 0 ? 'scmp-up' : delta < 0 ? 'scmp-down' : 'scmp-same';
-  var txt = pct != null ? (pct >= 0 ? '+' : '') + ssPctText(pct) : (delta > 0 ? '+' : '') + fmtNum(delta);
-  var band = se != null ? ' <small>±' + (pct != null && delta ? ssPctText(Math.abs(pct / delta) * 2 * se) : fmtNum(2 * se)) + '</small>' : '';
+  var txt = pct != null ? (pct >= 0 ? '+' : '') + ssPctText(pct) : (delta > 0 ? '+' : '') + amount(delta);
+  var band = se != null ? ' <small>±' + (pct != null && delta ? ssPctText(Math.abs(pct / delta) * 2 * se) : amount(2 * se)) + '</small>' : '';
   return '<span class="' + cls + (sig ? ' scmp-sig' : '') + '">' + txt + band + '</span>';
 }
 
@@ -3036,6 +3072,7 @@ function renderSetupSearch() {
   var st = c.search.status(), res = c.search.result();
   var nm = (saveData.charNames && saveData.charNames[c.ci]) || ('Character ' + (c.ci + 1));
   var metricLbl = (SETUP_COMPARE_METRICS.find(function (m) { return m[0] === c.metric; }) || [c.metric, c.metric])[1];
+  var amount = c.metric === 'coins' ? fmtCoins : fmtNum;
   var h = '<div class="note" style="margin:10px 0">' + escHtml(nm) + ' · ' + c.mapIdx + ' ' + escHtml(mapName(c.mapIdx)) + ' · optimizing ' + escHtml(metricLbl) + ' · ' + fmtRunLen(c.seconds) + ' runs'
     + (c.running ? ' · running' : ' · finished in ' + ((c.elapsedMs || 0) / 1000).toFixed(0) + 's') + ' · ' + fmtInt(st.sims) + ' runs, ' + fmtInt(st.fingerprints) + ' fingerprints';
   if (c.stale) h += ' · <span class="warn">' + escHtml(c.stale) + '</span>';
@@ -3050,7 +3087,7 @@ function renderSetupSearch() {
   if (st.steps.length) {
     h += '<h3>Accepted swaps</h3><div class="tbl-wrap"><table class="data-table scmp-table"><thead><tr><th>#</th><th>Swap</th><th class="num">Gain vs previous step<br><small>fresh validation runs</small></th><th class="num">' + escHtml(metricLbl) + '</th><th class="num">Runs</th></tr></thead><tbody>';
     st.steps.forEach(function (s) {
-      h += '<tr><td>' + s.round + '</td><td>' + escHtml(s.label) + '</td><td class="num">' + ssDeltaHtml(s.delta, s.se, s.deltaPct) + '</td><td class="num">' + fmtNum(s.mean) + '</td><td class="num">' + s.n + '</td></tr>';
+      h += '<tr><td>' + s.round + '</td><td>' + escHtml(s.label) + '</td><td class="num">' + ssDeltaHtml(s.delta, s.se, s.deltaPct, c.metric === 'coins') + '</td><td class="num">' + amount(s.mean) + '</td><td class="num">' + s.n + '</td></tr>';
     });
     h += '</tbody></table></div>';
   } else if (!c.running) h += '<div class="note">No swap beat the starting setup.</div>';
@@ -3058,9 +3095,9 @@ function renderSetupSearch() {
   if (res) {
     if (res.confirm) {
       h += '<div class="card-grid cols-3" style="margin-top:10px">'
-        + '<div class="card"><div class="card-title">Start</div><div class="card-val">' + fmtNum(res.confirm.baseMean) + '</div><div class="card-sub">' + escHtml(metricLbl) + ' on ' + res.confirm.n + ' fresh runs</div></div>'
-        + '<div class="card"><div class="card-title">Found setup</div><div class="card-val">' + fmtNum(res.confirm.mean) + '</div><div class="card-sub">same seeds as the start</div></div>'
-        + '<div class="card"><div class="card-title">Confirmed change</div><div class="card-val">' + ssDeltaHtml(res.confirm.delta, res.confirm.se, res.confirm.deltaPct) + '</div><div class="card-sub">bold = more than two standard errors</div></div></div>';
+        + '<div class="card"><div class="card-title">Start</div><div class="card-val">' + amount(res.confirm.baseMean) + '</div><div class="card-sub">' + escHtml(metricLbl) + ' on ' + res.confirm.n + ' fresh runs</div></div>'
+        + '<div class="card"><div class="card-title">Found setup</div><div class="card-val">' + amount(res.confirm.mean) + '</div><div class="card-sub">same seeds as the start</div></div>'
+        + '<div class="card"><div class="card-title">Confirmed change</div><div class="card-val">' + ssDeltaHtml(res.confirm.delta, res.confirm.se, res.confirm.deltaPct, c.metric === 'coins') + '</div><div class="card-sub">bold = more than two standard errors</div></div></div>';
     }
     if (res.changed) {
       var a = setupSearchStateSummary(res.start.state), b = setupSearchStateSummary(res.final.state);
@@ -3100,9 +3137,13 @@ $('ssrch-dims').addEventListener('click', function (e) {
 $('cmp-run').addEventListener('click', startCompare);
 $('cmp-cancel').addEventListener('click', cancelCompare);
 $('cmp-results').addEventListener('click', function (e) {
-  var t = e.target.closest('[data-cmp-item],[data-cmp-sort],[data-cmp-open]');
+  var t = e.target.closest('[data-cmp-item],[data-cmp-sort],[data-cmp-open],[data-cmp-columns]');
   if (!t || !cmp) return;
-  if (t.dataset.cmpItem) {
+  if (t.dataset.cmpColumns) {
+    cmpPick.metricColumns = t.dataset.cmpColumns === 'all' ? null : [];
+    saveCmpPick();
+    renderCompare();
+  } else if (t.dataset.cmpItem) {
     var k = t.dataset.cmpItem, s = cmp.selected || (cmp.selected = []), i = s.indexOf(k);
     if (i >= 0) s.splice(i, 1); else s.push(k);
     renderCompare();
@@ -3122,7 +3163,14 @@ $('cmp-results').addEventListener('keydown', function (e) {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.cmpSort) { e.preventDefault(); e.target.click(); }
 });
 $('cmp-results').addEventListener('change', function (e) {
-  if (e.target.id === 'cmp-metric' && cmp) { cmp.metric = e.target.value; renderCompare(); }
+  if (e.target.dataset.cmpExtra && cmp) {
+    var k = e.target.dataset.cmpExtra;
+    var chosen = Array.isArray(cmpPick.metricColumns) ? cmpPick.metricColumns : compareColumns(cmp).metrics;
+    cmpPick.metricColumns = chosen.filter(function (v) { return v !== k; });
+    if (e.target.checked) cmpPick.metricColumns.push(k);
+    saveCmpPick();
+    renderCompare();
+  } else if (e.target.id === 'cmp-metric' && cmp) { cmp.metric = e.target.value; renderCompare(); }
   else if (e.target.id === 'cmp-rows' && cmp) { cmp.rowMode = e.target.value; renderCompare(); }
   else if (e.target.id === 'cmp-chip-group') { cmpPick.chipGroup = e.target.value; saveCmpPick(); if (cmp) renderCompare(); }
 });

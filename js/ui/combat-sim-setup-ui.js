@@ -737,7 +737,7 @@ export function mountCombatSetup(host, opts) {
         '<span class="css-setup-muted">base ' + esc(fmt(inst.base)) + ' + added</span>' + stepper(n0(g.extra['UQ' + n + 'val']), 'data-act="extraStat" data-stat="UQ' + n + 'val" data-fid="ex-uq' + n + '"', { width: 52 }) +
         (sd ? '<span class="css-setup-pos">stones ' + esc(sgn(sd)) + '</span>' : '') + '</div>';
     });
-    const un = ST.STONE_NUMERIC_STATS.filter(k => n0(g.extra[k])).map(k => sgn(g.extra[k]) + ' ' + ST.statLabel(k));
+    const un = ST.STONE_NUMERIC_STATS.filter(k => k !== 'Upgrade_Slots_Left' && n0(g.extra[k])).map(k => sgn(g.extra[k]) + ' ' + ST.statLabel(k));
     let sl = '';
     g.stones.forEach((s, i) => {
       const st = ST.stoneByKey(s.key);
@@ -765,8 +765,9 @@ export function mountCombatSetup(host, opts) {
       help('New upgrade: the stone\u2019s stats are added and a slot is consumed. Attribute: the stone explains part of the save\u2019s existing added stats, so the total stays the same and the unattributed remainder shrinks.') + '</div>';
     h += cardbox('Stats', t);
     h += cardbox('Unique bonuses', uq);
-    h += cardbox('Upgrade slots', '<div class="css-setup-uqrow"><b>' + res.slotsLeft + '</b> left of ' + res.slotsTotal + ' \u00b7 stones used ' + res.slotsUsed +
-      ' \u00b7 unattributed slot delta ' + stepper(n0(g.extra.Upgrade_Slots_Left), 'data-act="extraStat" data-stat="Upgrade_Slots_Left" data-fid="ex-usl"', { width: 44 }) + '</div>' +
+    h += cardbox('Upgrade slots', '<div class="css-setup-uqrow"><b>' + res.slotsLeft + '</b> remaining (' + res.slotsTotal + ' base slots) \u00b7 recorded stones consume ' + res.slotsUsed + ' slots</div>' +
+      '<div class="css-setup-uqrow">Slots before listed stones ' + stepper(ST.slotsLeft(g.item, g.extra), 'data-act="slotsBeforeStones" data-fid="ex-usl" aria-label="Upgrade slots before listed stones"', { min: 0, width: 44 }) +
+      help('This includes the saved slot adjustment and any bonus slots, before applying the stones listed below. The remaining count above also subtracts slots consumed by those stones. The save keeps a change from base slots, not the remaining count itself.') + '</div>' +
       '<div class="css-setup-muted">' + (un.length ? 'Unattributed added stats: <b>' + esc(un.join(', ')) + '</b>' : 'No unattributed added stats.') + ' ' +
       help('The save stores only the summed upgrade deltas (EMm), not which stones produced them. Attribute those deltas to stones to see what remains.') + '</div>');
     h += cardbox('Stones', sl);
@@ -1706,6 +1707,13 @@ export function mountCombatSetup(host, opts) {
           ui.message = 'Loaded "' + name + '"';
           commit();
         } catch (err) { ui.message = 'Could not load: ' + err.message; scheduleRender(); }
+        break;
+      }
+      case 'slotsBeforeStones': {
+        const sel = ui.gearSel || { row: 0, slot: 1 };
+        const g = gearInstance(c, sel.row, sel.slot);
+        const delta = numVal(el) - n0((ITEMS[g.item] || {}).Upgrade_Slots_Left);
+        gearEdit(sel.row, sel.slot, extra => { if (delta) extra.Upgrade_Slots_Left = delta; else delete extra.Upgrade_Slots_Left; });
         break;
       }
       case 'extraStat': {
