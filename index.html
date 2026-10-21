@@ -6,17 +6,18 @@
 <title>Idleon Builds — Calculators &amp; Optimizers</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center;align-items:center}
-.container{max-width:600px;width:100%;padding:2rem}
+body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+.container{max-width:1200px;width:100%;padding:2rem}
 h1{text-align:center;color:#00d4ff;font-size:1.6rem;margin-bottom:.4rem}
 .subtitle{text-align:center;color:#a0a0a0;font-size:.9rem;margin-bottom:2rem}
-.card-list{display:flex;flex-direction:column;gap:.75rem}
-a.card{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:#16213e;border:1px solid #0f3460;border-radius:8px;text-decoration:none;color:#e0e0e0;transition:border-color .15s,background .15s}
+.card-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem}
+a.card{display:flex;align-items:flex-start;gap:1rem;min-width:0;padding:1rem 1.25rem;background:#16213e;border:1px solid #0f3460;border-radius:8px;text-decoration:none;color:#e0e0e0;transition:border-color .15s,background .15s}
 a.card:hover{border-color:#00d4ff;background:#1a2a4e}
+a.card:focus-visible{outline:2px solid #00d4ff;outline-offset:3px}
 .card-icon{font-size:1.5rem;width:2rem;text-align:center;flex-shrink:0}
-.card-body{flex:1}
+.card-body{flex:1;min-width:0;overflow-wrap:anywhere}
 .card-title{font-size:1.05rem;font-weight:600;color:#fff}
-.card-desc{font-size:.8rem;color:#a0a0a0;margin-top:.15rem}
+.card-desc{font-size:.8rem;color:#a0a0a0;margin-top:.35rem;line-height:1.45}
 .badge{display:inline-block;font-size:.65rem;padding:.1rem .4rem;border-radius:3px;margin-left:.5rem;vertical-align:middle;font-weight:600}
 .badge-w2{background:#0288d144;color:#81d4fa}
 .badge-w3{background:#2e7d3244;color:#66bb6a}
@@ -25,7 +26,9 @@ a.card:hover{border-color:#00d4ff;background:#1a2a4e}
 .badge-w5{background:#5c6bc044;color:#9fa8da}
 .badge-w6{background:#ef535044;color:#ef9a9a}
 .badge-w7{background:#ff980044;color:#ffcc80}
+@media(max-width:600px){.container{padding:1.5rem 1rem}}
 </style>
+<script type="module" src="./js/ui/site-nav.js"></script>
 </head>
 <body>
 <div class="container">

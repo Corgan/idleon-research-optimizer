@@ -1,6 +1,8 @@
 # Idleon Builds
 
-Standalone browser calculators and optimizers for Legends of Idleon. Open `index.html` through a local static server to access the calculator index.
+Standalone browser calculators and optimizers for Legends of Idleon. Open `index.html` through a local static server to access the calculator index, with a responsive card grid that fits up to three columns on desktop and collapses to one on small screens.
+
+Every page loads `js/ui/site-nav.js` for a shared Home link and an Explore button opening a left-side navigation drawer. Destinations are grouped by world, searchable, and highlight the current page. The drawer supports keyboard navigation, Escape, and outside-click dismissal without changing calculator state. The combat simulator remains unlisted, but has navigation when opened directly. Regression check: `node js\tests\test-site-nav.mjs`.
 
 The All Stats Dashboard provides map-aware character/account breakdowns, normal-map combat outcomes, Divinity rates, Printer Sample Size, and category-specific Carry Capacity. Specialized allocation and simulation workflows remain in their dedicated calculators.
 
