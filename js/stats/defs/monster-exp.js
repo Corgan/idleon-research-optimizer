@@ -192,11 +192,10 @@ export default createDescriptor({
     var comp168 = rval(companion, 168, ctx);
     var jellyClassExp30 = jellyRewardBonus(s, 30);
     var jellyClassExp62 = jellyRewardBonus(s, 62);
-    // Source multiplies Crucible 15 by 20 (21x), although its label reads "1.20X CLASS EXP".
     var crucible15 = petArenaCrucBonus(s, 15);
     var menagerieB23 = menagerieBoostQTY(s, 23);
     var compMult = (1 + 9 * comp37) * (1 + comp33) * (1 + 4 * comp160)
-      * (1 + comp32) * (1 + 20 * crucible15) * (1 + menagerieB23 / 100)
+      * (1 + comp32) * (1 + 0.2 * crucible15) * (1 + menagerieB23 / 100)
       * (1 + comp34) * (1 + comp145)
       * (1 + 0.4 * comp168) * (1 + Math.min(0.5, comp128))
       * (1 + jellyClassExp30 / 100) * (1 + jellyClassExp62 / 100);

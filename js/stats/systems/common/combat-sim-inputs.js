@@ -454,11 +454,11 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
     const bonY = Number(S.bundlesData?.bon_y) === 1 ? 1 : 0;
     const bags = _raw(raw, 'InvBagsUsed_' + ci);
     if (!bags || typeof bags !== 'object') throw new Error('InvBagsUsed_X missing (pass rawSave)');
-    let n = 16 + Math.round(3 * eventShopOwned(12, es) + (8 * bonF + (15 * bonX + 19 * bonY)));
+    let n = 16 + Math.round(3 * eventShopOwned(12, es) + (8 * bonF + (15 * bonX + (19 * bonY + 2 * eventShopOwned(59, es)))));
     for (const k of Object.keys(bags)) n += Number(bags[k]) || 0;
     if (Number(S.bundlesData?.bun_i) === 1) n += 5; // saved bundle, not the auto-loot toggle
     return Math.min(112, Math.round(n));
-  }, 'InventorySlotsOwned (src 81190; ExtraInventory = round(3·ES12 + 8·bon_f + 15·bon_x + 19·bon_y))', { default: 16 });
+  }, 'InventorySlotsOwned (ExtraInventory = round(3·ES12 + 8·bon_f + 15·bon_x + 19·bon_y + 2·ES59))', { default: 16 });
   put('inventory', () => {
     const inv = S.itemQuantityData?.inventories?.[ci];
     if (!inv?.available) throw new Error('InventoryOrder_X/ItemQTY_X unavailable');
@@ -483,7 +483,7 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   put('questComplete', () => _clone(S.questCompleteData?.[ci] || {}), 'QuestComplete_X');
   put('cards0', () => _clone(S.cards0Data || {}), 'Cards[0]');
   put('cards1', () => _clone(S.cards1Data || []), 'Cards[1]');
-  const OLA_KEYS = [29, 57, 101, 107, 108, 110, 111, 114, 137, 138, 139, 152, 193, 216, 217, 325, 327, 336, 365, 367, 390, 393, 395, 396, 397, 398, 399, 400, 401, 452, 456, 487, 539, 598, 599, 615];
+  const OLA_KEYS = [29, 57, 101, 107, 108, 110, 111, 114, 137, 138, 139, 152, 193, 216, 217, 325, 327, 336, 365, 367, 390, 393, 395, 396, 397, 398, 399, 400, 401, 452, 456, 487, 539, 598, 599, 605, 615];
   for (const k of OLA_KEYS) {
     put('ola' + k, () => Number(ola[k]) || 0, 'OptionsListAccount[' + k + ']');
   }
@@ -527,14 +527,13 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   put('mapBon', () => { const v = _raw(raw, 'MapBon'); if (!Array.isArray(v)) throw new Error('MapBon missing (pass rawSave)'); return _clone(v); }, 'MapBon (arcanist StatusArc kill counters)', { default: [] });
   put('obolInvOrder', () => { const v = _raw(raw, 'ObolInvOr'); if (!Array.isArray(v)) throw new Error('ObolInvOr missing (pass rawSave)'); return _clone(v); }, 'ObolInvOr (obol inventory pages)', { default: [] });
   put('obolInvOwn', () => { const v = _raw(raw, 'ObolInvOwn'); if (!Array.isArray(v)) throw new Error('ObolInvOwn missing (pass rawSave)'); return v.map((x) => Number(x) || 0); }, 'ObolInvOwn (obol inventory rows owned per page)', { default: [] });
-  // eventStatus (src: serverVars "EventActive" == "CropFun" and the hard-coded end
-  // stamp 1789974e6 + 864e5*max(0, EventTimerBypass) not yet passed at GlobalTime).
+  // Halloween event status uses the source's fixed expiry plus server bypass days.
   put('eventStatus', () => {
     const sv = raw?.serverVars;
     if (!sv || typeof sv !== 'object') throw new Error('serverVars missing (pass rawSave)');
     const now = Number(S.timeAwayData?.GlobalTime) || 0;
-    const end = 1789974e6 + 864e5 * Math.max(0, Number(sv.EventTimerBypass) || 0);
-    return sv.EventActive === 'CropFun' && now * 1000 < end ? 'On' : 'NahOff';
+    const end = 17942112e5 + 864e5 * Math.max(0, Number(sv.EventTimerBypass) || 0);
+    return sv.EventActive === 'SpoopyYes' && now * 1000 < end ? 'On' : 'NahOff';
   }, 'serverVars.EventActive + NONdummies[10]≈TimeAway.GlobalTime*1000 (eventStatus)', { default: 'NahOff' });
   // TenteyeclePCT (src 92409): TesseractArcanist==1 ? min(ArcaneUpgBonus(7), T483_1) : T483_1.
   // The arcanist form flag is runtime state (default 0), so the save value is T483_1.

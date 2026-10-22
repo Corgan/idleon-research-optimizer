@@ -798,10 +798,10 @@ export function nmlbInfo(S) {
   return { active: emp16 || bun, levels: (bun ? 2 : 0) + (emp16 ? 1 : 0), emporium16: emp16, bundle: bun };
 }
 
-// Daily reset result: min(150, min(CookingMealMaxLVlol, level + gain)). The 150 cap is literal, so a target
-// already above Lv 150 is set back to 150.
+// The reset awards levels only below 150; paid cooking may continue above that cap.
 export var NMLB_LEVEL_CAP = 150;
 export function nmlbResultLevel(from, gain, maxLevel) {
+  if (Number(from) >= NMLB_LEVEL_CAP) return Number(from);
   return Math.min(NMLB_LEVEL_CAP, Math.min(maxLevel, (Number(from) || 0) + (Number(gain) || 0)));
 }
 
@@ -830,7 +830,7 @@ export function nmlbSteerPlan(S, opts) {
   var rows = [];
   for (var x = 0; x < levels.length; x++) {
     var Lx = levels[x];
-    if (!(Lx >= 2 && Lx < maxLevel)) continue;
+    if (!(Lx >= 2 && Lx < Math.min(150, maxLevel))) continue;
     var steerLadles = 0;
     var blockers = 0;
     for (var d = 0; d < levels.length; d++) {
@@ -889,7 +889,7 @@ export function ladleableMeals(opts) {
       meal: m,
       level: L,
       open: open,
-      nmlbEligible: open && L >= 2,
+      nmlbEligible: open && L >= 2 && L < 150,
       nextLadles: next ? next.ladles : Infinity,
       nextHours: hours,
       ladleable: open && hours <= dayHours,
@@ -968,6 +968,7 @@ export function nmlbFloorPlan(S, opts) {
     var p = _nmlbPickAmong(rot, maxLevel, isTarget);
     if (p < 0) break;
     var to = nmlbResultLevel(rot[p], gain, maxLevel);
+    if (to <= rot[p]) break;
     rotation.push({ day: day, meal: p, name: mealName(p), from: rot[p], to: to, ladlesSaved: savedFor(p, rot[p]) });
     if (rotationDay[p] == null) rotationDay[p] = day;
     rot[p] = to;
@@ -1494,6 +1495,11 @@ export function planMealLeveling(S, opts) {
         perMeal[nmlbMeal].nmlbLevels += to - nmlbFrom;
         levels[nmlbMeal] = to;
         speed = totalKitchenSpeed(model, levels, cachedTurkey);
+        if (to === nmlbFrom) {
+          nmlbMeal = -1;
+          nmlbFrom = 0;
+          nmlbOnTarget = false;
+        }
       }
     }
     if (inputs.dream11 > 0) ola++;

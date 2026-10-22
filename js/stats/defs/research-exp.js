@@ -30,6 +30,7 @@ import { clamWorkBonus } from '../systems/w7/clamworks.js';
 import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
+import { etcBonus } from '../systems/common/etcBonus.js';
 
 export default createDescriptor({
   id: 'research-exp',
@@ -249,13 +250,18 @@ export default createDescriptor({
 
     // ---- True multipliers ----
     // Game: (1+add/100) × (1+Grid70/100) × (1+Sticker(1,100)/100) × (1+.25*ClamWork9) × (1+3*Dream14/100)
-    //   × (1+Button(0)/100) × (1+Arcade63/100) × (1+Killroy(5)/100) × max(1,(1+C52)×(1+C153)×(1+.15*C54L2))
+    //   × equipment × (1+Button(0)/100) × (1+Arcade63/100) × max(1,Killroy(5)) × max(1,(1+C52)×(1+C153)×(1+.5*C54L2))
     //   × (1+RoG0/100) × (1+Cglunko11/100) × (1+Fountain2_16/100) × Jelly0/23/46/54 × (1+B3/100) × max(1,Royal)
     var multItems = [];
 
     var grid70 = gridBonusFinal(saveData, 70);
     multItems.push({ name: label('Grid', 70), val: 1 + grid70 / 100, fmt: 'x',
       children: [{ name: 'Research Grid All-Bonus Multiplier', val: abmVal, fmt: 'x', children: _abmChildren }] });
+
+    var equipmentResearch = etcBonus.resolve('108', { ...ctx, charIdx: ctx.charIdx || 0 });
+    var equipmentMulti = Math.max(1, Math.min(15, 1 + equipmentResearch.val / 100));
+    multItems.push({ name: 'Equipment Research EXP', val: equipmentMulti, fmt: 'x',
+      children: [equipmentResearch], note: 'Capped at 15x' });
 
     if (stickerMultiplicative) {
       multItems.push({ name: 'Sticker Bonus', val: 1 + stickerMultiPct / 100, fmt: 'x',
@@ -276,9 +282,9 @@ export default createDescriptor({
 
     multItems.push({ name: label('Arcade', 63), val: 1 + arcade63 / 100, fmt: 'x', children: _arcade63.children });
 
-    // KillroyBonuses(5): game uses (1 + KB(5)/100) where KB(5) = 1 + OLA[469]/(150+OLA[469])*0.8
+    // KillroyBonuses(5) is already a multiplier.
     var killroy5raw = computeKillroyBonus(5, saveData);
-    multItems.push({ name: label('Killroy', 5), val: 1 + killroy5raw / 100, fmt: 'x' });
+    multItems.push({ name: label('Killroy', 5), val: Math.max(1, killroy5raw), fmt: 'x' });
 
     var comp52owned = saveData.companionIds.has(52);
     var comp52val = companionBonusForSave(52, saveData);
@@ -289,7 +295,7 @@ export default createDescriptor({
     multItems.push({ name: label('Companion', 153, ' (2x / 3x enhanced)'), val: 1 + comp153val, fmt: 'x', note: comp153owned ? (companionLevel2(153, saveData) ? 'Enhanced' : 'Owned') : 'Not owned' });
 
     var comp54Enhanced = companionLevel2(54, saveData);
-    multItems.push({ name: label('Companion', 54, ' (enhanced)'), val: 1 + 0.15 * comp54Enhanced, fmt: 'x', note: comp54Enhanced ? 'Enhanced' : 'Not enhanced' });
+    multItems.push({ name: label('Companion', 54, ' (enhanced)'), val: 1 + 0.5 * comp54Enhanced, fmt: 'x', note: comp54Enhanced ? 'Enhanced' : 'Not enhanced' });
 
     var rog0val = rogBonusQTY(0, saveData.cachedUniqueSushi);
     multItems.push({ name: label('RoG', 0), val: 1 + rog0val / 100, fmt: 'x', note: saveData.cachedUniqueSushi > 0 ? saveData.cachedUniqueSushi + ' unique sushi' : 'No sushi' });
@@ -345,6 +351,7 @@ export default createDescriptor({
       arcade63: arcade63,
       clamWork9: clamWork9,
       menagerieB3: menagerieB3,
+      equipmentMulti: equipmentMulti,
       trueMultiplier: trueMultiplier,
       children: [
         { name: 'Additive Research EXP', val: totalAdd, children: additiveItems, fmt: 'raw' },

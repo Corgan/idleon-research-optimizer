@@ -321,13 +321,13 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const buttonNode = _bNode(label('Button', 0), 1 + buttonBonus0 / 100, null, { fmt: 'x', note: buttonPresses + ' presses' });
 
   const killroy5raw = computeKillroyBonus(5, saveData);
-  const killroyNode = _bNode(label('Killroy', 5), 1 + killroy5raw / 100, null, { fmt: 'x' });
+  const killroyNode = _bNode(label('Killroy', 5), Math.max(1, killroy5raw), null, { fmt: 'x' });
 
   const dream14val = dCtx.dream14 || 0;
   const nonstopNode = _bNode(label('Dream', 14), 1 + 3 * dream14val / 100, null, { fmt: 'x', note: dream14val > 0 ? 'LV ' + dream14val : 'Not unlocked' });
 
   const comp54Level2 = companionLevel2(54, saveData);
-  const comp54Node = _bNode(label('Companion', 54, ' enhanced'), 1 + 0.15 * comp54Level2, null, { fmt: 'x', note: comp54Level2 ? 'Enhanced' : 'Not enhanced' });
+  const comp54Node = _bNode(label('Companion', 54, ' enhanced'), 1 + 0.5 * comp54Level2, null, { fmt: 'x', note: comp54Level2 ? 'Enhanced' : 'Not enhanced' });
   const cglunkoNode = _bNode('Cglunko: Glunko Research', 1 + (dCtx.cglunko11 || 0) / 100, null, { fmt: 'x' });
   const fountainNode = _bNode('Fountain: Pen N Paper', 1 + (dCtx.fountain2_16 || 0) / 100, null, { fmt: 'x' });
   const royalResearch = Math.max(1, outpostROGBonus(saveData, 1));
@@ -340,9 +340,10 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const menagerieB3 = dCtx.menagerieB3 || 0;
   const menagerieNode = _bNode('Menagerie Boost 3', 1 + menagerieB3 / 100, null, { fmt: 'x' });
   const jellyResearchMulti = dCtx.jellyResearchMulti || 1;
+  const equipmentMulti = Math.max(1, Math.min(15, dCtx.researchEquipmentMulti || 1));
 
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * stickerMultiVal * (1 + 0.25 * clamWork9) * (1 + 3 * dream14val / 100) * (1 + buttonBonus0 / 100) * (1 + arcade63 / 100) * (1 + killroy5raw / 100) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.15 * comp54Level2)) * (1 + rog0val) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * jellyResearchMulti * (1 + menagerieB3 / 100) * royalResearch;
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * equipmentMulti * stickerMultiVal * (1 + 0.25 * clamWork9) * (1 + 3 * dream14val / 100) * (1 + buttonBonus0 / 100) * (1 + arcade63 / 100) * Math.max(1, killroy5raw) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.5 * comp54Level2)) * (1 + rog0val) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * jellyResearchMulti * (1 + menagerieB3 / 100) * royalResearch;
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -352,6 +353,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   tnNode.val = 1 + takinNotesVal / 100;
   tnNode.fmt = 'x';
   rootChildren.push(tnNode);
+  rootChildren.push(_bNode('Equipment Research EXP', equipmentMulti, null, { fmt: 'x', note: 'Capped at 15x' }));
   if (stickerMultiplicative) rootChildren.push(stickerNode);
   rootChildren.push(clamNode);
   rootChildren.push(nonstopNode);

@@ -328,6 +328,7 @@ export default createDescriptor({
     var owlBonus1 = 0;
     try { owlBonus1 = owlResolver.resolve(1, ctx).val || 0; } catch(e) {}
     var sigil4 = rval(sigil, 4, ctx);
+    var halloweenCard = safe(computeCardLv, 'fallEvent2', s);
     // Bubble formulas: bdmgHP * LOG(max(HPmax-250,1)), bdmgSPD * (Log2(max(Speed-0.1,0))/0.25), bdmgMP * LOG(max(MPmax-150,1))
     var bdmgHP = safe(bubbleValByKey, 'bdmgHP', ci, s);
     var bdmgSPD = safe(bubbleValByKey, 'bdmgSPD', ci, s);
@@ -463,7 +464,7 @@ export default createDescriptor({
     // bdmgSPD * (Log2(max(speed - 0.1, 0)) / 0.25)
     try { playerSpeed = ctx.resolve('movement-speed').val; } catch(e) {}
     var bubbleSPD = bdmgSPD * (Math.log2(Math.max(playerSpeed - 0.1, 0)) / 0.25);
-    baseDmgRaw += stampBaseDmg + owlBonus1 + sigil4 + bubbleHP + bubbleMP + bubbleSPD;
+    baseDmgRaw += stampBaseDmg + owlBonus1 + sigil4 + halloweenCard + bubbleHP + bubbleMP + bubbleSPD;
 
     var _preSoftcapDDL0 = baseDmgRaw;
 
@@ -993,7 +994,7 @@ export default createDescriptor({
                 bdmgSPD: bdmgSPD, bubbleHP: bubbleHP, bubbleMP: bubbleMP, bubbleSPD: bubbleSPD,
                 playerSpeed: playerSpeed, boxBaseDmg: boxBaseDmg, baseDmgFood: 0,
                 owlBonus1: owlBonus1, card4: card4, vault0: vault0, arcade0: arcade0,
-                statue0: statue0, sigil4: sigil4,
+                statue0: statue0, sigil4: sigil4, halloweenCard: halloweenCard,
                 equipWP: _equipWP, galleryWP: _galleryWP, obolWP: _obolWP,
                 _box12a: _box12a, _flurbo: safe(computeFlurboShop, 0, s), _foodWP: _foodWP,
                 _card18: _cardBon18, _cardW5b2: _cardLvW5b2, _sigil17: _sigil17, _guild3: _guild3,

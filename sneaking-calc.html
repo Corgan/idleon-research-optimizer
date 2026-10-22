@@ -1198,7 +1198,7 @@ function _renderAllInner() {
         var sec = threshold / maxSpd;
         tipLines += '\u00d7' + dn6.toLocaleString() + '  \u2192  ' + _timeStr(sec) + '  (' + Math.round(threshold / 3600).toLocaleString() + ' actions)\n';
       }
-      tipLines += '\nFlowers are capped at 1 per batch regardless of size.\nOpen the sneaking screen before ' + firstStr + ' to avoid lost flowers.';
+      tipLines += '\nEach independent KO gives 1 + Blooming Flowers / 100 flowers per batch, not per batched attempt. Taunting Mark consumes flowers by batch size.\nOpen the sneaking screen before ' + firstStr + ' to avoid lost flowers.';
       h += '<div style="margin-top:4px;padding:3px 8px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.3);border-radius:4px;font-size:.68em;color:var(--text2);">';
       h += '<span style="color:var(--gold);">&#x23F0; First batch (\u00d7100):</span> ';
       h += '<span style="color:var(--text);font-weight:600;">' + firstStr + '</span>';
@@ -1606,7 +1606,7 @@ function _renderFormulaBreakdowns(twins) {
       dodgePct: twin.dodgePct,
       taunting: (twin.charmMap[1] || 0) > 0,
     };
-  }));
+  }), _nkLvs());
   var selectedTeamRate = null;
   for (var rateIdx = 0; rateIdx < floorTwins.length; rateIdx++) {
     if (floorTwins[rateIdx].idx === selected.idx) selectedTeamRate = floorRates[rateIdx];
@@ -2675,7 +2675,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
           taunting: (twin.charmMap[1] || 0) > 0,
         });
       }
-      var rates = computeTeamDoorRates(contexts);
+      var rates = computeTeamDoorRates(contexts, nkLvs);
       var rate = rates.reduce(function(sum, row) { return sum + row.flowersPerHour; }, 0);
       if (!(rate > 0)) return Infinity;
       hours += Math.min(sampleStep, targetFlowers - flowerCount) / rate;

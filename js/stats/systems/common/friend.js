@@ -15,7 +15,7 @@ function computeFriendBonusSlots(saveData) {
   var comp44 = companionBonusForSave(44, saveData);
   var comp30 = companionBonusForSave(30, saveData);
   var evShop22 = eventShopOwned(22, saveData.cachedEventShopStr || '');
-  return Math.round(Math.min(20, 2 + comp44 + 2 * comp30 + evShop22));
+  return Math.round(Math.min(20, 2 + comp44 + 2 * comp30 + evShop22 + eventShopOwned(67, saveData.cachedEventShopStr || '')));
 }
 
 export var friend = {

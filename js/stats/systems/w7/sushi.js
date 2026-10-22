@@ -15,6 +15,7 @@ import { optionsListData } from '../../../save/data.js';
 import { getLOG } from '../../../formulas.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { doubledUpgrades } from './menagerie.js';
+import { eventShopOwned } from '../../../game-helpers.js';
 
 // ===== ROG & UNIQUE SUSHI =====
 
@@ -191,7 +192,7 @@ export function fuelGenPerHr(upgLevels, sushiData, knowledgeTotals, orangeFireSu
 /**
  * Fuel capacity.
  */
-export function fuelCapacity(upgLevels, knowledgeTotals, hasBundleV, doublers) {
+export function fuelCapacity(upgLevels, knowledgeTotals, hasBundleV, doublers, eventShopStr) {
   var bundleMult = 1 + Math.min(1, hasBundleV ? 1 : 0);
   var upgCap = upgradeQTY(1, upgLevels, doublers) + upgradeQTY(2, upgLevels, doublers)
     + upgradeQTY(3, upgLevels, doublers) + upgradeQTY(4, upgLevels, doublers) + upgradeQTY(5, upgLevels, doublers);
@@ -201,7 +202,7 @@ export function fuelCapacity(upgLevels, knowledgeTotals, hasBundleV, doublers) {
   var capMulti3 = 1 + (Number(upgLevels[3]) || 0) / 100;
   var capMulti4 = 1 + (Number(upgLevels[4]) || 0) / 100;
   var capMulti5 = 1 + (Number(upgLevels[5]) || 0) / 100;
-  return (200 + knowledgeCap) * bundleMult
+  return (200 + knowledgeCap) * bundleMult * (1 + 9 * eventShopOwned(66, eventShopStr))
     * (1 + upgCap / 100)
     * capMulti2 * capMulti3 * capMulti4 * capMulti5;
 }
@@ -433,7 +434,7 @@ export function buildSushiSummary(sushiData, upgLevels, uniqueSushi, knowledgeTo
   var fuelGen = fuelGenPerHr(upgLevels, sushiData, knowledgeTotals,
     computeOrangeFireSum(sushiData, fireplaceEffectBase(knowledgeTotals, Number(sushiData?.[4]?.[2]) || 0)),
     externalSources?.hasBundleV, externalSources?.doublers);
-  var fuelCap = fuelCapacity(upgLevels, knowledgeTotals, externalSources?.hasBundleV, externalSources?.doublers);
+  var fuelCap = fuelCapacity(upgLevels, knowledgeTotals, externalSources?.hasBundleV, externalSources?.doublers, externalSources?.eventShopStr);
   var activeSlots = countActiveSlots(sushiData);
   var maxCook = maxCookTier(upgLevels);
 

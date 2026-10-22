@@ -28,7 +28,7 @@ const _clone = (v) => JSON.parse(JSON.stringify(v));
 const _isRecipe = (name) => name.indexOf('SmithingRecipes') !== -1 || name.indexOf('TalentBook') !== -1;
 const _isGem = (name) => name.indexOf('PremiumGem') !== -1 || name.indexOf('Timecandy') !== -1;
 // RunCodeOfType("Event_BoxDrop") (src 65973).
-const EVENT_BOX_DROP = 'Quest109';
+const EVENT_BOX_DROP = 'Quest79';
 const GI77_EXCLUDED = ['crabcakeB', 'shovelY', 'sheepB', 'slimeR', 'snakeY', 'filler'];
 
 function _unmodelled(sim, key, detail) {
@@ -668,7 +668,7 @@ export function onKill(sim, mon) {
   const lv = N(v.level);
   const ola = st.ola;
   if ((map < 20 || map > 23) && !mon.worship && String(v.eventStatus) === 'On' && lv > 12 && N(ola[29]) < 50) {
-    if (rng.randomInt(1, Math.max(3, 3 + Math.round(2 * Math.floor(lv / 25) + 20 * Math.floor(lv / 300))) | 0) === 1) {
+    if (rng.randomInt(1, Math.max(3, 3 + Math.round(2 * Math.floor(Math.min(1e4, lv) / 25) + 20 * Math.floor(Math.min(1e4, lv) / 200))) | 0) === 1) {
       dropSomething(sim, EVENT_BOX_DROP, 1, 0, 0, 0, mon.node, 0, dx, 'eventBox');
       ola[29] = Math.round(N(ola[29]) + 1);
       if (N(ola[29]) === 50) ola[325] = Math.round(N(ola[325]) + 1);
@@ -676,9 +676,9 @@ export function onKill(sim, mon) {
     const inv = st.inventory?.order || [];
     if (!inv.includes('Quest111')) dropSomething(sim, 'Quest111', 1, 0, 0, 0, mon.node, 0, dx, 'event');
     if (!inv.includes('Quest114')) dropSomething(sim, 'Quest114', 1, 0, 0, 0, mon.node, 0, dx, 'event');
-    if (!(inv.includes('Quest119') && N(ola[615]) !== 0)) {
+    if (!(inv.includes('Quest119') && N(ola[605]) !== 0)) {
       dropSomething(sim, 'Quest119', 1, 0, 0, 0, mon.node, 0, dx, 'event');
-      ola[615] = 1;
+      ola[605] = 1;
     }
   }
   // EXP (dummyDamageDealt chain).

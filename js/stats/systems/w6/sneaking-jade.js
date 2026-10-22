@@ -138,6 +138,7 @@ function _offlineBatchExpectations(twins, hours, options) {
   });
   var initialFlowers = Math.max(0, _num(options.initialFlowers));
   var funeralPerFlower = nkBonus(21, options.nkLevels || []);
+  var flowerGain = 1 + nkBonus(30, options.nkLevels || []) / 100;
   var initialFuneralMulti = 1 + initialFlowers * funeralPerFlower / 100;
   var detectionEnabled = options.detectionEnabled !== false;
   var meta = { approximate: false };
@@ -272,19 +273,19 @@ function _offlineBatchExpectations(twins, hours, options) {
     if (target < 0) {
       var independent = _cloneState(state);
       independent.progress[actor] -= _num(actorTwin.koTime) * multiplier;
-      independent.flowers += 1;
-      independent.flowerCredits[actor] += 1;
+      independent.flowers += flowerGain;
+      independent.flowerCredits[actor] += flowerGain;
       independent.progress[actor] -= 3600 * multiplier;
       return [independent];
     }
 
     var targetTwin = twins[target] || {};
     var targetDodge = Math.min(0.9, _num(targetTwin.dodgePct) / 100);
-    var targetKoChance = _detectionAt(target, state.flowers + 1) * (1 - targetDodge);
+    var targetKoChance = _detectionAt(target, state.flowers + flowerGain) * (1 - targetDodge);
     var targetSafe = _cloneState(state);
     targetSafe.probability *= 1 - targetKoChance;
     targetSafe.progress[actor] += 1 - 3600 * multiplier;
-    var targetSafeFlowers = Math.max(0, targetSafe.flowers + 1 - multiplier);
+    var targetSafeFlowers = Math.max(0, targetSafe.flowers + flowerGain - multiplier);
     targetSafe.flowerCredits[actor] += targetSafeFlowers - targetSafe.flowers;
     targetSafe.flowers = targetSafeFlowers;
 
@@ -292,8 +293,9 @@ function _offlineBatchExpectations(twins, hours, options) {
     targetKo.probability *= targetKoChance;
     targetKo.progress[actor] += 1 - 3600 * multiplier;
     targetKo.progress[target] -= _num(targetTwin.koTime) * multiplier;
-    targetKo.flowers += 1;
-    targetKo.flowerCredits[actor] += 1;
+    var targetKoFlowers = Math.max(0, targetKo.flowers + flowerGain + multiplier - multiplier);
+    targetKo.flowerCredits[actor] += targetKoFlowers - targetKo.flowers;
+    targetKo.flowers = targetKoFlowers;
     return [targetSafe, targetKo];
   }
 
@@ -431,8 +433,9 @@ function _solveLinearSystem(matrix, values) {
 // Team expected-progress model for the native Taunting Mark redirect loop.
 // Each twin targets the first other Taunting Mark wearer on the floor. The
 // resulting linear system allocates external expected KO progress to taunters.
-export function computeTeamDoorRates(twins) {
+export function computeTeamDoorRates(twins, nkLevels) {
   twins = twins || [];
+  var flowerGain = 1 + nkBonus(30, nkLevels || []) / 100;
   var count = twins.length;
   var matrix = [];
   var values = [];
@@ -491,9 +494,9 @@ export function computeTeamDoorRates(twins) {
   for (var sourceIdx = 0; sourceIdx < count; sourceIdx++) {
     var sourceTarget = target[sourceIdx];
     if (sourceTarget < 0) {
-      results[sourceIdx].flowersPerHour += attempts[sourceIdx] * koChance[sourceIdx];
+      results[sourceIdx].flowersPerHour += attempts[sourceIdx] * koChance[sourceIdx] * flowerGain;
     } else {
-      results[sourceTarget].flowersPerHour += attempts[sourceIdx] * koChance[sourceIdx] * koChance[sourceTarget];
+      results[sourceTarget].flowersPerHour += attempts[sourceIdx] * koChance[sourceIdx] * (flowerGain - 1 + koChance[sourceTarget]);
     }
   }
   return results;
@@ -854,7 +857,7 @@ export function computeSneakingTeamScenario(twins, saveData, options) {
       dodgePct: twin.dodgePct,
       taunting: twin.taunting,
     };
-  }));
+  }), ninjaData[103] || []);
   var doors = twins.map(function(twin) {
     return twin.doorDamage || computeDoorDamageDetailed(twin.idx, saveData, activeCharIdx);
   });

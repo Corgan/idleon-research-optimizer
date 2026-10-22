@@ -21,6 +21,8 @@ import { computeDancingCoralBonus } from './spelunking.js';
 import { constBuildBonus } from '../w3/construction.js';
 import { computeVialByKey } from '../w2/alchemy.js';
 import { computeCardLv } from '../common/cards.js';
+import { eventShopOwned } from '../../../game-helpers.js';
+import { companionBonusForSave } from '../../data/common/companions.js';
 
 function _m(S) {
   var m = S && S.menagerieData;
@@ -60,7 +62,8 @@ export function menagerieLumiGridShapeValues(S, shapePct = Math.max(...SHAPE_BON
     + (10 * petArenaCrucBonus(S, 4)
     + (25 * petArenaCrucBonus(S, 14)
     + (constBuildBonus(S, 3) + (atom + (zenith
-    + (computeDancingCoralBonus(6, S) + (vial + (g164 + card)))))))));
+    + (computeDancingCoralBonus(6, S) + (vial + (g164 + (card
+    + (50 * eventShopOwned(62, S.cachedEventShopStr) + companionBonusForSave(116, S))))))))))));
   var active = menagerieRank(S) > 0;
   return [164, 165].map(function(idx) {
     var bonus = idx === 164 ? g164 : g165;
@@ -123,20 +126,17 @@ export function menagerieUpgUnlocked(S, t, opts) {
 }
 
 export function blackStarsOwned(S) {
-  if (!hasMenagerieData(S)) return 0;
-  return Math.round(menagerieBoostQTY(S, 2) + 4 * hasBundle(S, 'ban_m'));
+  return Math.round(menagerieBoostQTY(S, 2) + (4 * hasBundle(S, 'ban_m') + eventShopOwned(60, S?.cachedEventShopStr)));
 }
 
 export function organicLabelsOwned(S) {
-  if (!hasMenagerieData(S)) return 0;
-  return Math.round(menagerieBoostQTY(S, 6));
+  return Math.round(menagerieBoostQTY(S, 6) + 5 * eventShopOwned(61, S?.cachedEventShopStr));
 }
 
 export function menagerieDoublersOwned(S, system) {
-  if (!hasMenagerieData(S)) return 0;
   var idx = system === 'minehead' ? 8 : system === 'sushi' ? 10 : system === 'jelly' ? 12 : -1;
   if (idx < 0) return 0;
-  return Math.round(menagerieBoostQTY(S, idx) + 3 * hasBundle(S, 'ban_l'));
+  return Math.round(menagerieBoostQTY(S, idx) + (3 * hasBundle(S, 'ban_l') + companionBonusForSave(149, S)));
 }
 
 var _DOUBLER_ROW = { minehead: 51, sushi: 52, jelly: 53 };
@@ -220,7 +220,7 @@ export function nightmarinerTotalLevel(S) {
 }
 
 export function nightmarinerBonus(S, t) {
-  if (!hasMenagerieData(S)) return 1;
+  if (menagerieUnlockOwned(S, 13) !== 1) return 1;
   var x = nightmarinerTotalLevel(S);
   return Math.max(1, 1 + x / (x + 1e4) * (t === 0 ? 1999 : 499));
 }

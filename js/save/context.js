@@ -84,6 +84,7 @@ export function buildSaveContext() {
     arcade63: saveData.cachedArcade63 || 0,
     clamWork9: saveData.cachedClamWork9 || 0,
     menagerieB3: saveData.cachedMenagerieB3 || 0,
+    researchEquipmentMulti: saveData.cachedResearchEquipmentMulti || 1,
     bundleBanM: hasBundle(saveData, 'ban_m'),
     bundleBanK: hasBundle(saveData, 'ban_k'),
     jellyResearchMulti,
@@ -177,6 +178,7 @@ export function makeSimCtx(gl, sc) {
       arcade63:       sc.arcade63 || 0,
       clamWork9:      sc.clamWork9 || 0,
       menagerieB3:    sc.menagerieB3 || 0,
+      researchEquipmentMulti: sc.researchEquipmentMulti || 1,
       banM:           sc.bundleBanM ? 1 : 0,
       jellyResearchMulti: sc.jellyResearchMulti || 1,
       jellyInsightPct: sc.jellyInsightPct || 0,
@@ -225,6 +227,7 @@ export function makeSimCtx(gl, sc) {
     arcade63:       saveData.cachedArcade63 || 0,
     clamWork9:      saveData.cachedClamWork9 || 0,
     menagerieB3:    saveData.cachedMenagerieB3 || 0,
+    researchEquipmentMulti: saveData.cachedResearchEquipmentMulti || 1,
     banM:           hasBundle(saveData, 'ban_m'),
     jellyResearchMulti: [0, 23, 46, 54].reduce(
       (multi, index) => multi * (1 + jellyRewardBonus(saveData, index) / 100),

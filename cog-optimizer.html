@@ -462,6 +462,7 @@ import { optimizeAsync } from './js/cogs/cog-optimizer.js';
 var COG_WORKER = null;
 import { fmtVal } from './js/renderers/format.js';
 import { jellyRewardBonus } from './js/stats/data/w7/jelly-operator.js';
+import { menagerieUnlockOwned } from './js/stats/systems/w7/menagerie.js';
 
 /* ========== STATE ========== */
 var COG_ORDER = null, COG_MAP = null;
@@ -486,13 +487,14 @@ function smallCogEffectiveOneInN(baseLevel) {
   // For odds display: effective P(>= L) = P_base(>= L) + p * P_base(exactly L-1)
   // Simplified: oneInN for level L accounting for tier-up
   if (baseLevel <= 0) return 1;
+  if (baseLevel > 9 + menagerieUnlockOwned(saveData, 21)) return Infinity;
   var boost = Math.max(0, Math.min(2, GRID69_TIER_UP_PCT / 100));
   var p0 = Math.max(0, 1 - boost);
   var p2 = Math.max(0, boost - 1);
   var p1 = 1 - p0 - p2;
-  function tail(level) { return level <= 0 ? 1 : Math.pow(0.5, level); }
+  function tail(level) { return level <= 0 ? 1 : level > 9 ? 0 : Math.pow(0.5, level); }
   var pEff = p0 * tail(baseLevel) + p1 * tail(baseLevel - 1) + p2 * tail(baseLevel - 2);
-  return pEff > 0 ? Math.round(1 / pEff) : 1;
+  return pEff > 0 ? Math.round(1 / pEff) : Infinity;
 }
 function smallCogMinObtainableTier() {
   // At 100% tier-up, tier 0 is impossible (always bumped to 1+)

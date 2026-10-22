@@ -76,7 +76,7 @@ export function isBubbleKeyPrismad(key) {
   return false;
 }
 
-// PrismaBonusMult: Math.min(4, 2 + (ArcaneUpg(45) + Arcade(54) + HaveW6Trophy + Palette(28)
+// PrismaBonusMult: Math.min(5, 2 + (ArcaneUpg(45) + Arcade(54) + HaveW6Trophy + Palette(28)
 //   + 0.2*TotalPurpleSigils + ExoticBonusQTY(48) + LegendPTS(36) + 50*Companions(88)) / 100)
 function getPrismaBonusMult(saveData) {
   var arcane45 = arcaneUpgBonus(45, saveData);     // flat index → raw level value
@@ -112,7 +112,7 @@ function getPrismaBonusMult(saveData) {
   var sushiRoG23 = rogBonusQTY(23, saveData.cachedUniqueSushi || 0);
   var sum = arcane45 + arcade54 + sushiRoG23 + jellyRewardBonus(saveData, 36) + hasW6Trophy + palette28
     + 0.2 * purpleSigils + exotic48 + legend36 + 50 * comp88;
-  return Math.min(4, 2 + sum / 100);
+  return Math.min(5, 2 + sum / 100);
 }
 
 export { isBubblePrismad, getPrismaBonusMult };

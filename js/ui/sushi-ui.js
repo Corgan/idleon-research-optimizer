@@ -9,7 +9,7 @@ import { _bNode } from '../stats/node-helpers.js';
 import { label } from '../stats/entity-names.js';
 import { arcadeBonus } from '../stats/systems/w2/arcade.js';
 import { fmtNum as _fmt } from '../renderers/format.js';
-import { superBitType } from '../game-helpers.js';
+import { superBitType, eventShopOwned } from '../game-helpers.js';
 import { computeButtonBonus } from '../stats/defs/helpers.js';
 import {
   SUSHI_UPG, SLOT_TO_UPG, TIER_TO_KNOWLEDGE_CAT,
@@ -108,6 +108,7 @@ function _getExternalSources() {
     gamingSuperBit67: superBitType(67, saveData.gamingData?.[12]),
     buttonBonus2: computeButtonBonus(2, saveData),
     doublers: sushiDoublers(saveData),
+    eventShopStr: saveData.cachedEventShopStr,
   };
 }
 
@@ -148,14 +149,14 @@ function _fmtDesc(upgIdx, sd, ul, kt) {
     if (uniqueMultiIds.has(upgIdx)) {
       val = (1 + lv / 100).toFixed(2);
     } else if (upgIdx === 1) {
-      val = _fmt(fuelCapacity(ul, kt, false, dbl));
+      val = _fmt(fuelCapacity(ul, kt, false, dbl, saveData.cachedEventShopStr));
     } else if (upgIdx === 6) {
       val = String(Math.round(maxCookTier(ul) + 1));
     } else if (upgIdx === 8) {
       const fpBase = fireplaceEffectBase(kt, sparks);
       const orangeFire = computeOrangeFireSum(sd, fpBase);
       const fg = fuelGenPerHr(ul, sd, kt, orangeFire, false, dbl);
-      const fc = fuelCapacity(ul, kt, false, dbl);
+      const fc = fuelCapacity(ul, kt, false, dbl, saveData.cachedEventShopStr);
       val = _fmt(fg) + ' Fuel/hr. Max Cap is ' + _fmt(fc);
     } else if (upgIdx === 14) {
       val = (1 + 50 * slotEffectBase(kt) / 100).toFixed(2);
@@ -214,7 +215,7 @@ function _renderOverview() {
   const fpBase = fireplaceEffectBase(kt, Number(sd?.[4]?.[2]) || 0);
   const orangeFire = computeOrangeFireSum(sd, fpBase);
   const fuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
-  const fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers);
+  const fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers, ext.eventShopStr);
   const bucks = Number(sd?.[4]?.[3]) || 0;
   const sparks = Number(sd?.[4]?.[2]) || 0;
 
@@ -502,7 +503,7 @@ function _renderCurrency() {
   const fpBase = fireplaceEffectBase(kt, Number(sd?.[4]?.[2]) || 0);
   const orangeFire = computeOrangeFireSum(sd, fpBase);
   const fuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
-  const fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers);
+  const fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers, ext.eventShopStr);
 
   const fb8  = upgradeQTY(8, ul, ext.doublers);
   const fb9  = upgradeQTY(9, ul, ext.doublers);
@@ -557,6 +558,7 @@ function _renderCurrency() {
   ], { fmt: '/hr' });
 
   const capTree = _bNode('Fuel Capacity', fuelCap, [
+    _bNode('Fuel Cap event purchase', 1 + 9 * eventShopOwned(66, ext.eventShopStr), null, { fmt: 'x' }),
     _bNode('Base', 200, null),
     _bNode(label('Knowledge', 3), knCap, null, { fmt: '+' }),
     _bNode('Fuel Cap I-V', 1 + upgCapSum / 100, [
@@ -626,7 +628,7 @@ function _renderBestUpgrade() {
   const fpBase = fireplaceEffectBase(kt, Number(sd?.[4]?.[2]) || 0);
   const orangeFire = computeOrangeFireSum(sd, fpBase);
   const currentFuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
-  const currentFuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers);
+  const currentFuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers, ext.eventShopStr);
 
   const fuelGenIds = new Set([8, 9, 10, 11, 12]);
   const fuelCapIds = new Set([1, 2, 3, 4, 5]);
@@ -664,7 +666,7 @@ function _renderBestUpgrade() {
       const simOrange = computeOrangeFireSum(sd, simFpBase);
       let gain, label;
       if (fuelCapIds.has(ui)) {
-        gain = fuelCapacity(simUl, simKt, ext.hasBundleV, ext.doublers) - currentFuelCap;
+        gain = fuelCapacity(simUl, simKt, ext.hasBundleV, ext.doublers, ext.eventShopStr) - currentFuelCap;
         label = 'cap';
       } else {
         gain = fuelGenPerHr(simUl, sd, simKt, simOrange, ext.hasBundleV, ext.doublers) - currentFuelGen;
@@ -740,7 +742,7 @@ function _renderBestUpgrade() {
 
   const metricBucks = (simUl) => totalBucksPerHr(sd, simUl, us, kt, ext);
   const metricFuelGen = (simUl) => fuelGenPerHr(simUl, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
-  const metricFuelCap = (simUl) => fuelCapacity(simUl, kt, ext.hasBundleV, ext.doublers);
+  const metricFuelCap = (simUl) => fuelCapacity(simUl, kt, ext.hasBundleV, ext.doublers, ext.eventShopStr);
 
   const pathBucks = _computePath(bucks, null, metricBucks);
   const pathFuelGen = _computePath(bucks, fuelGenIds, metricFuelGen);
@@ -1035,4 +1037,3 @@ function _renderTable(target) {
     </div>
   `;
 }
-

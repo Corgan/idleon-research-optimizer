@@ -347,6 +347,7 @@ function _computeSpelunkingExp(ci, ctx) {
 
   var killroy5 = safe(computeKillroyBonus, 5, saveData);
   var arcade56 = rval(arcade, 56, ctx);
+  var shop59 = safe(shopUpgBonus, 59, saveData);
   var allSkillxpMULTI = computeAllSkillxpMULTI(ctx);
   var shop45 = safe(shopUpgBonus, 45, saveData);
   var goldenFood = _num(safe(goldFoodBonuses, 'SpelunkEXPz', ci, undefined, saveData));
@@ -360,7 +361,8 @@ function _computeSpelunkingExp(ci, ctx) {
   var prehistoric = _num(safe(getSetBonus, 'PREHISTORIC_SET', ci));
 
   var product = (1 + skillSources / 100)
-    * (1 + (killroy5 + arcade56) / 100)
+    * (1 + (arcade56 + shop59) / 100)
+    * Math.max(1, killroy5)
     * allSkillxpMULTI
     * (1 + spelunkSources / 100)
     * (1 + allSkillxpz / 1000)
@@ -372,7 +374,8 @@ function _computeSpelunkingExp(ci, ctx) {
     children: [
       { name: 'Gambit 14', val: gambit14 / 100, fmt: 'raw' },
       { name: 'Spelunking skill sources', val: skillSources, fmt: 'raw' },
-      { name: 'Killroy and Arcade', val: 1 + (killroy5 + arcade56) / 100, fmt: 'x' },
+      { name: 'Arcade and Spelunking shop', val: 1 + (arcade56 + shop59) / 100, fmt: 'x' },
+      { name: 'Killroy EXP multiplier', val: Math.max(1, killroy5), fmt: 'x' },
       { name: 'Skill EXP Multi (all)', val: allSkillxpMULTI, fmt: 'x' },
       { name: 'Spelunking EXP sources', val: spelunkSources, fmt: 'raw' },
       { name: 'Shared Skill EXP', val: allSkillxpz, fmt: 'raw' },

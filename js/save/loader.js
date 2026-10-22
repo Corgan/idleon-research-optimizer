@@ -526,6 +526,7 @@ export function recomputeDerivedBonuses() {
     cachedArcade63: Number(rexp.arcade63) || 0,
     cachedClamWork9: Number(rexp.clamWork9) || 0,
     cachedMenagerieB3: Number(rexp.menagerieB3) || 0,
+    cachedResearchEquipmentMulti: Number(rexp.equipmentMulti) || 1,
   });
 
   // Button_Bonuses(0): presses rotate through 9 slots, slot 0 rate = 2
@@ -544,7 +545,7 @@ export function recomputeDerivedBonuses() {
   assignState({ cachedButtonBonus0: _btn0, cachedBtnBaseNoGrid: _btnBase });
 
   // KillroyBonuses(5): 1 + OLA[469] / (150 + OLA[469]) * 0.8
-  // Game uses (1 + KB(5)/100) in ResearchEXPmulti, so we store the full KB return value
+  // ResearchEXPmulti uses the full KB return value as a multiplier.
   var _ola469 = Number(saveData.olaData[469]) || 0;
   assignState({ cachedKillroy5: 1 + _ola469 / (150 + _ola469) * 0.8 });
 

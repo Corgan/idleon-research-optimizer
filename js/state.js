@@ -109,6 +109,7 @@ export const saveData = {
   cachedArcade63: 0,
   cachedClamWork9: 0,
   cachedMenagerieB3: 0,
+  cachedResearchEquipmentMulti: 1,
   guildData: [],
   cyTalentPointsData: [],
   prayOwnedData: [],

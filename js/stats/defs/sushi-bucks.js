@@ -32,6 +32,7 @@ function _gatherExternal(S) {
     gamingSuperBit67: superBitType(67, S.gamingData && S.gamingData[12]),
     buttonBonus2: computeButtonBonus(2, S),
     doublers: sushiDoublers(S),
+    eventShopStr: S.cachedEventShopStr,
   };
 }
 
@@ -102,7 +103,7 @@ export default createDescriptor({
     var fpBase = fireplaceEffectBase(kt, Number(sd[4] && sd[4][2]) || 0);
     var orangeFire = computeOrangeFireSum(sd, fpBase);
     var fuelGen = fuelGenPerHr(ul, sd, kt, orangeFire, ext.hasBundleV, ext.doublers);
-    var fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers);
+    var fuelCap = fuelCapacity(ul, kt, ext.hasBundleV, ext.doublers, ext.eventShopStr);
     children.push({ name: 'Fuel Gen/hr', val: fuelGen, fmt: 'raw' });
     children.push({ name: 'Fuel Cap', val: fuelCap, fmt: 'raw' });
 

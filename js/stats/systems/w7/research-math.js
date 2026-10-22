@@ -288,7 +288,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * stickerMulti * (1 + 0.25 * (ctx.clamWork9 || 0)) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.arcade63 || 0) / 100) * (1 + (ctx.killroy5 || 0) / 100) * _c52 * (1 + 0.15 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * (1 + (ctx.menagerieB3 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * Math.max(1, Math.min(15, ctx.researchEquipmentMulti || 1)) * stickerMulti * (1 + 0.25 * (ctx.clamWork9 || 0)) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.arcade63 || 0) / 100) * Math.max(1, ctx.killroy5 || 1) * _c52 * (1 + 0.5 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * (1 + (ctx.menagerieB3 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -445,6 +445,7 @@ function gridPointSources(saveCtx) {
     { label: 'Jelly Reward 4', value: (saveCtx && saveCtx.jellyGridPoint4) || 0 },
     { label: 'Jelly Reward 57', value: (saveCtx && saveCtx.jellyGridPoint57) || 0 },
     { label: 'Bundle (ban_k)', value: 5 * ((saveCtx && saveCtx.bundleBanK) ? 1 : 0) },
+    { label: 'Graduate Thesis', value: (saveCtx && saveCtx.evShop && saveCtx.evShop[64]) || 0 },
   ];
 }
 

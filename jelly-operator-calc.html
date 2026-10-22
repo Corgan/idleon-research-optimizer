@@ -52,7 +52,7 @@ import { buildSaveContext, computeShapesOwned } from './js/save/context.js';
 const FEVER_MODES=[
   {name:'COLD',bonus:'+1% all damage each elapsed second'},
   {name:'RASH',bonus:'2.00x all damage'},
-  {name:'SEPSIS',bonus:'2.00x Bloodcell gains'},
+  {name:'SEPSIS',bonus:'4.00x Bloodcell gains'},
   {name:'NAUSEA',bonus:'2.00x EXP gains for all cells'},
   {name:'RABIES',bonus:'1.50x all damage and 1.25x all speed'},
   {name:'PLAGUE',bonus:'1.40x all speed'},
@@ -455,6 +455,8 @@ function jellyHash(value){
 }
 function jellySaveFingerprint(){
   return jellyHash(JSON.stringify([
+    '2026-10-21',
+    saveData.cachedEventShopStr||'',
     saveData.research?.[7]||[],
     saveData.research?.slice?.(14,19)||[],
     saveData.cachedUniqueSushi||0,
@@ -479,7 +481,7 @@ function jellyWorkerContextFingerprint(){
 const JELLY_OPTIMIZER_CHECKPOINT_KEY='jelly-optimizer-checkpoint-v2';
 const JELLY_CHECKPOINT_DB='idleon-jelly-checkpoints';
 const JELLY_CHECKPOINT_STORE='checkpoints';
-const JELLY_CHECKPOINT_SCHEMA=2;
+const JELLY_CHECKPOINT_SCHEMA=3;
 let jellyCheckpointDbPromise=null;
 function jellyCheckpointDb(){
   if(jellyCheckpointDbPromise)return jellyCheckpointDbPromise;

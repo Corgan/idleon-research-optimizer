@@ -24,6 +24,7 @@ import { isUpgradeDoubled } from './menagerie.js';
 import { rogBonusQTY } from './sushi.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { fmtVal } from '../../../renderers/format.js';
+import { eventShopOwned } from '../../../game-helpers.js';
 
 const STARTING_SLOTS = [77, 95, 78, 96];
 const FIRST_CLEAR_SLOTS = [76, 94];
@@ -202,7 +203,7 @@ export function jellyUpgradeDisplay(S, id) {
     .replace(/\s+/g, ' ')
     .trim();
   if (id === 10 && jellyUpgradeQuantity(S, 17) >= 1) {
-    description = description.replace('1.01x', `1.0${Math.round(1 + jellyUpgradeQuantity(S, 17))}x`);
+    description = description.replace('1.01x', `${Math.round(100 + (1 + jellyUpgradeQuantity(S, 17))) / 100}x`);
   }
   let sourceNote = '';
   if (id === 5) {
@@ -291,7 +292,7 @@ export function jellySlotPurchasesLeft(S) {
     jellyUpgradeQuantity(S, 9)
     + (jellyUpgradeQuantity(S, 8)
       + (jellyCompletionBonus(44, S)
-        + (bundle + jellyLegendSlotTokens(S))))
+        + (bundle + (jellyLegendSlotTokens(S) + 3 * eventShopOwned(57, S?.cachedEventShopStr)))))
     - researchRow(S, 18).length
   );
 }
@@ -396,7 +397,7 @@ export function jellyBossTime(index) {
 }
 
 export function jellyBossAttackCooldown(index) {
-  return Math.max(10, 120 - 20 * Math.floor(Math.max(0, n(index)) / 6));
+  return Math.max(10, 120 - Math.max(0, n(index)) / 6 * 20);
 }
 
 export function jellyDailyTries(S) {
@@ -419,7 +420,8 @@ export function jellyFeverBonus(S, effect, part = 0, rampPct = 0, selectedOverri
   if (jellyUpgradeQuantity(S, 16) <= effect) return 0;
   if (selected !== effect) return 0;
   if (effect === 0) return n(rampPct);
-  if (effect === 1 || effect === 2 || effect === 3) return 100;
+  if (effect === 2) return 300;
+  if (effect === 1 || effect === 3) return 100;
   if (effect === 4) return part === 1 ? 25 : 50;
   if (effect === 5) return 40;
   return 0;
@@ -574,6 +576,7 @@ function _jellyCurrencyRuntimeFactors(S, fever, totalCellLevel) {
     beforeDps,
     upgrade26: 1 + jellyUpgradeQuantity(S, 26) / 100,
     upgrade27: 1 + jellyUpgradeQuantity(S, 27) / 100,
+    event56: 1 + eventShopOwned(56, S?.cachedEventShopStr),
     atom15: 1 + atom15 / 100,
   };
 }
@@ -583,6 +586,7 @@ function _jellyCurrencyMultiplierFromFactors(factors, bestDps) {
     * jellyBestDpsMultiplierFromValue(bestDps)
     * factors.upgrade26
     * factors.upgrade27
+    * factors.event56
     * factors.atom15;
 }
 
@@ -733,6 +737,7 @@ export function jellyBloodcellBreakdown(S, fever, options = {}) {
     },
     { label: jellyUpgradeData(26)?.name || 'Blood Tribunal I', value: 1 + jellyUpgradeQuantity(S, 26) / 100, unit: 'x', unlockId: 26 },
     { label: jellyUpgradeData(27)?.name || 'Blood Tribunal II', value: 1 + jellyUpgradeQuantity(S, 27) / 100, unit: 'x', unlockId: 27 },
+    { label: 'Big Clot', value: 1 + eventShopOwned(56, S?.cachedEventShopStr), unit: 'x' },
     { label: 'Sulfur atom', value: 1 + atom / 100, unit: 'x', children: [{ label: 'Atom contribution', value: atom, unit: '%' }] },
   ];
   return { value: jellyCurrencyMultiplier(S, fever, options), available: jellyUpgradeQuantity(S, 23) >= 1, factors };
