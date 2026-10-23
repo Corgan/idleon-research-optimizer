@@ -1583,7 +1583,11 @@ export function mountCombatSetup(host, opts) {
     rtips = [];
     lastRt = null;
     const c = compute();
-    const fid = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-fid') : null;
+    const active = root.contains(document.activeElement) ? document.activeElement : null;
+    const fid = active ? active.getAttribute('data-fid') : null;
+    const searchSelection = active && active.type === 'search'
+      ? { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection, scrollLeft: active.scrollLeft }
+      : null;
     const panel = view.querySelector('.css-setup-panel');
     const scroll = panel ? panel.scrollTop : 0;
     const overrideCount = Object.keys(setup.toggles || {}).length + Object.keys(setup.termOverrides || {}).length;
@@ -1641,7 +1645,15 @@ export function mountCombatSetup(host, opts) {
     if (np) np.scrollTop = scroll;
     if (fid) {
       const el = view.querySelector('[data-fid="' + (window.CSS && CSS.escape ? CSS.escape(fid) : fid) + '"]');
-      if (el) { el.focus(); if (el.select && el.type !== 'search' && el.tagName === 'INPUT') { try { el.select(); } catch (e) { /* number inputs */ } } }
+      if (el) {
+        el.focus({ preventScroll: true });
+        if (searchSelection && el.type === 'search') {
+          el.setSelectionRange(searchSelection.start, searchSelection.end, searchSelection.direction);
+          el.scrollLeft = searchSelection.scrollLeft;
+        } else if (el.select && el.tagName === 'INPUT') {
+          try { el.select(); } catch (e) { /* number inputs */ }
+        }
+      }
     }
   }
   let pending = false;
