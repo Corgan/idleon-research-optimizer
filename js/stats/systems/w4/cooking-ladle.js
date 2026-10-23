@@ -1034,6 +1034,217 @@ export function blueJellyfishInfo(S) {
   };
 }
 
+function _planObjective(plan, opts) {
+  if (opts.objective === 'ranks') return _levelSum(plan.gained);
+  if (opts.objective === 'targets') return plan.levels.reduce(function(sum, level, m) {
+    return sum + Math.max(0, Math.min(level, Number(opts.targets && opts.targets[m]) || 0) - plan.startLevels[m]);
+  }, 0);
+  return plan.endSpeed;
+}
+
+// Whole kitchens are indivisible. Beam construction and relocation search retain the saved layout
+// and all-on-one-meal layouts; the final comparison applies the shared first-purchase discount.
+export function optimizeKitchenReset(S, opts) {
+  var model = opts.model;
+  var levels = opts.levels.slice();
+  var stocks = opts.stocks.slice();
+  var inputs = opts.inputs;
+  var maxLevel = opts.maxLevel;
+  var hours = Math.max(0, Number(opts.hours) || 0);
+  var layout = opts.kitchenLayout || {};
+  var excluded = new Set(layout.excluded || []);
+  var kitchens = model.kitchens.filter(function(k) { return k.unlocked; });
+  if (kitchens.length > 10) throw new Error('Cooking supports at most ten kitchens.');
+  var eligible = levels.map(function(lv, m) { return m; }).filter(function(m) {
+    return levels[m] >= 1 && levels[m] < maxLevel && mealRequirement(m) > 0;
+  });
+  var allowed = eligible.filter(function(m) { return !excluded.has(m); });
+  var pins = layout.pins || {};
+  for (var key of Object.keys(pins)) {
+    if (!kitchens.some(function(k) { return k.idx === Number(key); })) throw new Error('A pinned kitchen is locked or missing.');
+    if (pins[key] !== -1 && !(Number.isInteger(pins[key]) && levels[pins[key]] >= 1
+      && mealRequirement(pins[key]) > 0 && !excluded.has(pins[key]))) throw new Error('A pinned meal is excluded or undiscovered.');
+  }
+  var rates = kitchens.map(function(k) { return cookingSpeed(model, k.idx, levels, opts.cachedTurkeyStock); });
+  var ev = kitchenSpeedEvaluator(model, levels.length);
+  var cached = levels.map(function() { return new Map(); });
+  function output(m, mask, discount) {
+    var cacheKey = mask + ':' + (discount ? 1 : 0);
+    if (cached[m].has(cacheKey)) return cached[m].get(cacheKey);
+    var produced = 0;
+    for (var k = 0; k < kitchens.length; k++) if (mask & (1 << k)) produced += hours * rates[k] / mealRequirement(m);
+    var stock = (stocks[m] || 0) + produced;
+    var lv = levels[m];
+    while (lv >= 1 && lv < maxLevel && mealRequirement(m) > 0) {
+      var cost = mealLevelCost(lv, inputs, discount && lv === levels[m] ? opts.ola193 : 0);
+      if (!(stock >= cost)) break;
+      stock -= cost;
+      lv++;
+    }
+    var result = { level: lv, stock: stock, produced: produced, ranks: lv - levels[m],
+      target: Math.max(0, Math.min(lv, Number(opts.targets && opts.targets[m]) || 0) - levels[m]),
+      progress: lv < maxLevel ? Math.min(1, stock / mealLevelCost(lv, inputs, 0)) : 0 };
+    cached[m].set(cacheKey, result);
+    return result;
+  }
+  function make(assignments, discountedMeal) {
+    var masks = levels.map(function() { return 0; });
+    assignments.forEach(function(m, k) { if (m >= 0) masks[m] |= 1 << k; });
+    var out = levels.map(function(lv, m) { return output(m, masks[m], m === discountedMeal); });
+    var next = out.map(function(o) { return o.level; });
+    var agg = ev.aggregate(next);
+    var speed = ev.speed(agg, opts.cachedTurkeyStock);
+    var ranks = out.reduce(function(sum, o) { return sum + o.ranks; }, 0);
+    var target = out.reduce(function(sum, o) { return sum + o.target; }, 0);
+    var progress = out.reduce(function(sum, o) { return sum + o.progress; }, 0);
+    return { assignments: assignments, masks: masks, agg: agg, out: out, ranks: ranks, target: target, speed: speed, progress: progress,
+      primary: opts.objective === 'speed' ? speed : opts.objective === 'targets' ? target : ranks,
+      discountedMeal: discountedMeal };
+  }
+  function replace(state, m, value, discountedMeal) {
+    var old = state.out[m];
+    var out = state.out.slice();
+    out[m] = value;
+    var agg = ev.shift(state.agg, m, old.level, value.level);
+    var speed = ev.speed(agg, opts.cachedTurkeyStock);
+    var ranks = state.ranks + value.ranks - old.ranks;
+    var target = state.target + value.target - old.target;
+    return { ...state, out: out, agg: agg, speed: speed, ranks: ranks, target: target,
+      progress: state.progress + value.progress - old.progress, discountedMeal: discountedMeal,
+      primary: opts.objective === 'speed' ? speed : opts.objective === 'targets' ? target : ranks };
+  }
+  function move(state, k, m) {
+    var old = state.assignments[k];
+    if (old === m) return state;
+    var masks = state.masks.slice();
+    var assignments = state.assignments.slice();
+    assignments[k] = m;
+    if (old >= 0) {
+      masks[old] &= ~(1 << k);
+      state = replace(state, old, output(old, masks[old], false), -1);
+    }
+    if (m >= 0) {
+      masks[m] |= 1 << k;
+      state = replace(state, m, output(m, masks[m], false), -1);
+    }
+    return { ...state, masks: masks, assignments: assignments };
+  }
+  function compare(a, b) {
+    return b.primary - a.primary || b.speed - a.speed || b.progress - a.progress;
+  }
+  var saved = kitchens.map(function(k) {
+    return k.state === 2 && Number.isInteger(k.meal) && k.meal >= 0 && k.meal < levels.length
+      && levels[k.meal] >= 1 && mealRequirement(k.meal) > 0 ? k.meal : -1;
+  });
+  var initial = kitchens.map(function(k) { return Object.prototype.hasOwnProperty.call(pins, k.idx) ? pins[k.idx] : -1; });
+  var candidates = [];
+  if (layout.mode === 'saved') {
+    candidates.push(make(saved, -1));
+  } else {
+    var width = Math.max(1, Math.min(32, Math.floor(layout.beamWidth || 8)));
+    var beam = [make(initial, -1)];
+    var order = kitchens.map(function(k, i) { return i; }).sort(function(a, b) { return rates[b] - rates[a] || a - b; });
+    for (var k of order) {
+      if (Object.prototype.hasOwnProperty.call(pins, kitchens[k].idx)) continue;
+      var next = [];
+      for (var state of beam) for (var m of allowed) {
+        next.push(move(state, k, m));
+      }
+      next.sort(compare);
+      if (next.length) beam = next.slice(0, width);
+    }
+    candidates.push(...beam);
+    for (var m of allowed) candidates.push(make(kitchens.map(function(k) {
+      return Object.prototype.hasOwnProperty.call(pins, k.idx) ? pins[k.idx] : m;
+    }), -1));
+    var savedLegal = saved.every(function(m, i) {
+      return (m < 0 || allowed.includes(m))
+        && (!Object.prototype.hasOwnProperty.call(pins, kitchens[i].idx) || pins[kitchens[i].idx] === m);
+    });
+    if (savedLegal) candidates.push(make(saved, -1));
+    candidates.sort(compare);
+    var leader = candidates[0];
+    for (var round = 0; round < 2 && leader; round++) {
+      var neighbors = [leader];
+      for (var k of order) {
+        if (Object.prototype.hasOwnProperty.call(pins, kitchens[k].idx)) continue;
+        for (var m of allowed) {
+          neighbors.push(move(leader, k, m));
+        }
+        for (var j of order) {
+          if (j <= k || Object.prototype.hasOwnProperty.call(pins, kitchens[j].idx)) continue;
+          neighbors.push(move(move(leader, k, leader.assignments[j]), j, leader.assignments[k]));
+        }
+      }
+      neighbors.sort(compare);
+      candidates.push(...neighbors.slice(0, width));
+      if (compare(neighbors[0], leader) >= 0) break;
+      leader = neighbors[0];
+    }
+  }
+  if (!candidates.length) candidates.push(make(initial, -1));
+  // Dream 11 discounts exactly one purchase, not the first purchase of each meal.
+  var best = null;
+  for (var candidate of candidates) {
+    var canPurchase = false;
+    if (opts.ola193 > 0 && inputs.dream11 > 0) {
+      for (var m of eligible) {
+        var discounted = replace(candidate, m, output(m, candidate.masks[m], true), m);
+        if (discounted.out[m].ranks <= 0) continue;
+        canPurchase = true;
+        if (!best || compare(discounted, best) < 0) best = discounted;
+      }
+    }
+    if (!canPurchase && (!best || compare(candidate, best) < 0)) best = candidate;
+  }
+  var purchaseOrder = eligible.filter(function(m) { return best.out[m].ranks > 0; });
+  if (best.discountedMeal >= 0) purchaseOrder.sort(function(a, b) {
+    return (b === best.discountedMeal ? 1 : 0) - (a === best.discountedMeal ? 1 : 0) || a - b;
+  });
+  return {
+    proven: false, hours: hours, ranks: best.ranks, purchaseOrder: purchaseOrder,
+    levels: best.out.map(function(o) { return o.level; }),
+    stocks: best.out.map(function(o) { return o.stock; }),
+    meals: best.out.map(function(o, m) {
+      return { meal: m, from: levels[m], to: o.level, produced: o.produced, stock: o.stock, progress: o.progress };
+    }).filter(function(o) { return o.produced > 0 || o.to > o.from; }),
+    kitchens: kitchens.map(function(k, i) {
+      var m = best.assignments[i];
+      return { kitchen: k.idx, savedMeal: saved[i], meal: m, pinned: Object.prototype.hasOwnProperty.call(pins, k.idx),
+        speed: rates[i], produced: m >= 0 ? hours * rates[i] / mealRequirement(m) : 0 };
+    }),
+  };
+}
+
+export function planKitchenForecast(S, opts, onProgress) {
+  if (opts.objective && !['ranks', 'speed', 'targets'].includes(opts.objective)) throw new Error('Unknown kitchen forecast objective.');
+  if (opts.donationPolicy && !['auto', 'none', 'all', 'share', 'fixed'].includes(opts.donationPolicy)) throw new Error('Unknown Blue Jellyfish donation policy.');
+  var options = { ...opts, objective: opts.objective || 'ranks',
+    strategy: opts.objective === 'speed' ? 'speed' : 'cheapest',
+    kitchenLayout: { ...opts.kitchenLayout, mode: 'optimized' } };
+  if (options.objective === 'targets' && !Object.values(options.targets || {}).some(function(v) { return v > 0; })) {
+    throw new Error('Set at least one meal target level.');
+  }
+  if (onProgress) onProgress({ phase: 'Projecting current kitchen assignments', fraction: 0, evaluated: 0 });
+  var currentPlan = planMealLeveling(S, { ...options, jellyDonations: undefined,
+    kitchenLayout: { mode: 'saved' } });
+  var result;
+  if (!opts.donationPolicy || opts.donationPolicy === 'auto') result = optimizeBlueJellyfish(S, options, onProgress);
+  else {
+    var baseline = planMealLeveling(S, { ...options, jellyDonations: undefined });
+    var owned = opts.donationPolicy === 'none' ? 0
+      : Math.floor((Number(options.startLadles) || 0) * Math.max(0, Math.min(1, Number(opts.ownedFraction) || 0)));
+    var schedule = { owned: owned, daily: baseline.timeline.map(function(d) {
+      return opts.donationPolicy === 'none' ? 0 : Math.floor(Math.min(d.ladleIncome, opts.donationPolicy === 'fixed' ? Math.max(0, Number(opts.donationPerDay) || 0)
+        : d.ladleIncome * Math.max(0, Math.min(1, opts.donationPolicy === 'all' ? 1 : Number(opts.incomeFraction) || 0))));
+    }) };
+    result = { plan: planMealLeveling(S, { ...options, jellyDonations: schedule }), baselinePlan: baseline,
+      schedule: schedule, evaluated: 1, proven: false };
+  }
+  if (onProgress) onProgress({ phase: 'Complete', fraction: 1, evaluated: result.evaluated });
+  return { ...result, currentPlan: currentPlan, objective: options.objective };
+}
+
 export function optimizeBlueJellyfish(S, opts, onProgress) {
   var baseOpts = { ...opts, jellyDonations: undefined };
   var baseline = planMealLeveling(S, baseOpts);
@@ -1045,7 +1256,7 @@ export function optimizeBlueJellyfish(S, opts, onProgress) {
     var schedule = {
       owned: Math.floor((Number(baseOpts.startLadles) || 0) * policy.ownedFraction),
       daily: baseline.timeline.map(function(d) {
-        return d.day <= policy.untilDay ? Math.floor(d.ladleIncome * policy.incomeFraction) : 0;
+        return d.day >= (policy.fromDay || 1) && d.day <= policy.untilDay ? Math.floor(d.ladleIncome * policy.incomeFraction) : 0;
       }),
     };
     var key = JSON.stringify(schedule);
@@ -1053,8 +1264,12 @@ export function optimizeBlueJellyfish(S, opts, onProgress) {
     seen.add(key);
     var plan = planMealLeveling(S, { ...baseOpts, jellyDonations: schedule });
     evaluated++;
-    if (plan.endSpeed > best.endSpeed * (1 + 1e-12)
-      || (Math.abs(plan.endSpeed - best.endSpeed) <= best.endSpeed * 1e-12 && plan.jelly.donated < best.jelly.donated)) {
+    var score = _planObjective(plan, baseOpts);
+    var bestScore = _planObjective(best, baseOpts);
+    if (score > bestScore * (1 + 1e-12)
+      || (Math.abs(score - bestScore) <= Math.max(1, bestScore) * 1e-12
+        && (plan.endSpeed > best.endSpeed * (1 + 1e-12)
+          || (Math.abs(plan.endSpeed - best.endSpeed) <= best.endSpeed * 1e-12 && plan.jelly.donated < best.jelly.donated)))) {
       best = plan;
       bestPolicy = { ...policy };
     }
@@ -1067,6 +1282,9 @@ export function optimizeBlueJellyfish(S, opts, onProgress) {
     for (var until of cutoffs) for (var owned of [0, 0.5, 1]) for (var income of [0, 0.5, 1]) {
       policies.push({ ownedFraction: owned, incomeFraction: income, untilDay: until });
     }
+    if (baseOpts.kitchenLayout) for (var from of cutoffs) for (var owned of [0, 1]) for (var income of [0.5, 1]) {
+      policies.push({ ownedFraction: owned, incomeFraction: income, fromDay: Math.max(1, from), untilDay: days });
+    }
   }
   for (var i = 0; i < policies.length; i++) {
     evaluate(policies[i]);
@@ -1075,17 +1293,20 @@ export function optimizeBlueJellyfish(S, opts, onProgress) {
   // Refine fractions and the donate-until cutoff around the strongest coarse policy.
   if (baseline.jelly.unlocked) for (var step of [0.25, 0.125, 0.0625]) {
     var center = { ...bestPolicy };
-    for (var dimension of ['ownedFraction', 'incomeFraction', 'untilDay']) {
+    for (var dimension of (center.fromDay ? ['ownedFraction', 'incomeFraction', 'fromDay'] : ['ownedFraction', 'incomeFraction', 'untilDay'])) {
       for (var direction of [-1, 1]) {
         var candidate = { ...center };
-        candidate[dimension] += direction * (dimension === 'untilDay' ? Math.max(1, Math.round(days * step)) : step);
-        candidate[dimension] = Math.max(0, Math.min(dimension === 'untilDay' ? days : 1, candidate[dimension]));
+        var dayDimension = dimension === 'untilDay' || dimension === 'fromDay';
+        candidate[dimension] += direction * (dayDimension ? Math.max(1, Math.round(days * step)) : step);
+        candidate[dimension] = Math.max(dayDimension && dimension === 'fromDay' ? 1 : 0, Math.min(dayDimension ? days : 1, candidate[dimension]));
         evaluate(candidate);
       }
     }
     if (onProgress) onProgress({ phase: 'Refining the best split', fraction: 0.75 + (1 - step * 4) * 0.2, evaluated: evaluated });
   }
-  if (!(best.endSpeed > baseline.endSpeed * (1 + 1e-12))) {
+  var improved = _planObjective(best, baseOpts) > _planObjective(baseline, baseOpts) * (1 + 1e-12)
+    || (_planObjective(best, baseOpts) === _planObjective(baseline, baseOpts) && best.endSpeed > baseline.endSpeed * (1 + 1e-12));
+  if (!improved) {
     best = baseline;
     bestPolicy = { ownedFraction: 0, incomeFraction: 0, untilDay: 0 };
   }
@@ -1093,9 +1314,10 @@ export function optimizeBlueJellyfish(S, opts, onProgress) {
   return {
     plan: best,
     baseline: { endSpeed: baseline.endSpeed, levels: baseline.levels, jellyHours: baseline.jelly.totalHours },
+    ...(baseOpts.kitchenLayout ? { baselinePlan: baseline } : {}),
     policy: bestPolicy,
     schedule: { owned: best.jelly.ownedDonation, daily: best.jelly.dailyDonations },
-    improved: best.endSpeed > baseline.endSpeed * (1 + 1e-12),
+    improved: improved,
     gain: baseline.endSpeed > 0 ? best.endSpeed / baseline.endSpeed - 1 : 0,
     evaluated: evaluated,
     proven: false,
@@ -1222,8 +1444,12 @@ export function planMealLeveling(S, opts) {
 
   function pickCheapest(steerBlockers) {
     var best = { meal: -1, hours: Infinity, reason: 'next' };
+    var targeting = opts.objective === 'targets' && levels.some(function(lv, m) {
+      return lv >= 1 && lv < Math.min(maxLevel, Number(opts.targets && opts.targets[m]) || 0);
+    });
     for (var m = 0; m < levels.length; m++) {
       if (!(levels[m] >= 1 && levels[m] < maxLevel) || !mealRequirement(m)) continue;
+      if (targeting && !(levels[m] < Number(opts.targets && opts.targets[m]))) continue;
       if (m === steer) continue;
       if (steerBlockers && steerBlockers.length && steerBlockers.indexOf(m) < 0) continue;
       if (!ladleable(m)) continue;
@@ -1404,6 +1630,28 @@ export function planMealLeveling(S, opts) {
   function runJellyBatch(day, dayLevels) {
     var ph = { kind: 'jelly', windowHours: 0, ladles: 0, claims: [], jellyHours: jellyHours,
       steps: [], meals: [], ladlesUsed: 0, passiveHoursUsed: 0, levelsBought: 0, saving: null };
+    if (opts.kitchenLayout) {
+      var batch = optimizeKitchenReset(S, { model: model, levels: levels, stocks: stocks, inputs: inputs, maxLevel: maxLevel,
+        hours: jellyHours, ola193: ola, cachedTurkeyStock: cachedTurkey, objective: opts.objective,
+        targets: opts.targets, kitchenLayout: opts.kitchenLayout });
+      ph.layout = batch;
+      ph.targetMeal = -1;
+      // Credit every kitchen before any purchase, keeping production at the one pre-purchase speed.
+      for (var row of batch.meals) stocks[row.meal] += row.produced;
+      purchaseSource = 'jelly';
+      for (var m of batch.purchaseOrder) {
+        while (levels[m] < maxLevel && stocks[m] >= mealLevelCost(levels[m], inputs, ola)) {
+          buy(m, 0, { ladle: 0 }, 'jelly', ph.steps, dayLevels, day);
+        }
+      }
+      purchaseSource = 'ladle';
+      var refreshed = refreshTurkey();
+      ph.mapRefresh = refreshed;
+      ph.meals = _spendOrderRows(ph.steps);
+      ph.levelsBought = ph.steps.length;
+      ph.savings = batch.meals.filter(function(row) { return row.to < maxLevel; });
+      return ph;
+    }
     var pick = strategy === 'speed' ? pickSpeed(null) : pickCheapest(null);
     var m = pick.meal;
     if (m < 0) {
@@ -1504,7 +1752,7 @@ export function planMealLeveling(S, opts) {
     }
     if (inputs.dream11 > 0) ola++;
     var nmlbTo = nmlbMeal >= 0 ? levels[nmlbMeal] : 0;
-    if (jellyHours > 0) {
+    if (jellyHours > 0 || opts.kitchenLayout) {
       var jellyPhase = runJellyBatch(day, dayLevels);
       phases.push(jellyPhase);
       totalJellyHours += jellyHours;
@@ -1585,6 +1833,7 @@ function _countMapRefreshes(timeline) {
     (d.phases || []).forEach(function(ph) {
       (ph.meals || []).forEach(function(r) { if (r.mapRefresh) n++; });
       if (ph.saving && ph.saving.mapRefresh) n++;
+      if (ph.mapRefresh) n++;
     });
   });
   return n;

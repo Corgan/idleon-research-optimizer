@@ -123,6 +123,19 @@ details.day[open] .day-no::before { content:'\25BE'; }
 .total-row td { font-weight:700; border-top:1px solid #46516c; }
 .exp-bar { display:inline-block; width:90px; height:8px; border-radius:4px; background:#333; overflow:hidden; vertical-align:middle; margin-right:6px; }
 .exp-bar > span { display:block; height:100%; background:var(--purple); }
+.kitchen-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:8px; margin:10px 0; }
+.kitchen-card { padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--panel); min-width:0; }
+.kitchen-card strong { color:var(--cyan); }
+.kitchen-card select { width:100%; margin-top:6px; }
+.meal-icon { width:28px; height:28px; object-fit:contain; image-rendering:pixelated; vertical-align:middle; margin-right:5px; }
+.farmer-pills { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.farmer-pills label { border:1px solid var(--border); border-radius:16px; padding:5px 9px; font-size:.76em; }
+.kitchen-chart { width:100%; height:auto; max-height:220px; display:block; }
+.kitchen-day { margin:5px 0; padding:8px; border:1px solid var(--border); border-radius:5px; }
+.kitchen-day summary { cursor:pointer; font-size:.82em; line-height:1.6; }
+.meal-outcomes input { width:75px; }
+.kitchen-mobile { display:none; }
+@media(max-width:700px) { .kitchen-desktop { display:none; } .kitchen-mobile { display:block; } .kitchen-card .day-note { overflow-wrap:anywhere; } }
 @media(max-width:1300px) { .breakdown-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:1000px) { .split { grid-template-columns:1fr; } .day-grid { grid-template-columns:60px minmax(0,1fr) repeat(2,minmax(70px,auto)); } .day-grid > .hide-sm { display:none; } }
 @media(max-width:700px) {
@@ -169,11 +182,14 @@ var state = {
   balloon: 'ExpBalloon1',
   targetLevel: 0,
   splitBalloons: false,
+  kitchens: { objective: 'ranks', donationPolicy: 'auto', incomeFraction: 1, ownedFraction: 1, donationPerDay: 0,
+    pins: {}, excluded: [], targets: {}, bestN: 3, variant: 'recommended', day: 1, mealChart: 0, floorGuard: false },
 };
 var cache = null;
 var pendingTrees = [];
 var saveRevision = 0;
 var jellySearch = { signature: '', worker: null, result: null, applied: false, progress: null, error: '' };
+var kitchenSearch = { signature: '', worker: null, result: null, progress: null, error: '' };
 
 initSaveLoader({
   target: '#save-area',
@@ -340,7 +356,7 @@ function bind(id, ev, fn) {
   if (el) el.addEventListener(ev, function() { fn(el.value, el); });
 }
 
-var TABS = { ladles: 'Ladles', plan: 'Meal plan', exp: 'Cooking EXP' };
+var TABS = { ladles: 'Ladles', plan: 'Meal plan', kitchens: 'Kitchens & Jellyfish', exp: 'Cooking EXP' };
 
 // Kitchen hours available per day: passive kitchens plus the checked characters' ladles.
 function dayHours() {
@@ -360,6 +376,67 @@ function mealPlanOptions(m) {
 function stopJellySearch() {
   if (jellySearch.worker) jellySearch.worker.terminate();
   jellySearch.worker = null;
+}
+
+function kitchenOptions() {
+  var k = state.kitchens;
+  return { ...mealPlanOptions(model(state.ladleChar)), objective: k.objective,
+    donationPolicy: k.donationPolicy, incomeFraction: k.incomeFraction, ownedFraction: k.ownedFraction,
+    donationPerDay: k.donationPerDay, targets: { ...k.targets }, floorGuard: k.floorGuard,
+    kitchenLayout: { pins: { ...k.pins }, excluded: k.excluded.slice() } };
+}
+function stopKitchenSearch() {
+  if (kitchenSearch.worker) kitchenSearch.worker.terminate();
+  kitchenSearch.worker = null;
+}
+function kitchenStatus() {
+  if (kitchenSearch.error) return '<div class="callout warn" role="alert">' + esc(kitchenSearch.error) + '</div>';
+  var p = kitchenSearch.progress;
+  return p ? '<div class="day-note" role="status">' + esc(p.phase) + ' - ' + Math.floor(p.fraction * 100)
+    + '% - ' + p.evaluated + ' schedules evaluated<div class="bar-outer"><div class="bar-fill" style="height:8px;width:'
+    + p.fraction * 100 + '%;background:var(--cyan)"></div></div></div>' : '';
+}
+function startKitchenSearch() {
+  stopKitchenSearch();
+  kitchenSearch.result = null;
+  kitchenSearch.error = '';
+  kitchenSearch.progress = { phase: 'Starting kitchen forecast', fraction: 0, evaluated: 0 };
+  function fail(message) {
+    stopKitchenSearch();
+    kitchenSearch.progress = null;
+    kitchenSearch.result = null;
+    kitchenSearch.error = message;
+    render();
+  }
+  try {
+    var worker = new Worker(new URL('./js/workers/ladle-jelly-worker.js', import.meta.url), { type: 'module' });
+    kitchenSearch.worker = worker;
+    worker.onmessage = function(event) {
+      if (kitchenSearch.worker !== worker) return;
+      var message = event.data;
+      if (message.type === 'progress') {
+        kitchenSearch.progress = message.progress;
+        var host = document.getElementById('kitchen-status');
+        if (host) host.innerHTML = kitchenStatus();
+      } else if (message.type === 'error') fail(message.message);
+      else if (message.type === 'done') {
+        if (!message.result || !message.result.plan || !message.result.currentPlan || !message.result.baselinePlan) {
+          fail('The kitchen worker returned an incomplete forecast.');
+          return;
+        }
+        stopKitchenSearch();
+        kitchenSearch.progress = null;
+        kitchenSearch.result = message.result;
+        try { render(); } catch (error) { fail('Could not render the kitchen forecast: ' + error.message); }
+      }
+    };
+    worker.onerror = function(event) { event.preventDefault(); fail(event.message || 'The kitchen worker failed.'); };
+    worker.onmessageerror = function() { fail('The kitchen forecast could not be read.'); };
+    worker.postMessage({ type: 'kitchens',
+      save: { menagerieData: saveData.menagerieData, menagerieDataAvailable: saveData.menagerieDataAvailable,
+        mealsData: saveData.mealsData }, options: kitchenOptions() });
+    render();
+  } catch (error) { fail(error instanceof Error ? error.message : String(error)); }
 }
 
 function startJellySearch() {
@@ -414,6 +491,12 @@ function startJellySearch() {
 
 function render() {
   if (!cache) return;
+  var focused = document.activeElement;
+  var focusId = focused && focused.id;
+  var focusData = focused && ['assign', 'kPin', 'kExclude', 'kTarget'].find(function(key) { return focused.dataset && focused.dataset[key] != null; });
+  var focusValue = focusData && focused.dataset[focusData];
+  var constraints = document.querySelector('[data-k-controls]');
+  if (constraints) state.kitchens.constraintsOpen = constraints.open;
   renderToolbar();
   pendingTrees = [];
   var app = document.getElementById('app');
@@ -421,6 +504,13 @@ function render() {
   var levels = L.mealLevels(saveData);
   var speed = L.totalKitchenSpeed(m, levels);
   var options = mealPlanOptions(m);
+  var kitchenSignature = JSON.stringify([saveRevision, kitchenOptions()]);
+  if (kitchenSignature !== kitchenSearch.signature) {
+    var invalidated = !!kitchenSearch.result || !!kitchenSearch.worker;
+    stopKitchenSearch();
+    kitchenSearch = { signature: kitchenSignature, worker: null, result: null, progress: null,
+      error: invalidated ? 'Save or planning inputs changed. Run the kitchen forecast again.' : '' };
+  }
   var signature = JSON.stringify([saveRevision, options]);
   if (signature !== jellySearch.signature) {
     stopJellySearch();
@@ -435,6 +525,7 @@ function render() {
   }
   var tab = TABS[state.tab] ? state.tab : 'ladles';
   var body = tab === 'plan' ? renderPlan() + renderSteer() + renderMeals(levels, speed)
+    : tab === 'kitchens' ? renderKitchens()
     : tab === 'exp' ? renderExp()
     : renderCharacters() + renderBreakdowns(m, levels);
   app.innerHTML = renderNotes() + renderSummary(speed)
@@ -443,6 +534,10 @@ function render() {
     }).join('') + '</div>' + body;
   mountTrees();
   wireApp();
+  var restored = focusId ? document.getElementById(focusId) : focusData
+    ? Array.from(document.querySelectorAll('[data-' + focusData.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); }) + ']'))
+      .find(function(el) { return el.dataset[focusData] === focusValue && el.getClientRects().length; }) : null;
+  if (restored) restored.focus({ preventScroll: true });
 }
 
 function renderNotes() {
@@ -789,6 +884,178 @@ function jellySearchStatus() {
     + '<div class="bar-outer"><div class="bar-fill" style="width:' + (p.fraction * 100) + '%;background:var(--cyan)"></div></div></div>';
 }
 
+function mealIcon(m) {
+  return m >= 0 ? '<img class="meal-icon" src="./assets/combat-sim/ui/meals/CookingM' + m + '.png" alt="">' : '';
+}
+function kitchenMealOptions(selected, automatic) {
+  var html = automatic ? '<option value="auto">Optimizer chooses</option><option value="-1"' + (selected === -1 ? ' selected' : '') + '>Keep idle / recipe fire</option>' : '';
+  L.mealLevels(saveData).forEach(function(lv, m) {
+    if (lv >= 1) html += '<option value="' + m + '"' + (selected === m ? ' selected' : '') + '>' + esc(L.mealName(m)) + '</option>';
+  });
+  return html;
+}
+function kitchenChart(values, label) {
+  var max = Math.max(1, ...values);
+  var count = Math.max(1, values.length - 1);
+  var points = values.map(function(v, i) { return (55 + i / count * 600).toFixed(2) + ',' + (150 - v / max * 120).toFixed(2); }).join(' ');
+  return '<svg class="kitchen-chart" viewBox="0 0 680 185" role="img" aria-label="' + esc(label) + '">'
+    + '<text x="55" y="15" fill="#c0c0d4" font-size="12">' + esc(label) + '</text>'
+    + '<path d="M55 25V150H655" fill="none" stroke="#586482"/>'
+    + '<polyline points="' + points + '" fill="none" stroke="#4dd0e1" stroke-width="2"/>'
+    + '<text x="4" y="35" fill="#c0c0d4" font-size="11">' + num(max) + '</text>'
+    + '<text x="35" y="153" fill="#c0c0d4" font-size="11">0</text>'
+    + '<text x="55" y="175" fill="#c0c0d4" font-size="11">Now</text>'
+    + '<text x="570" y="175" fill="#c0c0d4" font-size="11">Reset ' + (values.length - 1) + '</text></svg>';
+}
+function kitchenLayout(batch) {
+  if (!batch) return '<div class="day-note">No reset production.</div>';
+  return '<div class="kitchen-grid">' + batch.kitchens.map(function(k) {
+    var meal = batch.meals.find(function(row) { return row.meal === k.meal; });
+    return '<div class="kitchen-card"><strong>Kitchen ' + (k.kitchen + 1) + '</strong>'
+      + (k.pinned ? badge('pinned', 'gold') : '') + '<div class="day-note">' + num(k.speed) + ' cooking speed/hr</div>'
+      + '<div>' + mealIcon(k.meal) + (k.meal >= 0 ? esc(L.mealName(k.meal)) : 'Idle / recipe fire') + '</div>'
+      + '<div class="day-note">Saved: ' + (k.savedMeal >= 0 ? esc(L.mealName(k.savedMeal)) : 'Idle / recipe fire') + '</div>'
+      + (meal ? '<div class="day-note">Produces <b>' + num(k.produced) + '</b> stock<br>Combined meal result: Lv '
+        + meal.from + ' &rarr; <b>' + meal.to + '</b> (+' + (meal.to - meal.from) + ')</div>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function kitchenDayBody(d) {
+  var ph = d.phases.find(function(p) { return p.kind === 'jelly'; });
+  return '<div class="day-note"><b>Before reset:</b> follow the pre-reset spending below, donate ' + fullCount(d.jellyDonation)
+    + ' ladles, then arrange kitchens as shown. The donation button takes all accessible ladles; separate any surplus first.</div>'
+    + d.phases.filter(function(p) { return p.kind !== 'jelly'; }).map(function(p) { return phaseBlock(d, p); }).join('')
+    + '<div class="day-note"><b>At reset:</b> NMLB ' + (d.nmlbMeal >= 0 ? esc(L.mealName(d.nmlbMeal)) + ' Lv '
+      + d.nmlbFrom + ' &rarr; ' + d.nmlbTo : 'has no hit') + ', then ' + fullCount(d.jellyHours) + ' hours in each kitchen.</div>'
+    + kitchenLayout(ph && ph.layout)
+    + (ph ? '<div class="day-note"><b>After reset:</b> buy the following levels from the batch stock. '
+      + 'Kitchen cards share a combined result when several kitchens cook the same meal.</div>' + phaseBlock(d, ph)
+      + (ph.savings && ph.savings.length ? '<div class="day-note"><b>Stock carried forward:</b> '
+        + ph.savings.map(function(row) { return esc(L.mealName(row.meal)) + ': ' + num(row.stock)
+          + ' stock (' + pct(row.progress * 100) + '% toward Lv ' + (row.to + 1) + ')'; }).join(' &middot; ') + '</div>' : '')
+      + (ph.mapRefresh ? '<div class="day-note">Change map before the next ladle spend to refresh the increased Turkey stock bonus.</div>' : '') : '');
+}
+function renderKitchens() {
+  var k = state.kitchens;
+  var info = L.blueJellyfishInfo(saveData);
+  var levels = L.mealLevels(saveData);
+  var objectiveNames = { ranks: 'Most meal ranks', speed: 'Cooking-speed growth', targets: 'Selected meal targets' };
+  var controls = '<div class="section"><h2>Kitchens &amp; Jellyfish<small>Reset layout and daily ladle investment</small></h2>'
+    + '<div class="plan-controls"><label class="control">Objective<select id="k-objective">'
+    + Object.keys(objectiveNames).map(function(v) { return '<option value="' + v + '"' + (k.objective === v ? ' selected' : '') + '>' + objectiveNames[v] + '</option>'; }).join('')
+    + '</select></label><label class="control">Donation policy<select id="k-policy">'
+    + [['auto', 'Optimize donation vs direct spending'], ['all', 'Donate all daily income'], ['share', 'Donate a share of daily income'], ['fixed', 'Donate a fixed amount daily'], ['none', 'No new donations']]
+      .map(function(o) { return '<option value="' + o[0] + '"' + (k.donationPolicy === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')
+    + '</select></label>'
+    + (k.donationPolicy === 'share' ? '<label class="control">Income donated (%)<input id="k-share" type="number" min="0" max="100" value="' + k.incomeFraction * 100 + '"></label>' : '')
+    + (k.donationPolicy === 'fixed' ? '<label class="control">Ladles donated/day<input id="k-fixed" type="number" min="0" step="1" value="' + k.donationPerDay + '"></label>' : '')
+    + (!['auto', 'none'].includes(k.donationPolicy) ? '<label class="control">Owned ladles donated (%)<input id="k-owned" type="number" min="0" max="100" value="' + k.ownedFraction * 100 + '"></label>' : '')
+    + '<label class="control check"><input type="checkbox" id="k-floor"' + (k.floorGuard ? ' checked' : '') + '>Hold the NMLB floor</label>'
+    + '<button type="button" id="k-run"' + (kitchenSearch.worker || !info.available || (state.useOwned && cache.inventory.ladle.partial) ? ' disabled' : '') + '>Optimize kitchens &amp; forecast</button>'
+    + (kitchenSearch.worker ? '<button type="button" id="k-cancel">Cancel</button>' : '') + '</div>'
+    + '<div class="card-grid">' + card('Daily ladle income', fullCount(assignedMinPerDay()), 'guaranteed; expected ' + fullCount(assignedPerDay()))
+    + card('Saved reset grant', fullCount(info.dailyHours) + ' h', 'per kitchen at every reset')
+    + card('Direct-use multiplier', '&times;' + num(cache.multis[state.ladleChar].multiplier), 'not applied to Jellyfish grants') + '</div>'
+    + (!info.available ? '<div class="callout warn">Menagerie data is missing. Load a complete save to forecast the saved daily grant.</div>' : '')
+    + (!info.unlocked ? '<div class="day-note">New donations are locked. Existing saved grant hours still apply.</div>' : '')
+    + (state.useOwned && cache.inventory.ladle.partial ? '<div class="callout warn">Owned ladles are incomplete. Load a complete save or disable Use owned ladles.</div>' : '')
+    + '<h3 class="sub">Ladle farmers</h3><div class="plan-controls"><label class="control">Best N characters<input id="k-best-n" type="number" min="0" max="' + characterCount() + '" value="' + k.bestN
+    + '"></label><button type="button" id="k-select-best">Select best N</button></div>'
+    + '<div class="farmer-pills">' + cache.stats.map(function(s) {
+      return '<label><input type="checkbox" data-assign="' + s.charIdx + '"' + (state.assigned.includes(s.charIdx) ? ' checked' : '')
+        + (s.error ? ' disabled' : '') + '> ' + esc(s.name || charLabel(s.charIdx)) + ' - '
+        + (s.error ? esc(s.error) : fullCount(s.minPerDay) + '/day') + '</label>';
+    }).join('') + '</div><details data-k-controls' + (k.constraintsOpen ? ' open' : '') + '><summary>Pin kitchens and exclude meals</summary><div class="kitchen-grid">'
+    + model(state.ladleChar).kitchens.filter(function(kit) { return kit.unlocked; }).map(function(kit) {
+      return '<label class="kitchen-card control">Kitchen ' + (kit.idx + 1) + '<select data-k-pin="' + kit.idx + '">'
+        + kitchenMealOptions(k.pins[kit.idx], true) + '</select></label>';
+    }).join('') + '</div><div class="farmer-pills">' + levels.map(function(lv, m) {
+      return lv >= 1 ? '<label><input type="checkbox" data-k-exclude="' + m + '"' + (k.excluded.includes(m) ? ' checked' : '') + '>Exclude ' + esc(L.mealName(m)) + '</label>' : '';
+    }).join('') + '</div><div class="day-note">Exclusions and pins affect reset assignments only, not direct ladle spending.</div></details>'
+    + '<div class="day-note">Uses the shared horizon, claim interval, farmer selection and owned-ladle controls. '
+    + 'Farmer income is held at the save-derived rate; kitchen speed and meal costs evolve with modeled meal levels. '
+    + 'Sub-level stock carries forward, so failure to buy a rank today alone does not force donation. '
+    + 'Auto compares spending first then donating, donating early, and split schedules over the full horizon. '
+    + 'Layouts and donation policies are bounded best-found recommendations, not global-optimum proofs.</div>'
+    + '<div id="kitchen-status">' + kitchenStatus() + '</div></div>';
+  var r = kitchenSearch.result;
+  if (!r) return controls + renderKitchenOutcomes(null, levels);
+  var variants = { current: r.currentPlan, layout: r.baselinePlan, recommended: r.plan };
+  var names = { current: 'Saved reset assignments, no new donations', layout: 'Optimized reset assignments, no new donations', recommended: 'Optimized assignments + selected donation policy' };
+  var plan = variants[k.variant] || r.plan;
+  var day = plan.timeline[Math.max(0, Math.min(plan.timeline.length - 1, k.day - 1))];
+  var rankSum = function(p) { return p.gained.reduce(function(sum, v) { return sum + v; }, 0); };
+  var comparison = '<div class="section"><h2>Forecast comparison<small>' + esc(objectiveNames[r.objective]) + '</small></h2><div class="table-wrap"><table class="data-table">'
+    + head([['Scenario'], ['Meal ranks', 1], ['Donated', 1], ['Final daily grant', 1], ['Final kitchen speed', 1]])
+    + '<tbody>' + Object.keys(variants).map(function(key) {
+      var p = variants[key];
+      return '<tr><td>' + names[key] + '</td><td class="num">' + fullCount(rankSum(p)) + '</td><td class="num">' + fullCount(p.jelly.donated)
+        + '</td><td class="num">' + fullCount(p.jelly.dailyHoursEnd) + ' h</td><td class="num">' + num(p.endSpeed) + '/hr</td></tr>';
+    }).join('') + '</tbody></table></div><div class="day-note">Direct spending is planned in all three scenarios. Only reset assignments and new donations differ. '
+    + 'Any unspent direct-production time remains in meal stock.</div><div class="plan-controls"><label class="control">Inspect scenario<select id="k-variant">'
+    + Object.keys(variants).map(function(v) { return '<option value="' + v + '"' + (k.variant === v ? ' selected' : '') + '>' + names[v] + '</option>'; }).join('')
+    + '</select></label><label class="control">Reset<input id="k-day" type="number" min="1" max="' + plan.days + '" value="' + day.day + '"></label></div>'
+    + '<div class="card-grid">' + card('Extra ranks from layouts', fullCount(rankSum(r.baselinePlan) - rankSum(r.currentPlan)), 'without new donations')
+    + card('Extra ranks from donations', fullCount(rankSum(r.plan) - rankSum(r.baselinePlan)), 'beyond optimized assignments')
+    + card('First planned donation', r.plan.timeline.find(function(d) { return d.jellyDonation > 0; }) ? 'Before reset ' + r.plan.timeline.find(function(d) { return d.jellyDonation > 0; }).day : 'None', 'horizon-specific, not a universal breakpoint') + '</div>'
+    + '<h3 class="sub">Kitchen layout for reset ' + day.day + '</h3>' + kitchenDayBody(day)
+    + '<div class="split"><div>' + kitchenChart([info.dailyHours, ...plan.timeline.map(function(d) { return d.jellyHours; })], 'Daily grant hours per kitchen')
+    + '</div><div>' + kitchenChart([0, ...plan.timeline.map(function(d) { return d.totalLevels - plan.startLevels.reduce(function(a, b) { return a + b; }, 0); })], 'Cumulative meal ranks gained') + '</div></div></div>';
+  var forecast = '<div class="section"><h2>Daily reset forecast<small>Expand a reset for its instructions</small></h2>'
+    + plan.timeline.map(function(d) {
+      return '<details class="kitchen-day" data-k-day="' + d.day + '"><summary>Reset ' + d.day + ' - '
+        + fullCount(d.ladleIncome) + ' earned - ' + fullCount(d.jellyDonation) + ' donated - ' + fullCount(d.ladlesUsed)
+        + ' spent directly - ' + fullCount(d.jellyHours) + ' h grant - +' + (d.levelsBought + d.nmlbTo - d.nmlbFrom) + ' ranks</summary></details>';
+    }).join('') + '</div>';
+  return controls + comparison + forecast + renderKitchenOutcomes(plan, levels);
+}
+function renderKitchenOutcomes(plan, levels) {
+  var k = state.kitchens;
+  var meals = levels.map(function(lv, m) { return m; }).filter(function(m) { return levels[m] >= 1; });
+  meals.sort(function(a, b) {
+    return k.outcomeSort === 'level' ? (plan ? plan.levels[b] - plan.levels[a] : levels[b] - levels[a]) || a - b
+      : k.outcomeSort === 'name' ? L.mealName(a).localeCompare(L.mealName(b))
+      : (plan ? plan.gained[b] - plan.gained[a] : 0) || a - b;
+  });
+  var rows = meals.map(function(m) {
+    var lv = levels[m];
+    if (lv < 1) return '';
+    var p = plan && plan.perMeal.find(function(row) { return row.meal === m; });
+    var gains = p || { ladleLevels: 0, jellyLevels: 0, nmlbLevels: 0 };
+    var target = '<label class="control">Target level<input type="number" data-k-target="' + m + '" min="0" max="' + cache.maxLevel
+      + '" value="' + (k.targets[m] || '') + '" aria-label="' + esc(L.mealName(m)) + ' target level"></label>';
+    var name = mealIcon(m) + esc(L.mealName(m));
+    return '<tr><td>' + name + '</td><td class="num">' + lv + '</td><td class="num">' + (plan ? plan.levels[m] : '-') + '</td><td class="num">'
+      + gains.ladleLevels + '</td><td class="num">' + gains.jellyLevels + '</td><td class="num">' + gains.nmlbLevels + '</td><td>' + target + '</td></tr>';
+  }).join('');
+  var mobile = meals.map(function(m) {
+    var lv = levels[m];
+    if (lv < 1) return '';
+    var p = plan && plan.perMeal.find(function(row) { return row.meal === m; });
+    return '<div class="kitchen-card">' + mealIcon(m) + esc(L.mealName(m)) + '<div class="day-note">Lv ' + lv + ' &rarr; '
+      + (plan ? plan.levels[m] : '-') + ' | Direct +' + (p ? p.ladleLevels : 0) + ' | Jellyfish +' + (p ? p.jellyLevels : 0)
+      + ' | NMLB +' + (p ? p.nmlbLevels : 0) + '</div><label class="control">Target level<input type="number" data-k-target="' + m
+      + '" min="0" max="' + cache.maxLevel + '" value="' + (k.targets[m] || '') + '" aria-label="' + esc(L.mealName(m)) + ' target level"></label></div>';
+  }).join('');
+  var chart = '';
+  if (plan) {
+    var m = Number(k.mealChart);
+    var lv = plan.startLevels[m] || 0;
+    var history = [lv];
+    plan.timeline.forEach(function(d) {
+      if (d.nmlbMeal === m) lv = Math.max(lv, d.nmlbTo);
+      d.steps.forEach(function(step) { if (step.meal === m) lv = Math.max(lv, step.toLevel); });
+      history.push(lv);
+    });
+    chart = '<label class="control">Meal progression<select id="k-chart-meal">' + kitchenMealOptions(m, false) + '</select></label>'
+      + kitchenChart(history, L.mealName(m) + ' level');
+  }
+  return '<div class="section"><h2>Meal outcomes &amp; targets</h2><div class="day-note">Targets are used by the Selected meal targets objective. Zero or blank means no target.</div>'
+    + '<label class="control">Sort meals<select id="k-sort"><option value="gain">Most ranks gained</option><option value="level"'
+    + (k.outcomeSort === 'level' ? ' selected' : '') + '>Projected level</option><option value="name"' + (k.outcomeSort === 'name' ? ' selected' : '') + '>Name</option></select></label>'
+    + chart + '<div class="table-wrap kitchen-desktop"><table class="data-table meal-outcomes">' + head([['Meal'], ['Current', 1], ['Projected', 1], ['Direct', 1], ['Jellyfish', 1], ['NMLB', 1], ['Target']])
+    + '<tbody>' + rows + '</tbody></table></div><div class="kitchen-mobile kitchen-grid">' + mobile + '</div></div>';
+}
+
 function renderJellyfish() {
   var info = L.blueJellyfishInfo(saveData);
   var r = jellySearch.result;
@@ -926,6 +1193,60 @@ function wireApp() {
     stopJellySearch(); jellySearch.progress = null; jellySearch.error = 'Donation search cancelled; the previous meal plan is unchanged.'; render();
   });
   bind('jelly-apply', 'change', function(v, el) { jellySearch.applied = el.checked; cache.plan = null; render(); });
+  bind('k-run', 'click', startKitchenSearch);
+  bind('k-cancel', 'click', function() {
+    stopKitchenSearch(); kitchenSearch.progress = null; kitchenSearch.error = 'Kitchen forecast cancelled.'; render();
+  });
+  bind('k-objective', 'change', function(v) { state.kitchens.objective = v; render(); });
+  bind('k-policy', 'change', function(v) { state.kitchens.donationPolicy = v; render(); });
+  bind('k-floor', 'change', function(v, el) { state.kitchens.floorGuard = el.checked; render(); });
+  bind('k-share', 'change', function(v) { state.kitchens.incomeFraction = Math.max(0, Math.min(100, Number(v) || 0)) / 100; render(); });
+  bind('k-owned', 'change', function(v) { state.kitchens.ownedFraction = Math.max(0, Math.min(100, Number(v) || 0)) / 100; render(); });
+  bind('k-fixed', 'change', function(v) { state.kitchens.donationPerDay = Math.max(0, Math.floor(Number(v) || 0)); render(); });
+  bind('k-best-n', 'change', function(v) { state.kitchens.bestN = Math.max(0, Math.min(characterCount(), Math.floor(Number(v) || 0))); });
+  bind('k-select-best', 'click', function() {
+    state.assigned = cache.stats.filter(function(s) { return !s.error; })
+      .slice().sort(function(a, b) { return b.minPerDay - a.minPerDay || a.charIdx - b.charIdx; })
+      .slice(0, state.kitchens.bestN).map(function(s) { return s.charIdx; });
+    cache.plan = null; render();
+  });
+  bind('k-variant', 'change', function(v) { state.kitchens.variant = v; render(); });
+  bind('k-day', 'change', function(v) { state.kitchens.day = Math.max(1, Math.min(state.days, Math.floor(Number(v) || 1))); render(); });
+  bind('k-chart-meal', 'change', function(v) { state.kitchens.mealChart = Number(v); render(); });
+  bind('k-sort', 'change', function(v) { state.kitchens.outcomeSort = v; render(); });
+  document.querySelectorAll('[data-k-pin]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      if (el.value === 'auto') delete state.kitchens.pins[el.dataset.kPin];
+      else state.kitchens.pins[el.dataset.kPin] = Number(el.value);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-k-exclude]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var m = Number(el.dataset.kExclude);
+      state.kitchens.excluded = state.kitchens.excluded.filter(function(v) { return v !== m; });
+      if (el.checked) state.kitchens.excluded.push(m);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-k-target]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var value = Math.max(0, Math.min(cache.maxLevel, Math.floor(Number(el.value) || 0)));
+      if (value > 0) state.kitchens.targets[el.dataset.kTarget] = value;
+      else delete state.kitchens.targets[el.dataset.kTarget];
+      render();
+    });
+  });
+  document.querySelectorAll('[data-k-day]').forEach(function(el) {
+    el.addEventListener('toggle', function() {
+      if (!el.open || el.querySelector('.kitchen-day-body') || !kitchenSearch.result) return;
+      var result = kitchenSearch.result;
+      var plans = { current: result.currentPlan, layout: result.baselinePlan, recommended: result.plan };
+      var plan = plans[state.kitchens.variant] || result.plan;
+      var day = plan.timeline[Number(el.dataset.kDay) - 1];
+      if (day) el.insertAdjacentHTML('beforeend', '<div class="kitchen-day-body">' + kitchenDayBody(day) + '</div>');
+    });
+  });
   document.querySelectorAll('[data-assign]').forEach(function(el) {
     el.addEventListener('change', function() {
       var ci = Number(el.dataset.assign);

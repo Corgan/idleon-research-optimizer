@@ -159,6 +159,8 @@ export function createRng(seed) {
 // so checking them only when a task is due gives the same outcome as checking
 // them every pass.
 export function createScheduler(dt = STEP_MS) {
+  // Near deadlines use a ring; distant deadlines use sparse 1024-pass blocks.
+  // A far block is taken once per window, not looked up on every step.
   const near = new Array(1024);
   const buckets = new Map();
   const actorTasks = new WeakMap();

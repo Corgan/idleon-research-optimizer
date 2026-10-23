@@ -1,9 +1,10 @@
-import { optimizeBlueJellyfish } from '../stats/systems/w4/cooking-ladle.js';
+import { optimizeBlueJellyfish, planKitchenForecast } from '../stats/systems/w4/cooking-ladle.js';
 
 self.onmessage = function(event) {
   try {
     var last = 0;
-    var result = optimizeBlueJellyfish(event.data.save, event.data.options, function(progress) {
+    var run = event.data.type === 'kitchens' ? planKitchenForecast : optimizeBlueJellyfish;
+    var result = run(event.data.save, event.data.options, function(progress) {
       var now = performance.now();
       if (now - last < 100 && progress.fraction < 1) return;
       last = now;
