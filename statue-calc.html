@@ -12,312 +12,266 @@
   --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
 h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
 h1 span { color: var(--accent); }
-
-
-
-/* Main layout */
-.main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
-
-/* Cards */
-.card-grid { display: grid; gap: 10px; }
-.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
-.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
-.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
-.card .card-sub { color: var(--text2); font-size: .75em; }
-
-/* Tables */
+[hidden] { display: none !important; }
+.main { max-width: 1200px; margin: auto; padding: 16px; }
+.section { background: var(--bg2); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .8em; }
+input, select, button { background: var(--bg); border: 1px solid #505063; color: var(--text); border-radius: 4px; padding: 6px 8px; font: inherit; min-height: 32px; }
+input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; background: var(--bg3); font-size: .8em; }
+.grow { flex: 1; min-width: 160px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; margin-bottom: 14px; }
+.card { background: var(--bg3); border: 1px solid #444; padding: 10px 12px; border-radius: 6px; }
+.card-title { color: var(--cyan); font-size: .8em; font-weight: 600; }
+.card-val { color: var(--gold); font-size: 1.35em; font-weight: 700; margin: 2px 0; }
+.card-sub, .muted { color: var(--text2); font-size: .75rem; }
 .data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
-.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
-.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
-.data-table tr:hover td { background: rgba(255,255,255,.03); }
-.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.data-table .statue-name { font-weight: 600; }
-.data-table .cur-lv { color: var(--cyan); text-align: right; }
-
-/* Inputs in table */
-.st-input { background: var(--bg); border: 1px solid #444; color: var(--text); padding: 3px 6px; border-radius: 3px; width: 64px; font-size: .85em; text-align: right; }
-.st-input:focus { outline: none; border-color: var(--accent); }
-
-/* Target header control */
-.th-ctrl { display: flex; flex-direction: column; gap: 3px; }
-.th-ctrl-row { display: flex; gap: 4px; align-items: center; }
-.th-ctrl-row input { width: 64px; padding: 3px 6px; font-size: .85em; background: var(--bg); border: 1px solid #444; color: var(--text); border-radius: 3px; text-align: right; }
-.th-ctrl-row input:focus { outline: none; border-color: var(--accent); }
-.th-ctrl-row button { padding: 2px 8px; font-size: .75em; background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 3px; cursor: pointer; }
-.th-ctrl-row button:hover { color: var(--accent); border-color: var(--accent); }
-
-/* Note */
-.note { font-size: .75em; color: var(--text2); margin-top: 12px; line-height: 1.6; }
-.note strong { color: var(--text); }
-.note .hl { color: var(--gold); }
+.data-table th { text-align: right; color: var(--text2); padding: 8px 6px; border-bottom: 1px solid #444; }
+.data-table th:first-child { text-align: left; }
+.data-table td { padding: 8px 6px; border-bottom: 1px solid #ffffff12; text-align: right; vertical-align: middle; font-variant-numeric: tabular-nums; }
+.data-table tr:hover { background: #ffffff05; }
+.data-table td:first-child { text-align: left; }
+.data-table small { display: block; color: var(--text2); font-size: .85em; margin-top: 3px; }
+.statue-id { display: flex; gap: 8px; align-items: center; }
+.statue-id img { width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; }
+.statue-id strong { color: var(--text); }
+.current { color: var(--cyan); }
+progress { display: block; width: 90px; max-width: 100%; height: 5px; margin: 4px 0 4px auto; accent-color: var(--green); }
+.target { width: 72px; text-align: right; }
+.rate { width: 94px; text-align: right; }
+.needed { color: var(--gold); font-weight: 600; }
+.note { color: var(--text2); font-size: .8em; line-height: 1.6; }
+.warning { color: var(--gold); }
+.error { padding: 10px; color: #ff9a9a; background: #421f2c; border-radius: 5px; margin-bottom: 12px; }
+summary { cursor: pointer; color: var(--cyan); }
+.breakdown { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; margin: 12px 0; }
+.breakdown div { background: var(--bg); border-radius: 4px; padding: 8px; }
+.breakdown b { color: var(--text); display: block; }
+#set-all { width: 82px; }
+.empty { text-align: center; color: var(--text2); padding: 24px; }
+@media (max-width: 700px) {
+  .main { padding: 10px; }
+  .section { padding: 10px; }
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody { display: block; }
+  .data-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; border: 1px solid #444; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+  .data-table td { display: block; padding: 0; border: 0; text-align: left; min-width: 0; }
+  .data-table td:first-child { grid-column: 1 / -1; padding-bottom: 4px; }
+  .data-table td[data-label]::before { content: attr(data-label); display: block; font-size: .85em; color: var(--text2); margin-bottom: 3px; font-weight: 400; }
+  progress { margin-left: 0; }
+}
 </style>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </head>
 <body>
-
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F3DB; <span>Idleon</span> Statue Calculator</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
-
+<h1><span>Idleon</span> Statue Calculator</h1>
 <div id="save-area"></div>
-
-<div class="main" id="main-content">
-
-  <!-- Summary cards -->
-  <div class="section">
-    <div class="card-grid cols-4" id="summary"></div>
-  </div>
-
-  <!-- Statue table -->
-  <div class="section">
-    <h2>Statues</h2>
-    <div style="overflow-x:auto">
-    <table class="data-table" id="statue-table">
-      <thead>
-        <tr>
-          <th>Statue</th>
-          <th>Bonus</th>
-          <th style="text-align:right">Current</th>
-          <th>
-            <div class="th-ctrl">
-              <span>Target</span>
-              <div class="th-ctrl-row">
-                <input type="number" id="set-all" min="0" placeholder="all">
-                <button id="apply-all">Set</button>
-              </div>
-            </div>
-          </th>
-          <th>Per Hr</th>
-          <th class="num">Needed</th>
-          <th class="num">Time</th>
-        </tr>
-      </thead>
-      <tbody id="statue-body"></tbody>
-    </table>
+<div class="main">
+  <p class="empty" id="empty-state">Load a save to plan statue levels and apply your saved Flair bonuses.</p>
+  <div id="error" class="error" role="alert" hidden></div>
+  <main id="main-content" hidden>
+    <div class="toolbar">
+      <label>Character<select id="character"></select></label>
+      <label>Deposit estimate<select id="estimate"><option value="guaranteed">Guaranteed EXP</option><option value="average">Average with vial doubles</option></select></label>
+      <label class="grow">Find a statue<input id="search" type="search" placeholder="Name or effect"></label>
+      <label>Sort<select id="sort"><option value="game">Game order</option><option value="needed">Fewest statues needed</option><option value="time">Shortest time</option></select></label>
     </div>
-  </div>
-
-  <p class="note">
-    <strong>Formula:</strong> EXP to next level = level<sup>1.17</sup> &times; 1.35<sup>(level/10)</sup> + 1 (rounded for lv &le; 300).<br>
-    Each statue dropped = 1 EXP. The <span class="hl">STARTUE EXP</span> bubble (yellow cauldron, bubble 3) retains EXP after each level-up,
-    reducing the effective cost. Retention factor = max(0.5, 1 &minus; bubble/100).<br>
-    Per Hr accepts suffixes: <span class="hl">K</span> (thousands), <span class="hl">M</span> (millions), <span class="hl">B</span> (billions), <span class="hl">T</span> (trillions).
-  </p>
-
+    <div class="card-grid" id="summary"></div>
+    <section class="section">
+      <div class="toolbar">
+        <label>Set all targets<input type="number" id="set-all" min="0" step="1" placeholder="Level"></label>
+        <button id="apply-all">Set targets</button>
+        <button id="next-level">Next level for all</button>
+        <span class="muted">Farming rates are raw statues/hour; K, M, B, T and scientific notation work.</span>
+      </div>
+      <p class="note warning" id="availability" hidden></p>
+      <table class="data-table">
+        <thead><tr><th>Statue / current bonus</th><th>Level / progress</th><th>Target</th><th>EXP per statue</th><th>Raw statues/hr</th><th>Statues needed</th><th>Time</th></tr></thead>
+        <tbody id="statue-body"></tbody>
+      </table>
+      <p id="no-matches" class="empty" hidden>No statues match your search.</p>
+    </section>
+    <details class="section note" id="method">
+      <summary>EXP multipliers &amp; calculation details</summary>
+      <div id="breakdown" class="breakdown"></div>
+      <p>Flair multiplies deposit EXP, not the statue's bonus per level. Each statue uses its own saved Flair level.
+        Gold, Onyx and Zenith states come from your save; the Onyx/Zenith EXP pool applies account-wide.</p>
+      <p>Retention reduces EXP consumed <em>after</em> a level-up; a full bar is still required to trigger it.
+        Costs include saved progress and the full final bar, with the game's first-index-digit rounding rule.
+        Other statues' rounding gates are held at their saved levels while planning each target independently.</p>
+      <p>Guaranteed estimates assume no lucky vial doubles unless the chance reaches 100%.
+        Average estimates divide the EXP deficit by mean EXP per statue; individual deposits roll once for the whole stack,
+        so this is a long-run planning approximation, not a guaranteed stack size.
+        Farming times assume you deposit everything at the entered rate.
+        Parallel completion time is the slowest statue, assuming all entered rates can be farmed simultaneously.
+        Zenith Cluster auto-EXP is a separate mechanic and is not included.</p>
+    </details>
+  </main>
 </div>
-
 <script type="module">
 import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
-import { cauldronInfoData } from './js/save/data.js';
-import { AlchemyDescription } from './js/stats/data/game/customlists.js';
-import { entityName } from './js/stats/entity-names.js';
-import { formulaEval } from './js/formulas.js';
+import { STATUE_COUNT, statueInfo } from './js/stats/data/common/statues.js';
+import { statueLevelingInputs, statueTargetCost } from './js/stats/systems/common/statue-leveling.js';
 import { computeStatueBonusGiven } from './js/stats/systems/common/stats.js';
+import { entityName } from './js/stats/entity-names.js';
+import { fmtVal } from './js/renderers/format.js';
 
-// ── Statue data ─────────────────────────────────────────────────────────
-var STATUES = [
-  ['POWER',     'Base Damage',      3],
-  ['SPEED',     'Move Speed %',     0.1],
-  ['MINING',    'Mining Power',     0.3],
-  ['FEASTY',    'Food Effect %',    1],
-  ['HEALTH',    'Base Health',      3],
-  ['KACHOW',    'Crit Damage %',    0.4],
-  ['LUMBERBOB', 'Choppin Power',    0.3],
-  ['THICC SKIN','Base Defence',     1],
-  ['OCEANMAN',  'Fishing Power',    0.3],
-  ['OL RELIABLE','Catching Power',  0.3],
-  ['EXP',       'Class EXP %',      0.1],
-  ['ANVIL',     'Anvil Production Speed %', 0.5],
-  ['CAULDRON',  'Alchemy EXP %',    0.5],
-  ['BEHOLDER',  'Crit Chance %',    0.2],
-  ['BULLSEYE',  'Accuracy %',       0.8],
-  ['BOX',       'Trappin Power',    0.3],
-  ['TWOSOUL',   'Worship Power',    0.3],
-  ['EHEXPEE',   'Skill EXP %',      0.1],
-  ['SEESAW',    'Construction EXP %', 0.5],
-  ['PECUNIA',   'Coins %',          1],
-  ['MUTTON',    'Cooking EXP %',    0.3],
-  ['EGG',       'Breeding EXP %',   0.4],
-  ['BATTLEAXE', 'Damage %',         0.2],
-  ['SPIRAL',    'Divinity EXP %',   1],
-  ['BOAT',      'Sailing Speed %',  0.5],
-  ['COMPOST',   'Farming EXP %',    0.4],
-  ['STEALTH',   'Stealth %',        0.3],
-  ['ESSENCE',   'White Essence %',  0.6],
-  ['VILLAGER',  'Villager EXP %',   0.3],
-  ['DRAGON',    'Statues Bonus %',  0.2],
-  ['SPELUNKY',  'Spelunking EXP %', 0.1],
-  ['CORAL',     'Daily Coral %',    0.02]
-];
-
-// ── Parse K/M/B/T suffixes ──────────────────────────────────────────────
-var SUFFIXES = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 };
-function parseSuffix(str) {
-  str = String(str).trim().toLowerCase();
-  if (!str) return 0;
-  var last = str.charAt(str.length - 1);
-  if (SUFFIXES[last]) return (parseFloat(str.slice(0, -1)) || 0) * SUFFIXES[last];
-  return parseFloat(str) || 0;
+const state = { loaded: false, charIdx: 0, targets: {}, rates: {}, estimate: 'guaranteed', sort: 'game', query: '', identity: null };
+const $ = id => document.getElementById(id);
+const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const fmt = value => Number.isFinite(value) ? fmtVal(value) : 'Unavailable';
+const SUFFIXES = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 };
+function parseRate(text) {
+  if (!text.trim()) return 0;
+  const match = /^(\d+(?:\.\d*)?|\.\d+)(e[+-]?\d+)?\s*([kmbt])?$/i.exec(text.trim());
+  if (!match) throw new Error('Enter a nonnegative rate, such as 500K, 1.2M or 1e9.');
+  const value = Number(match[1] + (match[2] || '')) * (SUFFIXES[(match[3] || '').toLowerCase()] || 1);
+  if (!Number.isFinite(value)) throw new Error('Farming rate is too large.');
+  return value;
 }
-
-// ── Formula: exp required to level up at a given level ──────────────────
-function statueExpReq(lv) {
-  if (lv <= 0) return 1;
-  var raw = Math.pow(lv, 1.17) * Math.pow(1.35, lv / 10) + 1;
-  return lv <= 300 ? Math.round(raw) : raw;
+function time(hours) {
+  if (!Number.isFinite(hours)) return 'Add rate';
+  if (hours === 0) return 'Ready';
+  if (hours < 1 / 60) return Math.ceil(hours * 3600) + 's';
+  if (hours < 1) return Math.ceil(hours * 60) + 'm';
+  if (hours < 24) return hours.toFixed(1) + 'h';
+  if (hours < 8760) return (hours / 24).toFixed(1) + 'd';
+  return fmt(hours / 8760) + 'y';
 }
-
-// ── Total statues from level `from` to level `to` with bubble ──────────
-function statuesFromTo(fromLv, toLv, bubblePct, currentExp) {
-  if (toLv <= fromLv) return 0;
-  var factor = Math.max(0.5, 1 - bubblePct / 100);
-  var total = 0;
-  for (var lv = fromLv; lv < toLv; lv++) {
-    total += statueExpReq(lv) * factor;
+function card(title, value, sub) {
+  return '<div class="card"><div class="card-title">' + esc(title) + '</div><div class="card-val">'
+    + esc(value) + '</div><div class="card-sub">' + esc(sub) + '</div></div>';
+}
+function showError(error) {
+  $('error').textContent = error.message;
+  $('error').hidden = false;
+}
+function filterRows() {
+  let shown = 0;
+  for (const row of $('statue-body').querySelectorAll('tr')) {
+    row.hidden = !row.dataset.search.includes(state.query.toLowerCase().trim());
+    if (!row.hidden) shown++;
   }
-  return Math.ceil(Math.max(0, total - (Number(currentExp) || 0)));
+  $('no-matches').hidden = shown > 0;
 }
-
-// ── Compute STARTUE_EXP bubble value from save data ─────────────────────
-function _getBubblePct() {
-  var desc = AlchemyDescription && AlchemyDescription[3] && AlchemyDescription[3][2];
-  var lv = Number((cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][2]) || 0);
-  if (!desc || lv <= 0) return 0;
-  return formulaEval(desc[3], Number(desc[1]), Number(desc[2]), lv);
-}
-
-// ── State ───────────────────────────────────────────────────────────────
-var currentLvs = new Array(STATUES.length).fill(0);
-var currentExp  = new Array(STATUES.length).fill(0);
-var targetLvs  = new Array(STATUES.length).fill(100);
-var perHrRaw   = new Array(STATUES.length).fill('');
-var perHrVals  = new Array(STATUES.length).fill(0);
-var bubblePct  = 0;
-
-// ── Save loading ────────────────────────────────────────────────────────
-function _onSaveLoaded() {
-  var statueArr = saveData.statueData || [];
-  var fullRows = saveData.statueLvAllData && saveData.statueLvAllData[0] || [];
-  for (var i = 0; i < STATUES.length; i++) {
-    currentLvs[i] = Number(statueArr[i]) || 0;
-    currentExp[i] = Number(Array.isArray(fullRows[i]) ? fullRows[i][1] : 0) || 0;
-    targetLvs[i] = currentLvs[i] + 1;
+function render() {
+  if (!state.loaded) return;
+  const focused = document.activeElement;
+  const focusKey = focused.matches?.('#statue-body input') ? { index: focused.dataset.idx, field: focused.dataset.field } : null;
+  $('error').hidden = true;
+  try {
+    const ci = state.charIdx;
+    const inputs = statueLevelingInputs(saveData, ci);
+    const targets = state.targets[ci] ||= {};
+    const rates = state.rates[ci] ||= {};
+    const savedRows = saveData.statueLvAllData?.[ci] || [];
+    const bonusSave = { ...saveData, statueData: savedRows.map(row => Number(row?.[0]) || 0) };
+    const rows = Array.from({ length: STATUE_COUNT }, (_, index) => {
+      const target = targets[index] ?? (Number(savedRows[index]?.[0]) || 0) + 1;
+      const cost = statueTargetCost(saveData, index, target, { charIdx: ci, inputs });
+      const needed = cost.available ? (state.estimate === 'average' ? cost.statuesAverage : cost.statuesGuaranteed) : null;
+      const rate = parseRate(rates[index] || '');
+      return { index, target, cost, needed, rate, hours: needed === 0 ? 0 : needed != null && rate > 0 ? needed / rate : Infinity };
+    });
+    const missing = rows.filter(row => !row.cost.available).length;
+    const active = rows.filter(row => row.needed > 0);
+    const unmeasured = active.filter(row => !row.rate).length;
+    $('summary').innerHTML =
+      card('Statues needed', fmt(rows.reduce((sum, row) => sum + (row.needed || 0), 0)), (missing ? 'Partial: ' + missing + ' missing statue rows' : 'All types combined') + (state.estimate === 'average' ? ' · average estimate' : ' · guaranteed EXP')) +
+      card('EXP retention', inputs.retentionPct.toFixed(1) + '%', 'Bubble ' + fmt(inputs.bubblePct) + '% · retention capped at 50%') +
+      card('Onyx / Zenith EXP', fmt(inputs.tierMultiplier) + 'x', inputs.onyxCount + ' Onyx+ and ' + inputs.zenithCount + ' Zenith statues') +
+      card('Parallel completion', missing ? 'Unavailable' : unmeasured ? 'Add rates' : time(Math.max(0, ...rows.map(row => row.hours))), unmeasured ? unmeasured + ' target rates missing' : 'All target rates maintained together');
+    $('availability').hidden = inputs.flairAvailable;
+    $('availability').textContent = 'Royal Guardian data is missing: saved Flair levels are unknown. Estimates assume no Flair bonus.';
+    if (state.sort !== 'game') rows.sort((a, b) => (state.sort === 'needed' ? (a.needed ?? Infinity) - (b.needed ?? Infinity) : a.hours - b.hours) || a.index - b.index);
+    $('statue-body').innerHTML = rows.map(({ index, target, cost, needed, hours }) => {
+      const info = statueInfo(index), name = entityName('Statue', index) || info.name;
+      const bonus = cost.available ? Number(computeStatueBonusGiven(index, ci, bonusSave)) : null;
+      const bonusText = bonus == null ? info.effect : '+' + fmt(bonus) + (info.percent ? '%' : '') + ' ' + info.effect;
+      const progress = cost.available ? Math.max(0, Math.min(100, cost.exp / cost.required * 100)) : 0;
+      const expPerStatue = state.estimate === 'average' ? cost.averageExp : cost.guaranteedExp;
+      return '<tr data-search="' + esc((name + ' ' + info.effect).toLowerCase()) + '">'
+        + '<td><div class="statue-id"><img src="./assets/combat-sim/ui/items/EquipmentStatues' + (index + 1) + '.png" alt=""><span><strong>' + esc(name) + '</strong><small>' + esc(bonusText) + '</small></span></div></td>'
+        + '<td data-label="Level / progress" class="current">' + (cost.available ? 'Lv ' + fmt(cost.level) + '<progress max="100" value="' + progress + '" aria-label="' + esc(name) + ' progress"></progress><small>' + progress.toFixed(1) + '% · ' + fmt(cost.exp) + ' / ' + fmt(cost.required) + '</small>' : 'Unavailable') + '</td>'
+        + '<td data-label="Target"><input class="target" type="number" min="0" step="1" value="' + target + '" data-idx="' + index + '" data-field="target" aria-label="' + esc(name) + ' target level"></td>'
+        + '<td data-label="EXP per statue">' + (cost.available ? fmt(expPerStatue) + '<small>' + (inputs.flairAvailable ? 'Flair ' + cost.flairLevel + ' · ' + fmt(cost.flairMultiplier) + 'x' : 'Flair unknown') + '</small>' : 'Unavailable') + '</td>'
+        + '<td data-label="Raw statues/hr"><input class="rate" value="' + esc(rates[index] || '') + '" data-idx="' + index + '" data-field="rate" placeholder="e.g. 1M" aria-label="' + esc(name) + ' raw statues per hour"></td>'
+        + '<td data-label="Statues needed" class="needed">' + (needed == null ? 'Unavailable' : fmt(needed)) + '</td>'
+        + '<td data-label="Time">' + (needed == null ? 'Unavailable' : time(hours)) + '</td></tr>';
+    }).join('');
+    $('breakdown').innerHTML =
+      '<div><b>STARTUE EXP</b>' + fmt(inputs.bubblePct) + '% with Prisma; ' + inputs.retentionPct.toFixed(1) + '% retained (50% cap).</div>'
+      + '<div><b>Shared tier multiplier</b>1 + 10% × ' + inputs.onyxCount + ' Onyx+ + 15% × ' + inputs.zenithCount + ' Zenith = ' + fmt(inputs.tierMultiplier) + 'x.</div>'
+      + '<div><b>Flair per statue</b>Saved level 0 / 1 / 2 / 3 / 4 gives 1x / 7x / 15x / 25x / 33x EXP.</div>'
+      + '<div><b>Skinny 0 Cal vial</b>' + (inputs.doubleChance * 100).toFixed(1) + '% chance per stack. EXP = tier multiplier × Flair × vial outcome.</div>';
+    filterRows();
+    if (focusKey) $('statue-body').querySelector('[data-idx="' + focusKey.index + '"][data-field="' + focusKey.field + '"]')?.focus({ preventScroll: true });
+  } catch (error) {
+    $('statue-body').innerHTML = '';
+    $('summary').innerHTML = '';
+    showError(error);
   }
-  bubblePct = _getBubblePct();
+}
+function onSaveLoaded() {
+  const identity = JSON.stringify(saveData.charNames);
+  if (state.identity !== identity) {
+    state.targets = {}; state.rates = {}; state.charIdx = 0; state.identity = identity;
+  }
+  const characters = (saveData.statueLvAllData || []).map((rows, index) => ({ rows, index })).filter(char => char.rows.length);
+  if (!characters.length) throw new Error('Save has no per-character statue levels and EXP.');
+  if (!characters.some(char => char.index === state.charIdx)) state.charIdx = characters[0].index;
+  $('character').innerHTML = characters.map(({ index }) => '<option value="' + index + '"' + (index === state.charIdx ? ' selected' : '') + '>' + esc(saveData.charNames?.[index] || 'Character ' + (index + 1)) + '</option>').join('');
+  state.loaded = true;
+  $('empty-state').hidden = true;
+  $('main-content').hidden = false;
   render();
 }
-initSaveLoader({
-  target: '#save-area',
-  onLoad: _onSaveLoaded,
-  statusText: function() { return 'Bubble = ' + Math.round(bubblePct * 10) / 10 + '%'; },
-  auth: true
-});
-
-// ── Render ──────────────────────────────────────────────────────────────
-function render() {
-  var bp = Math.min(50, Math.max(0, bubblePct));
-  var factor = Math.max(0.5, 1 - bp / 100);
-  var tbody = document.getElementById('statue-body');
-  var html = '';
-  var grandTotal = 0;
-  var grandHrs = 0;
-  var anyRate = false;
-
-  for (var i = 0; i < STATUES.length; i++) {
-    var s = STATUES[i];
-    var cur = currentLvs[i];
-    var tgt = targetLvs[i];
-    var phr = perHrVals[i];
-    var needed = statuesFromTo(cur, tgt, bp, currentExp[i]);
-    var hrs = phr > 0 ? needed / phr : Infinity;
-    grandTotal += needed;
-    if (phr > 0) { grandHrs += hrs; anyRate = true; }
-
-    // Compute full bonus with all multipliers
-    var bonusVal = 0;
-    try { bonusVal = Number(computeStatueBonusGiven(i, 0, saveData)) || 0; } catch(e) {}
-    var isPct = s[1].indexOf('%') >= 0;
-    var bonusStr = cur > 0
-      ? (isPct ? '+' + fmtBonusNum(bonusVal) + '%' : '+' + fmtBonusNum(bonusVal)) + ' ' + escHtml(s[1].replace(' %', '').replace('%', ''))
-      : escHtml(s[2] + ' ' + s[1] + '/lv');
-
-    html += '<tr>'
-      + '<td class="statue-name">' + escHtml(entityName('Statue', i) || s[0]) + '</td>'
-      + '<td>' + bonusStr + '</td>'
-      + '<td class="cur-lv">' + fmtNum(cur) + '</td>'
-      + '<td><input class="st-input" type="number" min="0" value="' + tgt + '" data-idx="' + i + '" data-field="tgt"></td>'
-      + '<td><input class="st-input" value="' + escHtml(perHrRaw[i]) + '" data-idx="' + i + '" data-field="phr" placeholder="0"></td>'
-      + '<td class="num">' + fmtNum(needed) + '</td>'
-      + '<td class="num">' + (phr > 0 ? fmtTime(hrs) : '\u2014') + '</td>'
-      + '</tr>';
+initSaveLoader({ target: '#save-area', auth: true, onLoad: onSaveLoaded });
+$('character').addEventListener('change', event => { state.charIdx = Number(event.target.value); render(); });
+$('estimate').addEventListener('change', event => { state.estimate = event.target.value; render(); });
+$('sort').addEventListener('change', event => { state.sort = event.target.value; render(); });
+$('search').addEventListener('input', event => { state.query = event.target.value; filterRows(); });
+$('statue-body').addEventListener('change', event => {
+  const input = event.target;
+  if (!input.matches('input[data-idx]')) return;
+  input.setCustomValidity('');
+  try {
+    if (!input.checkValidity()) { input.reportValidity(); return; }
+    const index = Number(input.dataset.idx), ci = state.charIdx;
+    if (input.dataset.field === 'target') {
+      if (input.value === '' || !Number.isSafeInteger(Number(input.value))) throw new Error('Enter a nonnegative whole target level.');
+      statueTargetCost(saveData, index, Number(input.value), { charIdx: ci });
+      (state.targets[ci] ||= {})[index] = Number(input.value);
+    } else {
+      parseRate(input.value);
+      (state.rates[ci] ||= {})[index] = input.value;
+    }
+    render();
+  } catch (error) {
+    input.setCustomValidity(error.message); input.reportValidity(); showError(error);
   }
-  tbody.innerHTML = html;
-
-  tbody.querySelectorAll('input').forEach(function(inp) {
-    inp.addEventListener('change', function() {
-      var idx = Number(this.dataset.idx);
-      if (this.dataset.field === 'tgt') {
-        targetLvs[idx] = Math.max(0, Number(this.value) || 0);
-      } else {
-        perHrRaw[idx] = this.value;
-        perHrVals[idx] = Math.max(0, parseSuffix(this.value));
-      }
-      render();
-    });
-  });
-
-  document.getElementById('summary').innerHTML =
-    card('Total Statues', fmtNum(grandTotal), 'across all types') +
-    card('Retention', ((1 - factor) * 100).toFixed(1) + '%', 'exp kept per level-up') +
-    card('Bubble', bp.toFixed(1) + '%', bp > 0 ? 'from save' : 'load save to populate');
-}
-
-function card(title, val, sub) {
-  return '<div class="card"><div class="card-title">' + title + '</div>'
-    + '<div class="card-val">' + val + '</div>'
-    + '<div class="card-sub">' + sub + '</div></div>';
-}
-
-function fmtBonusNum(n) {
-  if (n >= 1e4) return Math.floor(.01 * n) / 10 + 'K';
-  if (n >= 100) return '' + Math.floor(n);
-  return '' + Math.floor(10 * n) / 10;
-}
-
-function fmtNum(n) {
-  if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
-  return n.toLocaleString('en-US');
-}
-
-function fmtTime(hrs) {
-  if (!isFinite(hrs)) return '\u2014';
-  if (hrs < 1) return Math.round(hrs * 60) + 'm';
-  if (hrs < 24) return hrs.toFixed(1) + 'h';
-  if (hrs < 24 * 365) return (hrs / 24).toFixed(1) + 'd';
-  return (hrs / 24 / 365).toFixed(1) + 'y';
-}
-
-function escHtml(s) {
-  return String(s).replace(/[&<>"']/g, function(c) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
-}
-
-// ── Events ──────────────────────────────────────────────────────────────
-document.getElementById('apply-all').addEventListener('click', function() {
-  var val = Number(document.getElementById('set-all').value);
-  if (val >= 0) { targetLvs.fill(val); render(); }
 });
-
-render();
+$('statue-body').addEventListener('input', event => { if (event.target.matches('input')) event.target.setCustomValidity(''); });
+$('apply-all').addEventListener('click', () => {
+  const input = $('set-all');
+  input.setCustomValidity('');
+  if (!input.checkValidity() || input.value === '' || !Number.isSafeInteger(Number(input.value))) {
+    input.setCustomValidity('Enter a nonnegative whole target level.'); input.reportValidity(); return;
+  }
+  try {
+    const inputs = statueLevelingInputs(saveData, state.charIdx);
+    for (let index = 0; index < STATUE_COUNT; index++) statueTargetCost(saveData, index, Number(input.value), { charIdx: state.charIdx, inputs });
+    state.targets[state.charIdx] = Object.fromEntries(Array.from({ length: STATUE_COUNT }, (_, index) => [index, Number(input.value)]));
+    render();
+  } catch (error) { showError(error); }
+});
+$('set-all').addEventListener('input', () => $('set-all').setCustomValidity(''));
+$('next-level').addEventListener('click', () => { state.targets[state.charIdx] = {}; render(); });
 </script>
 </body>
 </html>

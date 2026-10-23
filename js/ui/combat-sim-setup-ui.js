@@ -12,6 +12,7 @@ import * as CS from '../stats/systems/common/combat-sim-setup.js';
 import { mountResearchGrid, researchGridHostHtml } from './combat-sim-research-grid.js';
 import * as ST from '../stats/systems/common/combat-sim-stones.js';
 import * as V from './combat-sim-visual.js';
+import { buildCombatEditorSearch, filterCombatEditorSearch, combatEditorOptionText } from './combat-sim-catalog-search.js';
 import { ITEMS } from '../stats/data/game/items.js';
 import { StarSigns, PrayerInfo, ChipDesc, CompanionDB, StatueInfo } from '../stats/data/game/customlists.js';
 import { loadUiAssets, onUiAssets, iconHtml, installIconFallback, showTip, hideTip, itemCardHtml, openPicker, gameText, PICKER_CSS, systemLayout, frameUrl, iconUrl } from './combat-sim-picker.js';
@@ -139,6 +140,15 @@ const STYLE_TEXT = `
 .css-setup-help{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;background:var(--bg3,#0f3460);color:var(--cyan,#4dd0e1);font-size:10px;cursor:help;margin-left:4px}
 .css-setup-io{width:100%;min-height:90px;font-family:monospace}
 .css-setup-check{display:inline-flex;align-items:center;gap:3px}
+.css-setup-search{margin:12px 0;padding:10px;background:var(--bg,#1a1a2e);border:1px solid #444;border-radius:6px}
+.css-setup-search label{display:block;font-weight:600}
+.css-setup-search input{display:block;width:100%;margin:6px 0}
+.css-setup-search-results{max-height:320px;overflow:auto}
+.css-setup-search-results details{margin:8px 0}
+.css-setup-search-results summary{cursor:pointer;color:var(--cyan,#4dd0e1)}
+.css-setup-search-hit{display:block;width:100%;text-align:left;padding:8px;margin:4px 0;white-space:normal;overflow-wrap:anywhere}
+.css-setup-search-hit small{display:block;color:var(--text2,#c0c0d4);font-weight:400;line-height:1.5}
+.css-setup-search-hit mark{background:#665000;color:#fff}
 `;
 
 // Layout glue for the in-game panels (VISUAL_CSS holds the shared pieces).
@@ -310,7 +320,10 @@ export function mountCombatSetup(host, opts) {
   const getRaw = typeof opts.getRawSave === 'function' ? opts.getRawSave : () => null;
   const getCi = typeof opts.getCharIdx === 'function' ? opts.getCharIdx : () => 0;
   const onChange = typeof opts.onChange === 'function' ? opts.onChange : () => {};
+  const onOverridesChange = typeof opts.onOverridesChange === 'function' ? opts.onOverridesChange : () => {};
   const getDerived = typeof opts.getDerived === 'function' ? opts.getDerived : () => null;
+  const extraTabs = opts.extraTabs || [];
+  let renderedTab = null;
   _injectCss();
 
   let setup = CS.emptyCombatSetup(Number(getCi()) || 0);
@@ -319,8 +332,18 @@ export function mountCombatSetup(host, opts) {
   try { setup = readCombatDraft(store, Number(getCi()) || 0); }
   catch (e) { storageError = 'Could not restore loadout: ' + e.message; }
   setup.charIdx = Number(getCi()) || 0;
+  if (!storageError && !Object.hasOwn(setup, 'toggles') && !Object.hasOwn(setup, 'termOverrides') && opts.initialOverrides) {
+    setup = CS.normalizeCombatSetup({ ...setup, ...opts.initialOverrides });
+    try {
+      if (store) {
+        store.setItem(COMBAT_DRAFT_PREFIX + setup.charIdx, JSON.stringify(setup));
+        store.removeItem('combat-sim-toggles-v1');
+        store.removeItem('combat-sim-terms-v1');
+      }
+    } catch (e) { storageError = 'Could not migrate working overrides: ' + e.message; }
+  }
 
-  const ui = { tab: 'gear', lastCharTab: 'gear', world: 'W1', acctSys: {}, filters: {}, expanded: {}, copyFrom: 0, message: storageError,
+  const ui = { tab: 'gear', lastCharTab: 'gear', world: 'W1', acctSys: {}, filters: {}, expanded: {}, globalQuery: '', searchTable: null, copyFrom: 0, message: storageError,
     gearSel: { row: 0, slot: 1 }, obolSel: null, talPage: null, talSel: null, stoneMode: null, allBars: false };
   const cache = { raw: null, setupJson: null, ci: null, patched: null, state: null, base: null, keys: null, diff: null };
   const datalists = {};
@@ -355,6 +378,7 @@ export function mountCombatSetup(host, opts) {
     catch (e) { setup = CS.emptyCombatSetup(ci()); ui.message = 'Could not restore loadout: ' + e.message; }
     ui.talPage = null; ui.talSel = null; ui.obolSel = null;
     cache.raw = null;
+    onOverridesChange(setup);
   }
   function compute() {
     switchCharacter();
@@ -375,6 +399,7 @@ export function mountCombatSetup(host, opts) {
 
   function commit() {
     setup.charIdx = ci();
+    onOverridesChange(setup);
     try { if (store) store.setItem(COMBAT_DRAFT_PREFIX + ci(), JSON.stringify(setup)); }
     catch (e) { ui.message = 'Could not save working loadout: ' + e.message; }
     try { onChange(); } catch (e) { console.error(e); }
@@ -437,8 +462,72 @@ export function mountCombatSetup(host, opts) {
     return '<input type="search" data-act="filter" data-tab="' + tab + '" placeholder="' + esc(placeholder || 'Filter') + '" value="' + esc(ui.filters[tab] || '') + '" data-fid="filter-' + tab + '">';
   }
   function match(tab, text) {
-    const f = (ui.filters[tab] || '').trim().toLowerCase();
-    return !f || String(text).toLowerCase().indexOf(f) >= 0;
+    const words = ((ui.filters[tab] || '') + ' ' + ui.globalQuery).trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return words.every(w => String(text).toLowerCase().includes(w));
+  }
+  const searchCache = { raw: null, ci: null, entries: [] };
+  function searchEntries() {
+    if (searchCache.raw !== getRaw() || searchCache.ci !== ci()) {
+      searchCache.entries = getRaw() ? buildCombatEditorSearch(getRaw(), ci()) : [];
+      searchCache.raw = getRaw(); searchCache.ci = ci();
+    }
+    return searchCache.entries;
+  }
+  function marked(text) {
+    const words = ui.globalQuery.trim().split(/\s+/).filter(Boolean).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    if (!words.length) return esc(text);
+    return String(text).split(new RegExp('(' + words.join('|') + ')', 'gi')).map((s, i) => i % 2 ? '<mark>' + esc(s) + '</mark>' : esc(s)).join('');
+  }
+  function renderGlobalResults() {
+    const host = view.querySelector('.css-setup-search-results');
+    if (!host) return;
+    if (!ui.globalQuery.trim()) { host.innerHTML = ''; return; }
+    const entries = searchEntries();
+    const hits = filterCombatEditorSearch(entries, ui.globalQuery);
+    const groups = new Map();
+    hits.forEach(e => { if (!groups.has(e.group)) groups.set(e.group, []); groups.get(e.group).push(e); });
+    let h = '<div role="status">' + hits.length + ' matching options across ' + groups.size + ' groups</div>';
+    groups.forEach((list, group) => {
+      h += '<details open><summary>' + esc(group) + ' (' + list.length + ')</summary>';
+      list.slice(0, 50).forEach(e => {
+        h += '<button type="button" class="css-setup-search-hit" data-act="searchHit" data-index="' + entries.indexOf(e) + '"><b>' + marked(e.name) + '</b><small>' + marked(e.effect || e.group) + '</small></button>';
+      });
+      if (list.length > 50) h += '<div class="css-setup-muted">Showing 50 of ' + list.length + '; narrow your search.</div>';
+      h += '</details>';
+    });
+    host.innerHTML = h;
+  }
+  function navigateSearch(index) {
+    const e = searchEntries()[index];
+    if (!e) return;
+    const t = e.target;
+    ui.tab = t.tab;
+    ui.searchTable = t.table ? { table: t.table, index: Number(e.key) } : null;
+    if (t.tab === 'acct') {
+      ui.world = t.world || 'General';
+      ui.acctSys[ui.world] = t.system;
+      ui.filters['sys:' + t.system] = '';
+      if (e.kind === 'companion') ui.compOwnedOnly = false;
+    }
+    if (e.kind === 'talent') {
+      ui.talSel = Number(e.key);
+      const pg = V.talentPageOf(compute().state.character.classId, ui.talSel);
+      if (pg) ui.talPage = pg;
+      else ui.expanded['tal-others'] = true;
+    }
+    if (t.pick === 'gear') {
+      ui.gearTab = t.row; ui.gearPage = t.slot >= 8 ? 1 : 0; ui.gearSel = { row: t.row, slot: t.slot };
+    }
+    render();
+    let anchor = t.pick && view.querySelector('[data-pick="' + t.pick + '"]');
+    if (t.pick === 'gear') anchor = view.querySelector('[data-pick="gear"][data-row="' + t.row + '"][data-slot="' + t.slot + '"]');
+    if (t.pick === 'obol') anchor = [...view.querySelectorAll('[data-pick="obol"]')].find(el => V.OBOL_TYPEGEN[Number(el.dataset.shape)] === ITEMS[e.key]?.typeGen);
+    if (anchor) { anchor.scrollIntoView({ block: 'center' }); openPick(t.pick, anchor); }
+    else {
+      const panel = view.querySelector('.css-setup-search-inspector') || view.querySelector('.css-setup-panel');
+      panel?.scrollIntoView({ block: 'start' });
+      panel?.querySelector('input,select,button')?.focus({ preventScroll: true });
+    }
   }
   function attrsOf(p, extra) {
     return "data-patch='" + esc(JSON.stringify(p)) + "' " + (extra || '');
@@ -594,7 +683,7 @@ export function mountCombatSetup(host, opts) {
     let shown = 0, total = 0;
     rows.forEach((r, i) => {
       if (o.include && !o.include(r)) return;
-      if (!match(tabFilter, r.name + ' ' + r.index)) return;
+      if (!o.exact && !match(tabFilter, r.name + ' ' + r.index + ' ' + combatEditorOptionText('table', r.index, tableId))) return;
       total++;
       if (shown >= ROW_CAP) return;
       shown++;
@@ -1440,7 +1529,7 @@ export function mountCombatSetup(host, opts) {
     CS.companionOptions().forEach(o => {
       const own = owned.get(o.id);
       if (ui.compOwnedOnly && !own) return;
-      if (!match('sys:companions', o.name + ' ' + o.id)) return;
+      if (!match('sys:companions', o.name + ' ' + o.id + ' ' + combatEditorOptionText('companion', o.id))) return;
       const p = { system: 'companion', id: o.id };
       const b = base.get(o.id);
       const row = CompanionDB[o.id];
@@ -1497,19 +1586,23 @@ export function mountCombatSetup(host, opts) {
     const fid = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-fid') : null;
     const panel = view.querySelector('.css-setup-panel');
     const scroll = panel ? panel.scrollTop : 0;
-    let h = '<div class="css-setup-bar"><span class="css-setup-count">' + c.diff.changed + ' change' + (c.diff.changed === 1 ? '' : 's') + '</span>' +
+    const overrideCount = Object.keys(setup.toggles || {}).length + Object.keys(setup.termOverrides || {}).length;
+    let h = '<div class="css-setup-bar"><span class="css-setup-count">' + c.diff.changed + ' change' + (c.diff.changed === 1 ? '' : 's') + (overrideCount ? ' + ' + overrideCount + ' override' + (overrideCount === 1 ? '' : 's') : '') + '</span>' +
       '<input data-fid="setupName" data-act="name" placeholder="Character loadout name" value="' + esc(setup.label) + '" style="width:180px">' +
       '<button data-act="saveNamed">Save loadout</button><select data-act="loadNamed" data-fid="loadNamed"><option value="">This character\'s loadouts\u2026</option>' + savedNames().map(n => '<option value="' + esc(n.key) + '">' + esc(n.name) + '</option>').join('') + '</select>' +
       '<button data-act="deleteNamed" class="css-setup-danger">Delete saved</button><button data-act="export">Export JSON</button><button data-act="import">Import JSON</button>' +
       '<button data-act="resetAll" class="css-setup-danger">Reset all</button>' + (ui.message ? '<span class="css-setup-muted">' + esc(ui.message) + '</span>' : '') + '</div>';
     if (ui.io) h += '<div style="margin-bottom:6px"><textarea class="css-setup-io" data-fid="io" id="css-setup-io">' + esc(ui.io === 'export' ? JSON.stringify(setup, null, 1) : '') + '</textarea>' +
       (ui.io === 'import' ? '<button data-act="doImport">Apply import</button> ' : '') + '<button data-act="closeIo">Close</button></div>';
+    h += '<div class="css-setup-search"><label>Search all loadout options<input type="search" data-act="globalSearch" data-fid="globalSearch" value="' + esc(ui.globalQuery) + '" placeholder="Search names, descriptions and effects (e.g. respawn)"></label>' +
+      '<div class="css-setup-muted">Includes unequipped items and other classes. Choose a match to inspect or pick it; slot, class and owned-only filters still apply. Search also filters pickers, account tables, mechanics and component terms.</div><div class="css-setup-search-results"></div></div>';
     const count = id => { const f = testFor(id); return f ? setup.patches.filter(f).length : 0; };
     const badge = n => n ? '<span class="css-setup-badge">' + n + '</span>' : '';
     const scope = CHAR_TAB_IDS.indexOf(ui.tab) >= 0 ? 'char' : ui.tab;
     const chars = c.patched ? CS.characterOptions(getRaw() || c.patched) : [];
     const me = chars.find(x => x.ci === ci());
-    h += '<div class="css-setup-scope">' + [['char', 'Character' + (me ? ': ' + me.name : ''), count('scope:char')], ['acct', 'Account', count('scope:acct')], ['raw', 'Raw keys', count('raw')], ['changes', 'Changes', c.diff.changed]]
+    const extraTab = extraTabs.find(t => t.id === ui.tab);
+    h += '<div class="css-setup-scope">' + [['char', 'Character' + (me ? ': ' + me.name : ''), count('scope:char')], ['acct', 'Account', count('scope:acct')], ...extraTabs.map(t => [t.id, t.label, t.count ? t.count() : 0]), ['raw', 'Raw keys', count('raw')], ['changes', 'Changes', c.diff.changed]]
       .map(s => '<button type="button" data-act="scope" data-scope="' + s[0] + '" class="' + (s[0] === scope ? 'css-setup-active' : '') + '">' + esc(s[1]) + badge(s[2]) + '</button>').join('') + '</div>';
     if (scope === 'char') {
       h += '<div class="css-setup-tabs">' + CHAR_TABS.map(t => '<button data-act="tab" data-tab="' + t.id + '" class="' + (t.id === ui.tab ? 'css-setup-active' : '') + '">' + esc(t.label) + badge(count(t.id)) + '</button>').join('') + '</div>';
@@ -1521,13 +1614,23 @@ export function mountCombatSetup(host, opts) {
         (s.tables && s.tables.length ? tableIcon(s.icon, 0, s.label, 18) : '') + esc(s.label) + badge(setup.patches.filter(s.test).length) + '</button>').join('') + '</div>';
       h += '<div class="css-setup-banner css-setup-banner-acct">Account-wide \u2014 affects every character.</div>';
     }
-    h += '<div class="css-setup-panel">';
-    if (!c.patched) h += '<div class="css-setup-muted">Load a save to edit its setup.</div>';
-    else {
+    if (ui.searchTable && c.patched) {
+      const t = CS.levelTable(ui.searchTable.table);
+      h += '<div class="css-setup-search-inspector"><h3>' + esc(t.label) + '</h3>' +
+        tableGrid(c, t.id, { exact: true, include: r => r.index === ui.searchTable.index }) + '</div>';
+    }
+    h += '<div class="css-setup-panel"' + (extraTab ? ' hidden' : '') + '>';
+    if (!extraTab && !c.patched) h += '<div class="css-setup-muted">Load a save to edit its setup.</div>';
+    else if (!extraTab) {
       try { h += RENDER[ui.tab](c); } catch (e) { console.error(e); h += '<div class="css-setup-warn">Editor failed: ' + esc(e && e.message || e) + '</div>'; }
     }
     h += '</div>';
     view.innerHTML = h;
+    if (renderedTab !== ui.tab) {
+      renderedTab = ui.tab;
+      if (opts.onTabChange) opts.onTabChange(ui.tab);
+    }
+    renderGlobalResults();
     if (ui.tab === 'acct' && c.patched && curAcct() && curAcct().view === 'research') {
       const rh = view.querySelector('#css-rgrid-host');
       if (rh) {
@@ -1751,6 +1854,14 @@ export function mountCombatSetup(host, opts) {
 
   function handleInput(e) {
     const el = e.target;
+    if (el.getAttribute && el.getAttribute('data-act') === 'globalSearch') {
+      ui.globalQuery = el.value;
+      ui.searchTable = null;
+      if (opts.onSearch) opts.onSearch(ui.globalQuery);
+      clearTimeout(handleInput._t);
+      handleInput._t = setTimeout(render, 150);
+      return;
+    }
     if (el.getAttribute && el.getAttribute('data-act') === 'filter') {
       ui.filters[el.getAttribute('data-tab')] = el.value;
       clearTimeout(handleInput._t);
@@ -1789,6 +1900,7 @@ export function mountCombatSetup(host, opts) {
     const A = n => el.getAttribute(n);
     const mult = e.shiftKey ? 10 : 1;
     switch (act) {
+      case 'searchHit': navigateSearch(Number(A('data-index'))); break;
       case 'stepBtn': {
         const inp = el.parentElement && el.parentElement.querySelector('input');
         if (!inp || inp.disabled) break;
@@ -1872,7 +1984,7 @@ export function mountCombatSetup(host, opts) {
         break;
       }
       case 'tab': ui.tab = el.getAttribute('data-tab'); if (CHAR_TAB_IDS.indexOf(ui.tab) >= 0) ui.lastCharTab = ui.tab; ui.message = ''; render(); break;
-      case 'scope': { const s = A('data-scope'); ui.tab = s === 'char' ? ui.lastCharTab : s; ui.message = ''; render(); break; }
+      case 'scope': { const s = A('data-scope'); ui.tab = s === 'char' ? ui.lastCharTab : s; ui.searchTable = null; ui.message = ''; render(); break; }
       case 'world': ui.world = A('data-world'); ui.message = ''; render(); break;
       case 'acctSys': ui.acctSys[ui.world] = A('data-id'); ui.message = ''; render(); break;
     case 'goSys': ui.tab = 'acct'; ui.world = A('data-world'); ui.acctSys[ui.world] = A('data-id'); ui.message = ''; render(); break;
@@ -2245,7 +2357,15 @@ export function mountCombatSetup(host, opts) {
       }
       default: return;
     }
-    if (cfg) openPicker(el, cfg);
+    if (cfg) {
+      const searchKind = { gear: 'item', food: 'item', obol: 'item', talentFind: 'talent', attack: 'talent' }[kind] || kind;
+      const searchGroup = { gear: 'Equipment Tools', food: 'Food', obol: 'Obols', talentFind: 'Talents', attack: 'Talents', card: 'Cards', cardSet: 'Card sets', sign: 'Star signs', prayer: 'Prayers', bubble: 'Equipped bubbles', chip: 'Lab chips', god: 'Divinity' }[kind] || '';
+      cfg.query = ui.globalQuery;
+      cfg.items = (cfg.items || []).map(it => ({
+        ...it, search: [it.search || it.name + ' ' + it.key + ' ' + (it.sub || ''), searchGroup, combatEditorOptionText(searchKind, it.item || it.key)].join(' '),
+      }));
+      openPicker(el, cfg);
+    }
   }
 
   let lastRt = null;
@@ -2316,6 +2436,7 @@ export function mountCombatSetup(host, opts) {
 
   render();
 
+  onOverridesChange(setup);
   return {
     apply(raw) {
       if (!raw) return raw;
@@ -2324,6 +2445,11 @@ export function mountCombatSetup(host, opts) {
       return CS.applyCombatSetup(raw, setup);
     },
     current() { switchCharacter(); return JSON.parse(JSON.stringify(setup)); },
+    setOverrides(overrides) {
+      switchCharacter();
+      setup = CS.normalizeCombatSetup({ ...setup, ...overrides });
+      commit();
+    },
     summary() {
       const raw = getRaw();
       if (!raw) return { changed: 0, lines: [] };
@@ -2331,7 +2457,7 @@ export function mountCombatSetup(host, opts) {
       return { changed: d.changed, lines: d.lines.slice() };
     },
     reset() { setup = CS.emptyCombatSetup(ci(), ''); commit(); },
-    /** Replace the editor setup (e.g. a Setup search result) and persist it. */
+    /** Replace and persist this character's working setup. */
     load(next) { setup = CS.normalizeCombatSetup(JSON.parse(JSON.stringify(next || {}))); setup.charIdx = ci(); cache.raw = null; commit(); },
     /** Re-render only when the derived-values view is showing (host calls after applying edits). */
     derivedChanged() { const s = curAcct(); if (root.isConnected && ui.tab === 'acct' && s && s.view === 'derived') render(); },

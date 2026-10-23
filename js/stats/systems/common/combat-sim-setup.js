@@ -21,6 +21,8 @@ import { PET_NAMES } from '../../data/w4/breeding.js';
 import { ARMORY_UPGRADES, ROYAL_STATUES } from '../../data/w7/royal-guardian.js';
 import { eventShopOwned } from '../../../game-helpers.js';
 import { applyStones, stoneByKey } from './combat-sim-stones.js';
+import { normalizeToggleState } from './combat-sim-toggles.js';
+import { normalizeTermOverrides } from '../../term-overrides.js';
 import { researchShapesOwned, parseResearchShapePositions, applyResearchShapeMoves, researchShapeName,
   RESEARCH_SHAPE_MAX } from '../w7/research-shapes.js';
 
@@ -1674,6 +1676,8 @@ export function normalizeCombatSetup(setup) {
     charIdx: Number(s.charIdx) || 0,
     label: typeof s.label === 'string' ? s.label : '',
     patches: Array.isArray(s.patches) ? s.patches.filter(p => p && typeof p === 'object' && HANDLERS[p.system]) : [],
+    ...(_hasOwn(s, 'toggles') ? { toggles: normalizeToggleState(s.toggles) } : {}),
+    ...(_hasOwn(s, 'termOverrides') ? { termOverrides: normalizeTermOverrides(s.termOverrides) } : {}),
   };
 }
 

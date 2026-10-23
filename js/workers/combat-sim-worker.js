@@ -10,7 +10,8 @@
 //        stopOn ([{ event, match?, count?, label? }]; see combat-sim-core) }
 //      { type: 'terms', id, rawSave?, charIdx, mapIdx, termOverrides } -> { type: 'terms', id, terms }
 //      { type: 'fingerprint', id, ...same fields as run } -> { type: 'fingerprint', id, hash } (sim inputs only, no stepping)
-//      run/fingerprint accept setup (combat-sim-setup patches applied to the save first)
+//      run/fingerprint accept setup (patches applied first; its toggles/termOverrides
+//      are used unless the message supplies explicit maps, including {} to disable)
 //      { type: 'load', rawSave }  -> caches the save so later runs may omit rawSave (batch/all-maps runs)
 //      { type: 'cancel', id }   -> stops after the current chunk and posts 'done' with cancelled: true
 // Out: { type: 'progress', id, t, seconds, pct }
@@ -72,13 +73,14 @@ function prepare(msg) {
   const p = makePlayer(msg);
   if (p) opts.player = p;
   const ci = Number(msg.charIdx) || 0;
-  const ov = msg.toggles
-    ? withCombatTerms(msg.termOverrides, () => resolveToggleOverrides({ saveData, charIdx: ci, mapIdx: Number(msg.mapIdx), rawSave: raw, toggles: msg.toggles, baseOverrides: msg.inputOverrides }))
+  const toggles = msg.toggles ?? msg.setup?.toggles;
+  const terms = msg.termOverrides ?? msg.setup?.termOverrides ?? null;
+  const ov = toggles
+    ? withCombatTerms(terms, () => resolveToggleOverrides({ saveData, charIdx: ci, mapIdx: Number(msg.mapIdx), rawSave: raw, toggles, baseOverrides: msg.inputOverrides }))
     : msg.inputOverrides;
   if (ov) opts.inputOverrides = ov;
   if (msg.buffs) opts.buffs = msg.buffs;
   if (Array.isArray(msg.stopOn) && msg.stopOn.length) opts.stopOn = msg.stopOn;
-  const terms = msg.termOverrides || null;
   const sim = withCombatTerms(terms, () => createCombatSim({ saveData, charIdx: ci, mapIdx: Number(msg.mapIdx), seed: Number(msg.seed) || 1, options: opts }));
   return { sim, terms };
 }

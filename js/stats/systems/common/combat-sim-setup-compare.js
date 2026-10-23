@@ -26,8 +26,8 @@ export const SETUP_COMPARE_METRICS = [
 /**
  * Build the variants to compare. `named` is `[{ name, setup }]`. Named setups
  * are retargeted to `charIdx` (a saved loadout applies to the selected
- * character). Variants whose patched save is identical to an earlier one are
- * kept but flagged `duplicateOf`.
+ * character). Variants with identical patches and override maps are kept but
+ * flagged `duplicateOf`.
  */
 export function setupCompareVariants(rawSave, opts) {
   opts = opts || {};
@@ -43,12 +43,14 @@ export function setupCompareVariants(rawSave, opts) {
         lines = d.lines || []; changed = d.changed || 0; warnings = d.warnings || [];
       } catch (e) { warnings = [String(e && e.message || e)]; raw = null; }
     }
-    const sig = s && s.patches.length ? JSON.stringify(s.patches) : '';
+    const toggles = s?.toggles || {}, termOverrides = s?.termOverrides || {};
+    const sorted = obj => Object.keys(obj).sort().map(k => [k, obj[k]]);
+    const sig = JSON.stringify([s?.patches || [], sorted(toggles), sorted(termOverrides)]);
     const dup = out.find(v => v.sig === sig);
-    out.push({ id, label, kind, setup: s, raw, changed, lines, warnings, sig, duplicateOf: dup ? dup.id : null, editsBuffs: setupEditsBuffs(s) });
+    out.push({ id, label, kind, setup: s, raw, changed, lines, warnings, sig, toggles, termOverrides, duplicateOf: dup ? dup.id : null, editsBuffs: setupEditsBuffs(s) });
   };
   if (opts.includeSaved !== false) add('saved', 'Imported save', 'saved', null);
-  if (opts.edited && opts.edited.patches && opts.edited.patches.length) add('edited', (opts.edited.label || 'Current edits') + ' (editor)', 'edited', opts.edited);
+  if (opts.edited && (opts.edited.patches?.length || Object.keys(opts.edited.toggles || {}).length || Object.keys(opts.edited.termOverrides || {}).length)) add('edited', (opts.edited.label || 'Current edits') + ' (editor)', 'edited', opts.edited);
   (opts.named || []).forEach(n => { if (n && n.setup) add('named:' + n.name, n.name, 'named', n.setup); });
   return out;
 }

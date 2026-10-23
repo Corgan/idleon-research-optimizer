@@ -345,7 +345,7 @@ export function pickerOpen() { return !!_open; }
  */
 export function openPicker(anchor, opts) {
   closePicker(false);
-  const o = { anchor, opts, cat: 'all', query: '', active: 0, shown: [], toggles: {} };
+  const o = { anchor, opts, cat: 'all', query: opts.query || '', active: 0, shown: [], toggles: {} };
   (opts.toggles || []).forEach(t => { o.toggles[t.id] = !!t.checked; });
   const el = document.createElement('div');
   el.className = 'css-setup-pop' + (opts.wide ? ' css-setup-pop-wide' : '');
@@ -356,6 +356,7 @@ export function openPicker(anchor, opts) {
   document.body.appendChild(el);
   o.el = el;
   const q = el.querySelector('.css-setup-pop-q');
+  q.value = o.query;
   const grid = el.querySelector('.css-setup-pop-grid');
   const cats = el.querySelector('.css-setup-pop-cats');
   const foot = el.querySelector('.css-setup-pop-foot');

@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Idleon Active Combat Simulator</title>
 <style>
+[hidden] { display: none !important; }
+.workspace-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; border-bottom:1px solid #444; }
+.workspace-tabs button { padding:12px 16px; border:0; border-bottom:3px solid transparent; background:var(--bg2); color:var(--text2); cursor:pointer; font:inherit; font-weight:600; }
+.workspace-tabs button[aria-current="page"] { color:var(--accent); border-bottom-color:var(--accent); }
+.workspace-tabs button:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+[data-workspace="bulk"] #sim-controls :is(label:has(#sel-map),label:has(#sel-dur),label:has(#inp-seed),#btn-run,#btn-cancel,#progress-wrap) { display:none; }
 :root {
   --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
   --accent: #e94560; --text: #eee; --text2: #c0c0d4;
@@ -137,10 +143,6 @@ code { color: var(--cyan); font-size: .92em; }
 .cmp-chip { background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 12px; padding: 3px 10px; font-size: .78em; cursor: pointer; }
 .cmp-chip span { color: var(--cyan); margin-left: 3px; }
 .tbl-wrap { overflow-x: auto; max-width: 100%; }
-.scmp-up { color: var(--green); } .scmp-down { color: var(--red); } .scmp-same { color: var(--text2); }
-.scmp-sig { font-weight: 700; } .scmp-table small { color: var(--text2); font-weight: 400; }
-.scmp-table td:first-child { white-space: nowrap; }
-#scmp-section details { margin: 6px 0; } #scmp-section summary { cursor: pointer; color: var(--cyan); }
 .cmp-chip.on { background: rgba(233,69,96,.25); border-color: var(--accent); color: var(--text); }
 .toolbar label.chk { flex-direction: row; align-items: center; gap: 6px; padding-bottom: 6px; cursor: pointer; }
 .toolbar label.chk input { width: auto; padding: 0; }
@@ -167,11 +169,7 @@ code { color: var(--cyan); font-size: .92em; }
 .cmp-best { color: var(--gold); font-weight: 700; }
 .cmp-table a { color: var(--text); text-decoration: none; }
 .cmp-table a:hover { color: var(--accent); }
-#ovr-section > summary, #terms-section > summary, #setup-section > summary { cursor: pointer; color: var(--accent); font-weight: 700; font-size: 1.15em; list-style: none; }
-#ovr-section > summary::-webkit-details-marker, #terms-section > summary::-webkit-details-marker, #setup-section > summary::-webkit-details-marker { display: none; }
-#ovr-section > summary::before, #terms-section > summary::before, #setup-section > summary::before { content: '▸ '; color: var(--text2); }
-#ovr-section[open] > summary::before, #terms-section[open] > summary::before { content: '▾ '; }
-#ovr-section > summary .badge, #terms-section > summary .badge { font-size: .62em; vertical-align: 2px; margin-left: 6px; }
+#ovr-section > h3 .badge, #terms-section > h3 .badge { font-size: .72em; vertical-align: 2px; margin-left: 6px; }
 #ovr-body { margin-top: 10px; }
 .ovr-table td { vertical-align: middle; }
 .ovr-table select, .ovr-table input { background: var(--bg3); color: var(--text); border: 1px solid #444; border-radius: 4px; padding: 3px 6px; font-size: .95em; }
@@ -193,11 +191,58 @@ code { color: var(--cyan); font-size: .92em; }
 
 <div id="save-area"></div>
 
-<div class="main">
-  <div class="section">
-    <h2>Simulation</h2>
+<div class="main" data-workspace="editor">
+  <nav class="workspace-tabs" aria-label="Combat simulator views">
+    <button type="button" data-workspace-tab="editor" aria-controls="workspace-editor">Loadout editor</button>
+    <button type="button" data-workspace-tab="simulation" aria-controls="workspace-simulation">Detailed simulation</button>
+    <button type="button" data-workspace-tab="bulk" aria-controls="workspace-bulk">Bulk comparisons</button>
+  </nav>
+  <section id="workspace-editor">
+    <div class="section toolbar"><label>Character<select id="editor-char"></select></label><span class="note">Each character keeps its own working edits and named loadouts.</span></div>
+  <section class="section" id="setup-section">
+    <h2>Loadout editor <span class="badge badge-red" id="setup-count" hidden></span></h2>
+    <div class="note" style="margin:8px 0">Change gear, obols, cards, talents and account systems for a hypothetical build. The imported save is never changed. The Mechanics overrides and Component terms tabs belong to this character's working loadout too. Save named loadouts here, then select them in Detailed simulation or Bulk comparisons.</div>
+    <div id="setup-host"><div class="note">Loading setup editor…</div></div>
+    <div id="setup-error" class="err" role="alert"></div>
+
+  <section id="ovr-section" hidden>
+    <h3>Mechanics overrides <span class="badge badge-red" id="ovr-count" hidden></span></h3>
+    <div id="ovr-body">
+      <div class="toolbar">
+        <label>Search<input id="ovr-search" type="search" placeholder="crystal, drop rate, orb…"></label>
+        <label>Group<select id="ovr-group"><option value="">All groups</option></select></label>
+        <label class="chk"><input id="ovr-active" type="checkbox"> Only changed</label>
+        <label>Add any other input<select id="ovr-raw-add"><option value="">Choose an input…</option></select></label>
+        <button class="btn secondary" id="ovr-reset" type="button">Reset all</button>
+      </div>
+      <div class="note">Disable a mechanic (Off), replace it with a value (Set), or multiply its saved value (Scale). These overrides belong to this loadout and follow it into detailed runs and bulk comparisons; Scale resolves separately on each map. Saved values use the selected character and map. The shared Daily guaranteed crystals simulator option takes priority over this list.</div>
+      <div class="scroll" style="margin-top:8px"><table class="data-table ovr-table"><thead><tr><th>Mechanic</th><th class="num">Saved</th><th>Mode</th><th>Value</th><th class="num">Used</th></tr></thead><tbody id="ovr-rows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="terms-section" hidden>
+    <h3>Component terms <span class="badge badge-red" id="terms-count" hidden></span></h3>
     <div class="toolbar">
+      <label>Search<input id="terms-search" type="search" placeholder="companion, arcane, card set, grid…"></label>
+      <label>Feeds<select id="terms-group"><option value="">All stats</option></select></label>
+      <label class="chk"><input id="terms-active" type="checkbox"> Only changed</label>
+      <button class="btn secondary" id="terms-reset" type="button">Reset all</button>
+    </div>
+    <div class="note">The individual sources that combine into Drop Rate, Coin Multiplier, Monster EXP, damage, accuracy, multikill and the other combat stats, for the selected character and map. Off makes a source neutral (0, or ×1 for multipliers), Set replaces it and Scale multiplies it; the stat formulas are otherwise unchanged, so an edit flows through every stat that uses that source. Mechanics overrides that replace a final input take priority.</div>
+    <div class="scroll" style="margin-top:8px"><table class="data-table ovr-table"><thead><tr><th>Source</th><th>Feeds</th><th class="num">Saved</th><th>Mode</th><th>Value</th><th class="num">Used</th></tr></thead><tbody id="terms-rows"></tbody></table></div>
+  </section>
+  </section>
+
+  </section>
+  <section id="workspace-simulation" hidden>
+    <div class="section toolbar">
       <label>Character<select id="sel-char"></select></label>
+      <label>Loadout<select id="sim-loadout"><option value="edited">Working edits</option><option value="saved">Imported save</option></select></label>
+      <div id="sim-loadout-error" class="err" role="alert"></div>
+    </div>
+    <div id="detailed-controls-host">  <div class="section" id="sim-controls">
+    <h2>Simulator options</h2>
+    <div class="toolbar">
       <label>Map<select id="sel-map"></select></label>
       <label id="lbl-cavern" style="display:none">Cavern<select id="sel-cavern"></select></label>
       <label>Player<select id="sel-player"></select></label>
@@ -235,41 +280,11 @@ code { color: var(--cyan); font-size: .92em; }
     <div id="progress-wrap"><div class="bar-outer"><div class="bar-fill" id="progress-fill" style="width:0%"></div></div><div id="progress-label"></div></div>
   </div>
 
-  <details class="section" id="ovr-section">
-    <summary>Mechanics overrides <span class="badge badge-red" id="ovr-count" hidden></span></summary>
-    <div id="ovr-body">
-      <div class="toolbar">
-        <label>Search<input id="ovr-search" type="search" placeholder="crystal, drop rate, orb…"></label>
-        <label>Group<select id="ovr-group"><option value="">All groups</option></select></label>
-        <label class="chk"><input id="ovr-active" type="checkbox"> Only changed</label>
-        <label>Add any other input<select id="ovr-raw-add"><option value="">Choose an input…</option></select></label>
-        <button class="btn secondary" id="ovr-reset" type="button">Reset all</button>
-      </div>
-      <div class="note">Disable a mechanic (Off), replace it with a value (Set), or multiply the saved value (Scale). Overrides apply to single runs and to every map in Compare maps; Scale is resolved per map. Saved values are for the selected character and map. The Daily guaranteed crystals checkbox above takes priority over this list.</div>
-      <div class="scroll" style="margin-top:8px"><table class="data-table ovr-table"><thead><tr><th>Mechanic</th><th class="num">Saved</th><th>Mode</th><th>Value</th><th class="num">Used</th></tr></thead><tbody id="ovr-rows"></tbody></table></div>
-    </div>
-  </details>
-
-  <details class="section" id="terms-section">
-    <summary>Component terms <span class="badge badge-red" id="terms-count" hidden></span></summary>
-    <div class="toolbar">
-      <label>Search<input id="terms-search" type="search" placeholder="companion, arcane, card set, grid…"></label>
-      <label>Feeds<select id="terms-group"><option value="">All stats</option></select></label>
-      <label class="chk"><input id="terms-active" type="checkbox"> Only changed</label>
-      <button class="btn secondary" id="terms-reset" type="button">Reset all</button>
-    </div>
-    <div class="note">The individual sources that combine into Drop Rate, Coin Multiplier, Monster EXP, damage, accuracy, multikill and the other combat stats, for the selected character and map. Off makes a source neutral (0, or ×1 for multipliers), Set replaces it and Scale multiplies it; the stat formulas are otherwise unchanged, so an edit flows through every stat that uses that source. Mechanics overrides that replace a final input take priority.</div>
-    <div class="scroll" style="margin-top:8px"><table class="data-table ovr-table"><thead><tr><th>Source</th><th>Feeds</th><th class="num">Saved</th><th>Mode</th><th>Value</th><th class="num">Used</th></tr></thead><tbody id="terms-rows"></tbody></table></div>
-  </details>
-
-  <details class="section" id="setup-section">
-    <summary>Setup editor <span class="badge badge-red" id="setup-count" hidden></span></summary>
-    <div class="note" style="margin:8px 0">Change gear, obols, cards, talents, lab, Research grid, stamps, bubbles and other saved systems for a hypothetical build. Edits patch a copy; the imported save is never changed. Single runs use this character's working edits. Give each build a name and Save loadout, then select characters and their loadouts in the comparison below. Switching characters restores their independent working edits.</div>
-    <div id="setup-host"><div class="note">Loading setup editor…</div></div>
-  </details>
-
-  <div id="results"></div>
-
+</div>
+    <div id="results"></div>
+  </section>
+  <section id="workspace-bulk" hidden>
+    <div class="section"><div class="note">Player mode, stop conditions, cavern, inventory and manual-cast settings are shared with Detailed simulation. Each compared loadout supplies its own mechanics and component overrides.</div><div id="bulk-controls-host"></div></div>
   <div class="section" id="cmp-section">
     <h2>Compare characters, loadouts &amp; maps</h2>
     <div id="cmp-loadouts"></div>
@@ -304,74 +319,11 @@ code { color: var(--cyan); font-size: .92em; }
     </div>
     <div id="cmp-pick"></div>
     <div id="cmp-place"></div>
-    <div class="note">Choose characters and their loadouts below. Save multiple named loadouts for each character in the Setup editor above; switching character preserves its working edits. Every selected character/loadout runs on its eligible maps with the same seed list. Player mode, mechanic overrides, stop conditions and manual-cast settings are shared; manual skills are filtered against each loadout's own attack bars. Different maps draw randomness in different orders; longer runs and more seeds reduce noise.</div>
+    <div class="note">Choose characters and their loadouts above, and select one or more maps. Create named loadouts in Loadout editor. Every selected character/loadout runs on its eligible maps with its own overrides and the same seeds. Player mode, stop conditions and manual casts are shared through Simulator options; skills are filtered against each loadout's attack bars. Longer runs and more seeds reduce noise.</div>
     <div id="cmp-progress-wrap" style="display:none"><div class="bar-outer"><div class="bar-fill" id="cmp-progress-fill" style="width:0%"></div></div><div id="cmp-progress-label"></div></div>
     <div id="cmp-results"></div>
   </div>
-
-  <div class="section" id="scmp-section">
-    <h2>Compare setups</h2>
-    <div class="toolbar">
-      <label>Time per run<select id="scmp-dur">
-        <option value="300">5 minutes</option>
-        <option value="600" selected>10 minutes</option>
-        <option value="1800">30 minutes</option>
-        <option value="3600">1 hour</option>
-        <option value="7200">2 hours</option>
-        <option value="21600">6 hours</option>
-        <option value="43200">12 hours</option>
-        <option value="86400">24 hours</option>
-      </select></label>
-      <label>Runs per setup<select id="scmp-seeds">
-        <option value="1">1</option>
-        <option value="3" selected>3</option>
-        <option value="5">5</option>
-        <option value="8">8</option>
-      </select></label>
-      <label class="chk"><input id="scmp-ovr" type="checkbox" checked> Apply mechanics overrides and component terms to every setup</label>
-      <button class="btn" id="scmp-run" disabled>Compare setups</button>
-      <button class="btn secondary" id="scmp-cancel" disabled>Cancel</button>
-    </div>
-    <div id="scmp-pick" class="cmp-chips" style="margin-top:8px"></div>
-    <div class="note">Runs the character and map selected above once per checked setup, on the same seeds, so differences come from the setup rather than luck. Named setups saved in the setup editor are applied to the selected character as loadouts. Changes are measured against the first checked setup; bold changes are at least two standard errors from zero (needs 2+ runs).</div>
-    <div id="scmp-progress-wrap" style="display:none"><div class="bar-outer"><div class="bar-fill" id="scmp-progress-fill" style="width:0%"></div></div><div id="scmp-progress-label"></div></div>
-    <div id="scmp-results"></div>
-  </div>
-
-  <div class="section" id="ssrch-section">
-    <h2>Setup search</h2>
-    <div class="toolbar">
-      <span id="ssrch-dims" class="cmp-chips"></span>
-      <label>Optimize<select id="ssrch-metric"></select></label>
-      <label>Time per run<select id="ssrch-dur">
-        <option value="120">2 minutes</option>
-        <option value="300" selected>5 minutes</option>
-        <option value="600">10 minutes</option>
-        <option value="1800">30 minutes</option>
-      </select></label>
-      <label>Seeds per stage<select id="ssrch-seeds">
-        <option value="2">2</option>
-        <option value="3" selected>3</option>
-        <option value="5">5</option>
-      </select></label>
-      <label>Max swaps<select id="ssrch-rounds">
-        <option value="3">3</option>
-        <option value="6" selected>6</option>
-        <option value="10">10</option>
-        <option value="20">20</option>
-      </select></label>
-      <label>Confirm runs<select id="ssrch-confirm">
-        <option value="8">8</option>
-        <option value="12" selected>12</option>
-        <option value="20">20</option>
-      </select></label>
-      <button class="btn" id="ssrch-run" disabled>Search</button>
-      <button class="btn secondary" id="ssrch-cancel" disabled>Cancel</button>
-    </div>
-    <div class="note">Starts from the setup editor's current setup and greedily makes one swap at a time among owned cards, card set bonuses, unlocked star signs, owned prayers, and super talents on the active preset. Every candidate is first fingerprinted: swaps that leave the simulator's inputs unchanged are skipped without running. The rest race on shared seeds, keeping the top third at 1×, 2×, then 4× the seeds; a swap is accepted only when its gain exceeds two standard errors. The final setup is then rechecked against the start on fresh seeds.</div>
-    <div id="ssrch-progress-wrap" style="display:none"><div class="bar-outer"><div class="bar-fill" id="ssrch-progress-fill" style="width:0%"></div></div><div id="ssrch-progress-label"></div></div>
-    <div id="ssrch-results"></div>
-  </div>
+  </section>
 </div>
 
 <script type="module">
@@ -407,10 +359,9 @@ import { captureCombatExpStart, projectCombatExp } from './js/stats/systems/comm
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { toRenderNode } from './js/stats/tree-builder.js';
 import { label as entityLabel } from './js/stats/entity-names.js';
-import { createSetupSearch, setupSearchSpace, setupSearchStateSummary, SETUP_SEARCH_DIMENSIONS } from './js/stats/systems/common/combat-sim-setup-search.js';
-import { setupCompareVariants, setupCompareJobs, setupEditsBuffs, emptySetupCompareRow, addSetupCompareRun, setupCompareCell, setupCompareItems, setupCompareMetricKeys, setupCompareSignificant, setupCompareUnit, SETUP_COMPARE_INPUTS, SETUP_COMPARE_METRICS } from './js/stats/systems/common/combat-sim-setup-compare.js';
+import { setupCompareVariants, setupEditsBuffs, setupCompareUnit } from './js/stats/systems/common/combat-sim-setup-compare.js';
 import { characterMapComparePlan } from './js/stats/systems/common/combat-sim-setup-compare.js';
-import { readRawKey, readAttackLoadout } from './js/stats/systems/common/combat-sim-setup.js';
+import { readRawKey, readAttackLoadout, applyCombatSetup, diffCombatSetup } from './js/stats/systems/common/combat-sim-setup.js';
 import { COMBAT_LOADOUT_PREFIX, COMBAT_DRAFT_PREFIX, readCombatLoadouts, readCombatDraft } from './js/ui/combat-sim-loadouts.js';
 
 // ---------------------------------------------------------------------------
@@ -525,6 +476,9 @@ function fillCharSelect() {
   var prev = sel.value;
   sel.innerHTML = html;
   if (prev !== '' && Number(prev) < n) sel.value = prev;
+  $('editor-char').innerHTML = html;
+  $('editor-char').value = sel.value;
+  renderSimLoadouts();
 }
 
 // Combat only: a map needs at least one FIGHTING monster spawn, which drops the
@@ -652,8 +606,6 @@ function renderCavCfg() {
 }
 function cavChanged(why) {
   if (result && !run && !result.stale) { result.stale = why; render(); }
-  if (scmp && !scmp.running && !scmp.stale) { scmp.stale = why.replace('run', 'comparison'); renderSetupCompare(); }
-  ssMarkStale(why.replace('run', 'search'));
   renderCavCfg(); refreshOvrBase();
 }
 $('cav-cfg').addEventListener('change', function (e) {
@@ -678,8 +630,6 @@ $('sel-map').addEventListener('change', fillCavernSelect);
 $('sel-cavern').addEventListener('change', function () {
   renderCavCfg();
   if (result && !run && !result.stale) { result.stale = 'cavern changed since this run'; render(); }
-  if (scmp && !scmp.running && !scmp.stale) { scmp.stale = 'cavern changed since this comparison'; renderSetupCompare(); }
-  ssMarkStale('cavern changed since this search');
 });
 $('sel-player').addEventListener('change', updatePlayerNote);
 
@@ -1065,13 +1015,89 @@ $('btn-cancel').addEventListener('click', cancelRun);
 // save; simRaw() is what every run, comparison and saved-value lookup uses, and
 // the main-thread saveData is reloaded from it so map lists and saved values match.
 // ---------------------------------------------------------------------------
-var setup = { api: null, sig: '', raw: null, timer: 0, derivedBase: [] };
+var setup = { api: null, sig: '', raw: null, timer: 0, derivedBase: [], error: '' };
+var workspace = 'editor', detailLoadouts = [], detailOwner = null, detailPreview = null;
+
+function showWorkspace(next) {
+  if (!['editor', 'simulation', 'bulk'].includes(next)) return;
+  workspace = next;
+  document.querySelector('.main').dataset.workspace = next;
+  document.querySelectorAll('[data-workspace-tab]').forEach(function (b) {
+    if (b.dataset.workspaceTab === next) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  ['editor', 'simulation', 'bulk'].forEach(function (id) { $('workspace-' + id).hidden = id !== next; });
+  $(next === 'bulk' ? 'bulk-controls-host' : 'detailed-controls-host').appendChild($('sim-controls'));
+  if (rawSave && syncSetup(true)) {
+    fillMapSelect(); renderManualCasts(); updateCrystalNote();
+    if (next === 'editor') { refreshOvrBase(true); refreshTerms(true); }
+    if (setup.api) setup.api.derivedChanged();
+  }
+  if (next !== 'simulation') stopReplay();
+}
+
+function renderSimLoadouts() {
+  var ci = Number($('sel-char').value) || 0, el = $('sim-loadout');
+  var prev = detailOwner === ci ? el.value : 'edited';
+  detailOwner = ci;
+  try {
+    detailLoadouts = readCombatLoadouts(localStorage, ci);
+    el.innerHTML = '<option value="edited">Working edits</option><option value="saved">Imported save</option>'
+      + detailLoadouts.map(function (n, i) { return '<option value="named:' + i + '">' + escHtml(n.name) + '</option>'; }).join('')
+      + (detailPreview && detailPreview.charIdx === ci ? '<option value="preview">' + escHtml(detailPreview.label) + ' (comparison snapshot)</option>' : '');
+    var before = el.dataset.key;
+    var named = before && detailLoadouts.findIndex(function (n) { return n.key === before; });
+    if (prev.startsWith('named:')) prev = named >= 0 ? 'named:' + named : 'edited';
+    el.value = prev || 'edited';
+    el.dataset.key = el.value.startsWith('named:') ? detailLoadouts[Number(el.value.slice(6))].key : '';
+    $('sim-loadout-error').textContent = '';
+    el.disabled = false;
+  } catch (e) {
+    detailLoadouts = [];
+    el.disabled = true;
+    $('sim-loadout-error').textContent = 'Could not read loadouts: ' + e.message;
+    $('btn-run').disabled = true;
+  }
+}
+
+function detailedSetup() {
+  if ($('sim-loadout').disabled) throw new Error('Loadouts could not be read.');
+  var id = $('sim-loadout').value, ci = Number($('sel-char').value) || 0;
+  if (id === 'edited') return setup.api ? setup.api.current() : { charIdx: ci, patches: [] };
+  if (id === 'saved') return { charIdx: ci, patches: [] };
+  if (id === 'preview' && detailPreview && detailPreview.charIdx === ci) return detailPreview.setup;
+  var named = detailLoadouts[Number(id.slice(6))];
+  if (!named || named.setup.charIdx !== ci) throw new Error('This loadout is not available for the selected character.');
+  return named.setup;
+}
+
+document.querySelectorAll('[data-workspace-tab]').forEach(function (b) {
+  b.addEventListener('click', function () { showWorkspace(b.dataset.workspaceTab); });
+});
+$('editor-char').addEventListener('change', function () {
+  $('sel-char').value = $('editor-char').value;
+  $('sel-char').dispatchEvent(new Event('change'));
+});
+$('sim-loadout').addEventListener('change', function () {
+  var n = detailLoadouts[Number(this.value.slice(6))];
+  this.dataset.key = this.value.startsWith('named:') && n ? n.key : '';
+  syncSetup(true);
+  fillMapSelect(); renderManualCasts(); updateCrystalNote();
+  if (result && !run) { result.stale = 'selected loadout changed since this run'; render(); }
+});
+showWorkspace('editor');
+window.addEventListener('storage', function (e) {
+  if (!e.key || e.key.startsWith('combat-sim-setup:') || e.key.startsWith(COMBAT_LOADOUT_PREFIX) || e.key.startsWith(COMBAT_DRAFT_PREFIX)) {
+    renderSimLoadouts(); renderCmpPick();
+    if (rawSave) syncSetup(true);
+  }
+});
 
 function simRaw() { return setup.raw || rawSave; }
 
 function setupRunInfo() {
   if (!setup.api || !rawSave) return null;
-  var s = setup.api.summary();
+  var s = workspace === 'simulation' ? diffCombatSetup(rawSave, detailedSetup()) : setup.api.summary();
   return s && s.changed ? { changed: s.changed, lines: s.lines.slice(0, 40) } : null;
 }
 
@@ -1084,26 +1110,32 @@ function setupRunText(s) {
 // Re-derive the patched save. Returns true when the effective save changed.
 function syncSetup(force) {
   if (!rawSave) return false;
-  var cur = setup.api ? setup.api.current() : null;
-  var sig = cur && cur.patches && cur.patches.length ? JSON.stringify(cur) : '';
-  if (!force && sig === setup.sig) return false;
-  var had = !!setup.raw;
-  setup.sig = sig;
-  setup.raw = null;
-  if (sig) {
-    try { var patched = setup.api.apply(rawSave); setup.raw = patched !== rawSave ? patched : null; }
-    catch (e) { console.error('setup could not be applied', e); setup.raw = null; }
+  try {
+    var cur = workspace === 'simulation' ? detailedSetup() : setup.api ? setup.api.current() : null;
+    var sig = cur ? JSON.stringify(cur) : '';
+    if (!force && sig === setup.sig && !setup.error) return false;
+    var patched = cur ? applyCombatSetup(rawSave, cur) : rawSave;
+    if (patched !== rawSave || setup.raw) loadSaveData(patched);
+    setup.raw = patched !== rawSave ? patched : null;
+    setup.sig = sig;
+  } catch (e) {
+    console.error('loadout could not be applied', e);
+    setup.error = 'Loadout could not be applied: ' + e.message;
+    $('setup-error').textContent = $('sim-loadout-error').textContent = setup.error;
+    $('btn-run').disabled = true;
+    return false;
   }
-  if (setup.raw || had) {
-    try { loadSaveData(setup.raw || rawSave); }
-    catch (e) { console.error('patched save failed to load; using the imported save', e); setup.raw = null; loadSaveData(rawSave); }
-  }
-  var n = setupRunInfo();
+  setup.error = '';
+  $('setup-error').textContent = $('sim-loadout-error').textContent = '';
+  $('btn-run').disabled = !!run;
+  var n = setup.api ? setup.api.summary() : null;
+  n = n && n.changed ? n : null;
   $('setup-count').hidden = !n; $('setup-count').textContent = n ? n.changed + ' changed' : '';
   return true;
 }
 
 function setupEffectsChanged(why) {
+  renderSimLoadouts();
   fillMapSelect();
   renderManualCasts();
   updateCrystalNote();
@@ -1111,9 +1143,6 @@ function setupEffectsChanged(why) {
   refreshOvrBase(true); refreshTerms(true);
   if (result && !run) { result.stale = why + ' since this run'; render(); }
   if (cmp && !cmp.running) { cmp.stale = why + ' since this comparison'; renderCompare(); }
-  renderScmpPick();
-  if (scmp && !scmp.running && why !== 'setup changed') { scmp.stale = why + ' since this comparison'; renderSetupCompare(); }
-  if (why !== 'setup changed') ssMarkStale(why + ' since this search');
 }
 
 // Called from the save loader after rawSave/char select are refreshed.
@@ -1133,6 +1162,8 @@ function setupLoaded() {
 }
 
 $('sel-char').addEventListener('change', function () {
+  $('editor-char').value = $('sel-char').value;
+  renderSimLoadouts();
   if (!setup.api) return;
   setup.api.refresh();
   if (syncSetup()) setupEffectsChanged('setup character changed');
@@ -1143,16 +1174,32 @@ import('./js/ui/combat-sim-setup-ui.js').then(function (m) {
   setup.api = m.mountCombatSetup($('setup-host'), {
     getRawSave: function () { return rawSave; },
     getCharIdx: function () { return Number($('sel-char').value) || 0; },
+    initialOverrides: { toggles: currentToggles() || {}, termOverrides: currentTerms() || {} },
+    extraTabs: [
+      { id: 'mechanics', label: 'Mechanics overrides', count: function () { return Object.keys(currentToggles() || {}).length; } },
+      { id: 'components', label: 'Component terms', count: function () { return Object.keys(currentTerms() || {}).length; } },
+    ],
+    onTabChange: function (tab) {
+      $('ovr-section').hidden = tab !== 'mechanics';
+      $('terms-section').hidden = tab !== 'components';
+      if (tab === 'mechanics') { renderOvr(); refreshOvrBase(); }
+      if (tab === 'components') { renderTerms(); refreshTerms(); }
+    },
+    onSearch: function (query) {
+      $('ovr-search').value = query; $('terms-search').value = query;
+      renderOvr(); renderTerms();
+    },
+    onOverridesChange: restoreLoadoutOverrides,
     onChange: function () {
       clearTimeout(setup.timer);
       setup.timer = setTimeout(function () { if (syncSetup()) { setupEffectsChanged('setup changed'); setup.api.derivedChanged(); } }, 300);
-      renderCmpLoadouts(); refreshCmpCount(); renderScmpPick();
+      renderCmpLoadouts(); refreshCmpCount(); renderSimLoadouts();
     },
     getDerived: function () {
       if (!rawSave) return null;
       var ci = Number($('sel-char').value) || 0;
       var cur = setup.api.current();
-      var sig = cur && cur.patches && cur.patches.length ? JSON.stringify(cur) : '';
+      var sig = cur ? JSON.stringify(cur) : '';
       return { base: setup.derivedBase[ci] || [], current: combatDerivedValues(saveData, ci), pending: sig !== setup.sig };
     },
   });
@@ -1174,15 +1221,10 @@ initSaveLoader({
     updateCrystalNote();
     renderCmpPick();
     refreshOvrBase(true); refreshTerms(true);
-    $('btn-run').disabled = false;
+    $('btn-run').disabled = !!run || !!setup.error || $('sim-loadout').disabled;
     if (cmp && cmp.running && meta && meta.source !== 'auto-refresh') cancelCompare();
     if (cmp) { cmp.stale = true; renderCompare(); }
-    if (scmp && scmp.running && meta && meta.source !== 'auto-refresh') cancelSetupCompare();
-    if (scmp) { scmp.stale = true; renderSetupCompare(); }
     refreshCmpCount();
-  if (ss && ss.running && meta && meta.source !== 'auto-refresh') cancelSetupSearch();
-  if (meta && meta.source !== 'auto-refresh') ssMarkStale('save reloaded since this search');
-    renderScmpPick();
     if (run && meta && meta.source === 'auto-refresh') return; // keep in-flight run on its captured snapshot
     if (run) { cancelRun(); run.stale = true; }
     if (result) { result.stale = true; render(); }
@@ -1214,6 +1256,11 @@ function makePlayer(mode, mapIdx, killEveryMs, manualCasts, cavern) {
 
 function startRun() {
   if (run) return;
+  if (!rawSave || $('sim-loadout').disabled) return;
+  clearTimeout(setup.timer);
+  var selected;
+  try { selected = detailedSetup(); if (!syncSetup(true)) return; }
+  catch (e) { $('sim-loadout-error').textContent = e.message; return; }
   var ci = Number($('sel-char').value) || 0, mapIdx = Number($('sel-map').value);
   var seconds = Number($('sel-dur').value) || 300;
   var seedIn = $('inp-seed').value;
@@ -1221,11 +1268,12 @@ function startRun() {
   var mode = $('sel-player').value;
   var r = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2),
-    ci: ci, mapIdx: mapIdx, seconds: seconds, seed: seed, mode: mode, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
+    ci: ci, character: $('sel-char').selectedOptions[0].textContent, loadout: $('sim-loadout').selectedOptions[0].textContent,
+    mapIdx: mapIdx, seconds: seconds, seed: seed, mode: mode, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
     killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500),
     snaps: replaySnaps(createReplayStore({ cacheSize: 1500, materializeWindow: 400 })), snapEvery: SNAPSHOT_MS,
     events: [], eventCounts: {}, timeline: [], timeMs: 0, inputs: {}, player: null,
-    started: performance.now(), cancelled: false, gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(editorEditsBuffs()), toggles: currentToggles(), terms: currentTerms(), raw: simRaw(), setup: setupRunInfo(),
+    started: performance.now(), cancelled: false, gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(setupEditsBuffs(selected)), toggles: selected.toggles || {}, terms: selected.termOverrides || {}, raw: simRaw(), setup: setupRunInfo(),
     manualCasts: mode === 'auto' ? currentManualCasts() : undefined, stopOn: currentStopOn(),
   };
   run = r;
@@ -1386,7 +1434,7 @@ function finishMain(r, message) {
 function endRunUi(r) {
   if (r.worker) { r.worker.terminate(); r.worker = null; }
   if (run === r) run = null;
-  $('btn-run').disabled = false; $('btn-cancel').disabled = true;
+  $('btn-run').disabled = !!setup.error || $('sim-loadout').disabled; $('btn-cancel').disabled = true;
   $('progress-wrap').style.display = 'none';
 }
 
@@ -1436,10 +1484,11 @@ function render() {
 }
 
 function runHeader(r) {
-  var nm = (saveData.charNames && saveData.charNames[r.ci]) || ('Character ' + (r.ci + 1));
+  var nm = r.character || (saveData.charNames && saveData.charNames[r.ci]) || ('Character ' + (r.ci + 1));
   var modeLbl = { auto: 'Auto mode (player AI)', scripted: 'Fixed kill interval stand-in (' + fmtInt(r.killEveryMs) + ' ms)', idle: 'Idle' }[r.mode];
   var h = '<div class="note" style="margin:0 0 12px">' + escHtml(nm) + ' on <b>' + escHtml(mapName(r.mapIdx)) + '</b> (map ' + r.mapIdx + ') · '
     + (r.mapIdx === 216 ? 'cavern <b>' + escHtml(cavernName(runCavern(r.ci, 216, r.cavern))) + '</b>' + (r.cavern == null ? ' (saved)' : '') + ' · ' : '') + fmtSec(r.timeMs) + ' simulated in ' + (r.elapsedMs / 1000).toFixed(1) + 's · seed ' + r.seed + ' · ' + escHtml(modeLbl || r.mode);
+  if (r.loadout) h += ' · loadout: <b>' + escHtml(r.loadout) + '</b>';
   if (r.stale) h += ' · <span class="warn">' + (typeof r.stale === 'string' ? r.stale : 'save reloaded since this run') + '</span>';
   if (r.message) h += '<br><span class="warn">' + escHtml(r.message) + '</span>';
   if (r.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
@@ -1464,11 +1513,6 @@ function simOverrides(on, cavern, cav, unlimInv, savedBuffs) {
 // inflate the scene-cached stats nor hold back AutoCast (it skips a buff with > 10 s left).
 // A setup edit to buffs is deliberate, so it keeps saved buffs on.
 function savedBuffsOn(editsBuffs) { return $('inp-savedbuffs').checked || !!editsBuffs; }
-function editorEditsBuffs() { return !!(setup.api && setupEditsBuffs(setup.api.current())); }
-function scmpSavedBuffsText(c) {
-  var on = c.variants.filter(function (v) { return c.savedBuffs || v.editsBuffs; }).length;
-  return savedBuffsRunText(on > 0, on > 0 && on < c.variants.length);
-}
 function savedBuffsRunText(on, mixed) {
   if (mixed) return '<br>Saved buffs: kept only for setups that edit buffs; others start with form toggles only.';
   return on ? '<br>Saved buffs kept: every exported buff timer is active at start, and cached stats include them.'
@@ -1526,7 +1570,7 @@ var ovr = (function () {
 })();
 var MODE_LABEL = { saved: 'Saved', off: 'Off', on: 'On', set: 'Set', scale: 'Scale ×' };
 
-function saveOvr() { try { localStorage.setItem(OVR_KEY, JSON.stringify({ state: ovr.state, extra: ovr.extra })); } catch (e) { /* storage full or blocked */ } }
+function saveOvr() { saveLoadoutOverrides(); }
 function currentToggles() { var s = normalizeToggleState(ovr.state); return Object.keys(s).length ? s : undefined; }
 function fmtOvr(v) { return typeof v === 'number' ? (Math.abs(v) < 1000 && !Number.isInteger(v) ? String(+v.toPrecision(4)) : fmtNum(v)) : String(v); }
 function toggleRunText(t) {
@@ -1549,7 +1593,7 @@ function rawInputName(key) {
 
 function ovrBaseKey() { return ($('sel-char').value || '0') + ':' + ($('sel-map').value || '') + ':' + $('sel-cavern').value + ':' + JSON.stringify(cavCfg); }
 function refreshOvrBase(force) {
-  if (!rawSave || !$('ovr-section').open) return;
+  if (!rawSave || $('ovr-section').hidden) return;
   var key = ovrBaseKey();
   if (!force && key === ovr.baseKey && ovr.base) return;
   clearTimeout(ovr.timer);
@@ -1605,7 +1649,7 @@ function ovrRowHtml(id, t) {
 function renderOvr() {
   var n = Object.keys(normalizeToggleState(ovr.state)).length;
   $('ovr-count').hidden = !n; $('ovr-count').textContent = n + ' active';
-  if (!$('ovr-section').open) return;
+  if ($('ovr-section').hidden) return;
   var q = $('ovr-search').value.trim().toLowerCase(), grp = $('ovr-group').value, onlyOn = $('ovr-active').checked;
   var active = normalizeToggleState(ovr.state);
   var match = function (id, t) {
@@ -1647,7 +1691,6 @@ function ovrChanged() {
 
 (function initOvr() {
   $('ovr-group').innerHTML = '<option value="">All groups</option>' + TOGGLE_GROUPS.map(function (g) { return '<option>' + escHtml(g) + '</option>'; }).join('') + '<option value="other">Other inputs</option>';
-  $('ovr-section').addEventListener('toggle', function () { renderOvr(); refreshOvrBase(); });
   $('ovr-search').addEventListener('input', renderOvr);
   $('ovr-group').addEventListener('change', renderOvr);
   $('ovr-active').addEventListener('change', renderOvr);
@@ -1718,8 +1761,22 @@ var terms = (function () {
   return { state: s.state || {}, names: s.names || {}, list: null, listKey: '', timer: 0 };
 })();
 
-function saveTerms() { try { localStorage.setItem(TERMS_KEY, JSON.stringify({ state: terms.state, names: terms.names })); } catch (e) { /* storage full or blocked */ } }
+function saveTerms() { saveLoadoutOverrides(); }
 function currentTerms() { var o = normalizeTermOverrides(terms.state); return Object.keys(o).length ? o : undefined; }
+function saveLoadoutOverrides() {
+  if (setup.api) setup.api.setOverrides({ toggles: currentToggles() || {}, termOverrides: currentTerms() || {} });
+}
+function restoreLoadoutOverrides(s) {
+  var toggles = s.toggles || {}, overrides = s.termOverrides || {};
+  if (JSON.stringify(currentToggles() || {}) === JSON.stringify(toggles) && JSON.stringify(currentTerms() || {}) === JSON.stringify(overrides)) return;
+  ovr.state = JSON.parse(JSON.stringify(toggles));
+  ovr.extra = Object.keys(toggles).filter(function (k) { return k.startsWith('raw:'); });
+  terms.state = JSON.parse(JSON.stringify(overrides));
+  clearTimeout(ovr.timer); clearTimeout(terms.timer); clearTimeout(terms.inputTimer);
+  ovr.baseKey = ''; terms.listKey = ''; terms.list = null;
+  renderOvr(); renderTerms();
+  refreshOvrBase(true); refreshTerms(true);
+}
 function termRunText(o) {
   if (!o) return '';
   var parts = Object.keys(o).map(function (k) {
@@ -1730,7 +1787,7 @@ function termRunText(o) {
 }
 
 function refreshTerms(force) {
-  if (!terms || !rawSave || !$('terms-section').open) return;
+  if (!terms || !rawSave || $('terms-section').hidden) return;
   var key = ovrBaseKey() + '|' + JSON.stringify(currentTerms() || {}) + '|' + setup.sig;
   if (!force && key === terms.listKey && terms.list) return;
   clearTimeout(terms.timer);
@@ -1765,7 +1822,7 @@ function termRowHtml(t) {
 function renderTerms() {
   var n = Object.keys(normalizeTermOverrides(terms.state)).length;
   $('terms-count').hidden = !n; $('terms-count').textContent = n + ' active';
-  if (!$('terms-section').open) return;
+  if ($('terms-section').hidden) return;
   if (!terms.list) { $('terms-rows').innerHTML = '<tr><td colspan="6" class="ovr-desc">' + (rawSave ? 'Collecting terms…' : 'Load a save first.') + '</td></tr>'; return; }
   var q = $('terms-search').value.trim().toLowerCase(), grp = $('terms-group').value, onlyOn = $('terms-active').checked;
   var rows = terms.list.filter(function (t) {
@@ -1797,7 +1854,6 @@ function termsChanged(rerender) {
 }
 
 (function initTerms() {
-  $('terms-section').addEventListener('toggle', function () { renderTerms(); refreshTerms(); });
   $('terms-search').addEventListener('input', renderTerms);
   $('terms-group').addEventListener('change', renderTerms);
   $('terms-active').addEventListener('change', renderTerms);
@@ -2178,7 +2234,7 @@ function renderInputs(r) {
 // Game assets for the replay come from js/stats/data/game/combat-sprites.js, generated by
 // _tools/extract/combat-sim-assets.cjs (derivations in assets/combat-sim/metadata.json).
 // ---------------------------------------------------------------------------
-// Compare maps: one character on many maps through a pool of lite worker runs.
+// Bulk comparisons: selected character/loadout/map combinations through lite workers.
 // ---------------------------------------------------------------------------
 var cmp = null;
 
@@ -2206,7 +2262,7 @@ function cmpCharacterChoices() {
     var choices = [{ id: 'saved', label: 'Imported save', setup: null }];
     var draft = ci === currentCi && setup.api ? setup.api.current() : null;
     if (!draft) draft = readCombatDraft(localStorage, ci);
-    if (draft && draft.patches && draft.patches.length) choices.push({ id: 'edited', label: 'Working edits', setup: draft });
+    if (draft && (draft.patches.length || Object.keys(draft.toggles || {}).length || Object.keys(draft.termOverrides || {}).length)) choices.push({ id: 'edited', label: 'Working edits', setup: draft });
     readCombatLoadouts(localStorage, ci).forEach(function (entry) { choices.push({ id: 'named:' + entry.key, label: entry.name, setup: entry.setup }); });
     return { charIdx: ci, label: (saveData.charNames || [])[ci] || 'Character ' + (ci + 1), choices: choices };
   });
@@ -2532,7 +2588,7 @@ function dispatchCompare(c, w) {
   w.busy = { id: id, job: j, frac: 0 };
   c.active[id] = w.busy;
   w.postMessage({
-    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, j.mapIdx === 216 ? c.cavern : null, j.mapIdx === 216 ? row.variant.cav : null, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: c.toggles, termOverrides: c.terms, stopOn: c.stopOn,
+    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, j.mapIdx === 216 ? c.cavern : null, j.mapIdx === 216 ? row.variant.cav : null, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
   });
 }
@@ -2706,8 +2762,8 @@ function renderCompare() {
   if (c.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
   if (c.dropTarget) h += '<br>Maps that can drop ' + escHtml(dropTargetName(c.dropTarget)) + '.';
   h += '<br>' + (c.gcrystal ? 'Daily guaranteed crystals on: every run starts with today\'s remaining guarantee, so crystal drops are front-loaded.' : 'Daily guaranteed crystals off: random crystal chance only.') + unlimInvRunText(c.unlimInv) + savedBuffsRunText(c.savedBuffs);
-  h += toggleRunText(c.toggles) + cavRunText(c.cav) + termRunText(c.terms) + setupRunText(c.setup) + manualRunText(c.manualCasts) + manualByMapText(c.manualByMap) + stopOnRunText(c.stopOn);
-  if (c.variants) h += '<br>Each row uses its captured character loadout. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Cavern: ' + (c.cavern == null ? 'each character\'s saved cavern' : fmtInt(c.cavern)) + '.';
+  h += (c.variants ? '' : toggleRunText(c.toggles) + termRunText(c.terms)) + cavRunText(c.cav) + setupRunText(c.setup) + manualRunText(c.manualCasts) + manualByMapText(c.manualByMap) + stopOnRunText(c.stopOn);
+  if (c.variants) h += '<br>Each row uses its captured character loadout, mechanics overrides and component terms. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Cavern: ' + (c.cavern == null ? 'each character\'s saved cavern' : fmtInt(c.cavern)) + '.';
   h += '</div>';
 
   h += '<h3>Drops found on more than one map</h3>';
@@ -2820,7 +2876,7 @@ function renderCompare() {
     else wrows.forEach(function (t) { h += worldRowHtml(t, bestW); groups[t.groupKey].forEach(function (r) { h += mapRowHtml(r); }); });
   }
   h += '</tbody></table></div>';
-  h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or a map name to load it in the single-map simulator above. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
+  h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or a map name to open its captured loadout in Detailed simulation. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
   host.innerHTML = h;
   if (focusedColumn) {
     var focus = Array.from(host.querySelectorAll('[data-cmp-extra]')).find(function (el) { return el.dataset.cmpExtra === focusedColumn; });
@@ -2829,465 +2885,6 @@ function renderCompare() {
 }
 
 // ---------------------------------------------------------------------------
-// Compare setups: one character/map, several setups (imported save, current
-// editor edits, named saved setups) on shared seeds. Pure aggregation lives in
-// combat-sim-setup-compare.js; each job posts its own patched raw save.
-// ---------------------------------------------------------------------------
-var scmp = null, scmpOff = {};
-
-function scmpNamedSetups() {
-  return readCombatLoadouts(localStorage, Number($('sel-char').value) || 0);
-}
-
-function scmpChoices() {
-  var out = [{ id: 'saved', label: 'Imported save' }];
-  var s = setup.api && rawSave ? setup.api.summary() : null;
-  if (s && s.changed) out.push({ id: 'edited', label: 'Current edits (' + s.changed + ' change' + (s.changed === 1 ? '' : 's') + ')' });
-  scmpNamedSetups().forEach(function (n) { out.push({ id: 'named:' + n.name, label: n.name }); });
-  return out;
-}
-
-function renderScmpPick() {
-  var ch;
-  try { ch = scmpChoices(); }
-  catch (e) { $('scmp-pick').innerHTML = '<div class="err">Could not read loadouts: ' + escHtml(e.message) + '</div>'; $('scmp-run').disabled = true; return; }
-  var h = ch.map(function (c) {
-    return '<button type="button" class="cmp-chip' + (scmpOff[c.id] ? '' : ' on') + '" data-scmp-pick="' + escHtml(c.id) + '" aria-pressed="' + (!scmpOff[c.id]) + '">' + escHtml(c.label) + '</button>';
-  }).join('');
-  if (ch.length < 2) h += '<span class="note">Edit the setup above or save a named setup to have something to compare against.</span>';
-  $('scmp-pick').innerHTML = h;
-  if (!scmp || !scmp.running) $('scmp-run').disabled = !rawSave || ch.filter(function (c) { return !scmpOff[c.id]; }).length < 2;
-  renderSsDims();
-}
-
-function startSetupCompare() {
-  if ((scmp && scmp.running) || !rawSave) return;
-  var ci = Number($('sel-char').value) || 0, mapIdx = Number($('sel-map').value);
-  var named = [];
-  try { scmpNamedSetups().forEach(function (n) {
-    if (!scmpOff['named:' + n.name]) named.push({ name: n.name, setup: n.setup });
-  }); } catch (e) { $('scmp-results').innerHTML = '<div class="err">Could not read loadouts: ' + escHtml(e.message) + '</div>'; return; }
-  var edited = !scmpOff.edited && setup.api ? setup.api.current() : null;
-  var variants = setupCompareVariants(rawSave, { charIdx: ci, includeSaved: !scmpOff.saved, edited: edited, named: named });
-  if (variants.length < 2) { $('scmp-results').innerHTML = '<div class="err">Check at least two setups.</div>'; return; }
-  var seconds = Number($('scmp-dur').value) || 600, nSeeds = Number($('scmp-seeds').value) || 3;
-  var base = (Math.random() * 4294967295) >>> 0, seeds = [];
-  for (var s = 0; s < nSeeds; s++) seeds.push((base + s * 2654435761) >>> 0);
-  var useOvr = $('scmp-ovr').checked;
-  var c = scmp = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2), running: true, ci: ci, mapIdx: mapIdx, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)), seconds: seconds, seeds: seeds,
-    mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked,
-    manualCasts: $('sel-player').value === 'auto' ? currentManualCasts() : undefined, stopOn: currentStopOn(),
-    toggles: useOvr ? currentToggles() : null, terms: useOvr ? currentTerms() : null,
-    variants: variants, byId: {}, rows: {}, jobs: setupCompareJobs(variants, seeds), next: 0, done: 0, active: {}, workers: [], started: performance.now(), inputSent: {},
-  };
-  variants.forEach(function (v) {
-    v.manualCasts = c.mode === 'auto' && v.raw ? currentManualCasts(mapIdx, manualSkillIds(v.raw, ci)) : undefined;
-    v.cav = cavCfgFor(ci, mapIdx, c.cavern, v.raw);
-    c.byId[v.id] = v; c.rows[v.id] = emptySetupCompareRow(v);
-    if (!v.raw) c.rows[v.id].errors.push(v.warnings.join('; ') || 'Setup could not be applied');
-  });
-  if (!c.jobs.length) { c.running = false; renderSetupCompare(); return; }
-  var n = Math.max(1, Math.min(c.jobs.length, Math.min(6, (navigator.hardwareConcurrency || 4) - 1)));
-  for (var i = 0; i < n; i++) {
-    var w;
-    try { w = new Worker(new URL('./js/workers/combat-sim-worker.js', import.meta.url), { type: 'module' }); }
-    catch (e) { break; }
-    w.onmessage = onScmpMessage.bind(null, c, w);
-    w.onerror = onScmpWorkerError.bind(null, c, w);
-    c.workers.push(w);
-  }
-  if (!c.workers.length) { c.running = false; $('scmp-results').innerHTML = '<div class="err">Could not start simulation workers in this browser.</div>'; return; }
-  $('scmp-run').disabled = true; $('scmp-cancel').disabled = false;
-  $('scmp-progress-wrap').style.display = 'block';
-  c.workers.forEach(function (w) { dispatchScmp(c, w); });
-  updateScmpProgress(c);
-  renderSetupCompare();
-}
-
-function dispatchScmp(c, w) {
-  if (!c.running || c.next >= c.jobs.length) { w.busy = null; if (c.running && c.next >= c.jobs.length && !Object.keys(c.active).length) endSetupCompare(c, null); return; }
-  var j = c.jobs[c.next++], id = c.id + ':' + c.next;
-  // The first run of each setup returns its resolved inputs (drop rate, damage, ...); the rest stay lite.
-  var wantInputs = !c.inputSent[j.variantId]; c.inputSent[j.variantId] = true;
-  w.busy = { id: id, job: j, frac: 0 };
-  c.active[id] = w.busy;
-  w.postMessage({
-    type: 'run', id: id, rawSave: c.byId[j.variantId].raw, charIdx: c.ci, mapIdx: c.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: c.byId[j.variantId].manualCasts }, killEveryMs: c.killEveryMs,
-    inputOverrides: simOverrides(c.gcrystal, c.cavern, c.byId[j.variantId].cav, c.unlimInv, c.savedBuffs || c.byId[j.variantId].editsBuffs), toggles: c.toggles || undefined, termOverrides: c.terms || undefined, stopOn: c.stopOn,
-    maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: !wantInputs,
-  });
-}
-
-function onScmpMessage(c, w, ev) {
-  var m = ev.data || {}, b = w.busy;
-  if (scmp !== c || !b || m.id !== b.id) return;
-  if (m.type === 'progress') { b.frac = Math.min(1, (m.t || 0) / c.seconds); updateScmpProgress(c); return; }
-  if (m.type !== 'done' && m.type !== 'error') return;
-  var row = c.rows[b.job.variantId];
-  if (m.type === 'done') addSetupCompareRun(row, b.job.seed, m);
-  else row.errors.push(m.unsupported ? 'Not supported: ' + m.message : m.message);
-  delete c.active[b.id];
-  c.done++;
-  updateScmpProgress(c);
-  scheduleScmpRender();
-  dispatchScmp(c, w);
-}
-
-function onScmpWorkerError(c, w, e) {
-  e.preventDefault && e.preventDefault();
-  if (scmp !== c) return;
-  var b = w.busy;
-  if (b) { c.rows[b.job.variantId].errors.push('Worker failed: ' + (e.message || 'unknown error')); delete c.active[b.id]; c.done++; }
-  w.terminate(); w.busy = null; w.dead = true;
-  if (c.workers.every(function (x) { return x.dead; })) c.next = c.jobs.length;
-  if (c.next >= c.jobs.length && !Object.keys(c.active).length) endSetupCompare(c, null);
-}
-
-function updateScmpProgress(c) {
-  var frac = c.done;
-  for (var id in c.active) frac += c.active[id].frac || 0;
-  $('scmp-progress-fill').style.width = ((c.jobs.length ? frac / c.jobs.length : 1) * 100).toFixed(1) + '%';
-  $('scmp-progress-label').textContent = c.done + ' of ' + c.jobs.length + ' runs finished · ' + c.workers.filter(function (w) { return !w.dead; }).length + ' workers · ' + ((performance.now() - c.started) / 1000).toFixed(0) + 's';
-}
-
-var scmpRenderTimer = 0;
-function scheduleScmpRender() {
-  if (scmpRenderTimer) return;
-  scmpRenderTimer = setTimeout(function () { scmpRenderTimer = 0; renderSetupCompare(); }, 500);
-}
-
-function endSetupCompare(c, message) {
-  if (!c.running) return;
-  c.running = false; c.message = message; c.elapsedMs = performance.now() - c.started;
-  c.workers.forEach(function (w) { w.terminate(); });
-  c.workers = []; c.active = {};
-  $('scmp-cancel').disabled = true;
-  $('scmp-progress-wrap').style.display = 'none';
-  renderScmpPick();
-  renderSetupCompare();
-}
-
-function cancelSetupCompare() {
-  if (!scmp || !scmp.running) return;
-  endSetupCompare(scmp, 'Cancelled after ' + scmp.done + ' of ' + scmp.jobs.length + ' runs; changes use only runs both setups finished.');
-}
-
-function scmpCellHtml(cell, isBase, coins) {
-  if (cell.mean == null) return '<td class="num">—</td>';
-  var amount = coins ? fmtCoins : fmtNum;
-  var h = '<td class="num">' + amount(cell.mean);
-  if (!isBase && cell.delta != null) {
-    var sig = setupCompareSignificant(cell), cls = cell.delta > 0 ? 'scmp-up' : cell.delta < 0 ? 'scmp-down' : 'scmp-same';
-    var txt = cell.deltaPct != null ? (cell.deltaPct >= 0 ? '+' : '') + (cell.deltaPct * 100).toFixed(1) + '%' : (cell.delta > 0 ? '+' : '') + amount(cell.delta);
-    h += '<br><span class="' + cls + (sig ? ' scmp-sig' : '') + '">' + txt + (cell.se != null ? ' <small>±' + (cell.baseMean ? (2 * cell.se / Math.abs(cell.baseMean) * 100).toFixed(1) + '%' : amount(2 * cell.se)) + '</small>' : '') + '</span>';
-  }
-  return h + '</td>';
-}
-
-function scmpMetricLabel(k) {
-  return cmpMetricLabel(k) + ' / ' + setupCompareUnit('metric:' + k);
-}
-
-function renderSetupCompare() {
-  var host = $('scmp-results'), c = scmp;
-  if (!c) { host.innerHTML = ''; return; }
-  var vars = c.variants, rows = vars.map(function (v) { return c.rows[v.duplicateOf || v.id]; });
-  var baseRow = rows[0];
-  var nm = (saveData.charNames && saveData.charNames[c.ci]) || ('Character ' + (c.ci + 1));
-  var modeLbl = { auto: 'auto mode', scripted: 'fixed ' + fmtInt(c.killEveryMs) + ' ms kill interval', idle: 'idle' }[c.mode] || c.mode;
-  var h = '<div class="note" style="margin:10px 0">' + escHtml(nm) + ' · ' + c.mapIdx + ' ' + escHtml(mapName(c.mapIdx)) + ' · ' + escHtml(modeLbl) + ' · ' + vars.length + ' setups × ' + c.seeds.length + ' run' + (c.seeds.length > 1 ? 's' : '') + ' of ' + fmtRunLen(c.seconds)
-    + (c.running ? ' · running' : ' · finished in ' + ((c.elapsedMs || 0) / 1000).toFixed(0) + 's');
-  if (c.stale) h += ' · <span class="warn">' + escHtml(typeof c.stale === 'string' ? c.stale : 'save reloaded since this comparison') + '</span>';
-  if (c.message) h += '<br><span class="warn">' + escHtml(c.message) + '</span>';
-  if (c.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by the setup.</span>';
-  h += (c.toggles || c.terms) ? toggleRunText(c.toggles) + termRunText(c.terms) : '<br>Mechanics overrides and component terms were not applied.';
-  h += cavRunText(c.cav) + unlimInvRunText(c.unlimInv) + scmpSavedBuffsText(c);
-  h += manualRunText(c.manualCasts) + stopOnRunText(c.stopOn);
-  h += '</div>';
-
-  var head = '<tr><th>Outcome</th>' + vars.map(function (v, i) {
-    return '<th class="num">' + escHtml(v.label) + (i === 0 ? ' <span class="badge badge-cyan">baseline</span>' : '') + (v.duplicateOf ? '<br><small class="note">same as ' + escHtml(c.byId[v.duplicateOf].label) + '</small>' : '') + '</th>';
-  }).join('') + '</tr>';
-  var body = '';
-  function line(label, key) {
-    body += '<tr><td>' + label + '</td>' + rows.map(function (r, i) { return scmpCellHtml(setupCompareCell(r, baseRow, key), i === 0, key === 'coins' || key === 'item:COIN'); }).join('') + '</tr>';
-  }
-  SETUP_COMPARE_METRICS.forEach(function (m) { line(escHtml(m[1]), m[0]); });
-  var items = setupCompareItems(rows), metrics = setupCompareMetricKeys(rows);
-  metrics.forEach(function (k) { line(escHtml(scmpMetricLabel(k)), 'metric:' + k); });
-  var itemBody = body; body = '';
-  items.forEach(function (k) { line(escHtml(itemName(k) + ' / ' + setupCompareUnit('item:' + k)), 'item:' + k); });
-  h += '<div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head + '</thead><tbody>' + itemBody + '</tbody></table></div>';
-  if (items.length) h += '<details' + (items.length <= 15 ? ' open' : '') + '><summary>Item drops (' + items.length + ')</summary><div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></details>';
-  if (metrics.includes('combatProgress.omegaBalls') || items.includes('ArcBallOmega')) h += '<div class="note">Omega Arcade balls use mean totals per simulated run, not hourly projections: the odds decrease after every drop.</div>';
-
-  // Resolved combat inputs from each setup's first run; only rows that differ.
-  var inRows = '';
-  SETUP_COMPARE_INPUTS.forEach(function (p) {
-    var vals = rows.map(function (r) { return r.inputs ? r.inputs[p[0]] : undefined; });
-    var known = vals.filter(function (x) { return x !== undefined; });
-    if (known.length < 2 || known.every(function (x) { return x === known[0]; })) return;
-    inRows += '<tr><td>' + escHtml(p[1]) + '</td>' + vals.map(function (x) { return '<td class="num">' + (x === undefined ? '—' : fmtNum(x)) + '</td>'; }).join('') + '</tr>';
-  });
-  h += '<h3>Resolved stats that differ</h3>';
-  h += inRows ? '<div class="tbl-wrap"><table class="data-table scmp-table"><thead>' + head.replace('Outcome', 'Stat') + '</thead><tbody>' + inRows + '</tbody></table></div>'
-    : '<div class="note">' + (c.running ? 'Waiting for each setup\'s first run.' : 'None of the summarized stats (drop rate, damage, accuracy, multikill, …) differ between these setups.') + '</div>';
-
-  h += '<h3>Setup changes</h3>';
-  vars.forEach(function (v) {
-    var r = c.rows[v.id];
-    h += '<details><summary>' + escHtml(v.label) + ' — ' + (v.kind === 'saved' ? 'no changes' : fmtInt(v.changed) + ' change' + (v.changed === 1 ? '' : 's')) + '</summary>';
-    if (v.lines.length) h += '<div class="ovr-list">' + v.lines.slice(0, 60).map(escHtml).join('<br>') + (v.lines.length > 60 ? '<br>…' : '') + '</div>';
-    if (r.errors.length) h += '<div class="err">' + escHtml(r.errors.slice(0, 3).join(' · ')) + '</div>';
-    h += '</details>';
-  });
-  host.innerHTML = h;
-}
-
-$('scmp-run').addEventListener('click', startSetupCompare);
-$('scmp-cancel').addEventListener('click', cancelSetupCompare);
-$('scmp-pick').addEventListener('click', function (e) {
-  var t = e.target.closest('[data-scmp-pick]');
-  if (!t) return;
-  var id = t.dataset.scmpPick;
-  if (scmpOff[id]) delete scmpOff[id]; else scmpOff[id] = true;
-  renderScmpPick();
-});
-// Named setups are saved/deleted inside the setup editor and other tabs; refresh the choices.
-$('setup-host').addEventListener('click', function () { setTimeout(renderScmpPick, 0); });
-window.addEventListener('storage', function (e) {
-  if (!e.key || e.key.startsWith('combat-sim-setup:') || e.key.startsWith(COMBAT_LOADOUT_PREFIX) || e.key.startsWith(COMBAT_DRAFT_PREFIX)) { renderScmpPick(); renderCmpPick(); }
-});
-
-// ---- Setup search (combat-sim-setup-search.js) ----
-// The search module is a pure state machine: it hands out batches of fingerprint
-// and sim jobs, and this pump spreads each batch over a worker pool that holds
-// the imported save once (worker 'load') and applies each job's setup patches.
-var ss = null, ssOff = {}, ssSpaceKey = '', ssSpace = null;
-
-(function () {
-  var sel = $('ssrch-metric');
-  sel.innerHTML = SETUP_COMPARE_METRICS.map(function (m) { return '<option value="' + m[0] + '">' + escHtml(m[1]) + '</option>'; }).join('');
-})();
-
-function ssStartSetup() { return setup.api ? setup.api.current() : { patches: [] }; }
-
-function renderSsDims() {
-  var ci = Number($('sel-char').value) || 0;
-  var start = ssStartSetup();
-  var key = rawSave ? ci + '|' + JSON.stringify(start && start.patches || []) : '';
-  if (key !== ssSpaceKey) {
-    ssSpaceKey = key; ssSpace = null;
-    if (rawSave) { try { ssSpace = setupSearchSpace(rawSave, ci, start); } catch (e) { console.warn('setup search space', e); } }
-  }
-  $('ssrch-dims').innerHTML = SETUP_SEARCH_DIMENSIONS.map(function (d) {
-    var on = !ssOff[d[0]], n = ssSpace ? ssSpace.candidates[d[0]] : null, slots = ssSpace ? ssSpace.slots[d[0]] : null;
-    var sub = n == null ? '' : ' <small>' + fmtInt(n) + (d[0] === 'cardSet' ? ' sets' : ' owned · ' + fmtInt(slots) + ' slot' + (slots === 1 ? '' : 's')) + '</small>';
-    return '<button type="button" class="cmp-chip' + (on ? ' on' : '') + '" data-ss-dim="' + d[0] + '" aria-pressed="' + on + '">' + escHtml(d[1]) + sub + '</button>';
-  }).join('');
-  if (!ss || !ss.running) $('ssrch-run').disabled = !rawSave || !SETUP_SEARCH_DIMENSIONS.some(function (d) { return !ssOff[d[0]]; });
-}
-
-function ssMarkStale(why) {
-  if (ss && !ss.running && !ss.stale) { ss.stale = why; renderSetupSearch(); }
-}
-
-function startSetupSearch() {
-  if ((ss && ss.running) || !rawSave) return;
-  var ci = Number($('sel-char').value) || 0, mapIdx = Number($('sel-map').value);
-  var dims = {};
-  SETUP_SEARCH_DIMENSIONS.forEach(function (d) { dims[d[0]] = !ssOff[d[0]]; });
-  var start = ssStartSetup();
-  var search;
-  try {
-    search = createSetupSearch({
-      rawSave: rawSave, charIdx: ci, startSetup: start, dims: dims, metric: $('ssrch-metric').value,
-      seeds: Number($('ssrch-seeds').value) || 3, maxRounds: Number($('ssrch-rounds').value) || 6, confirmSeeds: Number($('ssrch-confirm').value) || 12,
-    });
-  } catch (e) { $('ssrch-results').innerHTML = '<div class="err">' + escHtml(e.message || String(e)) + '</div>'; return; }
-  var useOvr = $('scmp-ovr').checked;
-  var c = ss = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2), running: true, search: search, ci: ci, mapIdx: mapIdx, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
-    seconds: Number($('ssrch-dur').value) || 300, metric: $('ssrch-metric').value,
-    mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked,
-    manualCasts: $('sel-player').value === 'auto' ? currentManualCasts() : undefined, stopOn: currentStopOn(),
-    toggles: useOvr ? currentToggles() : null, terms: useOvr ? currentTerms() : null,
-    queue: [], active: {}, workers: [], seq: 0, started: performance.now(),
-  };
-  var n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
-  for (var i = 0; i < n; i++) {
-    var w;
-    try { w = new Worker(new URL('./js/workers/combat-sim-worker.js', import.meta.url), { type: 'module' }); }
-    catch (e) { break; }
-    w.onmessage = onSsMessage.bind(null, c, w);
-    w.onerror = onSsWorkerError.bind(null, c, w);
-    w.postMessage({ type: 'load', rawSave: rawSave });
-    c.workers.push(w);
-  }
-  if (!c.workers.length) { c.running = false; $('ssrch-results').innerHTML = '<div class="err">Could not start simulation workers in this browser.</div>'; return; }
-  $('ssrch-run').disabled = true; $('ssrch-cancel').disabled = false;
-  $('ssrch-progress-wrap').style.display = 'block';
-  pumpSs(c);
-  renderSetupSearch();
-}
-
-function pumpSs(c) {
-  if (!c.running) return;
-  if (c.search.done()) { endSetupSearch(c, null); return; }
-  if (!c.queue.length) c.queue = c.search.nextJobs();
-  c.workers.forEach(function (w) {
-    if (w.dead || w.busy || !c.queue.length) return;
-    var j = c.queue.shift(), id = c.id + ':' + (++c.seq);
-    w.busy = { id: id, job: j, frac: 0 };
-    c.active[id] = w.busy;
-    w.postMessage({
-      type: j.kind === 'fingerprint' ? 'fingerprint' : 'run', id: id, charIdx: c.ci, mapIdx: c.mapIdx, setup: j.setup, seconds: c.seconds, seed: j.seed || 1,
-      player: c.mode, playerOpts: { manualCasts: c.manualCasts }, killEveryMs: c.killEveryMs,
-      inputOverrides: simOverrides(c.gcrystal, c.cavern, c.cav, c.unlimInv, c.savedBuffs || setupEditsBuffs(j.setup)), toggles: c.toggles || undefined, termOverrides: c.terms || undefined, stopOn: c.stopOn,
-      maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
-    });
-  });
-  updateSsProgress(c);
-  if (!Object.keys(c.active).length && !c.queue.length && !c.search.done()) {
-    endSetupSearch(c, 'Search stalled: no jobs left to run (' + (c.search.status().error || 'unknown state') + ').');
-  }
-}
-
-function onSsMessage(c, w, ev) {
-  var m = ev.data || {}, b = w.busy;
-  if (ss !== c || !b || m.id !== b.id) return;
-  if (m.type === 'progress') { b.frac = Math.min(1, (m.t || 0) / c.seconds); updateSsProgress(c); return; }
-  if (m.type !== 'done' && m.type !== 'error' && m.type !== 'fingerprint') return;
-  delete c.active[b.id];
-  w.busy = null;
-  var res = m.type === 'error' ? { error: m.unsupported ? 'Not supported: ' + m.message : m.message } : m;
-  c.search.record(b.job.id, res);
-  scheduleSsRender();
-  pumpSs(c);
-}
-
-function onSsWorkerError(c, w, e) {
-  e.preventDefault && e.preventDefault();
-  if (ss !== c) return;
-  var b = w.busy;
-  w.terminate(); w.busy = null; w.dead = true;
-  if (b) { delete c.active[b.id]; c.search.record(b.job.id, { error: 'Worker failed: ' + (e.message || 'unknown error') }); }
-  if (c.workers.every(function (x) { return x.dead; })) { endSetupSearch(c, 'All simulation workers failed.'); return; }
-  pumpSs(c);
-}
-
-function updateSsProgress(c) {
-  var st = c.search.status(), frac = st.batchDone;
-  for (var id in c.active) frac += c.active[id].frac || 0;
-  $('ssrch-progress-fill').style.width = ((st.batchTotal ? frac / st.batchTotal : 0) * 100).toFixed(1) + '%';
-  $('ssrch-progress-label').textContent = st.phase + ' · ' + st.message + ' · ' + st.batchDone + ' of ' + st.batchTotal + ' jobs in this step · '
-    + fmtInt(st.sims) + ' runs, ' + fmtInt(st.fingerprints) + ' fingerprints · ' + ((performance.now() - c.started) / 1000).toFixed(0) + 's';
-}
-
-var ssRenderTimer = 0;
-function scheduleSsRender() {
-  if (ssRenderTimer) return;
-  ssRenderTimer = setTimeout(function () { ssRenderTimer = 0; renderSetupSearch(); }, 500);
-}
-
-function endSetupSearch(c, message) {
-  if (!c.running) return;
-  c.running = false; c.message = message; c.elapsedMs = performance.now() - c.started;
-  c.workers.forEach(function (w) { w.terminate(); });
-  c.workers = []; c.active = {}; c.queue = [];
-  $('ssrch-cancel').disabled = true;
-  $('ssrch-progress-wrap').style.display = 'none';
-  renderSsDims();
-  renderSetupSearch();
-}
-
-function cancelSetupSearch() {
-  if (!ss || !ss.running) return;
-  endSetupSearch(ss, 'Cancelled; the steps below were accepted before cancelling and the final check did not run.');
-}
-
-function ssPctText(pct) {
-  var a = Math.abs(pct * 100);
-  return a === 0 ? '0%' : a < 0.1 ? (pct * 100).toPrecision(2) + '%' : (pct * 100).toFixed(1) + '%';
-}
-function ssDeltaHtml(delta, se, pct, coins) {
-  if (delta == null) return '—';
-  var amount = coins ? fmtCoins : fmtNum;
-  var sig = se != null && Math.abs(delta) > 2 * se, cls = delta > 0 ? 'scmp-up' : delta < 0 ? 'scmp-down' : 'scmp-same';
-  var txt = pct != null ? (pct >= 0 ? '+' : '') + ssPctText(pct) : (delta > 0 ? '+' : '') + amount(delta);
-  var band = se != null ? ' <small>±' + (pct != null && delta ? ssPctText(Math.abs(pct / delta) * 2 * se) : amount(2 * se)) + '</small>' : '';
-  return '<span class="' + cls + (sig ? ' scmp-sig' : '') + '">' + txt + band + '</span>';
-}
-
-function renderSetupSearch() {
-  var host = $('ssrch-results'), c = ss;
-  if (!c) { host.innerHTML = ''; return; }
-  var st = c.search.status(), res = c.search.result();
-  var nm = (saveData.charNames && saveData.charNames[c.ci]) || ('Character ' + (c.ci + 1));
-  var metricLbl = (SETUP_COMPARE_METRICS.find(function (m) { return m[0] === c.metric; }) || [c.metric, c.metric])[1];
-  var amount = c.metric === 'coins' ? fmtCoins : fmtNum;
-  var h = '<div class="note" style="margin:10px 0">' + escHtml(nm) + ' · ' + c.mapIdx + ' ' + escHtml(mapName(c.mapIdx)) + ' · optimizing ' + escHtml(metricLbl) + ' · ' + fmtRunLen(c.seconds) + ' runs'
-    + (c.running ? ' · running' : ' · finished in ' + ((c.elapsedMs || 0) / 1000).toFixed(0) + 's') + ' · ' + fmtInt(st.sims) + ' runs, ' + fmtInt(st.fingerprints) + ' fingerprints';
-  if (c.stale) h += ' · <span class="warn">' + escHtml(c.stale) + '</span>';
-  if (c.message) h += '<br><span class="warn">' + escHtml(c.message) + '</span>';
-  if (st.error) h += '<br><span class="err">' + escHtml(st.error) + '</span>';
-  if (c.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, so kill-based metrics cannot change.</span>';
-  h += (c.toggles || c.terms) ? toggleRunText(c.toggles) + termRunText(c.terms) : '';
-  h += cavRunText(c.cav) + unlimInvRunText(c.unlimInv) + manualRunText(c.manualCasts) + stopOnRunText(c.stopOn);
-  (c.search.space.notes || []).forEach(function (n) { h += '<br>' + escHtml(n); });
-  h += '</div>';
-
-  if (st.steps.length) {
-    h += '<h3>Accepted swaps</h3><div class="tbl-wrap"><table class="data-table scmp-table"><thead><tr><th>#</th><th>Swap</th><th class="num">Gain vs previous step<br><small>fresh validation runs</small></th><th class="num">' + escHtml(metricLbl) + '</th><th class="num">Runs</th></tr></thead><tbody>';
-    st.steps.forEach(function (s) {
-      h += '<tr><td>' + s.round + '</td><td>' + escHtml(s.label) + '</td><td class="num">' + ssDeltaHtml(s.delta, s.se, s.deltaPct, c.metric === 'coins') + '</td><td class="num">' + amount(s.mean) + '</td><td class="num">' + s.n + '</td></tr>';
-    });
-    h += '</tbody></table></div>';
-  } else if (!c.running) h += '<div class="note">No swap beat the starting setup.</div>';
-
-  if (res) {
-    if (res.confirm) {
-      h += '<div class="card-grid cols-3" style="margin-top:10px">'
-        + '<div class="card"><div class="card-title">Start</div><div class="card-val">' + amount(res.confirm.baseMean) + '</div><div class="card-sub">' + escHtml(metricLbl) + ' on ' + res.confirm.n + ' fresh runs</div></div>'
-        + '<div class="card"><div class="card-title">Found setup</div><div class="card-val">' + amount(res.confirm.mean) + '</div><div class="card-sub">same seeds as the start</div></div>'
-        + '<div class="card"><div class="card-title">Confirmed change</div><div class="card-val">' + ssDeltaHtml(res.confirm.delta, res.confirm.se, res.confirm.deltaPct, c.metric === 'coins') + '</div><div class="card-sub">bold = more than two standard errors</div></div></div>';
-    }
-    if (res.changed) {
-      var a = setupSearchStateSummary(res.start.state), b = setupSearchStateSummary(res.final.state);
-      h += '<h3>' + (res.improved ? 'Found setup' : 'Unconfirmed setup') + '</h3>';
-      if (!res.improved) h += '<div class="note"><span class="warn">These swaps did not beat the start setup on fresh runs, so keep the start setup. Their earlier gains were likely noise from picking the best of many candidates.</span></div>';
-      h += '<div class="tbl-wrap"><table class="data-table"><thead><tr><th>System</th><th>Start</th><th>' + (res.improved ? 'Found' : 'Unconfirmed') + '</th></tr></thead><tbody>';
-      b.forEach(function (row, i) {
-        var before = a[i].items, after = row.items;
-        if (before.join('|') === after.join('|')) return;
-        var mark = function (list, other) { return list.length ? list.map(function (x) { return other.indexOf(x) < 0 ? '<b>' + escHtml(x) + '</b>' : escHtml(x); }).join(', ') : '<span class="note">(none)</span>'; };
-        h += '<tr><td>' + escHtml(row.label) + '</td><td>' + mark(before, after) + '</td><td>' + mark(after, before) + '</td></tr>';
-      });
-      h += '</tbody></table></div>';
-      h += '<div class="toolbar" style="margin-top:8px"><button class="btn" id="ssrch-apply">' + (res.improved ? 'Load into setup editor' : 'Load unconfirmed setup anyway') + '</button><span class="note">Replaces the editor\'s current edits with this setup (the start setup plus the accepted swaps).</span></div>';
-    }
-  }
-  if (st.log.length) h += '<details><summary>Search log (' + st.log.length + ')</summary><div class="note">' + st.log.map(escHtml).join('<br>') + '</div></details>';
-  host.innerHTML = h;
-  var ap = $('ssrch-apply');
-  if (ap) ap.addEventListener('click', function () {
-    if (!setup.api || !res) return;
-    setup.api.load(res.final.setup);
-    ap.disabled = true; ap.textContent = 'Loaded into setup editor';
-  });
-}
-
-$('ssrch-run').addEventListener('click', startSetupSearch);
-$('ssrch-cancel').addEventListener('click', cancelSetupSearch);
-$('ssrch-dims').addEventListener('click', function (e) {
-  var t = e.target.closest('[data-ss-dim]');
-  if (!t) return;
-  var d = t.dataset.ssDim;
-  if (ssOff[d]) delete ssOff[d]; else ssOff[d] = true;
-  renderSsDims();
-});
-
 $('cmp-run').addEventListener('click', startCompare);
 $('cmp-cancel').addEventListener('click', cancelCompare);
 $('cmp-results').addEventListener('click', function (e) {
@@ -3312,12 +2909,15 @@ $('cmp-results').addEventListener('click', function (e) {
     $('sel-char').value = String(row.charIdx == null ? cmp.ci : row.charIdx);
     if (setup.api) {
       setup.api.refresh();
-      if (row.variant) setup.api.load(row.variant.setup || { charIdx: row.charIdx, patches: [] });
-      syncSetup(true);
     }
+    detailPreview = { charIdx: Number($('sel-char').value), label: row.loadout || 'Captured loadout',
+      setup: row.variant && row.variant.setup || { charIdx: Number($('sel-char').value), patches: [] } };
+    renderSimLoadouts(); $('sim-loadout').value = 'preview'; $('sim-loadout').dataset.key = '';
+    showWorkspace('simulation');
     fillMapSelect(row.mapIdx); $('sel-map').value = String(row.mapIdx);
     $('sel-cavern').value = cmp.cavern == null ? '' : String(cmp.cavern); fillCavernSelect(); restoreCavCfg(row.variant ? row.variant.cav : cmp.cav);
-    renderManualCasts(); renderCmpPick(); renderScmpPick(); if (setup.api) setup.api.derivedChanged();
+    renderManualCasts(); renderCmpPick(); if (setup.api) setup.api.derivedChanged();
+    $('editor-char').value = $('sel-char').value;
     $('sel-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 });
