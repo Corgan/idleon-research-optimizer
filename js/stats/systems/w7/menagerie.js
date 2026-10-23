@@ -230,3 +230,7 @@ export function sideJellyUnlocked(S, t) {
   var map = [3, 5, 7, 10, 12, 23];
   return map[t] != null && menagerieUnlockOwned(S, map[t]) === 1 ? 1 : 0;
 }
+
+export function obolAutoTrashRate(S) {
+  return (10 + (Number(S.menagerieData?.[0]?.[10]) || 0)) / 100;
+}

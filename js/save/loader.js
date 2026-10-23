@@ -128,7 +128,9 @@ export function loadSaveData(raw) {
   assignState({ petsStoredData: parseSaveKey(save, 'PetsStored') || [] });
   assignState({ captainsData: parseSaveKey(save, 'Captains') || [] });
   assignState({ bubbaData: parseSaveKey(save, 'Bubba') || [] });
-  assignState({ currenciesData: parseSaveKey(save, 'CurrenciesOwned') || {} });
+  const currenciesData = { ...(parseSaveKey(save, 'CurrenciesOwned') || {}) };
+  if (Object.prototype.hasOwnProperty.call(save, 'CYObolFragments')) currenciesData.ObolFragments = save.CYObolFragments;
+  assignState({ currenciesData });
   assignState({ deliveryBoxComplete: Number(save.CYDeliveryBoxComplete) || 0 });
   assignState({ deliveryBoxStreak: Number(save.CYDeliveryBoxStreak) || 0 });
   assignState({ deliveryBoxMisc: Number(save.CYDeliveryBoxMisc) || 0 });

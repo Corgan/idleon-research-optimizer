@@ -159,11 +159,74 @@ export function createRng(seed) {
 // so checking them only when a task is due gives the same outcome as checking
 // them every pass.
 export function createScheduler(dt = STEP_MS) {
+  const near = new Array(1024);
   const buckets = new Map();
+  const actorTasks = new WeakMap();
+  const compareTasks = (a, b) => a.id - b.id;
   let nextId = 1;
   let pass = 0; // index of the current pass during update(), else of the next one
   let live = 0;
   let updating = false, curList = null, curIdx = -1;
+  let farGroup = -1, farBlock;
+  function enqueue(task, due) {
+    const short = due - pass < near.length, slot = due & 1023;
+    let block = near;
+    if (!short) {
+      const group = Math.floor(due / 1024);
+      block = buckets.get(group);
+      if (!block) { block = new Array(1024); block.count = 0; buckets.set(group, block); }
+    }
+    const b = block[slot];
+    if (b) {
+      if (b.length && b[b.length - 1].id > task.id) b.unsorted = true;
+      b.push(task);
+    } else {
+      block[slot] = [task];
+      if (!short) block.count++;
+    }
+  }
+  function takeBucket(due) {
+    const group = Math.floor(due / 1024);
+    if (group !== farGroup) {
+      farGroup = group; farBlock = buckets.get(group);
+      buckets.delete(group);
+    }
+    const slot = due & 1023, short = near[slot], far = farBlock?.[slot];
+    near[slot] = undefined;
+    if (far) { farBlock[slot] = undefined; farBlock.count--; }
+    if (!short) return far;
+    if (!far) return short;
+    // A distant bucket can acquire nearer timers as the window advances.
+    const both = far.concat(short);
+    both.unsorted = true;
+    return both;
+  }
+  function detach(task) {
+    const slot = task._due & 1023, short = near[slot];
+    if (short) {
+      const i = short.indexOf(task);
+      if (i >= 0) {
+        short.splice(i, 1);
+        if (!short.length) near[slot] = undefined;
+        return;
+      }
+    }
+    const group = Math.floor(task._due / 1024);
+    const block = group === farGroup ? farBlock : buckets.get(group);
+    const far = block?.[slot];
+    if (far) {
+      const i = far.indexOf(task);
+      if (i >= 0) far.splice(i, 1);
+      if (!far.length) {
+        block[slot] = undefined;
+        block.count--;
+        if (group !== farGroup && !block.count) buckets.delete(group);
+      }
+    }
+  }
+  function orderTasks(list) {
+    if (list.unsorted) list.sort(compareTasks);
+  }
   function arm(task, firstPass) {
     let tm = task.timer, k;
     // NaN/+Infinity never reach timer <= 0 in the literal loop: never due.
@@ -177,18 +240,41 @@ export function createScheduler(dt = STEP_MS) {
     }
     task._due = firstPass + k - 1;
     task._post = tm;
-    const b = buckets.get(task._due);
-    if (b) b.push(task); else buckets.set(task._due, [task]);
+    enqueue(task, task._due);
   }
   function add(fn, ms, repeats, actor) {
     const task = { id: nextId++, fn, interval: ms, timer: ms, repeats: !!repeats, actor: actor || null, done: false, _due: 0, _post: 0, _parked: false, _lastPass: 0 };
+    if (actor && (actor.recycled || actor.dead === true && actor.kind !== 'player')) { task.done = true; return task; }
     live++;
+    if (actor) {
+      let owned = actorTasks.get(actor);
+      if (!owned) { owned = new Set(); actorTasks.set(actor, owned); }
+      owned.add(task);
+    }
     arm(task, pass);
     return task;
   }
+  function complete(task) {
+    if (task.done) return;
+    task.done = true;
+    live--;
+    const owned = task.actor && actorTasks.get(task.actor);
+    if (owned) { owned.delete(task); if (!owned.size) actorTasks.delete(task.actor); }
+  }
+  function cancel(task) {
+    if (!task || task.done) return;
+    const item = task.actor;
+    if (item?._bobLazy && item._bobT === task) item._materializeBobbing();
+    detach(task);
+    complete(task);
+  }
+  function cancelActor(actor) {
+    const owned = actorTasks.get(actor);
+    if (owned) for (const task of owned) cancel(task);
+  }
   function fire(t) {
     if (t.done) return;
-    if (t.actor && (t.actor.recycled || t.actor.dead === true && t.actor.kind !== 'player')) { t.done = true; live--; return; }
+    if (t.actor && (t.actor.recycled || t.actor.dead === true && t.actor.kind !== 'player')) { cancelActor(t.actor); return; }
     t.timer = t._post;
     t.fn(t);
     if (t.repeats) {
@@ -196,7 +282,7 @@ export function createScheduler(dt = STEP_MS) {
       if (t.done) return; // cancelled itself; its done-decrement already ran
       if (t._parked) { t._lastPass = pass; return; }
       arm(t, pass + 1);
-    } else if (!t.done) { t.done = true; live--; }
+    } else complete(t);
   }
   // Parking: a repeating task whose handler just proved itself a no-op calls
   // park(task) from inside that handler; its timer keeps the post-fire value
@@ -232,8 +318,7 @@ export function createScheduler(dt = STEP_MS) {
           while (j < curList.length && curList[j].id < t.id) j++;
           curList.splice(j, 0, t);
         } else {
-          const b = buckets.get(d);
-          if (b) b.push(t); else buckets.set(d, [t]);
+          enqueue(t, d);
         }
         return;
       }
@@ -244,32 +329,42 @@ export function createScheduler(dt = STEP_MS) {
   return {
     park(task) { if (task && task.repeats && !task.done) task._parked = true; },
     wake,
+    // Last elapsed zero-remainder, whole-step periodic fire, in callback-ID order.
+    lastPeriodicPass(task) {
+      let last = pass - 1;
+      if (updating) last = task.id > curList[curIdx].id ? pass - 1 : pass;
+      const period = task.interval / dt;
+      return task._lastPass + Math.floor((last - task._lastPass) / period) * period;
+    },
     // Debug view of armed tasks in Stencyl list order.
     get tasks() {
       const out = [];
-      for (const b of buckets.values()) for (const t of b) if (!t.done) out.push(t);
+      for (const b of near) if (b) for (const t of b) if (!t.done) out.push(t);
+      if (farBlock) for (const b of farBlock) if (b) for (const t of b) if (!t.done) out.push(t);
+      for (const block of buckets.values()) for (const b of block) if (b) for (const t of b) if (!t.done) out.push(t);
       return out.sort((a, b) => a.id - b.id);
     },
     get size() { return live; },
     later(ms, fn, actor) { return add(fn, ms, false, actor); },
     every(ms, fn, actor) { return add(fn, ms, true, actor); },
-    cancel(task) { if (task && !task.done) { task.done = true; live--; } },
+    cancel,
+    cancelActor,
     // Literal `task.timer = ms` for a task that has not yet been updated.
     setTimer(task, ms) {
       if (!task || task.done) return;
+      const item = task.actor;
+      if (item?._bobLazy && item._bobT === task) item._materializeBobbing();
       task._parked = false;
-      const b = buckets.get(task._due);
-      if (b) { const i = b.indexOf(task); if (i >= 0) b.splice(i, 1); if (!b.length) buckets.delete(task._due); }
+      detach(task);
       task.timer = ms;
       arm(task, pass);
     },
     update(stepDt) {
       if (stepDt !== dt) throw new Error('scheduler dt ' + stepDt + ' != ' + dt);
       const P = pass;
-      let list = buckets.get(P);
+      let list = takeBucket(P);
       if (list) {
-        buckets.delete(P);
-        if (list.length > 1) list.sort((a, b) => a.id - b.id);
+        orderTasks(list);
       }
       // Tasks armed for P while P runs were created during it: higher ids, so
       // they run after the current list, matching the appended-array walk.
@@ -277,8 +372,8 @@ export function createScheduler(dt = STEP_MS) {
       while (list) {
         curList = list;
         for (let i = 0; i < list.length; i++) { curIdx = i; fire(list[i]); }
-        list = buckets.get(P);
-        if (list) buckets.delete(P);
+        list = takeBucket(P);
+        if (list) orderTasks(list);
       }
       updating = false; curList = null; curIdx = -1;
       pass = P + 1;
@@ -342,7 +437,7 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
     world, rewards,
     timeMs: 0, stepCount: 0, frameCount: 0,
     frameMs: Number(options.frameMs) > 0 ? Number(options.frameMs) : 1000 / 60,
-    _frameAcc: 0, _frameStepsLeft: 0, _recycledDirty: false, _actorSeq: 0, _hot: [], _hotIdx: -1, _xyTweens: [],
+    _frameAcc: 0, _frameStepsLeft: 0, _recycledDirty: false, _recycledSeq: Infinity, _actorSeq: 0, _hot: [], _hotIdx: -1, _xyTweens: [], _frameActors: [],
     actors: [], monsters: [], items: [],
     sceneUpdaters: [],
     player: { kind: 'player', recycled: false },
@@ -365,6 +460,8 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
     },
     addActor(actor) {
       actor.recycled = false; actor.createdAt = sim.timeMs; actor._seq = sim._actorSeq++; actor._dormant = false;
+      // Source frame callbacks belong to bullets and are assigned after addActor.
+      if (actor.kind === 'bullet' || actor.onFrame) sim._frameActors.push(actor);
       sim.actors.push(actor); sim._hot.push(actor); return actor;
     },
     // Re-admit a dormant actor to the step loop at its actor-order position.
@@ -390,7 +487,15 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
       if (!tw.active) { tw.active = true; sim._xyTweens.push(tw); }
       if (ms === 0) { tw.duration = 1; _finishXyTween(sim, tw); }
     },
-    recycleActor(actor) { if (actor && !actor.recycled) { if (actor._xyTw?.active) _cancelXyTween(sim, actor._xyTw); actor.recycled = true; actor.recycledAt = sim.timeMs; sim._recycledDirty = true; } },
+    recycleActor(actor) {
+      if (actor && !actor.recycled) {
+        if (actor.kind === 'item') actor._materializeBobbing?.();
+        if (actor._xyTw?.active) _cancelXyTween(sim, actor._xyTw);
+        actor.recycled = true; actor.recycledAt = sim.timeMs; sim._recycledDirty = true;
+        if (actor._seq < sim._recycledSeq) sim._recycledSeq = actor._seq;
+        sched.cancelActor(actor);
+      }
+    },
     step() { return _step(sim); },
     // Scene switch (portal): Stencyl keeps updating the old scene through the
     // 0.2 s fade-out (ActorEvents_20 _SceneTransition, src 70083) and
@@ -470,11 +575,27 @@ function _drawFrame(sim) {
 function _purgeRecycled(sim) {
   if (sim._recycledDirty) {
     sim._recycledDirty = false;
-    sim.actors = sim.actors.filter((a) => !a.recycled);
-    sim.monsters = sim.monsters.filter((a) => !a.recycled);
-    sim.items = sim.items.filter((a) => !a.recycled);
-    sim._hot = sim._hot.filter((a) => !a.recycled);
+    const seq = sim._recycledSeq;
+    sim._recycledSeq = Infinity;
+    _compactActors(sim.actors, seq);
+    _compactActors(sim.monsters, seq);
+    _compactActors(sim.items, seq);
+    _compactActors(sim._hot, seq);
+    _compactActors(sim._frameActors, seq);
   }
+}
+
+function _compactActors(list, seq) {
+  if (!list.length || list[list.length - 1]._seq < seq) return;
+  // Every list is in creation order; the prefix before the first recycle is intact.
+  let lo = 0, hi = list.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid]._seq < seq) lo = mid + 1; else hi = mid; }
+  let write = lo;
+  for (let read = lo; read < list.length; read++) {
+    const actor = list[read];
+    if (!actor.recycled) { if (write !== read) list[write] = actor; write++; }
+  }
+  list.length = write;
 }
 
 // Stencyl TweenManager (src 22419-22433), run first in Engine.update (src

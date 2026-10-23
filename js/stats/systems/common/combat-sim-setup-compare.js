@@ -1,6 +1,6 @@
 // ===== COMBAT SIM SETUP COMPARISON (common) =====
-// Pure helpers for running one character/map under several setup variants
-// (the imported save, the editor's current edits, named saved setups) on
+// Pure helpers for running characters/maps under several setup variants
+// (the imported save, the editor's current edits, named saved loadouts) on
 // shared seeds, then aggregating paired hourly rates (Omega: run totals). No DOM, no workers.
 
 import { applyCombatSetup, diffCombatSetup, normalizeCombatSetup } from './combat-sim-setup.js';
@@ -67,6 +67,18 @@ export function setupCompareJobs(variants, seeds) {
   const jobs = [];
   (seeds || []).forEach(seed => (variants || []).forEach(v => { if (v.raw && !v.duplicateOf) jobs.push({ variantId: v.id, seed }); }));
   return jobs;
+}
+
+/** Each character owns its variants and eligible maps. Never merge equal patches across characters. */
+export function characterMapComparePlan(characters, seeds) {
+  const rows = [], jobs = [];
+  for (const ch of characters) for (const variant of ch.variants) for (const mapIdx of [...new Set(ch.maps)]) {
+    const id = JSON.stringify([ch.charIdx, variant.id, mapIdx]);
+    rows.push({ id, charIdx: ch.charIdx, character: ch.label, variantId: JSON.stringify([ch.charIdx, variant.id]),
+      loadout: variant.label, mapIdx, variant });
+  }
+  for (const seed of seeds) for (const row of rows) if (row.variant.raw) jobs.push({ rowId: row.id, mapIdx: row.mapIdx, seed });
+  return { rows, jobs };
 }
 
 export function emptySetupCompareRow(variant) {

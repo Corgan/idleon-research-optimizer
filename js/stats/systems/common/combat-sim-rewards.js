@@ -1095,10 +1095,7 @@ function _createItem(sim, o) {
   sim.items.push(item);
   // Event registration order (AE44): 500 ms auto loot, 15 s quest pickup,
   // 30 s no-op, then init body, then the later periodic handlers.
-  item._alT = sim.every(500, (task) => {
-    if (_autoLootGate(sim, item)) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
-    if (item._cs !== 0 && item.autoLooted === 1) { sim.sched.park(task); item._pk |= 4; }
-  }, item);
+  item._alT = sim.every(500, _itemAutoLoot, item);
   sim.later(15e3, () => {
     const t = item.dropType;
     if (t === 'Quest79' || t === 'Quest49' || t === 'Quest39' || t === 'Quest51') { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
@@ -1175,31 +1172,59 @@ function _createItem(sim, o) {
   }, item);
   // Periodic handlers registered after init: 700 ms proximity auto loot,
   // 600 ms PlayerMustTouch, 50 ms landing, 100 ms bobbing.
-  item._pxT = sim.every(700, (task) => {
-    const t = item.dropType;
-    if (_autoLootGate(sim, item) && _dist(sim, item) < 80) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
-    if (t === 'Quest51' && _dist(sim, item) < 80) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
-    if (item._cs !== 0 && item.autoLooted === 1) { sim.sched.park(task); item._pk |= 8; }
-  }, item);
+  item._pxT = sim.every(700, _itemProximityLoot, item);
   // _event_PlayerMustTouch (src 82400), 600 ms: quest items on maps 58/112.
   if (sim.scene.map === 58 || sim.scene.map === 112) sim.every(600, () => _playerMustTouch(sim, item), item);
   // Both handlers below park while provably a no-op (see SimItem).
-  item._landT = sim.every(50, (task) => {
-    const s = _sine(st, item.sineType);
-    if (item.vy > 0 && item.y > item.yself - 4 + 3 * s && item.collectedStatus < 1) {
-      if (item.collectedStatus === -1) sim.emit('itemLanded', { uid: item.uid, t: sim.timeMs });
-      item.collectedStatus = 0;
-      item.vx = 0; item.vy = 0;
-      item.y = item.yself + 3 * s;
-    }
-    if (item.vx !== 0) _clampX(sim, item, true);
-    else if (!(item.vy > 0)) { sim.sched.park(task); item._pk |= 1; }
-  }, item);
-  item._bobT = sim.every(100, (task) => {
-    if (item.sineType < 4 && item.vy === 0) { item.y = item.yself + 3 * _sine(st, item.sineType); if (item.y === 0) item._wake(); }
-    else { sim.sched.park(task); item._pk |= 2; }
-  }, item);
+  item._landT = sim.every(50, _itemLanding, item);
+  item._bobT = sim.every(100, _itemBobbing, item);
   return item;
+}
+
+function _itemAutoLoot(task) {
+  const item = task.actor, sim = item._sim;
+  if (_autoLootGate(sim, item)) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
+  if (item._cs !== 0 && item.autoLooted === 1) { sim.sched.park(task); item._pk |= 4; }
+}
+
+function _itemProximityLoot(task) {
+  const item = task.actor, sim = item._sim, t = item.dropType;
+  if (_autoLootGate(sim, item) && _dist(sim, item) < 80) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
+  if (t === 'Quest51' && _dist(sim, item) < 80) { item.autoLooted = 1; tryPickup(sim, item, { autoLoot: true }); }
+  if (item._cs !== 0 && item.autoLooted === 1) { sim.sched.park(task); item._pk |= 8; }
+}
+
+function _itemLanding(task) {
+  const item = task.actor, sim = item._sim;
+  const s = _sine(sim.state, item.sineType);
+  if (item.vy > 0 && item.y > item.yself - 4 + 3 * s && item.collectedStatus < 1) {
+    if (item.collectedStatus === -1) sim.emit('itemLanded', { uid: item.uid, t: sim.timeMs });
+    item.collectedStatus = 0;
+    item.vx = 0; item.vy = 0;
+    item.y = item.yself + 3 * s;
+  }
+  if (item.vx !== 0) _clampX(sim, item, true);
+  else if (!(item.vy > 0)) { sim.sched.park(task); item._pk |= 1; }
+}
+
+function _itemBobbing(task) {
+  const item = task.actor;
+  if (item._sineType < 4 && item._vy === 0) {
+    item.y = item.yself + 3 * _sine(item._sim.state, item._sineType);
+    if (item.y === 0) item._wake();
+    // A static bob is an absolute sine lookup, not an accumulated motion.
+    // Near-zero origins retain literal callbacks because y === 0 wakes the actor.
+    if (Math.abs(item.yself) > 3 && Number.isFinite(item.yself) && task.timer === 0
+      && item._sim._itemSine && item._sim.options.deferItemBobbing !== false) {
+      item._bobLazy = true;
+      item._sched.park(task); item._pk |= 2;
+    }
+  } else { item._sched.park(task); item._pk |= 2; }
+}
+
+function _itemPickupRetry(task) {
+  const item = task.actor;
+  if (item.collectedStatus === -1) item.collectedStatus = 0;
 }
 
 // Ground item actor. Every field is declared up front so all items share one
@@ -1216,13 +1241,16 @@ function _createItem(sim, o) {
 // reverts, tryPickup rejects collectedStatus !== 0 first, and the gate and
 // distance reads are pure); they park then and wake when collectedStatus is
 // set back to 0.
+// Safe static bobs instead park with their exact 100 ms phase: y reads resolve
+// the last elapsed bob against the current/previous SineTimes value. Writes
+// materialize that position and wake the literal timer before changing inputs.
 class SimItem {
   constructor(sim, o) {
     this.kind = 'item';
     this.uid = 'i' + (sim._itemSeq = (sim._itemSeq || 0) + 1);
-    this.dropType = o.name; this.dropAmount = 0; this.x = o.x; this.y = o.y;
+    this.dropType = o.name; this.dropAmount = 0; this.x = o.x; this._y = o.y; this._yself = o.y; this._bobLazy = false;
     this._vx = 0; this._vy = 0; this.width = 36; this.height = 36;
-    this._cs = -1; this.yself = o.y; this._sineType = 0;
+    this._cs = -1; this._sineType = 0;
     this.itemN = N(o.itemN); this.itemM = N(o.itemM); this.node = o.node;
     this.maxCap = 1; this.source = o.source; this.killedType = o.killedType || null;
     this.autoLooted = 0; this.blockAutoLoot = o.name === 'Quest99' ? 1 : 0; this.playerDropped = 0; this.dn2 = o.dn2;
@@ -1232,11 +1260,28 @@ class SimItem {
     this._sched = sim.sched; this._pk = 0; this._landT = null; this._bobT = null; this._alT = null; this._pxT = null;
     this._sim = sim; this._seq = -1; this._dormant = false;
   }
+  _materializeBobbing(wake = false) {
+    if (!this._bobLazy) return;
+    this._y = this.y;
+    this._bobLazy = false;
+    if (wake) { this._pk &= ~2; this._sched.wake(this._bobT); }
+  }
   _wake() { if (this._dormant) this._sim._wakeActor(this); }
+  get y() {
+    if (!this._bobLazy) return this._y;
+    const previous = this._sim._itemSine;
+    const s = this._sched.lastPeriodicPass(this._bobT) < previous.pass ? previous : this._sim.state.sine;
+    const k = this._sineType;
+    const value = k === 0 ? N(s.S0) : k === 1 ? N(s.S1) : k === 2 ? N(s.S2) : 0;
+    return this._yself + 3 * value;
+  }
+  set y(v) { this._materializeBobbing(true); this._y = v; }
+  get yself() { return this._yself; }
+  set yself(v) { this._materializeBobbing(true); this._yself = v; }
   get vx() { return this._vx; }
   set vx(v) { this._vx = v; if (this._dormant) this._sim._wakeActor(this); if (this._pk & 1) { this._pk &= ~1; this._sched.wake(this._landT); } }
   get vy() { return this._vy; }
-  set vy(v) { this._vy = v; if (this._dormant) this._sim._wakeActor(this); if (this._pk & 3) { const pk = this._pk; this._pk &= ~3; if (pk & 1) this._sched.wake(this._landT); if (pk & 2) this._sched.wake(this._bobT); } }
+  set vy(v) { this._materializeBobbing(); this._vy = v; if (this._dormant) this._sim._wakeActor(this); if (this._pk & 3) { const pk = this._pk; this._pk &= ~3; if (pk & 1) this._sched.wake(this._landT); if (pk & 2) this._sched.wake(this._bobT); } }
   get collectedStatus() { return this._cs; }
   set collectedStatus(v) {
     this._cs = v;
@@ -1244,7 +1289,7 @@ class SimItem {
     else if (v === 0 && this._pk & 12) { const pk = this._pk; this._pk &= ~12; if (pk & 4) this._sched.wake(this._alT); if (pk & 8) this._sched.wake(this._pxT); }
   }
   get sineType() { return this._sineType; }
-  set sineType(v) { this._sineType = v; if (this._pk & 2) { this._pk &= ~2; this._sched.wake(this._bobT); } }
+  set sineType(v) { this._materializeBobbing(); this._sineType = v; if (this._pk & 2) { this._pk &= ~2; this._sched.wake(this._bobT); } }
 }
 
 function _sine(st, k) {
@@ -1357,11 +1402,22 @@ export function tryPickup(sim, item, { autoLoot = false } = {}) {
         return true;
       }
       if (o === n - 1 && 0 < item.dropAmount) {
+        if (v.obolAutoTrash && !t.includes('Hyper')) {
+          const before = N(st.obolFragments);
+          const rolled = Math.min(3, Math.floor(sim.rng.randomFloat() + N(v.obolAutoTrashRate)));
+          st.obolFragments = Math.min(2e9, Math.round(before + rolled));
+          const gained = Math.max(0, st.obolFragments - before);
+          L.obolFragments = N(L.obolFragments) + gained;
+          L.obolsAutoTrashed = N(L.obolsAutoTrashed) + 1;
+          item.collectedStatus = 1; item.pickedQty = item.dropAmount;
+          sim.emit('obolAutoTrashed', { item: t, fragments: gained, balance: st.obolFragments, t: sim.timeMs });
+          return true;
+        }
         if (v.unlimitedInventory) return _pickupOverflow(sim, item, L, t);
         sim.later(20, () => {
           item.collectedStatus = -1;
           L.fullRetries++;
-          sim.later(2e3, () => { if (item.collectedStatus === -1) item.collectedStatus = 0; }, item);
+          sim.later(2e3, _itemPickupRetry, item);
         }, item);
       }
     }
@@ -1464,7 +1520,7 @@ function _pickupFull(sim, item, L, t) {
   sim.later(20, () => {
     if (item.collectedStatus === 0) item.collectedStatus = -1;
     sim.emit('inventoryFull', { uid: item.uid, name: t, t: sim.timeMs });
-    sim.later(2000, () => { if (item.collectedStatus === -1) item.collectedStatus = 0; }, item);
+    sim.later(2000, _itemPickupRetry, item);
   }, item);
   return false;
 }
@@ -1552,6 +1608,11 @@ export function ledgerSummary(sim) {
     fullRetries: L.fullRetries, lostRemainder: L.lostRemainder, inventoryFullAt: L.inventoryFullAt,
     unlimitedInventory: !!sim.inputs.values.unlimitedInventory, overflowQty: N(L.overflowQty), overflowByItem: _clone(L.overflowByItem || {}),
     inventorySlots: slots, inventoryUsed: used, ldorRuns: RS.ldorRuns,
+    obolFragments: {
+      earned: N(L.obolFragments), autoTrashed: N(L.obolsAutoTrashed), balance: N(sim.state.obolFragments),
+      balanceKnown: Number.isFinite(sim.inputs.values.obolFragmentBalance) && !sim.inputs.entries?.obolFragmentBalance?.partial,
+      enabled: !!sim.inputs.values.obolAutoTrash, rate: N(sim.inputs.values.obolAutoTrashRate),
+    },
     counters: {
       ola: Object.assign({}, sim.state.ola), generalInfo9: sim.state.generalInfo9,
       gi: Object.assign({}, sim.state.gi), crystalLock: sim.state.crystalLock,

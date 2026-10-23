@@ -275,6 +275,7 @@ export function startScene(sim) {
   }
   // SineTimes (src 75407): clamp HP/MP to their maxima (ScrollCircleINFO[68]
   // is 0 outside the Scroll Circle UI), then advance the sine phases.
+  sim._itemSine = { pass: -1, S0: 0, S1: 0, S2: 0 };
   sim.every(100, () => {
     const p = sim.player;
     if (p) {
@@ -282,6 +283,9 @@ export function startScene(sim) {
       if (Number(p.mp) > Number(p.mpMax)) p.mp = Number(p.mpMax);
     }
     const s = sim.state.sine;
+    const previous = sim._itemSine;
+    previous.pass = sim.stepCount;
+    previous.S0 = s.S0; previous.S1 = s.S1; previous.S2 = s.S2;
     s.el += 11;
     if (s.el > 35903) s.el = 0;
     s.S0 = Math.round(100 * Math.sin(0.01745329251994278 * s.el)) / 100;
@@ -529,7 +533,7 @@ export function drawFrame(sim) {
     _killHandler(sim, mon);
   }
   // Per-frame "when drawing" events on skill actors (AE114 Arrow2/FireBomb/PoisonVial).
-  for (const a of sim.actors.slice()) if (a.onFrame && !a.recycled) a.onFrame(sim, a);
+  for (const a of sim._frameActors.slice()) if (a.onFrame && !a.recycled) a.onFrame(sim, a);
 }
 
 // _event_HPbars (src 63514) with OptionsList[27] = 1. Cosmetic only (no RNG).

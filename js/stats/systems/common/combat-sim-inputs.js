@@ -65,6 +65,7 @@ import { respawnBonus as cglunkoRespawnBonus, withCglunkoLevels, UPGRADE_COUNT a
 import { grimoireUpgBonus } from '../mc/grimoire.js';
 import { GrimoireUpg } from '../../data/game/customlists.js';
 import { combatProgressInputs } from './combat-sim-progress.js';
+import { sideJellyUnlocked, obolAutoTrashRate } from '../w7/menagerie.js';
 
 export const CRYSTAL_SPAWN_CAP_DEFAULT = 0.1;
 
@@ -527,6 +528,13 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   put('mapBon', () => { const v = _raw(raw, 'MapBon'); if (!Array.isArray(v)) throw new Error('MapBon missing (pass rawSave)'); return _clone(v); }, 'MapBon (arcanist StatusArc kill counters)', { default: [] });
   put('obolInvOrder', () => { const v = _raw(raw, 'ObolInvOr'); if (!Array.isArray(v)) throw new Error('ObolInvOr missing (pass rawSave)'); return _clone(v); }, 'ObolInvOr (obol inventory pages)', { default: [] });
   put('obolInvOwn', () => { const v = _raw(raw, 'ObolInvOwn'); if (!Array.isArray(v)) throw new Error('ObolInvOwn missing (pass rawSave)'); return v.map((x) => Number(x) || 0); }, 'ObolInvOwn (obol inventory rows owned per page)', { default: [] });
+  put('obolAutoTrash', () => sideJellyUnlocked(S, 3) === 1, 'Menagerie SideJellyUnlocked(3): Silver Jellyfish, unlock 10');
+  put('obolAutoTrashRate', () => obolAutoTrashRate(S), 'Menagerie ObolAutoTrashRate: (10 + Menagerie[0][10]) / 100');
+  put('obolFragmentBalance', () => {
+    const n = S.currenciesData?.ObolFragments;
+    if (n == null || !Number.isFinite(Number(n))) throw new Error('CurrenciesOwned.ObolFragments missing or invalid');
+    return Number(n);
+  }, 'CYObolFragments / CurrenciesOwned.ObolFragments (2 billion cap)', { default: 0 });
   // Halloween event status uses the source's fixed expiry plus server bypass days.
   put('eventStatus', () => {
     const sv = raw?.serverVars;
@@ -643,6 +651,7 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
     ola: Object.fromEntries(OLA_KEYS.map((k) => [k, values['ola' + k]])),
     mapBon: _clone(values.mapBon || []),
     obol: { order: _clone(values.obolInvOrder || []), own: (values.obolInvOwn || []).slice() },
+    obolFragments: values.obolFragmentBalance,
     ninja105: _clone(values.ninja105 || []),
     holes11: { ...(values.holes11Kills || {}) },
   };

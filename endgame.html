@@ -21,7 +21,7 @@ main { flex: 1; display: grid; place-content: center; text-align: center; paddin
 <h1>Are you endgame?</h1>
 <div id="save-area"></div>
 <main aria-live="polite" aria-atomic="true">
-  <div id="answer">NO</div>
+  <div id="answer"></div>
 </main>
 <script type="module">
 import { initSaveLoader } from './js/ui/save-loader.js';
@@ -29,7 +29,10 @@ import { initSaveLoader } from './js/ui/save-loader.js';
 initSaveLoader({
   target: '#save-area',
   auth: true,
-  skipLoad: true
+  skipLoad: true,
+  onLoad() {
+    document.getElementById('answer').textContent = 'NO';
+  }
 });
 </script>
 </body>

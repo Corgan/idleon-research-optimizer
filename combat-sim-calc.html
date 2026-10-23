@@ -112,6 +112,26 @@ button.btn:disabled { opacity: .45; cursor: default; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 code { color: var(--cyan); font-size: .92em; }
 .cmp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#cmp-loadouts { margin-bottom: 16px; }
+.cmp-picker-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; font-size: .85em; }
+.cmp-picker-heading strong { color: var(--text2); }
+.cmp-picker-count { color: var(--text2); font-size: .9em; }
+.cmp-roster, .cmp-loadout-options { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cmp-choice { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-height: 32px; padding: 5px 10px; border: 1px solid #444; border-radius: 6px; background: var(--bg); color: var(--text2); font-size: .82em; cursor: pointer; }
+.cmp-choice span { min-width: 0; overflow-wrap: anywhere; }
+.cmp-choice input { flex: none; width: 13px; height: 13px; accent-color: var(--accent); }
+.cmp-choice:hover { border-color: var(--text2); }
+.cmp-choice.on { background: rgba(233,69,96,.12); border-color: var(--accent); color: var(--text); }
+.cmp-choice:focus-within { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.cmp-loadout-list { margin-top: 12px; border-top: 1px solid #333; }
+.cmp-loadout-row { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 12px; align-items: start; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.cmp-loadout-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.cmp-loadout-name { padding-top: 7px; color: var(--cyan); font-size: .82em; font-weight: 600; overflow-wrap: anywhere; }
+.cmp-picker-empty { margin-top: 10px; font-size: .8em; color: var(--text2); }
+@media (max-width: 600px) {
+  .cmp-loadout-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .cmp-loadout-name { padding-top: 0; }
+}
 .cmp-column-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
 .cmp-column-options label { display: inline-flex; align-items: center; gap: 5px; font-size: .85em; }
 .cmp-chip { background: var(--bg3); color: var(--text2); border: 1px solid #444; border-radius: 12px; padding: 3px 10px; font-size: .78em; cursor: pointer; }
@@ -244,17 +264,18 @@ code { color: var(--cyan); font-size: .92em; }
 
   <details class="section" id="setup-section">
     <summary>Setup editor <span class="badge badge-red" id="setup-count" hidden></span></summary>
-    <div class="note" style="margin:8px 0">Change gear, obols, cards, talents, lab, Research grid, stamps, bubbles and every other saved system for a hypothetical build. Edits patch a copy of the save; the imported save is never changed. Single runs, Compare maps and the Saved column of Mechanics overrides all use the edited setup. Per-character edits follow the selected character.</div>
+    <div class="note" style="margin:8px 0">Change gear, obols, cards, talents, lab, Research grid, stamps, bubbles and other saved systems for a hypothetical build. Edits patch a copy; the imported save is never changed. Single runs use this character's working edits. Give each build a name and Save loadout, then select characters and their loadouts in the comparison below. Switching characters restores their independent working edits.</div>
     <div id="setup-host"><div class="note">Loading setup editor…</div></div>
   </details>
 
   <div id="results"></div>
 
   <div class="section" id="cmp-section">
-    <h2>Compare maps</h2>
+    <h2>Compare characters, loadouts &amp; maps</h2>
+    <div id="cmp-loadouts"></div>
     <div class="toolbar">
       <label>Maps<select id="cmp-scope">
-        <option value="accessible" selected>Maps this character can reach</option>
+        <option value="accessible" selected>Maps each character can reach</option>
         <option value="all">Every simulated map</option>
         <option value="world">Choose worlds</option>
         <option value="custom">Choose maps</option>
@@ -283,7 +304,7 @@ code { color: var(--cyan); font-size: .92em; }
     </div>
     <div id="cmp-pick"></div>
     <div id="cmp-place"></div>
-    <div class="note">Simulates the selected character and player mode on every map, then compares drops that appear on more than one map (marbles, orblets, Zenith Clusters, statues, and so on). Each map runs the same seed list, but maps draw from the random stream in different orders (different monsters, spawns and drop tables), so runs on different maps are effectively independent samples. More seeds or longer runs narrow the spread.</div>
+    <div class="note">Choose characters and their loadouts below. Save multiple named loadouts for each character in the Setup editor above; switching character preserves its working edits. Every selected character/loadout runs on its eligible maps with the same seed list. Player mode, mechanic overrides, stop conditions and manual-cast settings are shared; manual skills are filtered against each loadout's own attack bars. Different maps draw randomness in different orders; longer runs and more seeds reduce noise.</div>
     <div id="cmp-progress-wrap" style="display:none"><div class="bar-outer"><div class="bar-fill" id="cmp-progress-fill" style="width:0%"></div></div><div id="cmp-progress-label"></div></div>
     <div id="cmp-results"></div>
   </div>
@@ -388,6 +409,9 @@ import { toRenderNode } from './js/stats/tree-builder.js';
 import { label as entityLabel } from './js/stats/entity-names.js';
 import { createSetupSearch, setupSearchSpace, setupSearchStateSummary, SETUP_SEARCH_DIMENSIONS } from './js/stats/systems/common/combat-sim-setup-search.js';
 import { setupCompareVariants, setupCompareJobs, setupEditsBuffs, emptySetupCompareRow, addSetupCompareRun, setupCompareCell, setupCompareItems, setupCompareMetricKeys, setupCompareSignificant, setupCompareUnit, SETUP_COMPARE_INPUTS, SETUP_COMPARE_METRICS } from './js/stats/systems/common/combat-sim-setup-compare.js';
+import { characterMapComparePlan } from './js/stats/systems/common/combat-sim-setup-compare.js';
+import { readRawKey, readAttackLoadout } from './js/stats/systems/common/combat-sim-setup.js';
+import { COMBAT_LOADOUT_PREFIX, COMBAT_DRAFT_PREFIX, readCombatLoadouts, readCombatDraft } from './js/ui/combat-sim-loadouts.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -519,18 +543,18 @@ function unlockedMapSet(ci) {
   return new Set(buildCharacterMapOptions(ci, snap, { level: 'all' }).filter(function (o) { return !o.locked; }).map(function (o) { return o.mapIdx; }));
 }
 
-function fillMapSelect() {
+function fillMapSelect(previewMap) {
   var sel = $('sel-map'), ci = Number($('sel-char').value) || 0;
   var cur = Number(currentMapData && currentMapData[ci]);
   var prev = sel.value, prevChar = sel.dataset.char;
   var open = rawSave ? unlockedMapSet(ci) : null;
-  var ids = simMapIds().filter(function (i) { return !open || open.has(i) || i === cur; });
+  var ids = simMapIds().filter(function (i) { return !open || open.has(i) || i === cur || i === Number(previewMap); });
   sel.dataset.char = String(ci);
   sel.innerHTML = ids.map(function (i) {
     var mobs = {};
     SCENE_SPAWNS[i].mobs.forEach(function (m) { mobs[m[0]] = (mobs[m[0]] || 0) + 1; });
     var mobTxt = Object.keys(mobs).map(function (k) { return monName(k); }).slice(0, 2).join(', ');
-    return '<option value="' + i + '">' + i + ' · ' + escHtml(mapName(i)) + (mobTxt ? ' — ' + escHtml(mobTxt) : '') + (i === cur ? ' (current)' : '') + '</option>';
+    return '<option value="' + i + '">' + i + ' · ' + escHtml(mapName(i)) + (mobTxt ? ' — ' + escHtml(mobTxt) : '') + (i === cur ? ' (current)' : open && !open.has(i) ? ' (comparison preview; locked)' : '') + '</option>';
   }).join('');
   if (prevChar === String(ci) && ids.indexOf(Number(prev)) >= 0) sel.value = prev;
   else if (ids.indexOf(cur) >= 0) sel.value = String(cur);
@@ -543,7 +567,7 @@ function fillMapSelect() {
 var CAVERN_NAMES = HolesInfo[68] || [];
 var COMBAT_CAVERNS = [[2, 'Demon Hounds'], [8, 'Gloomie Mushrooms'], [14, 'Ancient Golems'], [17, 'Crystal Glunkos']];
 function cavernName(c) { return c === -1 ? 'Surface' : String(CAVERN_NAMES[c] || ('Cavern ' + c)).replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function (x) { return x.toUpperCase(); }); }
-function savedCavern(ci) { var c = saveData.holesData && saveData.holesData[0] && saveData.holesData[0][ci]; return c == null ? -1 : Number(c); }
+function savedCavern(ci, raw) { var h = raw ? readRawKey(raw, 'Holes') : saveData.holesData; var c = h && h[0] && h[0][ci]; return c == null ? -1 : Number(c); }
 function fillCavernSelect() {
   var sel = $('sel-cavern'), ci = Number($('sel-char').value) || 0, prev = sel.value, sc = savedCavern(ci);
   sel.innerHTML = '<option value="">Saved (' + escHtml(cavernName(sc)) + ')</option>' + COMBAT_CAVERNS.map(function (c) {
@@ -555,7 +579,7 @@ function fillCavernSelect() {
 }
 // Explicit cavern override for a run on mapIdx, or null to keep the save's Holes[0][char].
 function cavernPick(mapIdx) { var v = $('sel-cavern').value; return Number(mapIdx) === 216 && v !== '' ? Number(v) : null; }
-function runCavern(ci, mapIdx, pick) { return Number(mapIdx) === 216 ? (pick != null ? pick : savedCavern(ci)) : null; }
+function runCavern(ci, mapIdx, pick, raw) { return Number(mapIdx) === 216 ? (pick != null ? pick : savedCavern(ci, raw)) : null; }
 
 // Map 216 cavern settings: The Den amplifiers (Holes[12], AmpStoneMAX caps, src 92169) and
 // combat-relevant Cove upgrades (OLA[630..653]). cavCfg stores per-index edits (null = saved)
@@ -565,18 +589,19 @@ var AMP_MAX = [100, 100, 20, 100, 30, 20, 24, 40];
 var AMP_INFO = HolesInfo[28] || [];
 var COVE_COMBAT = [1, 2, 3, 4, 6, 9, 10, 12, 15, 16, 17, 18, 19, 21, 22];
 var cavCfg = { den: new Array(8).fill(null), cove: new Array(24).fill(null) };
-function savedDen() { var h = (saveData.holesData && saveData.holesData[12]) || []; return AMP_MAX.map(function (m, i) { return Number(h[i]) || 0; }); }
-function savedCove() { var a = []; for (var i = 0; i < 24; i++) a.push(Number(optionsListData && optionsListData[630 + i]) || 0); return a; }
+function savedDen(raw) { var holes = raw ? readRawKey(raw, 'Holes') : saveData.holesData; var h = (holes && holes[12]) || []; return AMP_MAX.map(function (m, i) { return Number(h[i]) || 0; }); }
+function savedCove(raw) { var options = raw ? readRawKey(raw, 'OptLacc') : optionsListData; var a = []; for (var i = 0; i < 24; i++) a.push(Number(options && options[630 + i]) || 0); return a; }
 function cavMerge(saved, edits) { return saved.map(function (v, i) { return edits && edits[i] != null ? edits[i] : v; }); }
 function cavEdited(kind) { return cavCfg[kind].some(function (v) { return v != null; }); }
 // Resolved input overrides for one run, or null when the run uses the saved cavern state.
-function cavCfgFor(ci, mapIdx, pick) {
-  var c = runCavern(ci, mapIdx, pick);
-  if (c === 2 && cavEdited('den')) return { denAmps: cavMerge(savedDen(), cavCfg.den) };
-  if (c === 17 && cavEdited('cove')) return { coveUpgrades: cavMerge(savedCove(), cavCfg.cove) };
+function cavCfgFor(ci, mapIdx, pick, raw) {
+  var c = runCavern(ci, mapIdx, pick, raw);
+  if (c === 2 && cavEdited('den')) return { denAmps: cavMerge(savedDen(raw), cavCfg.den) };
+  if (c === 17 && cavEdited('cove')) return { coveUpgrades: cavMerge(savedCove(raw), cavCfg.cove) };
   return null;
 }
 function restoreCavCfg(cav) {
+  cavCfg.den.fill(null); cavCfg.cove.fill(null);
   if (cav && cav.denAmps) { var d = savedDen(); cavCfg.den = cav.denAmps.map(function (v, i) { return v !== d[i] ? v : null; }); }
   if (cav && cav.coveUpgrades) { var s = savedCove(); cavCfg.cove = cav.coveUpgrades.map(function (v, i) { return v !== s[i] ? v : null; }); }
   renderCavCfg();
@@ -708,10 +733,11 @@ $('inp-stop-n').addEventListener('change', stopChanged);
 var MANUAL_KEY = 'combat-sim-manual-casts-v1';
 var manualState = (function () { try { return JSON.parse(localStorage.getItem(MANUAL_KEY) || '{}') || {}; } catch (e) { return {}; } })();
 function saveManualState() { try { localStorage.setItem(MANUAL_KEY, JSON.stringify(manualState)); } catch (e) { /* storage blocked */ } }
-function manualSkillIds() {
+function manualSkillIds(raw, charIdx) {
   if (!playerModule || typeof playerModule.manualCastSkills !== 'function') return [];
-  var ci = Number($('sel-char').value) || 0;
-  return playerModule.manualCastSkills(attackLoadoutData && attackLoadoutData[ci]);
+  var ci = charIdx == null ? Number($('sel-char').value) || 0 : charIdx;
+  var rows = raw ? readAttackLoadout(raw, ci).map(function (row) { return row.map(function (entry) { return entry.id; }); }) : attackLoadoutData && attackLoadoutData[ci];
+  return playerModule.manualCastSkills(rows);
 }
 function placementOf(id) { return playerModule && typeof playerModule.manualPlacement === 'function' ? playerModule.manualPlacement(id) : null; }
 // Cycling effect types (Arcane Crystal: runtime GenINFO[26][40], not in the save).
@@ -753,9 +779,9 @@ function placePoints(id, mapIdx) {
 function defaultPoint(id, mapIdx) {
   return playerModule && typeof playerModule.defaultManualPoint === 'function' ? playerModule.defaultManualPoint(id, mapIdx) : null;
 }
-function currentManualCasts(mapIdx) {
+function currentManualCasts(mapIdx, skillIds) {
   if (mapIdx == null) mapIdx = Number($('sel-map').value);
-  var out = manualSkillIds().filter(function (id) { return manualState[id] && manualState[id].on; })
+  var out = (skillIds || manualSkillIds()).filter(function (id) { return manualState[id] && manualState[id].on; })
     .map(function (id) {
       var e = { id: id, everySec: Math.max(0, Number(manualState[id].every) || 0) }, pts = placePoints(id, mapIdx), pl = placementOf(id);
       var keep = keepTypeOf(id);
@@ -1092,6 +1118,11 @@ function setupEffectsChanged(why) {
 
 // Called from the save loader after rawSave/char select are refreshed.
 function setupLoaded() {
+  setup.access = JSON.parse(JSON.stringify({
+    saveData: { lv0AllData: saveData.lv0AllData, holesData: saveData.holesData, questCompleteData: saveData.questCompleteData },
+    klaData: klaData, currentMapData: currentMapData, currentMapDataAvailable: currentMapDataAvailable,
+    dreamData: dreamData, optionsListData: optionsListData,
+  }));
   // saveData is still the imported save here: snapshot derived values per character.
   setup.derivedBase = [];
   for (var dc = 0; dc < numCharacters; dc++) setup.derivedBase.push(combatDerivedValues(saveData, dc));
@@ -1115,6 +1146,7 @@ import('./js/ui/combat-sim-setup-ui.js').then(function (m) {
     onChange: function () {
       clearTimeout(setup.timer);
       setup.timer = setTimeout(function () { if (syncSetup()) { setupEffectsChanged('setup changed'); setup.api.derivedChanged(); } }, 300);
+      renderCmpLoadouts(); refreshCmpCount(); renderScmpPick();
     },
     getDerived: function () {
       if (!rawSave) return null;
@@ -1143,11 +1175,11 @@ initSaveLoader({
     renderCmpPick();
     refreshOvrBase(true); refreshTerms(true);
     $('btn-run').disabled = false;
-    if (!cmp || !cmp.running) $('cmp-run').disabled = false;
     if (cmp && cmp.running && meta && meta.source !== 'auto-refresh') cancelCompare();
-    if (cmp && !cmp.running && meta && meta.source !== 'auto-refresh') { cmp.stale = true; renderCompare(); }
+    if (cmp) { cmp.stale = true; renderCompare(); }
     if (scmp && scmp.running && meta && meta.source !== 'auto-refresh') cancelSetupCompare();
-    if (scmp && !scmp.running && meta && meta.source !== 'auto-refresh') { scmp.stale = true; renderSetupCompare(); }
+    if (scmp) { scmp.stale = true; renderSetupCompare(); }
+    refreshCmpCount();
   if (ss && ss.running && meta && meta.source !== 'auto-refresh') cancelSetupSearch();
   if (meta && meta.source !== 'auto-refresh') ssMarkStale('save reloaded since this search');
     renderScmpPick();
@@ -1824,6 +1856,15 @@ function renderSummary(r) {
 
   html += renderPlayerStats(r);
   html += renderCombatProgress(r);
+  if (R.obolFragments) {
+    var fr = R.obolFragments;
+    html += '<h3>Obol fragments</h3><div class="card-grid cols-3">'
+      + card('Fragments earned', fmtInt(fr.earned), fmtNum(perHr(r, fr.earned)) + ' / hour')
+      + card('Obols auto-trashed', fmtInt(fr.autoTrashed), 'Full obol pages only; Hyper obols are excluded')
+      + card('Ending fragment balance', fr.balanceKnown === false ? 'Unavailable' : fmtInt(fr.balance), 'Capped at 2 billion') + '</div>'
+      + '<div class="note">' + (fr.enabled ? 'Silver Jellyfish auto-trash is unlocked. Empty obol slots fill before auto-trash; each eligible overflow pickup rolls for up to 3 fragments. Unlimited inventory still uses native auto-trash first.' : 'Silver Jellyfish auto-trash is not unlocked; obol drops alone do not generate fragments.')
+      + (fr.balanceKnown === false ? ' Starting balance is missing; fragment gains assume room below the cap.' : '') + '</div>';
+  }
   html += '<h3>Kills by monster</h3><table class="data-table"><thead><tr><th>Monster</th><th class="num">Kills</th><th class="num">Kills / hr</th><th class="num">EXP</th><th class="num">EXP / hr</th></tr></thead><tbody>';
   Object.keys(R.killsByType || {}).sort(function (a, b) { return R.killsByType[b] - R.killsByType[a]; }).forEach(function (k) {
     var e = (R.expByType || {})[k] || 0;
@@ -2144,18 +2185,101 @@ var cmp = null;
 function mapWorld(m) { return Math.floor(Number(m) / 50) + 1; }
 
 function reachableMapSet(ci) {
-  var snap = { saveData: saveData, klaData: klaData, currentMapData: currentMapData, currentMapDataAvailable: currentMapDataAvailable, dreamData: dreamData, optionsListData: optionsListData };
+  var snap = setup.access || { saveData: saveData, klaData: klaData, currentMapData: currentMapData, currentMapDataAvailable: currentMapDataAvailable, dreamData: dreamData, optionsListData: optionsListData };
   return new Set(buildCharacterMapOptions(ci, snap, { level: 'accessible' }).map(function (o) { return o.mapIdx; }));
 }
 
 // Compare map selection, persisted across reloads.
 var CMP_PICK_KEY = 'combat-sim-cmp-pick';
 var cmpPick = (function () {
-  var d = { worlds: [1, 2, 3, 4, 5, 6, 7], maps: [], drop: 'group:statue', source: 'any', search: '', reach: true, chipGroup: '', metricColumns: null };
+  var d = { worlds: [1, 2, 3, 4, 5, 6, 7], maps: [], drop: 'group:statue', source: 'any', search: '', reach: true, chipGroup: '', metricColumns: null, characters: null, loadouts: {} };
   try { var s = JSON.parse(localStorage.getItem(CMP_PICK_KEY) || 'null'); if (s && typeof s === 'object') Object.assign(d, s); } catch (_) {}
   return d;
 })();
 function saveCmpPick() { try { localStorage.setItem(CMP_PICK_KEY, JSON.stringify(cmpPick)); } catch (_) {} }
+
+function cmpCharacterChoices() {
+  if (!rawSave) return [];
+  var currentCi = Number($('sel-char').value) || 0;
+  return Array.from($('sel-char').options).map(function (option) {
+    var ci = Number(option.value);
+    var choices = [{ id: 'saved', label: 'Imported save', setup: null }];
+    var draft = ci === currentCi && setup.api ? setup.api.current() : null;
+    if (!draft) draft = readCombatDraft(localStorage, ci);
+    if (draft && draft.patches && draft.patches.length) choices.push({ id: 'edited', label: 'Working edits', setup: draft });
+    readCombatLoadouts(localStorage, ci).forEach(function (entry) { choices.push({ id: 'named:' + entry.key, label: entry.name, setup: entry.setup }); });
+    return { charIdx: ci, label: (saveData.charNames || [])[ci] || 'Character ' + (ci + 1), choices: choices };
+  });
+}
+
+function cmpChosenCharacters() {
+  var currentCi = Number($('sel-char').value) || 0;
+  return cmpCharacterChoices().filter(function (ch) {
+    return cmpPick.characters == null ? ch.charIdx === currentCi : cmpPick.characters.includes(ch.charIdx);
+  }).map(function (ch) {
+    var selected = cmpPick.loadouts && cmpPick.loadouts[ch.charIdx];
+    // Preserve the former map comparison default: current edits when present, otherwise the imported save.
+    var defaults = ch.choices.some(function (v) { return v.id === 'edited'; }) ? ['edited'] : ['saved'];
+    return Object.assign({}, ch, { choices: ch.choices.filter(function (v) { return (selected || defaults).includes(v.id); }) });
+  });
+}
+
+function renderCmpLoadouts() {
+  var host = $('cmp-loadouts');
+  if (!rawSave) { host.innerHTML = '<div class="note">Load a save to choose characters and loadouts.</div>'; return; }
+  var active = host.contains(document.activeElement) ? document.activeElement : null;
+  var focus = active && active.dataset ? Object.assign({}, active.dataset) : null;
+  try {
+    var currentCi = Number($('sel-char').value) || 0;
+    var characters = cmpCharacterChoices().map(function (ch) {
+      var selected = cmpPick.loadouts && cmpPick.loadouts[ch.charIdx];
+      var defaults = ch.choices.some(function (v) { return v.id === 'edited'; }) ? ['edited'] : ['saved'];
+      return Object.assign({}, ch, {
+        on: cmpPick.characters == null ? ch.charIdx === currentCi : cmpPick.characters.includes(ch.charIdx),
+        selected: selected || defaults,
+      });
+    });
+    var chosen = characters.filter(function (ch) { return ch.on; });
+    var count = chosen.reduce(function (n, ch) { return n + ch.choices.filter(function (v) { return ch.selected.includes(v.id); }).length; }, 0);
+    var h = '<div class="cmp-picker-heading"><strong>Characters</strong><span class="cmp-picker-count">' + chosen.length + ' selected · ' + count + ' loadout' + (count === 1 ? '' : 's') + '</span></div>'
+      + '<div class="cmp-roster" role="group" aria-label="Characters to compare">' + characters.map(function (ch) {
+        return '<label class="cmp-choice' + (ch.on ? ' on' : '') + '"><input type="checkbox" data-cmp-char="' + ch.charIdx + '"' + (ch.on ? ' checked' : '') + '><span>' + escHtml(ch.label) + '</span></label>';
+      }).join('') + '</div>';
+    if (chosen.length) {
+      h += '<div class="cmp-loadout-list">' + chosen.map(function (ch) {
+        return '<div class="cmp-loadout-row"><div class="cmp-loadout-name">' + escHtml(ch.label) + '</div>'
+          + '<div class="cmp-loadout-options" role="group" aria-label="' + escHtml('Loadouts for ' + ch.label) + '">' + ch.choices.map(function (v) {
+            var on = ch.selected.includes(v.id);
+            return '<label class="cmp-choice' + (on ? ' on' : '') + '"><input type="checkbox" data-cmp-loadout="' + escHtml(v.id) + '" data-ci="' + ch.charIdx + '"' + (on ? ' checked' : '') + '><span>' + escHtml(v.label) + '</span></label>';
+          }).join('') + '</div></div>';
+      }).join('') + '</div>';
+    } else h += '<div class="cmp-picker-empty">Select characters above, then choose their loadouts.</div>';
+    host.innerHTML = h;
+    if (focus) {
+      var next = Array.from(host.querySelectorAll('input')).find(function (el) {
+        return focus.cmpChar != null ? el.dataset.cmpChar === focus.cmpChar : focus.cmpLoadout != null && el.dataset.cmpLoadout === focus.cmpLoadout && el.dataset.ci === focus.ci;
+      });
+      if (next) next.focus({ preventScroll: true });
+    }
+  } catch (e) { host.innerHTML = '<div class="err">Could not read character loadouts: ' + escHtml(e.message) + '</div>'; }
+}
+
+$('cmp-loadouts').addEventListener('change', function (e) {
+  var t = e.target;
+  if (t.dataset.cmpChar != null) {
+    if (cmpPick.characters == null) cmpPick.characters = [Number($('sel-char').value) || 0];
+    var chars = new Set(cmpPick.characters);
+    if (t.checked) chars.add(Number(t.dataset.cmpChar)); else chars.delete(Number(t.dataset.cmpChar));
+    cmpPick.characters = Array.from(chars);
+  } else if (t.dataset.cmpLoadout) {
+    var ci = Number(t.dataset.ci), chosen = [];
+    $('cmp-loadouts').querySelectorAll('[data-cmp-loadout]').forEach(function (el) { if (Number(el.dataset.ci) === ci && el.checked) chosen.push(el.dataset.cmpLoadout); });
+    if (!cmpPick.loadouts) cmpPick.loadouts = {};
+    cmpPick.loadouts[ci] = chosen;
+  } else return;
+  saveCmpPick(); renderCmpLoadouts(); refreshCmpCount();
+  if (cmp && !cmp.running) { cmp.stale = 'selection changed since this comparison'; renderCompare(); }
+});
 
 var dropTargetList = null;
 var MC_KEY = /^(Bone|Dust|Tach)\d$/;
@@ -2192,6 +2316,7 @@ function compareMapIds(ci, scope) {
 }
 
 function renderCmpPick() {
+  renderCmpLoadouts();
   var scope = $('cmp-scope').value, host = $('cmp-pick');
   $('cmp-reach-lbl').style.display = scope === 'world' || scope === 'drops' ? '' : 'none';
   $('cmp-reach').checked = !!cmpPick.reach;
@@ -2199,7 +2324,7 @@ function renderCmpPick() {
   var ci = Number($('sel-char').value) || 0;
   var count = rawSave ? compareMapIds(ci, scope).length : simMapIds().length;
   var countTxt = '<div class="note" id="cmp-pick-count">' + count + ' map' + (count === 1 ? '' : 's') + ' selected.</div>';
-  if (scope === 'accessible' || scope === 'all') { host.innerHTML = countTxt; renderCmpPlace(); return; }
+  if (scope === 'accessible' || scope === 'all') { host.innerHTML = countTxt; refreshCmpCount(); return; }
   var h = '<div class="cmp-pick-box">';
   if (scope === 'world') {
     var all = simMapIds();
@@ -2240,13 +2365,17 @@ function renderCmpPick() {
     h += '<div class="note" style="margin-top:0">Uses each map\'s monster drop tables (including nested tables) and the crystal mob a kill can spawn there. Crystals never spawn on The Rift or The Clamworks, from Royal Castle rats, or from non-AFK monsters such as Gravel Tomb\'s. Master Class drops (bones, dusts, tachyons) come from each monster\'s coin value, not its drop table: a kill rolls 25% for 1-2 drops while the matching form (Wraith, Tempest, Arcanist) is active, so turn its Form toggle on or have the form buff saved. Quantities shown are the base per drop before form multipliers. Novadust is a 1-in-10,000 Tempest roll on any kill that needs Compass upgrade 33.</div>';
   }
   host.innerHTML = h + '</div>' + countTxt;
-  renderCmpPlace();
+  refreshCmpCount();
 }
 
 function refreshCmpCount() {
   var el = $('cmp-pick-count'); if (!el || !rawSave) return;
-  var n = compareMapIds(Number($('sel-char').value) || 0, $('cmp-scope').value).length;
-  el.textContent = n + ' map' + (n === 1 ? '' : 's') + ' selected.';
+  try {
+    var chars = cmpChosenCharacters(), count = 0, maps = new Set();
+    chars.forEach(function (ch) { var ids = compareMapIds(ch.charIdx, $('cmp-scope').value); count += ids.length * ch.choices.length; ids.forEach(function (m) { maps.add(m); }); });
+    el.textContent = chars.length + ' characters · ' + maps.size + ' maps · ' + count + ' character/loadout/map combinations × ' + $('cmp-seeds').value + ' runs.';
+    if (!cmp || !cmp.running) $('cmp-run').disabled = !count;
+  } catch (e) { el.textContent = 'Could not read loadouts: ' + e.message; $('cmp-run').disabled = true; }
   renderCmpPlace();
 }
 
@@ -2276,7 +2405,7 @@ function renderCmpPlace() {
     });
     h += '<details data-cmp-place-details' + (cmpPlaceDetailsOpen ? ' open' : '') + '><summary>' + escHtml(skillName(id)) + ' drop points: ' + maps.length + ' map' + (maps.length === 1 ? '' : 's')
       + ' (' + placed + ' placed, ' + def + ' default' + (none ? ', ' + none + ' no platform' : '') + ')</summary>'
-      + '<div class="note" style="margin:4px 0">Maps without placed points use the default: the centre of the widest platform with the most monster spawns. Edit a map to place points there; the First/Stop on settings apply to every map.</div>'
+      + '<div class="note" style="margin:4px 0">This preview follows the editor character. Compared loadouts cast only skills on their own attack bars. Points and First/Stop on settings are shared; maps without placed points use the centre of the widest platform with the most monster spawns.</div>'
       + '<div class="cmp-place-list">' + rows + '</div></details>';
   });
   host.innerHTML = h;
@@ -2344,31 +2473,47 @@ function startCompare() {
   if (cmp && cmp.running) return;
   if (!rawSave) return;
   var ci = Number($('sel-char').value) || 0, scope = $('cmp-scope').value;
-  var maps = compareMapIds(ci, scope);
-  if (!maps.length) { $('cmp-results').innerHTML = '<div class="err">No simulated maps match this selection.</div>'; return; }
+  var characters;
+  try {
+    characters = cmpChosenCharacters().map(function (ch) {
+      var variants = setupCompareVariants(rawSave, { charIdx: ch.charIdx, includeSaved: false,
+        named: ch.choices.map(function (v) { return { name: v.id, setup: v.setup || { charIdx: ch.charIdx, patches: [] } }; }) });
+      variants.forEach(function (v, index) {
+        v.id = ch.choices[index].id; v.label = ch.choices[index].label;
+        v.manualIds = v.raw ? manualSkillIds(v.raw, ch.charIdx) : [];
+        v.cav = cavCfgFor(ch.charIdx, 216, $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), v.raw);
+      });
+      return { charIdx: ch.charIdx, label: ch.label, variants: variants, maps: compareMapIds(ch.charIdx, scope) };
+    });
+  } catch (e) { $('cmp-results').innerHTML = '<div class="err">Could not prepare loadouts: ' + escHtml(e.message) + '</div>'; return; }
   var seconds = Number($('cmp-dur').value) || 300, nSeeds = Number($('cmp-seeds').value) || 1;
   var base = (Math.random() * 4294967295) >>> 0, seeds = [];
   for (var s = 0; s < nSeeds; s++) seeds.push((base + s * 2654435761) >>> 0);
-  var jobs = [];
-  maps.forEach(function (m) { seeds.forEach(function (sd) { jobs.push({ mapIdx: m, seed: sd }); }); });
+  var plan = characterMapComparePlan(characters, seeds), jobs = plan.jobs;
+  var maps = Array.from(new Set(plan.rows.map(function (r) { return r.mapIdx; })));
+  if (!plan.rows.length) { $('cmp-results').innerHTML = '<div class="err">Select at least one character, loadout and eligible map.</div>'; return; }
   var prevSel = cmp && cmp.selected;
   cmp = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2), running: true, ci: ci, scope: scope, seconds: seconds, seeds: seeds,
-    mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(editorEditsBuffs()), cavern: $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), cav: cavCfgFor(ci, 216, $('sel-cavern').value === '' ? null : Number($('sel-cavern').value)), toggles: currentToggles(), terms: currentTerms(), setup: setupRunInfo(),
-    manualCasts: $('sel-player').value === 'auto' ? currentManualCasts() : undefined,
+    mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked, cavern: $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), toggles: currentToggles(), terms: currentTerms(),
     stopOn: currentStopOn(),
-    manualByMap: $('sel-player').value === 'auto' ? maps.reduce(function (o, m) { o[m] = currentManualCasts(m); return o; }, {}) : null,
-    maps: maps, jobs: jobs, next: 0, done: 0, active: {}, rows: {}, workers: [], started: performance.now(),
+    maps: maps, variants: characters.flatMap(function (ch) { return ch.variants; }), jobs: jobs, next: 0, done: 0, active: {}, rows: {}, workers: [], started: performance.now(),
     selected: scope === 'drops' ? null : (prevSel || null), sortKey: 'map', sortDir: 1, metric: 'qty', rowMode: (cmp && cmp.rowMode) || 'maps',
     dropTarget: scope === 'drops' ? cmpPick.drop : null,
   };
-  maps.forEach(function (m) { cmp.rows[m] = { mapIdx: m, runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, items: {}, metrics: {}, cards: 0, errors: [], unmodelled: 0, invFull: 0 }; });
+  plan.rows.forEach(function (r) {
+    cmp.rows[r.id] = Object.assign({ runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, items: {}, metrics: {}, cards: 0, errors: [], unmodelled: 0, invFull: 0 }, r);
+    var row = cmp.rows[r.id];
+    row.manualCasts = cmp.mode === 'auto' ? currentManualCasts(r.mapIdx, r.variant.manualIds) : undefined;
+    if (!r.variant.raw) row.errors.push(r.variant.warnings.join('; ') || 'Loadout could not be applied');
+  });
+  if (!jobs.length) { cmp.running = false; cmp.elapsedMs = 0; renderCompare(); return; }
   var n = Math.max(1, Math.min(jobs.length, Math.min(6, (navigator.hardwareConcurrency || 4) - 1)));
   for (var i = 0; i < n; i++) {
     var w;
     try { w = new Worker(new URL('./js/workers/combat-sim-worker.js', import.meta.url), { type: 'module' }); }
     catch (e) { break; }
-    w.postMessage({ type: 'load', rawSave: simRaw() });
+    w.postMessage({ type: 'load', rawSave: rawSave });
     w.onmessage = onCompareMessage.bind(null, cmp, w);
     w.onerror = onCompareWorkerError.bind(null, cmp, w);
     cmp.workers.push(w);
@@ -2383,11 +2528,11 @@ function startCompare() {
 
 function dispatchCompare(c, w) {
   if (!c.running || c.next >= c.jobs.length) { w.busy = null; maybeFinishCompare(c); return; }
-  var j = c.jobs[c.next++], id = c.id + ':' + c.next;
+  var j = c.jobs[c.next++], id = c.id + ':' + c.next, row = c.rows[j.rowId];
   w.busy = { id: id, job: j, frac: 0 };
   c.active[id] = w.busy;
   w.postMessage({
-    type: 'run', id: id, charIdx: c.ci, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: c.manualByMap ? c.manualByMap[j.mapIdx] : c.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, j.mapIdx === 216 ? c.cavern : null, j.mapIdx === 216 ? c.cav : null, c.unlimInv, c.savedBuffs), toggles: c.toggles, termOverrides: c.terms, stopOn: c.stopOn,
+    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, j.mapIdx === 216 ? c.cavern : null, j.mapIdx === 216 ? row.variant.cav : null, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: c.toggles, termOverrides: c.terms, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
   });
 }
@@ -2397,7 +2542,7 @@ function onCompareMessage(c, w, ev) {
   if (cmp !== c || !b || m.id !== b.id) return;
   if (m.type === 'progress') { b.frac = Math.min(1, (m.t || 0) / c.seconds); updateCompareProgress(c); return; }
   if (m.type !== 'done' && m.type !== 'error') return;
-  var row = c.rows[b.job.mapIdx];
+  var row = c.rows[b.job.rowId];
   if (m.type === 'done') addCompareRun(row, m);
   else row.errors.push(m.unsupported ? 'Not supported: ' + m.message : m.message);
   delete c.active[b.id];
@@ -2411,7 +2556,7 @@ function onCompareWorkerError(c, w, e) {
   e.preventDefault && e.preventDefault();
   if (cmp !== c) return;
   var b = w.busy;
-  if (b) { c.rows[b.job.mapIdx].errors.push('Worker failed: ' + (e.message || 'unknown error')); delete c.active[b.id]; c.done++; }
+  if (b) { c.rows[b.job.rowId].errors.push('Worker failed: ' + (e.message || 'unknown error')); delete c.active[b.id]; c.done++; }
   w.terminate(); w.busy = null; w.dead = true;
   if (c.workers.every(function (x) { return x.dead; })) { c.next = c.jobs.length; }
   maybeFinishCompare(c);
@@ -2428,6 +2573,7 @@ function flattenMetrics(obj, prefix, out, depth) {
 
 function cmpMetricLabel(key) {
   var labels = {
+    'obolFragments': 'Obol fragments earned',
     'combatProgress.forgeSeconds': 'Forge time (s)',
     'combatProgress.petSeconds': 'Pet time (s)',
     'combatProgress.alchemySeconds': 'Alchemy time (s; production not simulated)',
@@ -2466,7 +2612,7 @@ function updateCompareProgress(c) {
   for (var id in c.active) frac += c.active[id].frac || 0;
   var pct = c.jobs.length ? frac / c.jobs.length : 1;
   $('cmp-progress-fill').style.width = (pct * 100).toFixed(1) + '%';
-  $('cmp-progress-label').textContent = c.done + ' of ' + c.jobs.length + ' runs finished (' + c.maps.length + ' maps × ' + c.seeds.length + ') · ' + c.workers.filter(function (w) { return !w.dead; }).length + ' workers · ' + ((performance.now() - c.started) / 1000).toFixed(0) + 's';
+  $('cmp-progress-label').textContent = c.done + ' of ' + c.jobs.length + ' runs finished (' + Object.keys(c.rows).length + ' character/loadout/map combinations × ' + c.seeds.length + ') · ' + c.workers.filter(function (w) { return !w.dead; }).length + ' workers · ' + ((performance.now() - c.started) / 1000).toFixed(0) + 's';
 }
 
 var cmpRenderTimer = 0;
@@ -2487,6 +2633,7 @@ function endCompare(c, message) {
   c.workers = []; c.active = {};
   $('cmp-run').disabled = !rawSave; $('cmp-cancel').disabled = true;
   $('cmp-progress-wrap').style.display = 'none';
+  refreshCmpCount();
   renderCompare();
 }
 
@@ -2498,11 +2645,12 @@ function cancelCompare() {
 function cmpPerHr(row, v) { var h = row.timeMs / 3.6e6; return h > 0 ? v / h : 0; }
 
 function compareColumns(c) {
-  var rows = c.maps.map(function (m) { return c.rows[m]; }).filter(function (r) { return r.runs > 0; });
+  var rows = Object.values(c.rows).filter(function (r) { return r.runs > 0; });
   var itemMaps = {}, metricMaps = {};
+  var seen = {};
   rows.forEach(function (r) {
-    for (var k in r.items) if (r.items[k] > 0) itemMaps[k] = (itemMaps[k] || 0) + 1;
-    for (var k2 in r.metrics) if (r.metrics[k2]) metricMaps[k2] = (metricMaps[k2] || 0) + 1;
+    for (var k in r.items) if (r.items[k] > 0) { var ms = seen[k] || (seen[k] = new Set()); ms.add(r.mapIdx); itemMaps[k] = ms.size; }
+    for (var k2 in r.metrics) if (r.metrics[k2] || k2 === 'obolFragments') metricMaps[k2] = (metricMaps[k2] || 0) + 1;
   });
   var shared = Object.keys(itemMaps).filter(function (k) { return itemMaps[k] >= 2; })
     .sort(function (a, b) { return itemMaps[b] - itemMaps[a] || itemName(a).localeCompare(itemName(b)); });
@@ -2511,6 +2659,8 @@ function compareColumns(c) {
 }
 
 function compareValue(c, row, key) {
+  if (key === 'character') return row.character || '';
+  if (key === 'loadout') return row.loadout || '';
   if (key === 'map') return row.mapIdx;
   if (setupCompareUnit(key) === 'run') {
     var total = key.indexOf('item:') === 0 ? row.items[key.slice(5)] : row.metrics[key.slice(7)];
@@ -2537,7 +2687,7 @@ function renderCompare() {
   var focusedColumn = host.contains(document.activeElement) && document.activeElement.dataset.cmpExtra;
   var cols = compareColumns(c);
   if (!c.selected) {
-    var half = Math.max(2, Math.ceil(cols.rows.length / 2));
+    var half = Math.max(2, Math.ceil(new Set(cols.rows.map(function (r) { return r.mapIdx; })).size / 2));
     var pick = cols.shared.filter(function (k) { return cols.itemMaps[k] >= half && !/^Cards/.test(k); });
     if (!pick.length) pick = cols.shared.filter(function (k) { return !/^Cards/.test(k); });
     if (c.dropTarget) {
@@ -2547,16 +2697,17 @@ function renderCompare() {
     if (cols.shared.length || (c.dropTarget && pick.length)) c.selected = pick.slice(0, 8);
   }
   var sel = (c.selected || []).filter(function (k) { return cols.itemMaps[k]; });
-  var nm = (saveData.charNames && saveData.charNames[c.ci]) || ('Character ' + (c.ci + 1));
+  var nm = c.variants ? new Set(Object.values(c.rows).map(function (r) { return r.charIdx; })).size + ' characters · ' + c.variants.length + ' loadouts' : (saveData.charNames && saveData.charNames[c.ci]) || ('Character ' + (c.ci + 1));
   var modeLbl = { auto: 'auto mode', scripted: 'fixed ' + fmtInt(c.killEveryMs) + ' ms kill interval', idle: 'idle' }[c.mode] || c.mode;
   var h = '<div class="note" style="margin:10px 0">' + escHtml(nm) + ' · ' + escHtml(modeLbl) + ' · ' + c.maps.length + ' maps × ' + c.seeds.length + ' run' + (c.seeds.length > 1 ? 's' : '') + ' of ' + fmtRunLen(c.seconds)
-    + (c.running ? ' · running' : ' · finished in ' + (c.elapsedMs / 1000).toFixed(0) + 's');
+    + (c.running ? ' · running' : ' · finished in ' + ((c.elapsedMs || 0) / 1000).toFixed(0) + 's');
   if (c.stale) h += ' · <span class="warn">' + (typeof c.stale === 'string' ? c.stale : 'save reloaded since this comparison') + '</span>';
   if (c.message) h += '<br><span class="warn">' + escHtml(c.message) + '</span>';
   if (c.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
   if (c.dropTarget) h += '<br>Maps that can drop ' + escHtml(dropTargetName(c.dropTarget)) + '.';
   h += '<br>' + (c.gcrystal ? 'Daily guaranteed crystals on: every run starts with today\'s remaining guarantee, so crystal drops are front-loaded.' : 'Daily guaranteed crystals off: random crystal chance only.') + unlimInvRunText(c.unlimInv) + savedBuffsRunText(c.savedBuffs);
   h += toggleRunText(c.toggles) + cavRunText(c.cav) + termRunText(c.terms) + setupRunText(c.setup) + manualRunText(c.manualCasts) + manualByMapText(c.manualByMap) + stopOnRunText(c.stopOn);
+  if (c.variants) h += '<br>Each row uses its captured character loadout. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Cavern: ' + (c.cavern == null ? 'each character\'s saved cavern' : fmtInt(c.cavern)) + '.';
   h += '</div>';
 
   h += '<h3>Drops found on more than one map</h3>';
@@ -2585,21 +2736,22 @@ function renderCompare() {
   var colDefs = [['map', 'Map'], ['kills', 'Kills / hr'], ['kla', 'Kill credit / hr'], ['exp', 'EXP / hr'], ['coins', 'Coins / hr'], ['cards', 'Cards / hr']];
   sel.forEach(function (k) { colDefs.push(['item:' + k, itemName(k) + (setupCompareUnit('item:' + k) === 'run' ? ' / run' : '')]); });
   shownMetrics.forEach(function (k) { colDefs.push(['metric:' + k, cmpMetricLabel(k) + ' / ' + setupCompareUnit('metric:' + k)]); });
+  var numericDefs = colDefs.slice(1);
+  if (c.variants) colDefs.unshift(['character', 'Character'], ['loadout', 'Loadout']);
   if (!colDefs.some(function (d) { return d[0] === c.sortKey; })) { c.sortKey = 'map'; c.sortDir = 1; }
 
   var best = {};
-  colDefs.forEach(function (d) {
-    if (d[0] === 'map') return;
+  numericDefs.forEach(function (d) {
     var bv = 0, bm = null;
-    cols.rows.forEach(function (r) { var v = compareValue(c, r, d[0]); if (v > bv) { bv = v; bm = r.mapIdx; } });
-    best[d[0]] = { v: bv, map: bm };
+    cols.rows.forEach(function (r) { var v = compareValue(c, r, d[0]); if (v > bv) { bv = v; bm = r; } });
+    best[d[0]] = { v: bv, row: bm, map: bm && bm.mapIdx };
   });
 
   if (sel.length) {
-    h += '<h3>Best map per drop</h3><div class="card-grid cols-4">';
+    h += '<h3>Best ' + (c.variants ? 'character / loadout / map' : 'map') + ' per drop</h3><div class="card-grid cols-4">';
     sel.forEach(function (k) {
       var b = best['item:' + k];
-      h += card(escHtml(itemName(k)), b.map == null ? '—' : (k === 'COIN' ? fmtCoins : fmtNum)(b.v), b.map == null ? '' : escHtml(mapName(b.map)) + ' (map ' + b.map + ')' + (setupCompareUnit('item:' + k) === 'run' ? ' per run' : c.metric === 'perKill' ? ' per kill' : ' per hour'));
+      h += card(escHtml(itemName(k)), b.map == null ? '—' : (k === 'COIN' ? fmtCoins : fmtNum)(b.v), b.map == null ? '' : (c.variants ? escHtml(b.row.character + ' · ' + b.row.loadout) + '<br>' : '') + escHtml(mapName(b.map)) + ' (map ' + b.map + ')' + (setupCompareUnit('item:' + k) === 'run' ? ' per run' : c.metric === 'perKill' ? ' per kill' : ' per hour'));
     });
     h += '</div>';
   }
@@ -2608,11 +2760,11 @@ function renderCompare() {
     return list.sort(function (a, b) {
       if (!a.runs !== !b.runs) return a.runs ? -1 : 1;
       var va = compareValue(c, a, c.sortKey), vb = compareValue(c, b, c.sortKey);
-      return (va - vb) * c.sortDir || a.mapIdx - b.mapIdx;
+      return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * c.sortDir || a.mapIdx - b.mapIdx || String(a.id || '').localeCompare(String(b.id || ''));
     });
   };
-  var all = sortRows(c.maps.map(function (m) { return c.rows[m]; }));
-  // World rows pool every finished map's time and drops, so per-hour values are the average map.
+  var all = sortRows(Object.values(c.rows));
+  // Pool maps only within the same character and loadout.
   var worldRow = function (w, maps) {
     var t = { mapIdx: (w - 1) * 50, world: w, nMaps: 0, runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, cards: 0, items: {}, metrics: {}, errors: [], invFull: 0, unmodelled: 0 };
     maps.forEach(function (r) {
@@ -2622,30 +2774,32 @@ function renderCompare() {
       for (var k2 in r.metrics) t.metrics[k2] = (t.metrics[k2] || 0) + r.metrics[k2];
     });
     t.total = maps.length;
+    t.character = maps[0].character; t.loadout = maps[0].loadout; t.variantId = maps[0].variantId;
+    t.id = JSON.stringify([t.variantId, w]);
     return t;
   };
   var groups = {};
-  all.forEach(function (r) { var w = mapWorld(r.mapIdx); (groups[w] = groups[w] || []).push(r); });
-  var worlds = Object.keys(groups).map(Number).sort(function (a, b) { return a - b; });
+  all.forEach(function (r) { var key = JSON.stringify([r.variantId, mapWorld(r.mapIdx)]); (groups[key] = groups[key] || []).push(r); });
+  var worlds = Object.keys(groups).sort(function (a, b) { return (groups[a][0].charIdx || 0) - (groups[b][0].charIdx || 0) || String(groups[a][0].loadout || '').localeCompare(String(groups[b][0].loadout || '')) || mapWorld(groups[a][0].mapIdx) - mapWorld(groups[b][0].mapIdx); });
   var cell = function (r, d, isBest) {
     if (!r.runs) return '<td class="num note">' + (r.errors.length ? '—' : '…') + '</td>';
     var v = compareValue(c, r, d[0]);
     return '<td class="num' + (isBest && v > 0 ? ' cmp-best' : '') + '">' + (d[0] === 'coins' || d[0] === 'item:COIN' ? fmtCoins(v) : v ? fmtNum(v) : '<span class="note">0</span>') + '</td>';
   };
   var mapRowHtml = function (r) {
-    var s = '<tr><td><a href="#" data-cmp-open="' + r.mapIdx + '">' + r.mapIdx + ' · ' + escHtml(mapName(r.mapIdx)) + '</a>' + mapDropBadges(r.mapIdx);
+    var s = '<tr>' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><a href="#" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + r.mapIdx + ' · ' + escHtml(mapName(r.mapIdx)) + '</a>' + mapDropBadges(r.mapIdx);
     if (r.errors.length) s += ' <span class="badge badge-red" title="' + escHtml(r.errors.join('; ')) + '">' + escHtml(r.errors[0].slice(0, 40)) + '</span>';
     if (r.invFull) s += ' <span class="badge badge-gold">bag full</span>';
     if (r.stopped) s += ' <span class="badge badge-cyan">stopped ' + r.stopped + '/' + r.runs + ' (first at ' + escHtml(fmtSec(r.stoppedAt)) + ')</span>';
     if (r.leftMap) s += ' <span class="badge badge-red">left map ' + r.leftMap + '/' + r.runs + ' (first at ' + escHtml(fmtSec(r.leftMapAt)) + ')</span>';
     if (r.unmodelled) s += ' <span class="badge badge-purple">' + r.unmodelled + ' unmodelled</span>';
     s += '</td>';
-    colDefs.forEach(function (d) { if (d[0] !== 'map') s += cell(r, d, best[d[0]] && best[d[0]].map === r.mapIdx); });
+    numericDefs.forEach(function (d) { s += cell(r, d, best[d[0]] && best[d[0]].row === r); });
     return s + '</tr>';
   };
   var worldRowHtml = function (t, bestW) {
-    var s = '<tr class="cmp-world-row"><td>World ' + t.world + ' <span class="note" style="margin:0">average of ' + t.nMaps + (t.nMaps < t.total ? ' of ' + t.total : '') + ' map' + (t.total === 1 ? '' : 's') + '</span></td>';
-    colDefs.forEach(function (d) { if (d[0] !== 'map') s += cell(t, d, bestW && bestW[d[0]] === t.world); });
+    var s = '<tr class="cmp-world-row">' + (c.variants ? '<td>' + escHtml(t.character) + '</td><td>' + escHtml(t.loadout) + '</td>' : '') + '<td>World ' + t.world + ' <span class="note" style="margin:0">average of ' + t.nMaps + (t.nMaps < t.total ? ' of ' + t.total : '') + ' map' + (t.total === 1 ? '' : 's') + '</span></td>';
+    numericDefs.forEach(function (d) { s += cell(t, d, bestW && bestW[d[0]] === t.id); });
     return s + '</tr>';
   };
   var title = c.rowMode === 'worlds' ? 'Worlds' : 'Maps';
@@ -2657,14 +2811,13 @@ function renderCompare() {
   h += '</tr></thead><tbody>';
   if (c.rowMode === 'maps') all.forEach(function (r) { h += mapRowHtml(r); });
   else {
-    var wrows = worlds.map(function (w) { return worldRow(w, groups[w]); });
+    var wrows = worlds.map(function (key) { var t = worldRow(mapWorld(groups[key][0].mapIdx), groups[key]); t.groupKey = key; return t; });
     var bestW = {};
-    colDefs.forEach(function (d) {
-      if (d[0] === 'map') return;
-      var bv = 0; wrows.forEach(function (t) { if (!t.runs) return; var v = compareValue(c, t, d[0]); if (v > bv) { bv = v; bestW[d[0]] = t.world; } });
+    numericDefs.forEach(function (d) {
+      var bv = 0; wrows.forEach(function (t) { if (!t.runs) return; var v = compareValue(c, t, d[0]); if (v > bv) { bv = v; bestW[d[0]] = t.id; } });
     });
     if (c.rowMode === 'worlds') sortRows(wrows).forEach(function (t) { h += worldRowHtml(t, bestW); });
-    else wrows.forEach(function (t) { h += worldRowHtml(t, bestW); groups[t.world].forEach(function (r) { h += mapRowHtml(r); }); });
+    else wrows.forEach(function (t) { h += worldRowHtml(t, bestW); groups[t.groupKey].forEach(function (r) { h += mapRowHtml(r); }); });
   }
   h += '</tbody></table></div>';
   h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or a map name to load it in the single-map simulator above. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
@@ -2680,30 +2833,24 @@ function renderCompare() {
 // editor edits, named saved setups) on shared seeds. Pure aggregation lives in
 // combat-sim-setup-compare.js; each job posts its own patched raw save.
 // ---------------------------------------------------------------------------
-var SETUP_STORE_PREFIX = 'combat-sim-setup:', SETUP_ACTIVE_KEY = 'combat-sim-setup:__active__';
 var scmp = null, scmpOff = {};
 
 function scmpNamedSetups() {
-  var out = [];
-  try {
-    for (var i = 0; i < localStorage.length; i++) {
-      var k = localStorage.key(i);
-      if (k && k.indexOf(SETUP_STORE_PREFIX) === 0 && k !== SETUP_ACTIVE_KEY) out.push(k.slice(SETUP_STORE_PREFIX.length));
-    }
-  } catch (e) { /* storage unavailable */ }
-  return out.sort();
+  return readCombatLoadouts(localStorage, Number($('sel-char').value) || 0);
 }
 
 function scmpChoices() {
   var out = [{ id: 'saved', label: 'Imported save' }];
   var s = setup.api && rawSave ? setup.api.summary() : null;
   if (s && s.changed) out.push({ id: 'edited', label: 'Current edits (' + s.changed + ' change' + (s.changed === 1 ? '' : 's') + ')' });
-  scmpNamedSetups().forEach(function (n) { out.push({ id: 'named:' + n, label: n }); });
+  scmpNamedSetups().forEach(function (n) { out.push({ id: 'named:' + n.name, label: n.name }); });
   return out;
 }
 
 function renderScmpPick() {
-  var ch = scmpChoices();
+  var ch;
+  try { ch = scmpChoices(); }
+  catch (e) { $('scmp-pick').innerHTML = '<div class="err">Could not read loadouts: ' + escHtml(e.message) + '</div>'; $('scmp-run').disabled = true; return; }
   var h = ch.map(function (c) {
     return '<button type="button" class="cmp-chip' + (scmpOff[c.id] ? '' : ' on') + '" data-scmp-pick="' + escHtml(c.id) + '" aria-pressed="' + (!scmpOff[c.id]) + '">' + escHtml(c.label) + '</button>';
   }).join('');
@@ -2717,10 +2864,9 @@ function startSetupCompare() {
   if ((scmp && scmp.running) || !rawSave) return;
   var ci = Number($('sel-char').value) || 0, mapIdx = Number($('sel-map').value);
   var named = [];
-  scmpNamedSetups().forEach(function (n) {
-    if (scmpOff['named:' + n]) return;
-    try { named.push({ name: n, setup: JSON.parse(localStorage.getItem(SETUP_STORE_PREFIX + n)) }); } catch (e) { console.warn('named setup unreadable', n, e); }
-  });
+  try { scmpNamedSetups().forEach(function (n) {
+    if (!scmpOff['named:' + n.name]) named.push({ name: n.name, setup: n.setup });
+  }); } catch (e) { $('scmp-results').innerHTML = '<div class="err">Could not read loadouts: ' + escHtml(e.message) + '</div>'; return; }
   var edited = !scmpOff.edited && setup.api ? setup.api.current() : null;
   var variants = setupCompareVariants(rawSave, { charIdx: ci, includeSaved: !scmpOff.saved, edited: edited, named: named });
   if (variants.length < 2) { $('scmp-results').innerHTML = '<div class="err">Check at least two setups.</div>'; return; }
@@ -2735,7 +2881,12 @@ function startSetupCompare() {
     toggles: useOvr ? currentToggles() : null, terms: useOvr ? currentTerms() : null,
     variants: variants, byId: {}, rows: {}, jobs: setupCompareJobs(variants, seeds), next: 0, done: 0, active: {}, workers: [], started: performance.now(), inputSent: {},
   };
-  variants.forEach(function (v) { c.byId[v.id] = v; c.rows[v.id] = emptySetupCompareRow(v); if (!v.raw) c.rows[v.id].errors.push(v.warnings.join('; ') || 'Setup could not be applied'); });
+  variants.forEach(function (v) {
+    v.manualCasts = c.mode === 'auto' && v.raw ? currentManualCasts(mapIdx, manualSkillIds(v.raw, ci)) : undefined;
+    v.cav = cavCfgFor(ci, mapIdx, c.cavern, v.raw);
+    c.byId[v.id] = v; c.rows[v.id] = emptySetupCompareRow(v);
+    if (!v.raw) c.rows[v.id].errors.push(v.warnings.join('; ') || 'Setup could not be applied');
+  });
   if (!c.jobs.length) { c.running = false; renderSetupCompare(); return; }
   var n = Math.max(1, Math.min(c.jobs.length, Math.min(6, (navigator.hardwareConcurrency || 4) - 1)));
   for (var i = 0; i < n; i++) {
@@ -2762,8 +2913,8 @@ function dispatchScmp(c, w) {
   w.busy = { id: id, job: j, frac: 0 };
   c.active[id] = w.busy;
   w.postMessage({
-    type: 'run', id: id, rawSave: c.byId[j.variantId].raw, charIdx: c.ci, mapIdx: c.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: c.manualCasts }, killEveryMs: c.killEveryMs,
-    inputOverrides: simOverrides(c.gcrystal, c.cavern, c.cav, c.unlimInv, c.savedBuffs || c.byId[j.variantId].editsBuffs), toggles: c.toggles || undefined, termOverrides: c.terms || undefined, stopOn: c.stopOn,
+    type: 'run', id: id, rawSave: c.byId[j.variantId].raw, charIdx: c.ci, mapIdx: c.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: c.byId[j.variantId].manualCasts }, killEveryMs: c.killEveryMs,
+    inputOverrides: simOverrides(c.gcrystal, c.cavern, c.byId[j.variantId].cav, c.unlimInv, c.savedBuffs || c.byId[j.variantId].editsBuffs), toggles: c.toggles || undefined, termOverrides: c.terms || undefined, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: !wantInputs,
   });
 }
@@ -2905,7 +3056,9 @@ $('scmp-pick').addEventListener('click', function (e) {
 });
 // Named setups are saved/deleted inside the setup editor and other tabs; refresh the choices.
 $('setup-host').addEventListener('click', function () { setTimeout(renderScmpPick, 0); });
-window.addEventListener('storage', function (e) { if (!e.key || e.key.indexOf(SETUP_STORE_PREFIX) === 0) renderScmpPick(); });
+window.addEventListener('storage', function (e) {
+  if (!e.key || e.key.startsWith('combat-sim-setup:') || e.key.startsWith(COMBAT_LOADOUT_PREFIX) || e.key.startsWith(COMBAT_DRAFT_PREFIX)) { renderScmpPick(); renderCmpPick(); }
+});
 
 // ---- Setup search (combat-sim-setup-search.js) ----
 // The search module is a pure state machine: it hands out batches of fingerprint
@@ -3150,13 +3303,21 @@ $('cmp-results').addEventListener('click', function (e) {
     renderCompare();
   } else if (t.dataset.cmpSort) {
     var key = t.dataset.cmpSort;
-    if (cmp.sortKey === key) cmp.sortDir = -cmp.sortDir; else { cmp.sortKey = key; cmp.sortDir = key === 'map' ? 1 : -1; }
+    if (cmp.sortKey === key) cmp.sortDir = -cmp.sortDir; else { cmp.sortKey = key; cmp.sortDir = ['map', 'character', 'loadout'].includes(key) ? 1 : -1; }
     renderCompare();
   } else if (t.dataset.cmpOpen) {
     e.preventDefault();
-    $('sel-char').value = String(cmp.ci); fillMapSelect();
-    $('sel-map').value = t.dataset.cmpOpen;
-    $('sel-cavern').value = cmp.cavern == null ? '' : String(cmp.cavern); fillCavernSelect(); restoreCavCfg(cmp.cav);
+    var row = cmp.rows[t.dataset.cmpOpen];
+    if (!row) return;
+    $('sel-char').value = String(row.charIdx == null ? cmp.ci : row.charIdx);
+    if (setup.api) {
+      setup.api.refresh();
+      if (row.variant) setup.api.load(row.variant.setup || { charIdx: row.charIdx, patches: [] });
+      syncSetup(true);
+    }
+    fillMapSelect(row.mapIdx); $('sel-map').value = String(row.mapIdx);
+    $('sel-cavern').value = cmp.cavern == null ? '' : String(cmp.cavern); fillCavernSelect(); restoreCavCfg(row.variant ? row.variant.cav : cmp.cav);
+    renderManualCasts(); renderCmpPick(); renderScmpPick(); if (setup.api) setup.api.derivedChanged();
     $('sel-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 });

@@ -16,8 +16,7 @@ import { ITEMS } from '../stats/data/game/items.js';
 import { StarSigns, PrayerInfo, ChipDesc, CompanionDB, StatueInfo } from '../stats/data/game/customlists.js';
 import { loadUiAssets, onUiAssets, iconHtml, installIconFallback, showTip, hideTip, itemCardHtml, openPicker, gameText, PICKER_CSS, systemLayout, frameUrl, iconUrl } from './combat-sim-picker.js';
 
-const STORE_PREFIX = 'combat-sim-setup:';
-const ACTIVE_KEY = STORE_PREFIX + '__active__';
+import { COMBAT_DRAFT_PREFIX, combatLoadoutKey, readCombatLoadouts, readCombatDraft } from './combat-sim-loadouts.js';
 const ROW_CAP = 250;
 
 // Scope-first layout. Character tabs edit only the selected character's save
@@ -316,13 +315,12 @@ export function mountCombatSetup(host, opts) {
 
   let setup = CS.emptyCombatSetup(Number(getCi()) || 0);
   const store = _storage();
-  try {
-    const saved = store && store.getItem(ACTIVE_KEY);
-    if (saved) setup = CS.normalizeCombatSetup(JSON.parse(saved));
-  } catch (e) { /* ignore corrupt autosave */ }
+  let storageError = '';
+  try { setup = readCombatDraft(store, Number(getCi()) || 0); }
+  catch (e) { storageError = 'Could not restore loadout: ' + e.message; }
   setup.charIdx = Number(getCi()) || 0;
 
-  const ui = { tab: 'gear', lastCharTab: 'gear', world: 'W1', acctSys: {}, filters: {}, expanded: {}, copyFrom: 0, message: '',
+  const ui = { tab: 'gear', lastCharTab: 'gear', world: 'W1', acctSys: {}, filters: {}, expanded: {}, copyFrom: 0, message: storageError,
     gearSel: { row: 0, slot: 1 }, obolSel: null, talPage: null, talSel: null, stoneMode: null, allBars: false };
   const cache = { raw: null, setupJson: null, ci: null, patched: null, state: null, base: null, keys: null, diff: null };
   const datalists = {};
@@ -349,7 +347,17 @@ export function mountCombatSetup(host, opts) {
 
   // ----- derived state ------------------------------------------------------
   function ci() { return Number(getCi()) || 0; }
+  const drafts = new Map();
+  function switchCharacter() {
+    if (setup.charIdx === ci()) return;
+    drafts.set(setup.charIdx, setup);
+    try { setup = drafts.get(ci()) || readCombatDraft(store, ci()); }
+    catch (e) { setup = CS.emptyCombatSetup(ci()); ui.message = 'Could not restore loadout: ' + e.message; }
+    ui.talPage = null; ui.talSel = null; ui.obolSel = null;
+    cache.raw = null;
+  }
   function compute() {
+    switchCharacter();
     const raw = getRaw();
     const json = JSON.stringify(setup);
     if (cache.raw === raw && cache.setupJson === json && cache.ci === ci()) return cache;
@@ -367,7 +375,8 @@ export function mountCombatSetup(host, opts) {
 
   function commit() {
     setup.charIdx = ci();
-    try { if (store) store.setItem(ACTIVE_KEY, JSON.stringify(setup)); } catch (e) { /* quota */ }
+    try { if (store) store.setItem(COMBAT_DRAFT_PREFIX + ci(), JSON.stringify(setup)); }
+    catch (e) { ui.message = 'Could not save working loadout: ' + e.message; }
     try { onChange(); } catch (e) { console.error(e); }
     scheduleRender();
   }
@@ -1477,13 +1486,8 @@ export function mountCombatSetup(host, opts) {
     acct: renderAccountView, raw: renderRaw, changes: renderChanges };
 
   function savedNames() {
-    const out = [];
-    if (!store) return out;
-    for (let i = 0; i < store.length; i++) {
-      const k = store.key(i);
-      if (k && k.indexOf(STORE_PREFIX) === 0 && k !== ACTIVE_KEY) out.push(k.slice(STORE_PREFIX.length));
-    }
-    return out.sort();
+    try { return readCombatLoadouts(store, ci()); }
+    catch (e) { ui.message = 'Could not read loadouts: ' + e.message; return []; }
   }
 
   function render() {
@@ -1494,8 +1498,8 @@ export function mountCombatSetup(host, opts) {
     const panel = view.querySelector('.css-setup-panel');
     const scroll = panel ? panel.scrollTop : 0;
     let h = '<div class="css-setup-bar"><span class="css-setup-count">' + c.diff.changed + ' change' + (c.diff.changed === 1 ? '' : 's') + '</span>' +
-      '<input data-fid="setupName" data-act="name" placeholder="Setup name" value="' + esc(setup.label) + '" style="width:140px">' +
-      '<button data-act="saveNamed">Save</button><select data-act="loadNamed" data-fid="loadNamed"><option value="">Load saved\u2026</option>' + savedNames().map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '</select>' +
+      '<input data-fid="setupName" data-act="name" placeholder="Character loadout name" value="' + esc(setup.label) + '" style="width:180px">' +
+      '<button data-act="saveNamed">Save loadout</button><select data-act="loadNamed" data-fid="loadNamed"><option value="">This character\'s loadouts\u2026</option>' + savedNames().map(n => '<option value="' + esc(n.key) + '">' + esc(n.name) + '</option>').join('') + '</select>' +
       '<button data-act="deleteNamed" class="css-setup-danger">Delete saved</button><button data-act="export">Export JSON</button><button data-act="import">Import JSON</button>' +
       '<button data-act="resetAll" class="css-setup-danger">Reset all</button>' + (ui.message ? '<span class="css-setup-muted">' + esc(ui.message) + '</span>' : '') + '</div>';
     if (ui.io) h += '<div style="margin-bottom:6px"><textarea class="css-setup-io" data-fid="io" id="css-setup-io">' + esc(ui.io === 'export' ? JSON.stringify(setup, null, 1) : '') + '</textarea>' +
@@ -1699,12 +1703,14 @@ export function mountCombatSetup(host, opts) {
       }      case 'copyFrom': ui.copyFrom = Number(el.value); break;
       case 'name': setup.label = el.value; commit(); break;
       case 'loadNamed': {
-        const name = el.value;
-        if (!name || !store) break;
+        const key = el.value;
+        if (!key || !store) break;
         try {
-          setup = CS.normalizeCombatSetup(JSON.parse(store.getItem(STORE_PREFIX + name)));
-          if (!setup.label) setup.label = name;
-          ui.message = 'Loaded "' + name + '"';
+          const entry = readCombatLoadouts(store, ci()).find(n => n.key === key);
+          if (!entry) throw new Error('Loadout does not belong to this character');
+          setup = entry.setup;
+          if (!setup.label) setup.label = entry.name;
+          ui.message = 'Loaded "' + entry.name + '"';
           commit();
         } catch (err) { ui.message = 'Could not load: ' + err.message; scheduleRender(); }
         break;
@@ -1901,15 +1907,22 @@ export function mountCombatSetup(host, opts) {
       case 'saveNamed': {
         const name = (setup.label || '').trim();
         if (!name) { ui.message = 'Enter a setup name first'; render(); break; }
-        try { store.setItem(STORE_PREFIX + name, JSON.stringify(setup)); ui.message = 'Saved "' + name + '"'; } catch (err) { ui.message = 'Save failed: ' + err.message; }
+        try { store.setItem(combatLoadoutKey(ci(), name), JSON.stringify(setup)); ui.message = 'Saved "' + name + '" for this character'; onChange(); } catch (err) { ui.message = 'Save failed: ' + err.message; }
         render();
         break;
       }
       case 'deleteNamed': {
         const sel = view.querySelector('[data-act="loadNamed"]');
-        const name = (sel && sel.value) || (setup.label || '').trim();
-        if (name && store && store.getItem(STORE_PREFIX + name) != null) { store.removeItem(STORE_PREFIX + name); ui.message = 'Deleted "' + name + '"'; }
-        else ui.message = 'Select a saved setup (or type its name) to delete';
+        try {
+          const entry = readCombatLoadouts(store, ci()).find(n => sel && sel.value ? n.key === sel.value : n.name === (setup.label || '').trim());
+          if (entry && store) {
+            store.removeItem(entry.key);
+            const legacyKey = 'combat-sim-setup:' + entry.name;
+            const legacy = store.getItem(legacyKey);
+            if (legacy && Number(JSON.parse(legacy).charIdx) === ci()) store.removeItem(legacyKey);
+            ui.message = 'Deleted "' + entry.name + '"'; onChange();
+          } else ui.message = 'Select a saved loadout (or type its name) to delete';
+        } catch (err) { ui.message = 'Delete failed: ' + err.message; }
         render();
         break;
       }
@@ -2306,11 +2319,11 @@ export function mountCombatSetup(host, opts) {
   return {
     apply(raw) {
       if (!raw) return raw;
-      setup.charIdx = ci();
+      switchCharacter();
       if (!setup.patches.length) return raw;
       return CS.applyCombatSetup(raw, setup);
     },
-    current() { setup.charIdx = ci(); return JSON.parse(JSON.stringify(setup)); },
+    current() { switchCharacter(); return JSON.parse(JSON.stringify(setup)); },
     summary() {
       const raw = getRaw();
       if (!raw) return { changed: 0, lines: [] };
@@ -2323,7 +2336,7 @@ export function mountCombatSetup(host, opts) {
     /** Re-render only when the derived-values view is showing (host calls after applying edits). */
     derivedChanged() { const s = curAcct(); if (root.isConnected && ui.tab === 'acct' && s && s.view === 'derived') render(); },
     refresh() {
-      setup.charIdx = ci();
+      switchCharacter();
       cache.raw = null;
       if (Number(ui.copyFrom) === ci()) ui.copyFrom = ci() === 0 ? 1 : 0;
       render();

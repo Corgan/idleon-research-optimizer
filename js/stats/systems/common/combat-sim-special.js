@@ -775,6 +775,7 @@ export function specialSummary(sim) {
   const qd = (k) => N(byItem[k]?.qtyDropped);
   const hours = sim.timeMs / 3.6e6;
   const out = {
+    obolFragments: N(sim.rewardsState?.ledger?.obolFragments),
     combatProgress: { ...(sim.state.progress?.gains || {}) },
     forgeBars: { ...(sim.state.progress?.bars || {}) },
     shinyDays: Object.fromEntries((sim.state.progress?.pets || []).map(p => [p.name, p.gained])),
@@ -814,6 +815,7 @@ export function specialSummary(sim) {
     holeShapes: C.holeShapesGained / hours, coveKills: C.coveKills / hours,
   } : {};
   out.state = {
+    obolFragments: N(sim.state.obolFragments),
     ola: Object.fromEntries([...new Set([...Object.keys(sp.ola), ...Object.keys(sp.olaTouched)])].map((k) => [k, _ola(sim, Number(k))])),
     holes: _clone(sp.holes), cavern: sp.cavern,
     rift: sp.rift ? { rift0: sp.rift.rift0, task: sp.rift.task, progress: { ...sp.rift.progress } } : null,
