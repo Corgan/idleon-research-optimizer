@@ -1,4 +1,7 @@
 *.json
+!assets/combat-sim/metadata.json
+!assets/combat-sim/ui/manifest.json
+!assets/combat-sim/ui/metadata.json
 *.md
 *.txt
 *.cmd
