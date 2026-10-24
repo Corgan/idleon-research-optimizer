@@ -569,6 +569,16 @@ export function startDen(sim) {
   sim.emit('denStart', { t: sim.timeMs, fear: gi[59] });
   return true;
 }
+export function denSnapshot(sim) {
+  const den = _sp(sim)?.den;
+  if (!den) return null;
+  const gi = sim.state.gi;
+  return {
+    active: N(gi[55]), fear: N(gi[59]), fearMax: DEN_FEAR_MAX,
+    score: N(gi[60]), kills: N(gi[130]), wave: N(gi[63]), tokens: den.tokens.length,
+    ampMulti: _denConst(sim).ampMulti, chain: N(gi[185]), runs: den.runs, opals: den.opals,
+  };
+}
 // Holes menu actor whenUpdated _event_12 (src 96331-96357, registered 97204): runs every 10 ms step.
 function _denFrame(sim) {
   const den = _sp(sim).den;
@@ -821,10 +831,7 @@ export function specialSummary(sim) {
     rift: sp.rift ? { rift0: sp.rift.rift0, task: sp.rift.task, progress: { ...sp.rift.progress } } : null,
     golem: { ...sp.golem }, clam: sp.clam ? _clone(sp.clam) : null,
     orbletMultiDrop: sp.orbletMultiDrop, compass3Count: sp.compass3.length,
-    den: sp.den ? (() => {
-      const gi = sim.state.gi;
-      return { active: N(gi[55]), fear: N(gi[59]), fearMax: DEN_FEAR_MAX, score: N(gi[60]), kills: N(gi[130]), wave: N(gi[63]), tokens: sp.den.tokens.length, ampMulti: _denConst(sim).ampMulti };
-    })() : null,
+    den: denSnapshot(sim),
     afkNotes: LIVE_VS_AFK.slice(),
   };
   return out;

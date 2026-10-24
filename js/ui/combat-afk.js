@@ -3,6 +3,7 @@ import { ITEMS } from '../stats/data/game/items.js';
 import { MONSTERS } from '../stats/data/game/monsters.js';
 import { classifyMap, buildCharacterMapOptions, getCharacterMapEvidence } from '../stats/systems/common/map-access.js';
 import { DROP_GROUPS, monsterDropItems } from '../stats/systems/common/combat-sim-map-drops.js';
+import { COMBAT_HOLE_MAPS } from '../stats/systems/common/combat-sim-maps.js';
 import { fmtVal } from '../renderers/format.js';
 import { fmtCoins } from '../renderers/coins.js';
 import { iconHtml } from './combat-sim-picker.js';
@@ -10,11 +11,7 @@ import { iconHtml } from './combat-sim-picker.js';
 const esc = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const number = value => !Number.isFinite(value) ? 'Unavailable' : value === 0 ? '0'
   : Math.abs(value) < 0.1 ? String(Number(value.toPrecision(3))) : fmtVal(value);
-const CAVERNS = [
-  { holeCavern: 8, target: 'caveB', name: 'Grotto (Gloomie Mushrooms)' },
-  { holeCavern: 14, target: 'caveC', name: 'Temple (Ancient Golems)' },
-  { holeCavern: 17, target: 'caveD', name: 'The Cove (Crystal Glunkos)' },
-];
+const CAVERNS = COMBAT_HOLE_MAPS.filter(map => map.holeCavern !== 2);
 const mapName = (id, cavern) => CAVERNS.find(c => id === 216 && c.holeCavern === cavern)?.name || String(MapDispName[id] || 'Map ' + id).replace(/_/g, ' ');
 const mapId = map => map.holeCavern == null ? map.mapIdx : '216:' + map.holeCavern;
 const parseMapId = value => value.startsWith('216:') ? value : Number(value);

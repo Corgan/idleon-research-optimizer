@@ -4,6 +4,7 @@
 // shared seeds, then aggregating paired hourly rates (Omega: run totals). No DOM, no workers.
 
 import { applyCombatSetup, diffCombatSetup, normalizeCombatSetup } from './combat-sim-setup.js';
+import { combatSimMap } from './combat-sim-maps.js';
 
 // Resolved combat inputs worth showing next to each variant's outcome.
 export const SETUP_COMPARE_INPUTS = [
@@ -74,10 +75,12 @@ export function setupCompareJobs(variants, seeds) {
 /** Each character owns its variants and eligible maps. Never merge equal patches across characters. */
 export function characterMapComparePlan(characters, seeds) {
   const rows = [], jobs = [];
-  for (const ch of characters) for (const variant of ch.variants) for (const mapIdx of [...new Set(ch.maps)]) {
-    const id = JSON.stringify([ch.charIdx, variant.id, mapIdx]);
+  for (const ch of characters) for (const variant of ch.variants) for (const mapId of [...new Set(ch.maps)]) {
+    const map = typeof mapId === 'number' ? { id: mapId, mapIdx: mapId } : combatSimMap(mapId);
+    if (!map) throw new Error('Unknown combat comparison map: ' + mapId);
+    const mapIdx = map.mapIdx, id = JSON.stringify([ch.charIdx, variant.id, map.id]);
     rows.push({ id, charIdx: ch.charIdx, character: ch.label, variantId: JSON.stringify([ch.charIdx, variant.id]),
-      loadout: variant.label, mapIdx, variant });
+      loadout: variant.label, mapIdx, mapId: map.id, holeCavern: map.holeCavern, variant });
   }
   for (const seed of seeds) for (const row of rows) if (row.variant.raw) jobs.push({ rowId: row.id, mapIdx: row.mapIdx, seed });
   return { rows, jobs };

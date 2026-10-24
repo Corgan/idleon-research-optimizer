@@ -14,10 +14,13 @@ import * as ST from '../stats/systems/common/combat-sim-stones.js';
 import * as V from './combat-sim-visual.js';
 import { buildCombatEditorSearch, filterCombatEditorSearch, combatEditorOptionText } from './combat-sim-catalog-search.js';
 import { ITEMS } from '../stats/data/game/items.js';
-import { StarSigns, PrayerInfo, ChipDesc, CompanionDB, StatueInfo } from '../stats/data/game/customlists.js';
+import { StarSigns, PrayerInfo, CompanionDB, StatueInfo } from '../stats/data/game/customlists.js';
+import { chipDescription } from '../stats/data/w4/chips.js';
 import { loadUiAssets, onUiAssets, iconHtml, installIconFallback, showTip, hideTip, itemCardHtml, openPicker, gameText, PICKER_CSS, systemLayout, frameUrl, iconUrl } from './combat-sim-picker.js';
 
 import { COMBAT_DRAFT_PREFIX, combatLoadoutKey, readCombatLoadouts, readCombatDraft } from './combat-sim-loadouts.js';
+import { COMBAT_LOADOUT_PRESETS, COMBAT_LOADOUT_PRESET_SOURCE, COMBAT_PRESET_SYSTEMS,
+  combatPresetChoices, buildCombatLoadoutPreset } from '../stats/systems/common/combat-loadout-presets.js';
 const ROW_CAP = 250;
 
 // Scope-first layout. Character tabs edit only the selected character's save
@@ -107,6 +110,15 @@ const STYLE_TEXT = `
 .css-setup-root{font-size:13px;color:var(--text,#eee)}
 .css-setup-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .css-setup-bar .css-setup-count{font-weight:600;color:var(--gold,#ffd700);margin-right:6px}
+.css-setup-presets{border:1px solid #42516b;border-radius:6px;padding:12px;margin:8px 0;background:var(--bg2,#16213e)}
+.css-setup-presets a,.css-setup-presets a:visited{color:var(--cyan,#4dd0e1);text-underline-offset:2px}
+.css-setup-presets a:hover,.css-setup-presets a:focus-visible{color:var(--text,#eee)}
+.css-setup-presets a:focus-visible{outline:2px solid var(--accent,#e94560);outline-offset:3px}
+.css-setup-preset-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+.css-setup-preset-controls label{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+.css-setup-preset-controls select{max-width:100%}
+.css-setup-preset-changes{max-height:300px;overflow:auto;margin:8px 0}
+.css-setup-preset-icons{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:6px 0}
 .css-setup-root button{background:var(--bg3,#0f3460);color:var(--text,#eee);border:1px solid #2b3d6b;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px}
 .css-setup-root button:hover{border-color:var(--accent,#e94560)}
 .css-setup-root button.css-setup-danger{border-color:#6b2b3d}
@@ -1297,9 +1309,9 @@ export function mountCombatSetup(host, opts) {
   }
   const LAB_W = 2120, LAB_H = 474, LAB_K = 0.42;
   function chipTip(id) {
-    const d = ChipDesc[id];
-    if (!Array.isArray(d)) return tipHtml('(empty)', []);
-    return tipHtml(gameText(d[0]), [esc(gameText(String(d[1] || '').replace(/[{}]/g, '#'))), d[2] ? esc(gameText(d[2])) : '']);
+    const chip = chipDescription(id);
+    if (!chip) return tipHtml('(empty)', []);
+    return tipHtml(chip.name, [esc(chip.description), esc(chip.summary)]);
   }
 
   function renderLab(c) {
@@ -1579,6 +1591,55 @@ export function mountCombatSetup(host, opts) {
     catch (e) { ui.message = 'Could not read loadouts: ' + e.message; return []; }
   }
 
+  function presetOptions() {
+    return { startSetup: setup, systems: ui.presetSystems || COMBAT_PRESET_SYSTEMS,
+      trophy: ui.presetTrophy, obols: ui.presetObols || {}, familyObols: !!ui.presetFamily };
+  }
+  function renderPresets(c) {
+    if (!ui.presetsOpen) return '';
+    let h = '<section class="css-setup-presets" aria-label="Built-in loadout presets"><h3>Built-in loadout presets</h3>' +
+      '<div class="css-setup-muted">Based on <a href="' + esc(COMBAT_LOADOUT_PRESET_SOURCE.url) + '" target="_blank" rel="noopener noreferrer">' +
+      esc(COMBAT_LOADOUT_PRESET_SOURCE.title) + '</a>. Applies to this character\'s working edits, not the imported save. Save loadout afterwards to keep a named variant for comparisons.</div>' +
+      '<div class="css-setup-preset-controls"><label>Build <select data-act="presetSelect" data-fid="presetSelect"><option value="">Choose a sheet build...</option>' +
+      ['Combat', 'Sampling'].map(group => '<optgroup label="' + group + '">' +
+        COMBAT_LOADOUT_PRESETS.filter(p => p.group === group).map(p => '<option value="' + p.id + '"' + (ui.presetId === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</optgroup>').join('') +
+      '</select></label></div>';
+    if (!ui.presetId) return h + '</section>';
+    const choices = combatPresetChoices(ui.presetId);
+    const enabled = new Set(ui.presetSystems || COMBAT_PRESET_SYSTEMS);
+    const names = { equipment: 'Equipment & tools', food: 'Food', cards: 'Cards & set', chips: 'Lab chips', prayers: 'Prayers', obols: 'Personal obols' };
+    h += '<div class="css-setup-preset-controls">' + COMBAT_PRESET_SYSTEMS.map(id =>
+      '<label><input type="checkbox" data-act="presetSystem" data-id="' + id + '" data-fid="presetSystem-' + id + '"' + (enabled.has(id) ? ' checked' : '') + '>' + names[id] + '</label>').join('') + '</div>';
+    if (enabled.has('equipment') && choices.trophies.length) h += '<div class="css-setup-preset-controls"><label>Trophy <select data-act="presetTrophy" data-fid="presetTrophy">' +
+      choices.trophies.map((key, i) => '<option value="' + key + '"' + ((ui.presetTrophy || choices.trophies[0]) === key ? ' selected' : '') + '>' + esc(CS.itemName(key)) + (i === 0 ? ' (first listed)' : '') + '</option>').join('') + '</select></label></div>';
+    if (enabled.has('obols')) {
+      h += '<div class="css-setup-preset-controls">' + choices.obols.map((keys, shape) => keys.length ? '<label>' + V.OBOL_SHAPES[shape] + ' <select data-act="presetObol" data-shape="' + shape + '" data-fid="presetObol-' + shape + '">' +
+        keys.map((key, i) => '<option value="' + key + '"' + (((ui.presetObols || {})[shape] || keys[0]) === key ? ' selected' : '') + '>' + esc(CS.itemName(key)) + (i === 0 ? ' (first listed)' : '') + '</option>').join('') + '</select></label>' : '').join('') +
+        '<label><input type="checkbox" data-act="presetFamily" data-fid="presetFamily"' + (ui.presetFamily ? ' checked' : '') + '>Also replace family obols (account-wide)</label></div>';
+    }
+    if (!c.patched) return h + '<div class="css-setup-warn">Load a save to preview and apply a preset.</div></section>';
+    try {
+      const result = buildCombatLoadoutPreset(getRaw(), ci(), ui.presetId, presetOptions());
+      const p = result.preset;
+      h += '<div class="css-setup-muted">' + esc(p.group === 'Combat' ? 'Other Setups' : 'Sampling Setups') + ' &middot; ' + esc(p.cells) + '</div>';
+      const icons = (title, system, values, name) => '<div class="css-setup-preset-icons"><b>' + title + '</b> ' +
+        values.filter(v => v != null && v !== 'Blank').map(v => '<span' +
+          (system === 'chips' ? rt(() => chipTip(v)) : ' data-tip="' + esc(name(v)) + '"') +
+          ' tabindex="0">' + iconHtml(system, v, name(v), { size: 28 }) + '</span>').join('') + '</div>';
+      if (enabled.has('cards')) h += icons('Cards (source slot order)', 'cards', choices.cards.map(card => card.key), CS.cardName);
+      if (enabled.has('chips')) h += icons('Lab chips', 'chips', p.chips, CS.chipName);
+      if (enabled.has('food')) h += icons('Food', 'items', p.food, CS.itemName);
+      const warnings = [...new Set(result.warnings.concat(ui.presetApplied?.ci === ci() && ui.presetApplied.id === p.id ? ui.presetApplied.warnings : []))];
+      h += warnings.map(text => '<div class="css-setup-warn">' + esc(text) + '</div>').join('');
+      h += '<div class="css-setup-preset-controls"><button data-act="applyPreset"' + (!enabled.size ? ' disabled' : '') + '>Apply preset to ' + esc(c.state.character.name) + '</button><span>' +
+        result.diff.changed + ' value changes from current working edits</span></div>';
+      h += '<details><summary>Preview changes &amp; assumptions</summary><div class="css-setup-preset-changes">' +
+        (result.diff.lines.length ? result.diff.lines.map(line => '<div>' + esc(line) + '</div>').join('') : '<div>No value changes.</div>') +
+        '</div>' + result.notes.map(note => '<p class="css-setup-muted">' + esc(note) + '</p>').join('') + '</details>';
+    } catch (e) { h += '<div class="css-setup-warn">Preset preview failed: ' + esc(e.message) + '</div>'; }
+    return h + '</section>';
+  }
+
   function render() {
     rtips = [];
     lastRt = null;
@@ -1594,8 +1655,9 @@ export function mountCombatSetup(host, opts) {
     let h = '<div class="css-setup-bar"><span class="css-setup-count">' + c.diff.changed + ' change' + (c.diff.changed === 1 ? '' : 's') + (overrideCount ? ' + ' + overrideCount + ' override' + (overrideCount === 1 ? '' : 's') : '') + '</span>' +
       '<input data-fid="setupName" data-act="name" placeholder="Character loadout name" value="' + esc(setup.label) + '" style="width:180px">' +
       '<button data-act="saveNamed">Save loadout</button><select data-act="loadNamed" data-fid="loadNamed"><option value="">This character\'s loadouts\u2026</option>' + savedNames().map(n => '<option value="' + esc(n.key) + '">' + esc(n.name) + '</option>').join('') + '</select>' +
-      '<button data-act="deleteNamed" class="css-setup-danger">Delete saved</button><button data-act="export">Export JSON</button><button data-act="import">Import JSON</button>' +
+      '<button data-act="deleteNamed" class="css-setup-danger">Delete saved</button><button data-act="togglePresets" aria-expanded="' + !!ui.presetsOpen + '">Built-in presets</button><button data-act="export">Export JSON</button><button data-act="import">Import JSON</button>' +
       '<button data-act="resetAll" class="css-setup-danger">Reset all</button>' + (ui.message ? '<span class="css-setup-muted">' + esc(ui.message) + '</span>' : '') + '</div>';
+    h += renderPresets(c);
     if (ui.io) h += '<div style="margin-bottom:6px"><textarea class="css-setup-io" data-fid="io" id="css-setup-io">' + esc(ui.io === 'export' ? JSON.stringify(setup, null, 1) : '') + '</textarea>' +
       (ui.io === 'import' ? '<button data-act="doImport">Apply import</button> ' : '') + '<button data-act="closeIo">Close</button></div>';
     h += '<div class="css-setup-search"><label>Search all loadout options<input type="search" data-act="globalSearch" data-fid="globalSearch" value="' + esc(ui.globalQuery) + '" placeholder="Search names, descriptions and effects (e.g. respawn)"></label>' +
@@ -1683,6 +1745,15 @@ export function mountCombatSetup(host, opts) {
     const c = compute();
     const p = patchOf(el);
     switch (act) {
+      case 'presetSelect': ui.presetId = el.value; ui.presetTrophy = null; ui.presetObols = {}; ui.presetApplied = null; scheduleRender(); break;
+      case 'presetTrophy': ui.presetTrophy = el.value; ui.presetApplied = null; scheduleRender(); break;
+      case 'presetObol': ui.presetObols = { ...ui.presetObols, [el.getAttribute('data-shape')]: el.value }; ui.presetApplied = null; scheduleRender(); break;
+      case 'presetFamily': ui.presetFamily = el.checked; ui.presetApplied = null; scheduleRender(); break;
+      case 'presetSystem': {
+        const enabled = new Set(ui.presetSystems || COMBAT_PRESET_SYSTEMS);
+        if (el.checked) enabled.add(el.getAttribute('data-id')); else enabled.delete(el.getAttribute('data-id'));
+        ui.presetSystems = [...enabled]; ui.presetApplied = null; scheduleRender(); break;
+      }
       case 'item': onPick(el, key => upsert(Object.assign({}, findPatch(p) || {}, p, { item: key == null ? 'Blank' : key, stats: undefined }))); break;
       case 'stat': {
         const kind = el.getAttribute('data-kind'), slot = Number(el.getAttribute('data-slot')), row = Number(el.getAttribute('data-row'));
@@ -1912,6 +1983,18 @@ export function mountCombatSetup(host, opts) {
     const A = n => el.getAttribute(n);
     const mult = e.shiftKey ? 10 : 1;
     switch (act) {
+      case 'togglePresets': ui.presetsOpen = !ui.presetsOpen; render(); break;
+      case 'applyPreset': {
+        try {
+          const result = buildCombatLoadoutPreset(raw, ci(), ui.presetId, presetOptions());
+          setup = result.setup;
+          ui.presetApplied = { ci: ci(), id: result.preset.id, warnings: result.warnings };
+          ui.message = 'Applied "' + result.preset.name + '" to ' + CS.characterName(raw, ci()) +
+            (result.warnings.length ? ' with ' + result.warnings.length + ' warning(s); review the preset panel' : '');
+          commit();
+        } catch (err) { ui.message = 'Could not apply preset: ' + err.message; render(); }
+        break;
+      }
       case 'searchHit': navigateSearch(Number(A('data-index'))); break;
       case 'stepBtn': {
         const inp = el.parentElement && el.parentElement.querySelector('input');
@@ -2385,8 +2468,8 @@ export function mountCombatSetup(host, opts) {
   function handleOver(e) {
     const rtEl = e.target.closest ? e.target.closest('[data-rt]') : null;
     if (rtEl && root.contains(rtEl)) {
-      tip.style.display = 'none';
       if (lastRt === rtEl) return;
+      tip.style.display = 'none';
       lastRt = rtEl;
       const fn = rtips[Number(rtEl.getAttribute('data-rt'))];
       let html = '';
@@ -2412,6 +2495,11 @@ export function mountCombatSetup(host, opts) {
   root.addEventListener('input', handleInput);
   root.addEventListener('click', handleClick);
   root.addEventListener('mouseover', handleOver);
+  root.addEventListener('focusin', handleOver);
+  root.addEventListener('focusout', () => { tip.style.display = 'none'; lastRt = null; hideTip(); });
+  root.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { tip.style.display = 'none'; lastRt = null; hideTip(); }
+  });
   root.addEventListener('mouseleave', () => { tip.style.display = 'none'; lastRt = null; hideTip(); });
   function clearDrop() { root.querySelectorAll('.css-setup-drop').forEach(n => n.classList.remove('css-setup-drop')); }
   root.addEventListener('dragstart', e => {

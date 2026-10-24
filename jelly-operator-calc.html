@@ -857,14 +857,14 @@ async function startParallelJellyOptimization(layout,options){
   };
   jellyLiveSearch=state.liveBest||null;
   let lastLiveRenderAt=0;
-  const mergeDiversity=(left={},right={})=>({
-    layouts:Math.max(Number(left.layouts)||0,Number(right.layouts)||0),
-    eliteNiches:Math.max(Number(left.eliteNiches)||0,Number(right.eliteNiches)||0),
-    compositions:Math.max(Number(left.compositions)||0,Number(right.compositions)||0),
-    baseFamilies:Math.max(Number(left.baseFamilies)||0,Number(right.baseFamilies)||0),
-    virusCounts:Array.from(new Set([...(left.virusCounts||[]),...(right.virusCounts||[])])).sort((a,b)=>a-b),
-    cellTypes:Array.from(new Set([...(left.cellTypes||[]),...(right.cellTypes||[])])).sort((a,b)=>a-b),
-    sources:Array.from(new Set([...(left.sources||[]),...(right.sources||[])])).sort(),
+  const mergeDiversity=(left,right)=>({
+    layouts:Math.max(Number(left?.layouts)||0,Number(right?.layouts)||0),
+    eliteNiches:Math.max(Number(left?.eliteNiches)||0,Number(right?.eliteNiches)||0),
+    compositions:Math.max(Number(left?.compositions)||0,Number(right?.compositions)||0),
+    baseFamilies:Math.max(Number(left?.baseFamilies)||0,Number(right?.baseFamilies)||0),
+    virusCounts:Array.from(new Set([...(left?.virusCounts||[]),...(right?.virusCounts||[])])).sort((a,b)=>a-b),
+    cellTypes:Array.from(new Set([...(left?.cellTypes||[]),...(right?.cellTypes||[])])).sort((a,b)=>a-b),
+    sources:Array.from(new Set([...(left?.sources||[]),...(right?.sources||[])])).sort(),
   });
   const acceptLiveUpdate=progress=>{
     const rawCandidate=progress?.bestSoFar;
@@ -3017,7 +3017,7 @@ function optimizerHtml(saved){
           ${card('Board-aware construction',`${fmtInt(optimized.search?.boardAwareSeeds||0)} seeds`,optimized.search?.boardAwareBestScore!=null?`Best board-aware foundation scored ${fmt(optimized.search.boardAwareBestScore)} vs ${fmt(optimized.search.greedyBestSeedScore||0)} for the best first-legal-anchor seed · ${optimized.search?.boardAwareFinalist?'reached finalist simulation':'did not reach finalist simulation'}`:'Not run for this search')}
           ${card('Neighborhood',`${optimized.search?.neighborhoodCandidates||0} checked`,`${optimized.search?.neighborhoodPromoted||0} promoted`)}
           ${card('Exact regional repair',`${optimized.search?.exactRegionLayouts||0} repairs`,`${optimized.search?.exactRegionCompleteScopes||0} complete scopes · ${optimized.search?.exactRegionBudgetLimitedScopes||0} budget-limited`)}
-          ${card('Simulation cache',`${optimized.search?.simulationCacheHits||0} reused`,`${optimized.search?.simulationCacheMisses||0} unique batches · ${fmtInt(optimized.search?.simulationCacheTrialsTrimmed||0)} cached trial records released`)}
+          ${card('Simulation cache',`${optimized.search?.simulationCacheHits||0} reused`,`${optimized.search?.simulationCacheMisses||0} computed batches · ${optimized.search?.simulationCacheEntries!=null?`${fmtInt(optimized.search.simulationCacheEntries)} retained summaries · ${fmtInt(optimized.search.simulationTrialRecordsCompacted||0)} paired trial records compacted`:`${fmtInt(optimized.search?.simulationCacheTrialsTrimmed||0)} cached trial records released`}`)}
           ${optimized.adaptiveConfirmation?.triggered?card('Confirmation',`${optimized.adaptiveConfirmation.confirmedTrials} trials`,`${optimized.adaptiveConfirmation.validationTrials||0} validation trials`):''}
           ${card('Paired vs saved',pairedStatusText,pairedSaved?`${pairedDifference}; ${pct(pairedSaved.chanceBeatsBaseline)} trial wins`:'Requires held-out confirmation')}
         </div>

@@ -102,6 +102,8 @@ button.btn:disabled { opacity: .45; cursor: default; }
 .place-pick .pp-warn { color: var(--gold); }
 .warn { color: var(--gold); }
 .err { color: var(--red); }
+.cmp-open-row { cursor: pointer; }
+.cmp-open-row:focus-within { outline: 1px solid var(--accent); outline-offset: -1px; }
 .scroll { max-height: 520px; overflow: auto; }
 #progress-wrap { margin-top: 10px; display: none; }
 #progress-wrap .bar-outer { height: 12px; }
@@ -285,7 +287,7 @@ code { color: var(--cyan); font-size: .92em; }
     <div id="results"></div>
   </section>
   <section id="workspace-bulk" hidden>
-    <div class="section"><div class="note">Player mode, stop conditions, cavern, inventory and manual-cast settings are shared with Detailed simulation. Each compared loadout supplies its own mechanics and component overrides.</div><div id="bulk-controls-host"></div></div>
+    <div class="section"><div class="note">Player mode, stop conditions, inventory and manual-cast settings are shared with Detailed simulation. Hole map choices select their own cavern; Den/Cove upgrade edits still apply to their matching rows. Each compared loadout supplies its own mechanics and component overrides.</div><div id="bulk-controls-host"></div></div>
   <div class="section" id="cmp-section">
     <h2>Compare characters, loadouts &amp; maps</h2>
     <div id="cmp-loadouts"></div>
@@ -322,6 +324,7 @@ code { color: var(--cyan); font-size: .92em; }
     <div id="cmp-place"></div>
     <div class="note">Choose characters and their loadouts above, and select one or more maps. Create named loadouts in Loadout editor. Every selected character/loadout runs on its eligible maps with its own overrides and the same seeds. Player mode, stop conditions and manual casts are shared through Simulator options; skills are filtered against each loadout's attack bars. Longer runs and more seeds reduce noise.</div>
     <div id="cmp-progress-wrap" style="display:none"><div class="bar-outer"><div class="bar-fill" id="cmp-progress-fill" style="width:0%"></div></div><div id="cmp-progress-label"></div></div>
+    <div id="cmp-open-error" class="err" role="alert"></div>
     <div id="cmp-results"></div>
   </div>
   </section>
@@ -333,7 +336,7 @@ import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
 import { currentMapData, currentMapDataAvailable, dreamData, klaData, optionsListData, numCharacters, equipOrderData, attackLoadoutData } from './js/save/data.js';
 import { buildCharacterMapOptions } from './js/stats/systems/common/map-access.js';
-import { isDungeonMap } from './js/stats/systems/w2/dungeon.js';
+import { combatSimMaps, combatSimMap, reachableCombatSimMapIds } from './js/stats/systems/common/combat-sim-maps.js';
 import { fmtVal } from './js/renderers/format.js';
 import { fmtCoins } from './js/renderers/coins.js';
 import { MapDispName, TalentIconNames, AnimationOffsets, HolesInfo } from './js/stats/data/game/customlists.js';
@@ -346,7 +349,7 @@ import { COMBAT_SPRITE_BASE, SPRITE_DEFAULTS, MAP_SCENES, MOB_SPRITES, PLAYER_AN
 const TOTEM_COUNTER = { WT9: { set: 'b', dx: 20, dy: -60 }, WT13: { set: 'p', dx: 24, dy: -85 }, WT16: { set: 'b', dx: 20, dy: -64 }, WT18: { set: 'c', dx: 18, dy: -67 } };
 import { createCombatSim, scriptedPlayer } from './js/stats/systems/common/combat-sim-core.js';
 import { defaultPlayerNode } from './js/stats/systems/common/combat-sim-world.js';
-import { mapDropProfile, mapsThatDrop, mapFormDrops, crystalEligibility, DROP_GROUPS } from './js/stats/systems/common/combat-sim-map-drops.js';
+import { mapDropProfile, mapsThatDrop, DROP_GROUPS } from './js/stats/systems/common/combat-sim-map-drops.js';
 import { COMBAT_TOGGLES, COMBAT_TOGGLE_BY_ID, TOGGLE_GROUPS, toggleModes, normalizeToggleState, buildToggleOverrides, resolveToggleOverrides, describeToggleState, scalarInputKeys } from './js/stats/systems/common/combat-sim-toggles.js';
 import { buildCombatInputs } from './js/stats/systems/common/combat-sim-inputs.js';
 import { ampDebuff, ampMulti } from './js/stats/systems/common/combat-sim-special.js';
@@ -488,9 +491,7 @@ function fillCharSelect() {
 // mining/chopping/fishing-only scenes and internal placeholders. Dungeon scenes
 // are excluded because their run state is not part of the save.
 function simMapIds() {
-  return Object.keys(SCENE_SPAWNS).map(Number).filter(function (i) {
-    return SCENE_GEOMETRY[i] && !isDungeonMap(i) && SCENE_SPAWNS[i].mobs && SCENE_SPAWNS[i].mobs.some(function (m) { return MONSTERS[m[0]] && MONSTERS[m[0]].AFKtype === 'FIGHTING'; });
-  }).sort(function (a, b) { return a - b; });
+  return Array.from(new Set(combatSimMaps().map(function (map) { return map.mapIdx; })));
 }
 
 // Maps the character has not reached (no current/visited/portal/feature-unlock
@@ -1100,9 +1101,14 @@ window.addEventListener('storage', function (e) {
 
 function simRaw() { return setup.raw || rawSave; }
 
+function simBaseRaw() {
+  return workspace === 'simulation' && $('sim-loadout').value === 'preview' && detailPreview
+    && detailPreview.charIdx === Number($('sel-char').value) ? detailPreview.raw || rawSave : rawSave;
+}
+
 function setupRunInfo() {
   if (!setup.api || !rawSave) return null;
-  var s = workspace === 'simulation' ? diffCombatSetup(rawSave, detailedSetup()) : setup.api.summary();
+  var s = workspace === 'simulation' ? diffCombatSetup(simBaseRaw(), detailedSetup()) : setup.api.summary();
   return s && s.changed ? { changed: s.changed, lines: s.lines.slice(0, 40) } : null;
 }
 
@@ -1119,7 +1125,8 @@ function syncSetup(force) {
     var cur = workspace === 'simulation' ? detailedSetup() : setup.api ? setup.api.current() : null;
     var sig = cur ? JSON.stringify(cur) : '';
     if (!force && sig === setup.sig && !setup.error) return false;
-    var patched = cur ? applyCombatSetup(rawSave, cur) : rawSave;
+    var base = simBaseRaw();
+    var patched = cur ? applyCombatSetup(base, cur) : base;
     if (patched !== rawSave || setup.raw) loadSaveData(patched);
     setup.raw = patched !== rawSave ? patched : null;
     setup.sig = sig;
@@ -1262,6 +1269,15 @@ function makePlayer(mode, mapIdx, killEveryMs, manualCasts, cavern) {
   return undefined; // core default: idle player on the world's default node
 }
 
+function createRun(config) {
+  return Object.assign({
+    id: Date.now() + '-' + Math.random().toString(36).slice(2),
+    snaps: replaySnaps(createReplayStore({ cacheSize: 1500, materializeWindow: 400 })), snapEvery: SNAPSHOT_MS,
+    events: [], eventCounts: {}, timeline: [], timeMs: 0, inputs: {}, player: null,
+    started: performance.now(), cancelled: false,
+  }, config);
+}
+
 function startRun() {
   if (run) return;
   if (!rawSave || $('sim-loadout').disabled) return;
@@ -1274,16 +1290,17 @@ function startRun() {
   var seedIn = $('inp-seed').value;
   var seed = seedIn === '' ? (Math.random() * 4294967295) >>> 0 : (Number(seedIn) >>> 0);
   var mode = $('sel-player').value;
-  var r = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2),
+  var r = createRun({
     ci: ci, character: $('sel-char').selectedOptions[0].textContent, loadout: $('sim-loadout').selectedOptions[0].textContent,
     mapIdx: mapIdx, seconds: seconds, seed: seed, mode: mode, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
     killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500),
-    snaps: replaySnaps(createReplayStore({ cacheSize: 1500, materializeWindow: 400 })), snapEvery: SNAPSHOT_MS,
-    events: [], eventCounts: {}, timeline: [], timeMs: 0, inputs: {}, player: null,
-    started: performance.now(), cancelled: false, gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(setupEditsBuffs(selected)), toggles: selected.toggles || {}, terms: selected.termOverrides || {}, raw: simRaw(), setup: setupRunInfo(),
+    gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(setupEditsBuffs(selected)), toggles: selected.toggles || {}, terms: selected.termOverrides || {}, raw: simRaw(), setup: setupRunInfo(),
     manualCasts: mode === 'auto' ? currentManualCasts() : undefined, stopOn: currentStopOn(),
-  };
+  });
+  beginRun(r);
+}
+
+function beginRun(r) {
   run = r;
   $('btn-run').disabled = true; $('btn-cancel').disabled = false;
   $('progress-wrap').style.display = 'block';
@@ -1347,7 +1364,10 @@ function startWorkerRun(r) {
 
 function startMainThreadRun(r) {
   var player, sim;
-  try { player = makePlayer(r.mode, r.mapIdx, r.killEveryMs, r.manualCasts, runCavern(r.ci, r.mapIdx, r.cavern)); }
+  try {
+    loadSaveData(r.raw);
+    player = makePlayer(r.mode, r.mapIdx, r.killEveryMs, r.manualCasts, runCavern(r.ci, r.mapIdx, r.cavern));
+  }
   catch (e) { failRun(r, 'Could not create player: ' + (e && e.message || e)); return; }
   try {
     sim = withCombatTerms(r.terms, function () {
@@ -1489,20 +1509,40 @@ function render() {
   });
   if (tab === 'replay') mountReplay(r);
   if (tab === 'exp') mountExp(r);
+  var full = $('btn-bulk-details');
+  if (full) full.addEventListener('click', function () {
+    var next;
+    try {
+      if (run) throw new Error('Finish or cancel the active detailed simulation first.');
+      next = Object.assign({}, r, createRun({ bulkOnly: false }));
+      result = null; render(); beginRun(next);
+    } catch (error) {
+      if (next) failRun(next, 'Could not generate full details: ' + error.message);
+      else $('bulk-detail-error').textContent = error.message;
+    }
+  });
 }
 
 function runHeader(r) {
   var nm = r.character || (saveData.charNames && saveData.charNames[r.ci]) || ('Character ' + (r.ci + 1));
   var modeLbl = { auto: 'Auto mode (player AI)', scripted: 'Fixed kill interval stand-in (' + fmtInt(r.killEveryMs) + ' ms)', idle: 'Idle' }[r.mode];
   var h = '<div class="note" style="margin:0 0 12px">' + escHtml(nm) + ' on <b>' + escHtml(mapName(r.mapIdx)) + '</b> (map ' + r.mapIdx + ') · '
-    + (r.mapIdx === 216 ? 'cavern <b>' + escHtml(cavernName(runCavern(r.ci, 216, r.cavern))) + '</b>' + (r.cavern == null ? ' (saved)' : '') + ' · ' : '') + fmtSec(r.timeMs) + ' simulated in ' + (r.elapsedMs / 1000).toFixed(1) + 's · seed ' + r.seed + ' · ' + escHtml(modeLbl || r.mode);
+    + (r.mapIdx === 216 ? 'cavern <b>' + escHtml(cavernName(runCavern(r.ci, 216, r.cavern))) + '</b>' + (r.cavern == null ? ' (saved)' : '') + ' · ' : '') + fmtSec(r.timeMs) + ' simulated'
+    + (Number.isFinite(r.elapsedMs) ? ' in ' + (r.elapsedMs / 1000).toFixed(1) + 's' : '') + ' · seed ' + r.seed + ' · ' + escHtml(modeLbl || r.mode);
   if (r.loadout) h += ' · loadout: <b>' + escHtml(r.loadout) + '</b>';
+  if (r.comparison) h += '<br>' + (r.bulkOnly ? 'Stored result from' : 'Resimulated') + ' bulk seed ' + r.comparison.seedIndex + ' of ' + r.comparison.seedCount
+    + ', using the captured save and settings. This is one run; the bulk row combines its completed seeds.';
   if (r.stale) h += ' · <span class="warn">' + (typeof r.stale === 'string' ? r.stale : 'save reloaded since this run') + '</span>';
   if (r.message) h += '<br><span class="warn">' + escHtml(r.message) + '</span>';
   if (r.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
   h += '<br>' + escHtml(crystalRunText(r.gcrystal, r.inputs)) + unlimInvRunText(r.unlimInv) + savedBuffsRunText(r.savedBuffs);
   h += toggleRunText(r.toggles) + cavRunText(r.cav) + termRunText(r.terms) + setupRunText(r.setup) + manualRunText(r.manualCasts) + stopOnRunText(r.stopOn);
-  return h + '</div>';
+  h += '</div>';
+  if (r.bulkOnly) h += '<div class="note">Opening this row does not run another simulation. Replay frames, input breakdowns and the event log were not recorded by the bulk run.</div>'
+    + '<div class="toolbar"><button class="btn" id="btn-bulk-details">Generate full details &amp; replay</button>'
+    + '<span class="note">Opt in to resimulating this seed with the captured save and settings.</span></div>'
+    + '<div class="err" id="bulk-detail-error" role="alert"></div>';
+  return h;
 }
 
 // Daily guaranteed crystals: kills spawn a crystal while OptionsListAccount[101] (crystals
@@ -1918,6 +1958,7 @@ function renderSummary(r) {
     + card('On the ground', fmtInt(R.onGroundCount), 'Uncollected item stacks')
     + '</div>';
 
+  html += renderDenSummary(r);
   html += renderPlayerStats(r);
   html += renderCombatProgress(r);
   if (R.obolFragments) {
@@ -1955,6 +1996,24 @@ function renderSummary(r) {
     html += '</tbody></table><div class="note">These game paths were reached but are not modelled yet, so their effects are missing from the totals above.</div>';
   }
   return html;
+}
+
+function denStatus(d) {
+  return d.active === 1 ? 'In progress' : d.active === 0.5 ? 'Ending' : d.runs > 0 ? 'Ended' : 'Not started';
+}
+
+function renderDenSummary(r) {
+  var sp = r.summary.special, d = sp && sp.state && sp.state.den;
+  if (!d) return '';
+  var totals = sp.den;
+  return '<h3>The Den</h3><div class="card-grid cols-4">'
+    + card('Den score', fmtNum(d.score), denStatus(d) + (d.active === 1 ? ' · Provisional until the attempt ends' : ''))
+    + card('Hounds killed', fmtInt(d.kills), totals.runs > 1 ? fmtInt(totals.houndsKilled) + ' across ' + fmtInt(totals.runs) + ' attempts' : 'Actual kills, not multikill credit')
+    + card('Hounds spawned', fmtInt(totals.houndsSpawned), 'Wave ' + fmtInt(d.wave))
+    + card('Fear', fmtNum(d.fear) + ' / ' + fmtNum(d.fearMax), fmtInt(d.tokens) + ' incoming fear tokens')
+    + card('Skull chain', fmtInt(d.chain), 'Skull hounds killed this attempt')
+    + card('Opals earned', fmtInt(totals.opals), 'Awarded during this simulation after the attempt ends')
+    + '</div>';
 }
 
 function renderCombatProgress(r) {
@@ -2131,7 +2190,8 @@ function renderExp(r) {
     h += '<div id="exp-multiplier-tree"></div><div id="exp-tree-tooltip" class="exp-tooltip" role="tooltip"></div>';
   } else h += '<div class="warn">Multiplier breakdown unavailable for this run.</div>';
   var points = [{ t: 0, exp: 0 }].concat(r.timeline || []).filter(function (p) { return p.t < r.timeMs; });
-  if (r.timeMs > 0) {
+  if (r.bulkOnly) h += '<div class="note">The EXP timeline and starting multiplier breakdown were not recorded in the bulk run.</div>';
+  else if (r.timeMs > 0) {
     points.push({ t: r.timeMs, exp: R.expTotal || 0 });
     h += '<h3>Class EXP over time</h3>' + timelineSvg({ timeline: points }, 'exp');
   }
@@ -2207,6 +2267,7 @@ function renderEvents(r) {
   var html = '<h3>Event counts</h3><table class="data-table" style="max-width:420px"><thead><tr><th>Event</th><th class="num">Count</th></tr></thead><tbody>';
   Object.keys(r.eventCounts).sort().forEach(function (k) { html += '<tr><td><code>' + escHtml(k) + '</code></td><td class="num">' + fmtInt(r.eventCounts[k]) + '</td></tr>'; });
   html += '</tbody></table>';
+  if (r.bulkOnly) return html + '<div class="note">Event counts are from the original bulk run. The event log was not recorded; use Generate full details &amp; replay to resimulate.</div>';
   html += '<h3>Event log <span class="note">(first ' + EVENT_LOG_MAX + ' events; damage, drop rolls, and landings are counted only)</span></h3><div class="scroll"><table class="data-table"><thead><tr><th class="num">Time</th><th>Event</th><th>Detail</th></tr></thead><tbody>';
   r.events.forEach(function (e) {
     var p = Object.assign({}, e.p); var t = p.t; delete p.t;
@@ -2216,6 +2277,7 @@ function renderEvents(r) {
 }
 
 function renderInputs(r) {
+  if (r.bulkOnly) return '<div class="note">Input breakdowns were not retained by the bulk run. Use Generate full details &amp; replay to resimulate the captured seed.</div>';
   var e = r.inputs || {};
   var keys = Object.keys(e);
   var counts = { ok: 0, partial: 0, unavailable: 0, override: 0 };
@@ -2246,11 +2308,14 @@ function renderInputs(r) {
 // ---------------------------------------------------------------------------
 var cmp = null;
 
-function mapWorld(m) { return Math.floor(Number(m) / 50) + 1; }
+function mapWorld(m) { return Math.floor(Number(String(m).split(':')[0]) / 50) + 1; }
+function cmpMapName(id) { var map = combatSimMap(id); return map ? map.name : mapName(id); }
+function cmpMapIds() { return combatSimMaps().map(function (map) { return map.id; }); }
+function cmpParseMapId(id) { return String(id).indexOf('216:') === 0 ? String(id) : Number(id); }
 
 function reachableMapSet(ci) {
   var snap = setup.access || { saveData: saveData, klaData: klaData, currentMapData: currentMapData, currentMapDataAvailable: currentMapDataAvailable, dreamData: dreamData, optionsListData: optionsListData };
-  return new Set(buildCharacterMapOptions(ci, snap, { level: 'accessible' }).map(function (o) { return o.mapIdx; }));
+  return reachableCombatSimMapIds(ci, snap);
 }
 
 // Compare map selection, persisted across reloads.
@@ -2258,6 +2323,10 @@ var CMP_PICK_KEY = 'combat-sim-cmp-pick';
 var cmpPick = (function () {
   var d = { worlds: [1, 2, 3, 4, 5, 6, 7], maps: [], drop: 'group:statue', source: 'any', search: '', reach: true, chipGroup: '', metricColumns: null, characters: null, loadouts: {} };
   try { var s = JSON.parse(localStorage.getItem(CMP_PICK_KEY) || 'null'); if (s && typeof s === 'object') Object.assign(d, s); } catch (_) {}
+  d.maps = (Array.isArray(d.maps) ? d.maps : []).flatMap(function (id) {
+    if (Number(id) === 216) return combatSimMaps().filter(function (m) { return m.mapIdx === 216; }).map(function (m) { return m.id; });
+    var map = combatSimMap(id); return map ? [map.id] : [];
+  });
   return d;
 })();
 function saveCmpPick() { try { localStorage.setItem(CMP_PICK_KEY, JSON.stringify(cmpPick)); } catch (_) {} }
@@ -2353,7 +2422,7 @@ var MC_TARGETS = ['Bone0', 'Bone1', 'Bone2', 'Bone3', 'Dust0', 'Dust1', 'Dust2',
 function dropTargets() {
   if (dropTargetList) return dropTargetList;
   var seen = {};
-  simMapIds().forEach(function (m) { var it = mapDropProfile(m).items; for (var k in it) if (!MC_KEY.test(k)) seen[k] = 1; });
+  cmpMapIds().forEach(function (m) { var it = cmpMapDropProfile(m).items; for (var k in it) if (!MC_KEY.test(k)) seen[k] = 1; });
   dropTargetList = Object.keys(seen).sort(function (a, b) { return itemName(a).localeCompare(itemName(b)); });
   return dropTargetList;
 }
@@ -2371,13 +2440,21 @@ function dropTargetName(t) {
 }
 
 function compareMapIds(ci, scope) {
-  var ids = simMapIds();
+  var ids = cmpMapIds();
   if (scope === 'all') return ids;
-  if (scope === 'custom') { var pick = new Set(cmpPick.maps.map(Number)); return ids.filter(function (i) { return pick.has(i); }); }
+  if (scope === 'custom') { var pick = new Set(cmpPick.maps); return ids.filter(function (i) { return pick.has(i); }); }
   var reach = scope === 'accessible' || cmpPick.reach ? reachableMapSet(ci) : null;
   if (reach) ids = ids.filter(function (i) { return reach.has(i); });
   if (scope === 'world') { var ws = new Set(cmpPick.worlds.map(Number)); return ids.filter(function (i) { return ws.has(mapWorld(i)); }); }
-  if (scope === 'drops') return mapsThatDrop(ids, cmpPick.drop, { source: cmpPick.source }).map(function (x) { return x.mapIdx; });
+  if (scope === 'drops') return ids.filter(function (id) {
+    var map = combatSimMap(id);
+    if (map.holeCavern == null) return mapsThatDrop([map.mapIdx], cmpPick.drop, { source: cmpPick.source }).length > 0;
+    var profile = cmpMapDropProfile(id), test = dropMatcher(cmpPick.drop);
+    return Object.keys(profile.items).some(function (key) {
+      var item = profile.items[key];
+      return test(key) && item.sources.some(function (s) { return cmpPick.source === 'any' || s.from === cmpPick.source; });
+    });
+  });
   return ids;
 }
 
@@ -2388,12 +2465,12 @@ function renderCmpPick() {
   $('cmp-reach').checked = !!cmpPick.reach;
   if (!rawSave && scope !== 'all') { host.innerHTML = ''; renderCmpPlace(); return; }
   var ci = Number($('sel-char').value) || 0;
-  var count = rawSave ? compareMapIds(ci, scope).length : simMapIds().length;
+  var count = rawSave ? compareMapIds(ci, scope).length : cmpMapIds().length;
   var countTxt = '<div class="note" id="cmp-pick-count">' + count + ' map' + (count === 1 ? '' : 's') + ' selected.</div>';
   if (scope === 'accessible' || scope === 'all') { host.innerHTML = countTxt; refreshCmpCount(); return; }
   var h = '<div class="cmp-pick-box">';
   if (scope === 'world') {
-    var all = simMapIds();
+    var all = cmpMapIds();
     h += '<div class="toolbar">';
     for (var w = 1; w <= 7; w++) {
       var n = all.filter(function (i) { return mapWorld(i) === w; }).length;
@@ -2401,20 +2478,20 @@ function renderCmpPick() {
     }
     h += '</div>';
   } else if (scope === 'custom') {
-    var reach = reachableMapSet(ci), sel = new Set(cmpPick.maps.map(Number)), q = String(cmpPick.search || '').toLowerCase();
+    var reach = reachableMapSet(ci), sel = new Set(cmpPick.maps), q = String(cmpPick.search || '').toLowerCase();
     h += '<div class="toolbar"><label>Filter<input id="cmp-search" type="text" placeholder="Map name, number, or monster" value="' + escHtml(cmpPick.search || '') + '"></label>'
       + '<button class="btn secondary" data-cmp-bulk="reach">Select reachable</button><button class="btn secondary" data-cmp-bulk="none">Clear</button></div>';
     var byW = {};
-    simMapIds().forEach(function (m) { (byW[mapWorld(m)] = byW[mapWorld(m)] || []).push(m); });
+    cmpMapIds().forEach(function (m) { (byW[mapWorld(m)] = byW[mapWorld(m)] || []).push(m); });
     Object.keys(byW).forEach(function (w) {
       var picked = byW[w].filter(function (m) { return sel.has(m); }).length;
       h += '<div class="cmp-world"><div class="cmp-world-head">World ' + w + ' <span class="note" style="margin:0">' + picked + ' of ' + byW[w].length + '</span>'
         + '<button data-cmp-wall="' + w + '">All</button><button data-cmp-wnone="' + w + '">None</button></div><div class="cmp-map-list">';
       byW[w].forEach(function (m) {
-        var mobs = mapDropProfile(m).mobs.map(function (x) { return monName(x.type); }).join(', ');
-        var text = (m + ' ' + mapName(m) + ' ' + mobs).toLowerCase();
+        var mobs = cmpMapDropProfile(m).mobs.map(function (x) { return monName(x.type); }).join(', ');
+        var text = (m + ' ' + cmpMapName(m) + ' ' + mobs).toLowerCase();
         h += '<label class="' + (q && text.indexOf(q) < 0 ? 'hidden' : '') + '" data-cmp-text="' + escHtml(text) + '"><input type="checkbox" data-cmp-map="' + m + '"' + (sel.has(m) ? ' checked' : '') + '>'
-          + m + ' · ' + escHtml(mapName(m)) + (reach.has(m) ? '' : ' <span class="badge badge-red">locked</span>') + '</label>';
+          + m + ' · ' + escHtml(cmpMapName(m)) + (reach.has(m) ? '' : ' <span class="badge badge-red">locked</span>') + '</label>';
       });
       h += '</div></div>';
     });
@@ -2453,7 +2530,7 @@ function renderCmpPlace() {
   if (!host) return;
   var ids = rawSave && $('sel-player').value === 'auto' ? manualSkillIds().filter(function (id) { return manualState[id] && manualState[id].on && placementOf(id); }) : [];
   if (!ids.length) { host.innerHTML = ''; return; }
-  var maps = compareMapIds(Number($('sel-char').value) || 0, $('cmp-scope').value);
+  var maps = Array.from(new Set(compareMapIds(Number($('sel-char').value) || 0, $('cmp-scope').value).map(function (id) { return combatSimMap(id).mapIdx; })));
   var h = '';
   ids.forEach(function (id) {
     var placed = 0, def = 0, none = 0, rows = '';
@@ -2490,7 +2567,7 @@ $('cmp-pick').addEventListener('change', function (e) {
     var w = Number(t.dataset.cmpWorld), i = cmpPick.worlds.indexOf(w);
     if (t.checked && i < 0) cmpPick.worlds.push(w); else if (!t.checked && i >= 0) cmpPick.worlds.splice(i, 1);
   } else if (t.dataset.cmpMap) {
-    var m = Number(t.dataset.cmpMap), j = cmpPick.maps.indexOf(m);
+    var m = cmpParseMapId(t.dataset.cmpMap), j = cmpPick.maps.indexOf(m);
     if (t.checked && j < 0) cmpPick.maps.push(m); else if (!t.checked && j >= 0) cmpPick.maps.splice(j, 1);
     saveCmpPick(); renderCmpPick(); return;
   } else if (t.id === 'cmp-drop') cmpPick.drop = t.value;
@@ -2507,12 +2584,12 @@ $('cmp-pick').addEventListener('input', function (e) {
 $('cmp-pick').addEventListener('click', function (e) {
   var t = e.target.closest('[data-cmp-bulk],[data-cmp-wall],[data-cmp-wnone]');
   if (!t) return;
-  var ids = simMapIds(), q = String(cmpPick.search || '').toLowerCase();
+  var ids = cmpMapIds(), q = String(cmpPick.search || '').toLowerCase();
   var visible = function (m) { if (!q) return true; var l = document.querySelector('#cmp-pick [data-cmp-map="' + m + '"]'); return !l || !l.parentNode.classList.contains('hidden'); };
   if (t.dataset.cmpBulk === 'reach') cmpPick.maps = Array.from(reachableMapSet(Number($('sel-char').value) || 0));
   else if (t.dataset.cmpBulk === 'none') cmpPick.maps = [];
   else {
-    var w = Number(t.dataset.cmpWall || t.dataset.cmpWnone), add = !!t.dataset.cmpWall, set = new Set(cmpPick.maps.map(Number));
+    var w = Number(t.dataset.cmpWall || t.dataset.cmpWnone), add = !!t.dataset.cmpWall, set = new Set(cmpPick.maps);
     ids.filter(function (m) { return mapWorld(m) === w && visible(m); }).forEach(function (m) { if (add) set.add(m); else set.delete(m); });
     cmpPick.maps = Array.from(set);
   }
@@ -2520,13 +2597,17 @@ $('cmp-pick').addEventListener('click', function (e) {
 });
 
 // Per-map badges from static drop tables: crystal eligibility and monster statue drops.
+function cmpMapDropProfile(id) {
+  var map = combatSimMap(id);
+  return mapDropProfile(map ? map.mapIdx : id, map && map.holeCavern != null ? map.target : undefined);
+}
 function mapDropBadges(m) {
-  var p = mapDropProfile(m), out = '';
+  var p = cmpMapDropProfile(m), out = '';
   if (!p.crystal.eligible) out += ' <span class="badge badge-red" title="' + escHtml(p.crystal.reason) + '">no crystals</span>';
   var st = Object.keys(p.items).filter(function (k) { return /^EquipmentStatues/.test(k) && p.items[k].monsterChance > 0; });
   if (st.length) out += ' <span class="badge badge-cyan" title="' + escHtml('Map monsters drop: ' + st.map(itemName).join(', ')) + '">mob statues</span>';
   // Master Class base quantity per drop (highest across the map's monsters), only for keys the drop filter is looking for.
-  var mc = mapFormDrops(m).filter(function (d) { return !d.nova; }), want = cmp && cmp.dropTarget ? dropMatcher(cmp.dropTarget) : null;
+  var mc = p.forms.filter(function (d) { return !d.nova; }), want = cmp && cmp.dropTarget ? dropMatcher(cmp.dropTarget) : null;
   var best = {};
   mc.forEach(function (d) { if (!best[d.key] || d.qty > best[d.key].qty) best[d.key] = d; });
   var keys = Object.keys(best).filter(function (k) { return !want || want(k); });
@@ -2547,7 +2628,6 @@ function startCompare() {
       variants.forEach(function (v, index) {
         v.id = ch.choices[index].id; v.label = ch.choices[index].label;
         v.manualIds = v.raw ? manualSkillIds(v.raw, ch.charIdx) : [];
-        v.cav = cavCfgFor(ch.charIdx, 216, $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), v.raw);
       });
       return { charIdx: ch.charIdx, label: ch.label, variants: variants, maps: compareMapIds(ch.charIdx, scope) };
     });
@@ -2556,10 +2636,12 @@ function startCompare() {
   var base = (Math.random() * 4294967295) >>> 0, seeds = [];
   for (var s = 0; s < nSeeds; s++) seeds.push((base + s * 2654435761) >>> 0);
   var plan = characterMapComparePlan(characters, seeds), jobs = plan.jobs;
-  var maps = Array.from(new Set(plan.rows.map(function (r) { return r.mapIdx; })));
+  var maps = Array.from(new Set(plan.rows.map(function (r) { return r.mapId; })));
   if (!plan.rows.length) { $('cmp-results').innerHTML = '<div class="err">Select at least one character, loadout and eligible map.</div>'; return; }
   var prevSel = cmp && cmp.selected;
+  $('cmp-open-error').textContent = '';
   cmp = {
+    raw: rawSave,
     id: Date.now() + '-' + Math.random().toString(36).slice(2), running: true, ci: ci, scope: scope, seconds: seconds, seeds: seeds,
     mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked, cavern: $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), toggles: currentToggles(), terms: currentTerms(),
     stopOn: currentStopOn(),
@@ -2570,6 +2652,7 @@ function startCompare() {
   plan.rows.forEach(function (r) {
     cmp.rows[r.id] = Object.assign({ runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, items: {}, metrics: {}, cards: 0, errors: [], unmodelled: 0, invFull: 0 }, r);
     var row = cmp.rows[r.id];
+    row.cav = cavCfgFor(r.charIdx, r.mapIdx, r.holeCavern, r.variant.raw);
     row.manualCasts = cmp.mode === 'auto' ? currentManualCasts(r.mapIdx, r.variant.manualIds) : undefined;
     if (!r.variant.raw) row.errors.push(r.variant.warnings.join('; ') || 'Loadout could not be applied');
   });
@@ -2598,7 +2681,7 @@ function dispatchCompare(c, w) {
   w.busy = { id: id, job: j, frac: 0 };
   c.active[id] = w.busy;
   w.postMessage({
-    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, j.mapIdx === 216 ? c.cavern : null, j.mapIdx === 216 ? row.variant.cav : null, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
+    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, row.holeCavern, row.cav, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
   });
 }
@@ -2609,7 +2692,14 @@ function onCompareMessage(c, w, ev) {
   if (m.type === 'progress') { b.frac = Math.min(1, (m.t || 0) / c.seconds); updateCompareProgress(c); return; }
   if (m.type !== 'done' && m.type !== 'error') return;
   var row = c.rows[b.job.rowId];
-  if (m.type === 'done') addCompareRun(row, m);
+  if (m.type === 'done') {
+    if (!row.detail) row.detail = {
+      seed: b.job.seed, summary: m.summary || {}, player: m.player || null,
+      eventCounts: m.events || {}, timeMs: m.timeMs || 0, unmodelled: m.unmodelled || {},
+      expStart: m.expStart, message: m.cancelled ? 'Cancelled; partial bulk results.' : endedMessage(m.ended),
+    };
+    addCompareRun(row, m);
+  }
   else row.errors.push(m.unsupported ? 'Not supported: ' + m.message : m.message);
   delete c.active[b.id];
   c.done++;
@@ -2715,7 +2805,7 @@ function compareColumns(c) {
   var itemMaps = {}, metricMaps = {};
   var seen = {};
   rows.forEach(function (r) {
-    for (var k in r.items) if (r.items[k] > 0) { var ms = seen[k] || (seen[k] = new Set()); ms.add(r.mapIdx); itemMaps[k] = ms.size; }
+    for (var k in r.items) if (r.items[k] > 0) { var ms = seen[k] || (seen[k] = new Set()); ms.add(r.mapId == null ? r.mapIdx : r.mapId); itemMaps[k] = ms.size; }
     for (var k2 in r.metrics) if (r.metrics[k2] || k2 === 'obolFragments') metricMaps[k2] = (metricMaps[k2] || 0) + 1;
   });
   var shared = Object.keys(itemMaps).filter(function (k) { return itemMaps[k] >= 2; })
@@ -2727,7 +2817,7 @@ function compareColumns(c) {
 function compareValue(c, row, key) {
   if (key === 'character') return row.character || '';
   if (key === 'loadout') return row.loadout || '';
-  if (key === 'map') return row.mapIdx;
+  if (key === 'map') return row.mapIdx + (row.holeCavern || 0) / 100;
   if (setupCompareUnit(key) === 'run') {
     var total = key.indexOf('item:') === 0 ? row.items[key.slice(5)] : row.metrics[key.slice(7)];
     return row.runs > 0 ? (total || 0) / row.runs : 0;
@@ -2753,7 +2843,7 @@ function renderCompare() {
   var focusedColumn = host.contains(document.activeElement) && document.activeElement.dataset.cmpExtra;
   var cols = compareColumns(c);
   if (!c.selected) {
-    var half = Math.max(2, Math.ceil(new Set(cols.rows.map(function (r) { return r.mapIdx; })).size / 2));
+    var half = Math.max(2, Math.ceil(new Set(cols.rows.map(function (r) { return r.mapId == null ? r.mapIdx : r.mapId; })).size / 2));
     var pick = cols.shared.filter(function (k) { return cols.itemMaps[k] >= half && !/^Cards/.test(k); });
     if (!pick.length) pick = cols.shared.filter(function (k) { return !/^Cards/.test(k); });
     if (c.dropTarget) {
@@ -2773,7 +2863,7 @@ function renderCompare() {
   if (c.dropTarget) h += '<br>Maps that can drop ' + escHtml(dropTargetName(c.dropTarget)) + '.';
   h += '<br>' + (c.gcrystal ? 'Daily guaranteed crystals on: every run starts with today\'s remaining guarantee, so crystal drops are front-loaded.' : 'Daily guaranteed crystals off: random crystal chance only.') + unlimInvRunText(c.unlimInv) + savedBuffsRunText(c.savedBuffs);
   h += (c.variants ? '' : toggleRunText(c.toggles) + termRunText(c.terms)) + cavRunText(c.cav) + setupRunText(c.setup) + manualRunText(c.manualCasts) + manualByMapText(c.manualByMap) + stopOnRunText(c.stopOn);
-  if (c.variants) h += '<br>Each row uses its captured character loadout, mechanics overrides and component terms. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Cavern: ' + (c.cavern == null ? 'each character\'s saved cavern' : fmtInt(c.cavern)) + '.';
+  if (c.variants) h += '<br>Each row uses its captured character loadout, mechanics overrides and component terms. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Each Hole row uses its named cavern, independently of the Detailed simulation cavern selector.';
   h += '</div>';
 
   h += '<h3>Drops found on more than one map</h3>';
@@ -2817,7 +2907,7 @@ function renderCompare() {
     h += '<h3>Best ' + (c.variants ? 'character / loadout / map' : 'map') + ' per drop</h3><div class="card-grid cols-4">';
     sel.forEach(function (k) {
       var b = best['item:' + k];
-      h += card(escHtml(itemName(k)), b.map == null ? '—' : (k === 'COIN' ? fmtCoins : fmtNum)(b.v), b.map == null ? '' : (c.variants ? escHtml(b.row.character + ' · ' + b.row.loadout) + '<br>' : '') + escHtml(mapName(b.map)) + ' (map ' + b.map + ')' + (setupCompareUnit('item:' + k) === 'run' ? ' per run' : c.metric === 'perKill' ? ' per kill' : ' per hour'));
+      h += card(escHtml(itemName(k)), b.map == null ? '—' : (k === 'COIN' ? fmtCoins : fmtNum)(b.v), b.map == null ? '' : (c.variants ? escHtml(b.row.character + ' · ' + b.row.loadout) + '<br>' : '') + escHtml(cmpMapName(b.row.mapId == null ? b.map : b.row.mapId)) + ' (map ' + b.map + ')' + (setupCompareUnit('item:' + k) === 'run' ? ' per run' : c.metric === 'perKill' ? ' per kill' : ' per hour'));
     });
     h += '</div>';
   }
@@ -2853,7 +2943,7 @@ function renderCompare() {
     return '<td class="num' + (isBest && v > 0 ? ' cmp-best' : '') + '">' + (d[0] === 'coins' || d[0] === 'item:COIN' ? fmtCoins(v) : v ? fmtNum(v) : '<span class="note">0</span>') + '</td>';
   };
   var mapRowHtml = function (r) {
-    var s = '<tr>' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><a href="#" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + r.mapIdx + ' · ' + escHtml(mapName(r.mapIdx)) + '</a>' + mapDropBadges(r.mapIdx);
+    var s = '<tr class="cmp-open-row" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><a href="#" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + r.mapIdx + ' · ' + escHtml(cmpMapName(r.mapId == null ? r.mapIdx : r.mapId)) + '</a>' + mapDropBadges(r.mapId == null ? r.mapIdx : r.mapId);
     if (r.errors.length) s += ' <span class="badge badge-red" title="' + escHtml(r.errors.join('; ')) + '">' + escHtml(r.errors[0].slice(0, 40)) + '</span>';
     if (r.invFull) s += ' <span class="badge badge-gold">bag full</span>';
     if (r.stopped) s += ' <span class="badge badge-cyan">stopped ' + r.stopped + '/' + r.runs + ' (first at ' + escHtml(fmtSec(r.stoppedAt)) + ')</span>';
@@ -2886,7 +2976,7 @@ function renderCompare() {
     else wrows.forEach(function (t) { h += worldRowHtml(t, bestW); groups[t.groupKey].forEach(function (r) { h += mapRowHtml(r); }); });
   }
   h += '</tbody></table></div>';
-  h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or a map name to open its captured loadout in Detailed simulation. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
+  h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or anywhere on a completed map row to view its stored results from one bulk seed, without resimulating. Full details and replay are an opt-in rerun. World-average rows are not individual runs. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
   host.innerHTML = h;
   if (focusedColumn) {
     var focus = Array.from(host.querySelectorAll('[data-cmp-extra]')).find(function (el) { return el.dataset.cmpExtra === focusedColumn; });
@@ -2895,6 +2985,44 @@ function renderCompare() {
 }
 
 // ---------------------------------------------------------------------------
+function openCompareRow(c, row) {
+  if (run) throw new Error('Finish or cancel the active detailed simulation before opening another row.');
+  var v = row.variant;
+  if (!v || !v.raw) throw new Error('This row has no valid captured loadout to simulate.');
+  if (!row.detail) throw new Error('This row has no completed simulation yet. Wait for a run to finish before opening its details.');
+  var seed = row.detail.seed;
+  var r = createRun({
+    ci: row.charIdx, character: row.character, loadout: row.loadout,
+    mapIdx: row.mapIdx, seconds: c.seconds, seed: seed, mode: c.mode,
+    cavern: row.holeCavern == null ? c.cavern : row.holeCavern, cav: row.cav,
+    killEveryMs: c.killEveryMs, gcrystal: c.gcrystal, unlimInv: c.unlimInv,
+    savedBuffs: c.savedBuffs || v.editsBuffs, toggles: v.toggles || {}, terms: v.termOverrides || {},
+    raw: v.raw, setup: v.changed ? { changed: v.changed, lines: v.lines } : null,
+    manualCasts: row.manualCasts, stopOn: c.stopOn, stale: c.stale,
+    comparison: { seedIndex: c.seeds.indexOf(seed) + 1, seedCount: c.seeds.length },
+  });
+  Object.assign(r, row.detail, { bulkOnly: true });
+  $('sel-char').value = String(row.charIdx);
+  $('editor-char').value = $('sel-char').value;
+  if (setup.api) setup.api.refresh();
+  detailPreview = { charIdx: row.charIdx, label: row.loadout || 'Captured loadout',
+    raw: c.raw, setup: v.setup || { charIdx: row.charIdx, patches: [] } };
+  renderSimLoadouts(); $('sim-loadout').value = 'preview'; $('sim-loadout').dataset.key = '';
+  showWorkspace('simulation');
+  fillMapSelect(row.mapIdx); $('sel-map').value = String(row.mapIdx);
+  $('sel-cavern').value = r.cavern == null ? '' : String(r.cavern); fillCavernSelect(); restoreCavCfg(row.cav);
+  $('sel-player').value = r.mode;
+  $('inp-kill').value = r.killEveryMs;
+  $('inp-seed').value = String(r.seed);
+  if (!Array.from($('sel-dur').options).some(function (o) { return o.value === String(r.seconds); })) {
+    $('sel-dur').add(new Option(fmtRunLen(r.seconds) + ' (bulk run)', String(r.seconds)));
+  }
+  $('sel-dur').value = String(r.seconds);
+  renderManualCasts(); renderCmpPick(); if (setup.api) setup.api.derivedChanged();
+  stopReplay(); result = r; tab = 'summary'; render();
+  $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 $('cmp-run').addEventListener('click', startCompare);
 $('cmp-cancel').addEventListener('click', cancelCompare);
 $('cmp-results').addEventListener('click', function (e) {
@@ -2916,19 +3044,8 @@ $('cmp-results').addEventListener('click', function (e) {
     e.preventDefault();
     var row = cmp.rows[t.dataset.cmpOpen];
     if (!row) return;
-    $('sel-char').value = String(row.charIdx == null ? cmp.ci : row.charIdx);
-    if (setup.api) {
-      setup.api.refresh();
-    }
-    detailPreview = { charIdx: Number($('sel-char').value), label: row.loadout || 'Captured loadout',
-      setup: row.variant && row.variant.setup || { charIdx: Number($('sel-char').value), patches: [] } };
-    renderSimLoadouts(); $('sim-loadout').value = 'preview'; $('sim-loadout').dataset.key = '';
-    showWorkspace('simulation');
-    fillMapSelect(row.mapIdx); $('sel-map').value = String(row.mapIdx);
-    $('sel-cavern').value = cmp.cavern == null ? '' : String(cmp.cavern); fillCavernSelect(); restoreCavCfg(row.variant ? row.variant.cav : cmp.cav);
-    renderManualCasts(); renderCmpPick(); if (setup.api) setup.api.derivedChanged();
-    $('editor-char').value = $('sel-char').value;
-    $('sel-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    try { $('cmp-open-error').textContent = ''; openCompareRow(cmp, row); }
+    catch (error) { $('cmp-open-error').textContent = error.message; }
   }
 });
 $('cmp-results').addEventListener('keydown', function (e) {
@@ -3245,6 +3362,12 @@ function rpDrawHud(ctx, H, P, T, k, VH) {
   ctx.restore();
 }
 
+function denReplayValues(d) {
+  return { status: denStatus(d), kills: fmtInt(d.kills), score: fmtNum(d.score),
+    fear: fmtNum(d.fear) + ' / ' + fmtNum(d.fearMax), wave: fmtInt(d.wave),
+    chain: fmtInt(d.chain), opals: fmtInt(d.opals) };
+}
+
 function renderReplayShell(r) {
   if (r.snaps.length < 2) return '<div class="note">No replay frames recorded.</div>';
   var maxT = r.snaps.time(r.snaps.length - 1);
@@ -3265,16 +3388,23 @@ function renderReplayShell(r) {
     + '<span class="rp-bean-gear">Bean gear:' + RP_BEAN_PIECES.map(function (p) {
       return '<label><input type="checkbox" data-bean-piece="' + p[0] + '"' + (replay.beanGear[p[0]] ? ' checked' : '') + (replay.bean ? '' : ' disabled') + '>' + p[1] + '</label>';
     }).join('') + '</span></div>'
+    + (r.snaps[0].den ? '<div class="replay-opts" id="rp-den"><strong>The Den</strong>'
+      + [['status', 'Status'], ['kills', 'Hounds killed'], ['score', 'Score'], ['fear', 'Fear'], ['wave', 'Wave'], ['chain', 'Skull chain'], ['opals', 'Opals earned']].map(function (v) {
+        return '<span>' + v[1] + ': <b id="rp-den-' + v[0] + '"></b></span>';
+      }).join('') + '</div>' : '')
     + '<canvas id="replay-canvas"></canvas>'
     + '<div class="note">Replay records ' + (r.replayOom ? 'only the first ' + fmtSec(maxT) + ' (the browser ran out of memory; simulation results still cover the full run)' : (r.seconds > REPLAY_MAX_SECONDS ? 'the first ' : 'all ') + fmtSec(maxT)) + ' at ' + r.snapEvery + ' ms resolution (binary delta-encoded, ' + (r.snaps.bytes / 1048576).toFixed(1) + ' MB) and interpolates positions between frames. '
     + (scene ? 'Scene <code>' + escHtml(scene.sceneName) + '</code> uses the game\'s background, parallax, platform art, monster/projectile/item sheets, portals, the player composited with the saved helmet, weapon, cape and shirt, and the Orb of Remembrance/Verisimilitude kill counter (see <code>assets/combat-sim/metadata.json</code>). Pets and scenery decorations are not drawn; damage numbers come from HP changes between frames.'
-      : 'No extracted scene art for this map; showing collision geometry.') + '</div>';
+      : 'No extracted scene art for this map; showing collision geometry.')
+    + (scene && scene.caverns ? ' Combat caverns include their native backgrounds and landmarks.' : '') + '</div>';
 }
 
 function mountReplay(r) {
   var cv = $('replay-canvas'); if (!cv) return;
   var geo = SCENE_GEOMETRY[r.mapIdx] || { nodes: [] };
   var scene = MAP_SCENES[r.mapIdx] || null;
+  var cavernInput = r.inputs && r.inputs.holeCavern;
+  var cavernLayers = scene && scene.caverns && scene.caverns[cavernInput ? cavernInput.value : r.cavern] || [];
   var SW, SH;
   if (scene) { SW = scene.w; SH = scene.h; }
   else {
@@ -3401,6 +3531,9 @@ function mountReplay(r) {
       ctx.lineWidth = 3; ctx.strokeStyle = '#566';
       geo.nodes.forEach(function (n) { ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(n.length, n.y); ctx.stroke(); });
     }
+    cavernLayers.forEach(function (L) {
+      var im = rpImg(L.file); if (im) ctx.drawImage(im, L.x, L.y, L.w * L.scale, L.h * L.scale);
+    });
 
     // Portals (sprite 48), created at their scene-init top-left; FlipPortal mirrors.
     if (scene) scene.portals.forEach(function (po) {
@@ -3635,6 +3768,13 @@ function mountReplay(r) {
 
     $('rp-time').textContent = fmtSec(s.t) + ' · ' + s.monsters.filter(function (m) { return m.alive === 1; }).length + ' alive';
     $('rp-seek').value = replay.idx;
+    if (s.den && $('rp-den')) {
+      var denValues = denReplayValues(s.den);
+      Object.keys(denValues).forEach(function (key) {
+        var el = $('rp-den-' + key);
+        if (el.textContent !== denValues[key]) el.textContent = denValues[key];
+      });
+    }
   }
   rpRedraw = function () { if (cv.isConnected) draw(); };
 

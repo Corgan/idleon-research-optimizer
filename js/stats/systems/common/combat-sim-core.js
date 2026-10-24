@@ -726,6 +726,7 @@ function _snapshot(sim) {
     // Replay HUD: buffs [id, remaining s, total s], nonzero cooldowns [id, remaining s, full s],
     // the AttackLoadout rows (constant, so the delta codec stores them once per keyframe), and the last cast.
     hud: _hud(sim),
+    ...(sim.state.special?.den ? { den: special.denSnapshot(sim) } : {}),
     monsters: sim.monsters.filter((m) => !m.recycled).map((m) => ({
       uid: m.uid, id: m.id, type: m.type, monType: m.monType, x: m.x, y: m.y, vx: m.vx, w: m.width, h: m.height, node: m.node,
       hp: m.hp, hpTot: m.hpTot, alive: m.alive, willDie: m.willDie, size: m.sizeMulti, temp: m.temp, pers: m.persNum,

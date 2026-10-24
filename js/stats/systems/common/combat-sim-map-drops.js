@@ -53,20 +53,21 @@ export function monsterDropItems(type) {
 }
 
 /** Unique monster types placed on a map, with spawn counts. */
-export function mapMonsterTypes(mapIdx) {
+export function mapMonsterTypes(mapIdx, monsterType) {
   const sp = SCENE_SPAWNS[Number(mapIdx)];
   const counts = {};
   for (const m of (sp && sp.mobs) || []) counts[m[0]] = (counts[m[0]] || 0) + 1;
+  if (monsterType) return [{ type: monsterType, count: counts[monsterType] || 0 }];
   return Object.keys(counts).map((type) => ({ type, count: counts[type] }));
 }
 
 export function crystalTypeForMap(mapIdx) { return 'Crystal' + Math.floor(Number(mapIdx) / 50); }
 
 /** Whether a kill on this map can spawn a crystal mob, ignoring character/runtime gates. */
-export function crystalEligibility(mapIdx) {
+export function crystalEligibility(mapIdx, monsterType) {
   const map = Number(mapIdx);
   const type = crystalTypeForMap(map);
-  const mobs = mapMonsterTypes(map);
+  const mobs = mapMonsterTypes(map, monsterType);
   let reason = '';
   if (!(map < 350)) reason = 'Crystals never spawn on map 350 or later.';
   else if (CRYSTAL_BLOCKED_MAPS.includes(map)) reason = 'Crystals are disabled on this map.';
@@ -91,11 +92,12 @@ export const FORM_DROPS = [
 const _formCache = new Map();
 
 /** Master Class drops on a map: [{ key, form, label, monster, chance, qty, nova? }]. */
-export function mapFormDrops(mapIdx) {
+export function mapFormDrops(mapIdx, monsterType) {
   const map = Number(mapIdx);
-  if (_formCache.has(map)) return _formCache.get(map);
+  const cacheKey = monsterType ? map + ':' + monsterType : map;
+  if (_formCache.has(cacheKey)) return _formCache.get(cacheKey);
   const out = [];
-  const mobs = mapMonsterTypes(map);
+  const mobs = mapMonsterTypes(map, monsterType);
   for (const { type } of mobs) {
     const md = MonsterDrops[type];
     if (!md || !md[0] || md[0][0] !== 'COIN' || type.indexOf('Crystal') !== -1 || type.indexOf('Chest') !== -1) continue;
@@ -106,7 +108,7 @@ export function mapFormDrops(mapIdx) {
     }
   }
   if (mobs.length) out.push({ key: 'Dust4', form: 'tempest', label: 'Tempest Form', monster: null, chance: 1e-4, qty: 1, nova: true });
-  _formCache.set(map, out);
+  _formCache.set(cacheKey, out);
   return out;
 }
 
@@ -115,11 +117,12 @@ const _profileCache = new Map();
 /**
  * items[key] = { chance (best single-monster base chance), sources: [{ from: 'monster'|'crystal', monster, chance, via }] }
  */
-export function mapDropProfile(mapIdx) {
+export function mapDropProfile(mapIdx, monsterType) {
   const map = Number(mapIdx);
-  if (_profileCache.has(map)) return _profileCache.get(map);
-  const mobs = mapMonsterTypes(map);
-  const crystal = crystalEligibility(map);
+  const cacheKey = monsterType ? map + ':' + monsterType : map;
+  if (_profileCache.has(cacheKey)) return _profileCache.get(cacheKey);
+  const mobs = mapMonsterTypes(map, monsterType);
+  const crystal = crystalEligibility(map, monsterType);
   const items = {};
   const add = (from, monster) => {
     for (const it of monsterDropItems(monster).values()) {
@@ -132,14 +135,15 @@ export function mapDropProfile(mapIdx) {
   };
   for (const m of mobs) add('monster', m.type);
   if (crystal.eligible) add('crystal', crystal.crystalType);
-  for (const d of mapFormDrops(map)) {
+  const forms = mapFormDrops(map, monsterType);
+  for (const d of forms) {
     const e = items[d.key] || (items[d.key] = { key: d.key, chance: 0, monsterChance: 0, sources: [] });
     e.sources.push({ from: 'form', form: d.form, monster: d.monster, chance: d.chance, qty: d.qty, nova: !!d.nova, via: [] });
     if (d.chance > e.chance) e.chance = d.chance;
     if (!d.nova && !(e.formQty >= d.qty)) e.formQty = d.qty;
   }
-  const profile = { mapIdx: map, mobs, crystal, items };
-  _profileCache.set(map, profile);
+  const profile = { mapIdx: map, mobs, crystal, items, forms };
+  _profileCache.set(cacheKey, profile);
   return profile;
 }
 

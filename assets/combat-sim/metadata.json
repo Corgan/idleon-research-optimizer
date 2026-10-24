@@ -1,27 +1,28 @@
 {
  "generatedBy": "_tools/extract/combat-sim-assets.cjs",
- "generatedAt": "2026-10-17T15:25:25.082Z",
+ "generatedAt": "2026-10-24T00:54:56.621Z",
  "source": {
-  "asar": "C:\\Program Files (x86)\\Steam\\steamapps\\content\\app_1476970\\depot_1476971\\resources\\app.asar",
-  "asarMtime": "2026-10-17T02:00:24.960Z",
-  "nJsSha256": "96DA128969EA9667B46B8CCE3C9A03E6EF9A57137A60A2927395E87EE0528D3C",
-  "pakSha256": "CA93ED295097474BA88A04C070A11C041956A6BB5B4C3E914954560AC5EE9043",
+  "asar": "C:/Program Files (x86)/Steam/steamapps/common/Legends of Idleon/resources/app.asar",
+  "asarMtime": "2026-10-22T04:25:21.010Z",
+  "nJsSha256": "6A2FB3BBAE934929DE0EFCD884689C368424E6398EEE6409D764834402A3E1BB",
+  "pakSha256": "4E2EC2CC9C3D9DA95F96EF111CF493BA3FBABC6C0CFF3765555E91669316B4E8",
   "resourcesMbs": {
    "entry": "assets/data/resources.mbs",
-   "position": 37680036,
-   "length": 61879,
-   "sha256": "913D7CFE939B3B05BA8BFB89CC303D0D686DEE08E9D2B4E4BBA38C138E30FF59",
-   "gunzippedBytes": 234665
+   "position": 37992797,
+   "length": 61932,
+   "sha256": "B037DF9ACB67020CF397CE5DA2D4E342B64F5D6C5569547F179E8EF5DA03AE26",
+   "gunzippedBytes": 235061
   },
   "formattedSource": "src/N.new.formatted.js"
  },
  "derivations": {
   "sheets": "resources.mbs (see _tools/extract/mbs.cjs): animation width/height are the whole sheet; frame = width/across x height/down; per-frame durations in ms; origin (ox, oy) is the scale/mirror pivot.",
   "actorPlacement": "createRecycledActor(type, x, y) places the default animation top-left at (x, y); setAnimation preserves the actor centre (verified live on map 152: w4a2 getX 428, xCenter 458, 60x60 frame). Monster centre = (x + 25, y + 25) from the 50x50 mushG default; player centre = (x + 47, y + 25) from 94x50; Bullet (sprite 8) centre = (x + 12.5, y + 12.5); Bullet2 (576) centre = (x + 34.5, y + 18); ItemDrop centre = (x + 20, y + 20); Portal centre from its default frame.",
-  "backgrounds": "\"scripts.ActorEvents_81\" init (line 102157): groups pushed into _AllMapsForAnimationX; image = i + \"bg.png\" (1200x675) attached at (0,0) to StaticBG (scene actor type 81, y = bgY0). Loop has no break, so the last matching group wins. Map 41 joins group TournyStuff[42][OptionsListAccount[614]] (bgByOla614). Map-only filters: 38 saturation 0, 165 hue 345, 212/213 saturation 60, 260/261 alpha 0.6; map 166 Rift hue and class/buff filters are runtime-dependent and not applied.",
-  "parallax": "_event_Updating (line 102154), viewport 960x540: if sceneW > 970, bgX = round(screenX - screenX / (sceneW - 960) * 240); if sceneH > 550, bgY = round(screenY + bgY0 - screenY / (sceneH - 540) * 135), except map 259 bgY = round(580 + screenY / (sceneH - 540) * 48).",
+  "backgrounds": "\"scripts.ActorEvents_81\" init (line 102163): groups pushed into _AllMapsForAnimationX; image = i + \"bg.png\" (1200x675) attached at (0,0) to StaticBG (scene actor type 81, y = bgY0). Loop has no break, so the last matching group wins. Map 41 joins group TournyStuff[42][OptionsListAccount[614]] (bgByOla614). Map-only filters: 38 saturation 0, 165 hue 345, 212/213 saturation 60, 260/261 alpha 0.6; map 166 Rift hue and class/buff filters are runtime-dependent and not applied.",
+  "parallax": "_event_Updating (line 102160), viewport 960x540: if sceneW > 970, bgX = round(screenX - screenX / (sceneW - 960) * 240); if sceneH > 550, bgY = round(screenY + bgY0 - screenY / (sceneH - 540) * 135), except map 259 bgY = round(580 + screenY / (sceneH - 540) * 48).",
   "sceneBackground": "Scene MBS layer list (pointer at scene struct +89, dynamic typeId/addr pairs; loader ~19095-19130). Type 30 ColorBackground fills the screen (sky.color; most scenes white), type 31 GradientBackground is a vertical two-colour gradient (sky.top/bottom), type 34 ImageBackground layers reference resources.mbs Background resources (copied from assets/graphics/1x/background-<id>-0.png). All combat-scene layers have customScroll false and repeating models with parallax 0, so BackgroundLayer.load (~20540) makes a screen-fixed ScrollingBitmap; a nonzero xVelocity (ScrollingBackground, ~14023) drifts floor(xP) with xP += xVelocity / 10 per engine update, wrapping at the repeated image width, and drawRepeated tiles the image up to the 960x540 screen. These sit behind the AE81 StaticBG (whose sky is transparent on e.g. 6bg.png).",
   "platforms": "SceneEvents_N init sets getGameAttribute(\"Platforms\")[1] = P; ActorEvents_67 attaches addImgInst(\"Plat\" + P + \".png\") at scene (0,0), so platform pixels equal node geometry coordinates.",
+  "holeCaverns": "HoleStuffz \"b\" (line 96785): cavern c draws HoleBG<floor(c/5)>.png at (0,456), then HolePOI<c>.png at (round(120+HolesInfo[0][2*c]), round(703+HolesInfo[0][2*c+1])) scaled 2x. Both attach to OriginPixelActor[6] (TrueOriginBOT, Drawing layer), in world space above Plat177 and behind combat actors. Extracted combat caverns: Den 2, Grotto 8, Temple 14, Cove 17. Replay chooses the captured resolved holeCavern input, not the current save or picker.",
   "monsters": "Actor type \"Monster\" (sprite 2). ActorEvents_1 animation: Tree type -> \"Tree\" frozen at DeathFrame; BugNest -> \"Bugs\" frozen at DeathFrame; Bug type -> \"Bug\" plus <type>real.png overlays; types containing demonP/mushP/ChestA-D use that animation; otherwise the type name. Idle frames 0..MovingFrame-1 (0..DeathFrame-2 when MovingFrame = 0), walk MovingFrame..DeathFrame-2, death (Monster/Ore types only) DeathFrame..end then fadeTo(0, 0.5s); faces right, mirrored (growTo(-size, size)) while moving left. Size: growTo(SizeMulti) with SizeMulti 2 default, 1 for pets, 5 giants, 3 pirate/arcane/party, 8 super giants; super giants also get HueFilter(180).",
   "player": "Actor type \"Player\" (sprite 21); animation names match the sim p.animation; scale 2 (_PlayerSize 200), mirrored when _PlayerDirection = 0 (facing left). Hair/face are part of the sprite 21 body sheet; equipped gear is composited from separate actors (see gear).",
   "gear": "Gear layers follow the player actor and copy its growTo(±2, 2); positions are setX/setY of the layer actor (top-left of its current frame), so pivot = (X + ox, Y + oy) with X = P.getX() (= sim x) + offset. Weapon (ActorEvents_24, sprite 25, src ~72952-72971): WF = ItemDefinitions[EquipOrder[0][1]].ID (-1 for \"2*\" anims except \"2_\"; anims 5-20 except 9 use tool EquipOrder[1][anim-5]); \"2*\" -> same anim frame pFrame + WF * TotalFramesPerSpriteForAnimationABC[anim]; \"0\"/\"4\" -> WF + NumberOfWeaponsMAP[Type]; \"9\"/\"Za\" -> fist: anim \"1\", else same anim (absent in sprite 25, so the previous anim is kept); \"1\" -> anim \"0\" frame WF + NumberOfWeaponsMAP[Type] (fist 0); \"5\"/\"6\" pFrame + 12WF; \"7\" +21WF; \"8\" +17WF; \"D*\" -> anim \"1\"; else pFrame. Offsets: \"0\" Y+2 on frames 0/3/4 (fist 0/1/4); \"1\" Y -4/-2/0; \"2_\" (+14,+11); \"2a\" (-28,-40); \"2c\" (0,-30); \"7\" (-18,+16); \"8\" (-13,-30); \"Za\" Y + 2|pFrame-4|. Z: idle \"0\" with a non-fist weapon draws behind the body, otherwise in front. Helmet (ActorEvents_31, sprite 32, src ~77295-77322): hidden actor whose frame (ID+2 of premium helmet EquipOrder[0][8] unless Blank/EquipmentHats38, else helmet EquipOrder[0][0]; anim \"4\" while the player is \"4\", else \"1\") is copied to an image attached to the player at local (32 + AnimationOffsets[k][pFrame], AnimationOffsets[k][pFrame + N]) and brought to front; anim \"4\" uses (0,-5). Cape (ActorEvents_573, sprite 574, src ~88801-88844): animation \"\" + ID(EquipOrder[0][12]) on its own timer at (P.getX() ± XYoffsetCape[anim][pFrame], P.getY() + XYoffsetCape[anim][pFrame + round(len/2)]), behind the body except during anim \"4\". Shirt (ActorEvents_683, sprite 684, src ~97438-97476): animation \"\" + ID(EquipOrder[0][15]), frame pFrame + per-anim base (1:5, 4:11, 3:15, 2_:22, 2a:39, 2b:50, 2c:63, Za:76, Da:83, 9:93, 5:101, 6:113, 8:125, 7:142), at the player position in front of the body.",
@@ -53,10 +54,10 @@
   "hpBarImages": 4,
   "totemDigits": 30,
   "totemImages": 4,
-  "items": 818,
-  "files": 1474
+  "items": 821,
+  "files": 1485
  },
- "totalBytes": 12030518,
+ "totalBytes": 12179265,
  "noBackgroundGroup": [
   67,
   70
@@ -238,6 +239,13 @@
    "w": 960,
    "h": 540,
    "source": "assets/data/Plat144.png"
+  },
+  "maps/32bg.png": {
+   "sha256": "D7C0D32CAE61E3EF39E5D0CB75B5B77FE88DBFF39A1D541B4592F668D2307B4A",
+   "bytes": 56990,
+   "w": 1200,
+   "h": 675,
+   "source": "assets/data/32bg.png"
   },
   "maps/Plat145.png": {
    "sha256": "ED30DFB9EB66B651C9C70F921A5E9014EAD758334F5C3DEDF1CB63F6614CBB42",
@@ -490,13 +498,6 @@
    "w": 2917,
    "h": 1024,
    "source": "assets/data/Plat179.png"
-  },
-  "maps/32bg.png": {
-   "sha256": "D7C0D32CAE61E3EF39E5D0CB75B5B77FE88DBFF39A1D541B4592F668D2307B4A",
-   "bytes": 56990,
-   "w": 1200,
-   "h": 675,
-   "source": "assets/data/32bg.png"
   },
   "maps/Plat180.png": {
    "sha256": "E39F0D31BF7A71B8A0E4778A44B3AA5902C9C84A747CA76110C616B961A21C42",
@@ -1414,6 +1415,62 @@
    "w": 960,
    "h": 540,
    "source": "assets/data/Plat130.png"
+  },
+  "maps/HoleBG0.png": {
+   "sha256": "0D4C9FA6E4E9E7FBE78C5D439AAF351A5682E5DE6F63EB94306C469688C97C14",
+   "bytes": 27045,
+   "w": 960,
+   "h": 510,
+   "source": "assets/data/HoleBG0.png"
+  },
+  "maps/HolePOI2.png": {
+   "sha256": "9E2657C0DBDE2B0B84F11330088998FE2030C385F2F1DBEC5BC17C2E9A43EEBA",
+   "bytes": 2480,
+   "w": 187,
+   "h": 93,
+   "source": "assets/data/HolePOI2.png"
+  },
+  "maps/HoleBG1.png": {
+   "sha256": "E324AD04363F04DF877823A4DD9FFF49BF571CDA21C250F7EB12B8559A472701",
+   "bytes": 34261,
+   "w": 960,
+   "h": 510,
+   "source": "assets/data/HoleBG1.png"
+  },
+  "maps/HolePOI8.png": {
+   "sha256": "11899010C116F0786AB52372F060DFF2F76A4078B10988E5162ECC80A83FFC5E",
+   "bytes": 3355,
+   "w": 195,
+   "h": 124,
+   "source": "assets/data/HolePOI8.png"
+  },
+  "maps/HoleBG2.png": {
+   "sha256": "4BCAC4E1B398BF80DAD8C91C13954EF33431F01401A05C401F84FB2E204D0AA6",
+   "bytes": 32999,
+   "w": 960,
+   "h": 510,
+   "source": "assets/data/HoleBG2.png"
+  },
+  "maps/HolePOI14.png": {
+   "sha256": "37DEC61A7CB374C807C188938E6C8E141CF7EA39471BB097E38A83E76A7E8D4A",
+   "bytes": 3296,
+   "w": 167,
+   "h": 149,
+   "source": "assets/data/HolePOI14.png"
+  },
+  "maps/HoleBG3.png": {
+   "sha256": "350B32B822F78A2963A7E30C34B0971C18EADF07065D007D7CB71EBFD10A1FDE",
+   "bytes": 31392,
+   "w": 960,
+   "h": 510,
+   "source": "assets/data/HoleBG3.png"
+  },
+  "maps/HolePOI17.png": {
+   "sha256": "78FE8AA66F1E151EB18250EC3057DE4D887E99F078487A7C72B4FE3531F9254D",
+   "bytes": 9213,
+   "w": 186,
+   "h": 161,
+   "source": "assets/data/HolePOI17.png"
   },
   "mobs/Tree.png": {
    "sha256": "4F194AD9FECB4E59DA3727DC8C4D9D56FBB1ED77E09D540939873CA42A362B25",
@@ -3768,16 +3825,16 @@
    "source": "assets/graphics/1x/sprite-25-14.png"
   },
   "player/helmet/1.png": {
-   "sha256": "4163213EF8689F217CACD304944BED0CFCD627FCB55EC568DDF431D1277AF5E6",
-   "bytes": 32027,
-   "w": 390,
+   "sha256": "A183DD811FB1A4CA022D3B7A1A4AD568504061B766359B92706A2800E1C37BD8",
+   "bytes": 33161,
+   "w": 420,
    "h": 650,
    "source": "assets/graphics/1x/sprite-32-0.png"
   },
   "player/helmet/4.png": {
-   "sha256": "4273EE13086F5504FCCD60C1D1FBB37CE998DEEF7C06D8B3394779DA6111629C",
-   "bytes": 29920,
-   "w": 390,
+   "sha256": "B81FA093A78408DD117308F3AFC664D8B8A430F6DE4A6E3374CC229F3BDAAE12",
+   "bytes": 31054,
+   "w": 420,
    "h": 650,
    "source": "assets/graphics/1x/sprite-32-1.png"
   },
@@ -6798,6 +6855,20 @@
    "h": 36,
    "source": "assets/data/EquipmentHats141_x1.png"
   },
+  "items/EquipmentHats145.png": {
+   "sha256": "2AE6530E80F97F2CC3A9AE9C1395970615940D1D2CE8B775433ED5FC8ADEA43F",
+   "bytes": 876,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/EquipmentHats145_x1.png"
+  },
+  "items/EquipmentHats146.png": {
+   "sha256": "D77D262851713F5460477EECF36AA014AA3EC5E5BE3F142E896F25881450ED18",
+   "bytes": 868,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/EquipmentHats146_x1.png"
+  },
   "items/EquipmentHats17.png": {
    "sha256": "22A77FF7423488B714A3306D6551F08C2E68BC9DAC005AFF2F6E6EDE82DD0807",
    "bytes": 525,
@@ -6860,6 +6931,13 @@
    "w": 36,
    "h": 36,
    "source": "assets/data/EquipmentHats32_x1.png"
+  },
+  "items/EquipmentHats36.png": {
+   "sha256": "570CEDD6484DEE7AE432D00D315084E2708DB5F7D23798838F7C66BDD0A13B08",
+   "bytes": 705,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/EquipmentHats36_x1.png"
   },
   "items/EquipmentHats38.png": {
    "sha256": "6669E8FB60EC3C009750EBBC0A605D1A2446A38878A372F8590980BAB817F35B",
@@ -8948,8 +9026,8 @@
    "source": "assets/data/Quest78_x1.png"
   },
   "items/Quest79.png": {
-   "sha256": "1F90D3749525189A50A5DB85D858E0C5FA3E5A1D81A94AA0D87DEDFC63B51799",
-   "bytes": 988,
+   "sha256": "DE3D81A945C86F01F657219E15048E9E1551B0403B9038D651576828F06208DE",
+   "bytes": 977,
    "w": 36,
    "h": 36,
    "source": "assets/data/Quest79_x1.png"

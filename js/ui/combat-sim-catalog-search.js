@@ -4,6 +4,7 @@ import { ITEMS } from '../stats/data/game/items.js';
 import { ARMORY_UPGRADES, ROYAL_STATUES } from '../stats/data/w7/royal-guardian.js';
 import { talentDescription } from './combat-sim-visual.js';
 import { formatUq, statLabel } from '../stats/systems/common/combat-sim-stones.js';
+import { chipDescription } from '../stats/data/w4/chips.js';
 
 function text(value) {
   if (Array.isArray(value)) return value.map(text).filter(Boolean).join(' ');
@@ -33,7 +34,11 @@ export function combatEditorOptionText(kind, key, table) {
     return text([d.displayName, d.Type, d.Class, effects, stats, ...Object.keys(d).filter(k => k.startsWith('desc_line')).map(k => d[k])]);
   }
   if (kind === 'talent') return talentDescription(Number(key), 1).text;
-  const lists = { sign: D.StarSigns, prayer: D.PrayerInfo, chip: D.ChipDesc, god: D.GodsInfo, companion: D.CompanionDB };
+  if (kind === 'chip') {
+    const chip = chipDescription(key);
+    return chip ? [chip.name, chip.description, chip.summary].join(' ') : '';
+  }
+  const lists = { sign: D.StarSigns, prayer: D.PrayerInfo, god: D.GodsInfo, companion: D.CompanionDB };
   if (lists[kind]) return text(lists[kind][key]);
   if (kind === 'bubble') return text(D.AlchemyDescription['abcd'.indexOf(String(key)[0])]?.[Number(String(key).slice(1))]);
   if (kind !== 'table') return '';

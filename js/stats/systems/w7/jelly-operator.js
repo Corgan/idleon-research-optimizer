@@ -2302,6 +2302,20 @@ function stripTrialResults(operation) {
   return summary;
 }
 
+function _compactJellyComparisonTrials(operation) {
+  // Keep in sync with trialObjectiveValue; representative retains full diagnostics.
+  if (!Array.isArray(operation.results)) return;
+  for (let index = 0; index < operation.results.length; index++) {
+    const { success, damage, bloodcells, cellExp, expByType, criticalTime } = operation.results[index];
+    operation.results[index] = { success, damage, bloodcells, cellExp, expByType, criticalTime };
+  }
+}
+
+function _setJellySearchCache(cache, key, value, limit) {
+  cache.set(key, value);
+  if (cache.size > limit) cache.delete(cache.keys().next().value);
+}
+
 function saveWithJellyPlots(S, plotIds) {
   let result = S;
   for (const plotId of plotIds) result = saveWithJellyPlot(result, plotId);
@@ -5818,6 +5832,7 @@ export function optimizeJellyLayout(S, options = {}) {
   const occupancyCache = new WeakMap();
   let simulationCacheHits = 0;
   let simulationCacheMisses = 0;
+  let simulationTrialRecordsCompacted = 0;
   const cachedSimulateTrials = (layout, saveData, simulationOptions = {}) => {
     const cacheKey = [
       keyOf(layout),
@@ -5840,7 +5855,12 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     simulationCacheMisses++;
     const simulation = simulateJellyTrials(layout, saveData, simulationOptions);
-    simulationCache.set(cacheKey, simulation);
+    if (simulationOptions.includeTrials) {
+      simulationTrialRecordsCompacted += simulation.results?.length || 0;
+      _compactJellyComparisonTrials(simulation);
+    } else {
+      _setJellySearchCache(simulationCache, cacheKey, simulation, 256);
+    }
     return simulation;
   };
   const scoreLayout = layout => {
@@ -5854,7 +5874,7 @@ export function optimizeJellyLayout(S, options = {}) {
       assumeValid: true,
       _metricContext: metricContext,
     });
-    layoutScoreCache.set(key, score);
+    _setJellySearchCache(layoutScoreCache, key, score, 4096);
     return score;
   };
   const liveEvidenceRank = {
@@ -5978,11 +5998,7 @@ export function optimizeJellyLayout(S, options = {}) {
     }
     const slots = placement.slots || jellyFootprintSlots(placement.anchor, placement.type);
     if (!slots || slots.some(slot => !unlockedSet.has(slot) || occupied.has(slot))) return null;
-    const next = { ...layout, [placement.anchor]: placement.type };
-    const nextOccupied = new Map(occupied);
-    for (const slot of slots) nextOccupied.set(slot, { anchor: placement.anchor, type: placement.type });
-    occupancyCache.set(next, nextOccupied);
-    return next;
+    return { ...layout, [placement.anchor]: placement.type };
   };
   const placeWithReplacement = (layout, placement) => {
     if (!placement) return null;
@@ -6002,12 +6018,6 @@ export function optimizeJellyLayout(S, options = {}) {
     for (const anchor of removedAnchors) delete next[anchor];
     next[placement.anchor] = placement.type;
     if (Object.values(next).filter(type => Number(type) === 5).length > virusLimit) return null;
-    const nextOccupied = new Map();
-    for (const [slot, cell] of occupied) {
-      if (!removedAnchors.has(cell.anchor)) nextOccupied.set(slot, cell);
-    }
-    for (const slot of slots) nextOccupied.set(slot, { anchor: placement.anchor, type: placement.type });
-    occupancyCache.set(next, nextOccupied);
     return next;
   };
   const oneSlotTypes = types.filter(type => cellFootprint(type).length === 1);
@@ -6981,7 +6991,7 @@ export function optimizeJellyLayout(S, options = {}) {
         .reduce((sum, cell) => sum + cell.slots.length, 0) || 0,
       moves: moveCount(layout),
     };
-    structuralStatsCache.set(key, stats);
+    _setJellySearchCache(structuralStatsCache, key, stats, 4096);
     return stats;
   };
   const signedLogScore = score => Math.log1p(Math.abs(score)) * Math.sign(score || 1);
@@ -7045,7 +7055,6 @@ export function optimizeJellyLayout(S, options = {}) {
   const islandRandoms = Array.from({ length: searchStarts }, (_, start) => seededRandom(
     (Math.floor(n(options.seed) || 1) ^ Math.imul(searchStartOffset + start + 1, 0x85ebca6b)) >>> 0
   ));
-  const islandArchiveKeys = startSeen.map(set => new Set(set));
   let islandMutationCandidates = 0;
   let islandMigrations = 0;
   let coarseRebuildCandidates = 0;
@@ -7084,7 +7093,6 @@ export function optimizeJellyLayout(S, options = {}) {
           const key = keyOf(expansion.layout);
           if (startSeen[start].has(key)) continue;
           startSeen[start].add(key);
-          islandArchiveKeys[start].add(key);
           candidates.push({
             ...expansion,
             searchStart: start,
@@ -7101,7 +7109,6 @@ export function optimizeJellyLayout(S, options = {}) {
           const key = keyOf(layout);
           if (startSeen[start].has(key)) continue;
           startSeen[start].add(key);
-          islandArchiveKeys[start].add(key);
           candidates.push({
             layout,
             score: scoreLayout(layout),
@@ -7127,7 +7134,6 @@ export function optimizeJellyLayout(S, options = {}) {
           const key = keyOf(layout);
           if (startSeen[start].has(key)) continue;
           startSeen[start].add(key);
-          islandArchiveKeys[start].add(key);
           candidates.push({
             layout,
             score: scoreLayout(layout),
@@ -7166,7 +7172,6 @@ export function optimizeJellyLayout(S, options = {}) {
             const key = keyOf(layout);
             if (key === keyOf(candidate.layout) || startSeen[start].has(key)) continue;
             startSeen[start].add(key);
-            islandArchiveKeys[start].add(key);
             candidates.push({
               layout,
               score: scoreLayout(layout),
@@ -7201,7 +7206,6 @@ export function optimizeJellyLayout(S, options = {}) {
           const key = keyOf(candidate.layout);
           if (startSeen[start].has(key)) continue;
           startSeen[start].add(key);
-          islandArchiveKeys[start].add(key);
           candidates.push({ ...candidate, migratedFrom: (start + searchStarts - 1) % searchStarts });
           islandMigrations++;
         }
@@ -7211,6 +7215,7 @@ export function optimizeJellyLayout(S, options = {}) {
     if (iteration + 1 === explorationRounds) {
       explorationBaseFamilies = new Set(beams.flat().map(candidate => candidate.baseFamily)).size;
     }
+    additiveExpansionCache.clear();
     reportLayoutProgress(
       `${exploringBases ? 'Experimenting with bases' : 'Refining base families'} ${iteration + 1}/${iterations}`,
       2 + 18 * (iteration + 1) / iterations
@@ -8632,7 +8637,7 @@ export function optimizeJellyLayout(S, options = {}) {
         simulated: Boolean(exact),
         rank: rankOf(exact),
         simulatedScore: exact?.simulatedScore ?? null,
-        operation: exact?.simulation || null,
+        operation: stripTrialResults(exact?.simulation) || null,
         isWinner: bestKey === seed.key,
         vsBest,
         filled: filled ? {
@@ -8646,16 +8651,6 @@ export function optimizeJellyLayout(S, options = {}) {
       };
     }),
   };
-  let simulationCacheTrialEntriesTrimmed = 0;
-  let simulationCacheTrialsTrimmed = 0;
-  const trimmedSimulations = new Set();
-  for (const simulation of simulationCache.values()) {
-    if (!simulation || trimmedSimulations.has(simulation) || !Array.isArray(simulation.results)) continue;
-    trimmedSimulations.add(simulation);
-    simulationCacheTrialEntriesTrimmed++;
-    simulationCacheTrialsTrimmed += simulation.results.length;
-    delete simulation.results;
-  }
   const evaluationLedger = [
     {
       phase: 'Construction and proxy search',
@@ -8829,7 +8824,7 @@ export function optimizeJellyLayout(S, options = {}) {
         { length: searchStarts },
         (_, start) => islandProfiles[(searchStartOffset + start) % islandProfiles.length]
       ),
-      islandArchiveSizes: islandArchiveKeys.map(keys => keys.size),
+      islandArchiveSizes: startSeen.map(keys => keys.size),
       islandMutationCandidates,
       islandMigrations,
       islandBiasScale,
@@ -8891,8 +8886,11 @@ export function optimizeJellyLayout(S, options = {}) {
       organelleVirusCoupledCandidates: organelleVirusCoupledKeys.length,
       simulationCacheHits,
       simulationCacheMisses,
-      simulationCacheTrialEntriesTrimmed,
-      simulationCacheTrialsTrimmed,
+      layoutScoreCacheEntries: layoutScoreCache.size,
+      simulationCacheEntries: simulationCache.size,
+      simulationTrialRecordsCompacted,
+      simulationCacheTrialEntriesTrimmed: 0,
+      simulationCacheTrialsTrimmed: 0,
       obstructionBands,
       obstructionBandCandidates: obstructionBandCandidates.length,
       savedScreened: screeningPool.some(candidate => jellyLayoutKey(candidate.layout) === savedKey),
