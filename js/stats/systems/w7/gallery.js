@@ -15,6 +15,7 @@ import { eventShopOwned, emporiumBonus } from '../../../game-helpers.js';
 import { companionBonusForSave, companionLevel2 } from '../../data/common/companions.js';
 import { GALLERY_TROPH_CHIP_MULTI } from '../../data/game-constants.js';
 import { bubbleBonusY13 } from '../w2/alchemy.js';
+import { hasBundle } from './menagerie.js';
 
 // GalleryBonusMulti: 1 + (3*Spelunk[13][4] + 10*chipBonuses("troph") + 3*ClamWorkBonus(7)
 //   + KillroyBonuses(3) + min(20, AlchBubbles.Y13) + min(CardLv("w7a11"), 10) + Companions(49)) / 100
@@ -98,10 +99,12 @@ export function hatrackBonusMulti(saveData) {
 // Game: PodiumsOwned_Lv4/Lv3/Lv2 from _customBlock_Gallery.
 function podiumsOwnedLv4(saveData) {
   var sail33 = Number((saveData.sailingData && saveData.sailingData[3] && saveData.sailingData[3][33]) || 0);
-  var comp28 = Math.min(1, companionBonusForSave(28, saveData)) + companionLevel2(28, saveData);
+  var comp28 = Math.min(1, companionBonusForSave(28, saveData));
+  var comp28Enhanced = Math.min(1, companionLevel2(28, saveData));
   var evStr = saveData.cachedEventShopStr || '';
   var evShop29 = eventShopOwned(29, evStr);
-  return Math.round(Math.min(1, comp28) + evShop29 + Math.min(1, Math.floor(sail33 / 6)));
+  return Math.round(comp28 + comp28Enhanced + (evShop29 + (Math.min(1, Math.floor(sail33 / 6))
+    + (Math.min(1, Math.floor(sail33 / 7)) + hasBundle(saveData, 'ban_m')))));
 }
 
 function podiumsOwnedLv3(saveData) {

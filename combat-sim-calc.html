@@ -196,6 +196,7 @@ code { color: var(--cyan); font-size: .92em; }
     <button type="button" data-workspace-tab="editor" aria-controls="workspace-editor">Loadout editor</button>
     <button type="button" data-workspace-tab="simulation" aria-controls="workspace-simulation">Detailed simulation</button>
     <button type="button" data-workspace-tab="bulk" aria-controls="workspace-bulk">Bulk comparisons</button>
+    <button type="button" data-workspace-tab="afk" aria-controls="workspace-afk">AFK gains</button>
   </nav>
   <section id="workspace-editor">
     <div class="section toolbar"><label>Character<select id="editor-char"></select></label><span class="note">Each character keeps its own working edits and named loadouts.</span></div>
@@ -324,6 +325,7 @@ code { color: var(--cyan); font-size: .92em; }
     <div id="cmp-results"></div>
   </div>
   </section>
+  <section id="workspace-afk" hidden></section>
 </div>
 
 <script type="module">
@@ -363,11 +365,12 @@ import { setupCompareVariants, setupEditsBuffs, setupCompareUnit } from './js/st
 import { characterMapComparePlan } from './js/stats/systems/common/combat-sim-setup-compare.js';
 import { readRawKey, readAttackLoadout, applyCombatSetup, diffCombatSetup } from './js/stats/systems/common/combat-sim-setup.js';
 import { COMBAT_LOADOUT_PREFIX, COMBAT_DRAFT_PREFIX, readCombatLoadouts, readCombatDraft } from './js/ui/combat-sim-loadouts.js';
+import { mountCombatAfk } from './js/ui/combat-afk.js';
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-var rawSave = null;
+var rawSave = null, afkUi = null;
 var autoPlayerFactory = null, autoPlayerError = null, playerModule = null;
 var run = null;          // in-flight run
 var result = null;       // last completed run
@@ -1019,14 +1022,14 @@ var setup = { api: null, sig: '', raw: null, timer: 0, derivedBase: [], error: '
 var workspace = 'editor', detailLoadouts = [], detailOwner = null, detailPreview = null;
 
 function showWorkspace(next) {
-  if (!['editor', 'simulation', 'bulk'].includes(next)) return;
+  if (!['editor', 'simulation', 'bulk', 'afk'].includes(next)) return;
   workspace = next;
   document.querySelector('.main').dataset.workspace = next;
   document.querySelectorAll('[data-workspace-tab]').forEach(function (b) {
     if (b.dataset.workspaceTab === next) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   });
-  ['editor', 'simulation', 'bulk'].forEach(function (id) { $('workspace-' + id).hidden = id !== next; });
+  ['editor', 'simulation', 'bulk', 'afk'].forEach(function (id) { $('workspace-' + id).hidden = id !== next; });
   $(next === 'bulk' ? 'bulk-controls-host' : 'detailed-controls-host').appendChild($('sim-controls'));
   if (rawSave && syncSetup(true)) {
     fillMapSelect(); renderManualCasts(); updateCrystalNote();
@@ -1034,6 +1037,7 @@ function showWorkspace(next) {
     if (setup.api) setup.api.derivedChanged();
   }
   if (next !== 'simulation') stopReplay();
+  if (next === 'afk' && afkUi) afkUi.refresh();
 }
 
 function renderSimLoadouts() {
@@ -1090,6 +1094,7 @@ window.addEventListener('storage', function (e) {
   if (!e.key || e.key.startsWith('combat-sim-setup:') || e.key.startsWith(COMBAT_LOADOUT_PREFIX) || e.key.startsWith(COMBAT_DRAFT_PREFIX)) {
     renderSimLoadouts(); renderCmpPick();
     if (rawSave) syncSetup(true);
+    if (afkUi) afkUi.changed();
   }
 });
 
@@ -1143,6 +1148,7 @@ function setupEffectsChanged(why) {
   refreshOvrBase(true); refreshTerms(true);
   if (result && !run) { result.stale = why + ' since this run'; render(); }
   if (cmp && !cmp.running) { cmp.stale = why + ' since this comparison'; renderCompare(); }
+  if (afkUi) afkUi.changed();
 }
 
 // Called from the save loader after rawSave/char select are refreshed.
@@ -1194,6 +1200,7 @@ import('./js/ui/combat-sim-setup-ui.js').then(function (m) {
       clearTimeout(setup.timer);
       setup.timer = setTimeout(function () { if (syncSetup()) { setupEffectsChanged('setup changed'); setup.api.derivedChanged(); } }, 300);
       renderCmpLoadouts(); refreshCmpCount(); renderSimLoadouts();
+      if (afkUi) afkUi.changed();
     },
     getDerived: function () {
       if (!rawSave) return null;
@@ -1225,6 +1232,7 @@ initSaveLoader({
     if (cmp && cmp.running && meta && meta.source !== 'auto-refresh') cancelCompare();
     if (cmp) { cmp.stale = true; renderCompare(); }
     refreshCmpCount();
+    if (afkUi) afkUi.onSave(meta);
     if (run && meta && meta.source === 'auto-refresh') return; // keep in-flight run on its captured snapshot
     if (run) { cancelRun(); run.stale = true; }
     if (result) { result.stale = true; render(); }
@@ -2268,30 +2276,32 @@ function cmpCharacterChoices() {
   });
 }
 
-function cmpChosenCharacters() {
+function cmpChosenCharacters(pick) {
+  pick = pick || cmpPick;
   var currentCi = Number($('sel-char').value) || 0;
   return cmpCharacterChoices().filter(function (ch) {
-    return cmpPick.characters == null ? ch.charIdx === currentCi : cmpPick.characters.includes(ch.charIdx);
+    return pick.characters == null ? ch.charIdx === currentCi : pick.characters.includes(ch.charIdx);
   }).map(function (ch) {
-    var selected = cmpPick.loadouts && cmpPick.loadouts[ch.charIdx];
+    var selected = pick.loadouts && pick.loadouts[ch.charIdx];
     // Preserve the former map comparison default: current edits when present, otherwise the imported save.
     var defaults = ch.choices.some(function (v) { return v.id === 'edited'; }) ? ['edited'] : ['saved'];
     return Object.assign({}, ch, { choices: ch.choices.filter(function (v) { return (selected || defaults).includes(v.id); }) });
   });
 }
 
-function renderCmpLoadouts() {
-  var host = $('cmp-loadouts');
+function renderCmpLoadouts(host, pick) {
+  host = host || $('cmp-loadouts');
+  pick = pick || cmpPick;
   if (!rawSave) { host.innerHTML = '<div class="note">Load a save to choose characters and loadouts.</div>'; return; }
   var active = host.contains(document.activeElement) ? document.activeElement : null;
   var focus = active && active.dataset ? Object.assign({}, active.dataset) : null;
   try {
     var currentCi = Number($('sel-char').value) || 0;
     var characters = cmpCharacterChoices().map(function (ch) {
-      var selected = cmpPick.loadouts && cmpPick.loadouts[ch.charIdx];
+      var selected = pick.loadouts && pick.loadouts[ch.charIdx];
       var defaults = ch.choices.some(function (v) { return v.id === 'edited'; }) ? ['edited'] : ['saved'];
       return Object.assign({}, ch, {
-        on: cmpPick.characters == null ? ch.charIdx === currentCi : cmpPick.characters.includes(ch.charIdx),
+        on: pick.characters == null ? ch.charIdx === currentCi : pick.characters.includes(ch.charIdx),
         selected: selected || defaults,
       });
     });
@@ -3676,6 +3686,14 @@ function stopReplay() {
   replay.raf = 0;
   var b = $('rp-play'); if (b) b.textContent = 'Play';
 }
+afkUi = mountCombatAfk($('workspace-afk'), {
+  getRawSave: function () { return rawSave; },
+  getSnapshot: function () { return setup.access; },
+  getChosen: cmpChosenCharacters,
+  renderLoadouts: renderCmpLoadouts,
+  getCurrentChar: function () { return Number($('sel-char').value) || 0; },
+  getCurrentMap: function () { return Number($('sel-map').value) || 0; },
+});
 </script>
 </body>
 </html>

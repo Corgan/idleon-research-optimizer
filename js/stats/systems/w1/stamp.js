@@ -13,9 +13,8 @@ import { pristineBon } from '../w5/pristine.js';
 import { getSetBonus } from '../w3/setBonus.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { mainframeBonus } from '../w4/lab.js';
-import { legendPTSbonus } from '../../systems/w7/spelunking.js';
+import { legendPTSbonus, computePaletteBonus, palette } from '../../systems/w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
-import { paletteParams } from '../../data/w4/gaming.js';
 import { compassUpgPerLevel } from '../../data/common/compass.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { talent } from '../common/talent.js';
@@ -57,17 +56,7 @@ function computeStampDoublerSources(saveData, charIdx) {
   // Source 5: 20 × EventShopOwned(18)
   var evShop18 = 20 * eventShopOwned(18, saveData.cachedEventShopStr);
 
-  // Source 6: PaletteBonus(23) — Honey_Yellow palette (decay type)
-  // Game applies ×(1+LegendPTS_bonus(10)/100) × (1+0.5*loreFlag8) to all palette bonuses
-  var paletteLv = (saveData.spelunkData && saveData.spelunkData[9] && Number(saveData.spelunkData[9][23])) || 0;
-  var pal23 = paletteParams(23);
-  var palRaw23 = paletteLv > 0
-    ? paletteLv / (paletteLv + pal23.denom) * pal23.coeff
-    : 0;
-  var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
-  var loreFlag8 = (Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1) ? 1 : 0;
-  var palLoreMulti = 1 + 0.5 * loreFlag8;
-  var palette23 = palRaw23 * palLegendMulti * palLoreMulti;
+  var palette23 = computePaletteBonus(23, saveData);
 
   // Source 7: ExoticBonusQTY(49) — EXALTED_ELDOU (decay type)
   var ex49 = exoticParams(49);
@@ -99,9 +88,7 @@ function computeStampDoublerSources(saveData, charIdx) {
     ] : null, { fmt: '+' }),
     node('Emperor Set', emperorSet, null, { fmt: '+' }),
     node(label('Event', 18, ' (\u00d720)'), evShop18, null, { fmt: '+' }),
-    node(label('Palette', 23), palette23, paletteLv > 0 ? [
-      node('Palette Level', paletteLv, null, { fmt: 'raw' }),
-    ] : null, { fmt: '+' }),
+    palette.resolve(23, { saveData: saveData }),
     node(label('Exotic', 49), exotic49, exoticLv > 0 ? [
       node('Exotic Level', exoticLv, null, { fmt: 'raw' }),
     ] : null, { fmt: '+' }),

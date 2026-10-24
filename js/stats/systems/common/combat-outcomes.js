@@ -43,8 +43,9 @@ export function combatTarget(saveData, charIdx, mapIdx, opts) {
   opts = opts || {};
   var idx = Number(mapIdx);
   var classification = classifyMap(idx);
-  var cglunko = _isCglunkoMap(saveData, charIdx, idx);
-  var applicable = classification.category === 'combat' || cglunko;
+  var cavernTarget = idx === 216 && opts.afkClaim ? { 8: 'caveB', 14: 'caveC', 17: 'caveD' }[opts.holeCavern] : null;
+  var cglunko = idx === 216 && opts.holeCavern != null ? Number(opts.holeCavern) === 17 : _isCglunkoMap(saveData, charIdx, idx);
+  var applicable = classification.category === 'combat' || cglunko || !!cavernTarget;
   var reason = '';
 
   if (!applicable) {
@@ -55,8 +56,8 @@ export function combatTarget(saveData, charIdx, mapIdx, opts) {
   }
 
   var hasOverride = Object.prototype.hasOwnProperty.call(opts, 'afkTarget');
-  var key = hasOverride ? String(opts.afkTarget || '') : selectedMapTarget(idx);
-  if (cglunko && !hasOverride) key = 'Nothing';
+  var key = hasOverride ? String(opts.afkTarget || '') : cavernTarget || selectedMapTarget(idx);
+  if (cglunko && !hasOverride && !cavernTarget) key = 'Nothing';
   var monster = key ? MONSTERS[key] : null;
   if (applicable && !monster) {
     applicable = false;
@@ -69,6 +70,7 @@ export function combatTarget(saveData, charIdx, mapIdx, opts) {
     mapIdx: idx,
     classification: classification,
     cglunko: cglunko,
+    afkCavern: !!cavernTarget,
     key: key,
     monster: monster,
     name: monster ? String(monster.Name || key).replace(/_/g, ' ') : '',
@@ -84,7 +86,7 @@ export function combatMapApplicability(ctx, opts) {
   // AFK dashboards need the normal-fighting-map gate.
   if (ctx && ctx.activeCombat) return true;
   var target = combatTarget(ctx && ctx.saveData, Number(ctx && ctx.charIdx) || 0,
-    Number(ctx && ctx.mapIdx) || 0, opts);
+    Number(ctx && ctx.mapIdx) || 0, opts || ctx);
   return target.applicable ? true : { applicable: false, reason: target.reason };
 }
 
@@ -512,7 +514,7 @@ export function computeCombatSurvivability(charIdx, ctx, opts) {
     });
   }
   var damage = monsterDamageTaken(
-    Number(target.monster && target.monster.Damages && target.monster.Damages[0]) || 0,
+    target.afkCavern ? Number(MONSTERS.Motherlode.Damages[0]) : Number(target.monster && target.monster.Damages && target.monster.Damages[0]) || 0,
     defence.val,
     {
       buff108Active: hasBuff(108),
@@ -602,9 +604,9 @@ export function directMonsterCardOutcome(targetKey, saveData, cardChanceMultipli
 
 export function computeRawCombatKillsPerHour(charIdx, ctx, opts) {
   opts = opts || {};
-  var target = combatTarget(ctx.saveData, charIdx, ctx.mapIdx);
+  var target = combatTarget(ctx.saveData, charIdx, ctx.mapIdx, ctx);
   if (!target.applicable) return { val: 0, notApplicable: true, reason: target.reason };
-  if (target.cglunko || target.key === 'w7a6' || target.classification.category === 'feature') {
+  if (!target.afkCavern && (target.cglunko || target.key === 'w7a6' || target.classification.category === 'feature')) {
     return { val: 0, unavailable: true, reason: 'This map uses a special HP or respawn branch not represented by normal AFK combat.' };
   }
   if (attackLoadoutDataAvailable[charIdx] === false && !opts.loadout) {
@@ -615,8 +617,10 @@ export function computeRawCombatKillsPerHour(charIdx, ctx, opts) {
   var critChance = ctx.resolve('crit-chance');
   var critDamage = ctx.resolve('crit-damage');
   var movement = ctx.resolve('movement-speed');
-  var hp = effectiveMonsterHP(charIdx, ctx, target);
-  var respawn = effectiveRespawnTime(charIdx, ctx, target, opts);
+  // HourlyKillRate reads the scene's first actor, not AFKtarget. HoleStuffz
+  // moves cavern groups but leaves the first Motherlode actor in place.
+  var hp = effectiveMonsterHP(charIdx, ctx, target.afkCavern ? { hp: Number(MONSTERS.Motherlode.MonsterHPTotal) } : target);
+  var respawn = target.afkCavern ? { val: Number(MONSTERS.Motherlode.RespawnTime) } : effectiveRespawnTime(charIdx, ctx, target, opts);
   var loadoutDamage = attackLoadoutFactor('D', 0, charIdx, ctx, opts);
   var loadoutKill = attackLoadoutFactor('K', 0, charIdx, ctx, opts);
   var actionWait = actionWaitTimeAfk(charIdx, ctx, opts);

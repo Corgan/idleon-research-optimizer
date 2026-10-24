@@ -20,7 +20,7 @@ import {
 import { MonsterDrops } from '../data/game/custommaps.js';
 
 function _target(ctx) {
-  return combatTarget(ctx.saveData, Number(ctx.charIdx) || 0, Number(ctx.mapIdx) || 0);
+  return combatTarget(ctx.saveData, Number(ctx.charIdx) || 0, Number(ctx.mapIdx) || 0, ctx);
 }
 
 function _targetChildren(target) {

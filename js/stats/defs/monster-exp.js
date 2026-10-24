@@ -174,7 +174,7 @@ export default createDescriptor({
       + vault3 + vault35 * getLOG(ola345) + holesB83;
 
     // ======= STAGE 5: ExpGainLUK5 (massive multiplicative chain) =======
-    var currentTarget = MapAFKtarget[ctx.mapIdx] || '';
+    var currentTarget = ctx.afkTarget || MapAFKtarget[ctx.mapIdx] || '';
     var compassTargets = s.compassData && s.compassData[3] || [];
     var genInfo17 = compassTargets.indexOf(currentTarget) !== -1 ? 1 : 0;
     var talent429 = rval(talent, 429, ctx, { mode: 'max' });

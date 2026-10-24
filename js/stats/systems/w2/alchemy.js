@@ -9,8 +9,7 @@ import { vaultUpgBonus } from '../common/vault.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { arcadeBonus } from './arcade.js';
-import { legendPTSbonus } from '../w7/spelunking.js';
-import { paletteParams } from '../../data/w4/gaming.js';
+import { legendPTSbonus, computePaletteBonus, palette } from '../w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
 import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
@@ -85,14 +84,7 @@ function getPrismaBonusMult(saveData) {
   var cards1 = saveData.cards1Data || [];
   var hasW6Trophy = (Array.isArray(cards1) ? cards1.indexOf('Trophy23') >= 0
     : JSON.stringify(cards1).indexOf('Trophy23') >= 0) ? 10 : 0;
-  // PaletteBonus(28): decay formula lv/(lv+25)*base, then ×legendMulti ×loreMulti
-  var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
-  var pal28 = paletteParams(28);
-  var palRaw = palLv > 0 ? palLv / (palLv + pal28.denom) * pal28.coeff : 0;
-  var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
-  var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
-  var palLoreMulti = 1 + 0.5 * loreFlag8;
-  var palette28 = palRaw * palLegendMulti * palLoreMulti;
+  var palette28 = computePaletteBonus(28, saveData);
   // TotalPurpleSigils: count sigils at level >= 3 in CauldronP2W[4]
   var purpleSigils = 0;
   var sigArr = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
@@ -157,13 +149,6 @@ export var alchemy = {
       var cards1 = saveData.cards1Data || [];
       var hasW6Trophy = (Array.isArray(cards1) ? cards1.indexOf('Trophy23') >= 0
         : JSON.stringify(cards1).indexOf('Trophy23') >= 0) ? 10 : 0;
-      var palLv = Number((saveData.spelunkData && saveData.spelunkData[9] && saveData.spelunkData[9][28]) || 0);
-      var _pal28 = paletteParams(28);
-      var palRaw = palLv > 0 ? palLv / (palLv + _pal28.denom) * _pal28.coeff : 0;
-      var palLegendMulti = 1 + legendPTSbonus(10, saveData) / 100;
-      var loreFlag8 = Number((saveData.spelunkData && saveData.spelunkData[0] && saveData.spelunkData[0][8]) || 0) >= 1 ? 1 : 0;
-      var palLoreMulti = 1 + 0.5 * loreFlag8;
-      var palette28 = palRaw * palLegendMulti * palLoreMulti;
       var purpleSigils = 0;
       var sigArr = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
       if (sigArr) { for (var si = 0; si < 24; si++) { if (Number(sigArr[1 + 2 * si]) >= 3) purpleSigils++; } }
@@ -180,16 +165,12 @@ export var alchemy = {
         node(label('RoG', 23), sushiRoG23, null, { fmt: 'raw' }),
         node('Jelly Reward 36', jelly36, null, { fmt: 'raw' }),
         node('W6 Trophy', hasW6Trophy, null, { fmt: 'raw' }),
-        node(label('Palette', 28), palette28, palLv > 0 ? [
-          node('Palette Lv', palLv, null, { fmt: 'raw' }),
-          node(label('Legend', 10, ' \u00d7'), palLegendMulti, null, { fmt: 'x' }),
-          node('Lore ×', palLoreMulti, null, { fmt: 'x' }),
-        ] : null, { fmt: 'raw' }),
+        palette.resolve(28, ctx),
         node('Purple Sigils × 0.2', 0.2 * purpleSigils, null, { fmt: 'raw', note: purpleSigils + ' sigils' }),
         node(label('Exotic', 48), exotic48, null, { fmt: 'raw', note: 'Lv ' + exLv }),
         node(label('Legend', 36), legend36, null, { fmt: 'raw' }),
         node(label('Companion', 88, ' x 50'), 50 * comp88, null, { fmt: 'raw' }),
-      ], { fmt: 'x', note: 'cap 4' }));
+      ], { fmt: 'x', note: 'cap 5' }));
     }
     return node(label('Bubble', bubbleId), val, children, { fmt: '+', note: 'bubble ' + id });
   },

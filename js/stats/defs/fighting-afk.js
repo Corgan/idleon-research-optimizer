@@ -132,7 +132,7 @@ export default createDescriptor({
     var penumbraMulti = (mapIdx === 306) ? 0.2 : 1;
 
     var val = penumbraMulti * (0.4 + fightSum / 100) * afkAllMulti;
-    var cavern = Number(s.holesData && s.holesData[0] && s.holesData[0][ci]);
+    var cavern = Number(ctx.holeCavern != null ? ctx.holeCavern : s.holesData && s.holesData[0] && s.holesData[0][ci]);
     var cglunkoOverride = mapIdx === 216 && cavern === 17;
     if (cglunkoOverride) {
       val = cglunkoAfkGains(s) * (1 + 30 * Math.min(1, Number(s.bundlesData && s.bundlesData.bun_u) || 0) / 100);
