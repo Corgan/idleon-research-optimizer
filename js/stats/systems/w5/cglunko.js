@@ -60,6 +60,14 @@ export function upgBonus(saveData, idx) {
 }
 
 // ========== UPGRADE COST ==========
+export function purchaseCostAt(idx, { levels, purchases, study17 }) {
+  const lv = Number(levels[idx]) || 0;
+  let cost = (Math.pow(upgCostBase(idx), lv) + lv) * (1 / (1 + upgPerLvVal(7) * (Number(levels[7]) || 0) / 100));
+  if (idx % 2 === 1) cost = 5 * cost;
+  if (Math.round(purchases) < study17) cost = 0.85 * cost;
+  return cost < 1e6 ? Math.floor(Math.max(1, cost)) : cost;
+}
+
 // base = (pow(costBase, level) + level) * (1 / (1 + upgBon(7)/100))
 // if odd index: base *= 5
 // if OLA[604] < StudyBolaiaBonuses(17): base *= 0.85  (ext.bolaia17discount)

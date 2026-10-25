@@ -10,6 +10,7 @@
 // into `values.state` and the sim mutates only those copies.
 
 import { createStatContext } from '../../stat-context.js';
+import { buildCombatStatBreakdowns } from './combat-sim-breakdowns.js';
 import * as D from '../../../save/data.js';
 import { saveData as sharedSaveData } from '../../../state.js';
 import { currentTermScope, withTermScope } from '../../term-overrides.js';
@@ -257,19 +258,23 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
 
   // ---------------------------------------------------------------------------
   // Per-scene def rescaling (MonsterRespawnTimeReset, src 74344)
-  // Repo functions return the target's effective value; the sim applies the
-  // ratio to every def because the source rescales all defs with the same
-  // map-derived factor. See discrepancy notes in the system catalog.
+  // The target summary is separate from each definition's respawn-list divisor.
   // ---------------------------------------------------------------------------
+  const respawnDetail = { note: 'target-only summary; the sim rescales each def by respawnBonusPct (per-list, as the source does)' };
   put('respawnRescale', () => {
     const r = effectiveRespawnTime(ci, ctx, target);
+    if (opts.statBreakdowns) respawnDetail.breakdown = {
+      name: 'Shared respawn bonus', val: r.commonBonusPct, fmt: '%', children: r.commonSources,
+      note: 'Common sources only. The per-definition table adds the native world-list terms.',
+    };
     const base = Number(r?.base ?? target?.monster?.RespawnTime) || 0;
     return base > 0 ? _num(r) / base : 1;
-  }, 'effectiveRespawnTime(val/base)', { note: 'target-only summary; the sim rescales each def by respawnBonusPct (per-list, as the source does)' });
+  }, 'effectiveRespawnTime(val/base)', respawnDetail);
   // MonsterRespawnTimeReset (src 74353): the divisor is chosen per DEF by list
   // membership (RANDOlist[0]/[1]/[15], DeathNoteMobs[3..6], caveB/C/D), in that
   // if-else order — not by the current map. Unlisted defs (crystals, bosses,
   // specials) keep their raw RespawnTime. Value: { type: bonusPct }.
+  const respawnTrees = opts.statBreakdowns ? {} : null;
   put('respawnBonusPct', () => {
     const out = {};
     if (!(S.tasksGlobalData?.length)) return out;
@@ -286,20 +291,61 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
       [DeathNoteMobs[4], common + 2 * a308 + tsd(4) * tk(4)],
       [DeathNoteMobs[5], common + 2 * a308 + tsd(5) * tk(5)],
     ];
-    for (const [list, pct] of lists) for (const t of list || []) if (!(t in out)) out[t] = pct;
-    if (!('caveB' in out)) out.caveB = common + a44 + tsd(0) * tk(4); // source reads Tasks[2][4][1] here
+    const commonTree = respawnTrees && { name: 'Shared respawn bonus', val: common, fmt: '%', children: r.commonSources };
+    for (let world = 0; world < lists.length; world++) {
+      const [list, pct] = lists[world];
+      const tree = respawnTrees && { name: 'W' + (world + 1) + ' respawn bonus', val: pct, fmt: '%', children: [
+        commonTree,
+        { name: 'World achievement bonus', val: world === 0 ? a44 : world === 1 ? a109 : world >= 4 ? 2 * a308 : 0, fmt: '%' },
+        { name: 'World merit respawn', val: tsd(world) * tk(world), fmt: '%' },
+      ], note: 'Sum of shared, achievement and merit terms in native order.' };
+      for (const t of list || []) if (!(t in out)) {
+        out[t] = pct;
+        if (respawnTrees) respawnTrees[t] = tree;
+      }
+    }
+    if (!('caveB' in out)) {
+      out.caveB = common + a44 + tsd(0) * tk(4); // source reads Tasks[2][4][1] here
+      if (respawnTrees) respawnTrees.caveB = { name: 'Grotto respawn bonus', val: out.caveB, fmt: '%', children: [
+        commonTree, { name: 'W1 achievement bonus', val: a44, fmt: '%' },
+        { name: 'W5 merit level at W1 coefficient', val: tsd(0) * tk(4), fmt: '%' },
+      ], note: 'Native Grotto merit-index quirk.' };
+    }
     // The caveC branch (TempleTorchBonuses(2,0) + common) is dead: the later
     // caveD branch writes into MonsterDefinitionsGET.caveC instead of caveD,
     // and caveD follows caveC in Object.keys order. Final caveC RespawnTime is
     // caveD's base / (1 + (Cglunko_Respawn + B_UPG(100,25))/100) — getDef
     // reads that base through RESPAWN_BASE_ALIAS — while caveD keeps its raw value.
-    if (!('caveC' in out)) out.caveC = _num(cglunkoRespawnBonus(S)) + computeBUpg(100, 25, S);
+    if (!('caveC' in out)) {
+      const cove = _num(cglunkoRespawnBonus(S)), cavern = computeBUpg(100, 25, S);
+      out.caveC = cove + cavern;
+      if (respawnTrees) respawnTrees.caveC = { name: 'Temple respawn bonus', val: out.caveC, fmt: '%', children: [
+        { name: 'Cove respawn upgrade', val: cove, fmt: '%' }, { name: 'Cavern respawn upgrade', val: cavern, fmt: '%' },
+      ], note: 'The native Cove branch overwrites the Temple definition; shared bonuses are replaced.' };
+    }
     if (Array.isArray(S.spelunkData) && S.spelunkData.length) {
-      const w7 = 0.65 * (common + 2 * a308) + (_num(computeBigFishBonus(0, S)) + tsd(6) * tk(6));
-      for (const t of DeathNoteMobs[6] || []) if (!(t in out)) out[t] = w7;
+      const bigFish = _num(computeBigFishBonus(0, S)), merit = tsd(6) * tk(6);
+      const w7 = 0.65 * (common + 2 * a308) + (bigFish + merit);
+      const tree = respawnTrees && { name: 'W7 respawn bonus', val: w7, fmt: '%', children: [
+        { name: 'Scaled shared and achievement bonus', val: 0.65 * (common + 2 * a308), fmt: '%', children: [
+          { name: 'Shared plus achievement', val: common + 2 * a308, fmt: '%', children: [
+            commonTree, { name: 'World achievement bonus', val: 2 * a308, fmt: '%' },
+          ] }, { name: 'W7 scaling', val: 0.65, fmt: 'x' },
+        ], note: 'Shared plus achievement bonus multiplied by 0.65.' },
+        { name: 'Spelunking and merit bonus', val: bigFish + merit, fmt: '%', children: [
+          { name: 'Spelunking Big Fish respawn', val: bigFish, fmt: '%' }, { name: 'W7 merit respawn', val: merit, fmt: '%' },
+        ] },
+      ] };
+      for (const t of DeathNoteMobs[6] || []) if (!(t in out)) {
+        out[t] = w7;
+        if (respawnTrees) respawnTrees[t] = tree;
+      }
     }
     return out;
-  }, 'MonsterRespawnTimeReset per-list divisors (src 74353)', { note: 'caveC uses caveD\'s base with the Cglunko divisor (source caveD branch writes caveC); caveD stays raw. riftAll and the Vain-portal NONdummies[55] term are not rescaled; fm_rat uses ratRespawnSeconds' });
+  }, 'MonsterRespawnTimeReset per-list divisors (src 74353)', {
+    ...(respawnTrees ? { breakdowns: respawnTrees } : {}),
+    note: 'caveC uses caveD\'s base with the Cglunko divisor (source caveD branch writes caveC); caveD stays raw. riftAll and the Vain-portal NONdummies[55] term are not rescaled; fm_rat uses ratRespawnSeconds',
+  });
   put('ratRespawnSeconds', () => (Array.isArray(S.royalGData) && S.royalGData.length ? ratResp(S) : null),
     'MonsterRespawnTimeReset fm_rat (src 74353) = RoyalG("RatResp") when RoyalG is nonempty (src 92955)');
   put('monsterHpRescale', () => {
@@ -656,7 +702,9 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
     holes11: { ...(values.holes11Kills || {}) },
   };
 
-  return { ok: !!target?.monster, target, entries, values };
+  const result = { ok: !!target?.monster, target, entries, values };
+  if (opts.statBreakdowns) result.breakdowns = buildCombatStatBreakdowns(ctx, entries);
+  return result;
 }
 
 const CAPACITY_TYPES = ['bOre', 'bBar', 'cOil', 'bLog', 'bLeaf', 'dFish', 'dBugs', 'cFood', 'dCritters', 'dSouls', 'bCraft'];

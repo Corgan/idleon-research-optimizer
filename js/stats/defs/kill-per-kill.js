@@ -29,7 +29,7 @@ import { bubbaRoGBonuses } from '../systems/w7/bubba.js';
 import { safe, rval, createDescriptor } from './helpers.js';
 import { computePrayerReal } from '../systems/w3/prayer.js';
 import { computeMultiKillTotal, computeOverkillActive } from '../systems/common/overkill.js';
-import { combatMapApplicability } from '../systems/common/combat-outcomes.js';
+import { combatMapApplicability, combatTarget } from '../systems/common/combat-outcomes.js';
 import { statueBonus } from '../systems/w7/royal-guardian.js';
 
 export default createDescriptor({
@@ -71,7 +71,13 @@ export default createDescriptor({
         + talent531 * (totalWIS / 1000);
     }
 
-    var okInfo = computeOverkillActive(ci, ctx, { mapIdx: mapIdx });
+    var overkillOpts = { mapIdx: mapIdx };
+    if (mapIdx === 306) {
+      var clamTarget = combatTarget(s, ci, mapIdx, ctx);
+      overkillOpts.afkTarget = clamTarget.key;
+      overkillOpts.monsterHP = clamTarget.hp;
+    }
+    var okInfo = computeOverkillActive(ci, ctx, overkillOpts);
     var overkillActive = okInfo.active;
 
     // Multiplicative chain (when overkill active)
@@ -97,7 +103,7 @@ export default createDescriptor({
     // Second additive group
     var talent109 = rval(talent, 109, ctx);
     var workbenchMultiKill = overkillActive
-      ? computeMultiKillTotal(ci, ctx, { mapIdx: mapIdx })
+      ? (mapIdx === 306 ? ctx.resolve('multikill-total').val : computeMultiKillTotal(ci, ctx, { mapIdx: mapIdx }))
       : 0;
     var kpkBubble = safe(bubbleValByKey, 'kpkACTIVE', ci, s);
     var prayer13 = computePrayerReal(13, 0, ci, ctx.saveData);

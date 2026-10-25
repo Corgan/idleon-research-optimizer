@@ -15,6 +15,7 @@ self.onmessage = ({ data: msg }) => {
     }
     if (msg.type !== 'afk') return;
     if (!rawSave) throw new Error('Load a save before comparing AFK gains.');
+    if (msg.setup && Number(msg.setup.charIdx) !== Number(msg.charIdx)) throw new Error('This loadout belongs to another character.');
     const signature = JSON.stringify([msg.charIdx, msg.setup || null]);
     if (signature !== loadedVariant) {
       patched = msg.setup ? applyCombatSetup(rawSave, { ...msg.setup, charIdx: msg.charIdx }) : rawSave;
@@ -22,7 +23,7 @@ self.onmessage = ({ data: msg }) => {
       loadedVariant = signature;
     }
     const result = withCombatTerms(msg.setup?.termOverrides, () => combatAfkGains(saveData, msg.charIdx, msg.mapIdx, msg.hours, {
-      rawSave: patched, toggles: msg.setup?.toggles, holeCavern: msg.holeCavern, candy: msg.candy,
+      rawSave: patched, toggles: msg.setup?.toggles, holeCavern: msg.holeCavern, candy: msg.candy, clamworksPhase: msg.clamworksPhase,
     }));
     self.postMessage({ type: 'done', id: msg.id, result });
   } catch (error) {

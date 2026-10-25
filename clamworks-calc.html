@@ -47,6 +47,31 @@ h1 span { color: var(--accent); }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 .table-scroll { overflow-x: auto; }
+.cw-combat { margin-top:16px; }
+.cw-controls { display:flex; gap:12px; flex-wrap:wrap; border:0; margin-bottom:12px; min-width:0; }
+.cw-controls label { display:flex; flex-direction:column; gap:4px; color:var(--text2); font-size:.85em; max-width:100%; }
+.cw-controls .cw-check { flex-direction:row; align-items:center; }
+.cw-combat select,.cw-combat input,.cw-combat button { background:var(--bg3); color:var(--text); border:1px solid #555; border-radius:4px; padding:6px; max-width:100%; }
+.cw-combat input[type=number] { width:110px; }
+.cw-combat button { cursor:pointer; }
+.cw-combat button:disabled { opacity:.5; cursor:default; }
+.cw-combat :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.cw-actions { display:flex; gap:8px; margin:10px 0; }
+.cw-note { color:var(--text2); font-size:.82em; margin:10px 0; line-height:1.5; }
+.cw-note ul { padding-left:20px; overflow-wrap:anywhere; }
+.cw-error { color:var(--red); margin:8px 0; }
+.cw-warning { color:var(--gold); font-size:.85em; margin:8px 0; }
+.cw-combat progress { accent-color:var(--green); max-width:100%; }
+.cw-table small { display:block; color:var(--text2); font-size:.9em; }
+@media(max-width:800px) {
+  .cw-table,.cw-table tbody,.cw-table tr,.cw-table td { display:block; width:100%; }
+  .cw-table thead { display:none; }
+  .cw-table tr { background:var(--bg3); margin:10px 0; border-radius:6px; padding:8px; }
+  .cw-table td { display:flex; justify-content:space-between; gap:10px; text-align:right; overflow-wrap:anywhere; }
+  .cw-table td::before { content:attr(data-label); text-align:left; color:var(--text2); }
+  .cw-table td:first-child { display:block; text-align:left; font-weight:600; }
+  .cw-table td:first-child::before { display:none; }
+}
 </style>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </head>
@@ -67,10 +92,39 @@ import * as CW from './js/stats/systems/w7/clamworks.js';
 import { fmtVal } from './js/renderers/format.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { _bNode } from './js/stats/node-helpers.js';
+import { mountClamworksCombat } from './js/ui/clamworks-combat.js';
+import { mountClamworksAfk } from './js/ui/clamworks-afk.js';
+import { mountClamworksScurge } from './js/ui/clamworks-scurge.js';
+import { clamworksMultikill } from './js/stats/systems/w7/clamworks-combat.js';
+import { characterOptions } from './js/stats/systems/common/combat-sim-setup.js';
+import { farmingEscape as escHtml } from './js/ui/combat-farming.js';
 
-initSaveLoader({ target: '#save-area', onLoad: render, auth: true });
-
-if (saveData && saveData.optionsListData) render();
+const combatHost = document.createElement('div');
+const combatFarming = mountClamworksCombat(combatHost, { characterControl: false });
+const afkHost = document.createElement('div');
+const afkClaims = mountClamworksAfk(afkHost);
+const afkCompareHost = document.createElement('div');
+const afkComparison = mountClamworksAfk(afkCompareHost, { compareUpgrades: true });
+const scurgeHost = document.createElement('div');
+const scurgeFarming = mountClamworksScurge(scurgeHost);
+const scurgeUpgradeHost = document.createElement('div');
+const scurgeUpgrades = mountClamworksScurge(scurgeUpgradeHost, { mode: 'upgrades' });
+var _characters = [], _charIdx = 0, _ext = null;
+initSaveLoader({ target: '#save-area', onLoad: (S, raw, metadata) => {
+  _characters = characterOptions(raw);
+  if (!_characters.some(c => c.ci === _charIdx)) _charIdx = _characters[0]?.ci ?? 0;
+  combatFarming.load(raw, metadata);
+  combatFarming.setCharacter(_charIdx);
+  afkClaims.load(raw, metadata);
+  afkClaims.setCharacter(_charIdx);
+  afkComparison.load(raw, metadata);
+  afkComparison.setCharacter(_charIdx);
+  scurgeFarming.load(raw, metadata);
+  scurgeFarming.setCharacter(_charIdx);
+  scurgeUpgrades.load(raw, metadata);
+  scurgeUpgrades.setCharacter(_charIdx);
+  render();
+}, auth: true });
 
 function fmtNum(n) { if (n == null || isNaN(n)) return '0'; return fmtVal(n); }
 
@@ -93,20 +147,35 @@ function _fmtDesc(idx) {
   return CW.upgDescription(idx);
 }
 
-var _ext = { multikillTotal: 0 };
-
 function render() {
   var el = document.getElementById('main-content');
+  var focused = document.activeElement?.id;
+  var multikill, error = '';
+  try {
+    multikill = clamworksMultikill(saveData, _charIdx);
+    if (multikill.unavailable) throw new Error(multikill.reason || 'Character damage unavailable');
+    _ext = { multikillTotal: multikill.val };
+  } catch (err) {
+    _ext = null;
+    error = err.message;
+  }
 
   var html = '';
-  // MK input
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">';
-  html += '<label style="font-size:.85em;color:var(--text2)">Multikill %: <input type="number" id="mk-input" value="' + _ext.multikillTotal + '" style="width:100px;background:var(--bg3);color:var(--text);border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:1em;"></label>';
-  html += '<span style="font-size:.75em;color:var(--text2)">(Check in-game — affects MULTI-SCALPING)</span>';
+  html += '<label style="font-size:.85em;color:var(--text2)">Character: <select id="clam-character" style="max-width:100%;background:var(--bg3);color:var(--text);border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:1em;">'
+    + _characters.map(c => '<option value="' + c.ci + '"' + (c.ci === _charIdx ? ' selected' : '') + '>' + escHtml(c.name + ' (' + c.className + ')') + '</option>').join('') + '</select></label>';
+  html += '<span id="clam-multikill"' + (_ext ? ' data-value="' + _ext.multikillTotal + '"' : '') + '>Multikill: '
+    + (_ext ? fmtNum(_ext.multikillTotal) + '%' : 'Unavailable') + '</span>';
   html += '</div>';
+  if (_ext) {
+    html += '<p class="cw-note">Calculated from the imported character and saved buffs on Clamworks, at the current promotion. Overkill tier: ' + multikill.tier + '.</p>';
+    if (multikill.partial) html += '<p class="cw-warning">' + escHtml(multikill.reason) + '</p>';
+  } else html += '<p class="cw-warning" role="alert">Analytical pearl results unavailable: ' + escHtml(error) + '</p>';
+  if (_ext) {
   html += '<div class="tabs" style="margin-bottom:12px">';
   html += '<div class="tab active" data-tab="overview">Overview</div>';
   html += '<div class="tab" data-tab="upgrades">Upgrades</div>';
+  html += '<div class="tab" data-tab="afk">AFK claim</div>';
   html += '<div class="tab" data-tab="optimizer">Optimizer</div>';
   html += '<div class="tab" data-tab="promotion">Promotion</div>';
   html += '</div>';
@@ -115,12 +184,19 @@ function render() {
   html += _renderUpgrades();
   html += _renderOptimizer();
   html += _renderPromotion();
+  html += '<div class="tab-content" id="tab-afk"><div id="clamworks-afk"></div></div>';
+  } else html += '<div id="clamworks-combat"></div><div id="clamworks-afk"></div><div id="clamworks-afk-compare"></div><div id="clamworks-scurge"></div><div id="clamworks-scurge-upgrades"></div>';
 
   var _prevTab = el.querySelector('.tab.active');
   var _prevTabId = _prevTab ? _prevTab.dataset.tab : 'overview';
   var _prevScroll = window.scrollY;
 
   el.innerHTML = html;
+  el.querySelector('#clamworks-combat').appendChild(combatHost);
+  el.querySelector('#clamworks-afk').appendChild(afkHost);
+  el.querySelector('#clamworks-afk-compare').appendChild(afkCompareHost);
+  el.querySelector('#clamworks-scurge').appendChild(scurgeHost);
+  el.querySelector('#clamworks-scurge-upgrades').appendChild(scurgeUpgradeHost);
 
   // Breakdown tree
   var pvTree = el.querySelector('#pv-breakdown');
@@ -155,9 +231,16 @@ function render() {
 
   window.scrollTo(0, _prevScroll);
 
-  // MK input listener
-  var mkInput = el.querySelector('#mk-input');
-  if (mkInput) mkInput.addEventListener('change', function() { _ext.multikillTotal = Number(mkInput.value) || 0; render(); });
+  el.querySelector('#clam-character').addEventListener('change', function(e) {
+    _charIdx = Number(e.target.value);
+    combatFarming.setCharacter(_charIdx);
+    afkClaims.setCharacter(_charIdx);
+    afkComparison.setCharacter(_charIdx);
+    scurgeFarming.setCharacter(_charIdx);
+    scurgeUpgrades.setCharacter(_charIdx);
+    render();
+  });
+  if (focused === 'clam-character') el.querySelector('#clam-character').focus({ preventScroll: true });
 }
 
 // ===== OVERVIEW =====
@@ -273,7 +356,7 @@ function _renderOptimizer() {
     }
   }
   html += '</tbody></table>';
-  html += '</div></div>';
+  html += '</div><div id="clamworks-afk-compare"></div><div id="clamworks-combat"></div><div id="clamworks-scurge"></div><div id="clamworks-scurge-upgrades"></div></div>';
   return html;
 }
 

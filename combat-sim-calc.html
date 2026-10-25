@@ -65,6 +65,12 @@ h1 span { color: var(--accent); }
 .bt-label { flex:1; min-width:0; overflow-wrap:anywhere; }
 .bt-val { flex-shrink:0; text-align:right; font-variant-numeric:tabular-nums; }
 .exp-tooltip { position:fixed; display:none; z-index:50; max-width:min(400px, calc(100vw - 16px)); padding:8px; background:var(--bg2); border:1px solid #555; border-radius:5px; font-size:.8em; pointer-events:none; }
+.combat-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:10px; margin:12px 0; }
+.combat-stat-card { min-width:0; padding:10px; border:1px solid #445; border-radius:6px; }
+.combat-stat-card > summary { cursor:pointer; overflow-wrap:anywhere; }
+.combat-stat-card > summary strong { display:block; color:var(--gold); font-variant-numeric:tabular-nums; margin-top:4px; }
+#stat-breakdowns pre { max-height:260px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.8em; }
+#stat-breakdowns > details, #stat-breakdowns [data-stat-results] > details { margin:10px 0; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
 .toolbar label { display: flex; flex-direction: column; gap: 3px; font-size: .78em; color: var(--text2); }
@@ -290,6 +296,7 @@ code { color: var(--cyan); font-size: .92em; }
   </div>
 
 </div>
+    <section class="section" id="stat-breakdowns"></section>
     <div id="results"></div>
   </section>
   <section id="workspace-bulk" hidden>
@@ -378,12 +385,13 @@ import { characterMapComparePlan, emptySetupCompareRow, addSetupCompareRun } fro
 import { readRawKey, readAttackLoadout, applyCombatSetup, diffCombatSetup } from './js/stats/systems/common/combat-sim-setup.js';
 import { COMBAT_LOADOUT_PREFIX, COMBAT_DRAFT_PREFIX, readCombatLoadouts, readCombatDraft } from './js/ui/combat-sim-loadouts.js';
 import { mountCombatAfk } from './js/ui/combat-afk.js';
+import { mountCombatStatBreakdowns } from './js/ui/combat-sim-breakdowns.js';
 import { renderCombatDiagnostics, mountCombatDiagnostics, combatReplayIndex, drawCombatHeatmap, drawCombatNavigation, COMBAT_HEATMAPS } from './js/ui/combat-sim-diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-var rawSave = null, afkUi = null;
+var rawSave = null, afkUi = null, statUi = null;
 var autoPlayerFactory = null, autoPlayerError = null, playerModule = null;
 var run = null;          // in-flight run
 var result = null;       // last completed run
@@ -1157,6 +1165,7 @@ function syncSetup(force) {
 }
 
 function setupEffectsChanged(why) {
+  if (statUi) statUi.changed();
   renderSimLoadouts();
   fillMapSelect();
   renderManualCasts();
@@ -1250,6 +1259,7 @@ initSaveLoader({
     if (cmp) { cmp.stale = true; renderCompare(); }
     refreshCmpCount();
     if (afkUi) afkUi.onSave(meta);
+    if (statUi) statUi.onSave(meta);
     if (run && meta && meta.source === 'auto-refresh') return; // keep in-flight run on its captured snapshot
     if (run) { cancelRun(); run.stale = true; }
     if (result) { result.stale = true; render(); }
@@ -1524,6 +1534,15 @@ function render() {
     if (!r.snaps.length) return;
     stopReplay(); replay.idx = combatReplayIndex(r.snaps, time); replay.acc = 0; tab = 'replay'; render();
   });
+  var stats = $('btn-run-stats');
+  if (stats) stats.addEventListener('click', function () {
+    statUi.inspect({
+      rawSave: r.raw, charIdx: r.ci, mapIdx: r.mapIdx, player: r.mode,
+      inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs),
+      toggles: r.toggles || {}, termOverrides: r.terms || {},
+    }, (r.character || 'Character ' + (r.ci + 1)) + ' / ' + (r.loadout || 'Captured loadout') + ' / captured run-start stats');
+    $('stat-breakdowns').scrollIntoView({ block: 'start' });
+  });
   var full = $('btn-bulk-details');
   if (full) full.addEventListener('click', function () {
     var next;
@@ -1553,6 +1572,8 @@ function runHeader(r) {
   h += '<br>' + escHtml(crystalRunText(r.gcrystal, r.inputs)) + unlimInvRunText(r.unlimInv) + savedBuffsRunText(r.savedBuffs);
   h += toggleRunText(r.toggles) + cavRunText(r.cav) + termRunText(r.terms) + setupRunText(r.setup) + manualRunText(r.manualCasts) + stopOnRunText(r.stopOn);
   h += '</div>';
+  h += '<div class="toolbar"><button type="button" class="btn secondary" id="btn-run-stats"' + (!r.raw ? ' disabled' : '')
+    + '>Inspect this run\'s starting stats</button><span class="note">Rebuilds formula trees from this run\'s captured save and overrides without replaying combat.</span></div>';
   if (r.bulkOnly) h += '<div class="note">Opening this row does not run another simulation. Replay frames, input breakdowns and the event log were not recorded by the bulk run.</div>'
     + '<div class="toolbar"><button class="btn" id="btn-bulk-details">Generate full details &amp; replay</button>'
     + '<span class="note">Opt in to resimulating this seed with the captured save and settings.</span></div>'
@@ -3930,6 +3951,26 @@ afkUi = mountCombatAfk($('workspace-afk'), {
   getCurrentChar: function () { return Number($('sel-char').value) || 0; },
   getCurrentMap: function () { return Number($('sel-map').value) || 0; },
 });
+statUi = mountCombatStatBreakdowns($('stat-breakdowns'), {
+  capture: function () {
+    if (!rawSave) throw new Error('Load a save before inspecting stats.');
+    var selected = detailedSetup(), ci = Number($('sel-char').value) || 0;
+    var mapIdx = Number($('sel-map').value), cavern = cavernPick(mapIdx);
+    return {
+      label: $('sel-char').selectedOptions[0].textContent + ' / ' + $('sim-loadout').selectedOptions[0].textContent + ' / map ' + mapIdx,
+      request: {
+        rawSave: simBaseRaw(), setup: selected, charIdx: ci, mapIdx: mapIdx, player: $('sel-player').value,
+        inputOverrides: simOverrides($('inp-gcrystal').checked, cavern, cavCfgFor(ci, mapIdx, cavern),
+          $('inp-unliminv').checked, savedBuffsOn(setupEditsBuffs(selected))),
+      },
+    };
+  },
+});
+document.addEventListener('change', function (event) {
+  if (event.target.closest('#sim-controls, #setup-section') || ['sim-loadout', 'sel-char', 'editor-char'].includes(event.target.id))
+    statUi.changed();
+});
+window.addEventListener('storage', function () { statUi.changed(); });
 </script>
 </body>
 </html>

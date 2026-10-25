@@ -1,6 +1,6 @@
 {
  "generatedBy": "_tools/extract/combat-sim-assets.cjs",
- "generatedAt": "2026-10-24T00:54:56.621Z",
+ "generatedAt": "2026-10-25T18:07:09.634Z",
  "source": {
   "asar": "C:/Program Files (x86)/Steam/steamapps/common/Legends of Idleon/resources/app.asar",
   "asarMtime": "2026-10-22T04:25:21.010Z",
@@ -54,10 +54,10 @@
   "hpBarImages": 4,
   "totemDigits": 30,
   "totemImages": 4,
-  "items": 821,
-  "files": 1485
+  "items": 822,
+  "files": 1486
  },
- "totalBytes": 12179265,
+ "totalBytes": 12180085,
  "noBackgroundGroup": [
   67,
   70
@@ -6273,6 +6273,13 @@
    "w": 36,
    "h": 36,
    "source": "assets/data/ClamPearl0_x1.png"
+  },
+  "items/ClamPearl1.png": {
+   "sha256": "551981532A55DEC56914AF6C9B5E8190101050CAB9ABBAF70808EBC805ACE39D",
+   "bytes": 820,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/ClamPearl1_x1.png"
   },
   "items/ClassSwap.png": {
    "sha256": "B8719807D74BD8FB277A4564E5875B561BF3BC579FD4F6D6E35E13EA0202DE3B",

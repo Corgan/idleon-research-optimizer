@@ -95,6 +95,17 @@ export function scurgeBonus(idx) {
   return (Number(_perLv[Math.round(idx + 9)]) || 0) * scurgeUpgLevel(idx);
 }
 
+export function scurgeUpgradeInfo(idx) {
+  const names = ['RECKONING', 'PEARL INFECTION', 'SELF AFFLICTION', 'COST DISSOLVING',
+    'EVEN BETTER', 'CROSS CULTING', 'GRAVESTART', 'SWARMING', 'TRUE SCURGE'];
+  if (!Number.isInteger(idx) || idx < 0 || idx >= names.length) throw new Error('Unknown Scurge upgrade');
+  return {
+    name: names[idx], perLevel: Number(_perLv[idx + 9]),
+    unlockLevel: [0, 5, 10, 25, 50, 100, 250, 500, 1000][idx],
+    description: String(_descs[idx + 9]).replace(/_/g, ' '), cost: 1,
+  };
+}
+
 // Pearl-value multipliers from Scurge 1 and Scurge 8 × Scurge level
 export function scurgePearlMulti() {
   return (1 + scurgeBonus(1) / 100) * (1 + scurgeBonus(8) * scurgeLevel() / 100);
@@ -149,22 +160,34 @@ export function pearlUpgReq(t) {
 
 // Clam_Cost(t) — cost for next level of upgrade t
 export function upgCost(idx) {
-  var lv = upgLevel(idx);
-  var cr = costReduction(idx);
+  return upgradeCostAt(idx, _costState());
+}
+
+function _costState() {
+  return {
+    levels: Array.from({ length: UPGRADE_COUNT }, (_, i) => upgLevel(i)),
+    promotion: promotionLevel(),
+    scurgeLevels: Array.from({ length: UPGRADE_COUNT }, (_, i) => scurgeUpgLevel(i)),
+  };
+}
+
+// The level being costed is separate from the levels supplying cost reductions.
+export function upgradeCostAt(idx, { levels, promotion, scurgeLevels = [], level = levels[idx] }) {
+  var lv = Number(level) || 0;
+  var scurge3 = (Number(_perLv[12]) || 0) * (Number(scurgeLevels[3]) || 0);
+  var scurge5 = (Number(_perLv[14]) || 0) * (Number(scurgeLevels[5]) || 0);
+  var cr = (1 / (1 + upgPerLvVal(4) * (Number(levels[4]) || 0) / 100)) * (1 / (1 + scurge3 / 100))
+    * (1 / (1 + (Number(scurgeLevels[idx]) || 0) * scurge5 / 100))
+    * (1 / (1 + upgPerLvVal(8) * (Number(levels[8]) || 0) / 100));
   if (idx === 0) {
     return cr * (Math.pow(upgCostBase(0), lv) + 3 * lv + Math.pow(lv, 2.5));
   }
-  return cr * (pearlUpgReq(idx) / 5 * Math.pow(upgCostBase(idx), lv) + 2 * lv + Math.pow(lv, 1.5));
+  return cr * (20 * Math.pow(10 + 3 * promotion, idx - 1) / 5 * Math.pow(upgCostBase(idx), lv) + 2 * lv + Math.pow(lv, 1.5));
 }
 
 // Cost for next level (+1)
 export function upgNextCost(idx) {
-  var lv = upgLevel(idx) + 1;
-  var cr = costReduction(idx);
-  if (idx === 0) {
-    return cr * (Math.pow(upgCostBase(0), lv) + 3 * lv + Math.pow(lv, 2.5));
-  }
-  return cr * (pearlUpgReq(idx) / 5 * Math.pow(upgCostBase(idx), lv) + 2 * lv + Math.pow(lv, 1.5));
+  return upgradeCostAt(idx, { ..._costState(), level: upgLevel(idx) + 1 });
 }
 
 // Promotion cost

@@ -13,6 +13,8 @@ import {
 import {
   computeMultiKillBase,
   computeMultiKillPerTier,
+  computeMultiKillBaseDetail,
+  computeMultiKillPerTierDetail,
   computeMultiKillTotal,
   computeOverkillActive,
   computeOverkillTier,
@@ -131,21 +133,20 @@ function _multiKillDescriptor(id, name, compute, note) {
     applies: combatMapApplicability,
     combine: function(pools, ctx) {
       var value = compute(Number(ctx.charIdx) || 0, ctx, { mapIdx: Number(ctx.mapIdx) || 0 });
-      return {
-        val: value,
-        children: [{ name: name, val: value, fmt: 'raw', note: note }],
+      return typeof value === 'object' ? value : {
+        val: value, children: [{ name: name, val: value, fmt: 'raw', note: note }],
       };
     },
   });
 }
 
 export const multikillBase = _multiKillDescriptor(
-  'multikill-base', 'Multikill Base', computeMultiKillBase,
+  'multikill-base', 'Multikill Base', computeMultiKillBaseDetail,
   'Additive percentage points before the per-tier contribution.'
 );
 
 export const multikillPerTier = _multiKillDescriptor(
-  'multikill-per-tier', 'Multikill Per Tier', computeMultiKillPerTier,
+  'multikill-per-tier', 'Multikill Per Tier', computeMultiKillPerTierDetail,
   'Additive percentage points granted for each Overkill tier.'
 );
 
@@ -168,8 +169,8 @@ export const multikillTotal = createDescriptor({
     return {
       val: total,
       children: [
-        { name: 'Base', val: base, fmt: 'raw' },
-        { name: 'Per Tier', val: perTier, fmt: 'raw' },
+        { ...ctx.resolve('multikill-base'), name: 'Base', val: base, fmt: 'raw' },
+        { ...ctx.resolve('multikill-per-tier'), name: 'Per Tier', val: perTier, fmt: 'raw' },
         { name: 'Overkill Tier', val: overkill.val, fmt: 'raw' },
         { name: 'Isolated Multikill Multiplier', val: 1 + total / 100, fmt: 'x' },
       ],

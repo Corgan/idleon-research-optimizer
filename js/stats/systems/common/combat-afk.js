@@ -14,6 +14,8 @@ import { combatAfkFood } from './combat-afk-food.js';
 import { computeOverkillActive } from './overkill.js';
 import { combatAfkProgress } from './combat-afk-progress.js';
 import { MAP_SCENES } from '../../data/game/combat-sprites.js';
+import { getBuffBonus } from '../../defs/helpers.js';
+import { initializeClamworksAfkDrops, clamworksAfkSummary } from '../w7/clamworks-afk.js';
 
 const N = x => Number(x) || 0;
 const _recipe = key => /SmithingRecipes|TalentBook/.test(key);
@@ -161,19 +163,12 @@ const DESCRIPTORS = {
 };
 const VALUE_OVERRIDES = new Set(['talent29', 'bribe1', 'bribe8', 'overkillActive', 'filterSlots']);
 
-export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
-  if (!Number.isFinite(hours) || hours < 0 || hours * 3600 > 2e8) throw new Error('Enter AFK hours between 0 and 55,555.');
-  const candy = opts.candy === true;
-  if (candy && (mapIdx >= 299 || [120, 166, 200, 216].includes(mapIdx))) {
-    return { unavailable: true, candy, reason: 'Time Candy cannot be used on this map in the game.', drops: [] };
-  }
-  if (candy && [4, 5].includes(N(charClassData[charIdx])) && (buffsActiveData[charIdx] || []).some(b => N(b[0]) === 45)) {
-    return { unavailable: true, candy, reason: 'Time Candy cannot be used while the Journeyman/Maestro skilling buff is active.', drops: [] };
-  }
+export function createCombatAfkStatContext(S, charIdx, mapIdx, opts = {}) {
   const holeCavern = opts.holeCavern ?? N(S.holesData?.[0]?.[charIdx]);
+  const clamworks = mapIdx === 306;
   const ctx = createStatContext({ saveData: S, charIdx, mapIdx, layer1: { afkClaim: true, holeCavern } });
   const target = combatTarget(S, charIdx, mapIdx, ctx);
-  if (!target.applicable) return { unavailable: true, reason: target.reason, drops: [] };
+  if (!target.applicable) return { ctx, target, warnings: [] };
   ctx.afkTarget = target.key;
   const warnings = [], toggles = normalizeToggleState(opts.toggles), descriptorOverrides = new Map(), valueToggles = {};
   for (const [id, row] of Object.entries(toggles)) {
@@ -185,12 +180,50 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
   const resolve = ctx.resolve, frozen = new Map();
   ctx.resolve = id => {
     if (frozen.has(id)) return frozen.get(id);
-    const node = resolve(id), override = descriptorOverrides.get(id);
+    let node = resolve(id);
+    const form = ctx.afkForm;
+    const formKey = { damage: 'damage', accuracy: 'accuracy', 'crit-chance': 'critChance', 'crit-damage': 'critDamage', defence: 'defence', 'max-hp': 'hp' }[id];
+    if (form && formKey && form[formKey] != null) node = { ...node, val: form[formKey],
+      children: [{ ...node, name: 'Normal formula (replaced by ' + form.form + ')' }],
+      note: 'Saved form replaces the normal value.', ...(id === 'damage' ? { mastery: form.mastery } : {}) };
+    if (form?.form === 'tempest' && id === 'movement-speed') node = { ...node,
+      val: Math.floor(100 * (1 + form.moveSpeed / 100)) / 100,
+      children: [{ name: 'Tempest movement bonus', val: form.moveSpeed, fmt: '%' }],
+      note: 'floor(100 * (1 + bonus/100)) / 100' };
+    const override = descriptorOverrides.get(id);
     if (!override) return node;
     const val = buildToggleOverrides({ [override.id]: override.row }, { [override.key]: { value: node.val } })[override.key];
     if (!Number.isFinite(val) || val < 0) throw new Error('Invalid AFK override: ' + override.key);
-    return { ...node, val, children: [], unavailable: false, partial: false, reason: '' };
+    return { ...node, val, children: [{ ...node, name: 'Formula before final override' }],
+      note: 'Final AFK scalar override; formula is replaced, not added.',
+      overridden: true, unavailable: false, partial: false, reason: '' };
   };
+  let built;
+  if (clamworks) {
+    built = buildCombatInputs(S, charIdx, mapIdx, { rawSave: opts.rawSave, ctx, overrides: { useSavedBuffs: true } });
+    const form = [[195, 1, 'wraith'], [420, 0.1, 'tempest'], [585, 0.1, 'arcanist']].find(([id, threshold]) =>
+      getBuffBonus(id, 1, charIdx, ctx) >= threshold && (buffsActiveData[charIdx] || []).some(b => N(b[0]) === id && N(b[1]) > 100));
+    ctx.afkForm = form ? built.values.formStats[form[2]] : null;
+    ctx.invalidate();
+  }
+  return { ctx, target, warnings, built, valueToggles, frozen };
+}
+
+export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
+  if (!Number.isFinite(hours) || hours < 0 || hours * 3600 > 2e8) throw new Error('Enter AFK hours between 0 and 55,555.');
+  const candy = opts.candy === true;
+  if (candy && (mapIdx >= 299 || [120, 166, 200, 216].includes(mapIdx))) {
+    return { unavailable: true, candy, reason: 'Time Candy cannot be used on this map in the game.', drops: [] };
+  }
+  if (candy && [4, 5].includes(N(charClassData[charIdx])) && (buffsActiveData[charIdx] || []).some(b => N(b[0]) === 45)) {
+    return { unavailable: true, candy, reason: 'Time Candy cannot be used while the Journeyman/Maestro skilling buff is active.', drops: [] };
+  }
+  const clamworks = mapIdx === 306;
+  const clamworksPhase = opts.clamworksPhase ?? 'settled';
+  const prepared = createCombatAfkStatContext(S, charIdx, mapIdx, opts);
+  const { ctx, target, warnings, valueToggles, frozen } = prepared;
+  if (!target.applicable) return { unavailable: true, reason: target.reason, drops: [] };
+  let built = prepared.built;
   const survival = computeCombatSurvivability(charIdx, ctx);
   if (survival.unavailable || survival.notApplicable) return { unavailable: true, reason: survival.reason, drops: [] };
   const required = ['drop-rate', 'coin-multi', 'card-drop-chance-multiplier', 'monster-exp', 'kill-per-kill', 'multikill-total'];
@@ -200,8 +233,9 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
     if (node.partial && node.reason) warnings.push(node.reason);
   }
   if (survival.partial && survival.reason) warnings.push(survival.reason);
-  const built = buildCombatInputs(S, charIdx, mapIdx, { rawSave: opts.rawSave, ctx, overrides: { useSavedBuffs: true } });
+  built ||= buildCombatInputs(S, charIdx, mapIdx, { rawSave: opts.rawSave, ctx, overrides: { useSavedBuffs: true } });
   const values = { ...built.values, overkillActive: computeOverkillActive(charIdx, ctx, { mapIdx, afkTarget: target.key, monsterHP: target.hp }).active ? 1 : 0 };
+  if (clamworks) for (const [key, id] of Object.entries(DESCRIPTORS)) values[key] = ctx.resolve(id).val;
   Object.assign(values, buildToggleOverrides(valueToggles, built.entries));
   // The active input builder's provenance is also used for native loot-table reset.
   for (const key of ['anvilCraftStatus', 'stampLevelMax', 'invStorageUsed', 'skillLevelsMax', 'kla100', 'tasksObol', 'emporium4', 'ninja106', 'talent29', 'bribe1', 'bribe8', 'filterSlots']) {
@@ -215,7 +249,7 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
   if (!eligible) warnings.push('Native AFK claims require more than two minutes away.');
   // Food changes do not invalidate the native map-load damage/TotalStats cache.
   for (const id of ['damage', 'accuracy', 'crit-chance', 'crit-damage', 'defence', 'drop-rate', 'kill-per-kill', 'multikill-total']) frozen.set(id, ctx.resolve(id));
-  let foodClaim = null;
+  let foodClaim = null, rerollSurvival = null;
   if (eligible) {
     const orderRow = D.equipOrderData[charIdx], qtyRow = D.equipQtyData[charIdx];
     const completeFoodRow = row => row && typeof row === 'object' && Number.isInteger(Number(row.length))
@@ -239,6 +273,12 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
         lastOrder = signature;
         return lastState = { ...state, monsterDamage: state.monsterDamage.val, expMulti: ctx.resolve('monster-exp').val };
       });
+      if (clamworks) {
+        orderRow[2] = foodClaim.order; qtyRow[2] = foodClaim.qty;
+        ctx.invalidate();
+        rerollSurvival = computeCombatSurvivability(charIdx, ctx);
+        if (rerollSurvival.unavailable || rerollSurvival.notApplicable) throw new Error(rerollSurvival.reason || 'Reroll food inputs are unavailable');
+      }
     } finally {
       orderRow[2] = originalOrder; qtyRow[2] = originalQty; ctx.invalidate();
     }
@@ -250,7 +290,19 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
   const rewardKills = eligible ? foodClaim.coefficient * foodClaim.final.fightingAfkRate : 0;
   const tables = { ldorRuns: 0 };
   lootDropOddsReset({ inputs: { values }, state: { cards0: values.cards0 }, rewardsState: tables, emit() {}, timeMs: 0 });
+  if (clamworks) initializeClamworksAfkDrops(tables, clamworksPhase);
   const drops = eligible ? afkMonsterDropOutcomes(Math.floor(rewardKills), target.key, values, tables) : [];
+  let clamClaim = null;
+  if (clamworks) {
+    initializeClamworksAfkDrops(tables, 'settled');
+    const rerollKills = rerollSurvival ? seconds / 3600 * rerollSurvival.rewardRollKillsPerHour : 0;
+    const rerollDrops = eligible ? afkMonsterDropOutcomes(Math.floor(rerollKills), target.key, values, tables) : [];
+    clamClaim = clamworksAfkSummary(ctx, { values, drops, rerollDrops, food: foodClaim, eligible, phase: clamworksPhase });
+    clamClaim.replacement.rewardKills = rerollKills;
+    clamClaim.form = ctx.afkForm?.form || 'normal';
+    clamClaim.maxDamage = ctx.resolve('damage').val;
+    clamClaim.multikillTotal = values.multikillTotal;
+  }
   let exp = rewardKills * N(target.monster.ExpGiven) * (foodClaim?.final.expMulti ?? ctx.resolve('monster-exp').val);
   if (exp < 2e9) exp = Math.floor(exp);
   let creditedKills = rewardKills * ctx.resolve('kill-per-kill').val;
@@ -284,9 +336,10 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
   warnings.push(...progress.warnings);
   return {
     hours, candy, effectiveHours: seconds / 3600, target: target.key, holeCavern: target.afkCavern ? holeCavern : null, rewardKills, dropRolls: Math.floor(rewardKills), creditedKills,
-    exp, coins: coin?.expected || 0, drops, food: foodClaim, progress, afkRate: foodClaim?.final.fightingAfkRate ?? survival.fightingAfkRate, survivability: foodClaim?.final.percent ?? survival.percent,
+    exp, coins: coin?.expected || 0, drops, food: foodClaim, progress, ...(clamworks ? { clamworks: clamClaim } : {}), afkRate: foodClaim?.final.fightingAfkRate ?? survival.fightingAfkRate, survivability: foodClaim?.final.percent ?? survival.percent,
     warnings: [...new Set(warnings)], partial: warnings.length > 0,
-    notes: ['One combat AFK claim, before rerolls, AFK doublers or inventory pickup limits. Food follows the native sorted, one-pass depletion/refill batch, not repeated live consumption. Saved buffs remain snapshot-backed. Active-only crystals, giants, form currencies and temporary golem bosses/opals are excluded.',
+    notes: ['One combat AFK claim, before AFK doublers or inventory pickup limits. Food follows the native sorted, one-pass depletion/refill batch, not repeated live consumption. Saved buffs remain snapshot-backed. Active-only crystals, giants, form currencies and temporary golem bosses/opals are excluded.',
+      clamworks ? 'Clamworks includes a separate discard-and-replace Pure Pearl reroll policy; primary reward totals remain the initial claim.' : 'Rerolls are excluded.',
       ...(candy ? ['Candy AFK excludes Master Class quest-item drops, TranQi Divinity EXP, Harriep procs and offline Worship/Sailing/Gaming bonus time. Ordinary loot, EXP, kill credit, food consumption, prayer limits and eligible bonus-candy rolls use the normal claim rules. Enter the time granted by one candy, not a combined stack of separate claims.'] : []),
       ...(target.afkCavern ? ['The native Hole AFK rate reads the scene’s first Motherlode actor for HP, respawn and incoming damage; the chosen cavern monster controls accuracy, kill credit, EXP and loot. This is separate from live cavern combat.'] : []),
       ...progress.notes],

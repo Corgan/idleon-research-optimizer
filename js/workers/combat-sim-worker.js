@@ -6,11 +6,14 @@
 //        inputOverrides, toggles (combat-sim-toggles state; resolved per map, inputOverrides win),
 //        termOverrides ({ termKey: { mode: 'off'|'set'|'scale', value } } component terms), buffs, lite, expBreakdown,
 //        telemetry (detailed runs default true; lite always disables bounded diagnostics),
+//        inputStatus (return lightweight partial/unavailable input notes, including in lite batches),
 //        encodeReplay (post binary delta-encoded 'replay' batches instead of 'snapshots'; uncapped),
 //        replayKeyframeEvery = 300,
 //        stopOn ([{ event, match?, count?, label? }]; see combat-sim-core) }
 //      { type: 'terms', id, rawSave?, charIdx, mapIdx, termOverrides } -> { type: 'terms', id, terms }
 //      { type: 'fingerprint', id, ...same fields as run } -> { type: 'fingerprint', id, hash } (sim inputs only, no stepping)
+//      { type: 'breakdowns', id, ...same loadout fields } -> { type: 'breakdowns', id, breakdowns }
+//      initializes without stepping; canonical active/AFK trees, scalar provenance and per-def respawn.
 //      run/fingerprint accept setup (patches applied first; its toggles/termOverrides
 //      are used unless the message supplies explicit maps, including {} to disable)
 //      { type: 'load', rawSave }  -> caches the save so later runs may omit rawSave (batch/all-maps runs)
@@ -34,6 +37,10 @@ import { createReplayEncoder, packReplayFrames } from '../stats/systems/common/c
 import { applyCombatSetup } from '../stats/systems/common/combat-sim-setup.js';
 import { stableHash } from '../stats/systems/common/combat-sim-setup-search.js';
 import { captureCombatExpStart } from '../stats/systems/common/combat-sim-exp.js';
+import { buildCombatInputs } from '../stats/systems/common/combat-sim-inputs.js';
+import { buildCombatStatBreakdowns } from '../stats/systems/common/combat-sim-breakdowns.js';
+import { createCombatAfkStatContext } from '../stats/systems/common/combat-afk.js';
+import { getDef } from '../stats/systems/common/combat-sim-world.js';
 
 const CHUNK_STEPS = 4000;
 const cancelled = new Set();
@@ -82,13 +89,66 @@ function prepare(msg) {
   if (ov) opts.inputOverrides = ov;
   if (msg.buffs) opts.buffs = msg.buffs;
   if (Array.isArray(msg.stopOn) && msg.stopOn.length) opts.stopOn = msg.stopOn;
+  if (msg.type === 'breakdowns') opts.inputs = withCombatTerms(terms, () =>
+    buildCombatInputs(saveData, ci, Number(msg.mapIdx), { rawSave: raw, overrides: ov, statBreakdowns: true }));
   const sim = withCombatTerms(terms, () => createCombatSim({ saveData, charIdx: ci, mapIdx: Number(msg.mapIdx), seed: Number(msg.seed) || 1, options: opts }));
-  return { sim, terms };
+  return { sim, terms, raw };
+}
+
+function breakdowns(msg) {
+  const { sim, terms, raw } = prepare(msg);
+  if (sim.unsupported) throw new Error(sim.unsupported);
+  const afk = withCombatTerms(terms, () => {
+    const r = createCombatAfkStatContext(saveData, sim.charIdx, sim.mapIdx, {
+      rawSave: raw, toggles: msg.toggles ?? msg.setup?.toggles,
+      holeCavern: msg.inputOverrides?.holeCavern,
+    });
+    return { rows: buildCombatStatBreakdowns(r.ctx, {}, { afk: true }), warnings: r.warnings,
+      reason: !r.target.applicable ? r.target.reason : '' };
+  });
+  const values = sim.inputs.values;
+  for (const row of sim.inputs.breakdowns) {
+    const value = values[row.input];
+    if (row.node && Number.isFinite(value) && value !== row.node.val) row.node = {
+      name: row.name, val: value, fmt: row.node.fmt,
+      note: 'Player initialization replaces the starting input (for example, an active form). The normal formula is not added.',
+      children: [{ ...row.node, name: 'Input before player initialization' }],
+    };
+  }
+  const respawn = [...new Set(sim.monsters.map(m => m.type))].map(type => {
+    const def = getDef(sim, type), pct = values.respawnBonusPct?.[type] || 0;
+    return { type, seconds: Number(def.RespawnTime), bonusPct: pct,
+      breakdown: sim.inputs.entries.respawnBonusPct?.breakdowns?.[type] || null,
+      note: type === 'caveC' ? 'Uses caveD base and Cove divisor (native assignment quirk).'
+        : type === 'caveD' ? 'Native caveD definition stays unscaled.' : 'Per-definition respawn list, not the current map world.' };
+  });
+  const inputs = Object.fromEntries(Object.entries(sim.inputs.entries).filter(([key, e]) =>
+    e.value == null || typeof e.value !== 'object' || ['formStats', 'respawnBonusPct', 'formDropCoef'].includes(key))
+    .map(([key, e]) => {
+      const { breakdowns, ...entry } = e;
+      if (typeof values[key] === 'number' && values[key] !== e.value) {
+        entry.value = values[key]; entry.initializedReplacement = true;
+        entry.note = 'Player initialization replaced ' + e.value + '. ' + (entry.note || '');
+      }
+      return [key, entry];
+    }));
+  self.postMessage({ type: 'breakdowns', id: msg.id, breakdowns: {
+    active: sim.inputs.breakdowns, afk, inputs, respawn,
+    player: sim.player ? { damageMax: values.damageMax, damageMin: values.damageMin, mastery: values.damageMastery,
+      accuracy: values.accuracy, hpMax: sim.player.hpMax, mpMax: sim.player.mpMax,
+      defence: values.playerDefence, speed: values.playerSpeed, attackSpeedPct: values.attackSpeedPct } : null,
+    forms: { wraith: sim.state.wraith, tempest: sim.state.tempest, arcanist: sim.state.arcanist },
+    mapIdx: sim.mapIdx, charIdx: sim.charIdx, holeCavern: values.holeCavern,
+    savedBuffs: !!msg.inputOverrides?.useSavedBuffs,
+  } });
 }
 
 function run(msg) {
   const id = msg.id;
   const { sim, terms } = prepare(msg);
+  const inputIssues = msg.inputStatus ? Object.entries(sim.inputs?.entries || {})
+    .filter(([, entry]) => entry.partial || entry.unavailable)
+    .map(([key, entry]) => ({ key, status: entry.unavailable ? 'unavailable' : 'partial', source: entry.source, note: entry.note })) : undefined;
   const expStart = msg.expBreakdown ? captureCombatExpStart(saveData, sim.charIdx, sim.inputs) : null;
   if (sim.unsupported) {
     self.postMessage({ type: 'error', id, message: sim.unsupported, unsupported: true });
@@ -155,6 +215,7 @@ function run(msg) {
       type: 'done', id, summary: cloneable(sim.summary()), player, events, eventLog: lite ? [] : eventLog, timeline: lite ? [] : timeline,
       inputs: lite ? {} : (cloneable(sim.inputs && sim.inputs.entries) || {}), timeMs: sim.timeMs, cancelled: wasCancelled, ended: sim.ended ? cloneable(sim.ended) : null,
       expStart,
+      ...(inputIssues ? { inputIssues } : {}),
       unmodelled: Object.assign({}, sim.state.unmodelled || {}), snapshotsSent: sent, snapshotsDropped: dropped, replayBytes: enc ? enc.bytes : 0, replayOom,
     });
   };
@@ -195,6 +256,13 @@ self.onmessage = function(event) {
   const msg = event.data || {};
   if (msg.type === 'cancel') { cancelled.add(msg.id); return; }
   if (msg.type === 'load') { cachedRaw = msg.rawSave || null; return; }
+  if (msg.type === 'breakdowns') {
+    try { breakdowns(msg); }
+    catch (error) {
+      self.postMessage({ type: 'error', id: msg.id, message: error.message, stack: error.stack });
+    }
+    return;
+  }
   if (msg.type === 'terms') {
     try {
       const raw = msg.rawSave || cachedRaw;

@@ -33,6 +33,7 @@ import { computeCardSetBonus } from './cards.js';
 import { goldFoodBonuses } from './goldenFood.js';
 import { mapIncomingAttacksPerHour } from '../../data/common/maps.js';
 import { MonsterDrops } from '../../data/game/custommaps.js';
+import { clamHP } from '../w7/clamworks.js';
 
 function _isCglunkoMap(saveData, charIdx, mapIdx) {
   return Number(mapIdx) === 216
@@ -74,7 +75,7 @@ export function combatTarget(saveData, charIdx, mapIdx, opts) {
     key: key,
     monster: monster,
     name: monster ? String(monster.Name || key).replace(/_/g, ' ') : '',
-    hp: monster ? Number(monster.MonsterHPTotal) || 0 : 0,
+    hp: idx === 306 && key === 'w7a6' ? clamHP() : monster ? Number(monster.MonsterHPTotal) || 0 : 0,
     defence: monster ? Number(monster.Defence) || 0 : 0,
     type: monster && monster.Type ? String(monster.Type) : 'Monster',
   };
@@ -201,6 +202,7 @@ export function actionWaitTimeAfk(charIdx, ctx, opts) {
     });
     if (hasBuff135) speed = Math.min(13, speed + 2);
   }
+  if (ctx.afkForm?.weaponSpeed != null) speed = ctx.afkForm.weaponSpeed;
 
   var attackSpeedPct = _resolverValue(etcBonus, '56', ctx)
     + _value(computeMealBonus('AtkSpd', saveData, charIdx))
@@ -217,6 +219,9 @@ export function actionWaitTimeAfk(charIdx, ctx, opts) {
 }
 
 export function effectiveMonsterHP(charIdx, ctx, target) {
+  if (target.mapIdx === 306 && target.key === 'w7a6') {
+    return { val: target.hp, base: target.hp, prayerCursePct: 0 };
+  }
   var curse = _value(computePrayerReal(0, 1, charIdx, ctx.saveData))
     + _value(computePrayerReal(7, 1, charIdx, ctx.saveData))
     + _value(computePrayerReal(8, 1, charIdx, ctx.saveData));
@@ -247,11 +252,14 @@ export function effectiveRespawnTime(charIdx, ctx, target, opts) {
   // membership, not the current map; unlisted defs keep their raw RespawnTime.
   var listWorld = target && target.key ? respawnListWorld(target.key) : null;
   if (listWorld != null) worldIdx = listWorld;
-  var common = computeBUpg(44, 10, saveData)
-    + _resolverValue(shrine, 7, ctx)
-    + _value(computeChipBonus('resp', charIdx))
-    + _resolverValue(etcBonus, '47', ctx)
-    + _value(computeStarSignBonus('MobRespawn', charIdx, saveData));
+  var commonSources = [
+    { name: 'Cavern respawn upgrade', val: computeBUpg(44, 10, saveData), note: 'B_UPG 44' },
+    { name: 'Respawn shrine', val: _resolverValue(shrine, 7, ctx) },
+    { name: 'Respawn Lab chip', val: _value(computeChipBonus('resp', charIdx)) },
+    { name: 'Equipment respawn', val: _resolverValue(etcBonus, '47', ctx) },
+    { name: 'Mob Respawn star signs', val: _value(computeStarSignBonus('MobRespawn', charIdx, saveData)) },
+  ];
+  var common = commonSources.reduce((sum, n) => sum + n.val, 0);
   var tasks = saveData.tasksGlobalData || [];
   var worldBonus = common;
   if (worldIdx === 0) worldBonus += achieveStatus(44, saveData) + 2 * (Number(tasks[2]?.[0]?.[1]) || 0);
@@ -277,6 +285,7 @@ export function effectiveRespawnTime(charIdx, ctx, target, opts) {
     val: respawn,
     base: base,
     commonBonusPct: common,
+    commonSources: commonSources,
     worldBonusPct: worldBonus,
     w7TaskBonusPct: w7TaskBonus,
     portalMultiplier: portalMultiplier,
@@ -606,7 +615,7 @@ export function computeRawCombatKillsPerHour(charIdx, ctx, opts) {
   opts = opts || {};
   var target = combatTarget(ctx.saveData, charIdx, ctx.mapIdx, ctx);
   if (!target.applicable) return { val: 0, notApplicable: true, reason: target.reason };
-  if (!target.afkCavern && (target.cglunko || target.key === 'w7a6' || target.classification.category === 'feature')) {
+  if (!target.afkCavern && (target.cglunko || target.classification.category === 'feature')) {
     return { val: 0, unavailable: true, reason: 'This map uses a special HP or respawn branch not represented by normal AFK combat.' };
   }
   if (attackLoadoutDataAvailable[charIdx] === false && !opts.loadout) {

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Idleon Statue Calculator</title>
+<link rel="stylesheet" href="css/combat-farming.css">
 <style>
 :root {
   --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
@@ -95,6 +96,8 @@ summary { cursor: pointer; color: var(--cyan); }
       </table>
       <p id="no-matches" class="empty" hidden>No statues match your search.</p>
     </section>
+    <section id="statue-farming"></section>
+    <p id="farming-rate-source" class="note" role="status"></p>
     <details class="section note" id="method">
       <summary>EXP multipliers &amp; calculation details</summary>
       <div id="breakdown" class="breakdown"></div>
@@ -120,9 +123,18 @@ import { statueLevelingInputs, statueTargetCost } from './js/stats/systems/commo
 import { computeStatueBonusGiven } from './js/stats/systems/common/stats.js';
 import { entityName } from './js/stats/entity-names.js';
 import { fmtVal } from './js/renderers/format.js';
+import { mountStatueCombat } from './js/ui/statue-combat.js';
 
 const state = { loaded: false, charIdx: 0, targets: {}, rates: {}, estimate: 'guaranteed', sort: 'game', query: '', identity: null };
 const $ = id => document.getElementById(id);
+const combatFarming = mountStatueCombat($('statue-farming'), {
+  onApply(ci, rates, map) {
+    if (ci !== state.charIdx) throw new Error('Choose the measured character before applying these rates');
+    state.rates[ci] = rates;
+    render();
+    $('farming-rate-source').textContent = 'Applied measured raw pickup rates from ' + map + ' to the selected character. Targets and deposit bonuses are unchanged.';
+  },
+});
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmt = value => Number.isFinite(value) ? fmtVal(value) : 'Unavailable';
 const SUFFIXES = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 };
@@ -217,7 +229,7 @@ function render() {
     showError(error);
   }
 }
-function onSaveLoaded() {
+function onSaveLoaded(S, raw, metadata) {
   const identity = JSON.stringify(saveData.charNames);
   if (state.identity !== identity) {
     state.targets = {}; state.rates = {}; state.charIdx = 0; state.identity = identity;
@@ -230,9 +242,16 @@ function onSaveLoaded() {
   $('empty-state').hidden = true;
   $('main-content').hidden = false;
   render();
+  combatFarming.load(raw, metadata);
+  combatFarming.setCharacter(state.charIdx);
+  if (metadata?.source !== 'auto-refresh') $('farming-rate-source').textContent = '';
 }
 initSaveLoader({ target: '#save-area', auth: true, onLoad: onSaveLoaded });
-$('character').addEventListener('change', event => { state.charIdx = Number(event.target.value); render(); });
+$('character').addEventListener('change', event => {
+  state.charIdx = Number(event.target.value); render();
+  combatFarming.setCharacter(state.charIdx);
+  $('farming-rate-source').textContent = '';
+});
 $('estimate').addEventListener('change', event => { state.estimate = event.target.value; render(); });
 $('sort').addEventListener('change', event => { state.sort = event.target.value; render(); });
 $('search').addEventListener('input', event => { state.query = event.target.value; filterRows(); });
@@ -250,6 +269,7 @@ $('statue-body').addEventListener('change', event => {
     } else {
       parseRate(input.value);
       (state.rates[ci] ||= {})[index] = input.value;
+      $('farming-rate-source').textContent = 'Farming rates include manual edits.';
     }
     render();
   } catch (error) {

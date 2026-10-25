@@ -1,0 +1,27 @@
+.cw-combat { margin-top:16px; min-width:0; }
+.cw-controls { display:flex; gap:12px; flex-wrap:wrap; border:0; margin-bottom:12px; min-width:0; }
+.cw-controls label { display:flex; flex-direction:column; gap:4px; color:var(--text2); font-size:.85em; max-width:100%; min-width:0; }
+.cw-controls .cw-check { flex-direction:row; align-items:center; }
+.cw-combat select,.cw-combat input,.cw-combat button { background:var(--bg3); color:var(--text); border:1px solid #555; border-radius:4px; padding:6px; max-width:100%; }
+.cw-combat input[type=number] { width:110px; }
+.cw-combat button { cursor:pointer; }
+.cw-combat button:disabled { opacity:.5; cursor:default; }
+.cw-combat :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.cw-actions { display:flex; gap:8px; margin:10px 0; }
+.cw-note { color:var(--text2); font-size:.82em; margin:10px 0; line-height:1.5; }
+.cw-note ul { padding-left:20px; overflow-wrap:anywhere; }
+.cw-error { color:var(--red); margin:8px 0; }
+.cw-warning { color:var(--gold); font-size:.85em; margin:8px 0; }
+.cw-combat progress { display:inline-block; width:160px; height:12px; accent-color:var(--green); max-width:100%; }
+.cw-table small { display:block; color:var(--text2); font-size:.9em; }
+.cw-combat .css-setup-ico { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; border-radius:3px; }
+.cw-combat .css-setup-ico img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+@media (max-width:700px) {
+  .cw-table,.cw-table tbody,.cw-table tr,.cw-table td { display:block; width:100%; }
+  .cw-table tr { background:var(--bg3); margin:10px 0; border-radius:6px; padding:8px; }
+  .cw-table thead { display:none; }
+  .cw-table td { display:flex; justify-content:space-between; gap:10px; text-align:right; overflow-wrap:anywhere; }
+  .cw-table td::before { content:attr(data-label); text-align:left; color:var(--text2); }
+  .cw-table td:first-child { display:block; text-align:left; font-weight:600; }
+  .cw-table td:first-child::before { display:none; }
+}

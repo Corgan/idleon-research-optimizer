@@ -29,6 +29,7 @@ import { tomeQTY, computeTomeScore } from '../w4/tome-score.js';
 import { computeCardSetBonus } from './cards.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
 import { etcBonus } from './etcBonus.js';
+import { label } from '../../entity-names.js';
 
 function _num(value) {
   if (value && typeof value === 'object' && value.val != null) return Number(value.val) || 0;
@@ -153,9 +154,13 @@ function _isCglunkoMap(charIdx, mapIdx, saveData, ctx) {
 
 /** Compute WorkbenchStuff("MultiKill_base", 0, 0). */
 export function computeMultiKillBase(charIdx, ctx, opts) {
+  return computeMultiKillBaseDetail(charIdx, ctx, opts).val;
+}
+
+export function computeMultiKillBaseDetail(charIdx, ctx, opts) {
   opts = opts || {};
   var saveData = ctx && ctx.saveData;
-  if (!saveData) return 0;
+  if (!saveData) return { val: 0, unavailable: true, reason: 'Save data missing.' };
   var mapIdx = opts.mapIdx != null ? opts.mapIdx
     : (ctx.mapIdx != null ? ctx.mapIdx : (currentMapData && currentMapData[charIdx]) || 0);
   var onyxOwned = 0;
@@ -164,26 +169,29 @@ export function computeMultiKillBase(charIdx, ctx, opts) {
     if ((Number(statueTiers[statueIdx]) || 0) >= 2) onyxOwned++;
   }
 
-  var value = _starSignBonus(47, charIdx, saveData)
-    + _num(computeSaltLick(8, saveData))
-    + _num(computeStampBonusOfTypeX('Overkill', saveData))
-    + 2 * (Number(saveData.towerData && saveData.towerData[2]) || 0)
-    + _resolverVal(etcBonus, '29', ctx)
-    + Math.min(5, achieveStatus(148, saveData))
-    + 6 * achieveStatus(122, saveData)
-    + 2 * achieveStatus(123, saveData)
-    + onyxOwned * _resolverVal(talent, 654, ctx);
-
-  if (mapIdx >= 300) value = _w7MultiKillScale(value);
-  if (_isCglunkoMap(charIdx, mapIdx, saveData, ctx)) value = mkBase(saveData);
-  return value;
+  var children = [
+    { name: label('Star Sign', 47), val: _starSignBonus(47, charIdx, saveData) },
+    { name: label('SaltLick', 8), val: _num(computeSaltLick(8, saveData)) },
+    { name: 'Overkill stamp', val: _num(computeStampBonusOfTypeX('Overkill', saveData)) },
+    { name: 'Death Note building', val: 2 * (Number(saveData.towerData && saveData.towerData[2]) || 0) },
+    { name: 'Equipment multikill', val: _resolverVal(etcBonus, '29', ctx) },
+    { name: label('Achievement', 148), val: Math.min(5, achieveStatus(148, saveData)) },
+    { name: label('Achievement', 122), val: 6 * achieveStatus(122, saveData) },
+    { name: label('Achievement', 123), val: 2 * achieveStatus(123, saveData) },
+    { name: 'Onyx statues x ' + label('Talent', 654), val: onyxOwned * _resolverVal(talent, 654, ctx) },
+  ];
+  return _multiKillDetail(children, mapIdx, _isCglunkoMap(charIdx, mapIdx, saveData, ctx) ? mkBase(saveData) : null);
 }
 
 /** Compute WorkbenchStuff("MultiKill_perTier", 0, 0). */
 export function computeMultiKillPerTier(charIdx, ctx, opts) {
+  return computeMultiKillPerTierDetail(charIdx, ctx, opts).val;
+}
+
+export function computeMultiKillPerTierDetail(charIdx, ctx, opts) {
   opts = opts || {};
   var saveData = ctx && ctx.saveData;
-  if (!saveData) return 0;
+  if (!saveData) return { val: 0, unavailable: true, reason: 'Save data missing.' };
   var mapIdx = opts.mapIdx != null ? opts.mapIdx
     : (ctx.mapIdx != null ? ctx.mapIdx : (currentMapData && currentMapData[charIdx]) || 0);
   var worldIdx = Math.floor(mapIdx / 50);
@@ -191,28 +199,40 @@ export function computeMultiKillPerTier(charIdx, ctx, opts) {
   var card80 = computeCardBonusByType(80, charIdx, saveData);
   var cardSet11 = computeCardSetBonus(charIdx, '11');
 
-  var value = _deathNoteWorldQTY(worldIdx, saveData)
-    + _deathNoteWorldQTY(7, saveData)
-    + _num(computeVialByKey('Overkill', saveData, charIdx))
-    + getBuffBonus(46, 2, charIdx, ctx)
-    + maxTalentBonus(58, charIdx, saveData) * Math.floor((Number(optionsListData[158]) || 0) / 5)
-    + _num(arcadeBonus(8, saveData))
-    + _num(computeArtifactBonus(26, charIdx, ctx))
-    + getBuffBonus(469, 2, charIdx, ctx)
-    + computeChipBonus('mkill', charIdx)
-    + _resolverVal(etcBonus, '71', ctx)
-    + _measurementBonus(saveData, 9)
-    + _num(card80)
-    + _starSignBonus(78, charIdx, saveData)
-    + _num(computePrayerReal(16, 0, charIdx, saveData))
-    + computeShinyBonusS(4, saveData)
-    + _num(box13b)
-    + _num(bubbleValByKey('MKtierACTIVE', charIdx, saveData))
-    + _num(cardSet11);
+  var children = [
+    { name: 'World Death Note', val: _deathNoteWorldQTY(worldIdx, saveData) },
+    { name: 'Sneaking Death Note', val: _deathNoteWorldQTY(7, saveData) },
+    { name: 'Overkill vial', val: _num(computeVialByKey('Overkill', saveData, charIdx)) },
+    { name: label('Talent', 46), val: getBuffBonus(46, 2, charIdx, ctx) },
+    { name: label('Talent', 58) + ' x account counter', val: maxTalentBonus(58, charIdx, saveData) * Math.floor((Number(optionsListData[158]) || 0) / 5) },
+    { name: 'Arcade 8', val: _num(arcadeBonus(8, saveData)) },
+    { name: label('Artifact', 26), val: _num(computeArtifactBonus(26, charIdx, ctx)) },
+    { name: label('Talent', 469), val: getBuffBonus(469, 2, charIdx, ctx) },
+    { name: 'Multikill Lab chip', val: computeChipBonus('mkill', charIdx) },
+    { name: 'Equipment multikill per tier', val: _resolverVal(etcBonus, '71', ctx) },
+    { name: label('Measurement', 9), val: _measurementBonus(saveData, 9) },
+    { name: 'Multikill cards', val: _num(card80) },
+    { name: label('Star Sign', 78), val: _starSignBonus(78, charIdx, saveData) },
+    { name: label('Prayer', 16), val: _num(computePrayerReal(16, 0, charIdx, saveData)) },
+    { name: 'Shiny pet 4', val: computeShinyBonusS(4, saveData) },
+    { name: 'Post Office 13b', val: _num(box13b) },
+    { name: 'MKtierACTIVE bubble', val: _num(bubbleValByKey('MKtierACTIVE', charIdx, saveData)) },
+    { name: 'Card set 11', val: _num(cardSet11) },
+  ];
+  return _multiKillDetail(children, opts.skipWorld7Scale ? 0 : mapIdx,
+    _isCglunkoMap(charIdx, mapIdx, saveData, ctx) ? mkTier(saveData) : null);
+}
 
-  if (mapIdx >= 300 && !opts.skipWorld7Scale) value = _w7MultiKillScale(value);
-  if (_isCglunkoMap(charIdx, mapIdx, saveData, ctx)) value = mkTier(saveData);
-  return value;
+function _multiKillDetail(children, mapIdx, coveValue) {
+  var raw = children.reduce((sum, n) => sum + n.val, 0);
+  var scaled = mapIdx >= 300 ? _w7MultiKillScale(raw) : raw;
+  if (mapIdx >= 300) children = [{ name: 'Before W7 diminishing returns', val: raw, children },
+    { name: 'After W7 diminishing returns', val: scaled, note: 'Piecewise native W7 scaling, not an additive source.' }];
+  if (coveValue != null) return { val: coveValue, children: [
+    { name: 'Normal multikill (replaced in The Cove)', val: scaled, children },
+    { name: 'Cove upgrade replacement', val: coveValue },
+  ], note: 'The Cove replaces normal multikill with its own upgrade bonus.' };
+  return { val: scaled, children, note: mapIdx >= 300 ? 'W7 piecewise diminishing returns applied to the source sum.' : 'Sum of sources in native order.' };
 }
 
 /** Compute WorkbenchStuff("MultiKillTOTAL", 0, 0). */

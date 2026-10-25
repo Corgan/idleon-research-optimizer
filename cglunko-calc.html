@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Idleon Cglunko Calculator (The Cove)</title>
 <link rel="stylesheet" href="css/breakdown.css">
+<link rel="stylesheet" href="css/combat-farming.css">
 <style>
 :root {
   --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
@@ -67,8 +68,11 @@ import * as C from './js/stats/systems/w5/cglunko.js';
 import { fmtVal } from './js/renderers/format.js';
 import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { _bNode } from './js/stats/node-helpers.js';
+import { mountCoveCombat } from './js/ui/cglunko-combat.js';
 
-initSaveLoader({ target: '#save-area', onLoad: render, auth: true });
+const combatHost = document.createElement('div');
+const combatFarming = mountCoveCombat(combatHost);
+initSaveLoader({ target: '#save-area', onLoad: (S, raw, metadata) => { render(); combatFarming.load(raw, metadata); }, auth: true });
 
 if (saveData && saveData.optionsListAccount) render();
 
@@ -113,6 +117,7 @@ function render() {
   var _prevScroll = window.scrollY;
 
   el.innerHTML = html;
+  el.querySelector('#cove-combat').append(combatHost);
 
   // Render DR breakdown tree
   var _drTree = el.querySelector('#dr-breakdown-tree');
@@ -272,7 +277,7 @@ function _renderOptimizer(ext) {
     }
   }
   html += '</tbody></table>';
-  html += '</div></div>';
+  html += '</div><div id="cove-combat"></div></div>';
   return html;
 }
 

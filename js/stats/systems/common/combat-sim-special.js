@@ -215,7 +215,7 @@ export function initSpecial(sim) {
       bonesCollected: 0, dustCollected: 0, tachyonsCollected: 0, medallionsCollected: 0, prismaBubblesCollected: 0,
       clamPearlsGained: 0, clamTenX: 0,
       coveKills: 0, golemsSpawned: { monarch: 0, centurion: 0 }, golemKills: { monarch: 0, centurion: 0 }, opalsFound: 0,
-      holeShapesGained: 0, torchesGained: 0, riftQuest74: 0, riftSkullsApplied: 0, evaporatePickups: 0,
+      holeShapesGained: 0, holeShapesByType: {}, torchesGained: 0, riftQuest74: 0, riftSkullsApplied: 0, evaporatePickups: 0,
     },
     den: null,
   };
@@ -768,6 +768,7 @@ export function dungeonPickup(sim, item) {
       olaAdd(654 + n, g2); gain += g2;
     }
     C.holeShapesGained += gain;
+    _add(C.holeShapesByType, n, gain);
   } else if (t === 'Quest69') olaAdd(105, 1);
   else if (t === 'Quest74') { if (sp.rift) _add(sp.rift.progress, 'add2', 1); }
   else _unmodelled(sim, 'dungeonPickupEffect', t + ' (src 82547 dungeon-only pickup effect)');
@@ -803,6 +804,7 @@ export function specialSummary(sim) {
     coveKills: C.coveKills,
     holeShapesDropped: ['HoleGshape0', 'HoleGshape1', 'HoleGshape2', 'HoleGshape3', 'HoleGshape4', 'HoleGshape5'].reduce((a, k) => a + qd(k), 0),
     holeShapesGained: C.holeShapesGained,
+    holeShapesByType: { ...C.holeShapesByType },
     golemsSpawned: { ...C.golemsSpawned },
     golemKills: { ...C.golemKills },
     opalsFound: C.opalsFound,
