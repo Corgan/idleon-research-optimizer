@@ -46,6 +46,7 @@ import { fmtVal } from './js/renderers/format.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
 import { CELL_NAMES, JELLY_COLS, JELLY_OBSTRUCTION_SLOTS, JELLY_SIZE, jellyRewards, jellyRewardTarget, jellySlotPlots, jellyUpgradeData, jellyUpgradeOrder } from './js/stats/data/w7/jelly-operator.js';
 import * as J from './js/stats/systems/w7/jelly-operator.js';
+import { jellySearchAssignment } from './js/optimizers/jelly-coordinator.js';
 import { doubledUpgrades, menagerieDoublersOwned } from './js/stats/systems/w7/menagerie.js';
 import { buildSaveContext, computeShapesOwned } from './js/save/context.js';
 
@@ -73,7 +74,7 @@ let currentPolicy = null;
 let simulator = null;
 let purchaseControls={strategy:'progression',objective:'clear',expCellType:-1,purchases:3,planningDays:30,quality:'thorough',lookahead:2,reoptimize:false,budget:true};
 let sectionControls={strategy:'progression',objective:'clear',expCellType:-1,tokens:null,quality:'thorough',beamWidth:8};
-let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,adaptiveSearch:true,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
+let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,adaptiveSearch:false,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
 let activeTab = 'overview';
 let jellyWorker = null;
 let jellyCertificationWorkers = [];
@@ -805,9 +806,11 @@ async function startParallelJellyOptimization(layout,options){
   });
   const capturedUnlockedSlots=Array.from(J.jellyUnlockedSlots(saveData));
   const requestedStarts=Math.max(1,Math.min(32,Number(options.searchStarts)||1));
-  const requestedWorkers=Math.max(1,Math.min(4,Number(options.searchWorkers)||1,requestedStarts));
+  const requestedWorkers=Math.max(1,Math.min(4,Number(options.searchWorkers)||1,options.finalistPooling===false?requestedStarts:4));
   const controlKey=jellyHash(JSON.stringify({
+    searchRevision:'quality-feedback-v6',
     fingerprint:jellySaveFingerprint(),
+    workerContext:searchContextKey,
     layout:J.jellyLayoutKey(layout),
     objective:options.objective,
     expCellType:options.expCellType,
@@ -824,6 +827,24 @@ async function startParallelJellyOptimization(layout,options){
     adaptiveMinStarts:options.adaptiveMinStarts,
     adaptiveConvergenceWindow:options.adaptiveConvergenceWindow,
     virusSearchMode:options.virusSearchMode,
+    computeScheduling:options.computeScheduling,
+    shareElites:options.shareElites,
+    trialReuse:options.trialReuse,
+    compactSimulation:options.compactSimulation,
+    policyPrefixes:options.policyPrefixes,
+    measurementSharing:options.measurementSharing,
+    activeExactRepair:options.activeExactRepair,
+    firingCalendar:options.firingCalendar,
+    frameTiming:options.frameTiming,
+    finalistPooling:options.finalistPooling,
+    policyReuse:options.policyReuse,
+    policyWarmStart:options.policyWarmStart,
+    policyScreenPooling:options.policyScreenPooling,
+    screenPolicyFrameTiming:options.screenPolicyFrameTiming,
+    jointPolicyScreening:options.jointPolicyScreening,
+    simulationFeedbackRounds:options.simulationFeedbackRounds,
+    operationRepairs:options.operationRepairs,
+    operationRepairNodeBudget:options.operationRepairNodeBudget,
   }));
   let state={
     key:controlKey,
@@ -832,8 +853,9 @@ async function startParallelJellyOptimization(layout,options){
     completed:[],
     workerProgress:{},
     workerStatus:{},
+    assignments:{},
     paused:false,
-    schema:2,
+    schema:6,
   };
   let warmWorkersReused=0;
   try{
@@ -849,11 +871,38 @@ async function startParallelJellyOptimization(layout,options){
   }catch(error){
     workerError=`Search checkpoint could not be restored: ${String(error?.message||error)}`;
   }
-  const persist=()=>{
-    jellyCheckpointSet(JELLY_SEARCH_CHECKPOINT_KEY,state).catch(error=>{
+  const measurementCache=J.createJellyMeasurementCache({scope:`${searchContextKey}|${Math.floor(Number(options.seed)||1)}`});
+  const finalistMeasurements=J.createJellyMeasurementCache({scope:`${searchContextKey}|${Math.floor(Number(options.seed)||1)}|finalists`});
+  const policyScope=`${searchContextKey}|${Math.floor(Number(options.seed)||1)}|policies`;
+  const policyMeasurements=J.createJellyPolicyCache({scope:policyScope});
+  if(state.measurements){
+    try{measurementCache.merge(state.measurements);}
+    catch(error){
+      workerError=`Search measurements could not be restored: ${String(error?.message||error)}`;
+      render();
+      return;
+    }
+  }
+  if(state.finalistMeasurements){
+    try{finalistMeasurements.merge(state.finalistMeasurements);}
+    catch(error){workerError=`Finalist measurements could not be restored: ${String(error?.message||error)}`;render();return;}
+  }
+  if(state.policyMeasurements&&options.policyReuse!==false){
+    try{policyMeasurements.merge(state.policyMeasurements);}
+    catch(error){workerError=`Policy measurements could not be restored: ${String(error?.message||error)}`;render();return;}
+  }
+  const persist=async()=>{
+    try{
+      state.measurements=options.measurementSharing===false?undefined:measurementCache.export();
+      state.finalistMeasurements=finalistMeasurements.export();
+      state.policyMeasurements=options.policyReuse===false?undefined:policyMeasurements.export();
+      await jellyCheckpointSet(JELLY_SEARCH_CHECKPOINT_KEY,state);
+      return true;
+    }catch(error){
       workerError=`Search checkpoint could not be saved: ${String(error?.message||error)}`;
       render();
-    });
+      return false;
+    }
   };
   jellyLiveSearch=state.liveBest||null;
   let lastLiveRenderAt=0;
@@ -913,8 +962,10 @@ async function startParallelJellyOptimization(layout,options){
     }
   };
   updateAdaptiveCutoff();
+  let finished=false;
   const finish=()=>{
-    if(requestId!==workerRequestId)return;
+    if(requestId!==workerRequestId||finished)return;
+    finished=true;
     const acceptedRows=state.userStop
       ?state.results.slice()
       :state.results.filter(row=>row.start<(state.stopAfter||requestedStarts));
@@ -934,6 +985,9 @@ async function startParallelJellyOptimization(layout,options){
       searchStartOffset:row.start,
       searchStarts:1,
       operation:row.result.operation,
+      focus:row.assignment?.focus||'explore',
+      sharedElites:row.assignment?.sharedEliteLayouts?.length||0,
+      elapsedMs:row.elapsedMs,
       layoutKey:J.jellyLayoutKey(row.result.layout),
       evaluated:row.result.evaluated,
     })).sort((a,b)=>a.shard-b.shard);
@@ -949,6 +1003,19 @@ async function startParallelJellyOptimization(layout,options){
       selectedShard:shardSummaries.find(row=>row.layoutKey===J.jellyLayoutKey(best.layout))?.shard??0,
       scheduling:'dynamic-search-start-queue',
       warmWorkersReused,
+      eliteExchange:'between-search-starts',
+      finalistPool:{...(state.trialPool||{}),scheduling:'deterministic-seed-blocks'},
+      policyReuse:{
+        hits:acceptedRows.reduce((sum,row)=>sum+(row.result.search?.policyReuse?.hits||0),0),
+        warmStarts:acceptedRows.reduce((sum,row)=>sum+(row.result.search?.policyReuse?.warmStarts||0),0),
+        entries:policyMeasurements.diagnostics().entries,
+      },
+      sharedElites:acceptedRows.reduce((sum,row)=>sum+(row.assignment?.sharedEliteLayouts?.length||0),0),
+      allocation:acceptedRows.reduce((counts,row)=>{
+        const focus=row.assignment?.focus||'explore';
+        counts[focus]=(counts[focus]||0)+1;
+        return counts;
+      },{}),
     };
     best.evaluated=acceptedRows.reduce((sum,row)=>sum+(Number(row.result.evaluated)||0),0);
     const mergedDiversity=acceptedRows.reduce((summary,row)=>mergeDiversity(summary,row.result.search?.diversitySummary),{});
@@ -959,15 +1026,27 @@ async function startParallelJellyOptimization(layout,options){
       coarseRebuildCandidates:acceptedRows.reduce((sum,row)=>sum+(Number(row.result.search?.coarseRebuildCandidates)||0),0),
       explorationRounds:Math.max(...acceptedRows.map(row=>Number(row.result.search?.explorationRounds)||0),0),
     };
+    for(const [field,keys] of [
+      ['trialReuse',['computed','reused','evictions','prefixResumed','prefixFramesReused']],
+      ['measurements',['hits','imported']],
+      ['activeExactRepair',['scopes','nodes','completeScopes','improvements']],
+    ]){
+      const summaries=acceptedRows.map(row=>row.result.search?.[field]).filter(Boolean);
+      if(summaries.length)mergedBaseSearch[field]={
+        ...(best.search?.[field]||{}),
+        ...Object.fromEntries(keys.map(key=>[key,summaries.reduce((sum,row)=>sum+(Number(row[key])||0),0)])),
+        scope:'retained-search-starts',
+      };
+    }
     best.search={...(best.search||{}),...mergedBaseSearch,searchStarts:acceptedRows.length,requestedSearchStarts:requestedStarts,parallelWorkers:requestedWorkers,totalSearchStarts:acceptedRows.length,stoppingReason:state.stoppingReason||'Requested start count completed.',diversitySummary:mergedDiversity,parallelDiversity:true};
     best.evaluationLedger=(best.evaluationLedger||[]).filter(row=>row.phase!=='Parallel island merge');
     best.evaluationLedger.unshift({
       phase:'Parallel island merge',
-      method:'Dynamic deterministic search-start queue',
+      method:'Payoff-scheduled search-start queue with elite exchange',
       candidates:acceptedRows.length,
       trials:best.operation?.trials||0,
       claim:'best-found-only',
-      evidence:`${state.results.length} of ${requestedStarts} requested starts executed across ${requestedWorkers} reusable workers; the deterministic indexed prefix retained ${acceptedRows.length} starts for winner selection. ${state.stoppingReason||''}`.trim(),
+      evidence:`${state.results.length} of ${requestedStarts} requested starts executed across ${requestedWorkers} reusable workers; ${acceptedRows.length} retained. Elites transfer at start boundaries, with at least one exploration start per four assignments. Adaptive assignments depend on completed work and elapsed costs and are checkpointed for resume. ${state.stoppingReason||''}`.trim(),
     });
     optimized=best;
     optimizedStale=jellySearchCrossedRefresh;
@@ -1005,6 +1084,151 @@ async function startParallelJellyOptimization(layout,options){
   render();
   let nextJob=0;
   let activeJobs=0;
+  let blockSerial=0;
+  let blockBytes=0;
+  let poolPersistAt=0;
+  const blockQueue=[];
+  const blockCache=new Map();
+  const pendingBlocks=new Map();
+  const poolRequests=new Map();
+  state.trialPool||={completedBlocks:0,reusedBlocks:0,reusedBatches:0};
+  state.trialPool.inFlightReusedBlocks??=0;
+  state.trialPool.completedPolicyGroups??=0;
+  state.trialPool.sharedPolicyGroups??=0;
+  state.trialPool.reusedScreenings??=0;
+  const policyExchange=worker=>{
+    if(options.policyReuse===false)return undefined;
+    if(worker._jellyPolicyScope!==policyScope){
+      worker._jellyPolicyScope=policyScope;
+      worker._jellyPolicyKeys=new Set();
+    }
+    const payload=policyMeasurements.export(worker._jellyPolicyKeys);
+    for(const [key] of payload.entries)worker._jellyPolicyKeys.add(key);
+    return payload.entries.length?payload:undefined;
+  };
+  const rememberBlock=(key,block)=>{
+    const bytes=2*JSON.stringify(block).length;
+    if(bytes>2*1024*1024)return;
+    const previous=blockCache.get(key);
+    if(previous)blockBytes-=previous.bytes;
+    blockCache.delete(key);
+    blockCache.set(key,{block,bytes});
+    blockBytes+=bytes;
+    while(blockBytes>2*1024*1024||blockCache.size>128){
+      const oldest=blockCache.keys().next().value;
+      blockBytes-=blockCache.get(oldest).bytes;
+      blockCache.delete(oldest);
+    }
+  };
+  const dispatchTrialWork=()=>{
+    for(const worker of jellySearchWorkers){
+      if(worker._jellyBusy||!worker._jellyInitialized)continue;
+      if(worker._jellyResume){
+        const resume=worker._jellyResume;
+        worker._jellyResume=null;
+        worker._jellyBusy=true;
+        try{worker.postMessage({type:'resume',requestId,...resume,policyMeasurements:policyExchange(worker)});}
+        catch(error){stopJellyWorker();workerError=`Finalist continuation could not be sent: ${String(error?.message||error)}`;render();return;}
+      }else if(blockQueue.length){
+        const job=blockQueue.shift();
+        worker._jellyBusy=true;
+        worker._jellyBlock=job;
+        try{worker.postMessage({
+          type:'run',operation:job.kind==='policyScreen'?'policyScreen':'trialBlock',requestId,blockId:job.id,
+          layout:job.request.layout,
+          options:job.kind==='policyScreen'
+            ?{...job.request.options,policies:job.policies}
+            :{...job.request.options,trialOffset:job.offset,trialCount:job.count},
+        });}
+        catch(error){stopJellyWorker();workerError=`Finalist block could not be sent: ${String(error?.message||error)}`;render();return;}
+      }else if(!worker._jellySuspended){
+        assignJob(worker,jellySearchWorkers.indexOf(worker));
+      }
+    }
+  };
+  const screeningKey=(request,policy)=>JSON.stringify(['policyScreen',J.jellyLayoutKey(request.layout),request.options,policy]);
+  const resumeScreening=request=>{
+    poolRequests.delete(request.worker);
+    request.worker._jellyResume={trialRequestId:request.trialRequestId,result:{
+      seed:request.options.seed,trials:request.options.trials,measurements:request.measurements,
+    }};
+  };
+  const requestScreens=(worker,message)=>{
+    worker._jellyBusy=false;
+    worker._jellySuspended=true;
+    const request={...message,worker,measurements:Array(message.policies.length),remaining:0};
+    const byFever=new Map();
+    message.policies.forEach((policy,index)=>{
+      const cached=finalistMeasurements.get(screeningKey(request,policy));
+      if(cached){request.measurements[index]=cached;state.trialPool.reusedScreenings++;return;}
+      if(!byFever.has(policy.fever))byFever.set(policy.fever,[]);
+      byFever.get(policy.fever).push(index);
+    });
+    for(const indices of byFever.values())for(let from=0;from<indices.length;from+=8){
+      const positions=indices.slice(from,from+8);
+      const policies=positions.map(index=>message.policies[index]);
+      const key=JSON.stringify(['policyGroup',J.jellyLayoutKey(message.layout),message.options,policies]);
+      const retained=blockCache.get(key);
+      if(retained){
+        positions.forEach((index,offset)=>{request.measurements[index]=retained.block.measurements[offset];});
+        state.trialPool.reusedScreenings+=positions.length;
+      }else{
+        request.remaining++;
+        const waiter={request,positions};
+        const pending=pendingBlocks.get(key);
+        if(pending){pending.requests.push(waiter);state.trialPool.sharedPolicyGroups++;}
+        else{
+          const job={id:++blockSerial,kind:'policyScreen',request,requests:[waiter],policies,key};
+          pendingBlocks.set(key,job);
+          blockQueue.push(job);
+        }
+      }
+    }
+    poolRequests.set(worker,request);
+    if(!request.remaining)resumeScreening(request);
+    dispatchTrialWork();
+  };
+  const requestTrials=(worker,message)=>{
+    if(message.kind==='policyScreen'){requestScreens(worker,message);return;}
+    worker._jellyBusy=false;
+    worker._jellySuspended=true;
+    const key=JSON.stringify([J.jellyLayoutKey(message.layout),message.options]);
+    const cached=!message.options.includeTrials&&finalistMeasurements.get(key);
+    if(cached){
+      state.trialPool.reusedBatches++;
+      worker._jellyResume={trialRequestId:message.trialRequestId,result:cached};
+      dispatchTrialWork();
+      return;
+    }
+    const request={...message,worker,blocks:[],remaining:0};
+    const blockSize=Math.max(8,Math.min(32,Math.ceil(message.options.trials/requestedWorkers)));
+    const {trials:ignoredTrials,includeTrials:ignoredInclude,...physicalOptions}=message.options;
+    for(let offset=0;offset<message.options.trials;offset+=blockSize){
+      const count=Math.min(blockSize,message.options.trials-offset);
+      const blockKey=JSON.stringify([J.jellyLayoutKey(message.layout),physicalOptions,offset,count]);
+      const retained=blockCache.get(blockKey);
+      if(retained){request.blocks.push(retained.block);state.trialPool.reusedBlocks++;}
+      else{
+        request.remaining++;
+        const pending=pendingBlocks.get(blockKey);
+        if(pending){
+          pending.requests.push(request);
+          state.trialPool.reusedBlocks++;
+          state.trialPool.inFlightReusedBlocks++;
+        }else{
+          const job={id:++blockSerial,request,requests:[request],offset,count,key:blockKey};
+          pendingBlocks.set(blockKey,job);
+          blockQueue.push(job);
+        }
+      }
+    }
+    poolRequests.set(worker,request);
+    if(!request.remaining){
+      poolRequests.delete(worker);
+      worker._jellyResume={trialRequestId:message.trialRequestId,blocks:request.blocks};
+    }
+    dispatchTrialWork();
+  };
   const updateQueueProgress=()=>{
     const activeProgress=Object.entries(state.workerProgress)
       .filter(([index])=>!state.completed.includes(Number(index)))
@@ -1048,8 +1272,8 @@ async function startParallelJellyOptimization(layout,options){
     for(let start=0;start<target;start++)if(!state.completed.includes(start))return false;
     return activeJobs===0;
   };
-  const assignJob=(worker,workerIndex)=>{
-    if(requestId!==workerRequestId)return;
+  const assignJob=async(worker,workerIndex)=>{
+    if(requestId!==workerRequestId||worker._jellySuspended||worker._jellyBusy)return;
     if(state.paused){
       worker._jellyBusy=false;
       if(activeJobs===0){
@@ -1064,25 +1288,47 @@ async function startParallelJellyOptimization(layout,options){
       return;
     }
     const start=pending[nextJob++];
+    state.assignments||={};
+    const assignment=state.assignments[start]||jellySearchAssignment(state.results,start,options);
+    state.assignments[start]=assignment;
     activeJobs++;
     worker._jellyBusy=true;
     worker._jellyStart=start;
-    state.workerStatus[start]={phase:'Starting search',detail:'Initializing this independent search start',percent:0};
+    worker._jellyStartedAt=performance.now();
+    state.workerStatus[start]={phase:'Starting search',detail:`${assignment.focus} allocation · ${assignment.sharedEliteLayouts.length} shared elites`,percent:0};
     updateQueueProgress();
     const {layout:ignoredLayout,...jobOptions}=options;
-    worker.postMessage({
-      type:'run',
-      operation:'layout',
-      requestId,
-      options:{
-        ...jobOptions,
-        searchStarts:1,
-        searchStartOffset:start,
-        onProgress:undefined,
-      },
-    });
+    const sharedEliteLayouts=assignment.sharedEliteLayouts.map(row=>({...row,layout:undefined,packedLayout:packJellyLayout(row.layout)}));
+    if(!await persist()){
+      stopJellyWorker();
+      render();
+      return;
+    }
+    if(requestId!==workerRequestId)return;
+    try{
+      worker.postMessage({
+        type:'run',
+        operation:'layout',
+        cooperativeTrials:options.finalistPooling!==false&&requestedWorkers>1,
+        requestId,
+        measurements:options.measurementSharing===false?undefined:measurementCache.export(),
+        policyMeasurements:policyExchange(worker),
+        options:{
+          ...jobOptions,
+          ...assignment.overrides,
+          sharedEliteLayouts,
+          searchStarts:1,
+          searchStartOffset:start,
+          onProgress:undefined,
+        },
+      },sharedEliteLayouts.map(row=>row.packedLayout.buffer));
+    }catch(error){
+      stopJellyWorker();
+      workerError=`Search job could not be sent: ${String(error?.message||error)}`;
+      render();
+    }
   };
-  for(let workerIndex=0;workerIndex<Math.min(requestedWorkers,pending.length);workerIndex++){
+  for(let workerIndex=0;workerIndex<(options.finalistPooling===false?Math.min(requestedWorkers,pending.length):requestedWorkers);workerIndex++){
     const warmIndex=jellyWarmSearchWorkers.findIndex(candidate=>candidate._jellyContextKey===searchContextKey);
     const worker=warmIndex>=0
       ?jellyWarmSearchWorkers.splice(warmIndex,1)[0]
@@ -1095,7 +1341,71 @@ async function startParallelJellyOptimization(layout,options){
       if(requestId!==workerRequestId||message.requestId!==requestId)return;
       if(message.type==='initialized'){
         worker._jellyInitialized=true;
-        if(!worker._jellyBusy)assignJob(worker,workerIndex);
+        dispatchTrialWork();
+        return;
+      }
+      if(message.type==='trials'){
+        requestTrials(worker,message);
+        return;
+      }
+      if(message.type==='trialSummary'){
+        try{finalistMeasurements.set(message.key,message.result);}
+        catch(error){stopJellyWorker();workerError=`Finalist measurements could not be merged: ${String(error?.message||error)}`;render();return;}
+        if(performance.now()-poolPersistAt>=750){
+          poolPersistAt=performance.now();
+          persist().then(ok=>{if(!ok)stopJellyWorker();});
+        }
+        return;
+      }
+      if(message.type==='policySummary'){
+        try{
+          policyMeasurements.set(message.key,message.result,message.priority||0);
+          worker._jellyPolicyKeys?.add(message.key);
+        }catch(error){stopJellyWorker();workerError=`Policy measurements could not be merged: ${String(error?.message||error)}`;render();return;}
+        return;
+      }
+      if(worker._jellyBlock&&message.type==='done'){
+        const job=worker._jellyBlock;
+        if(message.blockId!==job.id||!message.result){
+          stopJellyWorker();workerError='A finalist block returned an invalid completion.';render();return;
+        }
+        const block=message.result;
+        if(job.kind==='policyScreen'){
+          if(block.seed!==job.request.options.seed||block.trials!==job.request.options.trials
+            ||block.measurements?.length!==job.policies.length
+            ||block.measurements.some(value=>!value?.valid||value.trials!==block.trials||value.seed!==block.seed||value.results)){
+            stopJellyWorker();workerError='A policy screening group returned an invalid completion.';render();return;
+          }
+          pendingBlocks.delete(job.key);
+          for(const {request,positions} of job.requests){
+            positions.forEach((index,offset)=>{
+              request.measurements[index]=block.measurements[offset];
+              finalistMeasurements.set(screeningKey(request,request.policies[index]),block.measurements[offset]);
+            });
+            request.remaining--;
+            if(!request.remaining)resumeScreening(request);
+          }
+          rememberBlock(job.key,block);
+          state.trialPool.completedPolicyGroups++;
+          worker._jellyBlock=null;
+          worker._jellyBusy=false;
+          dispatchTrialWork();
+          return;
+        }
+        pendingBlocks.delete(job.key);
+        for(const request of job.requests){
+          request.blocks.push(block);
+          request.remaining--;
+          if(!request.remaining){
+            poolRequests.delete(request.worker);
+            request.worker._jellyResume={trialRequestId:request.trialRequestId,blocks:request.blocks};
+          }
+        }
+        state.trialPool.completedBlocks++;
+        rememberBlock(job.key,block);
+        worker._jellyBlock=null;
+        worker._jellyBusy=false;
+        dispatchTrialWork();
         return;
       }
       const start=worker._jellyStart;
@@ -1120,7 +1430,16 @@ async function startParallelJellyOptimization(layout,options){
         render();
         return;
       }
-      state.results.push({start,result:message.result});
+      if(message.measurements&&options.measurementSharing!==false){
+        try{measurementCache.merge(message.measurements);}
+        catch(error){
+          stopJellyWorker();
+          workerError=`Search measurements could not be merged: ${String(error?.message||error)}`;
+          render();
+          return;
+        }
+      }
+      state.results.push({start,result:message.result,assignment:state.assignments[start],elapsedMs:performance.now()-worker._jellyStartedAt});
       acceptLiveUpdate({
         bestSoFar:{
           layout:message.result.layout,
@@ -1142,11 +1461,12 @@ async function startParallelJellyOptimization(layout,options){
       delete state.workerStatus[start];
       activeJobs--;
       worker._jellyBusy=false;
+      worker._jellySuspended=false;
       updateAdaptiveCutoff();
       persist();
       updateQueueProgress();
       render();
-      assignJob(worker,workerIndex);
+      dispatchTrialWork();
     };
     worker.onerror=event=>{
       if(requestId!==workerRequestId)return;
@@ -1161,7 +1481,7 @@ async function startParallelJellyOptimization(layout,options){
     }else{
       worker._jellyContextKey=searchContextKey;
       const packedLayout=packJellyLayout(layout);
-      worker.postMessage({type:'initialize',requestId,saveData,packedLayout},[packedLayout.buffer]);
+      worker.postMessage({type:'initialize',requestId,saveData,packedLayout,measurementScope:searchContextKey},[packedLayout.buffer]);
     }
   }
   jellySearchControl={
@@ -1181,10 +1501,7 @@ async function startParallelJellyOptimization(layout,options){
       workerProgress.phase='Resuming dynamic search-start queue';
       persist();
       render();
-      for(let index=0;index<jellySearchWorkers.length;index++){
-        const worker=jellySearchWorkers[index];
-        if(worker._jellyInitialized&&!worker._jellyBusy)assignJob(worker,index);
-      }
+      dispatchTrialWork();
     },
     stopAndKeep(){
       if(requestId!==workerRequestId)return;
@@ -3007,10 +3324,24 @@ function optimizerHtml(saved){
           ${optimized.parallelSearch?card('Dynamic search queue',`${optimized.parallelSearch.executedStarts}/${optimized.parallelSearch.requestedStarts} executed`,`${optimized.parallelSearch.acceptedStarts} retained · ${optimized.parallelSearch.workers} warm-capable workers · ${optimized.parallelSearch.warmWorkersReused||0} reused${optimized.parallelSearch.resumed?' · resumed':''}`):''}
           ${card('Search funnel',`${fmtInt(optimized.evaluated)} → ${fmtInt(optimized.search?.screeningCandidates||0)} → ${fmtInt(optimized.search?.racingCandidates||0)} → ${fmtInt(optimized.search?.normalizedFinalists||optimized.search?.finalists||0)}`,'Proxy candidates → screened → raced → fully simulated finalists')}
           ${card('Base experimentation',`${fmtInt(optimized.search?.initialBaseFamilies||0)} → ${fmtInt(optimized.search?.explorationBaseFamilies||0)} → ${fmtInt(optimized.search?.finalBeamBaseFamilies||0)} families`,`Initial seeds → after ${fmtInt(optimized.search?.explorationRounds||0)} coarse rounds → granular refinement · ${fmtInt(optimized.search?.coarseRebuildCandidates||0)} multi-cell rebuilds`)}
+          ${optimized.search?.adaptiveMoves?card('Annealing / tabu search',`${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.proposals,0))} proposals`,`${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.downhillAccepted,0))} downhill moves accepted · ${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.tabuRejected,0))} recent-state cycles blocked · replaces existing mutation budgets`):''}
+          ${optimized.search?.adaptiveMoves?card('Move budget allocation','Payoff-guided',['replacement','relocation','dependency-rebuild','swap'].map(name=>`${name==='dependency-rebuild'?'Connected rebuild':name.charAt(0).toUpperCase()+name.slice(1)}: ${fmtInt(optimized.search.adaptiveChains.flatMap(row=>row.families).filter(row=>row.name===name).reduce((sum,row)=>sum+row.attempts,0))}`).join(' · ')):''}
+          ${optimized.search?.surrogateCorrection?.enabled?card('Simulation-guided ranking',optimized.search.surrogateCorrection.weight>0?`${pct(optimized.search.surrogateCorrection.weight)} correction weight`:'Uncorrected proxy',`${fmtInt(optimized.search.surrogateCorrection.samples)} training layouts · leave-one-out rank error ${(optimized.search.surrogateCorrection.rawError||0).toFixed(3)} → ${(optimized.search.surrogateCorrection.correctedError||0).toFixed(3)} · shortlist only, not independent confirmation`):''}
+          ${optimized.search?.simulationFeedback?card('Iterative operation feedback',`${fmtInt(optimized.search.simulationFeedback.rounds.length)} learning rounds`,`${fmtInt(optimized.search.simulationFeedback.screened)} additional boards measured for this start · model refitted between rounds · novelty guides exploration, not statistical confidence`):''}
+          ${optimized.search?.simulationFeedback?card('Operation-guided repairs',`${fmtInt(optimized.search.simulationFeedback.repairsScreened)} repairs measured`,`${fmtInt(optimized.search.simulationFeedback.repairCompleteScopes)} exhausted / ${fmtInt(optimized.search.simulationFeedback.repairBudgetLimitedScopes)} budget-limited proposal scopes · several cell types/counts may change · training evidence, not an optimality proof`):''}
+          ${optimized.search?.jointPolicyScreening?card('Joint Fever / timing search',`${fmtInt(optimized.search.timingFevers)} Fevers receive timing coverage`,`${fmtInt(optimized.search.screeningPhysicalPoliciesReused||0)} equivalent screening policies reused · each board gets its own portfolio before full finalist refinement`):''}
+          ${optimized.search?.normalizedCandidates?card('Distinct completed boards',`${fmtInt(optimized.search.normalizedCandidates.neighborhoodRaw)} → ${fmtInt(optimized.search.normalizedCandidates.neighborhoodUnique)} neighborhood proposals`,'Gap-fill and deduplicate before shortlisting · preserve exact saved and submitted boards · screen each board with its own policy portfolio'):''}
+          ${optimized.search?.incrementalScoring?card('Incremental scoring',`${fmtInt(optimized.search.incrementalScoring.incrementalUpdates)} geometry updates`,`${fmtInt(optimized.search.incrementalScoring.geometryHits)} cached geometries · ${fmtInt(optimized.search.incrementalScoring.cadenceHits)} cadence reuses · exact source arithmetic`):''}
+          ${optimized.search?.trialReuse?card('Extended simulation batches',`${fmtInt(optimized.search.trialReuse.reused)} trials reused`,`${fmtInt(optimized.search.trialReuse.computed)} newly simulated · ${fmtInt(optimized.search.trialReuse.prefixFramesReused)} shared-prefix frames · validation seed families stay separate`):''}
+          ${optimized.search?.measurements?card('Shared measurements',`${fmtInt(optimized.search.measurements.hits)} exact batches reused`,`${fmtInt(optimized.search.measurements.imported)} imported between starts · 128-batch / 2 MiB estimated cache limits · audit samples stay independent`):''}
+          ${optimized.parallelSearch?.finalistPool?card('Finalist worker pool',`${fmtInt(optimized.parallelSearch.finalistPool.completedBlocks)} seed blocks completed`,`${fmtInt(optimized.parallelSearch.finalistPool.reusedBlocks)} blocks reused (${fmtInt(optimized.parallelSearch.finalistPool.inFlightReusedBlocks)} shared in flight) · ${fmtInt(optimized.parallelSearch.finalistPool.reusedBatches)} aggregate batches reused · ${fmtInt(optimized.parallelSearch.finalistPool.completedPolicyGroups)} policy groups completed (${fmtInt(optimized.parallelSearch.finalistPool.sharedPolicyGroups)} shared) · fresh audit stays separate`):''}
+          ${optimized.parallelSearch?.policyReuse?card('Policy search reuse',`${fmtInt(optimized.parallelSearch.policyReuse.hits)} complete searches reused`,`${fmtInt(optimized.parallelSearch.policyReuse.warmStarts)} nearby-layout warm starts · hints are remeasured, never transferred scores`):''}
+          ${optimized.search?.activeExactRepair?card('Construction exact repairs',`${fmtInt(optimized.search.activeExactRepair.improvements)} stronger candidates`,`${fmtInt(optimized.search.activeExactRepair.scopes)} scopes · ${fmtInt(optimized.search.activeExactRepair.completeScopes)} exhausted · ${fmtInt(optimized.search.activeExactRepair.nodes)} nodes · budget-limited scopes are not proofs`):''}
+          ${optimized.parallelSearch?.allocation?card('Compute allocation',Object.entries(optimized.parallelSearch.allocation).map(([name,count])=>`${name}: ${count}`).join(' · '),`${fmtInt(optimized.parallelSearch.sharedElites)} elite transfers at start boundaries · payoff per elapsed second guides later assignments; exploration stays reserved`):''}
           ${optimized.search?.screeningGeometryDiversity?card('Screening geometry diversity',pct(optimized.search.screeningGeometryDiversity.meanAnchorTypeDistance),`${fmtInt(optimized.search.screeningGeometryDiversity.layouts)} layouts · ${pct(optimized.search.screeningGeometryDiversity.meanOccupancyDistance)} mean occupied-slot difference · 0% is identical, 100% has no overlap`):''}
           ${optimized.search?.finalistGeometryDiversity?card('Finalist geometry diversity',pct(optimized.search.finalistGeometryDiversity.meanAnchorTypeDistance),`${fmtInt(optimized.search.finalistGeometryDiversity.layouts)} layouts · ${pct(optimized.search.finalistGeometryDiversity.meanOccupancyDistance)} mean occupied-slot difference`):''}
           ${optimized.search?.diversitySummary?card('Exploration diversity',`At least ${fmtInt(optimized.search.diversitySummary.eliteNiches)} niches`,`At least ${fmtInt(optimized.search.diversitySummary.baseFamilies||0)} base families · ${fmtInt(optimized.search.diversitySummary.compositions)} compositions · observed Virus counts ${(optimized.search.diversitySummary.virusCounts||[]).join(', ')||'none'} · ${fmtInt(optimized.search.diversitySummary.sources?.length||0)} source families`):''}
-          ${card('Adaptive allocation',`${fmtInt(optimized.search?.adaptiveRacingCandidates||0)} extra racers`,`${fmtInt(optimized.search?.racingCandidates||0)} candidates received ${fmtInt(optimized.search?.racingTrials||0)} trials`)}
+          ${card('Adaptive allocation',`${fmtInt(optimized.search?.adaptiveRacingCandidates||0)} extra racers`,`${fmtInt(optimized.search?.racingCandidates||0)} candidates received ${fmtInt(optimized.search?.racingTrials||0)} trials · ${fmtInt(optimized.search?.adaptiveRacingRejected||0)} separated confidence ranges rejected from extra allocation`)}
           ${card('Search islands',(optimized.search?.islandProfiles||[]).join(', ')||'Objective',`${optimized.search?.islandMutationCandidates||0} mutations · ${optimized.search?.islandMigrations||0} migrations · bias scale ${(optimized.search?.islandBiasScale||0).toFixed(3)}`)}
           ${optimized.search?.virusConditionedSeeds?card('Virus conditioning',`${fmtInt(optimized.search.virusConditionedSeeds)} seeds`,`${fmtInt(optimized.search.virusStructuresEnumerated)} structures · ${optimized.search.virusStructureComplete?'exhausted declared count scope':'node-budget limited'} · Organelle fills test Virus counts ${(optimized.search.organelleFillVirusCounts||[]).join(', ')}`):''}
           ${card('Passive coverage champions',`${fmtInt(optimized.search?.maxVirusInfectedSlotsScreened||0)} Virus slots`,`${fmtInt(optimized.search?.maxVirusInfectedOrganellesScreened||0)} Virus-connected Organelles · ${fmtInt(optimized.search?.maxOrganelleCellsScreened||0)} Organelle-connected cells · Organelle counts ${(optimized.search?.organelleStructureCounts||[]).join(', ')||'none'} (geometry limit ${fmtInt(optimized.search?.organelleCountLimitExplored||0)}) · ${fmtInt(optimized.search?.organelleVirusJointSeeds||0)} joint seeds · ${optimized.search?.jointOrganelleVirusFinalist?'joint finalist retained':'no joint finalist'}`)}

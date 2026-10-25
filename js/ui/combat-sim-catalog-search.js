@@ -4,7 +4,7 @@ import { ITEMS } from '../stats/data/game/items.js';
 import { ARMORY_UPGRADES, ROYAL_STATUES } from '../stats/data/w7/royal-guardian.js';
 import { talentDescription } from './combat-sim-visual.js';
 import { formatUq, statLabel } from '../stats/systems/common/combat-sim-stones.js';
-import { chipDescription } from '../stats/data/w4/chips.js';
+import { chipDescription } from '../stats/data/w4/chips.js?v=20261023-chips';
 
 function text(value) {
   if (Array.isArray(value)) return value.map(text).filter(Boolean).join(' ');

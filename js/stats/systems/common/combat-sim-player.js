@@ -2026,8 +2026,11 @@ export function castAttackofID1(sim, id) {
 export function castAttack(sim, id, { raw = false, effect = true } = {}) {
   const def = attackDef(id);
   const st = sim.state, v = _v(sim);
-  if (effect) { castAttackofID1(sim, id); st.attackQty = 0; }
-  else { st.attackQty = 3; st.attackBuffer = 1; }
+  const previousCast = sim.telemetry?.beginCast(id);
+  try {
+    if (effect) { castAttackofID1(sim, id); st.attackQty = 0; }
+    else { st.attackQty = 3; st.attackBuffer = 1; }
+  } finally { sim.telemetry?.endCast(previousCast); }
   st.attackQueue = N(def?.castTime);
   let cd = N(def?.cooldown);
   if (!raw) {
@@ -2095,25 +2098,41 @@ function _eligibleTarget(sim, m) {
 function _findNewNode(sim) {
   const p = sim.player, pmm = p.pmm;
   const map = Number(sim.mapIdx);
-  if (pmm[0] === 2 || !(p.nodeChanges < 4) || (MapType[0] || []).includes(map)) return;
+  const trace = sim.telemetry ? { node: p.node, target: p.target?.uid ?? null, reason: 'no-candidate', rejected: {}, candidates: [] } : null;
+  const report = reason => { if (trace) { trace.reason = reason; sim.telemetry.decision(trace); } };
+  const reject = (m, reason, distance = null) => {
+    if (!trace) return;
+    trace.rejected[reason] = (trace.rejected[reason] || 0) + 1;
+    if (trace.candidates.length < 12) trace.candidates.push({ uid: m.uid, type: m.type, node: m.node, reason, distance });
+  };
+  if (pmm[0] === 2) { report('attack-recovery'); return; }
+  if (!(p.nodeChanges < 4)) { report('node-change-limit'); return; }
+  if ((MapType[0] || []).includes(map)) { report('map-scan-disabled'); return; }
   let bestD = 5e7;
   if (p.target != null && String(p.target.type || '').includes('Tree')) bestD = 0;
-  if (bestD === 0) return;
+  if (bestD === 0) { report('tree-target-pins-scan'); return; }
   const XC = _xc(p), YC = _yc(p), lv = N(_v(sim).level);
   for (const m of sim.world.monsters(sim)) {
-    if (!(_eligibleTarget(sim, m) && !String(m.type || '').includes('Nest') && p.autoMove)) continue;
+    if (!_eligibleTarget(sim, m)) { reject(m, m.alive !== 1 || m.willDie ? 'dead-or-dying' : N(m.pet) !== 0 ? 'pet' : 'not-monster'); continue; }
+    if (String(m.type || '').includes('Nest')) { reject(m, 'nest'); continue; }
+    if (!p.autoMove) { reject(m, 'auto-off'); continue; }
     // Some scenes include exit pads inside _NumberOfNodes, so spawn skills can put mobs there.
-    if (m.node !== p.node && portalDestination(map, m.node)) continue;
+    if (m.node !== p.node && portalDestination(map, m.node)) { reject(m, 'exit-platform'); continue; }
     const d = (XC - _mox(m)) ** 2 + (1.5 * (YC - (m.y + N(m.offY)))) ** 2;
     if (d < bestD && !((map === 216 && N(m.node) === 3) || (lv < 50 && map === 16 && N(m.node) === 3))) {
       bestD = d;
       p.target = m;
-    }
+    } else reject(m, !(d < bestD) ? 'not-closer' : (map === 216 && N(m.node) === 3) ? 'hole-staging' : 'level-restricted-platform', d);
   }
   if (bestD !== 5e7 && pmm[1] === 1) {
     pmm[2] = p.target.node;
     if (p.targetTemp !== p.target) { p.targetTemp = p.target; p.nodeChanges++; }
     if (p.node === pmm[2] && pmm[0] === 0) pmm[0] = 1;
+  }
+  if (trace) {
+    trace.target = p.target?.uid ?? null;
+    trace.chosen = bestD !== 5e7 ? { uid: p.target.uid, type: p.target.type, node: p.target.node, distance: bestD } : null;
+    report(bestD === 5e7 ? 'no-candidate' : pmm[1] !== 1 ? 'destination-held' : 'nearest-weighted-target');
   }
 }
 
@@ -3153,6 +3172,7 @@ function _manualCasts(sim, list) {
 export function autoPlayer(opts = {}) {
   const mod = {
     name: 'auto',
+    reach: playerReach,
     init(sim) {
       const v = _v(sim), p = sim.player;
       // Map 216 starts on node 1 inside an open cavern (src 157424).

@@ -1575,6 +1575,7 @@ export function updateItem(sim, item) {
   if (item.dropType === 'COIN') { sim.state.money = N(sim.state.money) + item.dropAmount; L.coinsPicked += item.dropAmount; }
   const li = _ledgerItem(L, item.dropType);
   li.picked++; li.qtyPicked += item.pickedQty;
+  sim.telemetry?.pickup(item);
   sim.emit('pickup', { uid: item.uid, name: item.dropType, qty: item.pickedQty, autoLooted: item.autoLooted, t: sim.timeMs });
   sim.later(670, () => sim.recycleActor(item), item);
 }

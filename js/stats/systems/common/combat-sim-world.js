@@ -533,7 +533,10 @@ export function drawFrame(sim) {
     _killHandler(sim, mon);
   }
   // Per-frame "when drawing" events on skill actors (AE114 Arrow2/FireBomb/PoisonVial).
-  for (const a of sim._frameActors.slice()) if (a.onFrame && !a.recycled) a.onFrame(sim, a);
+  for (const a of sim._frameActors.slice()) if (a.onFrame && !a.recycled) {
+    if (sim.telemetry) sim.telemetry.frame(a, a.onFrame);
+    else a.onFrame(sim, a);
+  }
 }
 
 // _event_HPbars (src 63514) with OptionsList[27] = 1. Cosmetic only (no RNG).
@@ -578,6 +581,7 @@ function _respawnHandler(sim, mon) {
     }
   }
   sim.emit('respawn', { id: mon.id, uid: mon.uid, type: mon.type, t: sim.timeMs });
+  sim.telemetry?.spawn(mon);
 }
 
 function _nodeBoundary(sim, mon) {
@@ -738,7 +742,9 @@ function _removeTemp(sim, mon) {
 export function damageMonster(sim, mon, amount, meta = {}) {
   if (!mon || mon.recycled) return { dealt: 0, willDie: 0 };
   const a = Number(amount) || 0;
+  const hpBefore = mon.hp;
   mon.hp -= a;
+  sim.telemetry?.damage(mon, a, hpBefore, meta);
   if (mon.hp <= 0 && meta.markWillDie !== false) mon.willDie = 1;
   sim.emit('damage', { id: mon.id, uid: mon.uid, amount: a, hp: mon.hp, meta, t: sim.timeMs });
   return { dealt: a, willDie: mon.willDie };

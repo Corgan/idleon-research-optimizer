@@ -12,10 +12,10 @@ import * as CS from '../stats/systems/common/combat-sim-setup.js';
 import { mountResearchGrid, researchGridHostHtml } from './combat-sim-research-grid.js';
 import * as ST from '../stats/systems/common/combat-sim-stones.js';
 import * as V from './combat-sim-visual.js';
-import { buildCombatEditorSearch, filterCombatEditorSearch, combatEditorOptionText } from './combat-sim-catalog-search.js';
+import { buildCombatEditorSearch, filterCombatEditorSearch, combatEditorOptionText } from './combat-sim-catalog-search.js?v=20261023-chips';
 import { ITEMS } from '../stats/data/game/items.js';
 import { StarSigns, PrayerInfo, CompanionDB, StatueInfo } from '../stats/data/game/customlists.js';
-import { chipDescription } from '../stats/data/w4/chips.js';
+import { chipDescription } from '../stats/data/w4/chips.js?v=20261023-chips';
 import { loadUiAssets, onUiAssets, iconHtml, installIconFallback, showTip, hideTip, itemCardHtml, openPicker, gameText, PICKER_CSS, systemLayout, frameUrl, iconUrl } from './combat-sim-picker.js';
 
 import { COMBAT_DRAFT_PREFIX, combatLoadoutKey, readCombatLoadouts, readCombatDraft } from './combat-sim-loadouts.js';

@@ -5,6 +5,7 @@
 //        killEveryMs (scripted), timelineEveryMs = 10000, eventLogMax = 0, eventLogSkip = [names],
 //        inputOverrides, toggles (combat-sim-toggles state; resolved per map, inputOverrides win),
 //        termOverrides ({ termKey: { mode: 'off'|'set'|'scale', value } } component terms), buffs, lite, expBreakdown,
+//        telemetry (detailed runs default true; lite always disables bounded diagnostics),
 //        encodeReplay (post binary delta-encoded 'replay' batches instead of 'snapshots'; uncapped),
 //        replayKeyframeEvery = 300,
 //        stopOn ([{ event, match?, count?, label? }]; see combat-sim-core) }
@@ -69,7 +70,7 @@ function prepare(msg) {
   if (!raw) throw new Error('No save loaded in worker');
   if (msg.setup && Array.isArray(msg.setup.patches) && msg.setup.patches.length) raw = applyCombatSetup(raw, msg.setup);
   loadSaveData(raw);
-  const opts = { rawSave: raw, expBreakdown: !!msg.expBreakdown };
+  const opts = { rawSave: raw, expBreakdown: !!msg.expBreakdown, telemetry: !msg.lite && msg.telemetry !== false };
   const p = makePlayer(msg);
   if (p) opts.player = p;
   const ci = Number(msg.charIdx) || 0;

@@ -104,6 +104,11 @@ button.btn:disabled { opacity: .45; cursor: default; }
 .err { color: var(--red); }
 .cmp-open-row { cursor: pointer; }
 .cmp-open-row:focus-within { outline: 1px solid var(--accent); outline-offset: -1px; }
+.cmp-toggle { background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; font: inherit; padding: 0; }
+.cmp-toggle:hover { color: var(--accent); }
+.cmp-seed-row { background: rgba(255,255,255,.025); }
+.cmp-seed-label { padding-left: 24px !important; }
+.cmp-seed-label small { display: block; color: var(--text2); overflow-wrap: anywhere; }
 .scroll { max-height: 520px; overflow: auto; }
 #progress-wrap { margin-top: 10px; display: none; }
 #progress-wrap .bar-outer { height: 12px; }
@@ -115,6 +120,7 @@ button.btn:disabled { opacity: .45; cursor: default; }
 #replay-canvas { width: 100%; background: #000; border-radius: 6px; border: 1px solid #333; image-rendering: pixelated; image-rendering: crisp-edges; }
 .replay-opts { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 8px; font-size: .8em; color: var(--text2); }
 .replay-opts label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+.replay-opts label, .replay-opts select { min-width: 0; max-width: 100%; }
 .replay-opts .rp-bean-gear { display: inline-flex; gap: 8px; align-items: center; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .78em; color: var(--text2); margin-top: 6px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
@@ -316,6 +322,9 @@ code { color: var(--cyan); font-size: .92em; }
         <option value="1" selected>1</option>
         <option value="2">2</option>
         <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="10">10</option>
+        <option value="20">20</option>
       </select></label>
       <button class="btn" id="cmp-run" disabled>Compare</button>
       <button class="btn secondary" id="cmp-cancel" disabled>Cancel</button>
@@ -365,10 +374,11 @@ import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
 import { toRenderNode } from './js/stats/tree-builder.js';
 import { label as entityLabel } from './js/stats/entity-names.js';
 import { setupCompareVariants, setupEditsBuffs, setupCompareUnit } from './js/stats/systems/common/combat-sim-setup-compare.js';
-import { characterMapComparePlan } from './js/stats/systems/common/combat-sim-setup-compare.js';
+import { characterMapComparePlan, emptySetupCompareRow, addSetupCompareRun } from './js/stats/systems/common/combat-sim-setup-compare.js';
 import { readRawKey, readAttackLoadout, applyCombatSetup, diffCombatSetup } from './js/stats/systems/common/combat-sim-setup.js';
 import { COMBAT_LOADOUT_PREFIX, COMBAT_DRAFT_PREFIX, readCombatLoadouts, readCombatDraft } from './js/ui/combat-sim-loadouts.js';
 import { mountCombatAfk } from './js/ui/combat-afk.js';
+import { renderCombatDiagnostics, mountCombatDiagnostics, combatReplayIndex, drawCombatHeatmap, drawCombatNavigation, COMBAT_HEATMAPS } from './js/ui/combat-sim-diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -1183,7 +1193,7 @@ $('sel-char').addEventListener('change', function () {
   setup.api.derivedChanged();
 });
 
-import('./js/ui/combat-sim-setup-ui.js').then(function (m) {
+import('./js/ui/combat-sim-setup-ui.js?v=20261023-chips').then(function (m) {
   setup.api = m.mountCombatSetup($('setup-host'), {
     getRawSave: function () { return rawSave; },
     getCharIdx: function () { return Number($('sel-char').value) || 0; },
@@ -1372,7 +1382,7 @@ function startMainThreadRun(r) {
   try {
     sim = withCombatTerms(r.terms, function () {
       var ov = resolveToggleOverrides({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, rawSave: r.raw, toggles: r.toggles, baseOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs) });
-      return createCombatSim({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, seed: r.seed, options: { rawSave: r.raw, player: player, inputOverrides: ov, stopOn: r.stopOn, expBreakdown: true } });
+      return createCombatSim({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, seed: r.seed, options: { rawSave: r.raw, player: player, inputOverrides: ov, stopOn: r.stopOn, expBreakdown: true, telemetry: true } });
     });
   } catch (e) { console.error(e); failRun(r, 'Simulation setup failed: ' + (e && e.message || e)); return; }
   if (sim.unsupported) { failRun(r, 'This map is not supported: ' + sim.unsupported); return; }
@@ -1492,13 +1502,14 @@ function card(title, val, sub) {
 function render() {
   var r = result;
   if (!r) { $('results').innerHTML = ''; return; }
-  var tabs = [['summary', 'Summary'], ['drops', 'Drops'], ['exp', 'EXP & Levels'], ['replay', 'Replay'], ['events', 'Events'], ['inputs', 'Inputs']];
+  var tabs = [['summary', 'Summary'], ['drops', 'Drops'], ['exp', 'EXP & Levels'], ['diagnostics', 'Diagnostics & Heatmap'], ['replay', 'Replay'], ['events', 'Events'], ['inputs', 'Inputs']];
   var html = '<div class="tabs">' + tabs.map(function (t) { return '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
   html += '<div class="section" style="border-radius:0 0 8px 8px">';
   html += runHeader(r);
   if (tab === 'summary') html += renderSummary(r);
   else if (tab === 'drops') html += renderDrops(r);
   else if (tab === 'exp') html += renderExp(r);
+  else if (tab === 'diagnostics') html += renderCombatDiagnostics(r, { fmtNum, fmtCoins, monName, itemName });
   else if (tab === 'replay') html += renderReplayShell(r);
   else if (tab === 'events') html += renderEvents(r);
   else html += renderInputs(r);
@@ -1509,6 +1520,10 @@ function render() {
   });
   if (tab === 'replay') mountReplay(r);
   if (tab === 'exp') mountExp(r);
+  if (tab === 'diagnostics') mountCombatDiagnostics($('results'), r, { fmtNum, fmtCoins, monName, itemName }, function (time) {
+    if (!r.snaps.length) return;
+    stopReplay(); replay.idx = combatReplayIndex(r.snaps, time); replay.acc = 0; tab = 'replay'; render();
+  });
   var full = $('btn-bulk-details');
   if (full) full.addEventListener('click', function () {
     var next;
@@ -2650,7 +2665,7 @@ function startCompare() {
     dropTarget: scope === 'drops' ? cmpPick.drop : null,
   };
   plan.rows.forEach(function (r) {
-    cmp.rows[r.id] = Object.assign({ runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, items: {}, metrics: {}, cards: 0, errors: [], unmodelled: 0, invFull: 0 }, r);
+    cmp.rows[r.id] = Object.assign({ runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, items: {}, metrics: {}, cards: 0, errors: [], unmodelled: 0, invFull: 0, seedRuns: {}, expanded: false }, r);
     var row = cmp.rows[r.id];
     row.cav = cavCfgFor(r.charIdx, r.mapIdx, r.holeCavern, r.variant.raw);
     row.manualCasts = cmp.mode === 'auto' ? currentManualCasts(r.mapIdx, r.variant.manualIds) : undefined;
@@ -2680,6 +2695,7 @@ function dispatchCompare(c, w) {
   var j = c.jobs[c.next++], id = c.id + ':' + c.next, row = c.rows[j.rowId];
   w.busy = { id: id, job: j, frac: 0 };
   c.active[id] = w.busy;
+  row.seedRuns[j.seed] = { status: 'running' };
   w.postMessage({
     type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, row.holeCavern, row.cav, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
@@ -2693,14 +2709,21 @@ function onCompareMessage(c, w, ev) {
   if (m.type !== 'done' && m.type !== 'error') return;
   var row = c.rows[b.job.rowId];
   if (m.type === 'done') {
-    if (!row.detail) row.detail = {
+    var seedRow = { runs: 0, timeMs: 0, kills: 0, klaCredit: 0, exp: 0, coins: 0, cards: 0, items: {}, metrics: {}, errors: [], invFull: 0, unmodelled: 0, status: 'done' };
+    seedRow.detail = {
       seed: b.job.seed, summary: m.summary || {}, player: m.player || null,
       eventCounts: m.events || {}, timeMs: m.timeMs || 0, unmodelled: m.unmodelled || {},
       expStart: m.expStart, message: m.cancelled ? 'Cancelled; partial bulk results.' : endedMessage(m.ended),
     };
-    addCompareRun(row, m);
+    addCompareRun(seedRow, m);
+    row.seedRuns[b.job.seed] = seedRow;
+    addCompareRun(row, m, b.job.seed);
   }
-  else row.errors.push(m.unsupported ? 'Not supported: ' + m.message : m.message);
+  else {
+    var error = m.unsupported ? 'Not supported: ' + m.message : m.message;
+    row.errors.push(error);
+    row.seedRuns[b.job.seed] = { status: 'error', error: error };
+  }
   delete c.active[b.id];
   c.done++;
   updateCompareProgress(c);
@@ -2712,7 +2735,12 @@ function onCompareWorkerError(c, w, e) {
   e.preventDefault && e.preventDefault();
   if (cmp !== c) return;
   var b = w.busy;
-  if (b) { c.rows[b.job.rowId].errors.push('Worker failed: ' + (e.message || 'unknown error')); delete c.active[b.id]; c.done++; }
+  if (b) {
+    var row = c.rows[b.job.rowId], error = 'Worker failed: ' + (e.message || 'unknown error');
+    row.errors.push(error); row.seedRuns[b.job.seed] = { status: 'error', error: error };
+    delete c.active[b.id]; c.done++;
+    updateCompareProgress(c); scheduleCompareRender();
+  }
   w.terminate(); w.busy = null; w.dead = true;
   if (c.workers.every(function (x) { return x.dead; })) { c.next = c.jobs.length; }
   maybeFinishCompare(c);
@@ -2747,7 +2775,11 @@ function cmpMetricLabel(key) {
   return labels[key] || key.split('.').map(function (p) { return p.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, function (x) { return x.toUpperCase(); }); }).join(': ');
 }
 
-function addCompareRun(row, m) {
+function addCompareRun(row, m, seed) {
+  if (seed != null) {
+    if (!row.statistics) row.statistics = emptySetupCompareRow({ id: row.id, label: row.loadout });
+    addSetupCompareRun(row.statistics, seed, m);
+  }
   var R = (m.summary && m.summary.rewards) || {};
   row.runs++; row.timeMs += m.timeMs || 0;
   row.kills += R.kills || 0; row.klaCredit += R.klaCredit || 0; row.exp += R.expTotal || 0; row.coins += R.coinsDropped || 0;
@@ -2841,6 +2873,10 @@ function renderCompare() {
   var columnPanel = host.querySelector('[data-cmp-columns-panel]');
   var columnsOpen = columnPanel && columnPanel.open;
   var focusedColumn = host.contains(document.activeElement) && document.activeElement.dataset.cmpExtra;
+  var focusedRun = host.contains(document.activeElement) && document.activeElement.closest('[data-cmp-expand],[data-cmp-open]');
+  var runFocus = focusedRun && { expand: focusedRun.dataset.cmpExpand, open: focusedRun.dataset.cmpOpen, seed: focusedRun.dataset.cmpSeed };
+  var scroll = host.querySelector('.cmp-scroll');
+  var scrollTop = scroll ? scroll.scrollTop : 0, scrollLeft = scroll ? scroll.scrollLeft : 0;
   var cols = compareColumns(c);
   if (!c.selected) {
     var half = Math.max(2, Math.ceil(new Set(cols.rows.map(function (r) { return r.mapId == null ? r.mapIdx : r.mapId; })).size / 2));
@@ -2943,7 +2979,8 @@ function renderCompare() {
     return '<td class="num' + (isBest && v > 0 ? ' cmp-best' : '') + '">' + (d[0] === 'coins' || d[0] === 'item:COIN' ? fmtCoins(v) : v ? fmtNum(v) : '<span class="note">0</span>') + '</td>';
   };
   var mapRowHtml = function (r) {
-    var s = '<tr class="cmp-open-row" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><a href="#" data-cmp-open="' + escHtml(r.id || r.mapIdx) + '">' + r.mapIdx + ' · ' + escHtml(cmpMapName(r.mapId == null ? r.mapIdx : r.mapId)) + '</a>' + mapDropBadges(r.mapId == null ? r.mapIdx : r.mapId);
+    var id = escHtml(r.id || r.mapIdx);
+    var s = '<tr class="cmp-open-row" data-cmp-expand="' + id + '">' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><button type="button" class="cmp-toggle" data-cmp-expand="' + id + '" aria-expanded="' + !!r.expanded + '">' + (r.expanded ? '&#9660; ' : '&#9654; ') + r.mapIdx + ' · ' + escHtml(cmpMapName(r.mapId == null ? r.mapIdx : r.mapId)) + ' <span class="note">(' + r.runs + '/' + c.seeds.length + ' runs)</span></button>' + mapDropBadges(r.mapId == null ? r.mapIdx : r.mapId);
     if (r.errors.length) s += ' <span class="badge badge-red" title="' + escHtml(r.errors.join('; ')) + '">' + escHtml(r.errors[0].slice(0, 40)) + '</span>';
     if (r.invFull) s += ' <span class="badge badge-gold">bag full</span>';
     if (r.stopped) s += ' <span class="badge badge-cyan">stopped ' + r.stopped + '/' + r.runs + ' (first at ' + escHtml(fmtSec(r.stoppedAt)) + ')</span>';
@@ -2951,7 +2988,24 @@ function renderCompare() {
     if (r.unmodelled) s += ' <span class="badge badge-purple">' + r.unmodelled + ' unmodelled</span>';
     s += '</td>';
     numericDefs.forEach(function (d) { s += cell(r, d, best[d[0]] && best[d[0]].row === r); });
-    return s + '</tr>';
+    s += '</tr>';
+    if (r.expanded) c.seeds.forEach(function (seed, index) {
+      var sr = r.seedRuns[seed], detail = sr && sr.detail;
+      var attrs = ' data-cmp-open="' + id + '" data-cmp-seed="' + seed + '"';
+      var label = 'Run ' + (index + 1) + ' · Seed ' + seed;
+      s += '<tr class="cmp-seed-row' + (detail ? ' cmp-open-row' : '') + '"' + (detail ? attrs : '') + '>' + (c.variants ? '<td></td><td></td>' : '') + '<td class="cmp-seed-label">';
+      if (detail) {
+        s += '<a href="#"' + attrs + '>' + label + '</a><small>' + escHtml(fmtRunLen(detail.timeMs / 1000))
+          + (detail.message ? ' · ' + escHtml(detail.message) : '')
+          + (sr.invFull ? ' · bag full' : '') + (sr.unmodelled ? ' · ' + sr.unmodelled + ' unmodelled' : '') + '</small></td>';
+        numericDefs.forEach(function (d) { s += cell(sr, d, false); });
+      } else {
+        var status = sr && sr.error ? sr.error : !r.variant.raw ? r.errors.join('; ') : c.running ? (sr && sr.status === 'running' ? 'Running' : 'Pending') : 'Not completed';
+        s += label + '</td><td colspan="' + numericDefs.length + '" class="' + (sr && sr.error || !r.variant.raw ? 'err' : 'note') + '">' + escHtml(status) + '</td>';
+      }
+      s += '</tr>';
+    });
+    return s;
   };
   var worldRowHtml = function (t, bestW) {
     var s = '<tr class="cmp-world-row">' + (c.variants ? '<td>' + escHtml(t.character) + '</td><td>' + escHtml(t.loadout) + '</td>' : '') + '<td>World ' + t.world + ' <span class="note" style="margin:0">average of ' + t.nMaps + (t.nMaps < t.total ? ' of ' + t.total : '') + ' map' + (t.total === 1 ? '' : 's') + '</span></td>';
@@ -2976,21 +3030,29 @@ function renderCompare() {
     else wrows.forEach(function (t) { h += worldRowHtml(t, bestW); groups[t.groupKey].forEach(function (r) { h += mapRowHtml(r); }); });
   }
   h += '</tbody></table></div>';
-  h += '<div class="note">Gold cells are the best map for that column. Click a header to sort, or anywhere on a completed map row to view its stored results from one bulk seed, without resimulating. Full details and replay are an opt-in rerun. World-average rows are not individual runs. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
+  h += '<div class="note">Gold cells are observed best values, not statistically confirmed winners. Click a header to sort, or a map row to expand its seed runs. Each sub-row shows the individual run values in the same units; click a completed seed to view its stored results without resimulating. Full details and replay are an opt-in rerun. World-average rows are not individual runs. Short runs are noisy for rare drops; raise the time or runs per map for steadier numbers.</div>';
   host.innerHTML = h;
   if (focusedColumn) {
     var focus = Array.from(host.querySelectorAll('[data-cmp-extra]')).find(function (el) { return el.dataset.cmpExtra === focusedColumn; });
     if (focus) focus.focus({ preventScroll: true });
   }
+  if (runFocus) {
+    var focus = Array.from(host.querySelectorAll('button[data-cmp-expand],a[data-cmp-open]')).find(function (el) {
+      return el.dataset.cmpExpand === runFocus.expand && el.dataset.cmpOpen === runFocus.open && el.dataset.cmpSeed === runFocus.seed;
+    });
+    if (focus) focus.focus({ preventScroll: true });
+  }
+  scroll = host.querySelector('.cmp-scroll');
+  if (scroll) { scroll.scrollTop = scrollTop; scroll.scrollLeft = scrollLeft; }
 }
 
 // ---------------------------------------------------------------------------
-function openCompareRow(c, row) {
+function openCompareRow(c, row, seed) {
   if (run) throw new Error('Finish or cancel the active detailed simulation before opening another row.');
   var v = row.variant;
   if (!v || !v.raw) throw new Error('This row has no valid captured loadout to simulate.');
-  if (!row.detail) throw new Error('This row has no completed simulation yet. Wait for a run to finish before opening its details.');
-  var seed = row.detail.seed;
+  var detail = row.seedRuns[seed] && row.seedRuns[seed].detail;
+  if (!detail) throw new Error('This seed has no completed simulation yet. Wait for the run to finish before opening its details.');
   var r = createRun({
     ci: row.charIdx, character: row.character, loadout: row.loadout,
     mapIdx: row.mapIdx, seconds: c.seconds, seed: seed, mode: c.mode,
@@ -3001,7 +3063,7 @@ function openCompareRow(c, row) {
     manualCasts: row.manualCasts, stopOn: c.stopOn, stale: c.stale,
     comparison: { seedIndex: c.seeds.indexOf(seed) + 1, seedCount: c.seeds.length },
   });
-  Object.assign(r, row.detail, { bulkOnly: true });
+  Object.assign(r, detail, { bulkOnly: true });
   $('sel-char').value = String(row.charIdx);
   $('editor-char').value = $('sel-char').value;
   if (setup.api) setup.api.refresh();
@@ -3026,7 +3088,7 @@ function openCompareRow(c, row) {
 $('cmp-run').addEventListener('click', startCompare);
 $('cmp-cancel').addEventListener('click', cancelCompare);
 $('cmp-results').addEventListener('click', function (e) {
-  var t = e.target.closest('[data-cmp-item],[data-cmp-sort],[data-cmp-open],[data-cmp-columns]');
+  var t = e.target.closest('[data-cmp-item],[data-cmp-sort],[data-cmp-expand],[data-cmp-open],[data-cmp-columns]');
   if (!t || !cmp) return;
   if (t.dataset.cmpColumns) {
     cmpPick.metricColumns = t.dataset.cmpColumns === 'all' ? null : [];
@@ -3040,11 +3102,16 @@ $('cmp-results').addEventListener('click', function (e) {
     var key = t.dataset.cmpSort;
     if (cmp.sortKey === key) cmp.sortDir = -cmp.sortDir; else { cmp.sortKey = key; cmp.sortDir = ['map', 'character', 'loadout'].includes(key) ? 1 : -1; }
     renderCompare();
+  } else if (t.dataset.cmpExpand) {
+    var row = cmp.rows[t.dataset.cmpExpand];
+    if (!row) return;
+    row.expanded = !row.expanded;
+    renderCompare();
   } else if (t.dataset.cmpOpen) {
     e.preventDefault();
     var row = cmp.rows[t.dataset.cmpOpen];
     if (!row) return;
-    try { $('cmp-open-error').textContent = ''; openCompareRow(cmp, row); }
+    try { $('cmp-open-error').textContent = ''; openCompareRow(cmp, row, Number(t.dataset.cmpSeed)); }
     catch (error) { $('cmp-open-error').textContent = error.message; }
   }
 });
@@ -3384,10 +3451,16 @@ function renderReplayShell(r) {
     + '<option value="map"' + (replay.cam === 'map' ? ' selected' : '') + '>Whole map</option></select></label>'
     + chk('rp-hp', 'HP bars', replay.hpBars !== false) + chk('rp-dmg', 'Damage numbers', replay.dmgNums !== false)
     + chk('rp-hud', 'Buffs / attack bar', replay.hud !== false) + chk('rp-dbg', 'Hitboxes / nodes', !!replay.debug)
+    + chk('rp-nav', 'Target / navigation', !!replay.navigation) + chk('rp-hits', 'Recent hit targets', !!replay.hitTargets)
+    + chk('rp-trails', 'Projectile trails (last 1s)', !!replay.trails)
+    + '<label>Whole-run heatmap <select id="rp-heat"><option value="">Off</option>' + COMBAT_HEATMAPS.map(function (v) {
+      return '<option value="' + v[0] + '"' + (replay.heat === v[0] ? ' selected' : '') + '>' + v[1] + '</option>';
+    }).join('') + '</select></label>'
     + chk('rp-bean', 'Replace character with bean', !!replay.bean)
     + '<span class="rp-bean-gear">Bean gear:' + RP_BEAN_PIECES.map(function (p) {
       return '<label><input type="checkbox" data-bean-piece="' + p[0] + '"' + (replay.beanGear[p[0]] ? ' checked' : '') + (replay.bean ? '' : ' disabled') + '>' + p[1] + '</label>';
     }).join('') + '</span></div>'
+    + (r.summary.telemetry ? '<div class="note">Heatmaps cover the whole run. Hit boxes show actual damaged targets in the last 100 ms (up to 16), not a hypothetical skill area. Trails show up to 128 projectiles.</div>' : '')
     + (r.snaps[0].den ? '<div class="replay-opts" id="rp-den"><strong>The Den</strong>'
       + [['status', 'Status'], ['kills', 'Hounds killed'], ['score', 'Score'], ['fear', 'Fear'], ['wave', 'Wave'], ['chain', 'Skull chain'], ['opals', 'Opals earned']].map(function (v) {
         return '<span>' + v[1] + ': <b id="rp-den-' + v[0] + '"></b></span>';
@@ -3534,6 +3607,7 @@ function mountReplay(r) {
     cavernLayers.forEach(function (L) {
       var im = rpImg(L.file); if (im) ctx.drawImage(im, L.x, L.y, L.w * L.scale, L.h * L.scale);
     });
+    if (replay.heat && r.summary?.telemetry) drawCombatHeatmap(ctx, r.summary.telemetry, replay.heat);
 
     // Portals (sprite 48), created at their scene-init top-left; FlipPortal mirrors.
     if (scene) scene.portals.forEach(function (po) {
@@ -3763,6 +3837,24 @@ function mountReplay(r) {
       if (P && P.w) { ctx.strokeStyle = '#4dd0e1'; ctx.strokeRect(P.x, P.y, P.w, P.h); }
       (s.projectiles || []).forEach(function (b) { ctx.strokeStyle = '#fff'; ctx.strokeRect(b.x, b.y, b.w, b.h); });
     }
+    if (replay.navigation) drawCombatNavigation(ctx, s, geo);
+    if (replay.hitTargets && s.diagnostics) {
+      ctx.save(); ctx.strokeStyle = '#ffca28'; ctx.fillStyle = 'rgba(255,202,40,.15)'; ctx.lineWidth = 2;
+      s.diagnostics.hits.forEach(function (h) { ctx.fillRect(h.x, h.y, h.w, h.h); ctx.strokeRect(h.x, h.y, h.w, h.h); });
+      ctx.restore();
+    }
+    if (replay.trails) {
+      var trails = new Map();
+      for (var ti = Math.max(0, i - 10); ti <= i; ti++) {
+        (r.snaps[ti].projectiles || []).forEach(function (b) {
+          if (!trails.has(b.uid) && trails.size < 128) trails.set(b.uid, []);
+          if (trails.has(b.uid)) trails.get(b.uid).push([b.x + b.w / 2, b.y + b.h / 2]);
+        });
+      }
+      ctx.save(); ctx.strokeStyle = 'rgba(187,134,252,.7)'; ctx.lineWidth = 2;
+      trails.forEach(function (points) { ctx.beginPath(); points.forEach(function (p, k) { if (k) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.stroke(); });
+      ctx.restore();
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (replay.hud !== false && s.hud) rpDrawHud(ctx, s.hud, P, T, VW / 960, VH);
 
@@ -3808,6 +3900,10 @@ function mountReplay(r) {
   $('rp-dmg').addEventListener('change', function () { replay.dmgNums = $('rp-dmg').checked; draw(); });
   $('rp-dbg').addEventListener('change', function () { replay.debug = $('rp-dbg').checked; draw(); });
   $('rp-hud').addEventListener('change', function () { replay.hud = $('rp-hud').checked; draw(); });
+  [['rp-nav', 'navigation'], ['rp-hits', 'hitTargets'], ['rp-trails', 'trails']].forEach(function (v) {
+    $(v[0]).addEventListener('change', function () { replay[v[1]] = $(v[0]).checked; draw(); });
+  });
+  $('rp-heat').addEventListener('change', function () { replay.heat = $('rp-heat').value; draw(); });
   var beanPieces = document.querySelectorAll('[data-bean-piece]');
   $('rp-bean').addEventListener('change', function () {
     replay.bean = $('rp-bean').checked;

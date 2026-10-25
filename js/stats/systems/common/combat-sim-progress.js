@@ -40,6 +40,11 @@ export function combatProgressInputs(S, ci, read) {
   const chest = S.itemQuantityData?.chest;
   const storage = {};
   if (chest?.available) chest.order.forEach((k, i) => { storage[k] = N(storage[k]) + N(chest.quantity[i]); });
+  const ola = D.optionsListData;
+  const omega = [625, 626].map(i => {
+    const v = ola[i];
+    return v != null && String(v).trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+  });
   return {
     forge: {
       available: Array.isArray(order) && order.length >= 48 && Array.isArray(qty) && qty.length >= 48
@@ -52,8 +57,8 @@ export function combatProgressInputs(S, ci, read) {
     pets: { available: Array.isArray(S.petsData) && Array.isArray(S.breedingData),
       deployed: S.petsData || [], breeding: S.breedingData || [], shinySpeed },
     scurge: { unlocked: menagerieUnlockOwned(S, 4) === 1, menagerie: S.menagerieData || [] },
-    coral: { unlocked: menagerieUnlockOwned(S, 2) === 1, kills: N(S.optionsListData?.[623]) },
-    omega: { unlocked: menagerieUnlockOwned(S, 6) === 1, balls: N(S.optionsListData?.[625]), drops: N(S.optionsListData?.[626]) },
+    coral: { unlocked: menagerieUnlockOwned(S, 2) === 1, kills: N(ola[623]) },
+    omega: { unlocked: menagerieUnlockOwned(S, 6) === 1, available: omega.every(v => v != null), balls: omega[0], drops: omega[1] },
   };
 }
 
@@ -63,6 +68,8 @@ export function initCombatProgress(sim) {
     config: source ? clone(source) : null, gains: { forgeSeconds: 0, petSeconds: 0, alchemySeconds: 0, scurgeExp: 0, coralKills: 0, omegaBalls: 0 },
     bars: {}, oreUsed: {}, oilUsed: {}, storageUsed: {}, pets: [], petPendingSeconds: 0, notices: [],
   };
+  if (st.config?.omega?.unlocked && st.config.omega.available === false)
+    _notice(sim, 'omegaState', 'Omega drops are unavailable: saved ball balance or lifetime drop count is missing or invalid. Fresh-account odds are not assumed.');
   sim.progress = {
     grant: (kind, seconds) => {
       if (!['forge', 'pets', 'alchemy'].includes(kind)) throw new Error('Unknown combat progress grant: ' + kind);
@@ -101,7 +108,7 @@ export function initCombatProgress(sim) {
     omegaKill: mon => {
       const o = st.config?.omega;
       const scene = String(sim.scene.name);
-      if (!o?.unlocked || sim.scene.map === 216 || scene.includes('Tutorial') || scene.includes('wLavaAhole')) return;
+      if (!o?.unlocked || o.available === false || sim.scene.map === 216 || scene.includes('Tutorial') || scene.includes('wLavaAhole')) return;
       const chance = 1 / (5e3 * (1 + 6 * Math.min(8, o.drops)) * Math.pow(3.5, o.drops));
       if (sim.rng.randomFloat() >= N(sim.inputs.values.dropRate) * chance) return;
       o.balls = Math.round(o.balls + 1); o.drops = Math.round(o.drops + 1); st.gains.omegaBalls++;

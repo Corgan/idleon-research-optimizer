@@ -5,6 +5,38 @@
 
 import { applyCombatSetup, diffCombatSetup, normalizeCombatSetup } from './combat-sim-setup.js';
 import { combatSimMap } from './combat-sim-maps.js';
+import { COMBAT_TOGGLE_BY_ID, normalizeToggleState } from './combat-sim-toggles.js';
+
+export const COMBAT_TRADEOFF_METRICS = [
+  { key: 'exp', label: 'Class EXP / hr', direction: 1 },
+  { key: 'kills', label: 'Kills / hr', direction: 1 },
+  { key: 'coins', label: 'Copper / hr', direction: 1 },
+  { key: 'cards', label: 'Cards / hr', direction: 1 },
+  { key: 'deaths', label: 'Deaths / hr (lower is better)', direction: -1 },
+  { key: 'inventorySeconds', label: 'Seconds before bag full (higher is better)', direction: 1 },
+];
+
+/** Two isolated loadouts, or one curated mechanic changed on a cloned baseline. */
+export function combatExperimentVariants(rawSave, { charIdx, baseline, challenger, mechanic }) {
+  const a = normalizeCombatSetup(structuredClone(baseline || { charIdx, patches: [] }));
+  let b;
+  if (mechanic) {
+    const t = COMBAT_TOGGLE_BY_ID[mechanic.id], normalized = normalizeToggleState({ [mechanic.id]: mechanic });
+    if (!t || !normalized[mechanic.id]) throw new Error('Choose a valid mechanic mode and finite value.');
+    for (const id of Object.keys(a.toggles || {})) {
+      const keys = COMBAT_TOGGLE_BY_ID[id]?.keys || (id.startsWith('raw:') ? [id.slice(4)] : []);
+      if (id !== mechanic.id && keys.some(k => t.keys.includes(k))) throw new Error('The baseline already overrides this input through another mechanic. Remove that conflicting override first.');
+    }
+    b = structuredClone(a);
+    b.toggles = { ...b.toggles, ...normalized };
+  } else b = normalizeCombatSetup(structuredClone(challenger || { charIdx, patches: [] }));
+  const variants = setupCompareVariants(rawSave, { charIdx, includeSaved: false,
+    named: [{ name: 'A: baseline', setup: a }, { name: 'B: challenger', setup: b }] });
+  variants.forEach((v, i) => { v.id = i ? 'experiment-b' : 'experiment-a'; });
+  if (variants.some(v => !v.raw)) throw new Error(variants.flatMap(v => v.warnings).join('; '));
+  if (variants[1].duplicateOf) throw new Error('A and B are identical. Choose a different loadout or mechanic value.');
+  return variants;
+}
 
 // Resolved combat inputs worth showing next to each variant's outcome.
 export const SETUP_COMPARE_INPUTS = [
@@ -93,6 +125,10 @@ export function emptySetupCompareRow(variant) {
 function _rewardValues(m) {
   const R = (m && m.summary && m.summary.rewards) || {};
   const v = { kills: R.kills || 0, klaCredit: R.klaCredit || 0, exp: R.expTotal || 0, coins: R.coinsDropped || 0, cards: 0, items: {}, invFull: R.inventoryFullAt != null };
+  v.deaths = Number.isFinite(m?.player?.deaths) ? m.player.deaths : null;
+  v.inventorySeconds = Number.isFinite(R.inventoryFullAt) ? R.inventoryFullAt / 1000 : null;
+  v.inventoryTracked = Object.hasOwn(R, 'inventoryFullAt') && !R.unlimitedInventory;
+  v.observedSeconds = (Number(m?.timeMs) || 0) / 1000;
   for (const c in R.cards || {}) v.cards += Number(R.cards[c]) || 0;
   for (const k in R.byItem || {}) { if (k !== 'COIN') v.items[k] = (R.byItem[k].qtyDropped || 0); }
   // Cumulative special-mechanic counters; `state` holds end-of-run values, not counts.
@@ -136,11 +172,13 @@ export function addSetupCompareRun(row, seed, m) {
 
 /** Omega odds diminish after each drop, so compare finite-run totals, not a stationary rate. */
 export function setupCompareUnit(key) {
-  return key === 'item:ArcBallOmega' || key === 'metric:combatProgress.omegaBalls' ? 'run' : 'hr';
+  return key === 'inventorySeconds' ? 's' : key === 'item:ArcBallOmega' || key === 'metric:combatProgress.omegaBalls' ? 'run' : 'hr';
 }
 
 function _runValue(run, key) {
   if (!run || !(run.hours > 0)) return null;
+  if (key === 'inventorySeconds') return run.inventoryTracked ? run.inventorySeconds : null;
+  if (key === 'deaths' && run.deaths == null) return null;
   const q = key.indexOf('item:') === 0 ? (run.items[key.slice(5)] || 0)
     : key.indexOf('metric:') === 0 ? ((run.metrics || {})[key.slice(7)] || 0) : (run[key] || 0);
   return setupCompareUnit(key) === 'run' ? q : q / run.hours;
@@ -191,4 +229,57 @@ export function setupCompareCell(row, baseRow, key) {
 /** True when the paired difference is at least ~2 standard errors from zero. */
 export function setupCompareSignificant(cell) {
   return !!(cell && cell.se != null && cell.delta != null && Math.abs(cell.delta) > 2 * cell.se && cell.se >= 0);
+}
+
+function _sampleStats(values) {
+  const n = values.length;
+  if (!n) return { n, mean: null, sd: null, se: null, interval: null };
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  if (n < 2) return { n, mean, sd: null, se: null, interval: null };
+  const sd = Math.sqrt(values.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)), se = sd / Math.sqrt(n);
+  // Two-sided 95% Student t criticals; conservative lookup between listed df.
+  const criticals = [[1, 12.7063], [2, 4.3027], [3, 3.1825], [4, 2.7765], [5, 2.5706], [6, 2.4469], [7, 2.3647], [8, 2.3061], [9, 2.2622], [10, 2.2282], [15, 2.1315], [20, 2.086], [30, 2.0423], [60, 2.0003], [120, 1.9799]];
+  const t = criticals.filter(([df]) => df <= n - 1).at(-1)[1];
+  return { n, mean, sd, se, interval: [mean - t * se, mean + t * se] };
+}
+
+/** Descriptive seed spread and approximate t intervals, not selection-adjusted proofs. */
+export function setupCompareUncertainty(row, baseline, key, { perKill = false } = {}) {
+  const value = run => {
+    if (run && perKill && key.startsWith('item:') && setupCompareUnit(key) !== 'run')
+      return run.kills > 0 ? (run.items[key.slice(5)] || 0) / run.kills : null;
+    return _runValue(run, key);
+  };
+  const values = [], diffs = [];
+  for (const seed of Object.keys(row?.runs || {})) {
+    const a = value(row.runs[seed]), b = value(baseline?.runs?.[seed]);
+    if (a != null && Number.isFinite(a)) values.push(a);
+    if (baseline !== row && a != null && b != null && Number.isFinite(a) && Number.isFinite(b)) diffs.push(a - b);
+  }
+
+  return { ..._sampleStats(values), paired: _sampleStats(diffs), unit: perKill && key.startsWith('item:') && setupCompareUnit(key) !== 'run' ? 'kill' : setupCompareUnit(key) };
+}
+
+/** Descriptive two-axis frontier. Censored bag times are lower bounds, never zeros. */
+export function combatTradeoffFrontier(rows, xMetric, yMetric) {
+  const observation = (row, metric) => {
+    if (metric.key !== 'inventorySeconds') {
+      const s = setupCompareUncertainty(row, null, metric.key);
+      return { ...s, lower: s.mean, upper: s.mean, censored: 0 };
+    }
+    const runs = Object.values(row.runs).filter(r => r.observedSeconds > 0 && r.inventoryTracked);
+    const censored = runs.filter(r => r.inventorySeconds == null).length;
+    const s = _sampleStats(runs.map(r => r.inventorySeconds ?? r.observedSeconds));
+    return { ...s, interval: null, lower: s.mean, upper: censored ? Infinity : s.mean, censored };
+  };
+  const points = rows.map(row => ({ id: row.id, label: row.label, x: observation(row, xMetric), y: observation(row, yMetric) }))
+    .filter(p => p.x.mean != null && p.y.mean != null);
+  const ordered = (s, metric, best) => metric.direction > 0 ? s[best ? 'upper' : 'lower'] : -s[best ? 'lower' : 'upper'];
+  for (const p of points) p.frontier = !points.some(other => {
+    if (other === p) return false;
+    const ax = ordered(other.x, xMetric, false), ay = ordered(other.y, yMetric, false);
+    const bx = ordered(p.x, xMetric, true), by = ordered(p.y, yMetric, true);
+    return ax >= bx && ay >= by && (ax > bx || ay > by);
+  });
+  return points;
 }

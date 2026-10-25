@@ -112,6 +112,7 @@
 // ---------------------------------------------------------------------------
 
 import { buildCombatInputs } from './combat-sim-inputs.js';
+import { createCombatTelemetry } from './combat-sim-telemetry.js';
 import * as world from './combat-sim-world.js';
 import * as rewards from './combat-sim-rewards.js';
 import * as special from './combat-sim-special.js'; // class/mode kill mechanics (combat-sim-special.js)
@@ -446,8 +447,8 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
     buffs: Object.assign({}, inputs.values.runtimeBuffs || {}, options.buffs || {}),
     state: {},
     unsupported: null,
-    later(ms, fn, actor) { return sched.later(ms, fn, actor); },
-    every(ms, fn, actor) { return sched.every(ms, fn, actor); },
+    later(ms, fn, actor) { return sched.later(ms, sim.telemetry ? sim.telemetry.wrap(fn, actor) : fn, actor); },
+    every(ms, fn, actor) { return sched.every(ms, sim.telemetry ? sim.telemetry.wrap(fn, actor) : fn, actor); },
     cancel(task) { sched.cancel(task); },
     on(name, fn) {
       if (!listeners.has(name)) listeners.set(name, []);
@@ -464,7 +465,9 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
       actor.recycled = false; actor.createdAt = sim.timeMs; actor._seq = sim._actorSeq++; actor._dormant = false;
       // Source frame callbacks belong to bullets and are assigned after addActor.
       if (actor.kind === 'bullet' || actor.onFrame) sim._frameActors.push(actor);
-      sim.actors.push(actor); sim._hot.push(actor); return actor;
+      sim.actors.push(actor); sim._hot.push(actor);
+      sim.telemetry?.actor(actor);
+      return actor;
     },
     // Re-admit a dormant actor to the step loop at its actor-order position.
     // Inserting before the loop cursor shifts the cursor, so the actor is
@@ -528,6 +531,7 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
   special.initSpecial(sim); // installs sim.special hooks; before startScene so clam HP applies to initial spawns
   player.init(sim);
   initCombatProgress(sim);
+  if (options.telemetry) sim.telemetry = createCombatTelemetry(sim);
   world.startScene(sim);
   initCombatLevels(sim);
   return sim;
@@ -669,6 +673,7 @@ function _step(sim) {
   sim.timeMs += STEP_MS;
   sim.stepCount++;
   if (--sim._frameStepsLeft === 0) _drawFrame(sim);
+  if (sim.telemetry) sim.telemetry.step(STEP_MS);
   if (sim.leaving && sim.timeMs >= sim.leaving.endAt) {
     sim.ended = sim.leaving;
     sim.emit('sessionEnded', Object.assign({}, sim.ended, { t: sim.timeMs }));
@@ -726,6 +731,17 @@ function _snapshot(sim) {
     // Replay HUD: buffs [id, remaining s, total s], nonzero cooldowns [id, remaining s, full s],
     // the AttackLoadout rows (constant, so the delta codec stores them once per keyframe), and the last cast.
     hud: _hud(sim),
+    ...(sim.telemetry ? { diagnostics: {
+      activity: sim.telemetry.activity(),
+      target: p.target && !p.target.recycled ? p.target.uid : null,
+      destination: p.pmm?.[2] ?? p.node,
+      path: Array.isArray(p.pmm?.[3]) ? p.pmm[3].slice() : [],
+      mouseX: p.mouseClickX ?? null,
+      selected: sim.state.attackSelected,
+      reach: sim.playerModule.reach ? sim.playerModule.reach(sim) : null,
+      hits: sim.telemetry.recentHits(),
+      decision: sim.telemetry.latestDecision(),
+    } } : {}),
     ...(sim.state.special?.den ? { den: special.denSnapshot(sim) } : {}),
     monsters: sim.monsters.filter((m) => !m.recycled).map((m) => ({
       uid: m.uid, id: m.id, type: m.type, monType: m.monType, x: m.x, y: m.y, vx: m.vx, w: m.width, h: m.height, node: m.node,
@@ -776,5 +792,6 @@ function _summary(sim) {
     classExp: sim.unsupported ? null : combatLevelSummary(sim),
     progress: sim.unsupported ? null : combatProgressSummary(sim),
     special: sim.unsupported ? null : (sim.special?.summary?.() ?? null), // combat-sim-special.js
+    ...(sim.telemetry ? { telemetry: sim.telemetry.summary() } : {}),
   };
 }
