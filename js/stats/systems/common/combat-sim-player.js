@@ -2229,14 +2229,15 @@ function _movement(sim) {
   }
   // (d) auto-target / walk to target
   if (pmm[0] === 1) {
-    let best = null, bestD = Infinity;
+    let best = null, bestD = 5e7;
     for (const m of sim.world.monsters(sim)) {
       if (m.alive === 1 && !m.willDie && m.node === p.node && N(m.pet) === 0 && _isMonsterType(sim, m)) {
         const d = Math.abs(XC() - _mox(m));
         if (d < bestD) { best = m; bestD = d; }
       }
     }
-    if (p.autoMove) p.target = best;
+    // Native Movement replaces a target only when the same-node scan finds one.
+    if (p.autoMove && best != null) p.target = best;
     const t = p.target;
     if (best == null && pmm[2] === p.node && pmm[1] !== 2) {
       if (p.autoMove) {
@@ -2251,16 +2252,20 @@ function _movement(sim) {
         else if (p.target == null) { p.vx = 0; if (N(p.pinfo0) === 0 && !['0', 'Za', '9'].includes(p.animation)) p.animation = '0'; }
         else p.animation = '1';
       }
-    } else if (best != null && !p.autoMove && t == null) {
+    }
+    if (best == null) return;
+    if (!p.autoMove && t == null) {
       // AutoMove off with no _TargetEnemy walks to MouseClickX (src 69784, ±15 tolerance).
       const sb = Math.min(1.2, N(_v(sim).playerSpeedBonus));
       const nd = _node(sim, p.node);
       if (XC() < Math.min(p.mouseClickX - 15 * sb, N(nd.length) - 15 * sb)) { p.dir = 1; p.animation = '1'; p.vx = SPD; }
       else if (XC() > Math.max(p.mouseClickX + 15 * sb, N(nd.x) + 15 * sb)) { p.dir = 0; p.animation = '1'; p.vx = -SPD; }
       else { p.vx = 0; if (!['0', 'Za', '9'].includes(p.animation)) p.animation = '0'; }
-    } else if ((p.autoMove || t != null) && t && t.alive === 1 && !t.willDie && t.node === p.node) {
-      p.animation = '1';
-      if (XC() > _mox(t)) { p.dir = 0; p.vx = -SPD; } else { p.dir = 1; p.vx = SPD; }
+    } else if (t && t.alive === 1 && !t.willDie) {
+      if (t.node === p.node) {
+        p.animation = '1';
+        if (XC() > _mox(t)) { p.dir = 0; p.vx = -SPD; } else { p.dir = 1; p.vx = SPD; }
+      }
     } else p.animation = '0';
   }
 }

@@ -3,8 +3,14 @@ import {
   certifyJellyMoveNeighborhood,
   createJellyMeasurementCache,
   createJellyPolicyCache,
+  createJellyProxyCache,
   createJellyLayoutSearch,
+  createJellyFinalistSearch,
+  createJellySavedPolicySearch,
+  finalizeJellyLayout,
   jellyLayoutKey,
+  jellyMeasurementKey,
+  runJellyDiscoveryWork,
   enumerateJellyLayoutsExact,
   optimizeJellyLayout,
   optimizeJellyOperationPolicy,
@@ -23,6 +29,11 @@ const operations = {
   certifyMoves: message => certifyJellyMoveNeighborhood(message.layout, message.saveData, message.options),
   policy: message => optimizeJellyOperationPolicy(message.layout, message.saveData, message.options),
   layout: message => optimizeJellyLayout(message.saveData, message.options),
+  finalize: message => finalizeJellyLayout(message.saveData, message.options),
+  savedPolicy: message => {
+    const search = createJellySavedPolicySearch(message.saveData, message.options);
+    return search.next().value;
+  },
   sections: message => planJellySections(message.saveData, message.options),
   purchases: message => planJellyUpgradePurchases(message.saveData, message.options),
   audit: message => simulateJellyPairedAudit(
@@ -34,6 +45,7 @@ const operations = {
   simulate: message => simulateJellyOperation(message.layout, message.saveData, message.options),
   trialBlock: message => simulateJellyTrialBlock(message.layout, message.saveData, message.options),
   policyScreen: message => simulateJellyPolicyGroup(message.layout, message.saveData, message.options),
+  discoveryWork: message => runJellyDiscoveryWork(message.saveData, message.work, message.options._proxyCache),
 };
 
 let cachedSaveData = null;
@@ -43,8 +55,21 @@ let cachedMeasurementContext = '';
 let cachedMeasurementScope = null;
 let cachedPolicies = null;
 let cachedPolicyScope = null;
+let cachedProxyScores = null;
 let continuation = null;
 let trialRequestId = 0;
+let sentMeasurementKeys = new Set();
+function acceptMeasurements(payload) {
+  cachedMeasurements.merge(payload);
+  for (const [key] of payload.entries) sentMeasurementKeys.add(key);
+  while (sentMeasurementKeys.size > 128) sentMeasurementKeys.delete(sentMeasurementKeys.values().next().value);
+}
+function discoveryMeasurements() {
+  const payload = cachedMeasurements.export(sentMeasurementKeys);
+  for (const [key] of payload.entries) sentMeasurementKeys.add(key);
+  while (sentMeasurementKeys.size > 128) sentMeasurementKeys.delete(sentMeasurementKeys.values().next().value);
+  return payload.entries.length ? payload : undefined;
+}
 function unpackLayout(packed) {
   if (!packed) return null;
   const values = packed instanceof Int16Array ? packed : new Int16Array(packed);
@@ -70,10 +95,12 @@ self.onmessage = event => {
     cachedSaveData = message.saveData || null;
     cachedBaseLayout = unpackLayout(message.packedLayout);
     cachedMeasurements = null;
+    sentMeasurementKeys = new Set();
     cachedMeasurementContext = message.measurementScope || '';
     cachedMeasurementScope = null;
     cachedPolicies = null;
     cachedPolicyScope = null;
+    cachedProxyScores = null;
     self.postMessage({ type: 'initialized', requestId: message.requestId });
     return;
   }
@@ -82,19 +109,43 @@ self.onmessage = event => {
       if (!continuation || message.requestId !== continuation.requestId
         || message.trialRequestId !== continuation.trialRequestId) throw new Error('Stale Jelly trial continuation');
       const waiting = continuation.waiting;
+      if (message.measurements) {
+        if (!cachedMeasurements) throw new Error('Jelly measurement cache is not initialized');
+        acceptMeasurements(message.measurements);
+      }
       if (message.policyMeasurements) {
         if (!cachedPolicies) throw new Error('Jelly policy cache is not initialized');
         cachedPolicies.merge(message.policyMeasurements);
       }
+      if (waiting.kind === 'discoveryWork') {
+        if (message.result?.key !== waiting.key || !message.result.result) throw new Error('Mismatched Jelly discovery continuation');
+        continuation.advance(message.result);
+        return;
+      }
+      if (waiting.kind === 'screenBatch') {
+        if (message.result?.batches?.length !== waiting.requests.length
+          || message.result.batches.some((batch, index) => {
+            const request = waiting.requests[index];
+            return batch?.seed !== request.options.seed || batch.trials !== request.options.trials
+              || batch.measurements?.length !== request.policies.length;
+          })) throw new Error('Mismatched Jelly discovery screening batch');
+        continuation.advance(message.result);
+        return;
+      }
       const screening = waiting.kind === 'policyScreen';
-      const result = message.result || (screening ? null : mergeJellyTrialBlocks(message.blocks, waiting.options));
+      const result = message.result || (screening ? null : mergeJellyTrialBlocks(
+        waiting.prefixBlock ? [waiting.prefixBlock, ...message.blocks] : message.blocks, waiting.options
+      ));
       if (!result || result.trials !== waiting.options.trials || result.seed !== waiting.options.seed
         || (screening ? result.measurements?.length !== waiting.policies.length
-          : waiting.options.includeTrials && !result.results)) throw new Error('Mismatched Jelly trial summary');
+          : waiting.options.includeTrials && (!Array.isArray(result.results)
+            || result.results.length !== waiting.options.trials))) throw new Error('Mismatched Jelly trial summary');
       if (!screening && !waiting.options.includeTrials && result.valid) {
         self.postMessage({
           type: 'trialSummary', requestId: message.requestId,
-          key: JSON.stringify([jellyLayoutKey(waiting.layout), waiting.options]), result,
+          key: continuation.consolidated
+            ? jellyMeasurementKey(waiting.layout, waiting.options)
+            : JSON.stringify([jellyLayoutKey(waiting.layout), waiting.options]), result,
         });
       }
       continuation.advance(result);
@@ -111,10 +162,15 @@ self.onmessage = event => {
     return;
   }
   let lastProgressAt = 0;
-  const onProgress = progress => {
+  let pendingProgress = null;
+  const onProgress = (progress, force = false) => {
     const now = Date.now();
     const complete = Number(progress.completed) >= Number(progress.total);
-    if (!complete && now - lastProgressAt < 50) return;
+    if (!force && !complete && now - lastProgressAt < 50) {
+      pendingProgress = progress;
+      return;
+    }
+    pendingProgress = null;
     lastProgressAt = now;
     if (progress.bestSoFar?.layout) {
       const packedBestLayout = packLayout(progress.bestSoFar.layout);
@@ -138,10 +194,12 @@ self.onmessage = event => {
     if (message.saveData && message.saveData !== cachedSaveData) {
       cachedSaveData = message.saveData;
       cachedMeasurements = null;
+      sentMeasurementKeys = new Set();
       cachedMeasurementContext = message.measurementScope || '';
       cachedMeasurementScope = null;
       cachedPolicies = null;
       cachedPolicyScope = null;
+      cachedProxyScores = null;
     }
     if (!message.saveData && cachedSaveData) message.saveData = cachedSaveData;
     if (!message.saveData) throw new Error('Jelly worker has no initialized save data');
@@ -156,33 +214,57 @@ self.onmessage = event => {
         )),
       };
     }
-    const shareMeasurements = message.operation === 'layout' && message.options?.measurementSharing !== false;
+    const layoutOperation = ['layout', 'finalize', 'savedPolicy'].includes(message.operation);
+    const shareProxies = (message.operation === 'layout' || message.operation === 'discoveryWork')
+      && message.options?.proxySharing === true;
+    if (shareProxies && !cachedProxyScores) {
+      cachedProxyScores = createJellyProxyCache({ scope: `${cachedMeasurementContext}|proxy-v1` });
+    }
+    if (shareProxies && message.proxyScores) cachedProxyScores.merge(message.proxyScores);
+    const shareMeasurements = layoutOperation && message.options?.measurementSharing !== false;
     const measurementScope = `${cachedMeasurementContext}|${Math.floor(Number(message.options?.seed) || 1)}`;
     if (shareMeasurements && cachedMeasurementScope !== measurementScope) {
       cachedMeasurements = createJellyMeasurementCache({ scope: measurementScope });
+      sentMeasurementKeys = new Set();
       cachedMeasurementScope = measurementScope;
     }
     const measurementStatsBefore = cachedMeasurements?.diagnostics();
-    if (shareMeasurements && message.measurements) cachedMeasurements.merge(message.measurements);
-    const sharePolicies = message.operation === 'layout' && message.options?.policyReuse !== false;
+    if (shareMeasurements && message.measurements) acceptMeasurements(message.measurements);
+    const sharePolicies = layoutOperation && message.options?.policyReuse !== false;
     if (sharePolicies && cachedPolicyScope !== measurementScope) {
       cachedPolicies = createJellyPolicyCache({ scope: `${measurementScope}|policies` });
       cachedPolicyScope = measurementScope;
     }
     const policyStatsBefore = cachedPolicies?.diagnostics();
     if (sharePolicies && message.policyMeasurements) cachedPolicies.merge(message.policyMeasurements);
+    const discoveryTiming = { cpuMs: 0, waitMs: 0, phases: {} };
+    let activeSince = null;
+    let suspendedAt = null;
+    let discoveryPhase = 'construction';
+    const flushCpu = () => {
+      if (activeSince == null) return;
+      const now = Date.now();
+      const elapsed = now - activeSince;
+      discoveryTiming.cpuMs += elapsed;
+      discoveryTiming.phases[discoveryPhase] = (discoveryTiming.phases[discoveryPhase] || 0) + elapsed;
+      activeSince = now;
+    };
     const resolvedMessage = {
       ...message,
       options: {
         ...(message.options || {}), _measurementCache: shareMeasurements ? cachedMeasurements : null,
         _policyCache: sharePolicies ? cachedPolicies : null,
+        _proxyCache: shareProxies ? cachedProxyScores : null,
+        _onDiscoveryPhase: phase => { flushCpu(); discoveryPhase = phase; },
         _onPolicyComplete: sharePolicies ? (key, result, priority) => self.postMessage({
           type: 'policySummary', requestId: message.requestId, key, result, priority,
         }) : undefined,
         onProgress,
       },
     };
+    const operationStarted = Date.now();
     const complete = result => {
+      if (message.operation === 'layout' && result.search) result.search.discoveryTiming = discoveryTiming;
       if (shareMeasurements && result.search) {
         const stats = cachedMeasurements.diagnostics();
         result.search.measurements = {
@@ -200,31 +282,52 @@ self.onmessage = event => {
       }
       self.postMessage({
         type: 'done', requestId: message.requestId, blockId: message.blockId, result,
+        computeMs: Date.now() - operationStarted,
         measurements: shareMeasurements ? cachedMeasurements.export() : undefined,
         policyMeasurements: sharePolicies ? cachedPolicies.export() : undefined,
+        proxyScores: shareProxies && message.operation === 'layout' ? cachedProxyScores.export() : undefined,
       });
     };
-    if (message.operation === 'layout' && message.cooperativeTrials) {
+    if (layoutOperation && message.cooperativeTrials) {
       if (continuation) throw new Error('Jelly worker already owns a suspended search');
-      const search = createJellyLayoutSearch(message.saveData, {
+      const createSearch = message.operation === 'savedPolicy' ? createJellySavedPolicySearch
+        : message.operation === 'finalize' ? createJellyFinalistSearch : createJellyLayoutSearch;
+      const search = createSearch(message.saveData, {
         ...resolvedMessage.options, _cooperativeTrials: true,
       });
       continuation = {
         requestId: message.requestId,
+        consolidated: message.options?.consolidateWork !== false,
         advance(value) {
+          if (suspendedAt != null) discoveryTiming.waitMs += Date.now() - suspendedAt;
+          activeSince = Date.now();
           const step = search.next(value);
+          if (pendingProgress) onProgress(pendingProgress, true);
+          flushCpu();
+          activeSince = null;
           if (step.done) { continuation = null; complete(step.value); return; }
+          suspendedAt = Date.now();
           this.waiting = step.value;
           this.trialRequestId = ++trialRequestId;
           self.postMessage({
             type: 'trials', requestId: message.requestId, trialRequestId: this.trialRequestId,
-            kind: step.value.kind, layout: step.value.layout, options: step.value.options,
+            kind: step.value.kind, layout: step.value.layout, options: step.value.options || {},
             policies: step.value.policies,
+            work: step.value.work, key: step.value.key,
+            requests: step.value.requests,
+            measurements: shareMeasurements && message.options?.discoverySharing !== false
+              ? discoveryMeasurements() : undefined,
           });
         },
       };
       continuation.advance();
-    } else complete(operation(resolvedMessage));
+    } else {
+      activeSince = Date.now();
+      const result = operation(resolvedMessage);
+      flushCpu();
+      activeSince = null;
+      complete(result);
+    }
   } catch (error) {
     continuation = null;
     self.postMessage({

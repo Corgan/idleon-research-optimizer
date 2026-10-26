@@ -19,6 +19,7 @@ h1{display:flex;align-items:baseline;margin:0;padding:12px 18px;background:var(-
 table{width:100%;border-collapse:collapse;font-size:.8rem}th{text-align:left;color:var(--text2);border-bottom:1px solid #445;padding:6px;position:sticky;top:0;background:var(--bg2)}td{padding:6px;border-bottom:1px solid #ffffff0c}.num{text-align:right;font-variant-numeric:tabular-nums}.table-scroll{overflow:auto;max-height:650px}
 .move{display:inline-block;margin:3px;padding:4px 7px;background:#0d2947;border-radius:4px;font-size:.75rem}
 .optimizer-diagnostics{margin-top:14px;padding:10px 12px;background:#101a32;border:1px solid #42506c;border-radius:7px}.optimizer-diagnostics>summary{cursor:pointer;color:var(--cyan);font-weight:750}.optimizer-diagnostics[open]>summary{margin-bottom:12px}
+.optimizer-form [hidden]{display:none!important}.optimizer-main .control{flex:1 1 150px;min-width:0}.optimizer-main .objective-control{flex:2 1 240px}.optimizer-main .obstruction-control{flex:0 1 90px}.optimizer-main select,.optimizer-main input{width:100%;min-width:0}.optimizer-main .primary{min-height:36px}.optimizer-advanced{margin-top:14px;border-top:1px solid #334;padding-top:10px}.optimizer-advanced>summary{cursor:pointer;color:var(--text2);font-size:.8rem;width:fit-content}.optimizer-tuning{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin-top:12px;align-items:end}.optimizer-tuning .control{min-width:0}.optimizer-tuning .control input,.optimizer-tuning .control select{width:100%;min-width:0}.optimizer-tuning .check-control{min-height:38px}.optimizer-tuning .tooltip-icon{flex:none}
 .progress-panel{margin-top:12px;padding:10px;background:#101a32;border:1px solid #42506c;border-radius:6px}.bar-outer{height:10px;border-radius:5px;background:#333;overflow:hidden;margin:7px 0}.bar-fill{height:100%;background:var(--green);transition:width .12s linear}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.progress-active{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px;margin:9px 0}.progress-start{padding:7px 8px;background:#0b1428;border:1px solid #34425f;border-radius:5px}.progress-start-head{display:flex;justify-content:space-between;gap:8px;font-size:.75rem}.progress-start-detail{margin-top:3px;color:var(--text2);font-size:.69rem;line-height:1.3}.progress-start .bar-outer{height:5px;margin:5px 0 0}.cancel{background:#4b2638;color:var(--text);border:1px solid #a74462;border-radius:5px;padding:5px 10px;cursor:pointer}
 .view-tools{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0}.shape-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.shape-control{display:flex;align-items:center;gap:6px;background:#101a32;border:1px solid #42506c;border-radius:999px;padding:4px 10px;font-size:.78em;color:var(--text2);font-weight:700;cursor:pointer}.shape-control.is-override{border-color:var(--gold);color:var(--gold)}.shape-control select{background:#0b1426;color:var(--text);border:1px solid #42506c;border-radius:6px;padding:3px 6px;font-size:.95em;font-weight:600}.spoiler-toggle{background:#101a32;color:var(--text2);border:1px solid #42506c;border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:700}.spoiler-toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}.spoiler-hidden{color:var(--text2);font-style:italic}
 .sim-workspace{display:grid;grid-template-columns:minmax(190px,240px) minmax(560px,1fr);gap:14px;align-items:start}.sim-palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.sim-cell-pick,.sim-action,.plot-toggle{background:#101a32;color:var(--text);border:1px solid #42506c;border-radius:6px;cursor:pointer}.sim-cell-pick{display:flex;align-items:center;gap:7px;padding:6px;text-align:left;font-size:.76rem}.sim-cell-pick img{width:32px;height:32px;object-fit:contain;flex:none}.sim-cell-pick.active,.sim-action.active,.plot-toggle.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.sim-cell-pick:disabled{opacity:.35;cursor:not-allowed}.sim-board{touch-action:none}.sim-board .slot:not(.locked):not(.obstruction){cursor:crosshair}.sim-board .cell-sprite{pointer-events:auto;cursor:grab}.sim-board .cell-sprite:active{cursor:grabbing}.sim-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.sim-action{padding:6px 10px;font-size:.76rem}.plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:220px;overflow:auto;padding:4px}.plot-toggle{padding:5px;font-size:.7rem}.sim-message{margin-top:8px;padding:7px 9px;border-radius:5px;background:#101a32;color:var(--text2);font-size:.78rem}.sim-message.bad{background:#4b2638;color:#ffb3c1}.sim-result-status{font-weight:800}.sim-result-status.good{color:#78e08f}.sim-result-status.bad{color:#ff7f96}
@@ -74,8 +75,9 @@ let currentPolicy = null;
 let simulator = null;
 let purchaseControls={strategy:'progression',objective:'clear',expCellType:-1,purchases:3,planningDays:30,quality:'thorough',lookahead:2,reoptimize:false,budget:true};
 let sectionControls={strategy:'progression',objective:'clear',expCellType:-1,tokens:null,quality:'thorough',beamWidth:8};
-let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,adaptiveSearch:false,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
+let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,cheapScreening:false,adaptiveSearch:false,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
 let activeTab = 'overview';
+let optimizerAdvancedOpen = false;
 let jellyWorker = null;
 let jellyCertificationWorkers = [];
 let jellySearchWorkers = [];
@@ -91,6 +93,30 @@ let auditProgress = null;
 let postSelectionAudit = null;
 let auditState = null;
 let workerError = '';
+const JELLY_SEARCH_BREADTH_KEY='jelly-search-breadth-v1';
+function jellySearchBreadth(starts){
+  return starts===4?'fast':starts===8?'thorough':'custom';
+}
+function loadJellySearchBreadth(){
+  try{
+    const raw=localStorage.getItem(JELLY_SEARCH_BREADTH_KEY);
+    if(raw==null)return;
+    const {starts}=JSON.parse(raw);
+    if(!Number.isInteger(starts)||starts<1||starts>32)throw new Error('Invalid search start count');
+    optimizerControls.searchStarts=starts;
+  }catch(error){
+    workerError=`Search breadth could not be restored: ${String(error?.message||error)}`;
+  }
+}
+function persistJellySearchBreadth(){
+  try{
+    localStorage.setItem(JELLY_SEARCH_BREADTH_KEY,JSON.stringify({starts:optimizerControls.searchStarts}));
+  }catch(error){
+    workerError=`Search breadth could not be saved: ${String(error?.message||error)}`;
+    render();
+  }
+}
+loadJellySearchBreadth();
 let jellyCheckpointInventory = null;
 let spoilersVisible = false;
 let policyRefreshPending = false;
@@ -806,9 +832,19 @@ async function startParallelJellyOptimization(layout,options){
   });
   const capturedUnlockedSlots=Array.from(J.jellyUnlockedSlots(saveData));
   const requestedStarts=Math.max(1,Math.min(32,Number(options.searchStarts)||1));
+  const sharedFinalization=requestedStarts>1&&options.sharedFinalization!==false;
+  const consolidateWork=options.consolidateWork!==false;
+  const sharedMeasurements=consolidateWork&&options.measurementSharing!==false;
   const requestedWorkers=Math.max(1,Math.min(4,Number(options.searchWorkers)||1,options.finalistPooling===false?requestedStarts:4));
   const controlKey=jellyHash(JSON.stringify({
-    searchRevision:'quality-feedback-v6',
+    searchRevision:'compact-score-v12',
+    discoverySharing:options.discoverySharing,
+    constructionSharing:options.constructionSharing,
+    constructionFastPath:options.constructionFastPath,
+    proxySharing:options.proxySharing,
+    scoreOnly:options.scoreOnly,
+    consolidateWork,
+    sharedFinalization,
     fingerprint:jellySaveFingerprint(),
     workerContext:searchContextKey,
     layout:J.jellyLayoutKey(layout),
@@ -842,6 +878,7 @@ async function startParallelJellyOptimization(layout,options){
     policyScreenPooling:options.policyScreenPooling,
     screenPolicyFrameTiming:options.screenPolicyFrameTiming,
     jointPolicyScreening:options.jointPolicyScreening,
+    cheapScreening:options.cheapScreening===true,
     simulationFeedbackRounds:options.simulationFeedbackRounds,
     operationRepairs:options.operationRepairs,
     operationRepairNodeBudget:options.operationRepairNodeBudget,
@@ -855,7 +892,7 @@ async function startParallelJellyOptimization(layout,options){
     workerStatus:{},
     assignments:{},
     paused:false,
-    schema:6,
+    schema:12,
   };
   let warmWorkersReused=0;
   try{
@@ -867,12 +904,15 @@ async function startParallelJellyOptimization(layout,options){
       state.resumed=true;
       state.workerProgress={};
       state.workerStatus={};
+      state.finalizing=false;
     }
   }catch(error){
     workerError=`Search checkpoint could not be restored: ${String(error?.message||error)}`;
   }
   const measurementCache=J.createJellyMeasurementCache({scope:`${searchContextKey}|${Math.floor(Number(options.seed)||1)}`});
-  const finalistMeasurements=J.createJellyMeasurementCache({scope:`${searchContextKey}|${Math.floor(Number(options.seed)||1)}|finalists`});
+  const savedPolicyKey=J.jellySavedPolicyKey(saveData,options);
+  const finalistMeasurements=sharedMeasurements?measurementCache
+    :J.createJellyMeasurementCache({scope:`${searchContextKey}|${Math.floor(Number(options.seed)||1)}|finalists`});
   const policyScope=`${searchContextKey}|${Math.floor(Number(options.seed)||1)}|policies`;
   const policyMeasurements=J.createJellyPolicyCache({scope:policyScope});
   if(state.measurements){
@@ -894,7 +934,7 @@ async function startParallelJellyOptimization(layout,options){
   const persist=async()=>{
     try{
       state.measurements=options.measurementSharing===false?undefined:measurementCache.export();
-      state.finalistMeasurements=finalistMeasurements.export();
+      state.finalistMeasurements=sharedMeasurements?undefined:finalistMeasurements.export();
       state.policyMeasurements=options.policyReuse===false?undefined:policyMeasurements.export();
       await jellyCheckpointSet(JELLY_SEARCH_CHECKPOINT_KEY,state);
       return true;
@@ -963,9 +1003,9 @@ async function startParallelJellyOptimization(layout,options){
   };
   updateAdaptiveCutoff();
   let finished=false;
-  const finish=()=>{
+  const finish=async()=>{
     if(requestId!==workerRequestId||finished)return;
-    finished=true;
+    if(state.paused)return;
     const acceptedRows=state.userStop
       ?state.results.slice()
       :state.results.filter(row=>row.start<(state.stopAfter||requestedStarts));
@@ -973,13 +1013,46 @@ async function startParallelJellyOptimization(layout,options){
     candidates.sort((a,b)=>(Number(b.score)||-Infinity)-(Number(a.score)||-Infinity)
       ||(a.moves?.length||0)-(b.moves?.length||0)
       ||J.jellyLayoutKey(a.layout).localeCompare(J.jellyLayoutKey(b.layout)));
-    const best=candidates[0];
+    const best=state.finalResult||candidates[0];
     if(!best){
       workerProgress=null;
       workerError='Parallel bounded search completed without a result.';
       render();
       return;
     }
+    if(sharedFinalization&&!state.finalResult){
+      if(state.finalizing)return;
+      const owner=jellySearchWorkers.find(worker=>worker._jellyInitialized&&!worker._jellyBusy&&!worker._jellySuspended);
+      if(!owner)return;
+      state.finalizing=true;
+      owner._jellyFinalizing=true;
+      owner._jellyBusy=true;
+      workerProgress.phase='Comparing shared finalists';
+      workerProgress.detail='Discovery complete. Optimizing policies and confirming one deduplicated shortlist.';
+      workerProgress.overallPercent=Math.max(Number(workerProgress.overallPercent)||0,75);
+      workerProgress.activeStarts=[];
+      render();
+      if(!await persist()){stopJellyWorker();render();return;}
+      if(requestId!==workerRequestId)return;
+      try{
+        owner.postMessage({
+          type:'run',operation:'finalize',requestId,
+          cooperativeTrials:options.finalistPooling!==false&&requestedWorkers>1,
+          measurements:measurementExchange(owner),
+          policyMeasurements:policyExchange(owner),
+          options:{
+            ...options,layout,template:best,deferFinalization:false,
+            discoveries:acceptedRows.map(row=>({layout:row.result.layout,candidates:row.result.discoveryCandidates})),
+          },
+        });
+      }catch(error){
+        stopJellyWorker();
+        workerError=`Shared finalist comparison could not be sent: ${String(error?.message||error)}`;
+        render();
+      }
+      return;
+    }
+    finished=true;
     const shardSummaries=acceptedRows.map(row=>({
       shard:row.start,
       searchStartOffset:row.start,
@@ -988,6 +1061,7 @@ async function startParallelJellyOptimization(layout,options){
       focus:row.assignment?.focus||'explore',
       sharedElites:row.assignment?.sharedEliteLayouts?.length||0,
       elapsedMs:row.elapsedMs,
+      discoveryTiming:row.result.search?.discoveryTiming,
       layoutKey:J.jellyLayoutKey(row.result.layout),
       evaluated:row.result.evaluated,
     })).sort((a,b)=>a.shard-b.shard);
@@ -1000,8 +1074,9 @@ async function startParallelJellyOptimization(layout,options){
       stoppingReason:state.stoppingReason||'Requested start count completed.',
       resumed:Boolean(state.resumed),
       shardSummaries,
-      selectedShard:shardSummaries.find(row=>row.layoutKey===J.jellyLayoutKey(best.layout))?.shard??0,
+      selectedShard:shardSummaries.find(row=>row.layoutKey===J.jellyLayoutKey(best.layout))?.shard??(sharedFinalization?null:0),
       scheduling:'dynamic-search-start-queue',
+      sharedFinalization:best.search?.sharedFinalization||null,
       warmWorkersReused,
       eliteExchange:'between-search-starts',
       finalistPool:{...(state.trialPool||{}),scheduling:'deterministic-seed-blocks'},
@@ -1010,6 +1085,17 @@ async function startParallelJellyOptimization(layout,options){
         warmStarts:acceptedRows.reduce((sum,row)=>sum+(row.result.search?.policyReuse?.warmStarts||0),0),
         entries:policyMeasurements.diagnostics().entries,
       },
+      proxyScores:options.proxySharing===true?{
+        ...proxyScores.diagnostics(),
+        hits:acceptedRows.reduce((sum,row)=>sum+(row.result.search?.proxyScores?.hits||0),0),
+      }:null,
+      discoveryTiming:acceptedRows.reduce((total,row)=>{
+        const timing=row.result.search?.discoveryTiming;
+        total.cpuMs+=Number(timing?.cpuMs)||0;
+        total.waitMs+=Number(timing?.waitMs)||0;
+        for(const [phase,ms] of Object.entries(timing?.phases||{}))total.phases[phase]=(total.phases[phase]||0)+ms;
+        return total;
+      },{cpuMs:0,waitMs:0,phases:{}}),
       sharedElites:acceptedRows.reduce((sum,row)=>sum+(row.assignment?.sharedEliteLayouts?.length||0),0),
       allocation:acceptedRows.reduce((counts,row)=>{
         const focus=row.assignment?.focus||'explore';
@@ -1020,6 +1106,10 @@ async function startParallelJellyOptimization(layout,options){
     best.evaluated=acceptedRows.reduce((sum,row)=>sum+(Number(row.result.evaluated)||0),0);
     const mergedDiversity=acceptedRows.reduce((summary,row)=>mergeDiversity(summary,row.result.search?.diversitySummary),{});
     const mergedBaseSearch={
+      screeningCandidates:acceptedRows.reduce((sum,row)=>sum+(Number(row.result.search?.screeningCandidates)||0),0),
+      racingCandidates:acceptedRows.reduce((sum,row)=>sum+(Number(row.result.search?.racingCandidates)||0),0),
+      savedDiscoveredByConstruction:acceptedRows.some(row=>row.result.search?.savedDiscoveredByConstruction),
+      savedDiscoveredByCompositionRepack:acceptedRows.some(row=>row.result.search?.savedDiscoveredByCompositionRepack),
       initialBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.initialBaseFamilies)||0),0),
       explorationBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.explorationBaseFamilies)||0),0),
       finalBeamBaseFamilies:Math.max(...acceptedRows.map(row=>Number(row.result.search?.finalBeamBaseFamilies)||0),0),
@@ -1076,14 +1166,11 @@ async function startParallelJellyOptimization(layout,options){
   };
   const pending=Array.from({length:requestedStarts},(_,start)=>start)
     .filter(start=>!state.completed.includes(start));
-  if(!pending.length){
-    finish();
-    return;
-  }
   workerProgress={operation:'layout',phase:state.paused?'Paused — completed work is checkpointed':'Starting dynamic search-start queue',completed:state.completed.length,total:requestedStarts,overallPercent:100*state.completed.length/requestedStarts,paused:Boolean(state.paused)};
   render();
   let nextJob=0;
   let activeJobs=0;
+  let savedPolicyRunning=false;
   let blockSerial=0;
   let blockBytes=0;
   let poolPersistAt=0;
@@ -1096,6 +1183,27 @@ async function startParallelJellyOptimization(layout,options){
   state.trialPool.completedPolicyGroups??=0;
   state.trialPool.sharedPolicyGroups??=0;
   state.trialPool.reusedScreenings??=0;
+  state.trialPool.discoveryComputed??=0;
+  state.trialPool.discoveryReused??=0;
+  state.trialPool.discoveryInFlightReused??=0;
+  state.trialPool.discoveryComputeMs??=0;
+  const discoveryCache=new Map();
+  const proxyScores=J.createJellyProxyCache({scope:`${searchContextKey}|proxy-v1`});
+  const pendingDiscovery=new Map();
+  let discoveryBytes=0;
+  const rememberDiscovery=(key,result)=>{
+    const bytes=2*(key.length+JSON.stringify(result).length);
+    if(bytes>4*1024*1024)return;
+    if(discoveryCache.has(key))discoveryBytes-=discoveryCache.get(key).bytes;
+    discoveryCache.delete(key);
+    discoveryCache.set(key,{result,bytes});
+    discoveryBytes+=bytes;
+    while(discoveryCache.size>64||discoveryBytes>4*1024*1024){
+      const oldest=discoveryCache.keys().next().value;
+      discoveryBytes-=discoveryCache.get(oldest).bytes;
+      discoveryCache.delete(oldest);
+    }
+  };
   const policyExchange=worker=>{
     if(options.policyReuse===false)return undefined;
     if(worker._jellyPolicyScope!==policyScope){
@@ -1104,6 +1212,21 @@ async function startParallelJellyOptimization(layout,options){
     }
     const payload=policyMeasurements.export(worker._jellyPolicyKeys);
     for(const [key] of payload.entries)worker._jellyPolicyKeys.add(key);
+    return payload.entries.length?payload:undefined;
+  };
+  const measurementExchange=worker=>{
+    if(!sharedMeasurements)return options.measurementSharing===false?undefined:measurementCache.export();
+    const scope=`${searchContextKey}|${Math.floor(Number(options.seed)||1)}`;
+    if(worker._jellyMeasurementScope!==scope){
+      worker._jellyMeasurementScope=scope;
+      worker._jellyMeasurementKeys=new Set();
+    }
+    const payload=measurementCache.export(worker._jellyMeasurementKeys);
+    for(const [key] of payload.entries){
+      worker._jellyMeasurementKeys.delete(key);
+      worker._jellyMeasurementKeys.add(key);
+    }
+    while(worker._jellyMeasurementKeys.size>128)worker._jellyMeasurementKeys.delete(worker._jellyMeasurementKeys.values().next().value);
     return payload.entries.length?payload:undefined;
   };
   const rememberBlock=(key,block)=>{
@@ -1127,17 +1250,21 @@ async function startParallelJellyOptimization(layout,options){
         const resume=worker._jellyResume;
         worker._jellyResume=null;
         worker._jellyBusy=true;
-        try{worker.postMessage({type:'resume',requestId,...resume,policyMeasurements:policyExchange(worker)});}
+        try{worker.postMessage({type:'resume',requestId,...resume,policyMeasurements:policyExchange(worker),
+          measurements:sharedMeasurements?measurementExchange(worker):undefined});}
         catch(error){stopJellyWorker();workerError=`Finalist continuation could not be sent: ${String(error?.message||error)}`;render();return;}
       }else if(blockQueue.length){
         const job=blockQueue.shift();
         worker._jellyBusy=true;
         worker._jellyBlock=job;
         try{worker.postMessage({
-          type:'run',operation:job.kind==='policyScreen'?'policyScreen':'trialBlock',requestId,blockId:job.id,
+          type:'run',operation:job.kind==='discoveryWork'?'discoveryWork'
+            :job.kind==='policyScreen'||job.kind==='policyBlock'?'policyScreen':'trialBlock',requestId,blockId:job.id,
+          work:job.request.work,
           layout:job.request.layout,
-          options:job.kind==='policyScreen'
-            ?{...job.request.options,policies:job.policies}
+          options:job.kind==='policyScreen'||job.kind==='policyBlock'
+            ?{...job.request.options,policies:job.policies,
+              ...(job.kind==='policyBlock'?{trialOffset:job.offset,trialCount:job.count}:{})}
             :{...job.request.options,trialOffset:job.offset,trialCount:job.count},
         });}
         catch(error){stopJellyWorker();workerError=`Finalist block could not be sent: ${String(error?.message||error)}`;render();return;}
@@ -1146,16 +1273,90 @@ async function startParallelJellyOptimization(layout,options){
       }
     }
   };
-  const screeningKey=(request,policy)=>JSON.stringify(['policyScreen',J.jellyLayoutKey(request.layout),request.options,policy]);
+  const screeningKey=(request,policy)=>consolidateWork
+    ?J.jellyMeasurementKey(request.layout,{...request.options,...policy})
+    :JSON.stringify(['policyScreen',J.jellyLayoutKey(request.layout),request.options,policy]);
   const resumeScreening=request=>{
-    poolRequests.delete(request.worker);
-    request.worker._jellyResume={trialRequestId:request.trialRequestId,result:{
+    const result={
       seed:request.options.seed,trials:request.options.trials,measurements:request.measurements,
-    }};
+    };
+    if(request.batch){
+      request.batch.results[request.batchIndex]=result;
+      if(--request.batch.remaining)return;
+      request.worker._jellyResume={trialRequestId:request.trialRequestId,result:{batches:request.batch.results}};
+    }else request.worker._jellyResume={trialRequestId:request.trialRequestId,result};
+    poolRequests.delete(request.worker);
+  };
+  const finishPolicyGroup=group=>{
+    const {request,positions,policies}=group;
+    const merged=J.mergeJellyPolicyBlocks(group.blocks,{...request.options,policies});
+    positions.forEach((index,position)=>{
+      request.measurements[index]=merged.measurements[position];
+      finalistMeasurements.set(screeningKey(request,request.policies[index]),merged.measurements[position]);
+    });
+    state.trialPool.completedPolicyGroups++;
+  };
+  const requestPolicyBlocks=(worker,message)=>{
+    if(!message.batch){worker._jellyBusy=false;worker._jellySuspended=true;}
+    const request={...message,worker,measurements:Array(message.policies.length),remaining:0};
+    const groups=new Map();
+    message.policies.forEach((policy,index)=>{
+      const cached=finalistMeasurements.get(screeningKey(request,policy));
+      if(cached){request.measurements[index]=cached;state.trialPool.reusedScreenings++;return;}
+      const key=J.jellyMeasurementKey(message.layout,{...message.options,...policy,trials:1});
+      const ranges=Array.from(blockCache.values()).map(row=>row.block).filter(row=>row.measurementKey===key);
+      const records=[];
+      let representative;
+      let policyKey;
+      while(records.length<message.options.trials){
+        const range=ranges.filter(row=>row.offset<=records.length&&row.offset+row.count>records.length)
+          .sort((a,b)=>(b.offset+b.count)-(a.offset+a.count))[0];
+        if(!range)break;
+        if(!records.length){representative=range.representative;policyKey=range.policyKey;}
+        records.push(...range.records.slice(records.length-range.offset,message.options.trials-range.offset));
+      }
+      const prefix={seed:message.options.seed,offset:0,count:records.length,records,representative,policyKey};
+      const groupKey=`${policy.fever}|${prefix.count}`;
+      if(!groups.has(groupKey))groups.set(groupKey,[]);
+      groups.get(groupKey).push({index,prefix,key});
+    });
+    for(const rows of groups.values())for(let from=0;from<rows.length;from+=8){
+      const members=rows.slice(from,from+8);
+      const positions=members.map(row=>row.index);
+      const policies=positions.map(index=>message.policies[index]);
+      const offset=members[0].prefix.count;
+      const group={request,positions,policies,blocks:[],remaining:0};
+      if(offset){
+        group.blocks.push({seed:message.options.seed,trials:message.options.trials,offset:0,count:offset,
+          policyKeys:members.map(row=>row.prefix.policyKey),
+          blocks:members.map(row=>row.prefix)});
+        state.trialPool.reusedPolicyTrials=(state.trialPool.reusedPolicyTrials||0)+offset*members.length;
+      }
+      for(let start=offset;start<message.options.trials;start+=16){
+        const count=Math.min(16,message.options.trials-start);
+        const key=JSON.stringify(['policyBlock',members.map(row=>row.key),start,count]);
+        const waiter={request,group};
+        request.remaining++;
+        group.remaining++;
+        const pending=pendingBlocks.get(key);
+        if(pending){
+          pending.requests.push(waiter);
+          state.trialPool.sharedPolicyGroups++;
+        }else{
+          const job={id:++blockSerial,kind:'policyBlock',key,request,policies,offset:start,count,requests:[waiter]};
+          pendingBlocks.set(key,job);
+          blockQueue.push(job);
+        }
+      }
+      if(!group.remaining)finishPolicyGroup(group);
+    }
+    if(request.remaining)poolRequests.set(worker,request);
+    else resumeScreening(request);
+    if(!message.batch)dispatchTrialWork();
   };
   const requestScreens=(worker,message)=>{
-    worker._jellyBusy=false;
-    worker._jellySuspended=true;
+    if(consolidateWork){requestPolicyBlocks(worker,message);return;}
+    if(!message.batch){worker._jellyBusy=false;worker._jellySuspended=true;}
     const request={...message,worker,measurements:Array(message.policies.length),remaining:0};
     const byFever=new Map();
     message.policies.forEach((policy,index)=>{
@@ -1186,13 +1387,58 @@ async function startParallelJellyOptimization(layout,options){
     }
     poolRequests.set(worker,request);
     if(!request.remaining)resumeScreening(request);
-    dispatchTrialWork();
+    if(!message.batch)dispatchTrialWork();
   };
   const requestTrials=(worker,message)=>{
+    if(message.measurements){
+      measurementCache.merge(message.measurements);
+      for(const [key] of message.measurements.entries)worker._jellyMeasurementKeys?.add(key);
+      while(worker._jellyMeasurementKeys?.size>128)worker._jellyMeasurementKeys.delete(worker._jellyMeasurementKeys.values().next().value);
+    }
+    if(message.kind==='screenBatch'){
+      if(!Array.isArray(message.requests)||!message.requests.length||message.requests.length>32
+        ||message.requests.some(request=>request.kind!=='policyScreen'))throw new Error('Invalid Jelly discovery screening batch');
+      worker._jellyBusy=false;
+      worker._jellySuspended=true;
+      const batch={results:Array(message.requests.length),remaining:message.requests.length};
+      message.requests.forEach((request,batchIndex)=>requestScreens(worker,{
+        ...request,trialRequestId:message.trialRequestId,batch,batchIndex,
+      }));
+      dispatchTrialWork();
+      return;
+    }
+    if(message.kind==='discoveryWork'){
+      if(message.key!==JSON.stringify(message.work))throw new Error('Invalid Jelly discovery request');
+      worker._jellyBusy=false;
+      worker._jellySuspended=true;
+      const retained=discoveryCache.get(message.key);
+      if(retained){
+        worker._jellyResume={trialRequestId:message.trialRequestId,
+          result:{key:message.key,result:retained.result,reused:true}};
+        state.trialPool.discoveryReused++;
+      }else{
+        const request={...message,worker};
+        const shareable=['organelle','virus','joint'].includes(message.work.kind)
+          ||message.work.options?.deterministicNodeBudget===true;
+        const pending=shareable&&pendingDiscovery.get(message.key);
+        if(pending){
+          pending.requests.push(request);
+          state.trialPool.discoveryInFlightReused++;
+        }else{
+          const job={kind:'discoveryWork',id:++blockSerial,request,requests:[request],key:message.key,shareable};
+          if(shareable)pendingDiscovery.set(message.key,job);
+          blockQueue.push(job);
+        }
+        poolRequests.set(worker,request);
+      }
+      dispatchTrialWork();
+      return;
+    }
     if(message.kind==='policyScreen'){requestScreens(worker,message);return;}
     worker._jellyBusy=false;
     worker._jellySuspended=true;
-    const key=JSON.stringify([J.jellyLayoutKey(message.layout),message.options]);
+    const key=consolidateWork?J.jellyMeasurementKey(message.layout,message.options)
+      :JSON.stringify([J.jellyLayoutKey(message.layout),message.options]);
     const cached=!message.options.includeTrials&&finalistMeasurements.get(key);
     if(cached){
       state.trialPool.reusedBatches++;
@@ -1203,7 +1449,7 @@ async function startParallelJellyOptimization(layout,options){
     const request={...message,worker,blocks:[],remaining:0};
     const blockSize=Math.max(8,Math.min(32,Math.ceil(message.options.trials/requestedWorkers)));
     const {trials:ignoredTrials,includeTrials:ignoredInclude,...physicalOptions}=message.options;
-    for(let offset=0;offset<message.options.trials;offset+=blockSize){
+    for(let offset=message.options.trialOffset||0;offset<message.options.trials;offset+=blockSize){
       const count=Math.min(blockSize,message.options.trials-offset);
       const blockKey=JSON.stringify([J.jellyLayoutKey(message.layout),physicalOptions,offset,count]);
       const retained=blockCache.get(blockKey);
@@ -1233,7 +1479,7 @@ async function startParallelJellyOptimization(layout,options){
     const activeProgress=Object.entries(state.workerProgress)
       .filter(([index])=>!state.completed.includes(Number(index)))
       .reduce((sum,[,value])=>sum+Math.max(0,Math.min(100,Number(value)||0))/100,0);
-    const aggregate=100*(state.completed.length+activeProgress)/requestedStarts;
+    const aggregate=(sharedFinalization?75:100)*(state.completed.length+activeProgress)/requestedStarts;
     const activeStarts=Object.entries(state.workerStatus||{})
       .filter(([index])=>!state.completed.includes(Number(index)))
       .map(([index,status])=>({start:Number(index),...status}))
@@ -1276,14 +1522,31 @@ async function startParallelJellyOptimization(layout,options){
     if(requestId!==workerRequestId||worker._jellySuspended||worker._jellyBusy)return;
     if(state.paused){
       worker._jellyBusy=false;
-      if(activeJobs===0){
+      if(activeJobs===0&&!state.finalizing){
         workerProgress.paused=true;
         workerProgress.phase='Paused — completed work is checkpointed';
         render();
       }
       return;
     }
-    if(state.userStop||state.stopAfter||nextJob>=pending.length){
+    if(consolidateWork&&sharedFinalization&&pending.length&&!state.savedPolicy){
+      if(savedPolicyRunning)return;
+      savedPolicyRunning=true;
+      activeJobs++;
+      worker._jellyBusy=true;
+      worker._jellySavedPolicy=true;
+      workerProgress.phase='Measuring the shared saved-board policy';
+      updateWorkerProgress();
+      try{worker.postMessage({
+        type:'run',operation:'savedPolicy',requestId,
+        cooperativeTrials:options.finalistPooling!==false&&requestedWorkers>1,
+        measurements:measurementExchange(worker),
+        policyMeasurements:policyExchange(worker),options:{...options,onProgress:undefined},
+      });}
+      catch(error){stopJellyWorker();workerError=`Saved-board policy could not be sent: ${String(error?.message||error)}`;render();}
+      return;
+    }
+    if((state.userStop&&(state.results.length||nextJob>0))||state.stopAfter||nextJob>=pending.length){
       if(readyToFinish())finish();
       return;
     }
@@ -1311,14 +1574,17 @@ async function startParallelJellyOptimization(layout,options){
         operation:'layout',
         cooperativeTrials:options.finalistPooling!==false&&requestedWorkers>1,
         requestId,
-        measurements:options.measurementSharing===false?undefined:measurementCache.export(),
+        measurements:measurementExchange(worker),
         policyMeasurements:policyExchange(worker),
+        proxyScores:options.proxySharing===true?proxyScores.export():undefined,
         options:{
           ...jobOptions,
           ...assignment.overrides,
           sharedEliteLayouts,
           searchStarts:1,
           searchStartOffset:start,
+          deferFinalization:sharedFinalization,
+          savedPolicy:state.savedPolicy,
           onProgress:undefined,
         },
       },sharedEliteLayouts.map(row=>row.packedLayout.buffer));
@@ -1328,7 +1594,7 @@ async function startParallelJellyOptimization(layout,options){
       render();
     }
   };
-  for(let workerIndex=0;workerIndex<(options.finalistPooling===false?Math.min(requestedWorkers,pending.length):requestedWorkers);workerIndex++){
+  for(let workerIndex=0;workerIndex<(options.finalistPooling===false?Math.max(1,Math.min(requestedWorkers,pending.length)):requestedWorkers);workerIndex++){
     const warmIndex=jellyWarmSearchWorkers.findIndex(candidate=>candidate._jellyContextKey===searchContextKey);
     const worker=warmIndex>=0
       ?jellyWarmSearchWorkers.splice(warmIndex,1)[0]
@@ -1339,13 +1605,18 @@ async function startParallelJellyOptimization(layout,options){
     worker.onmessage=event=>{
       const message=event.data||{};
       if(requestId!==workerRequestId||message.requestId!==requestId)return;
+      if(message.type==='done'&&message.proxyScores){
+        try{proxyScores.merge(message.proxyScores);}
+        catch(error){stopJellyWorker();workerError=`Proxy scores could not be merged: ${String(error?.message||error)}`;render();return;}
+      }
       if(message.type==='initialized'){
         worker._jellyInitialized=true;
         dispatchTrialWork();
         return;
       }
       if(message.type==='trials'){
-        requestTrials(worker,message);
+        try{requestTrials(worker,message);}
+        catch(error){stopJellyWorker();workerError=`Policy measurements failed: ${String(error?.message||error)}`;render();}
         return;
       }
       if(message.type==='trialSummary'){
@@ -1370,6 +1641,60 @@ async function startParallelJellyOptimization(layout,options){
           stopJellyWorker();workerError='A finalist block returned an invalid completion.';render();return;
         }
         const block=message.result;
+        if(job.kind==='discoveryWork'){
+          try{
+            const kind=job.request.work.kind;
+            if(['organelle','virus','joint'].includes(kind)
+              ?!Array.isArray(block.structures)
+                ||(kind==='organelle'&&!Number.isFinite(block.countLimit))
+                ||(kind==='virus'&&(!Number.isInteger(block.nodes)||!Number.isInteger(block.enumerated)
+                  ||typeof block.complete!=='boolean'))
+              :!Array.isArray(block.candidates)||!block.certificate)throw new Error('Invalid Jelly discovery completion');
+            if(job.shareable)pendingDiscovery.delete(job.key);
+            if(job.shareable||block.certificate?.complete)rememberDiscovery(job.key,block);
+            job.requests.forEach((request,index)=>{
+              poolRequests.delete(request.worker);
+              request.worker._jellyResume={trialRequestId:request.trialRequestId,
+                result:{key:request.key,result:block,reused:index>0}};
+            });
+            state.trialPool.discoveryComputed++;
+            state.trialPool.discoveryComputeMs+=Number(message.computeMs)||0;
+            state.trialPool.discoveryCacheEntries=discoveryCache.size;
+            state.trialPool.discoveryCacheBytes=discoveryBytes;
+            worker._jellyBlock=null;
+            worker._jellyBusy=false;
+            dispatchTrialWork();
+          }catch(error){stopJellyWorker();workerError=`Discovery work failed: ${String(error?.message||error)}`;render();}
+          return;
+        }
+        if(job.kind==='policyBlock'){
+          try{
+            if(block.seed!==job.request.options.seed||block.trials!==job.request.options.trials
+              ||block.offset!==job.offset||block.count!==job.count||block.blocks?.length!==job.policies.length
+              ||block.policyKeys?.length!==job.policies.length
+              ||block.blocks.some(row=>row.seed!==block.seed||row.offset!==block.offset||row.count!==block.count
+                ||row.records?.length!==block.count))throw new Error('A policy trial block returned an invalid completion.');
+            pendingBlocks.delete(job.key);
+            block.blocks.forEach((row,index)=>{
+              const measurementKey=J.jellyMeasurementKey(job.request.layout,{...job.request.options,...job.policies[index],trials:1});
+              rememberBlock(JSON.stringify([measurementKey,row.offset,row.count]),{
+                ...row,measurementKey,policyKey:block.policyKeys[index],
+              });
+            });
+            for(const {request,group} of job.requests){
+              group.blocks.push({...block,trials:request.options.trials});
+              group.remaining--;
+              request.remaining--;
+              if(!group.remaining)finishPolicyGroup(group);
+              if(!request.remaining)resumeScreening(request);
+            }
+            state.trialPool.completedBlocks++;
+            worker._jellyBlock=null;
+            worker._jellyBusy=false;
+            dispatchTrialWork();
+          }catch(error){stopJellyWorker();workerError=`Policy trial blocks failed: ${String(error?.message||error)}`;render();}
+          return;
+        }
         if(job.kind==='policyScreen'){
           if(block.seed!==job.request.options.seed||block.trials!==job.request.options.trials
             ||block.measurements?.length!==job.policies.length
@@ -1409,6 +1734,57 @@ async function startParallelJellyOptimization(layout,options){
         return;
       }
       const start=worker._jellyStart;
+      if(worker._jellySavedPolicy){
+        if(message.type==='progress'){
+          workerProgress.phase='Measuring the shared saved-board policy';
+          workerProgress.detail=message.progress?.phase||'Sharing compatible baseline measurements';
+          updateWorkerProgress();
+          return;
+        }
+        if(message.type==='done'&&message.result){
+          try{
+            if(message.result.key!==savedPolicyKey
+              ||!message.result.operation?.valid)throw new Error('Invalid saved-board policy completion');
+            state.savedPolicy=message.result;
+            if(message.measurements&&options.measurementSharing!==false)measurementCache.merge(message.measurements);
+          }catch(error){stopJellyWorker();workerError=`Saved-board policy failed: ${String(error?.message||error)}`;render();return;}
+          worker._jellySavedPolicy=false;
+          worker._jellyBusy=false;
+          worker._jellySuspended=false;
+          savedPolicyRunning=false;
+          activeJobs--;
+          persist().then(ok=>{
+            if(!ok){stopJellyWorker();render();return;}
+            dispatchTrialWork();
+          });
+          return;
+        }
+      }
+      if(worker._jellyFinalizing){
+        if(message.type==='progress'){
+          workerProgress.phase=message.progress?.phase||'Comparing shared finalists';
+          workerProgress.detail=message.progress?.detail||'Measuring shared finalists';
+          state.finalPercent=Math.max(Number(state.finalPercent)||0,Number(message.progress?.overallPercent)||0);
+          workerProgress.overallPercent=Math.max(Number(workerProgress.overallPercent)||0,75+state.finalPercent/4);
+          updateWorkerProgress();
+          return;
+        }
+        if(message.type==='done'&&message.result){
+          state.finalResult=message.result;
+          state.finalizing=false;
+          worker._jellyFinalizing=false;
+          worker._jellyBusy=false;
+          worker._jellySuspended=false;
+          persist().then(ok=>{
+            if(!ok){stopJellyWorker();render();return;}
+            if(state.paused){
+              workerProgress.phase='Paused — completed work is checkpointed';
+              render();
+            }else finish();
+          });
+          return;
+        }
+      }
       if(message.type==='progress'){
         acceptLiveUpdate(message.progress);
         const percent=Math.max(Number(state.workerProgress[start])||0,Number(message.progress?.overallPercent)||0);
@@ -1444,7 +1820,7 @@ async function startParallelJellyOptimization(layout,options){
         bestSoFar:{
           layout:message.result.layout,
           score:message.result.score,
-          evidence:'finalist',
+          evidence:sharedFinalization?'racing':'finalist',
           source:`Completed search start ${start+1}`,
           moves:message.result.moves?.length||0,
           objective:options.objective||'dps',
@@ -1490,7 +1866,7 @@ async function startParallelJellyOptimization(layout,options){
       if(requestId!==workerRequestId||state.userStop)return;
       state.paused=true;
       workerProgress.paused=true;
-      workerProgress.phase=activeJobs?'Pausing after active starts finish':'Paused — completed work is checkpointed';
+      workerProgress.phase=activeJobs||state.finalizing?'Pausing after active work finishes':'Paused — completed work is checkpointed';
       persist();
       render();
     },
@@ -1514,7 +1890,8 @@ async function startParallelJellyOptimization(layout,options){
       state.userStop=true;
       state.stoppingReason='Stopped by user after active starts completed.';
       workerProgress.paused=false;
-      workerProgress.phase=activeJobs?'Stopping after active starts finish':'Keeping best completed result';
+      workerProgress.phase=state.finalizing?'Finishing shared comparison before keeping a result'
+        :activeJobs?'Stopping after active starts finish':'Keeping best completed result';
       persist();
       render();
       if(readyToFinish())finish();
@@ -2383,6 +2760,8 @@ function render(){
     render();
   });
   const run=root.querySelector('#run-optimizer');
+  const advanced=root.querySelector('#optimizer-advanced');
+  if(advanced)advanced.ontoggle=()=>{optimizerAdvancedOpen=advanced.open};
   const syncOptimizerControls=()=>{
     const objective=root.querySelector('#objective');
     if(!objective)return;
@@ -2398,6 +2777,7 @@ function render(){
       refinementRounds:Number(root.querySelector('#refinement-rounds').value),
       searchStarts:Number(root.querySelector('#search-starts').value),
       searchWorkers:Math.max(1,Math.min(4,Number(root.querySelector('#search-workers').value)||1)),
+      cheapScreening:!!root.querySelector('#cheap-screening')?.checked,
       adaptiveSearch:root.querySelector('#adaptive-search').checked,
       adaptiveMinStarts:Math.max(1,Math.min(32,Number(root.querySelector('#adaptive-min-starts').value)||4)),
       adaptiveConvergenceWindow:Math.max(2,Math.min(32,Number(root.querySelector('#adaptive-convergence-window').value)||4)),
@@ -2432,10 +2812,22 @@ function render(){
       })(),
     };
   };
-  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells,#seed-sandbox').forEach(control=>{
+  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#cheap-screening,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells,#seed-sandbox').forEach(control=>{
     control.onchange=syncOptimizerControls;
     control.oninput=syncOptimizerControls;
   });
+  const breadth=root.querySelector('#search-breadth');
+  const starts=root.querySelector('#search-starts');
+  if(breadth)breadth.onchange=()=>{
+    if(breadth.value==='fast')starts.value='4';
+    else if(breadth.value==='thorough')starts.value='8';
+    syncOptimizerControls();
+    persistJellySearchBreadth();
+  };
+  if(breadth&&starts){
+    starts.oninput=()=>{syncOptimizerControls();breadth.value=jellySearchBreadth(optimizerControls.searchStarts)};
+    starts.onchange=()=>{starts.oninput();persistJellySearchBreadth()};
+  }
   if(root.querySelector('#objective'))root.querySelector('#objective').onchange=()=>{
     syncOptimizerControls();
     root.querySelector('#exp-cell-type-control').hidden=optimizerControls.objective!=='exp';
@@ -3078,6 +3470,7 @@ function initializeBreakdownTrees(layout){
 function optimizerHtml(saved){
   const p=J.jellyProgress(saveData);
   const layoutRunning=workerProgress?.operation==='layout';
+  const runButton=`<button class="primary" id="run-optimizer" ${['layout','certify','certifyLocal'].includes(workerProgress?.operation)?'disabled':''}>${optimizerControls.mode==='exact'?'Run exact search':(optimizerControls.mode==='local'?'Prove local optimality':'Run optimizer')}</button>`;
   if(optimizerControls.obstruction==null||(!layoutRunning&&optimizerControls.obstruction<p.obstruction))optimizerControls.obstruction=p.obstruction;
   const checkpointRows=jellyCheckpointInventory||[];
   const checkpointBytes=checkpointRows.reduce((sum,row)=>sum+row.estimatedBytes,0);
@@ -3228,7 +3621,7 @@ function optimizerHtml(saved){
       <td>${esc(row.phase)}</td><td>${esc(row.method)}</td><td class="num">${fmtInt(row.candidates)}</td><td class="num">${fmtInt(row.trials)}</td><td>${esc(row.claim)}</td><td>${esc(row.evidence)}</td>
     </tr>`).join('');
     const parallelShardRows=(optimized.parallelSearch?.shardSummaries||[]).map(row=>`<tr>
-      <td>${row.shard+1}</td><td class="num">${row.searchStartOffset+1}–${row.searchStartOffset+row.searchStarts}</td><td class="num">${objectiveDiagnosticValue(row.operation)}</td><td class="num">${fmtInt(row.evaluated)}</td><td>${row.shard===optimized.parallelSearch.selectedShard?'Selected':'Completed'}</td>
+      <td>${row.shard+1}</td><td class="num">${row.searchStartOffset+1}–${row.searchStartOffset+row.searchStarts}</td><td class="num">${objectiveDiagnosticValue(row.operation)}</td><td class="num">${fmtInt(row.evaluated)}</td><td>${optimized.search?.sharedFinalization?'Discovery':row.shard===optimized.parallelSearch.selectedShard?'Selected':'Completed'}</td>
     </tr>`).join('');
     const countArchetypeRows=(optimized.countArchetypeResults||[]).filter(row=>row.type<J.jellyUnitsOwned(saveData)&&row.operation).map(row=>`<tr>
       <td>${esc(row.name)}</td><td class="num">${row.count}</td><td class="num">${objectiveDiagnosticValue(row.operation)}</td><td class="num">${clearInterval(row.operation)}</td>
@@ -3307,6 +3700,7 @@ function optimizerHtml(saved){
       </div>
       ${auditProgressHtml()}
       ${optimizedStale?'<p class="bad">The save refreshed while this search was running. This recommendation uses the save from when the search started.</p>':''}
+      ${optimized.search?.cheapScreening?'<p class="note">Reduced early policy screening was enabled. It can miss strong layout-policy combinations; surviving boards still receive full policy refinement and unchanged final trials.</p>':''}
       ${challenger&&!challenger.selected?'<p class="note">The search found a numerically higher challenger, but it did not prove that the challenger beats the saved layout on shared-seed paired trials. The saved layout is retained instead of recommending statistically unsupported changes.</p>':''}
       ${pairedStatus==='statistically-unresolved'?'<p class="note">The recommended and saved layouts remain statistically unresolved on the held-out paired trials. The recommendation has the higher measured objective, but the difference is not yet confirmed.</p>':''}
       ${legendHtml()}<div class="grid-pair">${gridHtml(resultSaved,optimizedStale?'Search starting save':'Current save',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}</div>
@@ -3319,9 +3713,10 @@ function optimizerHtml(saved){
           ${blindOp?card('Blind search vs saved',objectiveComparison(),optimized.search?.savedDiscoveredByConstruction?'Exact saved geometry found':'Saved geometry not independently found'):''}
           ${J.jellyUpgradeLevel(saveData,4)>0?card('Best Immunoid finalist',immunoidOp?objectiveValue(immunoidOp):'None',immunoidOp?`${J.jellyLayoutMetrics(optimized.immunoidLayout,saveData,{fever:immunoidOp.fever}).rawCounts[4]} Immunoid`:'None'):''}
           ${optimized.immunoidBreakpoint?card('Immunoid breakpoint',breakpointRanges||'None',optimized.immunoidBreakpoint.currentPreferred?'Favored here':'Not favored here'):''}
-          ${card('Surrogate rank audit',(optimized.proxyAudit?.rankCorrelation??1).toFixed(3),worstProxy&&worstProxy.rankDelta>0?`Largest under-rank: ${worstProxy.rankDelta}`:'No under-ranked finalist')}
+          ${optimized.proxyAudit?card('Surrogate rank audit',optimized.proxyAudit.rankCorrelation.toFixed(3),worstProxy&&worstProxy.rankDelta>0?`Largest under-rank: ${worstProxy.rankDelta}`:'No under-ranked finalist'):''}
           ${card('Retained search starts',`${optimized.search?.searchStarts||1} of ${optimized.search?.requestedSearchStarts||optimized.search?.searchStarts||1}`,`${fmtInt(optimized.evaluated)} proxy candidates · ${fmtInt(optimized.search?.eliteArchiveSize||0)} niches`)}
           ${optimized.parallelSearch?card('Dynamic search queue',`${optimized.parallelSearch.executedStarts}/${optimized.parallelSearch.requestedStarts} executed`,`${optimized.parallelSearch.acceptedStarts} retained · ${optimized.parallelSearch.workers} warm-capable workers · ${optimized.parallelSearch.warmWorkersReused||0} reused${optimized.parallelSearch.resumed?' · resumed':''}`):''}
+          ${optimized.search?.sharedFinalization?card('Shared finalist comparison',`${fmtInt(optimized.search.sharedFinalization.uniqueCandidates)} → ${fmtInt(optimized.search.sharedFinalization.policyFinalists)} boards`,'One cross-start policy and held-out comparison · exactly tied sampled outcomes remain unresolved · fresh audit stays separate'):''}
           ${card('Search funnel',`${fmtInt(optimized.evaluated)} → ${fmtInt(optimized.search?.screeningCandidates||0)} → ${fmtInt(optimized.search?.racingCandidates||0)} → ${fmtInt(optimized.search?.normalizedFinalists||optimized.search?.finalists||0)}`,'Proxy candidates → screened → raced → fully simulated finalists')}
           ${card('Base experimentation',`${fmtInt(optimized.search?.initialBaseFamilies||0)} → ${fmtInt(optimized.search?.explorationBaseFamilies||0)} → ${fmtInt(optimized.search?.finalBeamBaseFamilies||0)} families`,`Initial seeds → after ${fmtInt(optimized.search?.explorationRounds||0)} coarse rounds → granular refinement · ${fmtInt(optimized.search?.coarseRebuildCandidates||0)} multi-cell rebuilds`)}
           ${optimized.search?.adaptiveMoves?card('Annealing / tabu search',`${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.proposals,0))} proposals`,`${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.downhillAccepted,0))} downhill moves accepted · ${fmtInt(optimized.search.adaptiveChains.reduce((sum,row)=>sum+row.tabuRejected,0))} recent-state cycles blocked · replaces existing mutation budgets`):''}
@@ -3330,12 +3725,16 @@ function optimizerHtml(saved){
           ${optimized.search?.simulationFeedback?card('Iterative operation feedback',`${fmtInt(optimized.search.simulationFeedback.rounds.length)} learning rounds`,`${fmtInt(optimized.search.simulationFeedback.screened)} additional boards measured for this start · model refitted between rounds · novelty guides exploration, not statistical confidence`):''}
           ${optimized.search?.simulationFeedback?card('Operation-guided repairs',`${fmtInt(optimized.search.simulationFeedback.repairsScreened)} repairs measured`,`${fmtInt(optimized.search.simulationFeedback.repairCompleteScopes)} exhausted / ${fmtInt(optimized.search.simulationFeedback.repairBudgetLimitedScopes)} budget-limited proposal scopes · several cell types/counts may change · training evidence, not an optimality proof`):''}
           ${optimized.search?.jointPolicyScreening?card('Joint Fever / timing search',`${fmtInt(optimized.search.timingFevers)} Fevers receive timing coverage`,`${fmtInt(optimized.search.screeningPhysicalPoliciesReused||0)} equivalent screening policies reused · each board gets its own portfolio before full finalist refinement`):''}
+          ${optimized.search?.cheapScreening?card('Early policy screening','Reduced (opt-in)','At most two initial policies per generated board; saved/submitted boards and racing survivors keep the full portfolio'):''}
           ${optimized.search?.normalizedCandidates?card('Distinct completed boards',`${fmtInt(optimized.search.normalizedCandidates.neighborhoodRaw)} → ${fmtInt(optimized.search.normalizedCandidates.neighborhoodUnique)} neighborhood proposals`,'Gap-fill and deduplicate before shortlisting · preserve exact saved and submitted boards · screen each board with its own policy portfolio'):''}
           ${optimized.search?.incrementalScoring?card('Incremental scoring',`${fmtInt(optimized.search.incrementalScoring.incrementalUpdates)} geometry updates`,`${fmtInt(optimized.search.incrementalScoring.geometryHits)} cached geometries · ${fmtInt(optimized.search.incrementalScoring.cadenceHits)} cadence reuses · exact source arithmetic`):''}
           ${optimized.search?.trialReuse?card('Extended simulation batches',`${fmtInt(optimized.search.trialReuse.reused)} trials reused`,`${fmtInt(optimized.search.trialReuse.computed)} newly simulated · ${fmtInt(optimized.search.trialReuse.prefixFramesReused)} shared-prefix frames · validation seed families stay separate`):''}
           ${optimized.search?.measurements?card('Shared measurements',`${fmtInt(optimized.search.measurements.hits)} exact batches reused`,`${fmtInt(optimized.search.measurements.imported)} imported between starts · 128-batch / 2 MiB estimated cache limits · audit samples stay independent`):''}
           ${optimized.parallelSearch?.finalistPool?card('Finalist worker pool',`${fmtInt(optimized.parallelSearch.finalistPool.completedBlocks)} seed blocks completed`,`${fmtInt(optimized.parallelSearch.finalistPool.reusedBlocks)} blocks reused (${fmtInt(optimized.parallelSearch.finalistPool.inFlightReusedBlocks)} shared in flight) · ${fmtInt(optimized.parallelSearch.finalistPool.reusedBatches)} aggregate batches reused · ${fmtInt(optimized.parallelSearch.finalistPool.completedPolicyGroups)} policy groups completed (${fmtInt(optimized.parallelSearch.finalistPool.sharedPolicyGroups)} shared) · fresh audit stays separate`):''}
           ${optimized.parallelSearch?.policyReuse?card('Policy search reuse',`${fmtInt(optimized.parallelSearch.policyReuse.hits)} complete searches reused`,`${fmtInt(optimized.parallelSearch.policyReuse.warmStarts)} nearby-layout warm starts · hints are remeasured, never transferred scores`):''}
+          ${optimized.parallelSearch?.discoveryTiming?card('Discovery phase CPU',`${(optimized.parallelSearch.discoveryTiming.cpuMs/1000).toFixed(1)} owner worker-seconds`,`${Object.entries(optimized.parallelSearch.discoveryTiming.phases).map(([phase,ms])=>`${esc(phase)} ${(ms/1000).toFixed(1)}s`).join(' · ')} · excludes helper work and suspended waits; summed CPU is not elapsed time`):''}
+          ${optimized.parallelSearch?.finalistPool?.discoveryComputed?card('Shared discovery work',`${fmtInt(optimized.parallelSearch.finalistPool.discoveryComputed)} construction/repair jobs`,`${fmtInt(optimized.parallelSearch.finalistPool.discoveryReused)} cached scopes · ${fmtInt(optimized.parallelSearch.finalistPool.discoveryInFlightReused)} shared in flight · ${(optimized.parallelSearch.finalistPool.discoveryComputeMs/1000).toFixed(1)} helper worker-seconds · randomized fills and learned repair scores stay start-specific`):''}
+          ${optimized.parallelSearch?.proxyScores?card('Exact proxy reuse',`${fmtInt(optimized.parallelSearch.proxyScores.hits)} cached scores`,`${fmtInt(optimized.parallelSearch.proxyScores.entries)} retained across compatible starts · objective and physical inputs stay isolated · learned rankings are never shared`):''}
           ${optimized.search?.activeExactRepair?card('Construction exact repairs',`${fmtInt(optimized.search.activeExactRepair.improvements)} stronger candidates`,`${fmtInt(optimized.search.activeExactRepair.scopes)} scopes · ${fmtInt(optimized.search.activeExactRepair.completeScopes)} exhausted · ${fmtInt(optimized.search.activeExactRepair.nodes)} nodes · budget-limited scopes are not proofs`):''}
           ${optimized.parallelSearch?.allocation?card('Compute allocation',Object.entries(optimized.parallelSearch.allocation).map(([name,count])=>`${name}: ${count}`).join(' · '),`${fmtInt(optimized.parallelSearch.sharedElites)} elite transfers at start boundaries · payoff per elapsed second guides later assignments; exploration stays reserved`):''}
           ${optimized.search?.screeningGeometryDiversity?card('Screening geometry diversity',pct(optimized.search.screeningGeometryDiversity.meanAnchorTypeDistance),`${fmtInt(optimized.search.screeningGeometryDiversity.layouts)} layouts · ${pct(optimized.search.screeningGeometryDiversity.meanOccupancyDistance)} mean occupied-slot difference · 0% is identical, 100% has no overlap`):''}
@@ -3373,34 +3772,46 @@ function optimizerHtml(saved){
       </details>
     </div>`;
   }
-  return `<div class="section"><h2>Layout search</h2>
-    <div class="controls">
-      <label class="control">Search mode<select id="optimizer-mode">
+  return `<div class="section optimizer-form"><h2>Layout search</h2>
+    <div class="controls optimizer-main">
+      <label class="control"><span>Search mode ${tooltipIcon('Bounded search finds the best measured layout, not a proven global optimum. Exact and local proofs cover only their declared scopes.','Search mode help')}</span><select id="optimizer-mode">
         <option value="bounded" ${optimizerControls.mode==='bounded'?'selected':''}>Bounded global search</option>
         <option value="exact" ${optimizerControls.mode==='exact'?'selected':''}>Exact / certifiable</option>
         <option value="local" ${optimizerControls.mode==='local'?'selected':''}>Local optimality proof</option>
       </select></label>
       ${optimizerControls.mode==='bounded'?`
-      <label class="control">Objective<select id="objective">
+      <label class="control objective-control">Objective<select id="objective">
         ${objectiveOptions(optimizerControls.objective)}
       </select></label>
       <label class="control" id="exp-cell-type-control" ${optimizerControls.objective==='exp'?'':'hidden'}>EXP target<select id="exp-cell-type">${cellExpTargetOptions(optimizerControls.expCellType)}</select></label>
-      <label class="control">Obstruction<input id="obstruction" type="number" min="${p.obstruction+1}" max="72" value="${optimizerControls.obstruction+1}" ${layoutRunning?'disabled':''}></label>
-      <label class="control">Diverse beam width<input id="beam" type="number" min="4" max="128" value="${optimizerControls.beamWidth}"></label>
-      <label class="control">Empty-board build rounds<input id="iterations" type="number" min="1" max="120" value="${optimizerControls.iterations}"></label>
-      <label class="control">Saved-board relocation rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.savedRefinementRounds}"></label>
-      <label class="control">Merged local rounds<input id="refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.refinementRounds}"></label>
-      <label class="control">Independent starts<input id="search-starts" type="number" min="1" max="32" value="${optimizerControls.searchStarts}"></label>
-      <label class="control">Parallel search workers<input id="search-workers" type="number" min="1" max="4" value="${optimizerControls.searchWorkers}"></label>
+      <label class="control obstruction-control">Obstruction<input id="obstruction" type="number" min="${p.obstruction+1}" max="72" value="${optimizerControls.obstruction+1}" ${layoutRunning?'disabled':''}></label>
+      <label class="control"><span>Search breadth ${tooltipIcon('Fast searches fewer layouts and may miss a better board. Final trials stay unchanged.','Search breadth help')}</span><select id="search-breadth">
+        <option value="fast" ${jellySearchBreadth(optimizerControls.searchStarts)==='fast'?'selected':''}>Fast - 4 starts</option>
+        <option value="thorough" ${jellySearchBreadth(optimizerControls.searchStarts)==='thorough'?'selected':''}>Thorough - 8 starts (default)</option>
+        <option value="custom" ${jellySearchBreadth(optimizerControls.searchStarts)==='custom'?'selected':''}>Custom start count</option>
+      </select></label>
+      ${runButton}
+    </div>
+    <details class="optimizer-advanced" id="optimizer-advanced" ${optimizerAdvancedOpen?'open':''}>
+      <summary>Advanced settings</summary>
+      <div class="optimizer-tuning">
+      <label class="control">Beam width<input id="beam" type="number" min="4" max="128" value="${optimizerControls.beamWidth}"></label>
+      <label class="control">Build rounds<input id="iterations" type="number" min="1" max="120" value="${optimizerControls.iterations}"></label>
+      <label class="control">Saved-board rounds<input id="saved-refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.savedRefinementRounds}"></label>
+      <label class="control">Refinement rounds<input id="refinement-rounds" type="number" min="0" max="30" value="${optimizerControls.refinementRounds}"></label>
+      <label class="control">Starts<input id="search-starts" type="number" min="1" max="32" value="${optimizerControls.searchStarts}"></label>
+      <label class="control">Workers<input id="search-workers" type="number" min="1" max="4" value="${optimizerControls.searchWorkers}"></label>
       <label class="control">Virus conditioning<select id="virus-search-mode"><option value="fast" ${optimizerControls.virusSearchMode==='fast'?'selected':''}>Fast</option><option value="balanced" ${optimizerControls.virusSearchMode==='balanced'?'selected':''}>Balanced</option><option value="thorough" ${optimizerControls.virusSearchMode==='thorough'?'selected':''}>Thorough</option></select></label>
-      <label class="control"><input id="adaptive-search" type="checkbox" ${optimizerControls.adaptiveSearch?'checked':''}> Stop starts after deterministic convergence</label>
       <label class="control">Minimum starts<input id="adaptive-min-starts" type="number" min="1" max="32" value="${optimizerControls.adaptiveMinStarts}"></label>
       <label class="control">Convergence window<input id="adaptive-convergence-window" type="number" min="2" max="32" value="${optimizerControls.adaptiveConvergenceWindow}"></label>
-      <label class="control">Fully simulated finalists<input id="finalists" type="number" min="1" max="64" value="${optimizerControls.finalistCount}"></label>
-      <label class="control">Simulation trials<input id="trials" type="number" min="4" max="1000" value="${optimizerControls.simulationTrials}"></label>
-      <label class="control">Adaptive confirmation cap<input id="adaptive-max-trials" type="number" min="512" max="8192" step="512" value="${optimizerControls.adaptiveMaxTrials}"></label>
-      <label class="control"><input id="seed-sandbox" type="checkbox" ${optimizerControls.seedSandbox?'checked':''}> Compare my Simulator sandbox board</label>
-      <p class="note">Build a board on the Simulator tab, then enable this to force it through screening, racing, and full simulation as a mandatory candidate. The search also refines it, so a strong hand-built board can seed a better recommendation.</p>
+      <label class="control">Finalists<input id="finalists" type="number" min="1" max="64" value="${optimizerControls.finalistCount}"></label>
+      <label class="control">Trials<input id="trials" type="number" min="4" max="1000" value="${optimizerControls.simulationTrials}"></label>
+      <label class="control">Confirmation cap<input id="adaptive-max-trials" type="number" min="512" max="8192" step="512" value="${optimizerControls.adaptiveMaxTrials}"></label>
+      <label class="check-control"><input id="cheap-screening" type="checkbox" ${optimizerControls.cheapScreening?'checked':''}> Reduce early screening ${tooltipIcon('Fewer early policies can miss a better layout. Survivors keep full policy refinement and unchanged final trials.','Early screening help')}</label>
+      <label class="check-control"><input id="adaptive-search" type="checkbox" ${optimizerControls.adaptiveSearch?'checked':''}> Stop after convergence</label>
+      <label class="check-control"><input id="seed-sandbox" type="checkbox" ${optimizerControls.seedSandbox?'checked':''}> Include Simulator board ${tooltipIcon('Compare your Simulator board as a mandatory candidate, and search for improvements to it.','Simulator board help')}</label>
+      </div>
+    </details>
       `:`
       <input id="objective" type="hidden" value="${optimizerControls.objective}">
       <input id="exp-cell-type" type="hidden" value="${optimizerControls.expCellType}">
@@ -3411,6 +3822,7 @@ function optimizerHtml(saved){
       <input id="refinement-rounds" type="hidden" value="${optimizerControls.refinementRounds}">
       <input id="search-starts" type="hidden" value="${optimizerControls.searchStarts}">
       <input id="search-workers" type="hidden" value="${optimizerControls.searchWorkers}">
+      <input id="cheap-screening" type="checkbox" hidden ${optimizerControls.cheapScreening?'checked':''}>
       <input id="virus-search-mode" type="hidden" value="${optimizerControls.virusSearchMode}">
       <input id="adaptive-search" type="checkbox" hidden ${optimizerControls.adaptiveSearch?'checked':''}>
       <input id="adaptive-min-starts" type="hidden" value="${optimizerControls.adaptiveMinStarts}">
@@ -3465,14 +3877,13 @@ function optimizerHtml(saved){
       <input id="certify-max-passes" type="hidden" value="${optimizerControls.certifyMaxPasses}">
       <input id="certify-repack-cells" type="hidden" value="${optimizerControls.certifyRepackCells}">
       `}
-      <button class="primary" id="run-optimizer" ${['layout','certify','certifyLocal'].includes(workerProgress?.operation)?'disabled':''}>${optimizerControls.mode==='exact'?'Run exact search':(optimizerControls.mode==='local'?'Prove local optimality':'Run optimizer')}</button>
-    </div>
+      ${optimizerControls.mode==='bounded'?'':runButton+'</div>'}
     ${workerProgressHtml(optimizerControls.mode==='exact'?'certify':(optimizerControls.mode==='local'?'certifyLocal':'layout'))}
-    <p class="note">${optimizerControls.mode==='exact'
+    ${optimizerControls.mode==='bounded'?'':`<p class="note">${optimizerControls.mode==='exact'
       ?'Exact mode proves the best steady-state DPS layout only when it exhausts the declared finite scope. Deterministic stopping ignores wall-clock time and ends at the same node budget on repeated runs.'
       :(optimizerControls.mode==='local'
         ?'Local optimality can add weak-cell, Virus, Organelle, Immunoid, and leader-disagreement regions, then apply the strongest repair until a fixed point. Frozen operation sample mode proves only the declared finite seed sample and fixed policy, not the full random game distribution.'
-        :'Higher values search longer. The search is bounded rather than a mathematical proof of the global optimum. Adaptive confirmation escalates statistically unresolved finalists through shared-seed paired trials up to the selected cap; the evaluation ledger distinguishes best-found evidence from proofs.')}</p>
+        :'')}</p>`}
   </div>${checkpointHtml}${result}`;
 }
 

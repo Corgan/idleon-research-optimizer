@@ -61,6 +61,10 @@ export function jellyUpgradeData(id) {
   };
 }
 
+export function jellyUpgradePerLevel(id) {
+  return Number(JellyUPG?.[id]?.[3]) || 0;
+}
+
 export function jellyUpgradeOrder() {
   return (Research?.[44] || []).map(Number);
 }
