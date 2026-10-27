@@ -230,8 +230,8 @@ function _renderUpgrades(ext) {
 
 // ===== OPTIMIZER =====
 function _renderOptimizer(ext) {
-  var html = '<div id="tab-optimizer" class="tab-content">';
-  html += '<div class="section"><h2>Upgrade Priority</h2>';
+  var html = '<div id="tab-optimizer" class="tab-content"><div id="cove-combat"></div>';
+  html += '<details class="section"><summary>Analytical single-upgrade reference</summary><h2>Upgrade Priority</h2>';
   html += '<p style="font-size:.82em;color:var(--text2);margin-bottom:8px">Ranked by marginal DR improvement per unit cost. Non-DR upgrades listed at the bottom.</p>';
 
   var ranked = C.rankUpgrades(S, ext);
@@ -277,7 +277,7 @@ function _renderOptimizer(ext) {
     }
   }
   html += '</tbody></table>';
-  html += '</div><div id="cove-combat"></div></div>';
+  html += '</details></div>';
   return html;
 }
 

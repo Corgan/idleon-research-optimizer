@@ -119,15 +119,23 @@ export function pdig(saveData) {
 
 // Cglunko_DR — complex drop rate formula
 export function drBonus(saveData) {
-  var b = upgBonus;
-  var s = saveData;
-  return (1 + (b(s,1) + (b(s,17) + b(s,21))) / 100)
-    * (1 + b(s,3) / 100)
-    * (1 + b(s,12) / 100)
-    * (1 + b(s,10) * bdig(s) / 100)
-    * (1 + b(s,22) * pdig(s) / 100)
-    * (1 + b(s,4) * Math.ceil(getLOG(_ola(668))) / 100)
-    * (1 + b(s,18) * Math.ceil(getLOG(_ola(200))) / 100);
+  return drBonusAt({
+    levels: Array.from({ length: 24 }, (_, i) => upgLevel(saveData, i)),
+    balances: Array.from({ length: 12 }, (_, i) => _ola(654 + i)),
+    kills: _ola(668), normalDR: _ola(200),
+  });
+}
+
+export function drBonusAt({ levels, balances, kills, normalDR }) {
+  const b = i => Number(levels[i]) * upgPerLvVal(i);
+  const digits = offset => balances.slice(offset, offset + 6).reduce((sum, n) => sum + Math.ceil(getLOG(n)), 0);
+  return (1 + (b(1) + (b(17) + b(21))) / 100)
+    * (1 + b(3) / 100)
+    * (1 + b(12) / 100)
+    * (1 + b(10) * digits(0) / 100)
+    * (1 + b(22) * digits(6) / 100)
+    * (1 + b(4) * Math.ceil(getLOG(kills)) / 100)
+    * (1 + b(18) * Math.ceil(getLOG(normalDR)) / 100);
 }
 
 // Cglunko_AFKgains

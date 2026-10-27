@@ -14,14 +14,26 @@
 .cw-warning { color:var(--gold); font-size:.85em; margin:8px 0; }
 .cw-combat progress { display:inline-block; width:160px; height:12px; accent-color:var(--green); max-width:100%; }
 .cw-table small { display:block; color:var(--text2); font-size:.9em; }
+.cove-progression .cw-controls { align-items:end; gap:8px; padding:0; margin:8px 0; }
+.cove-progression .cove-advanced { font-size:.82em; margin:4px 0 8px; }
+.cove-progression summary { cursor:pointer; }
+.cove-progression .cw-table td { vertical-align:top; }
+.cove-progression .cw-table details { margin-top:5px; font-size:.9em; font-weight:normal; }
+.cove-chart { display:block; width:100%; max-width:640px; height:auto; margin:6px 0; }
+.cove-chart text { fill:var(--text2); font-size:11px; }
+.cove-steps { max-height:320px; overflow:auto; }
+.cove-steps td { overflow-wrap:anywhere; }
+.cove-progression [hidden] { display:none !important; }
 .cw-combat .css-setup-ico { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; border-radius:3px; }
 .cw-combat .css-setup-ico img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
 @media (max-width:700px) {
-  .cw-table,.cw-table tbody,.cw-table tr,.cw-table td { display:block; width:100%; }
-  .cw-table tr { background:var(--bg3); margin:10px 0; border-radius:6px; padding:8px; }
-  .cw-table thead { display:none; }
-  .cw-table td { display:flex; justify-content:space-between; gap:10px; text-align:right; overflow-wrap:anywhere; }
-  .cw-table td::before { content:attr(data-label); text-align:left; color:var(--text2); }
-  .cw-table td:first-child { display:block; text-align:left; font-weight:600; }
-  .cw-table td:first-child::before { display:none; }
+  .cove-progression .cove-steps { max-width:100%; }
+  .cove-progression .cove-steps table { min-width:500px; }
+  .cw-table,.cw-table > tbody,.cw-table > tbody > tr,.cw-table > tbody > tr > td { display:block; width:100%; }
+  .cw-table > tbody > tr { background:var(--bg3); margin:10px 0; border-radius:6px; padding:8px; }
+  .cw-table > thead { display:none; }
+  .cw-table > tbody > tr > td { display:flex; justify-content:space-between; gap:10px; text-align:right; overflow-wrap:anywhere; }
+  .cw-table > tbody > tr > td::before { content:attr(data-label); text-align:left; color:var(--text2); }
+  .cw-table > tbody > tr > td:first-child { display:block; text-align:left; font-weight:600; }
+  .cw-table > tbody > tr > td:first-child::before { display:none; }
 }

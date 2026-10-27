@@ -37,7 +37,7 @@ export function buildCoveCombatPlan(raw, options) {
       setup: upsertPatch(base.setup, { system: 'raw', key, path: [666 + color], value: focus }),
       mapIdx: 216, holeCavern: 17, cost: null });
   }
-  return { ...base, raw: undefined, rows, balances, focuses, jobs: combatFarmingJobs(base, rows) };
+  return { ...base, raw: undefined, rows, levels, purchases, study17, optionKey: key, balances, focuses, jobs: combatFarmingJobs(base, rows) };
 }
 
 export function summarizeCoveCombat(plan, records) {

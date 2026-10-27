@@ -57,3 +57,22 @@ export function formulaEval(type, x1, x2, lv) {
 export function getLOG(x) {
   return Math.log(Math.max(x, 1)) / 2.30259;
 }
+
+// Native Rand (src 962): weekly selections use this, not combat's seeded RNG.
+export function gameRandom(seed) {
+  var first = seed | 0;
+  var value = Math.imul(first, -862048943);
+  value = Math.imul((value << 15) | (value >>> 17), 461845907);
+  var state = (5381 ^ value) | 0;
+  state = (Math.imul((state << 13) | (state >>> 19), 5) - 430675100) | 0;
+  state = Math.imul(state ^ (state >> 16), -2048144789);
+  state = Math.imul(state ^ (state >> 13), -1028477387);
+  var second = (state ^ (state >> 16)) | 0;
+  if (first === 0) first = 1;
+  if (second === 0) second = 1;
+  return function () {
+    first = 36969 * (65535 & first) + (first >> 16);
+    second = 18000 * (65535 & second) + (second >> 16);
+    return ((1073741823 & (((first << 16) + second) | 0)) % 10007) / 10007;
+  };
+}

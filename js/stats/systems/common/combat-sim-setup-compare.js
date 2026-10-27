@@ -170,8 +170,9 @@ export function addSetupCompareRun(row, seed, m) {
   return row;
 }
 
-/** Omega odds diminish after each drop, so compare finite-run totals, not a stationary rate. */
+/** Nonstationary rewards and timed encounters compare finite-run totals. */
 export function setupCompareUnit(key) {
+  if (key.startsWith('metric:killroy.') || key === 'item:Quest69') return 'run';
   return key === 'inventorySeconds' ? 's' : key === 'item:ArcBallOmega' || key === 'metric:combatProgress.omegaBalls' ? 'run' : 'hr';
 }
 

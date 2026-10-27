@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Killroy Calculator</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text2:#c0c0d4;--gold:#ffd700;--green:#4caf50;--cyan:#4dd0e1}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px 'Segoe UI',system-ui,sans-serif}
+h1{text-align:center;margin:0;padding:12px;background:var(--bg2);border-bottom:2px solid var(--accent);font-size:1.4em}h1 span{color:var(--accent)}
+main{max-width:1200px;margin:auto;padding:10px}.section{background:var(--bg2);border-radius:6px;padding:10px 12px;margin-bottom:10px}
+h2{font-size:1.1em;margin:0;color:var(--cyan)}h3{font-size:1em;margin:10px 0 4px}
+.tabs{display:flex;gap:4px;border-bottom:2px solid #52617d;margin-bottom:10px}.tabs button{border:0;border-radius:0;padding:8px 12px;background:none;color:var(--text2)}.tabs button[aria-selected=true]{color:var(--cyan);border-bottom:2px solid var(--accent);margin-bottom:-2px}
+.week-characters{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.roster-row{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 7px;border:1px solid #52617d;border-radius:4px;text-align:left;cursor:pointer}.roster-row.queued{background:#4dd0e112;border-color:#4dd0e199}.roster-row input{flex-shrink:0;margin:0}.roster-row span{min-width:0;overflow-wrap:anywhere}.roster-row small{margin-top:2px}
+.selection-preview{margin:0 0 6px}.selection-preview details{margin:0}.selection-preview.ready summary{color:var(--cyan)}.queue-weeks{margin-top:6px}.queue-week{margin:4px 0;overflow-wrap:anywhere}.queue-week h3{margin:6px 0 2px}.queue-week .data-table td{vertical-align:top}
+small,.note{color:var(--text2);font-size:.85em}small{display:block;margin-top:4px}.note{margin:8px 0}.error,.stale{color:#ffb0b9;white-space:pre-wrap}
+button,select,input{font:inherit;color:var(--text);background:var(--bg);border:1px solid #52617d;border-radius:5px;padding:6px}button{cursor:pointer}button.primary{background:var(--accent);border-color:var(--accent);font-weight:600}button:disabled{opacity:.5;cursor:default}
+input[type=checkbox]{accent-color:var(--accent)}input[type=number]{width:65px}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:6px 0}.toolbar label{display:flex;align-items:center;gap:4px}.section-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px}.section-header .toolbar{margin:0}fieldset{margin:0;border:0;padding:0;min-width:0}
+.pill{display:inline-block;border:1px solid #52617d;border-radius:20px;padding:3px 8px;margin:2px;font-size:.8em}.gold{color:var(--gold)}.winner{background:#ffd70012}.good{color:#9bdf9e}
+.data-table{width:100%;border-collapse:collapse;font-size:.9em}.data-table th,.data-table td{text-align:right;padding:5px 6px;border-bottom:1px solid #ffffff12}.data-table th:first-child,.data-table td:first-child{text-align:left}.data-table th{color:var(--text2);font-weight:500}.data-table th button{border:0;background:none;padding:0;color:inherit}.data-table td:first-child{max-width:330px}#forecast{max-height:440px;overflow:auto;scrollbar-gutter:stable}#forecast td{vertical-align:top;text-align:left;padding:10px}#forecast th:nth-child(n+2){width:28%}#forecast thead th{position:sticky;top:0;background:var(--bg2);z-index:1}.map-record{margin-top:4px;line-height:1.5}.map-record .metric{white-space:nowrap}.selection-count{display:inline-block;margin-top:5px;color:var(--cyan)}.row-status{display:inline;margin-left:6px}.result-summary{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0}.result-summary>details{margin:0}
+.weekly-results{table-layout:fixed;font-size:1em;margin:12px 0 20px;font-variant-numeric:tabular-nums}.weekly-results caption{text-align:left;padding:0 0 8px;font-size:1.1em}.weekly-results caption span{margin-left:10px;font-size:.8em;color:var(--text2)}.weekly-results>thead th{padding:6px 10px}.weekly-results>.combo-results>.combo-title>th{background:#0f346066;padding:8px 10px;text-align:left;color:var(--text);border-top:8px solid var(--bg2)}.combo-label{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 12px}.combo-label>span{font-weight:600}.combo-label small{margin:0;white-space:nowrap}.family-tag{color:var(--cyan);font-size:.85em;margin-left:8px;font-weight:400}.weekly-results .result-row>td{padding:8px 10px;overflow-wrap:anywhere}.result-row>td:first-child strong{font-weight:500}.weekly-results .result-row>td:nth-child(n+2){white-space:nowrap}.details-button{padding:3px 6px;color:var(--cyan);border-color:transparent;background:none}.details-button:hover{border-color:#52617d}.weekly-results .result-details>td{padding:0;text-align:left;max-width:none}.attempt-details{padding:12px;background:var(--bg);border-left:2px solid #52617d}.attempt-details .bonus{color:var(--text2);gap:8px 20px}.attempt-details .bonus strong{color:var(--text);font-weight:500}.attempt-details .runs{margin-top:8px}.result-row:has(+.result-details:not([hidden])){background:#4dd0e112}
+details{margin-top:10px}summary{cursor:pointer;color:var(--text2)}progress{width:min(400px,100%);accent-color:var(--accent);height:12px}a{color:var(--cyan)}
+.result-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.bonus{display:flex;flex-wrap:wrap;gap:8px}.metric{color:var(--gold);font-variant-numeric:tabular-nums}[hidden]{display:none!important}
+.selection-count:empty{display:none}.result-summary>.note{margin:0}#upgrade-settings{margin-bottom:8px}#forecast:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#forecast .data-table{font-size:1em}#forecast th{text-align:left}.weekly-results .configuration{text-align:left!important;white-space:normal!important}
+@media(max-width:700px){.data-table thead{display:none}.data-table,.data-table tbody{display:block}.data-table tr{display:grid;grid-template-columns:1fr 1fr;padding:10px 0;border-bottom:1px solid #52617d}.data-table td{display:block;text-align:right;border:0;padding:4px}.data-table td:first-child{grid-column:1/-1;max-width:none}.data-table td[data-label]:before{content:attr(data-label);display:block;color:var(--text2);font-size:.8em}.runs tr{grid-template-columns:1fr 1fr}.section{padding:12px}main{padding:10px}.weekly-results colgroup{display:none}.weekly-results caption{display:block}.weekly-results .combo-title,.weekly-results .result-details{display:block;padding:0;border:0}.weekly-results .combo-title>th{display:block}.weekly-results .result-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:4px 0}.weekly-results .result-row>td{padding:6px 10px}.weekly-results .result-row>td:last-child{grid-column:1/-1}.weekly-results .result-row>td[data-label="Configuration"]{grid-column:1/-1;text-align:left}.weekly-results .result-details>td{padding:0}.combo-label small{white-space:normal}}
+@media(max-width:700px){.weekly-results[data-comparing=false]{display:table}.weekly-results[data-comparing=false]>caption{display:table-caption}.weekly-results[data-comparing=false] colgroup{display:table-column-group}.weekly-results[data-comparing=false] col:first-child{width:34%!important}.weekly-results[data-comparing=false] col:nth-child(n+2){width:22%!important}.weekly-results[data-comparing=false]>thead{display:table-header-group}.weekly-results[data-comparing=false]>.combo-results{display:table-row-group}.weekly-results[data-comparing=false]>thead>tr,.weekly-results[data-comparing=false]>.combo-results>tr{display:table-row}.weekly-results[data-comparing=false] .result-row>td,.weekly-results[data-comparing=false] .combo-title>th{display:table-cell;padding:8px 6px}.weekly-results[data-comparing=false] .result-details>td{display:table-cell}.weekly-results[data-comparing=false]>thead th{padding:6px}.weekly-results[data-comparing=false] .result-row>td[data-label]:before{display:none}.weekly-results[data-comparing=false] .result-row>td:nth-child(n+2){white-space:normal}}
+</style>
+</head>
+<body>
+<script type="module" src="./js/ui/site-nav.js"></script>
+<h1><span>Idleon</span> Killroy Calculator</h1>
+<div id="save-area"></div>
+<main id="killroy-app">
+  <div id="error" class="error" role="alert"></div>
+  <fieldset id="settings" disabled>
+    <div class="tabs" role="tablist" aria-label="Killroy simulation">
+      <button id="baseline-tab" role="tab" aria-controls="mode-panel" aria-selected="true" data-mode="baseline">Baseline</button>
+      <button id="upgrades-tab" role="tab" aria-controls="mode-panel" aria-selected="false" data-mode="upgrades">Upgrade comparisons</button>
+    </div>
+    <div id="mode-panel" role="tabpanel" aria-labelledby="baseline-tab">
+    <section class="section">
+      <div class="section-header"><h2>Weekly forecast</h2><div class="toolbar">
+        <label>Upcoming weeks <input id="forecast-weeks" type="number" min="1" max="52" step="1" value="12"></label>
+      </div></div>
+      <p class="note" id="mode-help">Imported save only. Check characters to queue their week.</p>
+      <div id="forecast" role="region" aria-label="Weekly encounters and character selections" tabindex="0"></div>
+      <details><summary>Forecast details</summary>
+        <p class="note">Rotation, characters, unlocks, upgrades and records stay at the imported snapshot. Future progress and server changes are not predicted. Dates are local; map records are shared across classes.</p>
+        <p class="note">Full timer + pickup tail. Used encounters are practice only. Saves, attempts and records stay unchanged.</p>
+      </details>
+      <details><summary>Upcoming rotation statistics</summary><div id="forecast-stats"></div></details>
+    </section>
+    <section class="section">
+      <div id="upgrade-settings" hidden>
+        <h2>Compare +1 upgrades</h2>
+        <div id="upgrade-list" class="toolbar"></div>
+        <details><summary>How upgrades are compared</summary><p class="note">Each selected +1 is tested separately against that character's baseline. These are free post-run choices, not skull purchases or sequential upgrades.</p></details>
+      </div>
+      <div id="selection-preview" class="selection-preview" aria-live="polite"></div>
+      <div class="toolbar">
+        <label>Trials <input id="trials" type="number" min="1" max="20" step="1" value="3"></label>
+        <button id="run" class="primary">Simulate checked weeks</button>
+      </div>
+      <details><summary>Options</summary>
+        <div class="toolbar">
+          <label><input id="saved-buffs" type="checkbox">Keep saved buffs</label>
+          <label><input id="unlimited" type="checkbox">Unlimited inventory (hypothetical)</label>
+        </div>
+      </details>
+    </section>
+    </div>
+  </fieldset>
+  <div id="progress-wrap" class="section" hidden>
+    <progress id="progress" max="1" value="0"></progress> <span id="progress-label" role="status"></span>
+    <button id="cancel">Cancel</button>
+  </div>
+  <div id="results"></div>
+</main>
+<script type="module" src="./js/ui/killroy.js"></script>
+</body>
+</html>

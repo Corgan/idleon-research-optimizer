@@ -551,7 +551,13 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   unavailable('gi80', 0, 'PixelHelperActor[8]._GenINFO[80]', 'plunder miss counter; session-only');
   unavailable('gi83', 0, 'PixelHelperActor[8]._GenINFO[83]', 'wormhole counter; session-only');
   unavailable('gi7_8', -1, 'PixelHelperActor[7]._GenINFO[8]', 'worship TD session (-1 = none)');
-  unavailable('nonDummies46', 0, 'NONdummies[46]', 'Killroy room session flag (nonzero suppresses kill rewards); 0 in normal combat');
+  if (overrides.killroy) {
+    put('killroy', () => true, 'Calculator encounter selection');
+    put('killroyUpgrades', () => [106, 107, 108, 109, 110, 111, 114].map(i => ola[i]), 'OptionsListAccount[106..111/114]');
+    put('killroyMeritoc', () => _num(computeMeritocBonusz(18, S, ci)), 'MeritocBonusz(18)');
+    entries.nonDummies46 = { value: 1, source: 'Killroy encounter NONdummies[46]' };
+    values.nonDummies46 = 1;
+  } else unavailable('nonDummies46', 0, 'NONdummies[46]', 'Killroy room session flag (nonzero suppresses kill rewards); 0 in normal combat');
   unavailable('nonDummies3', 0, 'NONdummies[3]', 'T468 kill counter');
   unavailable('gi84', 0, 'PixelHelperActor[8]._GenINFO[84]', 'wormhole mob spawn counter (ActionBlock "WormholeMob"); session-only');
   unavailable('gi85', '', 'PixelHelperActor[8]._GenINFO[85]', 'last wormhole/reindeer spawn type; session-only');
@@ -617,7 +623,10 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   put('wraith', () => null, 'Summoning("GrimoireWraith") src 91799: buff195>=1 && BuffsActive[195][1]>100 (runtime)');
   put('tempest', () => null, 'Windwalker("CompassTempest") src 92324: buff420>=.1 && NONdummies[67]==1 && BuffsActive[420][1]>100 (runtime)');
   put('arcanist', () => null, 'ArcaneType("TesseractArcanist") src 92398: buff585>=.1 && NONdummies[68]==1 && BuffsActive[585][1]>100 (runtime)');
-  unavailable('killroyRoom', 0, 'KillroyRoom state', 'Killroy room session; Tenteyecle randInt(1,5) consumed only when nonzero');
+  if (overrides.killroy) {
+    entries.killroyRoom = { value: 1, source: 'KillroyRoom() = NONdummies[46] > 0' };
+    values.killroyRoom = 1;
+  } else unavailable('killroyRoom', 0, 'KillroyRoom state', 'Killroy room session; Tenteyecle randInt(1,5) consumed only when nonzero');
   unavailable('initialRespawnCounters', null, 'MonsterRespawnTime[]', 'not exported in save; default all alive (0)');
   notApplicable('dungeonCreditBonus1', 1, 'DungeonCalc("DungeonCredit_Bonus")', 'Dungon() is -1 outside maps 39/40/70/71/118/119; dungeon credit is not reachable in normal combat');
   notApplicable('dungeonCreditBonus2', 1, 'DungeonCalc("DungeonCredit_Bonus2")', 'Dungon() is -1 outside maps 39/40/70/71/118/119; dungeon credit is not reachable in normal combat');

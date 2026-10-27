@@ -258,11 +258,12 @@ code { color: var(--cyan); font-size: .92em; }
     <div id="detailed-controls-host">  <div class="section" id="sim-controls">
     <h2>Simulator options</h2>
     <div class="toolbar">
+      <label>Encounter<select id="sel-encounter"><option value="normal">Normal combat</option><option value="killroy">Killroy</option></select></label>
       <label>Map<select id="sel-map"></select></label>
       <label id="lbl-cavern" style="display:none">Cavern<select id="sel-cavern"></select></label>
       <label>Player<select id="sel-player"></select></label>
       <label id="lbl-kill">Kill every (ms)<input id="inp-kill" type="number" min="10" step="10" value="1500"></label>
-      <label>Duration<select id="sel-dur">
+      <label><span id="duration-label">Duration</span><select id="sel-dur">
         <option value="60">1 minute</option>
         <option value="300" selected>5 minutes</option>
         <option value="600">10 minutes</option>
@@ -290,6 +291,7 @@ code { color: var(--cyan); font-size: .92em; }
     </div>
     <div id="manual-wrap" class="manual-wrap" hidden></div>
     <div id="cav-cfg" class="cav-cfg" hidden></div>
+    <div id="killroy-note" class="note" hidden>Killroy practice: saved upgrades and native timer. Weekly room/class restrictions and reward choices are not applied.</div>
     <div id="player-note" class="note"></div>
     <div id="gcrystal-note" class="note"></div>
     <div id="progress-wrap"><div class="bar-outer"><div class="bar-fill" id="progress-fill" style="width:0%"></div></div><div id="progress-label"></div></div>
@@ -350,6 +352,7 @@ code { color: var(--cyan); font-size: .92em; }
 <script type="module">
 import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
+import { readKillroyReplay } from './js/ui/killroy-replay.js';
 import { currentMapData, currentMapDataAvailable, dreamData, klaData, optionsListData, numCharacters, equipOrderData, attackLoadoutData } from './js/save/data.js';
 import { buildCharacterMapOptions } from './js/stats/systems/common/map-access.js';
 import { combatSimMaps, combatSimMap, reachableCombatSimMapIds } from './js/stats/systems/common/combat-sim-maps.js';
@@ -369,6 +372,7 @@ import { mapDropProfile, mapsThatDrop, DROP_GROUPS } from './js/stats/systems/co
 import { COMBAT_TOGGLES, COMBAT_TOGGLE_BY_ID, TOGGLE_GROUPS, toggleModes, normalizeToggleState, buildToggleOverrides, resolveToggleOverrides, describeToggleState, scalarInputKeys } from './js/stats/systems/common/combat-sim-toggles.js';
 import { buildCombatInputs } from './js/stats/systems/common/combat-sim-inputs.js';
 import { ampDebuff, ampMulti } from './js/stats/systems/common/combat-sim-special.js';
+import { killroyMapIds } from './js/stats/systems/common/combat-sim-killroy.js';
 import { withCglunkoLevels, upgName as coveName, upgDescription as coveDesc, upgPerLvVal as covePerLv, upgBonus as coveBonus } from './js/stats/systems/w5/cglunko.js';
 import { computeBUpg } from './js/stats/systems/w5/hole.js';
 import { collectCombatTerms, withCombatTerms } from './js/stats/systems/common/combat-sim-terms.js';
@@ -425,6 +429,7 @@ var SPAWN_SOURCE = {
 // A type-2 portal connection switches scene in the game, so the map session ends there.
 function endedMessage(e) {
   if (!e) return null;
+  if (e.reason === 'killroy') return 'Killroy finished. Includes the 2-second results/pickup window; weekly reward choices are not applied.';
   if (e.reason === 'sceneReload') {
     var form = e.reload && e.reload.form === 'arcanist' ? 'Arcanist Form' : 'Tempest Form';
     return 'Run stopped at ' + fmtSec(e.t) + ': casting ' + form + ' reloads the map in the game (the form turns '
@@ -457,7 +462,7 @@ function monName(k) { return cleanName(MONSTERS[k] && MONSTERS[k].Name) || k; }
 function mapName(i) { return cleanName(MapDispName[i]) || ('Map ' + i); }
 
 // Player AI module is being built separately; pick it up when present.
-import('./js/stats/systems/common/combat-sim-player.js').then(function (m) {
+var playerReady = import('./js/stats/systems/common/combat-sim-player.js').then(function (m) {
   playerModule = m;
   if (typeof m.autoPlayer === 'function') autoPlayerFactory = m.autoPlayer;
   else autoPlayerError = 'combat-sim-player.js has no autoPlayer export';
@@ -509,8 +514,16 @@ function fillCharSelect() {
 // mining/chopping/fishing-only scenes and internal placeholders. Dungeon scenes
 // are excluded because their run state is not part of the save.
 function simMapIds() {
+  if (killroySelected()) return killroyMapIds();
   return Array.from(new Set(combatSimMaps().map(function (map) { return map.mapIdx; })));
 }
+
+function killroySelected() { return $('sel-encounter').value === 'killroy'; }
+$('sel-encounter').addEventListener('change', function () {
+  fillMapSelect(); renderManualCasts(); renderCmpPick(); refreshOvrBase(true);
+  if (result) { result.stale = 'encounter changed since this run'; render(); }
+  if (cmp && !cmp.running) { cmp.stale = 'encounter changed since this comparison'; renderCompare(); }
+});
 
 // Maps the character has not reached (no current/visited/portal/feature-unlock
 // evidence) are locked and left out of the single-map selector.
@@ -520,17 +533,23 @@ function unlockedMapSet(ci) {
 }
 
 function fillMapSelect(previewMap) {
+  $('duration-label').textContent = killroySelected() ? 'Time limit' : 'Duration';
+  $('killroy-note').hidden = !killroySelected();
+  $('gcrystal-note').hidden = killroySelected();
+  var dropScope = $('cmp-scope').querySelector('option[value="drops"]');
+  dropScope.disabled = killroySelected();
+  if (killroySelected() && $('cmp-scope').value === 'drops') $('cmp-scope').value = 'accessible';
   var sel = $('sel-map'), ci = Number($('sel-char').value) || 0;
   var cur = Number(currentMapData && currentMapData[ci]);
   var prev = sel.value, prevChar = sel.dataset.char;
   var open = rawSave ? unlockedMapSet(ci) : null;
-  var ids = simMapIds().filter(function (i) { return !open || open.has(i) || i === cur || i === Number(previewMap); });
+  var ids = simMapIds().filter(function (i) { return killroySelected() || !open || open.has(i) || i === cur || i === Number(previewMap); });
   sel.dataset.char = String(ci);
   sel.innerHTML = ids.map(function (i) {
     var mobs = {};
     SCENE_SPAWNS[i].mobs.forEach(function (m) { mobs[m[0]] = (mobs[m[0]] || 0) + 1; });
     var mobTxt = Object.keys(mobs).map(function (k) { return monName(k); }).slice(0, 2).join(', ');
-    return '<option value="' + i + '">' + i + ' · ' + escHtml(mapName(i)) + (mobTxt ? ' — ' + escHtml(mobTxt) : '') + (i === cur ? ' (current)' : open && !open.has(i) ? ' (comparison preview; locked)' : '') + '</option>';
+    return '<option value="' + i + '">' + i + ' · ' + escHtml(mapName(i)) + (mobTxt ? ' — ' + escHtml(mobTxt) : '') + (i === cur ? ' (current)' : !killroySelected() && open && !open.has(i) ? ' (comparison preview; locked)' : '') + '</option>';
   }).join('');
   if (prevChar === String(ci) && ids.indexOf(Number(prev)) >= 0) sel.value = prev;
   else if (ids.indexOf(cur) >= 0) sel.value = String(cur);
@@ -1202,7 +1221,8 @@ $('sel-char').addEventListener('change', function () {
   setup.api.derivedChanged();
 });
 
-import('./js/ui/combat-sim-setup-ui.js?v=20261023-chips').then(function (m) {
+var killroyReplayRequested = location.hash.startsWith('#killroy-replay='), capturedKillroyReplay = null;
+if (!killroyReplayRequested) import('./js/ui/combat-sim-setup-ui.js?v=20261023-chips').then(function (m) {
   setup.api = m.mountCombatSetup($('setup-host'), {
     getRawSave: function () { return rawSave; },
     getCharIdx: function () { return Number($('sel-char').value) || 0; },
@@ -1242,7 +1262,12 @@ import('./js/ui/combat-sim-setup-ui.js?v=20261023-chips').then(function (m) {
   $('setup-host').innerHTML = '<div class="err">Setup editor failed to load: ' + escHtml(e && e.message || e) + '</div>';
 });
 
-initSaveLoader({
+if (killroyReplayRequested) {
+  try { capturedKillroyReplay = readKillroyReplay(sessionStorage, location.hash); }
+  catch (e) { showError(e.message || String(e)); }
+  $('save-area').textContent = 'Captured Killroy replay. Your editor drafts are not loaded or changed.';
+}
+if (!killroyReplayRequested) initSaveLoader({
   target: '#save-area',
   auth: true,
   onLoad: function (sd, parsed, meta) {
@@ -1312,7 +1337,7 @@ function startRun() {
   var mode = $('sel-player').value;
   var r = createRun({
     ci: ci, character: $('sel-char').selectedOptions[0].textContent, loadout: $('sim-loadout').selectedOptions[0].textContent,
-    mapIdx: mapIdx, seconds: seconds, seed: seed, mode: mode, cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
+    mapIdx: mapIdx, seconds: seconds, seed: seed, mode: mode, killroy: killroySelected(), cavern: cavernPick(mapIdx), cav: cavCfgFor(ci, mapIdx, cavernPick(mapIdx)),
     killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500),
     gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: savedBuffsOn(setupEditsBuffs(selected)), toggles: selected.toggles || {}, terms: selected.termOverrides || {}, raw: simRaw(), setup: setupRunInfo(),
     manualCasts: mode === 'auto' ? currentManualCasts() : undefined, stopOn: currentStopOn(),
@@ -1375,7 +1400,7 @@ function startWorkerRun(r) {
   };
   w.postMessage({
     type: 'run', id: r.id, rawSave: r.raw, charIdx: r.ci, mapIdx: r.mapIdx, seconds: r.seconds, seed: r.seed,
-    player: r.mode, playerOpts: { manualCasts: r.manualCasts }, killEveryMs: r.killEveryMs, inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs), toggles: r.toggles, termOverrides: r.terms, stopOn: r.stopOn,
+    player: r.mode, playerOpts: { manualCasts: r.manualCasts }, killEveryMs: r.killEveryMs, inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs, r.killroy), toggles: r.toggles, termOverrides: r.terms, stopOn: r.stopOn,
     expBreakdown: true, encodeReplay: true, snapshotEveryMs: r.snapEvery, snapshotUntilMs: REPLAY_MAX_SECONDS * 1000, maxSnapshots: Infinity,
     snapshotBatch: 100, progressEveryMs: 1000, timelineEveryMs: 10000, eventLogMax: EVENT_LOG_MAX, eventLogSkip: EVENT_LOG_SKIP,
   });
@@ -1391,7 +1416,7 @@ function startMainThreadRun(r) {
   catch (e) { failRun(r, 'Could not create player: ' + (e && e.message || e)); return; }
   try {
     sim = withCombatTerms(r.terms, function () {
-      var ov = resolveToggleOverrides({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, rawSave: r.raw, toggles: r.toggles, baseOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs) });
+      var ov = resolveToggleOverrides({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, rawSave: r.raw, toggles: r.toggles, baseOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs, r.killroy) });
       return createCombatSim({ saveData: saveData, charIdx: r.ci, mapIdx: r.mapIdx, seed: r.seed, options: { rawSave: r.raw, player: player, inputOverrides: ov, stopOn: r.stopOn, expBreakdown: true, telemetry: true } });
     });
   } catch (e) { console.error(e); failRun(r, 'Simulation setup failed: ' + (e && e.message || e)); return; }
@@ -1538,7 +1563,7 @@ function render() {
   if (stats) stats.addEventListener('click', function () {
     statUi.inspect({
       rawSave: r.raw, charIdx: r.ci, mapIdx: r.mapIdx, player: r.mode,
-      inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs),
+      inputOverrides: simOverrides(r.gcrystal, r.cavern, r.cav, r.unlimInv, r.savedBuffs, r.killroy),
       toggles: r.toggles || {}, termOverrides: r.terms || {},
     }, (r.character || 'Character ' + (r.ci + 1)) + ' / ' + (r.loadout || 'Captured loadout') + ' / captured run-start stats');
     $('stat-breakdowns').scrollIntoView({ block: 'start' });
@@ -1564,12 +1589,13 @@ function runHeader(r) {
     + (r.mapIdx === 216 ? 'cavern <b>' + escHtml(cavernName(runCavern(r.ci, 216, r.cavern))) + '</b>' + (r.cavern == null ? ' (saved)' : '') + ' · ' : '') + fmtSec(r.timeMs) + ' simulated'
     + (Number.isFinite(r.elapsedMs) ? ' in ' + (r.elapsedMs / 1000).toFixed(1) + 's' : '') + ' · seed ' + r.seed + ' · ' + escHtml(modeLbl || r.mode);
   if (r.loadout) h += ' · loadout: <b>' + escHtml(r.loadout) + '</b>';
+  if (r.killroy) h += '<br><b>Killroy practice</b> · saved upgrades; native timer ends the run. Weekly room/class restrictions and reward choices are not applied.';
   if (r.comparison) h += '<br>' + (r.bulkOnly ? 'Stored result from' : 'Resimulated') + ' bulk seed ' + r.comparison.seedIndex + ' of ' + r.comparison.seedCount
     + ', using the captured save and settings. This is one run; the bulk row combines its completed seeds.';
   if (r.stale) h += ' · <span class="warn">' + (typeof r.stale === 'string' ? r.stale : 'save reloaded since this run') + '</span>';
   if (r.message) h += '<br><span class="warn">' + escHtml(r.message) + '</span>';
   if (r.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
-  h += '<br>' + escHtml(crystalRunText(r.gcrystal, r.inputs)) + unlimInvRunText(r.unlimInv) + savedBuffsRunText(r.savedBuffs);
+  h += '<br>' + (r.killroy ? 'Normal loot, EXP and kill-credit rewards are disabled.' : escHtml(crystalRunText(r.gcrystal, r.inputs))) + unlimInvRunText(r.unlimInv) + savedBuffsRunText(r.savedBuffs);
   h += toggleRunText(r.toggles) + cavRunText(r.cav) + termRunText(r.terms) + setupRunText(r.setup) + manualRunText(r.manualCasts) + stopOnRunText(r.stopOn);
   h += '</div>';
   h += '<div class="toolbar"><button type="button" class="btn secondary" id="btn-run-stats"' + (!r.raw ? ' disabled' : '')
@@ -1584,8 +1610,9 @@ function runHeader(r) {
 // Daily guaranteed crystals: kills spawn a crystal while OptionsListAccount[101] (crystals
 // spawned today) is below GuaranteedCrystalMobs (N.js 67169). Turning it off passes
 // guaranteedCrystalMobs = 0, leaving only the normal random crystal chance.
-function simOverrides(on, cavern, cav, unlimInv, savedBuffs) {
+function simOverrides(on, cavern, cav, unlimInv, savedBuffs, killroy) {
   var o = on ? null : { guaranteedCrystalMobs: 0 };
+  if (killroy) { o = o || {}; o.killroy = true; }
   if (cavern != null) { o = o || {}; o.holeCavern = cavern; }
   if (cav) o = Object.assign(o || {}, cav);
   if (unlimInv) { o = o || {}; o.unlimitedInventory = true; }
@@ -1675,14 +1702,14 @@ function rawInputName(key) {
   return key.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, function (c) { return c.toUpperCase(); });
 }
 
-function ovrBaseKey() { return ($('sel-char').value || '0') + ':' + ($('sel-map').value || '') + ':' + $('sel-cavern').value + ':' + JSON.stringify(cavCfg); }
+function ovrBaseKey() { return ($('sel-char').value || '0') + ':' + ($('sel-map').value || '') + ':' + $('sel-cavern').value + ':' + $('sel-encounter').value + ':' + JSON.stringify(cavCfg); }
 function refreshOvrBase(force) {
   if (!rawSave || $('ovr-section').hidden) return;
   var key = ovrBaseKey();
   if (!force && key === ovr.baseKey && ovr.base) return;
   clearTimeout(ovr.timer);
   ovr.timer = setTimeout(function () {
-    try { ovr.base = buildCombatInputs(saveData, Number($('sel-char').value) || 0, Number($('sel-map').value), { rawSave: simRaw(), overrides: simOverrides(true, cavernPick($('sel-map').value), cavCfgFor(Number($('sel-char').value) || 0, $('sel-map').value, cavernPick($('sel-map').value))) }).entries; ovr.baseKey = key; }
+    try { ovr.base = buildCombatInputs(saveData, Number($('sel-char').value) || 0, Number($('sel-map').value), { rawSave: simRaw(), overrides: simOverrides(true, cavernPick($('sel-map').value), cavCfgFor(Number($('sel-char').value) || 0, $('sel-map').value, cavernPick($('sel-map').value)), false, false, killroySelected()) }).entries; ovr.baseKey = key; }
     catch (e) { console.warn('saved input values unavailable', e); ovr.base = null; ovr.baseKey = ''; }
     renderOvr();
   }, 0);
@@ -1995,6 +2022,14 @@ function renderSummary(r) {
     + '</div>';
 
   html += renderDenSummary(r);
+  if (r.summary.special && r.summary.special.killroy) {
+    var k = r.summary.special.killroy, ks = r.summary.special.state.killroy;
+    html += '<h3>Killroy</h3><div class="card-grid cols-4">'
+      + card('Kills', fmtInt(k.kills), ks.finished ? 'Final score' : 'Partial run')
+      + card('Skulls collected', fmtInt(k.skullsPicked), fmtInt(k.skullsDropped) + ' dropped')
+      + card('Time remaining', fmtSec(ks.remaining * 1000), fmtSec(ks.duration * 1000) + ' starting time')
+      + card('Extra monsters spawned', fmtInt(k.spawned), fmtInt(ks.queued) + ' queued') + '</div>';
+  }
   html += renderPlayerStats(r);
   html += renderCombatProgress(r);
   if (R.obolFragments) {
@@ -2272,13 +2307,14 @@ function renderDrops(r) {
   keys.forEach(function (k) {
     var b = R.byItem[k], amount = k === 'COIN' ? fmtCoins : fmtNum;
     html += '<tr><td>' + escHtml(itemName(k)) + ' <span class="note">' + escHtml(k) + '</span></td><td class="num">' + fmtInt(b.dropped) + '</td><td class="num">' + amount(b.qtyDropped)
-      + '</td><td class="num">' + (k === 'ArcBallOmega' ? '<span class="note">Run total only</span>' : amount(perHr(r, b.qtyDropped))) + '</td><td class="num">' + amount(b.qtyPicked) + '</td><td class="num">' + fmtInt(b.filtered)
+      + '</td><td class="num">' + (setupCompareUnit('item:' + k) === 'run' ? '<span class="note">Run total only</span>' : amount(perHr(r, b.qtyDropped))) + '</td><td class="num">' + amount(b.qtyPicked) + '</td><td class="num">' + fmtInt(b.filtered)
       + '</td><td class="num">' + fmtInt(b.expired) + '</td><td class="num">' + amount(b.lost) + '</td><td class="num">' + amount((R.onGround || {})[k] || 0) + '</td></tr>';
   });
   if (!keys.length) html += '<tr><td colspan="9" class="note">No drops.</td></tr>';
   html += '</tbody></table></div>';
 
   if (keys.includes('ArcBallOmega')) html += '<div class="note">Omega Arcade balls are shown as run totals: each drop lowers the next drop chance, so longer runs do not scale linearly.</div>';
+  if (keys.includes('Quest69')) html += '<div class="note">Killroy skulls are totals for this timed attempt, not a constant hourly yield.</div>';
   var src = R.bySource || {};
   html += '<h3>Drop sources</h3><table class="data-table"><thead><tr><th>Source</th><th class="num">Rolls</th><th class="num">Items</th><th class="num">Quantity</th></tr></thead><tbody>';
   Object.keys(src).forEach(function (k) {
@@ -2346,7 +2382,7 @@ var cmp = null;
 
 function mapWorld(m) { return Math.floor(Number(String(m).split(':')[0]) / 50) + 1; }
 function cmpMapName(id) { var map = combatSimMap(id); return map ? map.name : mapName(id); }
-function cmpMapIds() { return combatSimMaps().map(function (map) { return map.id; }); }
+function cmpMapIds() { return killroySelected() ? killroyMapIds() : combatSimMaps().map(function (map) { return map.id; }); }
 function cmpParseMapId(id) { return String(id).indexOf('216:') === 0 ? String(id) : Number(id); }
 
 function reachableMapSet(ci) {
@@ -2637,7 +2673,8 @@ function cmpMapDropProfile(id) {
   var map = combatSimMap(id);
   return mapDropProfile(map ? map.mapIdx : id, map && map.holeCavern != null ? map.target : undefined);
 }
-function mapDropBadges(m) {
+function mapDropBadges(m, killroy) {
+  if (killroy) return ' <span class="badge badge-cyan">Killroy rewards only</span>';
   var p = cmpMapDropProfile(m), out = '';
   if (!p.crystal.eligible) out += ' <span class="badge badge-red" title="' + escHtml(p.crystal.reason) + '">no crystals</span>';
   var st = Object.keys(p.items).filter(function (k) { return /^EquipmentStatues/.test(k) && p.items[k].monsterChance > 0; });
@@ -2679,7 +2716,7 @@ function startCompare() {
   cmp = {
     raw: rawSave,
     id: Date.now() + '-' + Math.random().toString(36).slice(2), running: true, ci: ci, scope: scope, seconds: seconds, seeds: seeds,
-    mode: $('sel-player').value, killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked, cavern: $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), toggles: currentToggles(), terms: currentTerms(),
+    mode: $('sel-player').value, killroy: killroySelected(), killEveryMs: Math.max(10, Number($('inp-kill').value) || 1500), gcrystal: $('inp-gcrystal').checked, unlimInv: $('inp-unliminv').checked, savedBuffs: $('inp-savedbuffs').checked, cavern: $('sel-cavern').value === '' ? null : Number($('sel-cavern').value), toggles: currentToggles(), terms: currentTerms(),
     stopOn: currentStopOn(),
     maps: maps, variants: characters.flatMap(function (ch) { return ch.variants; }), jobs: jobs, next: 0, done: 0, active: {}, rows: {}, workers: [], started: performance.now(),
     selected: scope === 'drops' ? null : (prevSel || null), sortKey: 'map', sortDir: 1, metric: 'qty', rowMode: (cmp && cmp.rowMode) || 'maps',
@@ -2718,7 +2755,7 @@ function dispatchCompare(c, w) {
   c.active[id] = w.busy;
   row.seedRuns[j.seed] = { status: 'running' };
   w.postMessage({
-    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, row.holeCavern, row.cav, c.unlimInv, c.savedBuffs || row.variant.editsBuffs), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
+    type: 'run', id: id, setup: row.variant.setup, charIdx: row.charIdx, mapIdx: j.mapIdx, seconds: c.seconds, seed: j.seed, player: c.mode, playerOpts: { manualCasts: row.manualCasts }, killEveryMs: c.killEveryMs, inputOverrides: simOverrides(c.gcrystal, row.holeCavern, row.cav, c.unlimInv, c.savedBuffs || row.variant.editsBuffs, c.killroy), toggles: row.variant.toggles, termOverrides: row.variant.termOverrides, stopOn: c.stopOn,
     maxSnapshots: 0, eventLogMax: 0, timelineEveryMs: 1e12, progressEveryMs: 5000, lite: true,
   });
 }
@@ -2808,7 +2845,7 @@ function addCompareRun(row, m, seed) {
   for (var c in R.cards || {}) row.cards += R.cards[c];
   if (R.inventoryFullAt != null) row.invFull++;
   if (m.ended && m.ended.reason === 'stopOn') { row.stopped = (row.stopped || 0) + 1; row.stoppedAt = Math.min(row.stoppedAt == null ? Infinity : row.stoppedAt, m.ended.t); }
-  else if (m.ended) { row.leftMap = (row.leftMap || 0) + 1; row.leftMapAt = Math.min(row.leftMapAt == null ? Infinity : row.leftMapAt, m.ended.t); }
+  else if (m.ended && m.ended.reason !== 'killroy') { row.leftMap = (row.leftMap || 0) + 1; row.leftMapAt = Math.min(row.leftMapAt == null ? Infinity : row.leftMapAt, m.ended.t); }
   row.unmodelled += Object.keys(Object.assign({}, R.unmodelled || {}, (m.summary.world || {}).unmodelled || {})).length;
   // Cumulative counters from the special-mechanics module (summary.special) are shown per hour;
   // its `state` subtree holds end-of-run values, not counts, and is skipped.
@@ -2917,8 +2954,9 @@ function renderCompare() {
   if (c.stale) h += ' · <span class="warn">' + (typeof c.stale === 'string' ? c.stale : 'save reloaded since this comparison') + '</span>';
   if (c.message) h += '<br><span class="warn">' + escHtml(c.message) + '</span>';
   if (c.mode === 'scripted') h += '<br><span class="warn">Stand-in player: kill rate is set by the interval control, not by your stats.</span>';
+  if (c.killroy) h += '<br><b>Killroy practice</b> · saved upgrades, native timer, no weekly room/class restrictions or reward choices. Skull and Killroy metrics are totals per run; short time limits give partial attempts.';
   if (c.dropTarget) h += '<br>Maps that can drop ' + escHtml(dropTargetName(c.dropTarget)) + '.';
-  h += '<br>' + (c.gcrystal ? 'Daily guaranteed crystals on: every run starts with today\'s remaining guarantee, so crystal drops are front-loaded.' : 'Daily guaranteed crystals off: random crystal chance only.') + unlimInvRunText(c.unlimInv) + savedBuffsRunText(c.savedBuffs);
+  h += '<br>' + (c.killroy ? 'Normal loot, EXP and kill-credit rewards are disabled.' : c.gcrystal ? 'Daily guaranteed crystals on: every run starts with today\'s remaining guarantee, so crystal drops are front-loaded.' : 'Daily guaranteed crystals off: random crystal chance only.') + unlimInvRunText(c.unlimInv) + savedBuffsRunText(c.savedBuffs);
   h += (c.variants ? '' : toggleRunText(c.toggles) + termRunText(c.terms)) + cavRunText(c.cav) + setupRunText(c.setup) + manualRunText(c.manualCasts) + manualByMapText(c.manualByMap) + stopOnRunText(c.stopOn);
   if (c.variants) h += '<br>Each row uses its captured character loadout, mechanics overrides and component terms. Explicit buff edits keep saved buffs for that loadout; enabled manual casts use only skills on its attack bars. Each Hole row uses its named cavern, independently of the Detailed simulation cavern selector.';
   h += '</div>';
@@ -3001,7 +3039,7 @@ function renderCompare() {
   };
   var mapRowHtml = function (r) {
     var id = escHtml(r.id || r.mapIdx);
-    var s = '<tr class="cmp-open-row" data-cmp-expand="' + id + '">' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><button type="button" class="cmp-toggle" data-cmp-expand="' + id + '" aria-expanded="' + !!r.expanded + '">' + (r.expanded ? '&#9660; ' : '&#9654; ') + r.mapIdx + ' · ' + escHtml(cmpMapName(r.mapId == null ? r.mapIdx : r.mapId)) + ' <span class="note">(' + r.runs + '/' + c.seeds.length + ' runs)</span></button>' + mapDropBadges(r.mapId == null ? r.mapIdx : r.mapId);
+    var s = '<tr class="cmp-open-row" data-cmp-expand="' + id + '">' + (c.variants ? '<td>' + escHtml(r.character) + '</td><td>' + escHtml(r.loadout) + '</td>' : '') + '<td><button type="button" class="cmp-toggle" data-cmp-expand="' + id + '" aria-expanded="' + !!r.expanded + '">' + (r.expanded ? '&#9660; ' : '&#9654; ') + r.mapIdx + ' · ' + escHtml(cmpMapName(r.mapId == null ? r.mapIdx : r.mapId)) + ' <span class="note">(' + r.runs + '/' + c.seeds.length + ' runs)</span></button>' + mapDropBadges(r.mapId == null ? r.mapIdx : r.mapId, c.killroy);
     if (r.errors.length) s += ' <span class="badge badge-red" title="' + escHtml(r.errors.join('; ')) + '">' + escHtml(r.errors[0].slice(0, 40)) + '</span>';
     if (r.invFull) s += ' <span class="badge badge-gold">bag full</span>';
     if (r.stopped) s += ' <span class="badge badge-cyan">stopped ' + r.stopped + '/' + r.runs + ' (first at ' + escHtml(fmtSec(r.stoppedAt)) + ')</span>';
@@ -3076,7 +3114,7 @@ function openCompareRow(c, row, seed) {
   if (!detail) throw new Error('This seed has no completed simulation yet. Wait for the run to finish before opening its details.');
   var r = createRun({
     ci: row.charIdx, character: row.character, loadout: row.loadout,
-    mapIdx: row.mapIdx, seconds: c.seconds, seed: seed, mode: c.mode,
+    mapIdx: row.mapIdx, seconds: c.seconds, seed: seed, mode: c.mode, killroy: c.killroy,
     cavern: row.holeCavern == null ? c.cavern : row.holeCavern, cav: row.cav,
     killEveryMs: c.killEveryMs, gcrystal: c.gcrystal, unlimInv: c.unlimInv,
     savedBuffs: c.savedBuffs || v.editsBuffs, toggles: v.toggles || {}, terms: v.termOverrides || {},
@@ -3092,6 +3130,7 @@ function openCompareRow(c, row, seed) {
     raw: c.raw, setup: v.setup || { charIdx: row.charIdx, patches: [] } };
   renderSimLoadouts(); $('sim-loadout').value = 'preview'; $('sim-loadout').dataset.key = '';
   showWorkspace('simulation');
+  $('sel-encounter').value = r.killroy ? 'killroy' : 'normal';
   fillMapSelect(row.mapIdx); $('sel-map').value = String(row.mapIdx);
   $('sel-cavern').value = r.cavern == null ? '' : String(r.cavern); fillCavernSelect(); restoreCavCfg(row.cav);
   $('sel-player').value = r.mode;
@@ -3486,6 +3525,7 @@ function renderReplayShell(r) {
       + [['status', 'Status'], ['kills', 'Hounds killed'], ['score', 'Score'], ['fear', 'Fear'], ['wave', 'Wave'], ['chain', 'Skull chain'], ['opals', 'Opals earned']].map(function (v) {
         return '<span>' + v[1] + ': <b id="rp-den-' + v[0] + '"></b></span>';
       }).join('') + '</div>' : '')
+    + (r.snaps[0].killroy ? '<div class="replay-opts" id="rp-killroy"></div>' : '')
     + '<canvas id="replay-canvas"></canvas>'
     + '<div class="note">Replay records ' + (r.replayOom ? 'only the first ' + fmtSec(maxT) + ' (the browser ran out of memory; simulation results still cover the full run)' : (r.seconds > REPLAY_MAX_SECONDS ? 'the first ' : 'all ') + fmtSec(maxT)) + ' at ' + r.snapEvery + ' ms resolution (binary delta-encoded, ' + (r.snaps.bytes / 1048576).toFixed(1) + ' MB) and interpolates positions between frames. '
     + (scene ? 'Scene <code>' + escHtml(scene.sceneName) + '</code> uses the game\'s background, parallax, platform art, monster/projectile/item sheets, portals, the player composited with the saved helmet, weapon, cape and shirt, and the Orb of Remembrance/Verisimilitude kill counter (see <code>assets/combat-sim/metadata.json</code>). Pets and scenery decorations are not drawn; damage numbers come from HP changes between frames.'
@@ -3881,6 +3921,11 @@ function mountReplay(r) {
 
     $('rp-time').textContent = fmtSec(s.t) + ' · ' + s.monsters.filter(function (m) { return m.alive === 1; }).length + ' alive';
     $('rp-seek').value = replay.idx;
+    if (s.killroy && $('rp-killroy')) {
+      $('rp-killroy').textContent = 'Killroy: ' + fmtInt(s.killroy.kills) + ' kills · '
+        + fmtInt(s.killroy.skullsPicked) + ' skulls collected · '
+        + (s.killroy.finished ? 'Finished' : fmtSec(s.killroy.remaining * 1000) + ' remaining');
+    }
     if (s.den && $('rp-den')) {
       var denValues = denReplayValues(s.den);
       Object.keys(denValues).forEach(function (key) {
@@ -3961,7 +4006,7 @@ statUi = mountCombatStatBreakdowns($('stat-breakdowns'), {
       request: {
         rawSave: simBaseRaw(), setup: selected, charIdx: ci, mapIdx: mapIdx, player: $('sel-player').value,
         inputOverrides: simOverrides($('inp-gcrystal').checked, cavern, cavCfgFor(ci, mapIdx, cavern),
-          $('inp-unliminv').checked, savedBuffsOn(setupEditsBuffs(selected))),
+          $('inp-unliminv').checked, savedBuffsOn(setupEditsBuffs(selected)), killroySelected()),
       },
     };
   },
@@ -3971,6 +4016,21 @@ document.addEventListener('change', function (event) {
     statUi.changed();
 });
 window.addEventListener('storage', function () { statUi.changed(); });
+if (capturedKillroyReplay) {
+  try {
+    await playerReady;
+    if (!autoPlayerFactory) throw new Error(autoPlayerError || 'Auto player could not be loaded');
+    var kr = capturedKillroyReplay;
+    showWorkspace('simulation');
+    tab = 'replay';
+    beginRun(createRun({
+      ci: kr.charIdx, loadout: kr.label, mapIdx: kr.mapIdx, seconds: kr.seconds, seed: kr.seed,
+      mode: 'auto', killroy: true, cavern: null, cav: null, killEveryMs: 1000, gcrystal: true,
+      unlimInv: kr.unlimitedInventory, savedBuffs: kr.keepBuffs, toggles: kr.toggles, terms: kr.terms,
+      raw: kr.raw, setup: null, manualCasts: [], stopOn: [], stale: false,
+    }));
+  } catch (e) { showError('Captured replay failed: ' + (e.message || e)); }
+}
 </script>
 </body>
 </html>

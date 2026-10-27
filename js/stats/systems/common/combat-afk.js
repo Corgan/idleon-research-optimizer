@@ -335,7 +335,7 @@ export function combatAfkGains(S, charIdx, mapIdx, hours, opts = {}) {
   }
   warnings.push(...progress.warnings);
   return {
-    hours, candy, effectiveHours: seconds / 3600, target: target.key, holeCavern: target.afkCavern ? holeCavern : null, rewardKills, dropRolls: Math.floor(rewardKills), creditedKills,
+    hours, candy, effectiveHours: seconds / 3600, target: target.key, holeCavern: target.afkCavern ? ctx.holeCavern : null, rewardKills, dropRolls: Math.floor(rewardKills), creditedKills,
     exp, coins: coin?.expected || 0, drops, food: foodClaim, progress, ...(clamworks ? { clamworks: clamClaim } : {}), afkRate: foodClaim?.final.fightingAfkRate ?? survival.fightingAfkRate, survivability: foodClaim?.final.percent ?? survival.percent,
     warnings: [...new Set(warnings)], partial: warnings.length > 0,
     notes: ['One combat AFK claim, before AFK doublers or inventory pickup limits. Food follows the native sorted, one-pass depletion/refill batch, not repeated live consumption. Saved buffs remain snapshot-backed. Active-only crystals, giants, form currencies and temporary golem bosses/opals are excluded.',

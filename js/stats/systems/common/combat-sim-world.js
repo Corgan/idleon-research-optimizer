@@ -662,7 +662,10 @@ function _killHandler(sim, mon) {
   if (!(mon.hp <= 0) || respawnCounter(sim, mon) > 0 || mon.alive !== 1) return;
   const st = sim.state;
   const v = sim.inputs.values;
-  if (st.nd46 === 1) _unmodelled(sim, 'partyKillBlock', mon.type);
+  if (st.nd46 === 1) {
+    if (sim.killroy) sim.killroy.onKill(mon);
+    else _unmodelled(sim, 'partyKillBlock', mon.type);
+  }
   const p = sim.player;
   if (p.target === mon && !p.autoMove) {
     p.target = null;

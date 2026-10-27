@@ -1,6 +1,6 @@
 {
  "generatedBy": "_tools/extract/combat-sim-assets.cjs",
- "generatedAt": "2026-10-25T18:07:09.634Z",
+ "generatedAt": "2026-10-26T19:42:21.498Z",
  "source": {
   "asar": "C:/Program Files (x86)/Steam/steamapps/common/Legends of Idleon/resources/app.asar",
   "asarMtime": "2026-10-22T04:25:21.010Z",
@@ -54,10 +54,10 @@
   "hpBarImages": 4,
   "totemDigits": 30,
   "totemImages": 4,
-  "items": 822,
-  "files": 1486
+  "items": 831,
+  "files": 1495
  },
- "totalBytes": 12180085,
+ "totalBytes": 12190176,
  "noBackgroundGroup": [
   67,
   70
@@ -8787,6 +8787,27 @@
    "h": 36,
    "source": "assets/data/PalmTree_x1.png"
   },
+  "items/Pearl4.png": {
+   "sha256": "B5BA605EE39F367A2432DA1254C702071842C47C79476B546E7A6C2A5D684B2F",
+   "bytes": 750,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/Pearl4_x1.png"
+  },
+  "items/Pearl5.png": {
+   "sha256": "E6E47685B74DA06BFAF7B50DCDC62219B82C5795667EF82839B99EC585882C09",
+   "bytes": 937,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/Pearl5_x1.png"
+  },
+  "items/Pearl6.png": {
+   "sha256": "ADE6CE51AD822E41593713589E5637C91D83394DDEB4D7B702B764BCE672D5B7",
+   "bytes": 835,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/Pearl6_x1.png"
+  },
   "items/PetEgg.png": {
    "sha256": "DAF22CC8687DAF987ED73435241EC9FC791BABE5B627F5429C1233F30B568375",
    "bytes": 519,
@@ -9003,6 +9024,13 @@
    "w": 36,
    "h": 36,
    "source": "assets/data/Quest63_x1.png"
+  },
+  "items/Quest69.png": {
+   "sha256": "EAEFE65FCBD1105EB05554F49B7300DA1F66F97E4E3E9225D8D73D0EF5D6CE10",
+   "bytes": 642,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/Quest69_x1.png"
   },
   "items/Quest7.png": {
    "sha256": "25986661EDFE84D8C0D5E73926D3BE58FA09B46B3B5392227679BBC4646AF60C",
@@ -10116,6 +10144,41 @@
    "w": 36,
    "h": 36,
    "source": "assets/data/TalentBook1_x1.png"
+  },
+  "items/TalentPoint1.png": {
+   "sha256": "8A9B6B2E5072600603B6BDACC63BD02CD53200DB69A420560088C6B63ADE590A",
+   "bytes": 1319,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/TalentPoint1_x1.png"
+  },
+  "items/TalentPoint2.png": {
+   "sha256": "BEAFE3834D03330B9E99CF03777F80EED498E68DC6EE638CB39102D861659BE2",
+   "bytes": 1343,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/TalentPoint2_x1.png"
+  },
+  "items/TalentPoint3.png": {
+   "sha256": "550EB417B68ED667DB193DD5B26C4C5CE62DD6A25BAE41B7082B0E35DF6F8A34",
+   "bytes": 1664,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/TalentPoint3_x1.png"
+  },
+  "items/TalentPoint4.png": {
+   "sha256": "656BE57D6B0B683F29FD75516C99FAFD2ADA1472CEC53C4BFC961E884654D24F",
+   "bytes": 1346,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/TalentPoint4_x1.png"
+  },
+  "items/TalentPoint6.png": {
+   "sha256": "DCBF6BD7F6DD957346B7EC43BA5D4560144557A7AE0AFC15077FF751CB5C5378",
+   "bytes": 1255,
+   "w": 36,
+   "h": 36,
+   "source": "assets/data/TalentPoint6_x1.png"
   },
   "items/Timecandy1.png": {
    "sha256": "9C3B90D18D646EFCB9977817CEF0FE7BA7E90531B5F6641BD3C0109CF7E8A342",

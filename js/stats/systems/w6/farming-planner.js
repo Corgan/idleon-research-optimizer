@@ -4,7 +4,7 @@
 import { createStatContext } from '../../stat-context.js';
 import { gbWith } from '../w7/research-math.js';
 import { optionsListData } from '../../../save/data.js';
-import { getLOG } from '../../../formulas.js';
+import { getLOG, gameRandom as _gameRandom } from '../../../formulas.js';
 import { computeFreshTalentCalcBubbleCache, computeAllSkillxpMULTI } from '../../defs/skill-helpers.js';
 import { computeWinBonus } from './summoning.js';
 import { computeExoticBonus, computeStickerBonus, exoticBonusAtLevel } from './farming.js';
@@ -1016,27 +1016,6 @@ export function optimizeLandRank(saveData, activeCharIdx, objective, options) {
     finalScore: score,
     relativeGain: initialScore > 0 ? score / initialScore - 1 : score > 0 ? Infinity : 0,
     changes: changes,
-  };
-}
-
-function _gameRandom(seed) {
-  function hash(value, state) {
-    value = Math.imul(value | 0, -862048943);
-    value = Math.imul((value << 15) | (value >>> 17), 461845907);
-    state = (state ^ value) | 0;
-    state = (Math.imul((state << 13) | (state >>> 19), 5) - 430675100) | 0;
-    state = Math.imul(state ^ (state >> 16), -2048144789);
-    state = Math.imul(state ^ (state >> 13), -1028477387);
-    return (state ^ (state >> 16)) | 0;
-  }
-  var first = seed | 0;
-  var second = hash(first, 5381);
-  if (first === 0) first = 1;
-  if (second === 0) second = 1;
-  return function() {
-    first = 36969 * (65535 & first) + (first >> 16);
-    second = 18000 * (65535 & second) + (second >> 16);
-    return ((1073741823 & (((first << 16) + second) | 0)) % 10007) / 10007;
   };
 }
 

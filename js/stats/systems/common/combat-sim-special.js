@@ -769,7 +769,10 @@ export function dungeonPickup(sim, item) {
     }
     C.holeShapesGained += gain;
     _add(C.holeShapesByType, n, gain);
-  } else if (t === 'Quest69') olaAdd(105, 1);
+  } else if (t === 'Quest69') {
+    olaAdd(105, 1);
+    if (sim.state.killroy) sim.state.killroy.skullsPicked++;
+  }
   else if (t === 'Quest74') { if (sp.rift) _add(sp.rift.progress, 'add2', 1); }
   else _unmodelled(sim, 'dungeonPickupEffect', t + ' (src 82547 dungeon-only pickup effect)');
   return true;
@@ -836,5 +839,11 @@ export function specialSummary(sim) {
     den: denSnapshot(sim),
     afkNotes: LIVE_VS_AFK.slice(),
   };
+  if (sim.state.killroy) {
+    const k = sim.state.killroy;
+    out.killroy = { kills: k.kills, skullsDropped: k.skullsDropped, skullsPicked: k.skullsPicked, spawned: k.spawned };
+    out.state.killroy = { remaining: Math.max(0, k.remaining), duration: k.duration, queued: k.queued,
+      finished: k.finished, finishedAt: k.finishedAt, talentDrops: k.talentDrops };
+  }
   return out;
 }

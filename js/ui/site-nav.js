@@ -1,9 +1,12 @@
 export const SITE_PAGES = [
+  { href: 'combat-sim-calc.html', label: 'Combat Simulator', group: 'General', icon: '\u2694\uFE0F' },
   { href: 'statue-calc.html', label: 'Statue Calculator', group: 'General', icon: '\u{1F5FF}' },
   { href: 'shadow.html', label: 'Am I shadow banned?', group: 'General', icon: '?' },
   { href: 'endgame.html', label: 'Are you endgame?', group: 'General', icon: '?' },
   { href: 'fishing-calc.html', label: 'Fishing Calculator', group: 'World 2', icon: '\u{1F3A3}' },
+  { href: 'killroy-calc.html', label: 'Killroy Calculator', group: 'World 2', icon: '\u{1F480}' },
   { href: 'cog-optimizer.html', label: 'Cog Board Optimizer', group: 'World 3', icon: '\u2699\uFE0F' },
+  { href: 'worship-td-calc.html', label: 'Worship Tower Defense Simulator', group: 'World 3', icon: '\u{1F3F0}' },
   { href: 'ladle-calc.html', label: 'Ladle Optimizer', group: 'World 4', icon: '\u{1F944}' },
   { href: 'cooking-mastery-calc.html', label: 'Cooking Mastery', group: 'World 4', icon: '\u{1F373}' },
   { href: 'fountain-calc.html', label: 'Fountain Calculator', group: 'World 5', icon: '\u26F2' },

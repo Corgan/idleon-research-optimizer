@@ -116,6 +116,7 @@ import { createCombatTelemetry } from './combat-sim-telemetry.js';
 import * as world from './combat-sim-world.js';
 import * as rewards from './combat-sim-rewards.js';
 import * as special from './combat-sim-special.js'; // class/mode kill mechanics (combat-sim-special.js)
+import { initKillroy, killroySnapshot } from './combat-sim-killroy.js';
 import { initCombatLevels, combatLevelSummary } from './combat-sim-levels.js';
 import { initCombatProgress, combatProgressSummary } from './combat-sim-progress.js';
 
@@ -529,10 +530,12 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
   }
   rewards.initRewards(sim);
   special.initSpecial(sim); // installs sim.special hooks; before startScene so clam HP applies to initial spawns
+  initKillroy(sim);
   player.init(sim);
   initCombatProgress(sim);
   if (options.telemetry) sim.telemetry = createCombatTelemetry(sim);
   world.startScene(sim);
+  if (sim.state.killroy && sim.state.tempest === 1) throw new Error('Killroy cannot be entered while Tempest Form is active.');
   initCombatLevels(sim);
   return sim;
 }
@@ -743,6 +746,7 @@ function _snapshot(sim) {
       decision: sim.telemetry.latestDecision(),
     } } : {}),
     ...(sim.state.special?.den ? { den: special.denSnapshot(sim) } : {}),
+    ...(sim.state.killroy ? { killroy: killroySnapshot(sim) } : {}),
     monsters: sim.monsters.filter((m) => !m.recycled).map((m) => ({
       uid: m.uid, id: m.id, type: m.type, monType: m.monType, x: m.x, y: m.y, vx: m.vx, w: m.width, h: m.height, node: m.node,
       hp: m.hp, hpTot: m.hpTot, alive: m.alive, willDie: m.willDie, size: m.sizeMulti, temp: m.temp, pers: m.persNum,
