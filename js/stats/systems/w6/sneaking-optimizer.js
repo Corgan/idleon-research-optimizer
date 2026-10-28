@@ -1,4 +1,22 @@
 // ===== SNEAKING OPTIMIZER PRIMITIVES (W6) =====
+import { NjEQ } from '../../data/game/custommaps.js';
+import { isGoldCharm, maxDropLevel } from './sneaking-math.js';
+import { computeNK11Extras } from './sneaking-stealth.js';
+
+export function hypotheticalSneakingCharms(S, { activeCharIdx = 0, copies = 1 } = {}) {
+  if (!Number.isInteger(copies) || copies < 1 || copies > 24) throw new Error('Hypothetical charm copies must be 1 to 24');
+  const extras = computeNK11Extras(S, activeCharIdx);
+  const pool = [];
+  for (const [key, def] of Object.entries(NjEQ)) {
+    if (Number(def[0]) !== 2 || isGoldCharm(key)) continue;
+    const level = maxDropLevel(key, S.ninjaData?.[103] || [], Number(S.olaData?.[231]) || 0, extras);
+    if (!Number.isFinite(level) || level < 0) throw new Error('Maximum findable charm level is unavailable');
+    for (let i = 0; i < (key === 'NjTr7' ? 1 : copies); i++) {
+      pool.push({ key, level, source: -pool.length - 1, type: 2, bonusType: Number(def[1]), hypothetical: true });
+    }
+  }
+  return pool;
+}
 
 export function canEquipCharmPair(first, second, hasCharmedPerk) {
   if (!first || first._empty || !second || second._empty) return true;

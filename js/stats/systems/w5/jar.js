@@ -226,7 +226,7 @@ function _measMulti(saveData, typeIdx) {
   return 1 + (18 * qty + 8 * (qty - 5)) / 100;
 }
 
-function _measBonus(saveData, idx) {
+export function computeMeasurementBonus(saveData, idx) {
   var measLv = Number(_h(saveData, 22)?.[idx]) || 0;
   if (measLv <= 0) return 0;
   var cosmo13 = _cosmoBonus(saveData, 1, 3);
@@ -241,6 +241,10 @@ function _measBonus(saveData, idx) {
   }
   var measType = holesMeasType(idx);
   return measBase * _measMulti(saveData, measType);
+}
+
+function _measBonus(saveData, idx) {
+  return computeMeasurementBonus(saveData, idx);
 }
 
 // ========== SAVE DATA EXTRACTION ==========

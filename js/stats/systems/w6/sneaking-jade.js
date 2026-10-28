@@ -529,7 +529,7 @@ export function computeJadeCoin(twinIdx, saveData, options) {
   var bonus19 = _num(charmBonuses[19]) * (isSolo ? 3 : 1);
   var bonus6 = _num(charmBonuses[6]) * (detection === 0 ? 2 : 1);
 
-  var u = 1 + nkBonus(8, nkLevels) * sneakLv / 100;
+  var u = 1 + nkBonus(8, nkLevels, saveData.menagerieData?.[7]) * sneakLv / 100;
   var gemShop = Math.max(1, Math.pow(2, _num(saveData.gemItemsData && saveData.gemItemsData[10])));
   var monument = computeMonumentROGbonus(2, 2, saveData);
   var pristine = pristineBon(13, saveData);
@@ -625,7 +625,7 @@ export function computeJadeCoin(twinIdx, saveData, options) {
       charm14: bonus14,
       charm15: _num(charmBonuses[15]),
       charm19: bonus19,
-      nk8: nkBonus(8, nkLevels),
+      nk8: nkBonus(8, nkLevels, saveData.menagerieData?.[7]),
       nk28: nkBonus(28, nkLevels),
       sneakLv: sneakLv,
       isSolo: isSolo ? 1 : 0,
@@ -931,7 +931,7 @@ export function computeSneakingTeamScenario(twins, saveData, options) {
       detection: twin.detection,
       charmBonuses: twin.charmBonuses,
     });
-    var expectedItems = nkBonus(14, nkLevels) > 0
+    var expectedItems = nkBonus(14, nkLevels, saveData.menagerieData?.[7]) > 0
       ? itemFindExpectedFromRate(
         nkLevels,
         twin.itemFindPct,
@@ -939,7 +939,8 @@ export function computeSneakingTeamScenario(twins, saveData, options) {
         batchHours,
         bubbleY9,
         itemPhase,
-        itemBatch ? itemBatch.itemStats[idx] : null
+        itemBatch ? itemBatch.itemStats[idx] : null,
+        saveData.menagerieData?.[7]
       ) : 0;
     var untie = unties[idx];
     var displayRate = computeJadeActionsPerHour(twin.actionSpeed, twin.detection, twin.koTime, twin.dodgePct);

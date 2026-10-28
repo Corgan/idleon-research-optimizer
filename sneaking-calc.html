@@ -17,7 +17,67 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
 h1 span { color: var(--accent); }
 
-
+#main-content { color-scheme:dark; }
+#main-content [hidden] { display:none !important; }
+#main-content :where(select, input[type="number"]) {
+  min-width:0; max-width:100%; min-height:38px; padding:8px 11px;
+  border:1px solid #4b5c7e; border-radius:8px; background:#141d34; color:var(--text);
+  font:inherit; font-size:.875rem; line-height:1.35;
+  box-shadow:inset 0 1px 2px #0003; transition:border-color .15s, box-shadow .15s;
+}
+#main-content select {
+  appearance:none; padding-right:34px; cursor:pointer;
+  background-image:linear-gradient(45deg, transparent 50%, #c0c0d4 50%), linear-gradient(135deg, #c0c0d4 50%, transparent 50%);
+  background-position:calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size:5px 5px; background-repeat:no-repeat;
+}
+#main-content option { background:#141d34; color:var(--text); }
+#main-content :is(select, input[type="number"]):hover:not(:disabled) { border-color:#8194ba; }
+#main-content button:not(.workspace-tab, .formula-tab, .inv-slot, .lo-slot, .sl-target-item) {
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  min-height:38px; max-width:100%; padding:8px 14px; border:1px solid #53688f; border-radius:8px;
+  background:linear-gradient(#263957, #1d2c46); color:var(--text);
+  font:inherit; font-size:.875rem; font-weight:600; line-height:1.35; cursor:pointer;
+  box-shadow:0 2px 4px #0003, inset 0 1px #ffffff0a;
+  transition:background .15s, border-color .15s, box-shadow .15s;
+}
+#main-content button:not(.workspace-tab, .formula-tab, .inv-slot, .lo-slot, .sl-target-item):hover:not(:disabled) {
+  background:#304867; border-color:#92a8ce;
+}
+#main-content button:is([data-loadout-run], [data-flower-run]) {
+  background:linear-gradient(#cf3654, #b92b46); border-color:#ee6c85; color:#fff;
+}
+#main-content button:is([data-loadout-run], [data-flower-run]):hover:not(:disabled) {
+  background:linear-gradient(#de3a5a, #c32e4b); border-color:#ff9daf; box-shadow:0 3px 12px #e9456033;
+}
+#main-content button:active:not(:disabled, .inv-slot, .lo-slot) { box-shadow:inset 0 2px 4px #0005; }
+#main-content :is(button, select, input):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+#main-content :is(button, select, input):disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+#main-content input[type="checkbox"] { accent-color:var(--accent); width:16px; height:16px; }
+#main-content :is(.sl-controls, .flower-controls) {
+  gap:12px; padding:12px; border:1px solid #344261; border-radius:10px; background:#10192c80;
+}
+#main-content :is(.sl-controls, .flower-controls, .reference-controls) > label {
+  min-width:0; max-width:100%; gap:6px; color:var(--text2); font-size:.78rem; font-weight:600;
+}
+#main-content :is(.sl-controls, .flower-controls) input { width:104px; }
+.reference-controls { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:12px 0; }
+.reference-controls > label { display:grid; }
+.reference-controls > .check-control { display:inline-flex; align-items:center; min-height:38px; cursor:pointer; }
+.login-control { flex-wrap:wrap; }
+@media (max-width:600px) {
+  #main-content :is(.sl-controls, .flower-controls) > label { flex:1 1 120px; }
+  #main-content :is(.sl-controls, .flower-controls) :is(input, select) { width:100%; }
+  #main-content :is(.sl-controls, .flower-controls) > button { flex:1 1 180px; }
+}
+#main-content :is(.sl-controls, .flower-controls) > .check-control { display:inline-flex; align-items:center; min-height:38px; cursor:pointer; }
+#main-content :is(.sl-controls, .flower-controls) input[type="checkbox"] { width:16px; height:16px; flex-shrink:0; }
+@media (prefers-reduced-motion:reduce) {
+  #main-content :is(button, select, input) { transition:none; }
+}
+@media (forced-colors:active) {
+  #main-content select { appearance:auto; background-image:none; }
+}
 
 /* Custom tooltip */
 #js-tip { display:none; position:fixed; z-index:9999; max-width:360px; padding:8px 12px; background:#1a1a2e; border:1px solid var(--gold); border-radius:6px; color:var(--text); font-size:.72em; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,.5); }
@@ -96,10 +156,10 @@ h1 span { color: var(--accent); }
 .mg-detail .data-table td { padding: 1px 4px; }
 
 /* Primary calculator views */
-.workspace-tabs { display:flex; gap:2px; margin-bottom:12px; background:var(--bg2); border-bottom:1px solid #333; overflow-x:auto; }
-.workspace-tab { flex:0 0 auto; padding:10px 18px; cursor:pointer; color:var(--text2); background:transparent; border:0; border-bottom:2px solid transparent; font:inherit; font-size:.88em; font-weight:600; }
-.workspace-tab:hover { color:var(--text); background:rgba(255,255,255,.05); }
-.workspace-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.workspace-tabs { display:flex; gap:4px; padding:5px; margin-bottom:12px; background:var(--bg2); border:1px solid #344261; border-radius:10px; overflow-x:auto; }
+.workspace-tab { flex:0 0 auto; min-height:38px; padding:9px 16px; cursor:pointer; color:var(--text2); background:transparent; border:1px solid transparent; border-radius:7px; font:inherit; font-size:.88em; font-weight:600; }
+.workspace-tab:hover { color:var(--text); background:#263957; }
+.workspace-tab.active { color:#ff9daf; border-color:#a53d58; background:#e945601a; }
 .workspace-panel { display:none; }
 .workspace-panel.active { display:block; }
 .mode-selector { flex-wrap:wrap; }
@@ -169,11 +229,10 @@ h1 span { color: var(--accent); }
 
 /* Shared formula breakdown tree */
 .formula-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82em; color:var(--text2); }
-.formula-controls select { background:var(--bg3); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 7px; }
-.formula-tabs { display:flex; background:rgba(0,0,0,.2); border-bottom:1px solid #333; margin-bottom:12px; }
-.formula-tab { padding:8px 18px; cursor:pointer; color:var(--text2); background:transparent; border:0; border-bottom:2px solid transparent; font:inherit; font-weight:600; }
-.formula-tab:hover { color:var(--text); background:rgba(255,255,255,.05); }
-.formula-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.formula-tabs { display:flex; flex-wrap:wrap; gap:4px; padding:4px; background:rgba(0,0,0,.2); border:1px solid #344261; border-radius:9px; margin-bottom:12px; }
+.formula-tab { min-height:38px; padding:8px 14px; cursor:pointer; color:var(--text2); background:transparent; border:1px solid transparent; border-radius:6px; font:inherit; font-weight:600; }
+.formula-tab:hover { color:var(--text); background:#263957; }
+.formula-tab.active { color:#ff9daf; border-color:#a53d58; background:#e945601a; }
 .formula-panel { display:none; }
 .formula-panel.active { display:block; }
 .bt-controls { margin-bottom:8px; display:flex; gap:6px; }
@@ -253,6 +312,42 @@ h1 span { color: var(--accent); }
 .inv-slot .sym-dots .sd { width: 2px; height: 2px; }
 .inv-slot .sym-dots { bottom: 0; gap: 1px; }
 @media (max-width: 600px) { .loadout-grid { grid-template-columns: 1fr; } }
+.saved-model-note { color:var(--text2); font-size:.8rem; line-height:1.5; margin:8px 0 12px; }
+.saved-floor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:10px; }
+.saved-floor { min-width:0; background:#141828; border:1px solid #3a4a7a; border-radius:6px; overflow:hidden; }
+.saved-floor-scene { position:relative; background:#141828; }
+.saved-floor-scene > img { display:block; width:100%; height:auto; image-rendering:pixelated; }
+.saved-floor-scene > canvas { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; pointer-events:none; }
+.saved-floor-scene > strong { position:absolute; left:8px; bottom:5px; padding:2px 6px; border-radius:3px; background:#111c; font-size:.9rem; }
+.saved-floor-body { padding:9px 11px; }
+.saved-floor-members { font-size:.9rem; font-weight:600; overflow-wrap:anywhere; }
+.saved-floor-jobs { color:var(--cyan); font-size:.8rem; margin:4px 0 8px; }
+.saved-floor-rates > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 12px; padding:3px 0; font-size:.85rem; }
+.saved-floor-rates dt { color:var(--text2); }
+.saved-floor-rates dd { color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; }
+.sneak-item-art { width:32px; height:32px; object-fit:contain; image-rendering:pixelated; flex-shrink:0; }
+.lo-slot .sneak-item-art, .inv-slot .sneak-item-art { width:30px; height:30px; margin-top:3px; }
+.lo-slot-name, .inv-slot .is-name { font-size:.55rem; }
+.lo-slot-lv, .inv-slot .is-lv { font-size:.65rem; z-index:1; }
+.loadout-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:8px; }
+.loadout-card { padding:8px; gap:7px; }
+.lo-info { flex-wrap:wrap; gap:4px 8px; }
+.lo-name { font-size:.9rem; }
+.lo-lv, .lo-floor { font-size:.75rem; }
+.lo-stats { width:100%; margin:0; flex-wrap:wrap; gap:5px 12px; font-size:.75rem; }
+.lo-equip { flex-wrap:wrap; gap:5px; }
+.loadout-title { font-size:.9rem; }
+.inv-slot:focus-visible, .lo-slot:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.gear-role-item { display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:.8rem; }
+.gear-before .sneak-item-art, .gear-after .sneak-item-art { vertical-align:middle; }
+.sneak-top { flex-wrap:wrap; }
+.loadout-section { flex:1 1 420px; }
+.inv-section { flex:1 1 690px; }
+@media (max-width:700px) {
+  .loadout-section, .inv-section { flex:auto; width:100%; }
+  .inv-grid { grid-template-columns:repeat(5,var(--slot-size)); gap:4px; }
+  .inv-grid-wrap { overflow:visible; }
+}
 @keyframes dotPulse { 0%,20% { opacity:.2; } 50% { opacity:1; } 100% { opacity:.2; } }
 .loading-dots { animation: dotPulse 1.4s infinite; }
 </style>
@@ -297,8 +392,8 @@ import {
   doorState,
   allyStealthMulti, simStealth,
 } from './js/stats/systems/w6/sneaking-math.js';
-import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras, computeDoorDamageDetailed, computeUntieProgressDetailed, buildStealthBreakdown, weaponItemStat, soloMultiplier } from './js/stats/systems/w6/sneaking-stealth.js';
-import { computeDoorClearEstimate, computeJadeRate, computeTeamDoorRates, computeSneakingTeamScenario, buildJadeBreakdown, buildDoorRateBreakdown } from './js/stats/systems/w6/sneaking-jade.js';
+import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras, computeDoorDamageDetailed, computeUntieProgressDetailed, buildStealthBreakdown, weaponItemStat, soloMultiplier, goldInventoryBonusDetails } from './js/stats/systems/w6/sneaking-stealth.js';
+import { computeDoorClearEstimate, computeJadeCoin, computeJadeRate, computeTeamDoorRates, computeSneakingTeamScenario, buildJadeBreakdown, buildDoorRateBreakdown } from './js/stats/systems/w6/sneaking-jade.js';
 import { buildSneakingExpBreakdown, computeSneakingExpPerHour, sneakingExpAccountInputs } from './js/stats/systems/w6/sneaking-exp.js';
 import { bestItemByScore, bestCharmPairFromPool, canEquipCharmPair, charmPairOrders } from './js/stats/systems/w6/sneaking-optimizer.js';
 import { bubbleValByKey } from './js/stats/systems/w2/alchemy.js';
@@ -306,11 +401,31 @@ import { emporiumBonus } from './js/game-helpers.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
 import { toRenderNode } from './js/stats/tree-builder.js';
 import { node } from './js/stats/node.js';
+import { mountSneakingScenes } from './js/ui/sneaking-scenes.js';
+import { createSneakingFlowerPanel } from './js/ui/sneaking-flowers.js';
+import { createSneakingLoadoutPanel } from './js/ui/sneaking-loadout-search.js';
+
+var _stopSneakingScenes = function() {};
+var _savedSceneTwins = {};
+var _flowerPanel = createSneakingFlowerPanel({
+  getSave: function() { return saveData; },
+  getActiveCharIdx: function() { return _loginContextIdx(findBestActiveChar(saveData).charIdx); },
+});
+var _loadoutPanel = createSneakingLoadoutPanel({
+  getSave: function() { return saveData; },
+  getActiveCharIdx: function() { return _loginContextIdx(findBestActiveChar(saveData).charIdx); },
+});
+
+function escHtml(value) {
+  return String(value).replace(/[&<>"']/g, function(ch) { return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]; });
+}
 
 // ===== SAVE LOADING =====
 initSaveLoader({
   target: '#save-area',
-  onLoad: function() {
+  onLoad: function(_, raw, metadata) {
+    _flowerPanel.load(raw, metadata);
+    _loadoutPanel.load(raw, metadata);
     _invalidateGridCache();
     _renderAll();
   },
@@ -351,7 +466,8 @@ initSaveLoader({
     tip.style.left = x + 'px'; tip.style.top = y + 'px';
   });
   document.addEventListener('mouseout', function(e) {
-    if (e.target.closest('[data-tip]')) hideTip();
+    var el = e.target.closest('[data-tip]');
+    if (el && !el.contains(e.relatedTarget)) hideTip();
   });
   document.addEventListener('focusin', function(e) {
     var el = e.target.closest('[data-tip]');
@@ -376,6 +492,7 @@ function _prepareAccessibleTooltips(root) {
 // ===== HELPERS =====
 function _nd() { return saveData.ninjaData || []; }
 function _nkLvs() { return _nd()[103] || []; }
+function _omniLvs() { return saveData.menagerieData?.[7] || []; }
 function _nkLv(idx) { return Number(_nkLvs()[idx]) || 0; }
 function _mastery() { return Number(saveData.olaData?.[231]) || 0; }
 function _masteryMax() { return Number(saveData.olaData?.[232]) || 0; }
@@ -446,7 +563,8 @@ function _card(title, val, sub) {
   return '<div class="card"><div class="card-title">' + title + '</div><div class="card-val">' + val + '</div>' + (sub ? '<div class="card-sub">' + sub + '</div>' : '') + '</div>';
 }
 function _timeStr(hours) {
-  if (!hours || !isFinite(hours)) return '\u221e';
+  if (hours === 0) return '0s';
+  if (!(hours > 0) || !isFinite(hours)) return '\u221e';
   if (hours < 1 / 3600) return '<1s';
   if (hours < 1 / 60) return Math.max(1, Math.round(hours * 3600)) + 's';
   if (hours < 1) return Math.round(hours * 60) + 'm';
@@ -478,6 +596,76 @@ function _fmtMulti(mult) {
   if (mult >= 100) return _fmt(mult) + 'x';
   if (mult >= 10) return (Math.round(10 * mult) / 10) + 'x';
   return mult.toFixed(2) + 'x';
+}
+
+function _itemIcon(key) {
+  if (!NjEQ[key] || key === 'Blank') return '';
+  return '<img class="sneak-item-art" src="./assets/sneaking/' + encodeURIComponent(key) + '.png" alt="" loading="lazy">';
+}
+
+function _equipmentTip(key, level) {
+  var info = equipInfo(key, level);
+  if (!info) return key;
+  var effect = info.type === 1
+    ? (Number(NjEQ[key][1]) === 0 ? 'Action speed +' : 'Power ') + _fmt(weaponItemStat(key, level)) + (Number(NjEQ[key][1]) === 0 ? '%' : '')
+    : info.desc;
+  return info.name + '\nLevel ' + level + '\n' + effect;
+}
+
+function _savedFloorsHtml(twins) {
+  _savedSceneTwins = {};
+  var floors = Array.from({ length: _playerCount() }, function(_, i) { return Number(_nd()[i]?.[0]) || 0; });
+  var account = sneakingExpAccountInputs(saveData, twins.activeCharIdx);
+  var html = '<div class="section saved-floor-section"><h2>Saved floor assignments</h2>'
+    + '<p class="saved-model-note">Expected long-run rates at saved equipment and current flowers. Each action does one job: Jade, training, door or untie. Not a finite offline claim.</p>'
+    + '<div class="saved-floor-grid">';
+  var occupied = [...new Set(twins.map(function(twin) { return twin.floor; }))].sort(function(a, b) { return b - a; });
+  for (var floor of occupied) {
+    var members = twins.filter(function(twin) { return twin.floor === floor; });
+    var door = doorState(floor, _mastery(), _masteryMax(), _mastery(), _nd());
+    var rates = computeTeamDoorRates(members.map(function(twin) {
+      return {
+        actionSpeed: twin.actionSpd, detection: detectionChance(twin.stealth, floor, _mastery()),
+        koTime: koDuration(_nkLvs(), twin.koPct, _omniLvs()), dodgePct: twin.dodgePct,
+        taunting: (twin.charmMap[1] || 0) > 0,
+      };
+    }), _nkLvs());
+    var jade = 0, exp = 0, damage = 0, untie = 0;
+    var jobs = {};
+    _savedSceneTwins[floor] = [];
+    for (var i = 0; i < members.length; i++) {
+      var twin = members[i];
+      var mode = sneakingActionMode(twin.idx, floor, _nd(), { doorActive: door.active, playerCount: _playerCount() });
+      var hat = NjEQ[twin.equip[0]?.name];
+      _savedSceneTwins[floor].push({
+        idx: twin.idx, mode: 'normal',
+        hat: hat && Number(hat[0]) === 0 ? Number(hat[1]) : null,
+      });
+      jobs[mode] = (jobs[mode] || 0) + 1;
+      if (mode === 'normal') jade += computeJadeCoin(twin.idx, saveData, {
+        activeCharIdx: twins.activeCharIdx, floor: floor, twinFloors: floors,
+        detection: rates[i].detection, charmBonuses: twin.charmMap,
+      }).coin * rates[i].hitsPerHour;
+      exp += computeSneakingExpPerHour(twin.idx, saveData, rates[i].hitsPerHour, {
+        activeCharIdx: twins.activeCharIdx, floor: floor, actionMode: mode,
+        playerCount: _playerCount(), charmBonuses: twin.charmMap, accountInputs: account,
+      }).expPerHour;
+      if (mode === 'door') damage += twin.door.damage * rates[i].hitsPerHour;
+      if (mode === 'untie') untie += twin.untie.progress * rates[i].hitsPerHour;
+    }
+    html += '<article class="saved-floor"><div class="saved-floor-scene"><img src="./assets/sneaking/NjR' + floor + '.png" alt="" loading="lazy">'
+      + '<canvas data-sneaking-floor="' + floor + '" aria-hidden="true"></canvas>'
+      + '<strong>' + (floor === 0 ? 'Training floor' : 'Floor ' + floor) + '</strong></div><div class="saved-floor-body">'
+      + '<div class="saved-floor-members">' + members.map(function(twin) { return escHtml(twin.name); }).join(', ') + '</div>'
+      + '<div class="saved-floor-jobs">' + Object.keys(jobs).map(function(job) { return jobs[job] + ' ' + ({ normal: 'Jade', training: 'training', door: 'door', untie: 'untie', captive: 'captive' })[job]; }).join(' / ') + '</div>'
+      + '<dl class="saved-floor-rates">';
+    if (jobs.normal) html += '<div><dt>Jade / hour</dt><dd>' + _fmt(jade) + '</dd></div>';
+    if (jobs.normal || jobs.training) html += '<div><dt>Sneaking EXP / hour</dt><dd>' + _fmt(exp) + '</dd></div>';
+    if (jobs.door) html += '<div><dt>Door damage / hour</dt><dd>' + _fmt(damage) + '</dd></div>';
+    if (jobs.untie) html += '<div><dt>Untie progress / hour</dt><dd>' + _fmt(untie) + '</dd></div>';
+    html += '</dl></div></article>';
+  }
+  return html + '</div></div>';
 }
 
 // ===== TWIN DATA =====
@@ -1046,11 +1234,13 @@ function _modeConfigs(mode, pool, mainIdx, useAllItems, maxCharmLv) {
 
 // ===== RENDER =====
 function _renderAll() {
+  _stopSneakingScenes();
   var el = document.getElementById('main-content');
   var nd = _nd();
   if (!nd || !nd[103]) { el.innerHTML = '<p style="text-align:center;padding:40px;color:var(--text2);">No sneaking data found in save.</p>'; return; }
   try {
     _renderAllInner();
+    _stopSneakingScenes = mountSneakingScenes(el, _savedSceneTwins);
   } catch (error) {
     console.error('Sneaking calculation failed', error);
     el.innerHTML = '<div class="section"><h2>Calculation unavailable</h2><p style="color:var(--red);">'
@@ -1068,10 +1258,11 @@ function _renderAllInner() {
   var flowers = _flowers();
   var m1 = _mastery(), m2 = _masteryMax();
   var invCharms = parseInventoryCharms(nd);
-  var bestInv = bestInventoryBonuses(nd);
+  var goldDetails = goldInventoryBonusDetails(nd, saveData.olaData || [], saveData.spelunkData || [], saveData, twins.activeCharIdx);
+  var bestInv = goldDetails.selected;
   var h = '';
   var workspaceTab = window._sneakWorkspaceTab || 'loadout';
-  var workspaceTabs = [['loadout','Loadout'],['breakdowns','Breakdowns'],['optimizer','Optimizer']];
+  var workspaceTabs = [['loadout','Loadout'],['breakdowns','Breakdowns'],['optimizer','Optimizer'],['floor-mastery','Floor &times; Mastery']];
   if (!workspaceTabs.some(function(tab) { return tab[0] === workspaceTab; })) workspaceTab = 'loadout';
   window._sneakWorkspaceTab = workspaceTab;
 
@@ -1088,6 +1279,13 @@ function _renderAllInner() {
   // ==================== LOADOUT VIEW ====================
   h += '<div id="workspace-panel-loadout" class="workspace-panel' + (workspaceTab === 'loadout' ? ' active' : '')
     + '" data-workspace-panel="loadout" role="tabpanel" aria-labelledby="workspace-tab-loadout">';
+  h += '<div class="scenario-strip"><span class="scenario-chip">Mastery <strong>' + m1 + '</strong> / highest ' + m2 + '</span>'
+    + '<span class="scenario-chip"><strong>' + twins.length + '</strong> active twins</span>'
+    + '<span class="scenario-chip">Login: <strong>' + escHtml(_charName(twins.activeCharIdx)) + '</strong></span>';
+  if (saveData.companionDataAvailable === false || saveData.activeVoteDataAvailable === false) {
+    h += '<span class="scenario-chip partial">Partial: missing companion or server vote metadata</span>';
+  }
+  h += '</div>' + _savedFloorsHtml(twins);
 
   // --- level-based background color ---
   function _lvBg(level) {
@@ -1110,17 +1308,17 @@ function _renderAllInner() {
     var bc = twins.bestActiveChar;
     h += '<div style="margin-bottom:4px;padding:3px 8px;background:rgba(76,175,80,.1);border:1px solid var(--green);border-radius:4px;font-size:.72em;">';
     h += '<span style="color:var(--green);font-weight:700;">&#x1F4A1; Best login char:</span> ';
-    h += '<span style="color:var(--gold);font-weight:600;">' + bc.charName + '</span>';
+    h += '<span style="color:var(--gold);font-weight:600;">' + escHtml(bc.charName) + '</span>';
     h += '</div>';
   }
 
-  h += '<label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.72em;color:var(--text2);">Login context';
+  h += '<label class="login-control" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.72em;color:var(--text2);">Login context';
   h += '<span data-tip="The cloud save does not include the currently logged-in character. Select the same character as the game for matching displayed rates." style="cursor:help;color:var(--cyan);">&#x2753;</span>';
-  h += '<select id="sneak-login-char" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;">';
+  h += '<select id="sneak-login-char">';
   var loginCount = Math.max((saveData.charNames || []).length, (saveData.lv0AllData || []).length);
   for (var loginIdx = 0; loginIdx < loginCount; loginIdx++) {
     h += '<option value="' + loginIdx + '"' + (loginIdx === twins.activeCharIdx ? ' selected' : '') + '>'
-      + _charName(loginIdx) + (loginIdx === twins.bestActiveChar.charIdx ? ' (best)' : '') + '</option>';
+      + escHtml(_charName(loginIdx)) + (loginIdx === twins.bestActiveChar.charIdx ? ' (best)' : '') + '</option>';
   }
   h += '</select></label>';
 
@@ -1130,16 +1328,18 @@ function _renderAllInner() {
     h += '<div class="loadout-card">';
     // Twin info row: name + level + floor + stats inline
     h += '<div class="lo-info">';
-    h += '<span class="lo-name">' + tw.name + '</span>';
+    h += '<span class="lo-name">' + escHtml(tw.name) + '</span>';
     h += '<span class="lo-lv">Lv ' + _fmt(tw.sneakLv) + '</span>';
-    h += '<span class="lo-floor">F' + tw.floor + '</span>';
+    h += '<span class="lo-floor">Floor ' + tw.floor + '</span>';
     h += '<div class="lo-stats">';
-    h += '<span title="Stealth">&#x1f977; ' + _fmt(tw.stealth) + '</span>';
+    h += '<span data-tip="Save-derived Stealth, including allies and flowers">Stealth <b>' + _fmt(tw.stealth) + '</b></span>';
     var secPerAction = 3600 / tw.actionSpd;
-    var koInternal = koDuration(nkLvs, tw.koPct);
+    var koInternal = koDuration(nkLvs, tw.koPct, _omniLvs());
     var koReal = koInternal / tw.actionSpd;
-    h += '<span title="Time between actions">&#x23F1; ' + secPerAction.toFixed(1) + 's</span>';
-    h += '<span title="KO recovery time (wall-clock)">&#x1F4A5; ' + koReal.toFixed(1) + 's</span>';
+    h += '<span data-tip="Time between attempts before detection or KO losses">Attempt <b>' + secPerAction.toFixed(1) + 's</b></span>';
+    h += '<span data-tip="Wall-clock KO recovery, after action speed">KO <b>' + koReal.toFixed(1) + 's</b></span>';
+    var savedDetection = detectionChance(tw.stealth, tw.floor, m1);
+    h += '<span style="color:' + _detColor(savedDetection) + ';">Detection <b>' + _pct(savedDetection) + '</b></span>';
     h += '</div>';
     h += '</div>';
     // 4-slot equipment row (square slots matching inventory)
@@ -1161,13 +1361,14 @@ function _renderAllInner() {
         if (info && info.stat != null) tipParts.push(info.stat.toFixed(1));
         if (symLv) tipParts.push('Slot Lv ' + symLv);
         var bgStyle = symLv ? '' : _lvBg(eq.level);
-        h += '<div class="' + slotCls + '" title="' + tipParts.join(' \u2022 ') + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + '>';
+        h += '<div class="' + slotCls + '" data-tip="' + escHtml(slotLabels[si] + '\n' + _equipmentTip(eq.name, eq.level) + (symLv ? '\nSymbol level ' + symLv + ' (+' + (50 * symLv) + '%)' : '')) + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + '>';
+        h += _itemIcon(eq.name);
         h += '<span class="lo-slot-lv">+' + _fmt(eq.level) + '</span>';
-        h += '<span class="lo-slot-name">' + dn + '</span>';
+        h += '<span class="lo-slot-name">' + escHtml(dn) + '</span>';
         h += _symDots(symLv, SYM_COLORS[symLv]);
         h += '</div>';
       } else {
-        h += '<div class="' + slotCls + '" title="' + slotLabels[si] + ' (empty)' + (symLv ? ' \u2022 Slot Lv ' + symLv : '') + '">';
+        h += '<div class="' + slotCls + '" data-tip="' + slotLabels[si] + ' (empty)' + (symLv ? ' / Symbol level ' + symLv : '') + '">';
         h += '<span class="lo-slot-label">' + slotLabels[si] + '</span>';
         h += _symDots(symLv, SYM_COLORS[symLv]);
         h += '</div>';
@@ -1183,20 +1384,20 @@ function _renderAllInner() {
     var maxSpd = 0, maxSpdName = '';
     for (var bi = 0; bi < twins.length; bi++) if (twins[bi].actionSpd > maxSpd) { maxSpd = twins[bi].actionSpd; maxSpdName = twins[bi].name; }
     if (maxSpd > 0) {
-      function _timeStr(sec) {
+      function _batchTimeStr(sec) {
         if (sec >= 7200) return (sec / 3600).toFixed(1) + ' hr';
         if (sec >= 120) return Math.floor(sec / 60) + ' min';
         return sec.toFixed(0) + 's';
       }
       var firstSec = 360000 / maxSpd;
-      var firstStr = _timeStr(firstSec);
+      var firstStr = _batchTimeStr(firstSec);
       // Build tooltip with all tiers
       var tipLines = 'Batch tiers (based on ' + maxSpdName + ', actions/hour=' + Math.round(maxSpd) + '):\n';
       for (var r = 0; r < 10; r++) {
         var dn6 = 100 * Math.pow(2, r);
         var threshold = 100 * 3600 * Math.pow(2, r);
         var sec = threshold / maxSpd;
-        tipLines += '\u00d7' + dn6.toLocaleString() + '  \u2192  ' + _timeStr(sec) + '  (' + Math.round(threshold / 3600).toLocaleString() + ' actions)\n';
+        tipLines += '\u00d7' + dn6.toLocaleString() + '  \u2192  ' + _batchTimeStr(sec) + '  (' + Math.round(threshold / 3600).toLocaleString() + ' actions)\n';
       }
       tipLines += '\nEach independent KO gives 1 + Blooming Flowers / 100 flowers per batch, not per batched attempt. Taunting Mark consumes flowers by batch size.\nOpen the sneaking screen before ' + firstStr + ' to avoid lost flowers.';
       h += '<div style="margin-top:4px;padding:3px 8px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.3);border-radius:4px;font-size:.68em;color:var(--text2);">';
@@ -1226,14 +1427,14 @@ function _renderAllInner() {
       : item.type === 0 ? 'Hat' : item.type === 1 ? 'Weapon' : 'Unknown equipment type';
     var statStr = item.stat != null ? item.stat.toFixed(1) : '';
     var bgStyle = symLv ? '' : _lvBg(item.level);
-    var s = '<button type="button" class="' + cls + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + ' aria-label="' + item.name + ', level ' + item.level + ', ' + typeLabel + '">';
-    s += '<span class="is-tip">' + item.name + '<br>Lv ' + _fmt(item.level);
-    if (statStr) s += ' &bull; <span style="color:var(--cyan);">' + statStr + '</span>';
-    if (symLv > 0) s += '<br><span style="color:' + SYM_COLORS[symLv] + ';">Slot Lv ' + symLv + '</span>';
-    s += '<br><span style="color:var(--text2);">' + typeLabel + '</span></span>';
+    var tip = 'Inventory ' + (item.slot + 1) + '\n' + _equipmentTip(item.key, item.level);
+    if (symLv) tip += '\nSymbol level ' + symLv + ' (+' + (50 * symLv) + '%)';
+    if (isGold) tip += isBest ? '\nActive Gold bonus: +' + _fmt(bestInv[item.bonusType].value) + '%' : '\nNot selected by the native Gold cache scan';
+    var s = '<button type="button" class="' + cls + '"' + (bgStyle ? ' style="' + bgStyle + '"' : '') + ' data-tip="' + escHtml(tip) + '" aria-label="' + escHtml(item.name + ', level ' + item.level + ', ' + typeLabel) + '">';
+    s += _itemIcon(item.key);
     if (isBest) s += '<span class="is-best">\u2713</span>';
     s += '<span class="is-lv">+' + _fmt(item.level) + '</span>';
-    s += '<span class="is-name">' + item.name + '</span>';
+    s += '<span class="is-name">' + escHtml(item.name) + '</span>';
     s += _symDots(symLv, SYM_COLORS[symLv]);
     s += '</button>';
     return s;
@@ -1255,6 +1456,7 @@ function _renderAllInner() {
     }
   }
   h += '</div></div>';
+  h += '<p class="saved-model-note">Green check = the Gold charm actually selected by the game cache, including slot symbols. It is not necessarily the highest-level copy. Hover or focus an item for its effect.</p>';
 
   h += '</div>';
   h += '</div>'; // close combined loadout workspace panel
@@ -1271,7 +1473,7 @@ function _renderAllInner() {
   for (var breakdownIdx = 0; breakdownIdx < twins.length; breakdownIdx++) {
     var breakdownCandidate = twins[breakdownIdx];
     h += '<option value="' + breakdownCandidate.idx + '"' + (breakdownCandidate.idx === breakdownTwin ? ' selected' : '') + '>'
-      + breakdownCandidate.name + ' (F' + breakdownCandidate.floor + ')</option>';
+      + escHtml(breakdownCandidate.name) + ' (F' + breakdownCandidate.floor + ')</option>';
   }
   h += '</select><span>Uses the selected login context and current loadout.</span></div>';
   h += '<div class="formula-tabs" role="tablist" aria-label="Formula breakdowns">';
@@ -1294,12 +1496,20 @@ function _renderAllInner() {
   // ==================== OPTIMIZER VIEW ====================
   h += '<div id="workspace-panel-optimizer" class="workspace-panel' + (workspaceTab === 'optimizer' ? ' active' : '')
     + '" data-workspace-panel="optimizer" role="tabpanel" aria-labelledby="workspace-tab-optimizer">';
+  h += '<div id="sneaking-loadout-panel"></div>';
+  h += '<div id="sneaking-flower-panel"></div>';
+  h += '</div>'; // close optimizer workspace panel
+
+  h += '<div id="workspace-panel-floor-mastery" class="workspace-panel' + (workspaceTab === 'floor-mastery' ? ' active' : '')
+    + '" data-workspace-panel="floor-mastery" role="tabpanel" aria-labelledby="workspace-tab-floor-mastery">';
   h += '<div class="section"><h2>Floor &times; Mastery</h2>';
+  h += '<p class="saved-model-note">Read-only what-if reference with saved gear, not a loadout search or retained-inventory projection. All active twins move to each row floor; locked floors may appear. Rates / door ETAs are estimates.</p>';
 
   // Mode selector (static — stays across grid rebuilds)
-  var curMode = window._sneakMode || 'current';
+  window._sneakMode = 'current';
+  var curMode = 'current';
   h += '<div class="scenario-strip">';
-  h += '<span class="scenario-chip">Login context: <strong>' + _charName(twins.activeCharIdx) + '</strong></span>';
+  h += '<span class="scenario-chip">Login context: <strong>' + escHtml(_charName(twins.activeCharIdx)) + '</strong></span>';
   h += '<span class="scenario-chip">Placement: <strong>all active twins on row floor</strong></span>';
   h += '<span class="scenario-chip">Future mastery: <strong>' + (_projectionFlowers() === 'fresh' ? 'fresh reset' : 'rebuilt flowers') + '</strong></span>';
   h += '<span class="scenario-chip">Item batch: <strong>' + _itemBatchHours() + 'h</strong></span>';
@@ -1309,45 +1519,28 @@ function _renderAllInner() {
     h += '<span class="scenario-chip partial">Partial save metadata</span>';
   } else h += '<span class="scenario-chip">Save metadata: complete</span>';
   h += '</div>';
-  h += '<div class="mode-selector" style="display:flex;gap:4px;margin-bottom:6px;">';
-  var modeKeys = ['current', 'jade', 'exp', 'flower', 'itemfind', 'door', 'untie'];
-  for (var mk = 0; mk < modeKeys.length; mk++) {
-    var mkey = modeKeys[mk];
-    var md = OPT_MODES[mkey];
-    var isActive = mkey === curMode;
-    h += '<button class="mode-btn' + (isActive ? ' active' : '') + '" data-mode="' + mkey + '" title="' + md.desc + '" style="padding:3px 10px;font-size:.75em;border:1px solid ' + (isActive ? 'var(--cyan)' : '#555') + ';background:' + (isActive ? 'rgba(77,208,225,.15)' : 'var(--bg3)') + ';color:' + (isActive ? 'var(--cyan)' : 'var(--text2)') + ';border-radius:4px;cursor:pointer;font-weight:' + (isActive ? '700' : '400') + ';">' + md.label + '</button>';
-  }
-  h += '</div>';
-
-  // "All items" checkbox (visibility toggled by JS when mode changes)
-  var allItemsChecked = !!(window._sneakAllItems && curMode !== 'current');
-  h += '<label id="all-items-label" style="display:' + (curMode !== 'current' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin-bottom:6px;cursor:pointer;">';
-  h += '<input type="checkbox" id="all-items-chk"' + (allItemsChecked ? ' checked' : '') + ' style="cursor:pointer;"> Future gear sandbox';
-  h += '</label>';
-  h += '<label id="sandbox-copies-label" style="display:' + (allItemsChecked ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 6px;">Synthetic copies/item';
-  h += '<input id="sandbox-copies" type="number" min="1" max="24" value="' + _sandboxCopies() + '" style="width:48px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"></label>';
-  h += '<label id="deep-refine-label" style="display:' + (curMode !== 'current' && !allItemsChecked ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 8px;cursor:pointer;" data-tip="Slow copy-conserving coordinate descent that allows different charm pairs on every twin">';
-  h += '<input type="checkbox" id="deep-refine-chk"' + (_deepRefinement() ? ' checked' : '') + '> Deep heterogeneous refinement</label>';
   var currentMasteryOnly = !!window._sneakCurrentMasteryOnly;
-  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;cursor:pointer;">';
+  h += '<div class="reference-controls"><label class="check-control">';
   h += '<input type="checkbox" id="current-mastery-only-chk"' + (currentMasteryOnly ? ' checked' : '') + ' style="cursor:pointer;"> Current mastery only';
   h += '</label>';
-  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Future mastery flowers';
-  h += '<select id="projection-flowers" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;">';
+  h += '<label>Future mastery flowers';
+  h += '<select id="projection-flowers">';
   h += '<option value="fresh"' + (_projectionFlowers() === 'fresh' ? ' selected' : '') + '>Fresh reset (0)</option>';
   h += '<option value="rebuilt"' + (_projectionFlowers() === 'rebuilt' ? ' selected' : '') + '>Rebuild current stack</option></select></label>';
-  h += '<label id="item-batch-label" style="display:' + (curMode === 'itemfind' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Item claim batch';
-  h += '<input id="item-batch-hours" type="number" min="0.01" step="0.25" value="' + _itemBatchHours() + '" style="width:64px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"> hours</label>';
-  h += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 12px;">Flower model<select id="flower-mode" style="background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"><option value="online"' + (_flowerMode() === 'online' ? ' selected' : '') + '>Online runtime</option><option value="offline"' + (_flowerMode() === 'offline' ? ' selected' : '') + '>Offline batches</option></select></label>';
-  h += '<label id="flower-batch-label" style="display:' + (_flowerMode() === 'offline' ? 'inline-flex' : 'none') + ';align-items:center;gap:4px;font-size:.72em;color:var(--text2);margin:0 0 6px 6px;">Offline claim<input id="flower-batch-hours" type="number" min="0.01" step="1" value="' + _flowerBatchHours() + '" style="width:58px;background:var(--bg3);color:var(--text);border:1px solid #555;border-radius:4px;padding:2px 5px;"> hours</label>';
+  h += '<label id="item-batch-label" style="display:' + (curMode === 'itemfind' ? 'grid' : 'none') + ';">Item claim batch (hours)';
+  h += '<input id="item-batch-hours" type="number" min="0.01" step="0.25" value="' + _itemBatchHours() + '" style="width:104px;"></label>';
+  h += '<label>Flower model<select id="flower-mode"><option value="online"' + (_flowerMode() === 'online' ? ' selected' : '') + '>Online runtime</option><option value="offline"' + (_flowerMode() === 'offline' ? ' selected' : '') + '>Offline batches</option></select></label>';
+  h += '<label id="flower-batch-label" style="display:' + (_flowerMode() === 'offline' ? 'grid' : 'none') + ';">Offline claim (hours)<input id="flower-batch-hours" type="number" min="0.01" step="1" value="' + _flowerBatchHours() + '" style="width:104px;"></label></div>';
 
   // Grid table container — only this part is rebuilt by _renderGrid()
   h += '<div id="grid-content"></div>';
   h += '</div>'; // close section
-  h += '</div>'; // close optimizer workspace panel
+  h += '</div>'; // close saved-gear reference workspace panel
 
   var _prevScroll = window.scrollY;
   el.innerHTML = h;
+  _flowerPanel.mount(el.querySelector('#sneaking-flower-panel'));
+  _loadoutPanel.mount(el.querySelector('#sneaking-loadout-panel'));
   _prepareAccessibleTooltips(el);
   window.scrollTo(0, _prevScroll);
 
@@ -1450,6 +1643,8 @@ function _renderAllInner() {
     el.addEventListener('change', function(e) {
       if (e.target.id === 'sneak-login-char') {
         window._sneakLoginChar = Number(e.target.value);
+        _flowerPanel.contextChanged();
+        _loadoutPanel.contextChanged();
         _invalidateGridCache();
         _renderAll();
         return;
@@ -1486,7 +1681,7 @@ function _renderAllInner() {
       if (e.target.id === 'flower-mode') {
         window._sneakFlowerMode = e.target.value;
         var flowerBatch = document.getElementById('flower-batch-label');
-        if (flowerBatch) flowerBatch.style.display = e.target.value === 'offline' ? 'inline-flex' : 'none';
+        if (flowerBatch) flowerBatch.style.display = e.target.value === 'offline' ? 'grid' : 'none';
         _invalidateGridCache();
         _renderGrid();
         return;
@@ -1584,7 +1779,7 @@ function _renderFormulaBreakdowns(twins) {
     floors[floorIdx] = Number(_nd()[floorIdx] && _nd()[floorIdx][0]) || 0;
   }
   var activeCharIdx = twins.activeCharIdx != null ? twins.activeCharIdx : _loginContextIdx(0);
-  var koTime = koDuration(_nkLvs(), selected.koPct);
+  var koTime = koDuration(_nkLvs(), selected.koPct, _omniLvs());
   var selectedDoor = doorState(selected.floor, _mastery(), _masteryMax(), _mastery(), _nd());
   var jadeOptions = {
     activeCharIdx: activeCharIdx,
@@ -1602,7 +1797,7 @@ function _renderFormulaBreakdowns(twins) {
     return {
       actionSpeed: twin.actionSpd,
       detection: detectionChance(twin.stealth, twin.floor, _mastery()),
-      koTime: koDuration(_nkLvs(), twin.koPct),
+      koTime: koDuration(_nkLvs(), twin.koPct, _omniLvs()),
       dodgePct: twin.dodgePct,
       taunting: (twin.charmMap[1] || 0) > 0,
     };
@@ -1636,7 +1831,7 @@ function _renderFormulaBreakdowns(twins) {
       idx: twin.idx,
       actionSpeed: twin.actionSpd,
       detection: detectionChance(twin.stealth, twin.floor, _mastery()),
-      koTime: koDuration(_nkLvs(), twin.koPct),
+      koTime: koDuration(_nkLvs(), twin.koPct, _omniLvs()),
       dodgePct: twin.dodgePct,
       taunting: (twin.charmMap[1] || 0) > 0,
       actionProgress: twin.actionProgress,
@@ -1959,7 +2154,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
         actionSpeed: (doorTwin.actionSpdTogether != null ? doorTwin.actionSpdTogether : doorTwin.actionSpd)
           + (projectedSolo ? (Number(doorTwin.charmMap[2]) || 0) / 100 : 0),
         detection: detectionChance(doorStealth, fl, mLv),
-        koTime: koDuration(nkLvs, doorTwin.koPct),
+        koTime: koDuration(nkLvs, doorTwin.koPct, _omniLvs()),
         dodgePct: doorTwin.dodgePct,
         taunting: (doorTwin.charmMap[1] || 0) > 0,
         actionProgress: doorTwin.actionProgress,
@@ -2330,7 +2525,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
     if (key === 'Blank') return '<span class="gear-empty">Empty</span>';
     var data = NjEQ[key];
     var name = data ? String(data[2] || key).replace(/_/g, ' ') : key;
-    return '<span class="' + (extraClass || '') + '">' + name + ' <strong>+' + _fmt(Number(itemLevel) || 0) + '</strong></span>';
+    return '<span class="' + (extraClass || '') + '" data-tip="' + escHtml(_equipmentTip(key, itemLevel)) + '">' + _itemIcon(key) + escHtml(name) + ' <strong>+' + _fmt(Number(itemLevel) || 0) + '</strong></span>';
   }
   function _gearItemName(itemKey) {
     var key = String(itemKey || 'Blank');
@@ -2411,14 +2606,14 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
         : allEmpty ? 'Unequip'
         : role.twins.length === 1 ? _charName(role.twins[0])
         : 'Setup ' + (roleIdx + 1);
-      html += '<section class="gear-role"><div class="gear-role-head"><span>' + roleLabel + '</span>';
+      html += '<section class="gear-role"><div class="gear-role-head"><span>' + escHtml(roleLabel) + '</span>';
       if (role.twins.length > 1) {
         html += '<details class="gear-role-members"><summary>' + role.twins.length + ' characters</summary><div class="gear-role-names">'
-          + role.twins.map(_charName).join(', ') + '</div></details>';
+          + role.twins.map(function(idx) { return escHtml(_charName(idx)); }).join(', ') + '</div></details>';
       }
       html += '</div>';
       for (var roleItemIdx = 0; roleItemIdx < 3; roleItemIdx++) {
-        html += '<span class="gear-role-item"><strong>' + roleSlotNames[roleItemIdx] + ':</strong> ' + _gearItemName(role.keys[roleItemIdx]) + ' ' + _gearLevelRange(role.levels[roleItemIdx]) + '</span>';
+        html += '<span class="gear-role-item">' + _itemIcon(role.keys[roleItemIdx]) + '<strong>' + roleSlotNames[roleItemIdx] + ':</strong> ' + escHtml(_gearItemName(role.keys[roleItemIdx])) + ' ' + _gearLevelRange(role.levels[roleItemIdx]) + '</span>';
       }
       html += '</section>';
     }
@@ -2428,13 +2623,13 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
     for (var twinOrder = 0; twinOrder < twinIds.length; twinOrder++) {
       var twinIdx = twinIds[twinOrder];
       var rows = groups[twinIdx].sort(function(a, b) { return a.slotOrder - b.slotOrder; });
-      html += '<section class="gear-char"><div class="gear-char-head"><span>' + _charName(twinIdx) + '</span><span class="gear-char-count">' + rows.length + ' change' + (rows.length === 1 ? '' : 's') + '</span></div>';
+      html += '<section class="gear-char"><div class="gear-char-head"><span>' + escHtml(_charName(twinIdx)) + '</span><span class="gear-char-count">' + rows.length + ' change' + (rows.length === 1 ? '' : 's') + '</span></div>';
       for (var rowIdx = 0; rowIdx < rows.length; rowIdx++) {
         var row = rows[rowIdx];
         html += '<div class="gear-change"><span class="gear-slot">' + row.slot + '</span>';
         html += '<span class="gear-before">' + _gearItemHtml(row.currentKey, row.currentLevel) + '</span><span class="gear-arrow">→</span>';
         html += '<span class="gear-after">' + _gearItemHtml(row.nextKey, row.nextLevel)
-          + (row.source ? '<small class="gear-source">from ' + row.source + '</small>' : '') + '</span></div>';
+          + (row.source ? '<small class="gear-source">from ' + escHtml(row.source) + '</small>' : '') + '</span></div>';
       }
       html += '</section>';
     }
@@ -2460,7 +2655,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
             idx: twin.idx,
             actionSpeed: twin.actionSpd,
             detection: detectionChance(twin.stealth, floor, m1),
-            koTime: koDuration(nkLvs, twin.koPct),
+            koTime: koDuration(nkLvs, twin.koPct, _omniLvs()),
             dodgePct: twin.dodgePct,
             taunting: (twin.charmMap[1] || 0) > 0,
             actionProgress: twin.actionProgress,
@@ -2670,7 +2865,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
           actionSpeed: (twin.actionSpdTogether != null ? twin.actionSpdTogether : twin.actionSpd)
             + (projectedSolo ? (Number(twin.charmMap[2]) || 0) / 100 : 0),
           detection: detectionChance(stealth, fl, mLv),
-          koTime: koDuration(nkLvs, twin.koPct),
+          koTime: koDuration(nkLvs, twin.koPct, _omniLvs()),
           dodgePct: twin.dodgePct,
           taunting: (twin.charmMap[1] || 0) > 0,
         });
@@ -2731,7 +2926,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
       }
     }
   }
-  h += _recommendationHtml();
+  if (curMode !== 'current') h += _recommendationHtml();
   var batchApproximationUsed = Object.keys(cellCache).some(function(key) {
     return !!cellCache[key].batchApproximate;
   });
@@ -2798,7 +2993,7 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
       }
       for (var mobileDropIdx = 0; mobileDropIdx < mobileCd.dropTable.length; mobileDropIdx++) {
         var mobileDrop = mobileCd.dropTable[mobileDropIdx];
-        mobileCards += '<div class="move-row"><span>' + (equipInfo(mobileDrop.key, 0)?.name || mobileDrop.key) + '</span><span>' + (100 * mobileDrop.chance).toFixed(2) + '%</span><span>max +' + _fmt(maxDropLevel(mobileDrop.key, nkLvs, masteryLevels[mobileMasteryIdx], nk11Extras)) + '</span></div>';
+        mobileCards += '<div class="move-row"><span>' + _itemIcon(mobileDrop.key) + escHtml(equipInfo(mobileDrop.key, 0)?.name || mobileDrop.key) + '</span><span>' + (100 * mobileDrop.chance).toFixed(2) + '%</span><span>max +' + _fmt(maxDropLevel(mobileDrop.key, nkLvs, masteryLevels[mobileMasteryIdx], nk11Extras)) + '</span></div>';
       }
       mobileCards += '</div></details></article>';
     }

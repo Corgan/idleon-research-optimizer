@@ -1,0 +1,1223 @@
+{
+  "gameVersion": "2026-10-21",
+  "sourceSha256": "6A2FB3BBAE934929DE0EFCD884689C368424E6398EEE6409D764834402A3E1BB",
+  "pakSha256": "4E2EC2CC9C3D9DA95F96EF111CF493BA3FBABC6C0CFF3765555E91669316B4E8",
+  "sourceReferences": {
+    "equipment": "Ninja menu: NjEQ key + .png",
+    "floors": "NinjaStuff f: NjR + zero-based floor + .png",
+    "symbols": "NinjaStuff inventory: NjBorderS + min(symbol level, 7) + .png",
+    "twins": "ActorEvents_358 Ninja animation; resources.mbs sprite and frame durations",
+    "hats": "ActorEvents_358 drawing: NjHat + NjEQ[hat][1], NinjaInfo[4/5] frame offsets (src 80765/80960)"
+  },
+  "sprite": {
+    "across": 11,
+    "down": 10,
+    "durations": [
+      650,
+      100,
+      100,
+      450,
+      135,
+      100,
+      10000,
+      130,
+      120,
+      100,
+      130,
+      130,
+      120,
+      100,
+      130,
+      10000,
+      700,
+      100,
+      300,
+      100,
+      100,
+      750,
+      10000,
+      100,
+      100,
+      100,
+      900,
+      100,
+      100,
+      100,
+      10000,
+      130,
+      130,
+      120,
+      100,
+      120,
+      130,
+      130,
+      120,
+      100,
+      120,
+      10000,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      1500,
+      10000,
+      100,
+      100,
+      170,
+      130,
+      100,
+      10000,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      15000,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      10000,
+      700,
+      100,
+      450,
+      100,
+      100,
+      100,
+      100,
+      10000,
+      700,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      10000,
+      100,
+      100,
+      100,
+      80,
+      250,
+      150,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      10000
+    ],
+    "height": 400,
+    "id": 67,
+    "loop": false,
+    "name": "Ninja",
+    "numFrames": 106,
+    "originX": 20,
+    "originY": 40,
+    "sync": false,
+    "version": 2,
+    "width": 440,
+    "file": "ninja.png",
+    "spriteId": 359,
+    "hatX": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      1,
+      2,
+      4,
+      2,
+      1,
+      0,
+      -1,
+      -7,
+      -5,
+      -3,
+      -3,
+      -5,
+      -7,
+      -5,
+      -3,
+      -3,
+      -5,
+      -7,
+      0,
+      -1,
+      -1,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -1,
+      -1,
+      0,
+      0,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      -1,
+      -2,
+      0,
+      2,
+      1,
+      0,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      2,
+      2,
+      2,
+      2,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      3,
+      5,
+      10,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7,
+      7
+    ],
+    "hatY": [
+      0,
+      0,
+      -1,
+      -1,
+      0,
+      1,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      -1,
+      0,
+      0,
+      -1,
+      -1,
+      1,
+      0,
+      0,
+      0,
+      2,
+      1,
+      1,
+      2,
+      4,
+      3,
+      3,
+      3,
+      3,
+      2,
+      1,
+      0,
+      0,
+      -1,
+      -2,
+      -1,
+      0,
+      0,
+      -1,
+      -2,
+      -1,
+      0,
+      5,
+      5,
+      4,
+      4,
+      5,
+      5,
+      5,
+      5,
+      6,
+      2,
+      1,
+      2,
+      6,
+      5,
+      0,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      1,
+      1,
+      0,
+      -1,
+      -2,
+      -2,
+      -1,
+      1,
+      0,
+      -1,
+      -1,
+      -1,
+      2,
+      2,
+      1,
+      1,
+      1,
+      2,
+      3,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      2,
+      2,
+      0,
+      1,
+      2,
+      5,
+      4,
+      5,
+      8,
+      22,
+      21,
+      21,
+      21,
+      21,
+      21,
+      21,
+      21,
+      21
+    ]
+  },
+  "resourcesSha256": "B037DF9ACB67020CF397CE5DA2D4E342B64F5D6C5569547F179E8EF5DA03AE26",
+  "assets": {
+    "NjBorderS1": {
+      "source": "assets/data/NjBorderS1.png",
+      "sha256": "7085E9423239808213472952D02C642EB2F4A48C56159B7F71C1BC9735438AA8",
+      "bytes": 908,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS2": {
+      "source": "assets/data/NjBorderS2.png",
+      "sha256": "8C82380AD7A80880ED489D0E39BEDD9094716AC2DA19161A736AE7A1E6C63015",
+      "bytes": 999,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS3": {
+      "source": "assets/data/NjBorderS3.png",
+      "sha256": "0D04F36905D5DC9295EA7ED70E67F4262C01422908A1F0989034BEDFCB60E1E9",
+      "bytes": 1075,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS4": {
+      "source": "assets/data/NjBorderS4.png",
+      "sha256": "097CA361FA14DDF5FDFA824FE1F5E7B1FBC1A8A221C23DCEF8F5D7BE8A801841",
+      "bytes": 1166,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS5": {
+      "source": "assets/data/NjBorderS5.png",
+      "sha256": "5B66358F20540471E300BEF11A63B785C5C1ED17F3E32083DD0A25680C0A09B1",
+      "bytes": 1161,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS6": {
+      "source": "assets/data/NjBorderS6.png",
+      "sha256": "8681CF37E312FF76204F5C9FAA4CA3938F0FECD41A6555E9D2ECEFAAF266CB1B",
+      "bytes": 1094,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS7": {
+      "source": "assets/data/NjBorderS7.png",
+      "sha256": "1E46722869EBFB380DECA6F43B1D24E733D1759E5B0A63FD1581D2FF427D7C66",
+      "bytes": 1197,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS8": {
+      "source": "assets/data/NjBorderS8.png",
+      "sha256": "EE6A3A16BAC09025086B2D28367A863A9EA638DF674213254B3627CB4D7778FD",
+      "bytes": 1211,
+      "width": 62,
+      "height": 65
+    },
+    "NjBorderS9": {
+      "source": "assets/data/NjBorderS9.png",
+      "sha256": "94CE6B74A6BD17926A3EA15B3CDAF1196E171D5EFE413A6881742E0F2583D54C",
+      "bytes": 1633,
+      "width": 62,
+      "height": 65
+    },
+    "NjGem0": {
+      "source": "assets/data/NjGem0.png",
+      "sha256": "4B7DE9D76EEF523837A646873F5A187DEC01585048B823A47B2303EAE7D10AEB",
+      "bytes": 258,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem1": {
+      "source": "assets/data/NjGem1.png",
+      "sha256": "540097000D776DE89FD55FEDDB8E14E229BDD7F2B68985333AEFC48375B0B48C",
+      "bytes": 292,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem2": {
+      "source": "assets/data/NjGem2.png",
+      "sha256": "0404C0220DCC3B53F9EC0A78F460890582B4A00281BECB9B33B252D61F31DD99",
+      "bytes": 302,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem3": {
+      "source": "assets/data/NjGem3.png",
+      "sha256": "575D06E9A50DB10F2BCC1D65D86CD0B1B0D6DC4CBC23AD65C2C65FD8264EBAC8",
+      "bytes": 290,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem4": {
+      "source": "assets/data/NjGem4.png",
+      "sha256": "C07FB0FFC971976E75BC0D4222330ACDF620763D95BB5056CDE6FC0FB381BDD2",
+      "bytes": 447,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem5": {
+      "source": "assets/data/NjGem5.png",
+      "sha256": "0762963184DE633E0EA6F6B107FA2DEDB5278C8E03873D6DBBBCD5C9CCC8B4A8",
+      "bytes": 825,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem6": {
+      "source": "assets/data/NjGem6.png",
+      "sha256": "DB6120650866B1B7E8FA93C8625984E9A4D2BFA724AEFF2847BB5E10EAC9F6FA",
+      "bytes": 774,
+      "width": 56,
+      "height": 56
+    },
+    "NjGem7": {
+      "source": "assets/data/NjGem7.png",
+      "sha256": "87A298F693D9ECC17ACCE2E7323075CED84BCFD05D17F581569913A3E58271A3",
+      "bytes": 942,
+      "width": 56,
+      "height": 56
+    },
+    "NjGl0": {
+      "source": "assets/data/NjGl0.png",
+      "sha256": "03BF421941D509CDB122D45D2310C76322FBD78D7B73E2270D9417DAD62870CC",
+      "bytes": 554,
+      "width": 60,
+      "height": 60
+    },
+    "NjGl1": {
+      "source": "assets/data/NjGl1.png",
+      "sha256": "5015E17B00F550FAAFAC175AA054480C683C95B07E78597553B3AB325DC937A6",
+      "bytes": 610,
+      "width": 60,
+      "height": 60
+    },
+    "NjGl2": {
+      "source": "assets/data/NjGl2.png",
+      "sha256": "D61AD9597920712CEE000901D62C83CEE7B5B48043D4556E6069312171CC5327",
+      "bytes": 654,
+      "width": 60,
+      "height": 60
+    },
+    "NjHat0": {
+      "source": "assets/data/NjHat0.png",
+      "sha256": "4B144797E4B00F4C53F1162769E71737E3C80D5390A6132EB5BF9B600791A171",
+      "bytes": 447,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat1": {
+      "source": "assets/data/NjHat1.png",
+      "sha256": "80371A3128E0D09CD0F5842E9D4731D986704F8E8E712FBE90A02E2936D12429",
+      "bytes": 530,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat10": {
+      "source": "assets/data/NjHat10.png",
+      "sha256": "D11264106C773F790EBA127A13975CD4375EF39B4BD2C551699315E555008FA9",
+      "bytes": 630,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat11": {
+      "source": "assets/data/NjHat11.png",
+      "sha256": "E6C2B10A315F4C9F806551DC5C209A77E6DB356BA55933277A5807F5E7F3C624",
+      "bytes": 458,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat12": {
+      "source": "assets/data/NjHat12.png",
+      "sha256": "7E79719EADBBF1381B8914ECEE6433D248E0869C33D2FA75804B1CE866B52449",
+      "bytes": 538,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat13": {
+      "source": "assets/data/NjHat13.png",
+      "sha256": "610152D9D2B01CF5A635070A1A200E55F8EF3848FABBB9DAD1B1843A1EDACC56",
+      "bytes": 596,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat14": {
+      "source": "assets/data/NjHat14.png",
+      "sha256": "C6848B83BFAA08C934C97B6394C3B64B43704CD8D7ABF74F4A6F26CC45456D0D",
+      "bytes": 407,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat2": {
+      "source": "assets/data/NjHat2.png",
+      "sha256": "834022C46D61C40C62BBA7101D398554D2BE2B9BF138FAA4A8E03EF97482130F",
+      "bytes": 354,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat3": {
+      "source": "assets/data/NjHat3.png",
+      "sha256": "5FE30C5F8B05FC2499CF05A90AFF7FF61BDB9584E47F227689F751D8AE9BBE6E",
+      "bytes": 281,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat4": {
+      "source": "assets/data/NjHat4.png",
+      "sha256": "2B42AA25008C28C652A39EDB499BD36BBECE37FCA8B3BD89C04DB175E1ECADD4",
+      "bytes": 550,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat5": {
+      "source": "assets/data/NjHat5.png",
+      "sha256": "E2D13EFD7E635AA77B6319D302F06A1A38EE4A3AA3DFC937AC235F5526100AD4",
+      "bytes": 366,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat6": {
+      "source": "assets/data/NjHat6.png",
+      "sha256": "C8F49CDD9151D233BE1B90F5DFD6E5088D94D11E98C427FA7D5635C7274C2A01",
+      "bytes": 405,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat7": {
+      "source": "assets/data/NjHat7.png",
+      "sha256": "A1003D95AED5EF9126E99D136CE3531D7489574C444B0C72EE5148D0BBA85613",
+      "bytes": 624,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat8": {
+      "source": "assets/data/NjHat8.png",
+      "sha256": "4DA9DABDAB23E3A21493B20A282B35EDD79C6D7FF49486096367205795441C20",
+      "bytes": 474,
+      "width": 30,
+      "height": 30
+    },
+    "NjHat9": {
+      "source": "assets/data/NjHat9.png",
+      "sha256": "BC4CC18F5E325B5B18B7B4B6C667B64F86FE55F2A3AAEE33FDC45AEF16CDA796",
+      "bytes": 585,
+      "width": 30,
+      "height": 30
+    },
+    "NjItem0": {
+      "source": "assets/data/NjItem0.png",
+      "sha256": "61DB34AB0F5978B58309C8ED4E0881E3A29F359A20D5AAF1D4A957A6C801C167",
+      "bytes": 664,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem1": {
+      "source": "assets/data/NjItem1.png",
+      "sha256": "0881F4E8812E67E6AD549BA652091D0E9215BE00A633F88068892899E8E98AD6",
+      "bytes": 753,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem10": {
+      "source": "assets/data/NjItem10.png",
+      "sha256": "FB9CD14D6473506F737455C6CBCA5BC1804CB873A6E334BBE513BD7E42493547",
+      "bytes": 1177,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem11": {
+      "source": "assets/data/NjItem11.png",
+      "sha256": "F26E08481043A79480FACB02D0C3D7776F3942F19F87433CC5A1E0D3824A0ED1",
+      "bytes": 903,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem12": {
+      "source": "assets/data/NjItem12.png",
+      "sha256": "D94DFEE6E3FF6C7EE583765DE7DD321DD8CE67594184E7A439D80F0E2CA19331",
+      "bytes": 911,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem13": {
+      "source": "assets/data/NjItem13.png",
+      "sha256": "19076D6016BCA299000BFDD40FB597DB858E3F2171149AA6070845F787E32842",
+      "bytes": 1126,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem14": {
+      "source": "assets/data/NjItem14.png",
+      "sha256": "CCA99C5EA1DF21721F961A6AFEA19057DAB4308FE63BCBCEFC7FB876706D6601",
+      "bytes": 660,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem2": {
+      "source": "assets/data/NjItem2.png",
+      "sha256": "56035D52C5F6126B45FC8A7C9261728D033E0E1A8AB4843730C8842CF2F7F18A",
+      "bytes": 702,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem3": {
+      "source": "assets/data/NjItem3.png",
+      "sha256": "431B0D8A272EF64FE9658073A96397132FB14C0177E7795A95A04E05B063D000",
+      "bytes": 502,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem4": {
+      "source": "assets/data/NjItem4.png",
+      "sha256": "2A0A5A2B6C01BD1DB6EA8AE25CE445EB86E67A73555143F462EB61A712DDC943",
+      "bytes": 973,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem5": {
+      "source": "assets/data/NjItem5.png",
+      "sha256": "293BF960C74593F7661A10E942FFB1CA846B6C2285FC2FCCA948C662C39A80B5",
+      "bytes": 676,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem6": {
+      "source": "assets/data/NjItem6.png",
+      "sha256": "4144B3A60288A64126B6A11FA2FE79092AF5E879D7E9FEE0094C1F988826F476",
+      "bytes": 684,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem7": {
+      "source": "assets/data/NjItem7.png",
+      "sha256": "E73847371610A70EB21F69D737F24163E70C8B3052A91D96496ED7501383B2FB",
+      "bytes": 998,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem8": {
+      "source": "assets/data/NjItem8.png",
+      "sha256": "AB7251EE4B9648FF7872771357A3D20447B059DCB645B01A8752A8A5570EEE5E",
+      "bytes": 917,
+      "width": 56,
+      "height": 56
+    },
+    "NjItem9": {
+      "source": "assets/data/NjItem9.png",
+      "sha256": "669D39DB5316FED421C84D13F6B66A3C242F4B25AB63ED9E65E0D64EF22D60F5",
+      "bytes": 1026,
+      "width": 56,
+      "height": 56
+    },
+    "NjR0": {
+      "source": "assets/data/NjR0.png",
+      "sha256": "8A7EB02C852FA0EE6581BE8F68BACF128BB66C7D9584662921C011170F552A8B",
+      "bytes": 7199,
+      "width": 874,
+      "height": 150
+    },
+    "NjR1": {
+      "source": "assets/data/NjR1.png",
+      "sha256": "F56FFF601C00D283F892278B9757BF86E9BB686D69941EFE1C6FAD2CA15249C0",
+      "bytes": 13857,
+      "width": 874,
+      "height": 150
+    },
+    "NjR10": {
+      "source": "assets/data/NjR10.png",
+      "sha256": "DCCDC13EEA88088423381DD0BF1A1E172752B2113A2B717DB58FEAFB3FC2F2B5",
+      "bytes": 15793,
+      "width": 874,
+      "height": 150
+    },
+    "NjR11": {
+      "source": "assets/data/NjR11.png",
+      "sha256": "9DA3543C4E1D7F9DF55DA2D800EA9633D651F0C1B9C62ADF88EB8790C4264A83",
+      "bytes": 15900,
+      "width": 874,
+      "height": 150
+    },
+    "NjR2": {
+      "source": "assets/data/NjR2.png",
+      "sha256": "C125560B1E1450E45D7961999C74A5D59720F342281BAAE1F7027419DC63C95A",
+      "bytes": 12522,
+      "width": 874,
+      "height": 150
+    },
+    "NjR3": {
+      "source": "assets/data/NjR3.png",
+      "sha256": "A7BD9E1DE3DBF517E0BBEF75E60B0C4892BE56432DB038187CF661FD57AC7BF2",
+      "bytes": 13739,
+      "width": 874,
+      "height": 150
+    },
+    "NjR4": {
+      "source": "assets/data/NjR4.png",
+      "sha256": "716AD3811955C19705A0785DEE2267B90246B5FAFB0C1B3C2935666D2BF47B15",
+      "bytes": 9895,
+      "width": 874,
+      "height": 150
+    },
+    "NjR5": {
+      "source": "assets/data/NjR5.png",
+      "sha256": "D6F2459E69D2FD1258443B738627392FFB2D790C67384A4972B9D028B0D233C1",
+      "bytes": 15837,
+      "width": 874,
+      "height": 150
+    },
+    "NjR6": {
+      "source": "assets/data/NjR6.png",
+      "sha256": "FFA3A6E58D5CD186CF1E74C8AE46564FF99328881707C3866A51BC3C31145FB5",
+      "bytes": 17639,
+      "width": 874,
+      "height": 150
+    },
+    "NjR7": {
+      "source": "assets/data/NjR7.png",
+      "sha256": "B8BCDC3A63068A297455454DACB2C5B3D48BBA629BAAD8CF2A44BA5DDEB6B5C1",
+      "bytes": 10406,
+      "width": 874,
+      "height": 150
+    },
+    "NjR8": {
+      "source": "assets/data/NjR8.png",
+      "sha256": "1906937BD739CE8DC9CF307426F4A3B9FFE1DDEE6AAF24E2B42D6DE5A531A335",
+      "bytes": 21506,
+      "width": 874,
+      "height": 150
+    },
+    "NjR9": {
+      "source": "assets/data/NjR9.png",
+      "sha256": "5A418F18B69C48810D323CB1E2DD6A80013C69867B15FAFF8C6C74E43DA1E933",
+      "bytes": 35177,
+      "width": 874,
+      "height": 150
+    },
+    "NjSym0": {
+      "source": "assets/data/NjSym0.png",
+      "sha256": "B277872D1F1BFA67C9811848D43E468644701906CE0C96CA1A1078A02C143176",
+      "bytes": 555,
+      "width": 56,
+      "height": 56
+    },
+    "NjSym1": {
+      "source": "assets/data/NjSym1.png",
+      "sha256": "03FEE0088DFD60DBD6D8F228ECE6860EDBC0D52B803905542AC354080D801009",
+      "bytes": 554,
+      "width": 56,
+      "height": 56
+    },
+    "NjSym2": {
+      "source": "assets/data/NjSym2.png",
+      "sha256": "5F0F885A020F2DE18839729764F921AA3E31D03B1FA2040A5A6EF7581ED95C54",
+      "bytes": 635,
+      "width": 56,
+      "height": 56
+    },
+    "NjSym3": {
+      "source": "assets/data/NjSym3.png",
+      "sha256": "0E726421337465A5D788D731DAEC6C85AF66498C0E62C97A7B1C5AB5F344D289",
+      "bytes": 722,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr0": {
+      "source": "assets/data/NjTr0.png",
+      "sha256": "AAEB694B1FB0E560D5D170F301A3DE39F85A3C91D418622A290F40373A109CBC",
+      "bytes": 673,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr1": {
+      "source": "assets/data/NjTr1.png",
+      "sha256": "7750984D84D40DF6E9BA50470F291C000BF7F17E20F4A56E3BC440FCFA007AB7",
+      "bytes": 529,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr10": {
+      "source": "assets/data/NjTr10.png",
+      "sha256": "255A967CF56B7A4C0A96C078D0A0DAAF20C1038673456FB20C2C1549188891B4",
+      "bytes": 788,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr11": {
+      "source": "assets/data/NjTr11.png",
+      "sha256": "8C61B9C9944DECBFFFFEA1F8887B0D6F194B271FEF90EF3A4403EC2A4B245F29",
+      "bytes": 561,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr12": {
+      "source": "assets/data/NjTr12.png",
+      "sha256": "A2139AB6D71AC2DB11E01D5402241B38A88268F2B989C435ECECB003D5B3576C",
+      "bytes": 864,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr13": {
+      "source": "assets/data/NjTr13.png",
+      "sha256": "16412D4C8B567FFDD13CC751B127D1319A2024FCEAE832F2E979C1EB0E45560E",
+      "bytes": 564,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr14": {
+      "source": "assets/data/NjTr14.png",
+      "sha256": "0154EE383DC6C45A9AC410E2C7369F77DA67CB6272A29C1B801B2504C19B2A9F",
+      "bytes": 598,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr15": {
+      "source": "assets/data/NjTr15.png",
+      "sha256": "1554AA1E5B68A24A0C1D52C402C88423D40BF99981EBF875F0A4D2E9D2D9E29A",
+      "bytes": 845,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr16": {
+      "source": "assets/data/NjTr16.png",
+      "sha256": "BDC7AF655116FFDE64964BB8C9D856722155B299D1BAD0699537F6A33CBE6D4A",
+      "bytes": 759,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr17": {
+      "source": "assets/data/NjTr17.png",
+      "sha256": "1148F3D035FDE229B9906D67914F7BFE6F50868D271504B7623D74AC03857F81",
+      "bytes": 827,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr18": {
+      "source": "assets/data/NjTr18.png",
+      "sha256": "9822B18A421049735082855A9A0F61763AA522601903EE37D70C2C10D3ED177F",
+      "bytes": 602,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr19": {
+      "source": "assets/data/NjTr19.png",
+      "sha256": "D717A393AFDA58013C57DC76DE7B4DA1684A3692FF6C8CE43FCB677214D91E93",
+      "bytes": 613,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr2": {
+      "source": "assets/data/NjTr2.png",
+      "sha256": "C5369E33D146243EC4E95019127A88514A03E7E37AC429D92B800B9199CB75B2",
+      "bytes": 576,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr20": {
+      "source": "assets/data/NjTr20.png",
+      "sha256": "38F477298524D94351880D8CFA6E78635E35806E1F3614A6F60836F7BAAB4D00",
+      "bytes": 324,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr21": {
+      "source": "assets/data/NjTr21.png",
+      "sha256": "F6C3A5BB69A5C761A6D9970D7DA86364EB0E49021E578E95B3C8FA324E1331F8",
+      "bytes": 303,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr22": {
+      "source": "assets/data/NjTr22.png",
+      "sha256": "59901E638033D7F4ED2F22C803B1AB5FD14AF19D5D88AF263AECCD19CBA69970",
+      "bytes": 390,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr23": {
+      "source": "assets/data/NjTr23.png",
+      "sha256": "152AEEB320C498ACD0FD03A5A661820A3EC8364090DB5219A949DB034F09892C",
+      "bytes": 407,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr24": {
+      "source": "assets/data/NjTr24.png",
+      "sha256": "156ED6639B9CF3CC027B370EF91F67F604BA45521B7096F916E8CFDF015B7893",
+      "bytes": 385,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr3": {
+      "source": "assets/data/NjTr3.png",
+      "sha256": "4A97DCAD3276C20709C16964A4AD7EA2CBE58374AE699F819B5C36A5700053AF",
+      "bytes": 732,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr4": {
+      "source": "assets/data/NjTr4.png",
+      "sha256": "0DC4185C8C4B1510BED31B5AEBFFF9DA7A7EED22FE19E1FB05CDD8533E2E5681",
+      "bytes": 586,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr5": {
+      "source": "assets/data/NjTr5.png",
+      "sha256": "ADFAED4D2957C0E584ED7FE69D4111ED025A45AE3E731448F0D2F6FC233FDFC2",
+      "bytes": 679,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr6": {
+      "source": "assets/data/NjTr6.png",
+      "sha256": "ED4DB7C46FF45396DBE3FFE5FF17F4B2FD065101C504EAA007CF1F4A229B466D",
+      "bytes": 756,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr7": {
+      "source": "assets/data/NjTr7.png",
+      "sha256": "6CB5358E9A45DD81B2799BA9F8FE323ECB39A9EAF3D891FEC08183E54D383A22",
+      "bytes": 897,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr8": {
+      "source": "assets/data/NjTr8.png",
+      "sha256": "EFE672B1997BF197E5BBDFF5C5EA45641544A92D5A357A8A0A59708DDD522FD3",
+      "bytes": 980,
+      "width": 56,
+      "height": 56
+    },
+    "NjTr9": {
+      "source": "assets/data/NjTr9.png",
+      "sha256": "0C7549970375C530514359F8E438BB03E3BE5BC44F3742505D0022818EDB6AE6",
+      "bytes": 777,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP0": {
+      "source": "assets/data/NjTrP0.png",
+      "sha256": "ED0E06394D230D39E507D6A2F406688D67AD559E1DC409F7C8B45D5D1E3D0275",
+      "bytes": 913,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP1": {
+      "source": "assets/data/NjTrP1.png",
+      "sha256": "F4309DDEA6255EA5695DB805FAB89FC47CD39388D38B2FA46F0C64A48D1C4404",
+      "bytes": 834,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP10": {
+      "source": "assets/data/NjTrP10.png",
+      "sha256": "AB5792917AE3E1988D1F7F6F08A48E3C788F3CA59561B8C6F217ACE816122194",
+      "bytes": 1082,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP11": {
+      "source": "assets/data/NjTrP11.png",
+      "sha256": "C98F483A478DF251E1E3E25DC18CF6DA8E498DAD2D901B0851DC169C550E34C6",
+      "bytes": 962,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP12": {
+      "source": "assets/data/NjTrP12.png",
+      "sha256": "E501A0FF7C8B375E79FB4342DE283399044BB11ADA96FD89269795A9BE298766",
+      "bytes": 731,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP13": {
+      "source": "assets/data/NjTrP13.png",
+      "sha256": "A48EC4C63F6D525F3C8388989184BE47130066C03A6D4DB8867B89DEFF2FCAFE",
+      "bytes": 956,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP14": {
+      "source": "assets/data/NjTrP14.png",
+      "sha256": "B4C729DEE5F046B5882EB7F0D33C5990B6C30D72EF8813C183B77BDD2043DC48",
+      "bytes": 805,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP15": {
+      "source": "assets/data/NjTrP15.png",
+      "sha256": "79011BF178ACAA90998F18A294D5D1384762D4D6CDD2768284D6E0095EBF1C1D",
+      "bytes": 1018,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP16": {
+      "source": "assets/data/NjTrP16.png",
+      "sha256": "E2D948B286DA5B596544D3D54E6B94823B14FF5ABC31F4764A215AEC8A879C28",
+      "bytes": 995,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP17": {
+      "source": "assets/data/NjTrP17.png",
+      "sha256": "7CF65E0EA8124FBB033CDE13DB0DF06722D7DD2600DEAB1FC0134DFD4798FBDF",
+      "bytes": 468,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP18": {
+      "source": "assets/data/NjTrP18.png",
+      "sha256": "24D5D537A35012338C13561B2080DDEEFB71F7AB0E057919C34143A0C891656E",
+      "bytes": 523,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP19": {
+      "source": "assets/data/NjTrP19.png",
+      "sha256": "A6D5E75A9D0CA584F8A62EA72E49729011C31781AA9A0B9CA6A8D3A848631108",
+      "bytes": 483,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP2": {
+      "source": "assets/data/NjTrP2.png",
+      "sha256": "1AAD921DAC4C7044ECD175EF80D8561C80A01534B114353C8E639F5FAA61D775",
+      "bytes": 852,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP20": {
+      "source": "assets/data/NjTrP20.png",
+      "sha256": "924A48F4227FFB89B7AFD0B0B5ED22FBF82468BF4D1D02E9DEB79C17B51B40CC",
+      "bytes": 522,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP21": {
+      "source": "assets/data/NjTrP21.png",
+      "sha256": "00AF68A50DD084AF2972BDEEC7ED9C9212B189BD1ED9173AC359024D3D52362E",
+      "bytes": 574,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP22": {
+      "source": "assets/data/NjTrP22.png",
+      "sha256": "4495D81EB11B2E8FF1655123206408AB3D36E02773677811DF1AC49F30644A17",
+      "bytes": 518,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP3": {
+      "source": "assets/data/NjTrP3.png",
+      "sha256": "92F1D8FD8ED3F42A1D0654BE8E8B02C08773AB95A727ADBA9FECB1F895E2F370",
+      "bytes": 872,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP4": {
+      "source": "assets/data/NjTrP4.png",
+      "sha256": "B4FA7656E1CD31EA2E92FEEE1CE9791A6233C2C1B84E432A4443906B10FA2DCA",
+      "bytes": 1057,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP5": {
+      "source": "assets/data/NjTrP5.png",
+      "sha256": "E2A3A22442ED616AFA508FF5721D30C54C5963E8E74BF14279933D12DE2BFAA2",
+      "bytes": 1045,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP6": {
+      "source": "assets/data/NjTrP6.png",
+      "sha256": "BA53F243751FCF412DB4263C074AB96F5576FC9A4168E3D06A5129ACDFCF29FC",
+      "bytes": 974,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP7": {
+      "source": "assets/data/NjTrP7.png",
+      "sha256": "BE231FE1CACAFDD2E8F085812F6FD6A5BDE671F233AA7CE04EA20EDCE844D149",
+      "bytes": 786,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP8": {
+      "source": "assets/data/NjTrP8.png",
+      "sha256": "0D8D334A81A93B61AECDF1F9B0BCDD6BAAA616486EB255319615F85B829B9B66",
+      "bytes": 1002,
+      "width": 56,
+      "height": 56
+    },
+    "NjTrP9": {
+      "source": "assets/data/NjTrP9.png",
+      "sha256": "6032343D74B49AF69514F283C35350E1C1775069E89ACAD5DDD71EDD2239D1F4",
+      "bytes": 869,
+      "width": 56,
+      "height": 56
+    },
+    "NjWep0": {
+      "source": "assets/data/NjWep0.png",
+      "sha256": "A4A6B68BB9A4595DC83FC5E1C02ADDBE8A3B1346C8C477E374F41202FDE874C7",
+      "bytes": 827,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep1": {
+      "source": "assets/data/NjWep1.png",
+      "sha256": "2D5ED1646610FE98E434FA3F3AC63D9C9CEFF6712DE5076543971F8C1C980A8E",
+      "bytes": 679,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep2": {
+      "source": "assets/data/NjWep2.png",
+      "sha256": "B1D33BCADF47BBB7949D0F85C49AC4A9787B879763B8A9F4E58DCCEA8C9ED981",
+      "bytes": 684,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep3": {
+      "source": "assets/data/NjWep3.png",
+      "sha256": "21C9CF956FD0ADAAB3DA400EE19B32B7884E928728945F32F5ADA9F001C1053E",
+      "bytes": 729,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep4": {
+      "source": "assets/data/NjWep4.png",
+      "sha256": "A8E8B309F97F2F92ED217EE30286C443BF2B7ED36AACEDE5286DAD35C394C40B",
+      "bytes": 807,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep5": {
+      "source": "assets/data/NjWep5.png",
+      "sha256": "71B1B8F83DCF13D0DB0D711AAF65DDB12B2D8296E119F121DAF661ABFB39040F",
+      "bytes": 830,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep6": {
+      "source": "assets/data/NjWep6.png",
+      "sha256": "3ACBEBAF99AD268F83A21FE149F1F530146A3AAD8CA1991E2C918F5AFD8550D4",
+      "bytes": 872,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep7": {
+      "source": "assets/data/NjWep7.png",
+      "sha256": "5F8330A677DF1ADF10E38083ED13CD4A32B8C8C3A82B1B4FB0A152FC70D34143",
+      "bytes": 866,
+      "width": 60,
+      "height": 60
+    },
+    "NjWep8": {
+      "source": "assets/data/NjWep8.png",
+      "sha256": "4DBD22B1DF5C30CE0AF9105C4924786A472B92F970A587B73E098D262072CD5D",
+      "bytes": 848,
+      "width": 60,
+      "height": 60
+    },
+    "ninja": {
+      "source": "assets/graphics/1x/sprite-359-67.png",
+      "sha256": "F1DED00DDA3A70D5CB723AA1CA99E3C72FFE790D6DC2A9831F5DE6701C26C3E2",
+      "bytes": 19164,
+      "width": 440,
+      "height": 400
+    }
+  }
+}

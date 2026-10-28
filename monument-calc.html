@@ -5,514 +5,125 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Idleon Monument Calculator</title>
 <style>
-:root {
-  --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f3460;
-  --accent: #e94560; --text: #eee; --text2: #c0c0d4;
-  --gold: #ffd700; --green: #4caf50; --blue: #2196f3;
-  --purple: #bb86fc; --cyan: #4dd0e1; --red: #f44;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-h1 { text-align: center; padding: 12px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.4em; }
-h1 span { color: var(--accent); }
-
-
-
-/* Main layout */
-.main { max-width: 1200px; margin: 0 auto; padding: 16px; }
-.section { background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-.section h2 { margin-bottom: 12px; color: var(--accent); font-size: 1.15em; border-bottom: 1px solid #333; padding-bottom: 6px; }
-
-/* Cards */
-.card-grid { display: grid; gap: 10px; }
-.card-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.card-grid.cols-4 { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.card { background: var(--bg3); border-radius: 8px; padding: 10px 12px; border: 1px solid #444; }
-.card .card-title { font-weight: 700; font-size: .85em; color: var(--cyan); margin-bottom: 2px; }
-.card .card-val { font-weight: 700; font-size: 1.5em; color: var(--gold); }
-.card .card-sub { color: var(--text2); font-size: .75em; }
-
-/* Tabs */
-.tab-bar { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
-.tab-btn { padding: 6px 16px; background: var(--bg3); border: 1px solid #444; color: var(--text2); border-radius: 4px 4px 0 0; cursor: pointer; font-size: .85em; }
-.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* Tables */
-.data-table { width: 100%; border-collapse: collapse; font-size: .82em; }
-.data-table th { text-align: left; padding: 5px 6px; color: var(--text2); border-bottom: 1px solid #333; font-weight: 600; position: sticky; top: 0; background: var(--bg2); }
-.data-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
-.data-table tr:hover td { background: rgba(255,255,255,.03); }
-.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-
-/* Monument colors */
-.mon-bravery { color: #ff8a65; }
-.mon-justice { color: #80cbc4; }
-.mon-wisdom { color: #ce93d8; }
-
-/* Progress bars */
-.prog-wrap { height: 6px; background: #222; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-.prog-bar { height: 100%; border-radius: 3px; transition: width .3s; }
-.prog-bravery { background: #ff8a65; }
-.prog-justice { background: #80cbc4; }
-.prog-wisdom { background: #ce93d8; }
+:root { --bg:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --accent:#e94560; --text:#eee; --text2:#c0c0d4; --gold:#ffd700; --green:#4caf50; --cyan:#4dd0e1; --red:#ff7777; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); }
+h1 { margin:0; padding:12px; text-align:center; background:var(--bg2); border-bottom:2px solid var(--accent); font-size:1.4rem; }
+h1 a { color:var(--text2); font-size:.75rem; float:left; }
+h2 { color:var(--accent); font-size:1.1rem; margin:0 0 12px; }
+h3 { font-size:1rem; margin:18px 0 10px; }
+p { line-height:1.5; }
+.main { max-width:1200px; margin:auto; padding:16px; }
+.section { background:var(--bg2); border-radius:8px; padding:16px; margin-bottom:16px; }
+.muted,small { color:var(--text2); font-size:.85rem; }
+.error { color:var(--red); }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px; margin:12px 0; }
+.card { min-width:0; overflow-wrap:anywhere; background:var(--bg3); border:1px solid #444; border-radius:8px; padding:12px; }
+.card-title { font-size:.85rem; color:var(--cyan); }
+.card-val { color:var(--gold); font-size:1.4rem; font-weight:700; margin:3px 0; }
+.card-sub { color:var(--text2); font-size:.8rem; }
+.toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin:12px 0; }
+label { display:flex; flex-direction:column; gap:4px; font-size:.85rem; max-width:100%; min-width:0; }
+input,select,button { font:inherit; color:var(--text); background:var(--bg3); border:1px solid #555; border-radius:4px; padding:7px; }
+input[type=number] { width:125px; }
+input[type=checkbox] { width:auto; }
+button,summary { cursor:pointer; }
+button:disabled { opacity:.5; cursor:default; }
+button.active,.recommended { border-color:var(--accent); }
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.table-wrap { overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:.85rem; }
+th,td { text-align:left; padding:7px; border-bottom:1px solid #ffffff15; }
+th { color:var(--text2); }
+.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+details { margin:12px 0; }
+.effect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); gap:12px; margin:12px 0; }
+.effect-grid label { flex-direction:row; align-items:center; flex-wrap:wrap; }
+.effect-grid small { display:block; width:100%; font-size:.75rem; }
+#justice-case { width:min(100%,800px); }
+#justice-search { width:min(100%,350px); }
+#justice-responses { grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); }
+.outcome { border-top:1px solid #ffffff20; padding-top:8px; margin-top:10px; }
+[hidden] { display:none !important; }
+@media(max-width:600px) { .main,.section { padding:10px; } .card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .card { padding:8px; } }
 </style>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </head>
 <body>
-
-<h1 style="display:flex;align-items:baseline;"><a href="index.html" style="font-size:.55em;font-weight:400;color:var(--text2);text-decoration:none;margin-right:12px;" title="Home">Home</a><span style="flex:1;">&#x1F3DB; <span>Idleon</span> Monument Calculator</span> <a href="https://github.com/Corgan/idleon-research-optimizer" target="_blank" rel="noopener" style="font-size:.45em;font-weight:400;color:var(--text2);text-decoration:none;" title="GitHub">GitHub</a></h1>
-
+<h1><a href="index.html">Home</a>Idleon Monument Calculator</h1>
 <div id="save-area"></div>
-
-<div class="main" id="main-content">
-
-  <!-- Summary cards -->
-  <div class="section">
-    <div class="card-grid cols-3" id="summary">
-      <div class="card">
-        <div class="card-title mon-bravery">Bravery (Power)</div>
-        <div class="card-val" id="brav-multi">-</div>
-        <div class="card-sub" id="brav-sub">Load save to see multiplier</div>
+<main class="main">
+  <p id="page-error" class="error" role="alert"></p>
+  <p id="empty-note">Load a save to inspect permanent reward levels, next-run charge, and training.</p>
+  <div id="loaded" hidden>
+    <div class="section">
+      <div class="toolbar"><label>Character context<select id="character"></select></label><small>For character-dependent Summoning / Meritoc sources.</small></div>
+      <p id="partial-note" class="muted"></p>
+      <h2>Permanent rewards</h2>
+      <div class="card-grid" id="permanent-summary"></div>
+      <h3>Next-run reward charge</h3>
+      <div class="card-grid" id="charge-summary"></div>
+      <p class="muted">Charge grows with real waiting time, not Paying Respect training. Starting a normal story consumes it. After the linear window it keeps growing, more slowly. Run performance determines the levels earned; there is no fixed levels/day conversion.</p>
+    </div>
+    <div class="section">
+      <h2>Paying Respect training</h2>
+      <div class="card-grid" id="training-summary"></div>
+      <p class="muted">Training hours strengthen minigame stats and unlock milestones. They are not permanent reward levels and do not speed up reward charge. The daily figure is one character's single 24-hour claim; claims must exceed 3,599 seconds and round down.</p>
+    </div>
+    <div class="section">
+      <div class="toolbar" role="tablist" aria-label="Monuments">
+        <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-bravery" data-tab="bravery">Bravery</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-justice" data-tab="justice">Justice</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-wisdom" data-tab="wisdom">Wisdom</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-sources" data-tab="sources">Bonus sources</button>
       </div>
-      <div class="card">
-        <div class="card-title mon-justice">Justice</div>
-        <div class="card-val" id="just-multi">-</div>
-        <div class="card-sub" id="just-sub">Load save to see multiplier</div>
-      </div>
-      <div class="card">
-        <div class="card-title mon-wisdom">Wisdom</div>
-        <div class="card-val" id="wis-multi">-</div>
-        <div class="card-sub" id="wis-sub">Load save to see multiplier</div>
-      </div>
+      <section id="tab-bravery" class="tab-content active" role="tabpanel">
+        <h2>Bravery</h2><div id="bravery-stats" class="card-grid"></div>
+        <h3>Right-most sword damage boost</h3>
+        <p class="muted">Run state is not saved. Enter the current enemy and boost count. For the finishing-blow calculation, let every other sword land before the right-most sword; an earlier kill ends the fight before a later sword can grant a boost.</p>
+        <div class="toolbar">
+          <label>Enemy number<input id="bravery-wave" type="number" min="1" max="1001" step="1" value="1"></label>
+          <label>Current boost stacks<input id="bravery-boosts" type="number" min="0" step="1" value="0"></label>
+          <label>Rethrows remaining<input id="bravery-rerolls" type="number" min="0" step="1" value="0"></label>
+          <label>HP before last sword (optional)<input id="bravery-hp" type="number" min="0" step="any" placeholder="Unknown"></label>
+        </div>
+        <p id="bravery-error" class="error" role="alert"></p>
+        <div id="bravery-odds"></div>
+        <p class="muted">Fresh-roll odds use continuous uniform damage and no rethrows. A rethrow replaces the last sword's old damage; it does not add another hit. Its new roll uses the current rethrow count before that count decreases. The HP input should exclude that sword's old hit when planning a rethrow.</p>
+        <div id="bravery-milestones"></div><div id="bravery-bonuses"></div>
+      </section>
+      <section id="tab-justice" class="tab-content" role="tabpanel">
+        <h2>Justice</h2><div id="justice-stats" class="card-grid"></div>
+        <h3>Response advisor</h3>
+        <p class="muted">A local worksheet, not a live-game connection. Use current values <strong>after this visitor's arrival effects</strong>. Select the case you actually received; the advisor does not predict random visitors. Nothing here changes your save.</p>
+        <div class="toolbar"><button id="justice-reset">Fresh story from save</button><button id="justice-undo" disabled>Undo worksheet step</button></div>
+        <div id="justice-state" class="toolbar"></div>
+        <details id="justice-effect-editor"><summary>Active deals, promises &amp; investments</summary><p class="muted">Unchecked effects are absent. A checked numeric effect may legitimately contain zero.</p><div id="justice-effects" class="effect-grid"></div></details>
+        <div class="toolbar">
+          <label>Find case<input id="justice-search" type="search" placeholder="Visitor or words from the request"></label>
+          <label>Observed case<select id="justice-case"></select></label>
+        </div>
+        <p id="justice-request"></p>
+        <p id="justice-error" class="error" role="alert"></p>
+        <p id="justice-notice" class="muted" aria-live="polite"></p>
+        <button id="justice-next" hidden>Open selected next case (apply delayed / arrival effects once)</button>
+        <div id="justice-responses" class="card-grid"></div>
+        <p id="justice-heuristic" class="muted"></p>
+        <div id="justice-delayed"></div>
+        <p class="muted">Record the response and, for random offers, the outcome that actually occurred. Then select the next observed case and open it once to settle timers and visitor payments. To join an ongoing story, start a fresh worksheet, then enter its case number, current stats and active effects directly. The rare-glass offer uses the source's 1-in-3 roll, despite its 1-in-4 description.</p>
+        <div id="justice-milestones"></div><div id="justice-bonuses"></div>
+      </section>
+      <section id="tab-wisdom" class="tab-content" role="tabpanel">
+        <h2>Wisdom</h2><div id="wisdom-stats" class="card-grid"></div>
+        <p class="muted">These are normal-story starting stats. Practice mode instead uses 30 attempts, no attempt gains or insta-matches, a 1,000-second match timer, and does not consume reward charge.</p>
+        <div id="wisdom-milestones"></div><div id="wisdom-bonuses"></div>
+      </section>
+      <section id="tab-sources" class="tab-content" role="tabpanel"><h2>Training and reward-charge sources</h2><div id="sources"></div></section>
     </div>
   </div>
-
-  <!-- Hour bonuses summary -->
-  <div class="section">
-    <h2>AFK Hour Accumulation</h2>
-    <div class="card-grid cols-4" id="hr-summary">
-      <div class="card">
-        <div class="card-title">Additive Monument AFK Gain</div>
-        <div class="card-val" id="hr-pct">-</div>
-        <div class="card-sub">Permanent Monument bonuses and account sources</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Clutch Overtime Block Multiplier</div>
-        <div class="card-val" id="hr-multi">-</div>
-        <div class="card-sub">Multiplicative Monument AFK gain</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Effective Rate</div>
-        <div class="card-val" id="hr-effective">-</div>
-        <div class="card-sub">Bonus hrs per real hr</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Real Hrs/Day</div>
-        <div class="card-val" id="hr-per-day">-</div>
-        <div class="card-sub">Monument hours gained per day</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tabs for each monument -->
-  <div class="section">
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="tab-bravery">Bravery</button>
-      <button class="tab-btn" data-tab="tab-justice">Justice</button>
-      <button class="tab-btn" data-tab="tab-wisdom">Wisdom</button>
-      <button class="tab-btn" data-tab="tab-bonuses">Bonus Sources</button>
-    </div>
-
-    <div class="tab-content active" id="tab-bravery">
-      <h2>Bravery (Power Monument)</h2>
-      <div class="card-grid cols-4" id="brav-stats"></div>
-      <div style="margin-top:12px">
-        <h2>Bravery Permanent Bonuses</h2>
-        <table class="data-table" id="brav-rog-table">
-          <thead><tr><th>Bonus</th><th>Level</th><th class="num">Value</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-justice">
-      <h2>Justice Monument</h2>
-      <div class="card-grid cols-4" id="just-stats"></div>
-      <div style="margin-top:12px">
-        <h2>Justice Permanent Bonuses</h2>
-        <table class="data-table" id="just-rog-table">
-          <thead><tr><th>Bonus</th><th>Level</th><th class="num">Value</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-wisdom">
-      <h2>Wisdom Monument</h2>
-      <div class="card-grid cols-4" id="wis-stats"></div>
-      <div style="margin-top:12px">
-        <h2>Wisdom Permanent Bonuses</h2>
-        <table class="data-table" id="wis-rog-table">
-          <thead><tr><th>Bonus</th><th>Level</th><th class="num">Value</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-bonuses">
-      <h2>Hour Bonus Sources</h2>
-      <table class="data-table" id="hr-source-table">
-        <thead><tr><th>Source</th><th class="num">Value</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div style="margin-top:12px">
-        <h2>Max Linear Time Breakdown</h2>
-        <table class="data-table" id="maxtime-table">
-          <thead><tr><th>Monument</th><th class="num">Max Linear (hrs)</th><th class="num">Max Linear (days)</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<script type="module">
-import { saveData } from './js/state.js';
-import { initSaveLoader } from './js/ui/save-loader.js';
-import { HolesInfo } from './js/stats/data/game/customlists.js';
-import { computeMonumentROGbonus, computeCosmoBonus } from './js/stats/systems/w5/hole.js';
-import { holesMonBonus } from './js/stats/data/w5/hole.js';
-
-// ── Helpers ─────────────────────────────────────────────────────────────
-function _h(s, i) { return (s.holesData && s.holesData[i]) || []; }
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-// ── Monument names and permanent bonus descriptions ─────────────────────
-var MON_NAMES = ['Bravery', 'Justice', 'Wisdom'];
-var MON_CLASSES = ['mon-bravery', 'mon-justice', 'mon-wisdom'];
-
-var BRAV_BONUS_NAMES = [
-  'Mining Efficiency', 'Bucket Fill Rate', 'Cooking Speed', 'Villager EXP',
-  'Gaming Bits Gain', 'Bravery Opal Chance', 'All Character Damage',
-  'Bell Ring & Ping Rate', 'All Monument AFK Gain', 'Bravery Bonuses Multiplier'
-];
-var JUST_BONUS_NAMES = [
-  'Catching Efficiency', 'Harp Note Gain', 'Artifact Find Chance', 'Villager EXP',
-  'All Summoning Essence Gain', 'Justice Opal Chance', 'Class EXP Gain',
-  'Daily Lamp Wishes', 'All Monument AFK Gain', 'Justice Bonuses Multiplier'
-];
-var WIS_BONUS_NAMES = [
-  'Choppin Efficiency', 'Jar Rupie Value', 'Jade Coin Gain', 'Villager EXP',
-  'Farming Crop Evolution Chance', 'Wisdom Opal Chance', 'Player Drop Rate',
-  'Gambit Points', 'All Monument AFK Gain', 'Wisdom Bonuses Multiplier'
-];
-
-// ── Monument Reward Multi formula ───────────────────────────────────────
-function computeRewardMulti(t, sd) {
-  var time = Number(_h(sd, 11)[11 + t]) || 0;
-  var maxLin = computeMaxLinearTime(t, sd);
-  var linear = Math.min(time, maxLin) / 72000;
-  var excess = Math.max(0, time - maxLin);
-  var diminishing = Math.pow(1 + excess / 72000, 0.3) - 1;
-  var base = linear + diminishing;
-
-  var meritoc7 = computeMonumentROGbonus(t, 7, sd); // approximate usage
-  // Use actual saved meritoc bonus if available from Holes
-  var meritocBonus = 0; // MeritocBonusz(7) - from summoning
-  var legendPts27 = 0; // LegendPTS_bonus(27) - from spelunking
-
-  // Try to get these from save data
-  // MeritocBonusz(7): from Holes[11][...] summoning data - simplified
-  // For now just return base (these are global multipliers applied on top)
-  return { base: base, meritoc: meritocBonus, legend: legendPts27,
-           total: base * (1 + meritocBonus / 100) * (1 + legendPts27 / 100),
-           time: time, maxLin: maxLin, linear: linear, diminishing: diminishing };
-}
-
-// ── Max Linear Time ─────────────────────────────────────────────────────
-function computeMaxLinearTime(t, sd) {
-  var bUpg70 = Number(_h(sd, 13)[70]) >= 1 ? 2 : 0; // B_UPG(70, 2) = 2 if built
-  var superBit31 = 0; // SuperBitType(31) - gaming stat, hard to extract
-  var legendPts27 = 0; // LegendPTS_bonus(27)/24
-
-  var base = 2 + bUpg70 + 10 * superBit31 + legendPts27 / 24;
-  if (t === 1) {
-    // Justice gets extra StudyBolaiaBonuses(9,99) × 14
-    var bolaia9 = computeBolaia(9, sd);
-    base += 14 * bolaia9;
-  }
-  return 86400 * base;
-}
-
-// ── Simplified Bolaia helper ────────────────────────────────────────────
-function computeBolaia(idx, sd) {
-  // StudyBolaiaBonuses: Holes[17][idx] level × HolesInfo[70][idx] per-lv
-  var lv = Number(_h(sd, 17)[idx]) || 0;
-  if (lv <= 0) return 0;
-  var perLv = Number((HolesInfo[70] && HolesInfo[70][idx]) || 0);
-  return lv * perLv;
-}
-
-// ── Monument HR bonus PCT ───────────────────────────────────────────────
-function computeHRbonusPCT(sd) {
-  var sources = [];
-  // MonumentROGbonuses(0,8) + (1,8) + (2,8)
-  var rog08 = computeMonumentROGbonus(0, 8, sd);
-  var rog18 = computeMonumentROGbonus(1, 8, sd);
-  var rog28 = computeMonumentROGbonus(2, 8, sd);
-  if (rog08 > 0) sources.push(['Bravery: All Monument AFK Gain', rog08]);
-  if (rog18 > 0) sources.push(['Justice: All Monument AFK Gain', rog18]);
-  if (rog28 > 0) sources.push(['Wisdom: All Monument AFK Gain', rog28]);
-
-  // B_UPG(81, 20)
-  var bUpg81 = Number(_h(sd, 13)[81]) >= 1 ? 20 : 0;
-  if (bUpg81 > 0) sources.push(['Rock Smart', bUpg81]);
-
-  // AchieveStatus(311) × 10
-  var achieve311 = Number((sd.achieveData && sd.achieveData[311]) || 0);
-  var achieveVal = 10 * achieve311;
-  if (achieveVal > 0) sources.push(['Hug from Timmy', achieveVal]);
-
-  // Other sources (Summoning WinBonus 25, JarCollectible 19, Measurement 11, Arcade 42, Compass 55)
-  // These are harder to compute without full systems - show what we can
-
-  var total = sources.reduce(function(a, s) { return a + s[1]; }, 0);
-  return { total: total, sources: sources };
-}
-
-// ── Monument HR bonus MULTI ─────────────────────────────────────────────
-function computeHRbonusMULTI(sd) {
-  // 1 + BonusQTY(19) / 100 from Minehead
-  // BonusQTY(19) comes from Holes[16] minehead data
-  // Simplified: check if minehead bonus 19 is unlocked
-  var mineheadLv = Number(_h(sd, 16)[19]) || 0;
-  // Without full minehead formula, approximate
-  return 1 + mineheadLv * 0; // TODO: needs minehead system
-}
-
-// ── Monument-specific stats ─────────────────────────────────────────────
-function computeBraveryStats(sd) {
-  var h14 = _h(sd, 14);
-  var powerLv = Number(h14[0]) || 0;
-  var bUpg24 = Number(_h(sd, 13)[24]) >= 1 ? 1 : 0;
-
-  var swordsOwned = Math.min(9, 3);
-  // Count monument HR bonuses for bravery tier unlocks
-  var tierLv = Number(h14[1]) || 0;
-  for (var i = 0; i < 8; i++) {
-    if (tierLv > i) {
-      if (i === 1 || i === 3 || i === 5 || i === 7) swordsOwned += (i === 1 || i === 3) ? 2 : 1;
-    }
-  }
-  swordsOwned = Math.min(9, swordsOwned);
-
-  var maxDmg = (25 + 10 * Math.floor(powerLv / 6) * bUpg24);
-  var minDmg = 3 + Math.floor(powerLv / 6) * bUpg24;
-  var bolaia3 = computeBolaia(3, sd);
-  minDmg += bolaia3 / 100 * maxDmg;
-
-  var opalChance = 0;
-  var h7 = _h(sd, 7);
-  var opalScaling = Number(h7[3]) || 0;
-  var rogOpal = computeMonumentROGbonus(0, 5, sd);
-  opalChance = Math.min(0.5, Math.pow(0.5, opalScaling) * (1 + rogOpal / 100));
-
-  return { swords: swordsOwned, minDmg: minDmg, maxDmg: maxDmg, powerLv: powerLv, 
-           opalChance: opalChance, tierLv: tierLv };
-}
-
-function computeJusticeStats(sd) {
-  var h14 = _h(sd, 14);
-  var coinsLv = Number(h14[2]) || 0;
-  var tierLv = Number(h14[3]) || 0;
-  var bUpg61 = Number(_h(sd, 13)[61]) >= 1 ? 1 : 0;
-
-  // Tier-based bonus counting
-  var hrBon = function(i) { return tierLv > i ? 1 : 0; };
-
-  var startCoins = Math.round((5 + (coinsLv > 0 ? Math.log2(coinsLv) * bUpg61 : 0))
-    * (0.5 * hrBon(3) + 1.5 * hrBon(6) + 1));
-  var startHealth = Math.round(1 + hrBon(1) + hrBon(4) + 2 * hrBon(7));
-  var happiness = Math.round(3 + 7 * hrBon(5));
-  var dismissals = Math.round(hrBon(2) + hrBon(4) + 2 * hrBon(7));
-
-  var opalChance = 0;
-  var h7 = _h(sd, 7);
-  var opalScaling = Number(h7[9]) || 0;
-  var rogOpal = computeMonumentROGbonus(1, 5, sd);
-  var bolaia9 = computeBolaia(9, sd);
-  opalChance = Math.min(0.5, Math.pow(0.5, opalScaling) * (1 + rogOpal / 100) * (1 + bolaia9 / 100));
-
-  return { startCoins: startCoins, startHealth: startHealth, happiness: happiness,
-           dismissals: dismissals, opalChance: opalChance, coinsLv: coinsLv, tierLv: tierLv };
-}
-
-function computeWisdomStats(sd) {
-  var h14 = _h(sd, 14);
-  var wisLv = Number(h14[4]) || 0;
-  var tierLv = Number(h14[5]) || 0;
-
-  var hrBon = function(i) { return tierLv > i ? 1 : 0; };
-  var bolaia12 = computeBolaia(12, sd);
-
-  var attempts = Math.round(5 + bolaia12 + 4 * hrBon(4) + Math.floor(2 * Math.log10(Math.max(1, wisLv))));
-  var attemptsPerRound = Math.round(2 * hrBon(1) + hrBon(6));
-  var instamatches = Math.round(4 * hrBon(3) + 5 * hrBon(7));
-
-  var opalChance = 0;
-  var h7 = _h(sd, 7);
-  var opalScaling = Number(h7[12]) || 0;
-  var rogOpal = computeMonumentROGbonus(2, 5, sd);
-  opalChance = Math.min(0.5, Math.pow(0.5, opalScaling) * (1 + rogOpal / 100));
-
-  return { attempts: attempts, attemptsPerRound: attemptsPerRound, instamatches: instamatches,
-           opalChance: opalChance, wisLv: wisLv, tierLv: tierLv };
-}
-
-// ── Format helpers ──────────────────────────────────────────────────────
-function fmtNum(n) {
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
-  if (n >= 100) return Math.round(n).toLocaleString('en-US');
-  if (n >= 10) return (Math.floor(n * 10) / 10).toFixed(1);
-  return (Math.floor(n * 100) / 100).toFixed(2);
-}
-function fmtPct(n) { return (Math.floor(n * 1000) / 10).toFixed(1) + '%'; }
-function fmtHrs(h) {
-  if (h >= 24) return (h / 24).toFixed(1) + 'd';
-  return h.toFixed(1) + 'h';
-}
-
-// ── Save loading ────────────────────────────────────────────────────────
-initSaveLoader({ target: '#save-area', onLoad: render, auth: true });
-
-// ── Tabs ────────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
-    btn.classList.add('active');
-    document.getElementById(btn.dataset.tab).classList.add('active');
-  });
-});
-
-// ── Render ──────────────────────────────────────────────────────────────
-function render() {
-  var sd = saveData;
-
-  // Reward multis
-  for (var t = 0; t < 3; t++) {
-    var rm = computeRewardMulti(t, sd);
-    var ids = ['brav', 'just', 'wis'][t];
-    document.getElementById(ids + '-multi').textContent = fmtNum(rm.base) + 'x';
-    var timeHrs = rm.time / 3600;
-    var maxHrs = rm.maxLin / 3600;
-    var pctLin = Math.min(100, rm.time / rm.maxLin * 100);
-    document.getElementById(ids + '-sub').innerHTML =
-      fmtNum(timeHrs) + ' hrs accumulated'
-      + '<div class="prog-wrap"><div class="prog-bar prog-' + MON_NAMES[t].toLowerCase()
-      + '" style="width:' + pctLin.toFixed(1) + '%"></div></div>'
-      + '<span style="font-size:.7em;color:var(--text2)">'
-      + fmtNum(timeHrs) + ' / ' + fmtNum(maxHrs) + ' hrs linear cap</span>';
-  }
-
-  // Hour bonuses
-  var hrPct = computeHRbonusPCT(sd);
-  var hrMulti = computeHRbonusMULTI(sd);
-  var effective = (1 + hrPct.total / 100) * hrMulti;
-  document.getElementById('hr-pct').textContent = '+' + fmtNum(hrPct.total) + '%';
-  document.getElementById('hr-multi').textContent = hrMulti.toFixed(2) + 'x';
-  document.getElementById('hr-effective').textContent = fmtNum(effective) + 'x';
-  document.getElementById('hr-per-day').textContent = fmtNum(24 * effective);
-
-  // Bravery tab
-  var bs = computeBraveryStats(sd);
-  document.getElementById('brav-stats').innerHTML =
-    card('Swords', bs.swords + ' / 9', 'Max 9 via tier unlocks')
-    + card('Min DMG', fmtNum(bs.minDmg), 'Per sword strike')
-    + card('Max DMG', fmtNum(bs.maxDmg), 'Per sword strike')
-    + card('Opal Chance', fmtPct(bs.opalChance), 'Capped at 50%')
-    + card('Power Level', '' + bs.powerLv, 'Sword damage scaling level')
-    + card('Tier Level', '' + bs.tierLv, 'Bonus unlocks');
-  renderROG(0, 'brav-rog-table', BRAV_BONUS_NAMES, sd);
-
-  // Justice tab
-  var js = computeJusticeStats(sd);
-  document.getElementById('just-stats').innerHTML =
-    card('Start Coins', '' + js.startCoins, 'Beginning of run')
-    + card('Starting Mental Health', '' + js.startHealth, 'Dismissal health')
-    + card('Starting Popularity', '' + js.happiness, 'Popularity at the start')
-    + card('Dismissals', '' + js.dismissals, 'Allowed per run')
-    + card('Opal Chance', fmtPct(js.opalChance), 'Capped at 50%')
-    + card('Tier Level', '' + js.tierLv, 'Bonus unlocks');
-  renderROG(1, 'just-rog-table', JUST_BONUS_NAMES, sd);
-
-  // Wisdom tab
-  var ws = computeWisdomStats(sd);
-  document.getElementById('wis-stats').innerHTML =
-    card('Start Attempts', '' + ws.attempts, 'Card matches available')
-    + card('Attempts/Round', '' + ws.attemptsPerRound, 'Gained per match')
-    + card('Instamatches', '' + ws.instamatches, 'Free correct matches')
-    + card('Opal Chance', fmtPct(ws.opalChance), 'Capped at 50%')
-    + card('Wisdom Level', '' + ws.wisLv, 'Starting-attempt scaling level')
-    + card('Tier Level', '' + ws.tierLv, 'Bonus unlocks');
-  renderROG(2, 'wis-rog-table', WIS_BONUS_NAMES, sd);
-
-  // Bonus sources tab
-  renderHRsources(hrPct, sd);
-  renderMaxTimeTable(sd);
-}
-
-function card(title, val, sub) {
-  return '<div class="card"><div class="card-title">' + escHtml(title) + '</div>'
-    + '<div class="card-val">' + val + '</div>'
-    + '<div class="card-sub">' + escHtml(sub) + '</div></div>';
-}
-
-function renderROG(t, tableId, names, sd) {
-  var tbody = document.querySelector('#' + tableId + ' tbody');
-  var html = '';
-  for (var i = 0; i < 10; i++) {
-    var holesArr = _h(sd, 15);
-    var slot = 10 * t + i;
-    var lv = Number(holesArr[slot]) || 0;
-    var val = computeMonumentROGbonus(t, i, sd);
-    var bonusInfo = Number((HolesInfo[37] && HolesInfo[37][slot]) || 0);
-    html += '<tr><td>' + escHtml(names[i] || 'Bonus ' + (i + 1))
-      + '</td><td class="num">' + lv
-      + '</td><td class="num">' + fmtNum(val) + (bonusInfo >= 30 ? '' : '/lv') + '</td></tr>';
-  }
-  tbody.innerHTML = html;
-}
-
-function renderHRsources(hrPct, sd) {
-  var tbody = document.querySelector('#hr-source-table tbody');
-  var html = '';
-  hrPct.sources.forEach(function(s) {
-    html += '<tr><td>' + escHtml(s[0]) + '</td><td class="num">+' + fmtNum(s[1]) + '%</td></tr>';
-  });
-  if (hrPct.sources.length === 0) {
-    html = '<tr><td colspan="2" style="color:var(--text2)">No bonus sources detected (some require full system computation)</td></tr>';
-  }
-  html += '<tr style="font-weight:700;border-top:1px solid #555"><td>Total Computed</td><td class="num">+' + fmtNum(hrPct.total) + '%</td></tr>';
-  html += '<tr><td colspan="2" style="color:var(--text2);font-size:.75em">Note: Some sources (Summoning, Jar Collectible, Measurement, Arcade, Compass) require additional system integration</td></tr>';
-  tbody.innerHTML = html;
-}
-
-function renderMaxTimeTable(sd) {
-  var tbody = document.querySelector('#maxtime-table tbody');
-  var html = '';
-  for (var t = 0; t < 3; t++) {
-    var maxLin = computeMaxLinearTime(t, sd);
-    html += '<tr><td class="' + MON_CLASSES[t] + '">' + MON_NAMES[t] + '</td>'
-      + '<td class="num">' + fmtNum(maxLin / 3600) + '</td>'
-      + '<td class="num">' + fmtNum(maxLin / 86400) + '</td></tr>';
-  }
-  tbody.innerHTML = html;
-}
-</script>
+</main>
+<script type="module" src="./js/ui/monument.js"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 !assets/combat-sim/metadata.json
 !assets/combat-sim/ui/manifest.json
 !assets/combat-sim/ui/metadata.json
+!assets/sneaking/metadata.json
 *.md
 *.txt
 *.cmd

@@ -116,7 +116,7 @@ export function computeSneakingExpPerAction(twinIdx, saveData, options) {
 
   var base = floorExpMult(floor, mastery);
   var allSkillMulti = account.allSkillMulti;
-  var nk2 = nkBonus(2, nkLevels);
+  var nk2 = nkBonus(2, nkLevels, saveData.menagerieData?.[7]);
   var nk19 = nkBonus(19, nkLevels);
   var arcade52 = account.arcade52;
   var gold10 = _num(goldBonuses[10]);

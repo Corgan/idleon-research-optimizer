@@ -128,9 +128,11 @@ export function maxCharmDropLevel(nkLevels, masteryLevel, extras) {
 // ----- NK Bonus (NLbonuses) -----
 // Game: NinjaUpg[t][5] * Ninja[103][t]
 // costDiv field [5] doubles as the bonus-per-level multiplier
-export function nkBonus(idx, nkLevels) {
+export function nkBonus(idx, nkLevels, omniLevels) {
+  if (idx === 99) return 1;
   var lv = Number(nkLevels?.[idx]) || 0;
-  var perLv = nkCostDiv(idx);
+  if (idx < 17) lv += Number(omniLevels?.[idx]) || 0;
+  var perLv = Number(NinjaUpg[idx]?.[5]) || 0;
   return perLv * lv;
 }
 
@@ -146,11 +148,11 @@ export function nkUpgCost(idx, nkLevels, discounts) {
   var d = discounts || {};
 
   // Centurion discount: applied to ALL upgrades
-  var centurionNL = nkBonus(0, nkLevels);
+  var centurionNL = nkBonus(0, nkLevels, d.omniLevels);
   var centurionMult = 1 / Math.pow(1 + centurionNL / 100, Math.floor(lv / 100));
 
   // Common bargain discount (all upgrades share this)
-  var bargainNL = nkBonus(1, nkLevels);
+  var bargainNL = nkBonus(1, nkLevels, d.omniLevels);
   var gem6 = d.gemstone6 || 0;
   var talent430 = d.talent430 || 0;
   var ninjaBonus11 = d.ninjaBonus11 || 0;
@@ -160,7 +162,7 @@ export function nkUpgCost(idx, nkLevels, discounts) {
   var cost;
   if (idx > 16) {
     // High tier: pow(10, floor(2*(t-15))) * common * base * scale^lv * centurion
-    cost = Math.pow(10, Math.floor(2 * (idx - 15))) * commonDisc * baseCost * Math.pow(scale, lv) * centurionMult;
+    cost = Math.pow(10, idx === 31 ? 55 : Math.floor(2 * (idx - 15))) * commonDisc * baseCost * Math.pow(scale, lv) * centurionMult;
   } else if (idx === 8) {
     // Currency Conduit: also has bubble Y10 discount
     var bubbleY10 = d.bubbleY10 || 0;
@@ -204,7 +206,7 @@ export function nkUpgCost(idx, nkLevels, discounts) {
 //   stealthMulti = many sources (statues, star signs, cards, gemstone, voting, lamp, holes)
 export function stealthValue(sneakLv, nkLevels, stealthMulti, extras) {
   var ex = extras || {};
-  var baseStealth = 10 + nkBonus(13, nkLevels) * sneakLv;
+  var baseStealth = 10 + nkBonus(13, nkLevels, ex.omniLevels) * sneakLv;
   var shhMulti = 1 + nkBonus(23, nkLevels) / 100;
   var funeralPct = ex.funeralPct || 0;
   var fractalPct = ex.fractalPct || 0;
@@ -227,14 +229,14 @@ export function detectionChance(stealth, floor, mastery) {
 
 // ----- Action Speed -----
 // 1 + (NLbonuses(4) + NinjaBonus(t,2) + gloveSPD + NinjaBonus(24,-1)) / 100
-export function actionSpeed(nkLevels, equipSpd) {
-  return 1 + (nkBonus(4, nkLevels) + (equipSpd || 0)) / 100;
+export function actionSpeed(nkLevels, equipSpd, omniLevels) {
+  return 1 + (nkBonus(4, nkLevels, omniLevels) + (equipSpd || 0)) / 100;
 }
 
 // ----- KO Duration -----
 // 7200 / (1 + (NLbonuses(15) + NinjaBonus(t,1)) / 100)
-export function koDuration(nkLevels, equipKO) {
-  return 7200 / (1 + (nkBonus(15, nkLevels) + (equipKO || 0)) / 100);
+export function koDuration(nkLevels, equipKO, omniLevels) {
+  return 7200 / (1 + (nkBonus(15, nkLevels, omniLevels) + (equipKO || 0)) / 100);
 }
 
 // ----- Jade Emporium -----
@@ -412,10 +414,12 @@ export function simStealth(coreStealth, allyMulti, targetFuneralPct) {
 
 // ----- NLbonuses with mastery (special cases for 6,7,10,11,12) -----
 export function nkBonusFull(idx, nkLevels, masteryLevel, extras) {
-  var base = nkBonus(idx, nkLevels);
-  var masteryLoot = nkBonus(3, nkLevels);
+  var ex = extras || {};
+  var base = nkBonus(idx, nkLevels, ex.omniLevels);
+  // The mastery term uses this upgrade's Omni-Jade level, not Omni-Jade 3.
+  var masteryLoot = (Number(nkLevels?.[3]) || 0)
+    + (idx === 11 ? 0 : Number(ex.omniLevels?.[idx]) || 0);
   if (idx === 11) {
-    var ex = extras || {};
     return Math.round(base + masteryLoot * (masteryLevel || 0)
       + (ex.ninjaBonus21 || 0)
       + Math.ceil(ex.gemstone7 || 0)
@@ -559,20 +563,20 @@ export var CHARM_BONUS_TYPES = {
 // bubbleY9Val = raw decayMulti value from Y9ACTIVE bubble (1 + 0.3*lv/(lv+60))
 // We approximate with high action count (steady-state) → 3*a/(a+50) ≈ 3 for a >> 50
 // Pass actual accumulated actions if known, otherwise defaults to steady-state
-export function itemFindExpected(nkLevels, equipItemFind, successfulActions, bubbleY9Val, phase) {
+export function itemFindExpected(nkLevels, equipItemFind, successfulActions, bubbleY9Val, phase, omniLevels) {
   var actionCount = Math.max(0, Number(successfulActions) || 0);
   var itemFindPhase = phase == null ? 2 : Number(phase) || 0;
   if (itemFindPhase === 0) return actionCount > 0 ? 1 : 0;
   if (itemFindPhase === 1) return actionCount > 0 ? 0.4 : 0;
   if (actionCount <= 0) return 0;
   var baseChance = 3 * actionCount / (actionCount + 50);
-  var nk14 = nkBonus(14, nkLevels);
+  var nk14 = nkBonus(14, nkLevels, omniLevels);
   var bonus = 1 + (nk14 + (equipItemFind || 0)) / 100;
   var y9 = 1 + Math.max(0, Math.min(100, 100 * ((bubbleY9Val || 1) - 1))) / 100;
   return baseChance * bonus * y9;
 }
 
-export function itemFindExpectedFromRate(nkLevels, equipItemFind, successRatePerHour, hours, bubbleY9Val, phase, batchStats) {
+export function itemFindExpectedFromRate(nkLevels, equipItemFind, successRatePerHour, hours, bubbleY9Val, phase, batchStats, omniLevels) {
   var batchHours = Math.max(0.01, Number(hours) || 1);
   var rateMean = Math.max(0, Number(successRatePerHour) || 0) * batchHours;
   var expectedSuccesses = batchStats ? Math.max(0, Number(batchStats.mean) || 0) : rateMean;
@@ -608,7 +612,7 @@ export function itemFindExpectedFromRate(nkLevels, equipItemFind, successRatePer
     }
     expectedFraction = probabilitySum > 0 ? weightedSum / probabilitySum : 0;
   }
-  var nk14 = nkBonus(14, nkLevels);
+  var nk14 = nkBonus(14, nkLevels, omniLevels);
   var bonus = 1 + (nk14 + (equipItemFind || 0)) / 100;
   var y9 = 1 + Math.max(0, Math.min(100, 100 * ((bubbleY9Val || 1) - 1))) / 100;
   return 3 * Math.max(0, Math.min(1, expectedFraction)) * bonus * y9;

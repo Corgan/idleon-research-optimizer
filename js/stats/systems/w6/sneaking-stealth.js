@@ -12,7 +12,7 @@
 //   * (1+statue26/100) * (1+4*cardCrystal5/100) * (1+5*achieve368/100)
 //   * (1+gemstone0/100) * (1+voting25/100) * (1+lamp21/100) * max(1,bUpg54)
 
-import { NinjaUpg, NinjaInfo, HolesInfo } from '../../data/game/customlists.js';
+import { NinjaInfo, HolesInfo } from '../../data/game/customlists.js';
 import { NjEQ } from '../../data/game/custommaps.js';
 import {
   nkBonus, charmStat, charmBonusType, isGoldCharm,
@@ -30,7 +30,7 @@ import { legendPTSbonus, computePaletteBonus } from '../../systems/w7/spelunking
 import { rogBonusQTY } from '../../systems/w7/sushi.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
-import { bubbleValByKey, computeVialByKey } from '../../systems/w2/alchemy.js';
+import { finalBubbleValByKey, computeVialByKey } from '../../systems/w2/alchemy.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { cloudBonus } from '../../../game-helpers.js';
 import { computeStarSignBonus } from '../common/starSign.js';
@@ -48,11 +48,8 @@ function _num(v) { return Number(v) || 0; }
 // ----- NLbonuses(idx) = Ninja[103][idx] * NinjaUpg[idx][5] -----
 // Special cases for idx 6,7,10,12 add mastery component, but for stealth
 // we only need idx 13 (Way of Stealth) and 23 (Shh!) which are plain.
-function _nlBonus(idx, ninjaData) {
-  var nkLevels = ninjaData[103] || [];
-  var lv = _num(nkLevels[idx]);
-  var perLv = _num(NinjaUpg[idx] && NinjaUpg[idx][5]);
-  return lv * perLv;
+function _nlBonus(idx, saveData) {
+  return nkBonus(idx, saveData.ninjaData?.[103] || [], saveData.menagerieData?.[7]);
 }
 
 // ----- ItemStat for charm slot (type 2 = charm) -----
@@ -200,17 +197,22 @@ function _twinCharmBonuses(twinIdx, ninjaData, spelunkData, goldInvBonuses) {
 }
 
 // ----- Gold inventory bonuses (NinjaBonus(type, -1)) -----
-// Scans Ninja[60..98] for Gold_ items, keeps first per bonus type.
-// Game compares raw > storedMultiplied, so the first match always wins.
+// The source compares raw > storedMultiplied, not multiplied > multiplied.
 // Multiplied by (1 + gemstone3/100) * (1 + legendPts6/100) * (1 + symbolBon/100)
 export function goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
   return _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx);
 }
 function _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
+  return goldInventoryBonusDetails(ninjaData, olaData, spelunkData, saveData, activeCharIdx).bonuses;
+}
+
+export function goldInventoryBonusDetails(ninjaData, olaData, spelunkData, saveData, activeCharIdx) {
   var gem3 = _gemstoneBonus(3, olaData, saveData, activeCharIdx);
   var legend6 = legendPTSbonus(6, saveData) || 0;
-  var result = {}; // bonusType -> multiplied stat (first match wins)
-  for (var i = 0; i < 39; i++) {
+  var result = {};
+  var selected = {};
+  // NJbonusPerms scans 40 rows even though the visible inventory has 39 slots.
+  for (var i = 0; i < 40; i++) {
     var slotIdx = 60 + i;
     var slot = ninjaData[slotIdx];
     if (!slot) continue;
@@ -223,14 +225,14 @@ function _goldInventoryBonuses(ninjaData, olaData, spelunkData, saveData, active
     var bt = _num(eq[1]);
     var raw = _charmItemStat(slotIdx, ninjaData);
     // Game: if (raw > NJbonusPerms[bt]) store multiplied value.
-    // After first match, multiplied >> raw, so first match always wins.
     if (raw > (result[bt] || 0)) {
       var symLVID = _slotToSymbolLVID(slotIdx);
       var symBon = _sneakSymbolBon(symLVID, spelunkData);
       result[bt] = raw * (1 + gem3 / 100) * (1 + legend6 / 100) * (1 + symBon / 100);
+      selected[bt] = { slot: i, key: itemName, raw: raw, value: result[bt] };
     }
   }
-  return result;
+  return { bonuses: result, selected: selected };
 }
 
 // ----- GambitBonuses(11) -----
@@ -274,8 +276,8 @@ function _lampBonus(t, i, holesData, spelunkData) {
   var h21 = holesData[21] || [];
   var lampLv = _num(h21[Math.min(11, 4 + 2 * t)]);
   // ZenithMarketBonus(2) = floor(ZenithMarket[2][4] * Spelunk[45][2])
-  var zmPerLv = _num(ZenithMarket[t] && ZenithMarket[t][4]);
-  var zmLv = _num(spelunkData[45] && spelunkData[45][t]);
+  var zmPerLv = _num(ZenithMarket[2] && ZenithMarket[2][4]);
+  var zmLv = _num(spelunkData[45] && spelunkData[45][2]);
   var zmBonus = Math.floor(zmPerLv * zmLv);
   return cellVal * lampLv * (1 + zmBonus / 100);
 }
@@ -304,11 +306,7 @@ function _fractalIslandBonus6(saveData) {
 // STEALTH_CHAPTER bubble (Kazam cauldron idx 10, key 'A10AllCharz').
 // Game: bubbleVal * floor(max(0, (TomeCompletionPts - 5000) / 2000))
 function _alchA10AllCharz(saveData, activeCharIdx) {
-  var bubbleVal = Number(bubbleValByKey('A10AllCharz', activeCharIdx || 0, saveData)) || 0;
-  if (bubbleVal <= 0) return 0;
-  var tomeScore = _num(saveData.totalTomePoints);
-  var tomeMult = Math.floor(Math.max(0, (tomeScore - 5000) / 2000));
-  return bubbleVal * tomeMult;
+  return Number(finalBubbleValByKey('A10AllCharz', activeCharIdx || 0, saveData)) || 0;
 }
 
 // ----- StarSigns[73] (S._Tealio: +12% Ninja Twin Stealth) -----
@@ -346,7 +344,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var charmMap = _twinCharmBonuses(twinIdx, nd, spelunkData, goldInv);
 
   // Base stealth = 10 + NLbonuses(13) * sneakLv
-  var nk13 = _nlBonus(13, nd);
+  var nk13 = _nlBonus(13, s);
   var baseStealth = 10 + nk13 * sneakLv;
 
   // ---- CORE MULTIPLIER (everything except ally and funeral) ----
@@ -412,7 +410,7 @@ function _computeFactors(twinIdx, saveData, activeCharIdx) {
   var jellyStealthMulti = 1 + jellyStealthPct / 100;
 
   // Shh! (NLbonuses 23)
-  var nk23 = _nlBonus(23, nd);
+  var nk23 = _nlBonus(23, s);
   var shhMulti = 1 + nk23 / 100;
 
   // Companion 163 (w5b5b): 40x Ninja Stealth
@@ -625,13 +623,13 @@ export function computeDoorDamageDetailed(twinIdx, saveData, activeCharIdx) {
   var weaponStat = isNunchaku ? _weaponItemStat(slotIdx, nd) : 0;
   var sneakLv = _num(s.lv0AllData && s.lv0AllData[twinIdx] && s.lv0AllData[twinIdx][17]);
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, s, activeCharIdx);
-  var mahjong = _nlBonus(5, nd);
+  var mahjong = _nlBonus(5, s);
   var goldPerTen = _num(goldInv[22]);
   var sneakTens = Math.floor(sneakLv / 10);
   var goldDamage = _num(goldInv[18]);
-  var y8 = Number(bubbleValByKey('Y8', activeCharIdx || 0, s)) || 0;
+  var y8 = Number(finalBubbleValByKey('Y8', activeCharIdx || 0, s)) || 0;
   var gem2 = _gemstoneBonus(2, olaData, s, activeCharIdx);
-  var trueBattering = _nlBonus(27, nd);
+  var trueBattering = _nlBonus(27, s);
   var factors = {
     mahjong: 1 + mahjong / 100,
     goldPerTen: 1 + goldPerTen * sneakTens / 100,
@@ -667,7 +665,7 @@ export function computeUntieProgressDetailed(twinIdx, saveData, activeCharIdx) {
   var eq = NjEQ[itemKey];
   var isKunai = !!eq && _num(eq[0]) === 1 && _num(eq[1]) === 2;
   var weaponStat = isKunai ? _weaponItemStat(slotIdx, nd) : 0;
-  var mahjong = _nlBonus(5, nd);
+  var mahjong = _nlBonus(5, s);
   var vial = Number(computeVialByKey('6Untie', s, activeCharIdx)) || 0;
   var progress = isKunai ? weaponStat * (1 + mahjong / 100) * (1 + vial / 100) : 0;
   return { progress: progress, canUntie: isKunai, itemKey: itemKey, itemLevel: _num(slot[1]), weaponStat: weaponStat, mahjong: mahjong, vial: vial };
@@ -768,7 +766,7 @@ export function computeActionSpeed(twinIdx, saveData, activeCharIdx, options) {
   var olaData = saveData.olaData || [];
   var spelunkData = saveData.spelunkData || [];
   var nkLvs = nd[103] || [];
-  var nk4 = _num(nkLvs[4]) * _num(NinjaUpg[4] && NinjaUpg[4][5]);
+  var nk4 = nkBonus(4, nkLvs, saveData.menagerieData?.[7]);
   var goldInv = _goldInventoryBonuses(nd, olaData, spelunkData, saveData, activeCharIdx);
   var charmMap = _twinCharmBonuses(twinIdx, nd, spelunkData, goldInv);
   var nb2 = _num(charmMap[2]);
@@ -795,6 +793,7 @@ export function computeNK11Extras(saveData, activeCharIdx) {
   var v88 = vaultUpgBonus(88, saveData) || 0;
   var c53 = cloudBonus(53, saveData.weeklyBossData) || 0;
   return {
+    omniLevels: saveData.menagerieData?.[7] || [],
     ninjaBonus21: _num(goldInv[21]),
     gemstone7: gem7,
     palette30: pal30,
