@@ -8,8 +8,8 @@ import { normalizeSpelunkConfig, spelunkActiveBuffs, spelunkRewardImage, SPELUNK
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { spelunkTools } from '../stats/data/w7/spelunking.js';
 import { createSpelunkPlayback, spelunkReplaySample, spelunkReplayTile, spelunkReplayDrop, spelunkReplayEvents, spelunkReplayActionTime } from './spelunk-replay.js';
-import { startSpelunkWorkers } from '../workers/spelunk-client.js';
-import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js';
+import { startSpelunkWorkers } from '../workers/spelunk-client.js?v=full-belts-1';
+import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js?v=full-belts-1';
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -560,12 +560,12 @@ function renderComparison(bundle, destination) {
       &middot; change ${r.delta >= 0 ? '+' : ''}${num(r.delta)}</p><button id="use-winner">Use recommendation in controls</button>
       <p class="muted">${esc(r.claim)}</p>` : '')
     + `<table class="comparison"><thead><tr><th>Configuration</th><th class="num">${esc(goalNames[r.objective])}</th><th class="num">Mean depth</th><th class="num">Collected Amber</th><th class="num">Settled</th><th>Inspect</th></tr></thead><tbody>`
-    + r.rows.map((row, i) => `<tr><td data-label="Configuration">${esc(row.label)}${row.referenceOnly ? ' <small class="muted">(reference only)</small>' : ''}</td>
+    + r.rows.map((row, i) => `<tr><td data-label="Configuration">${row.label === 'Screened strategy' ? '' : `<small class="muted">${esc(row.label)}</small>`}${row.referenceOnly ? ' <small class="muted">(reference only)</small>' : ''}${layout(row.config, captured)}</td>
       <td class="num" data-label="${esc(goalNames[r.objective])}">${num(row.score)}</td>
       <td class="num" data-label="Mean depth">${num(row.depth)}</td><td class="num" data-label="Collected Amber">${num(row.amber)}</td>
       <td class="num" data-label="Settled">${row.settled}/${row.total}</td>
-      <td data-label="Inspect"><button data-inspect="${i}" data-owner="${destination}">Settings &amp; runs</button></td></tr>
-      <tr hidden id="${destination}-detail-${i}"><td colspan="6" data-label="Captured settings">${layout(row.config, captured)}
+      <td data-label="Inspect"><button data-inspect="${i}" data-owner="${destination}">Runs</button></td></tr>
+      <tr hidden id="${destination}-detail-${i}"><td colspan="6" data-label="Trial details">
       <p>${num(row.seconds)}s mean run &middot; ${num(row.recoveryHours)}h mean recovery &middot; SE ${num(row.se)}</p>
       <div>${row.runs.map((run, j) => `<button data-replay-row="${i}" data-replay-trial="${j}" data-owner="${destination}">Run ${j + 1}: ${esc(run.status)}</button>`).join(' ')}</div></td></tr>`).join('')
     + '</tbody></table><p class="warning">Blocked runs have zero collected Amber in these comparisons. Depth and Grand Discovery goals may include unfinished expeditions.</p>'

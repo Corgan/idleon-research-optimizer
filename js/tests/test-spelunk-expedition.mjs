@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+import vm from 'node:vm';
 import { spelunkCaves, spelunkTools, spelunkElixirs } from '../stats/data/w7/spelunking.js';
 import { shopUpgBonus } from '../stats/systems/w7/spelunking.js';
 import { createSpelunkExpedition, normalizeSpelunkConfig, simulateSpelunkExpedition, spelunkRockStats, spelunkActiveBuffs, spelunkRewardImage } from '../stats/systems/w7/spelunk-expedition.js';
@@ -365,8 +366,11 @@ while (!memoryNext.done) {
 }
 assert.ok(memoryNext.value.winner.config.memorized.includes(6), 'search can recommend a different memorized set');
 assert.deepEqual(memoryNext.value.baseline.config.memorized, [4], 'selected baseline memory stays mandatory');
-assert.equal(memoryNext.value.configurations, 384, 'all legal duplicate-limited belts and memory subsets are combined');
-assert.equal(memoryNext.value.screened, 385, 'an excluded reference is measured in addition to the complete scope');
+assert.equal(memoryNext.value.configurations, 240, 'all maximally filled duplicate-limited belts and memory subsets are combined');
+assert.equal(memoryNext.value.screened, 241, 'an excluded reference is measured in addition to the complete scope');
+assert.ok(memoryRequests.slice(1).every(r => r.config.elixirs.filter(id => id === 0).length === 2
+  || JSON.stringify(r.config) === JSON.stringify(memoryRequests[0].config)),
+  'insufficient pools use every available duplicate without exceeding the native cap');
 assert.ok(memoryRequests.some(r => !r.config.memorized.length), 'search tests removing all memories');
 assert.ok(memoryRequests.some(r => r.config.memorized.length === memoryScope.memorized.length),
   'search tests the whole allowed memory pool when it fits unlocked capacity');
@@ -400,7 +404,7 @@ const scopedOptions = { ...options, scope: {
 } };
 const scopedRequests = [], normalizedBase = normalizeSpelunkConfig(scopeInput, { ...basic, memorized: [4] });
 const inScope = c => c.policy === 'auto' && c.party.length >= 2 && c.party.length <= 3
-  && [0, 1, 4].includes(c.speed) && c.elixirs.every(id => [-1, 0, 2].includes(id))
+  && [0, 1, 4].includes(c.speed) && c.elixirs.every(id => [0, 2].includes(id))
   && c.memorized.every(id => id === 6);
 const measureScope = request => ({ ...normal, seed: request.seed, depth: inScope(request.config) ? 5 : 1000 });
 const scoped = driveBatches(createSpelunkSearch(scopeInput, normalizedBase, scopedOptions), scopedRequests, measureScope);
@@ -418,17 +422,63 @@ assert.deepEqual(driveBatches(createSpelunkSearch(scopeInput, normalizedBase, { 
   scopedPooledRequests, measureScope), scoped);
 assert.deepEqual(scopedPooledRequests, scopedRequests);
 const screenedConfigs = scopedRequests.filter(r => r.progress < .75 && inScope(r.config));
-assert.equal(scoped.configurations, 2016, '12 ordered parties x 6 Auto settings x 7 belts x 2 memories x 2 entries');
-assert.equal(screenedConfigs.length, 2016, 'coverage is not capped at the old 48 or 256 configurations');
-assert.equal(new Set(screenedConfigs.map(r => JSON.stringify(r.config))).size, 2016, 'each legal setup is screened exactly once');
+assert.equal(scoped.configurations, 576, '12 ordered parties x 6 Auto settings x 2 full belts x 2 memories x 2 entries');
+assert.equal(screenedConfigs.length, 576, 'coverage is not capped at the old 48 or 256 configurations');
+assert.equal(new Set(screenedConfigs.map(r => JSON.stringify(r.config))).size, 576, 'each legal setup is screened exactly once');
 assert.ok(screenedConfigs.every(r => JSON.stringify(normalizeSpelunkConfig(scopeInput, r.config)) === JSON.stringify(r.config)),
   'every exhaustive candidate respects native capacities, duplicate limits and unique party/memory rules');
 assert.ok(screenedConfigs.some(r => r.config.party.join() === '1,2,0' && r.config.speed === 4
   && r.config.fullClear && r.config.elixirs.join() === '2,0' && r.config.memorized.join() === '6'
   && r.config.entry === 'shortcut'), 'late joint combinations cannot be pruned');
-assert.deepEqual(spelunkSearchSpace(scopeInput, normalizedBase, scopedOptions.scope).configurations, 2016);
+assert.deepEqual(spelunkSearchSpace(scopeInput, normalizedBase, scopedOptions.scope).configurations, 576);
 assert.deepEqual(driveBatches(createSpelunkSearch(scopeInput, normalizedBase, { ...scopedOptions, budget: 8 }),
   [], measureScope), scoped, 'obsolete budget options cannot truncate exhaustive coverage');
+const duplicateInput = { ...memoryInput, dupes: 3 };
+const duplicateScope = { partyMin: 1, partyMax: 1, modes: ['auto'], clears: [false],
+  speeds: [0], elixirs: [0, 2, 7], memorized: [7] };
+const duplicateBase = normalizeSpelunkConfig(duplicateInput, { ...basic, policy: 'auto',
+  elixirs: [0, 2, 7], memorized: [7] });
+const duplicateRequests = [];
+const duplicateSearch = driveBatches(createSpelunkSearch(duplicateInput, duplicateBase,
+  { ...options, scope: duplicateScope }), duplicateRequests, request => ({
+    ...normal, seed: request.seed, depth: request.config.elixirs.includes(-1) ? 1000
+      : request.config.elixirs.filter(id => id === 7).length,
+  }));
+assert.equal(duplicateSearch.configurations, 2520, '210 full belts x 3 parties x 2 memories x 2 entries');
+assert.equal(spelunkSearchSpace(duplicateInput, duplicateBase, duplicateScope).configurations, 2520);
+assert.ok(duplicateSearch.baseline.referenceOnly, 'an underfilled baseline cannot win even with a higher score');
+assert.equal(duplicateSearch.winner.score, 3, 'three purple elixirs remain eligible for recommendation');
+assert.ok(duplicateSearch.winner.config.elixirs.every(id => id >= 0));
+const fullBelts = duplicateRequests.filter(r => r.progress < .75
+  && JSON.stringify(r.config) !== JSON.stringify(duplicateBase));
+assert.equal(fullBelts.length, 2520);
+assert.equal(new Set(fullBelts.map(r => JSON.stringify(r.config))).size, 2520);
+assert.ok(fullBelts.every(r => r.config.elixirs.every(id => id >= 0)
+  && duplicateScope.elixirs.every(id => r.config.elixirs.filter(v => v === id).length <= 3)));
+const purpleInput = { ...input, slots: 3, dupes: 3, shop: [...input.shop] };
+purpleInput.shop[31] = 20;
+const purpleRun = simulateSpelunkExpedition(purpleInput,
+  { ...basic, elixirs: [7, 7, 7] }, { seed: 12, replay: true });
+assert.deepEqual(purpleRun.replayEvents.filter(e => e.type === 'elixir').slice(0, 3).map(e => e.slot), [0, 1, 2],
+  'each duplicate purple supplies an additional native stack');
+const purpleBuff = spelunkActiveBuffs(purpleInput, [0, 0, 0, 0, 0, 0, 0, 3]).find(b => b.id === 7);
+assert.equal(purpleBuff.value, .9, 'three doses each add 30% to extra-strike quantity');
+assert.match(purpleBuff.detail, /30%/, 'the chance bonus caps at 1.5x the base chance, independently of extra strikes');
+const ui = fs.readFileSync(new URL('../ui/spelunking.js', import.meta.url), 'utf8');
+const host = { innerHTML: '' };
+vm.runInNewContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const storageKey ='))
+  + ui.slice(ui.indexOf('function configurationText('), ui.indexOf('function renderConfigurations('))
+  + ui.slice(ui.indexOf('function renderComparison('), ui.indexOf('function start('))
+  + '\nrenderComparison(bundle, "result");', {
+    bundle: { result: duplicateSearch, input: duplicateInput }, $: () => host,
+    esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
+  });
+const cells = [...host.innerHTML.matchAll(/<td data-label="Configuration">([\s\S]*?)<\/td>/g)];
+assert.equal(cells.length, duplicateSearch.rows.length);
+assert.ok(cells.every(([, cell]) => cell.includes('Native Auto') && cell.includes('captured-party')
+  && cell.includes('captured-belt') && cell.includes('Memory') && cell.includes('Auto tools')),
+  'every comparison row visibly describes its captured strategy, party, belt, memories and tools');
+assert.ok(!host.innerHTML.includes('Screened strategy'), 'internal search-origin labels are not primary configurations');
 const largeInput = { ...memoryInput, caves: [{ ...memoryInput.caves[0], capacity: 6 }],
   characters: Array.from({ length: 12 }, (_, id) => ({ id, name: `Character ${id + 1}`, max: 8, stamina: 8 })) };
 const largeSpace = spelunkSearchSpace(largeInput, basic);

@@ -72,6 +72,7 @@ main .scope-icon{position:relative;padding:1px;width:34px;height:34px;justify-co
 @media(max-width:650px){.elixir-row{align-items:flex-start}.elixir-row>span{width:74px;padding-top:8px}.cave-choice img{width:48px;height:42px}main .cave-choice{width:76px}.game-panel{padding:9px}.replay-hud{inset:5px}.replay-party{width:125px}.replay-member .portrait{width:18px;height:18px}.replay-member{gap:1px;font-size:10px}.replay-belt .mini-slot{width:24px;height:24px}.replay-belt img{width:22px;height:22px}.replay-buff{font-size:10px;gap:2px}.replay-buff img{width:18px;height:18px}}
 details{margin-top:12px}summary{cursor:pointer;min-height:32px;color:var(--cyan)}
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:8px;border-bottom:1px solid #ffffff15}th{color:var(--text2)}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.comparison td{vertical-align:top}.comparison .captured{max-width:420px}
 .scroll{overflow:auto}canvas{width:100%;max-width:960px;background:#151523;border:1px solid #435574;image-rendering:pixelated}
 input[type=range]{width:min(650px,100%)}.breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px;align-items:start}
 .breakdown{min-width:0;background:var(--bg);padding:10px;border:1px solid #40536e;border-radius:5px}.breakdown h3{margin:0 0 8px;color:var(--cyan)}
@@ -96,7 +97,7 @@ main .event-row button{min-height:30px;padding:3px 5px;background:#332c43;border
 progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-height:24px;margin:10px 0}
 .strip{padding:10px;background:var(--bg);border-radius:5px;line-height:1.7;overflow-wrap:anywhere}
 @media(max-width:650px){main{padding:8px}.section{padding:12px}.toolbar>label{flex:1;min-width:130px}main select{max-width:100%}.bt-label{white-space:normal;overflow-wrap:anywhere}.comparison thead{display:none}.comparison tr{display:block;border:1px solid #435574;margin:8px 0;border-radius:5px;padding:8px}.comparison td{display:flex;justify-content:space-between;gap:12px;border:0;text-align:right}.comparison td:before{content:attr(data-label);color:var(--text2);text-align:left}.comparison td:first-child{font-weight:600;color:var(--cyan)}}
-@media(max-width:650px){.comparison td[colspan]{display:block;text-align:left}.comparison td[colspan]:before{display:block;margin-bottom:6px}}
+@media(max-width:650px){.comparison td[colspan],.comparison td[data-label="Configuration"]{display:block;text-align:left}.comparison td[colspan]:before,.comparison td[data-label="Configuration"]:before{display:block;margin-bottom:6px}}
 </style>
 </head>
 <body>
@@ -171,7 +172,7 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
   <details><summary>Trial settings</summary><div class="toolbar">
     <label>Screening trials<input id="screen-trials" type="number" value="2" min="1" max="8"></label>
     <label>Fresh finalist trials<input id="final-trials" type="number" value="12" min="2" max="64"></label>
-  </div><p class="muted">Every legal combination in the selected scope receives screening trials. Cave and Normal/Manic mode stay fixed. Checked elixirs are allowed, not required; none checked means an empty belt or no memories. Current and checked named configurations are measured as references even when excluded, but excluded references cannot win. The strongest five screening setups and references receive fresh finalist trials. Up to four workers run independent trials in parallel.</p></details>
+  </div><p class="muted">Every legal combination in the selected scope receives screening trials. Cave and Normal/Manic mode stay fixed. Belts fill every possible slot from the checked elixirs, including unlocked duplicates. Empty slots remain only when that pool cannot fill them. Memories are optional; none checked means no memories. Current and checked named configurations are measured as references even when excluded, but excluded references cannot win. The strongest five screening setups and references receive fresh finalist trials. Up to four workers run independent trials in parallel.</p></details>
   <div id="optimize-status-host"></div>
  </div>
  <div id="optimize-result" class="section result-section"></div>
@@ -183,7 +184,7 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
 </main>
 <div id="spelunk-picker" popover="auto" role="dialog" aria-labelledby="picker-label"><div class="picker-heading"><strong id="picker-label"></strong><button id="picker-close" aria-label="Close picker">&times;</button></div><div id="picker-options"></div></div>
 <div id="spelunk-tip" role="tooltip" hidden popover="manual"></div>
-<script type="module" src="./js/ui/spelunking.js"></script>
+<script type="module" src="./js/ui/spelunking.js?v=full-belts-1"></script>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </body>
 </html>

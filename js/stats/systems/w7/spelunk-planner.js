@@ -28,12 +28,14 @@ export function normalizeSpelunkSearchScope(input, baseline, requested = {}) {
   return { partyMin, partyMax, modes, clears, speeds,
     elixirs: select('elixirs', ids, true), memorized: select('memorized', ids, true) };
 }
-function _inScope(config, scope) {
+function _beltOccupancy(input, scope) { return Math.min(input.slots, scope.elixirs.length * input.dupes); }
+function _inScope(config, scope, occupancy) {
   return config.party.length >= scope.partyMin && config.party.length <= scope.partyMax
     && scope.modes.includes(config.policy === 'auto' ? 'auto' : 'manual')
     && scope.clears.includes(config.policy === 'auto' ? config.fullClear : config.policy === 'clear')
     && (config.policy !== 'auto' || scope.speeds.includes(config.speed))
     && config.elixirs.every(id => id === -1 || scope.elixirs.includes(id))
+    && config.elixirs.filter(id => id >= 0).length === occupancy
     && config.memorized.every(id => scope.memorized.includes(id));
 }
 function* _measure(requests, batchSize) {
@@ -124,7 +126,7 @@ function _configurationCount(input, base, scope) {
     memories += _choose(scope.memorized.length, k);
   const policies = _policies(scope).reduce((sum, policy) => sum + (policy === 'auto'
     ? scope.speeds.length * scope.clears.length : input.tools.length + 1), 0);
-  return parties * belts.reduce((a, b) => a + b, 0n) * memories * BigInt(policies) * 2n;
+  return parties * belts[_beltOccupancy(input, scope)] * memories * BigInt(policies) * 2n;
 }
 export function spelunkSearchSpace(input, baseline, requested = {}) {
   const base = normalizeSpelunkConfig(input, baseline), scope = normalizeSpelunkSearchScope(input, base, requested);
@@ -137,13 +139,13 @@ function* _parties(ids, min, max, party = []) {
     party.push(id); yield* _parties(ids, min, max, party); party.pop();
   }
 }
-function* _belts(ids, slots, dupes, belt = [], counts = new Map()) {
+function* _belts(ids, slots, dupes, remaining, belt = [], counts = new Map()) {
   if (belt.length === slots) { yield [...belt]; return; }
   for (const id of [-1, ...ids]) {
     const used = counts.get(id) || 0;
-    if (id !== -1 && used >= dupes) continue;
+    if (id === -1 ? slots - belt.length === remaining : !remaining || used >= dupes) continue;
     belt.push(id); counts.set(id, used + 1);
-    yield* _belts(ids, slots, dupes, belt, counts);
+    yield* _belts(ids, slots, dupes, remaining - (id >= 0 ? 1 : 0), belt, counts);
     belt.pop(); counts.set(id, used);
   }
 }
@@ -162,7 +164,7 @@ function* _configurations(input, base, scope) {
         for (const tool of policy === 'auto' ? [base.tool] : ['adaptive', ...input.tools.map(t => t.id)])
           for (const entry of ['surface', 'shortcut'])
             for (const party of _parties(eligible, scope.partyMin, Math.min(scope.partyMax, eligible.length)))
-              for (const elixirs of _belts(scope.elixirs, input.slots, input.dupes))
+              for (const elixirs of _belts(scope.elixirs, input.slots, input.dupes, _beltOccupancy(input, scope)))
                 for (const memorized of _memories(memoryIds, input.memorySlots ?? Math.round(input.shop[57] || 0)))
                   yield { ...base, policy, speed, fullClear, tool, entry, party, elixirs, memorized };
 }
@@ -175,7 +177,8 @@ export function* createSpelunkSearch(input, baseline, options = {}) {
   const batchSize = _count(options.batchSize, 1, 1, 4, 'worker batch size');
   const searchScope = normalizeSpelunkSearchScope(input, base, options.scope);
   const references = new Map();
-  const allowed = config => _inScope(config, searchScope) && config.stamina === base.stamina && config.reactionMs === base.reactionMs;
+  const occupancy = _beltOccupancy(input, searchScope);
+  const allowed = config => _inScope(config, searchScope, occupancy) && config.stamina === base.stamina && config.reactionMs === base.reactionMs;
   function add(config, label) {
     const normalized = normalizeSpelunkConfig(input, config), key = JSON.stringify(normalized);
     if (!references.has(key)) references.set(key, { config: normalized, key, label, referenceOnly: !allowed(normalized) });
@@ -248,6 +251,6 @@ export function* createSpelunkSearch(input, baseline, options = {}) {
     configurations: _publicCount(configurationCount), exhaustive: true, searchScope,
     delta, interval: [delta - 1.96 * se, delta + 1.96 * se],
     claim: 'Every allowed configuration screened under the experimental model; fresh-seed finalists are sampled, not a proof of the stochastic optimum.',
-    scope: 'All eligible ordered parties within the selected size range, permitted policies/clear choices/Auto speeds, every legal physical belt arrangement (including empty slots and unlocked duplicates), unique memorized subsets, manual tools and both entry choices are screened. Cave, Normal/Manic mode, starting-stamina mode, reaction time and account upgrades stay fixed. Auto tool choice is automatic; unused manual Auto settings do not multiply the search. References outside the selected scope cannot win. The strongest five screening setups and reference configurations receive fresh finalist trials. Intervals are descriptive, not selection-adjusted guarantees.',
+    scope: 'All eligible ordered parties within the selected size range, permitted policies/clear choices/Auto speeds, every maximally filled physical belt arrangement (including unlocked duplicates), unique memorized subsets, manual tools and both entry choices are screened. Empty belt slots are allowed only when the selected pool and duplicate limit cannot fill them. Cave, Normal/Manic mode, starting-stamina mode, reaction time and account upgrades stay fixed. Auto tool choice is automatic; unused manual Auto settings do not multiply the search. References outside the selected scope, including underfilled belts, cannot win. The strongest five screening setups and reference configurations receive fresh finalist trials. Intervals are descriptive, not selection-adjusted guarantees.',
   };
 }

@@ -2,7 +2,7 @@ import { loadSaveData } from '../save/loader.js';
 import { saveData } from '../state.js';
 import { buildSpelunkInputs } from '../stats/systems/w7/spelunk-inputs.js';
 import { createSpelunkExpedition } from '../stats/systems/w7/spelunk-expedition.js';
-import { createSpelunkComparison, createSpelunkSearch } from '../stats/systems/w7/spelunk-planner.js';
+import { createSpelunkComparison, createSpelunkSearch } from '../stats/systems/w7/spelunk-planner.js?v=full-belts-1';
 
 let cachedInput = null;
 export async function executeSpelunkJob(message, report = () => {}, batch = null) {
