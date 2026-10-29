@@ -7,33 +7,265 @@
 <style>
 :root {
   --bg: #1a1a2e; --bg2: #16213e; --accent: #e94560;
-  --text: #eee; --green: #4caf50; --red: #f44;
+  --text: #eee; --text2: #c0c0d4; --gold: #ffd700; --cyan: #4dd0e1;
+  --green: #4caf50; --red: #f44;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
-h1 { text-align: center; padding: 16px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.5rem; }
-main { flex: 1; display: grid; place-content: center; text-align: center; padding: 24px; gap: 12px; }
-#answer { font-size: clamp(3rem, 18vw, 12rem); font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+h1 { text-align: center; padding: 10px; background: var(--bg2); border-bottom: 2px solid var(--accent); font-size: 1.5rem; flex-shrink: 0; }
+#save-area { flex-shrink: 0; max-height: 32dvh; overflow: auto; }
+main { flex: 1; width: 100%; position: relative; text-align: center; padding: 12px; min-width: 0; min-height: 0; overflow: clip; }
+#answer { position: absolute; inset: 0; display: grid; place-content: center; z-index: 3; isolation: isolate; pointer-events: none; font-size: min(24vw, 42dvh, 18rem); font-weight: 900; line-height: 1.1; text-shadow: 0 6px 12px #000, 0 0 45px #000, 0 0 90px #000; }
+#answer:not(:empty)::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse closest-side, #111321f5 25%, #111321c9 55%, transparent 100%); }
 #answer.yes { color: var(--green); }
 #answer.no { color: var(--red); }
-#check-error { color: var(--accent); }
+#answer.yes, #answer.no { animation: verdict-in .65s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes verdict-in { from { opacity: 0; transform: scale(.3) rotate(-8deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+#analysis { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 4; display: grid; gap: 12px; justify-items: center; padding: 16px 8px; background: linear-gradient(#1a1a2ef5 70%, #1a1a2e00); }
+#analysis[hidden] { display: none; }
+#analysis-status { color: var(--text); font-size: .95rem; }
+#analysis-progress { width: min(280px, 75vw); height: 8px; accent-color: var(--accent); }
+#stats[hidden] { display: none; }
+#stats, #stats-body { width: 100%; height: 100%; min-width: 0; min-height: 0; text-align: left; }
+#answer:not(:empty) ~ #stats { opacity: .7; }
+.stat-grid { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); gap: 1px; background: #34344d; border: 1px solid #34344d; overflow: clip; }
+.stat-entry { min-width: 0; padding: 9px 7px; background: var(--bg); overflow-wrap: anywhere; display: grid; grid-template-rows: 28px 20px 12px; align-content: center; }
+.stat-entry.waiting { visibility: hidden; }
+.stat-label { color: var(--text2); font-size: .7rem; line-height: 1.2; align-self: center; }
+.stat-value { color: var(--gold); font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-entry.counting .stat-value { color: var(--cyan); }
+.stat-partial { color: var(--accent); font-size: .65rem; }
+#check-error, #stats-error { position: absolute; bottom: 12px; left: 12px; right: 12px; z-index: 5; color: var(--accent); background: var(--bg); }
+@media (prefers-reduced-motion: reduce) {
+  #answer.yes, #answer.no { animation: none; }
+}
 </style>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </head>
 <body>
 <h1>Are you endgame?</h1>
 <div id="save-area"></div>
-<main aria-live="polite" aria-atomic="true">
-  <div id="answer"></div>
+<main>
+  <div id="analysis" hidden>
+    <div id="analysis-status" role="status"></div>
+    <progress id="analysis-progress" max="11" value="0" aria-label="Account analysis"></progress>
+  </div>
+  <div id="answer" role="status"></div>
   <div id="check-error" role="alert"></div>
+  <section id="stats" hidden aria-label="Account statistics">
+    <div id="stats-body"></div>
+  </section>
+  <div id="stats-error" role="alert"></div>
 </main>
 <script type="module">
 import { initSaveLoader } from './js/ui/save-loader.js';
-import { isEndgamer } from './js/endgamers.js';
+import { isEndgamer } from './js/endgamers.js?v=profile-2';
+import { collectEndgameStats } from './js/endgame-stats.js?v=all-leaderboards-2';
+import { fmtVal, fmtMonsterCash } from './js/renderers/format.js';
 
 const answer = document.getElementById('answer');
 const errorMessage = document.getElementById('check-error');
+const analysis = document.getElementById('analysis');
+const analysisStatus = document.getElementById('analysis-status');
+const analysisProgress = document.getElementById('analysis-progress');
+const statsPanel = document.getElementById('stats');
+const statsBody = document.getElementById('stats-body');
+const statsError = document.getElementById('stats-error');
 let checkVersion = 0;
+let cancelReveal = () => {};
+let revealRunning = false;
+let capturedStats;
+let gridSize = '';
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function escHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+function shuffled(values) {
+  const result = [...values];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function statValue(stat, value = stat.value) {
+  return value == null ? 'Unavailable' : stat.format === 'multiplier'
+    ? fmtMonsterCash(value) + 'x'
+    : value < 1e6 ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : fmtVal(value);
+}
+
+function statTitle(stat) {
+  const short = {
+    totalLevels: 'Character levels', totalSkillsLevels: 'Skill levels', level: 'Top level',
+    strength: 'STR', agility: 'AGI', wisdom: 'WIS', luck: 'LUK',
+    cashMulti: 'Coin multi', dropRate: 'Drop rate', totalTomePoints: 'Tome score',
+    'highestConstructExp/hr': 'Build EXP/hr', 'highestVillagerExp/hr': 'Top villager EXP',
+    'totalVillagerExp/hr': 'Villager EXP/hr', highestOutpostResourceRate: 'Outpost rate',
+    totalMaterialPrinted: 'Printed materials', totalDivinityBlessingLevels: 'Divine blessings',
+    totalManicSpelunkingDepths: 'Manic depths', totalSpelunkingDepths: 'Normal depths',
+    totalRoyalResourceGrades: 'Royal grades', totalRoyalArmoryUpgrades: 'Armory',
+    totalRoyalStatueLevels: 'Royal statues', totalSushiStationUpgrades: 'Sushi upgrades',
+    totalZenithMarketUpgrades: 'Zenith market', totalAdviceFishUpgrades: 'Advice fish',
+    totalCoralKidUpgrades: 'Coral Kid', totalMenagerieBoostLevels: 'Menagerie boosts',
+    biggestHaulSpelunking: 'Spelunk haul', highestSpelunkingPower: 'Spelunk power',
+    highestArcaneMapMulti: 'Arcane map multi', mineheadOpponentsDefeated: 'Minehead wins',
+    totalGamingCrowns: 'Gaming crowns', totalGrandDiscoveries: 'Discoveries',
+    highestHammerHammer: 'Hammer Hammer', highestCallMeBob: 'Call Me Bob',
+    highestCallMeAsh: 'Call Me Ash', highestBigP: 'Big P',
+    totalBreedabilityLevels: 'Breedability', totalDayMarketLevels: 'Day market',
+    totalNightMarketLevels: 'Night market', totalFountainUpgrades: 'Fountain',
+    totalCollectibleLevels: 'Collectibles', totalMeasurementLevels: 'Measurements',
+    totalCompassUpgrades: 'Compass', totalGrimoireUpgrades: 'Grimoire',
+    totalArcanistUpgrades: 'Arcanist', totalEquinoxUpgrades: 'Equinox',
+    totalSummoningUpgrades: 'Summon upgrades', highestJusticeRound: 'Justice round',
+    totalSushiKnowledgeLevels: 'Sushi knowledge', highestShowdownLevel: 'Showdown',
+    postOfficeOrders: 'Post Office', totalTachyonsCollected: 'Tachyons',
+    totalBonesCollected: 'Bones', totalDustCollected: 'Dust'
+  };
+  return short[stat.id] || stat.label.replace(/^(Total|Highest|Best) /i, '')
+    .replace(/ (Levels?|Collected|Upgrades)$/i, '')
+    .replace(/\bConstruction\b/g, 'Build').replace(/\bSpelunking\b/g, 'Spelunk')
+    .replace(/\bMinigame\b/g, 'game').replace(/\bMultiplier\b/gi, 'multi')
+    .replace(/\bColosseum\b/g, 'Colo');
+}
+
+function loadingSequence(stats) {
+  const targets = shuffled(stats?.length ? stats : [{ label: 'mysterious numbers' }]);
+  return shuffled([
+    'Loading {s}. Please hold your beans.',
+    'Asking {s} for its credit score...',
+    'Putting {s} in the spreadsheet blender...',
+    'Checking if {s} has touched grass...',
+    'Teaching {s} long division...',
+    'Downloading more RAM for {s}...',
+    'Bribing the bean council with {s}...',
+    'Carrying the one. Dropping {s}.',
+    'Turning {s} off and on again...',
+    'Converting {s} into emotional damage...',
+    'Running {s} through the vibe detector...',
+    'Asking Lava whether {s} is a feature...',
+    'Comparing {s} to a suspiciously large frog...',
+    'Waiting for {s} to stop being a skill issue...',
+    'Giving {s} a tiny calculator...',
+    'Cross-examining {s}. No lawyer present.',
+    'Folding {s} into the bean dimension...',
+    'Counting {s} on borrowed fingers...',
+    'Applying peer pressure to {s}...',
+    'Looking for the end of {s}...',
+    'Making {s} everybody else\'s problem...',
+    'Double-checking {s}. With one eye closed.',
+    'Letting {s} cook...',
+    'Sending {s} to the group chat...',
+    'Measuring {s} in football fields...',
+    'Recalculating {s}. The abacus is smoking.',
+    'Consulting a wizard about {s}...',
+    'Calculating {s}... calculating harder...',
+    'Sacrificing {s} to the rounding gods...',
+    'Checking {s} for terminal gamer energy...'
+  ]).slice(0, 11).map((message, index) =>
+    message.replace('{s}', statTitle(targets[index % targets.length])));
+}
+
+function renderStats(stats, counting = false) {
+  statsPanel.hidden = !stats.length;
+  const width = statsBody.clientWidth;
+  const height = statsBody.clientHeight;
+  gridSize = width + ':' + height;
+  const known = stats.filter(stat => stat.value != null);
+  const pool = known.length ? known : stats;
+  const columns = Math.max(1, Math.min(pool.length, Math.floor(width / 120)));
+  const rows = Math.max(1, Math.min(Math.ceil(pool.length / columns), Math.floor(height / 86)));
+  const selected = shuffled(pool).slice(0, columns * rows);
+  const slots = shuffled(Array.from({ length: columns * rows }, (_, i) => i));
+  statsBody.innerHTML = '<dl class="stat-grid" style="--columns:' + columns + ';--rows:' + rows + '">' + selected.map((stat, index) =>
+    '<div class="stat-entry' + (counting ? ' waiting' : '') +
+    (counting && stat.value != null ? ' counting' : '') +
+    '" data-stat="' + escHtml(stat.id) + '" style="grid-area:' +
+    (Math.floor(slots[index] / columns) + 1) + '/' + (slots[index] % columns + 1) + '"' +
+    (stat.value == null ? '' : ' data-value="' + stat.value + '"') + '>' +
+    '<dt class="stat-label" aria-label="' + escHtml(stat.label) + '">' + escHtml(statTitle(stat)) + '</dt>' +
+    '<dd class="stat-value">' + escHtml(statValue(stat, counting && stat.value != null ? 0 : stat.value)) + '</dd>' +
+    (stat.partial ? '<dd class="stat-partial">Partial</dd>' : '') + '</div>'
+  ).join('') + '</dl>';
+  return selected;
+}
+
+function revealStats(stats, version) {
+  const selected = renderStats(stats, !reducedMotion.matches);
+  if (reducedMotion.matches || !stats.length) return Promise.resolve();
+  const values = new Map(selected.map(stat => [stat.id, stat]));
+  const entries = [...statsBody.querySelectorAll('[data-stat]')].map((element, index) => ({
+    element, stat: values.get(element.dataset.stat),
+    value: element.querySelector('.stat-value'), delay: index / Math.max(1, selected.length - 1) * 4400
+  }));
+  const animations = [];
+  revealRunning = true;
+  statsPanel.setAttribute('aria-busy', 'true');
+  return new Promise((resolve, reject) => {
+    let frame;
+    let paintAt = 0;
+    const start = performance.now();
+    const finish = error => {
+      cancelAnimationFrame(frame);
+      for (const animation of animations) animation.cancel();
+      for (const entry of entries) {
+        entry.value.textContent = statValue(entry.stat);
+        entry.element.classList.remove('counting', 'waiting');
+      }
+      statsPanel.removeAttribute('aria-busy');
+      revealRunning = false;
+      cancelReveal = () => {};
+      if (error) reject(error);
+      else resolve();
+    };
+    cancelReveal = () => finish();
+    try {
+      for (const { element, delay } of entries) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.hypot(window.innerWidth, window.innerHeight) + 160;
+        const rotation = Math.random() * 300 - 150;
+        animations.push(element.animate([
+          { transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) rotate(${rotation}deg) scale(.6)`, opacity: 0 },
+          { transform: 'translate(0, 0)', opacity: 1 }
+        ], { duration: 1100 + Math.random() * 300, delay, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'backwards' }));
+      }
+    } catch (error) { return finish(error); }
+    const tick = now => {
+      if (version !== checkVersion) return finish();
+      try {
+        const elapsed = reducedMotion.matches ? 6000 : now - start;
+        const fraction = Math.min(1, elapsed / 6000);
+        if (elapsed >= paintAt) {
+          for (const entry of entries) {
+            entry.element.classList.toggle('waiting', elapsed < entry.delay);
+            const progress = Math.max(0, Math.min(1, (elapsed - entry.delay) / 1600));
+            const done = progress === 1 || entry.stat.value == null;
+            entry.value.textContent = statValue(entry.stat, entry.stat.value == null ? null :
+              done ? entry.stat.value : entry.stat.value * (1 - Math.pow(1 - progress, 3)));
+            entry.element.classList.toggle('counting', !done);
+          }
+          analysisProgress.value = 11 * fraction;
+          paintAt = elapsed + 60;
+        }
+        if (fraction === 1) {
+          return finish();
+        }
+        frame = requestAnimationFrame(tick);
+      } catch (error) { finish(error); }
+    };
+    frame = requestAnimationFrame(tick);
+  });
+}
+
+new ResizeObserver(() => {
+  if (!capturedStats?.length || statsPanel.hidden ||
+      gridSize === statsBody.clientWidth + ':' + statsBody.clientHeight) return;
+  cancelReveal();
+  renderStats(capturedStats);
+}).observe(statsBody);
 
 initSaveLoader({
   target: '#save-area',
@@ -41,17 +273,51 @@ initSaveLoader({
   skipLoad: true,
   async onLoad(_saveData, raw) {
     const version = ++checkVersion;
+    cancelReveal();
     answer.textContent = '';
     answer.className = '';
     errorMessage.textContent = '';
+    statsPanel.hidden = true;
+    statsBody.innerHTML = '';
+    capturedStats = undefined;
+    statsError.textContent = '';
+    analysis.hidden = false;
+    analysisStatus.textContent = '';
+    analysisProgress.value = 0;
+    let stats;
+    let statsFailure = '';
     try {
-      const matched = await isEndgamer(raw);
+      stats = collectEndgameStats(raw);
+      capturedStats = stats;
+    } catch (error) {
+      statsFailure = 'Unable to calculate account statistics: ' + error.message;
+    }
+    const sequence = loadingSequence(stats);
+    let stage = 0;
+    let failed = false;
+    try {
+      const revealing = stats ? revealStats(stats, version) : Promise.resolve();
+      const [matched] = await Promise.all([isEndgamer(raw, undefined, async () => {
+        if (version !== checkVersion || failed) return;
+        analysisStatus.textContent = sequence[Math.min(stage++, sequence.length - 1)];
+        if (!revealRunning || reducedMotion.matches) analysisProgress.value = stage;
+        await new Promise(resolve => setTimeout(resolve, reducedMotion.matches ? 60 : 450));
+      }), revealing]);
+      if (version !== checkVersion) return;
       if (version === checkVersion) {
+        analysis.hidden = true;
+        analysisProgress.value = analysisProgress.max;
         answer.textContent = matched ? 'YES' : 'NO';
         answer.className = matched ? 'yes' : 'no';
+        statsError.textContent = statsFailure;
       }
     } catch (error) {
-      if (version === checkVersion) errorMessage.textContent = 'Unable to check account: ' + error.message;
+      failed = true;
+      if (version === checkVersion) {
+        cancelReveal();
+        analysis.hidden = true;
+        errorMessage.textContent = 'Unable to check account: ' + error.message;
+      }
     }
   }
 });
