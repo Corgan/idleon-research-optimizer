@@ -39,7 +39,7 @@ import { paletteParams } from '../../data/w4/gaming.js';
 import { Spelunky } from '../../data/game/customlists.js';
 import { SpelunkUpg, SpelunkChapters } from '../../data/game/customlists.js';
 import { superBitType } from '../../../game-helpers.js';
-import { formulaEval } from '../../../formulas.js';
+import { formulaEval, getLOG } from '../../../formulas.js';
 import { computeArtifactBonus } from '../w5/sailing.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
 import { spelunkMaxStaminaTaskLevel } from '../../data/w7/tasks.js';
@@ -166,7 +166,7 @@ export function shopUpgBonus(idx, saveData) {
   var hauls = spelunk[2] || [];
   for (var haulIdx = 0; haulIdx < hauls.length; haulIdx++) {
     var haul = Number(hauls[haulIdx]) || 0;
-    if (haul > 0) haulDigits += Math.ceil(Math.log10(haul));
+    haulDigits = Math.round(haulDigits + Math.ceil(getLOG(haul)));
   }
   var grandDiscoveries = 0;
   var grandRows = spelunk[44] || [];

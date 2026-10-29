@@ -4,12 +4,13 @@ import { fmtVal } from '../renderers/format.js';
 import { renderBreakdownTree } from './dash-breakdowns.js';
 import { toRenderNode } from '../stats/tree-builder.js';
 import { buildSpelunkInputs } from '../stats/systems/w7/spelunk-inputs.js';
-import { normalizeSpelunkConfig, spelunkActiveBuffs, spelunkRewardImage, SPELUNK_REWARDS } from '../stats/systems/w7/spelunk-expedition.js';
+import { normalizeSpelunkConfig, spelunkActiveBuffs, spelunkRewardImage, SPELUNK_REWARDS } from '../stats/systems/w7/spelunk-expedition.js?v=depth-limits-1';
+import { spelunkDepthProfile } from '../stats/systems/w7/spelunk-depth.js?v=depth-limits-1';
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { spelunkTools } from '../stats/data/w7/spelunking.js';
 import { createSpelunkPlayback, spelunkReplaySample, spelunkReplayTile, spelunkReplayDrop, spelunkReplayEvents, spelunkReplayActionTime } from './spelunk-replay.js';
-import { startSpelunkWorkers } from '../workers/spelunk-client.js?v=full-belts-1';
-import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js?v=full-belts-1';
+import { startSpelunkWorkers } from '../workers/spelunk-client.js?v=depth-limits-1';
+import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js?v=depth-limits-1';
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -22,6 +23,8 @@ const goalNames = { depth: 'Depth', amber: 'Amber / expedition', 'amber-per-stam
   'sustainable-amber': 'Amber / run + recovery hour', grand: 'Grand Discoveries / expedition' };
 const storageKey = 'spelunk-configurations-v1', controlKey = 'spelunk-controls-v1';
 const scopeKey = 'spelunk-search-scope-v1';
+const searchSections = { party: 'Party size', modes: 'Play', clears: 'Descend', speeds: 'Auto speeds',
+  elixirs: 'Belt pool', memorized: 'Memory pool', tools: 'Manual tools', entry: 'Entry' };
 let searchSettings = null;
 let raw = null, input = null, worker = null, requestId = 0, activeTab = 'simulate', loaded = false;
 let revision = 0, jobRevision = null;
@@ -54,6 +57,7 @@ function invalidate() {
   try { localStorage.setItem(controlKey, JSON.stringify({ charIdx: Number($('character').value), config: readConfig() })); }
   catch (e) { error(`Cannot persist settings: ${e.message}`); }
   updateSearchWorkload();
+  if (activeTab === 'depth') renderDepthLimits();
 }
 function readConfig() {
   if (!input) throw new Error('Load a save first.');
@@ -71,35 +75,56 @@ function readSearchScope() {
   const selected = (key, convert = Number) => [...document.querySelectorAll(`[data-scope="${key}"]:checked`)]
     .map(e => convert(e.value));
   return { partyMin: Number($('search-party-min').value), partyMax: Number($('search-party-max').value),
+    characters: selected('characters'), ignoreOrder: $('search-ignore-order').checked,
     modes: selected('modes', String), clears: selected('clears', v => v === 'true'),
-    speeds: selected('speeds'), elixirs: selected('elixirs'), memorized: selected('memorized') };
+    speeds: selected('speeds'), elixirs: selected('elixirs'), memorized: selected('memorized'),
+    enabled: Object.fromEntries([...document.querySelectorAll('[data-scope-section]')].map(e => [e.dataset.scopeSection, e.checked])) };
+}
+function syncSearchSections() {
+  for (const toggle of document.querySelectorAll('[data-scope-section]')) {
+    const row = toggle.closest('.scope-row');
+    row.querySelector('fieldset').disabled = !toggle.checked;
+    row.dataset.fixed = String(!toggle.checked);
+  }
 }
 function renderSearchScope() {
   if (!input) return;
   const settings = searchSettings || {}, capacity = input.caves[Number($('cave').value)].capacity;
+  const heading = key => `<label class="scope-switch" data-stip="Include ${esc(searchSections[key])} in the search. Uncheck to keep the current expedition setting.">
+    <input type="checkbox" data-scope-section="${key}" aria-label="Search ${esc(searchSections[key])}"
+    ${settings.enabled?.[key] !== false ? 'checked' : ''}>${esc(searchSections[key])}</label>`;
   const chip = (key, value, label, tip = '', disabled = false, icon = false) => {
     const checked = settings[key] == null || settings[key].includes(value);
     return `<label class="scope-chip${icon ? ' scope-icon' : ''}"${tip ? ` data-stip="${esc(tip)}"` : ''}>
       ${icon ? label : ''}<input type="checkbox" data-scope="${key}" value="${esc(value)}"
       aria-label="${esc(icon ? tip : label)}" ${checked && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}>${icon ? '' : esc(label)}</label>`;
   };
-  $('search-scope').innerHTML = `<div class="scope-row"><span>Party size</span><div class="scope-choices">
+  $('search-scope').innerHTML = `<p class="muted">Search checked sections; unchecked sections keep your current configuration. Party size uses only checked characters.</p>
+    <div class="scope-row">${heading('party')}<fieldset class="scope-choices scope-party-choices" aria-label="Party size search choices">
     <label>From <input id="search-party-min" type="number" min="1" max="${capacity}" value="${esc(settings.partyMin ?? 1)}"></label>
     <label>to <input id="search-party-max" type="number" min="1" max="${capacity}" value="${esc(settings.partyMax ?? capacity)}"></label>
-    <small>members</small></div></div>
-    <div class="scope-row"><span>Play</span><div class="scope-choices">
+    <small>members</small>
+    <label class="scope-chip" data-stip="Test each group once, in character-slot order. Expedition outcomes can still depend on that order.">
+    <input id="search-ignore-order" type="checkbox" ${settings.ignoreOrder === true ? 'checked' : ''}>Order doesn't matter</label>
+    <div class="scope-roster" role="group" aria-label="Characters to test">${input.characters.map(c =>
+      chip('characters', c.id, c.name, `${c.name}: ${c.stamina} / ${c.max} stamina. Requires at least half stamina unless Full stamina is selected.`)).join('')}</div>
+    </fieldset></div>
+    <div class="scope-row">${heading('modes')}<fieldset class="scope-choices" aria-label="Play search choices">
     ${chip('modes', 'auto', 'Auto', 'Search native Auto strategies.', !input.auto)}
-    ${chip('modes', 'manual', 'Manual', 'Search simulated manual targeting strategies, tools and party order.')}</div></div>
-    <div class="scope-row"><span>Descend</span><div class="scope-choices">
+    ${chip('modes', 'manual', 'Manual', 'Search simulated manual targeting strategies.')}</fieldset></div>
+    <div class="scope-row">${heading('clears')}<fieldset class="scope-choices" aria-label="Descent search choices">
     ${chip('clears', false, 'First exit', 'Descend when an exit is revealed. Manual searches include depth-diving and damage-per-stamina targeting.')}
-    ${chip('clears', true, 'Full clear', 'Clear every remaining rock before descending, for both Auto and manual strategies.')}</div></div>
-    <div class="scope-row"><span>Auto speeds</span><div class="scope-choices">
+    ${chip('clears', true, 'Full clear', 'Clear every remaining rock before descending, for both Auto and manual strategies.')}</fieldset></div>
+    <div class="scope-row">${heading('speeds')}<fieldset class="scope-choices" aria-label="Auto speed search choices">
     ${Array.from({ length: input.speedMax + 1 }, (_, speed) => chip('speeds', speed, speed ? String(speed) : 'Base',
-      'Only checked speeds may be recommended; these choices do not affect manual strategies.', !input.auto)).join('')}</div></div>
-    ${['elixirs', 'memorized'].map(key => `<div class="scope-row"><span>${key === 'elixirs' ? 'Belt pool' : 'Memory pool'}</span>
-      <div class="scope-choices">${input.elixirs.slice(0, input.elixirOwned).map(e => chip(key, e.id,
+      'Only checked speeds may be recommended; these choices do not affect manual strategies.', !input.auto)).join('')}</fieldset></div>
+    ${['elixirs', 'memorized'].map(key => `<div class="scope-row">${heading(key)}
+      <fieldset class="scope-choices" aria-label="${esc(searchSections[key])} search choices">${input.elixirs.slice(0, input.elixirOwned).map(e => chip(key, e.id,
         art(`CaveElix${e.id}`), `${key === 'elixirs' ? 'Allow equipped' : 'Allow memorized'}: ${elixirNames[e.id]}\n${e.description}`,
-        key === 'memorized' && !input.memorySlots || key === 'elixirs' && !input.slots, true)).join('')}</div></div>`).join('')}`;
+        key === 'memorized' && !input.memorySlots || key === 'elixirs' && !input.slots, true)).join('')}</fieldset></div>`).join('')}
+    <div class="scope-row">${heading('tools')}<fieldset class="scope-choices"><small>Adaptive and every unlocked tool (manual play only)</small></fieldset></div>
+    <div class="scope-row">${heading('entry')}<fieldset class="scope-choices"><small>Surface and saved shortcut</small></fieldset></div>`;
+  syncSearchSections();
   updateSearchWorkload();
 }
 function updateSearchWorkload() {
@@ -340,10 +365,124 @@ function persistConfigurations() {
   localStorage.setItem(storageKey, JSON.stringify(configurations));
   renderConfigurations();
 }
+let depthProfile = null, depthCave = null, depthInput = null;
+const depthColors = ['#4dd0e1', '#ffb74d', '#a5d66f', '#df91f0', '#fb8299', '#82aaff', '#ffe082',
+  '#80cbc4', '#dca978', '#adadff', '#e4ceff', '#91c4a0', '#f6956a', '#b6d6ee', '#ed95bb', '#fff'];
+function depthCost(value) { return Number.isFinite(value) ? num(value) : 'Beyond numeric range'; }
+function depthPercent(value) {
+  const percent = 100 * value;
+  return `${percent > 0 && percent < .1 ? percent.toExponential(2) : num(percent)}%`;
+}
+function depthChart(profile, stamina) {
+  const left = 72, right = 744, top = 18, bottom = 236;
+  const first = profile.rows[0].depth, last = profile.rows.at(-1).depth;
+  const x = depth => first === last ? (left + right) / 2 : left + (depth - first) / (last - first) * (right - left);
+  const maximum = Math.max(1, Math.log10(1 + profile.budget),
+    ...profile.rows.flatMap(row => row.objects.filter(r => Number.isFinite(r.expected)).map(r => Math.log10(1 + r.expected))));
+  const y = value => bottom - (stamina ? Number.isFinite(value) ? Math.log10(1 + value) / maximum : 1 : value) * (bottom - top);
+  const line = (points, color, dashed = false) => `<polyline points="${points.map(([a, b]) => `${a.toFixed(2)},${b.toFixed(2)}`).join(' ')}"
+    fill="none" stroke="${color}" stroke-width="2"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`
+    + (points.length === 1 ? `<circle cx="${points[0][0]}" cy="${points[0][1]}" r="3" fill="${color}"/>` : '');
+  const title = stamina ? 'Expected stamina per object by depth' : 'Over-budget exit risk by depth';
+  let out = `<svg class="depth-chart" viewBox="0 0 760 280" role="img" aria-label="${title}">
+    <title>${title}. ${stamina ? 'Logarithmic stamina scale.' : 'Per-floor probability, not cumulative run failure.'} Exact values are in the depth inspector below.</title>`;
+  for (let i = 0; i <= 4; i++) {
+    const fraction = i / 4, py = bottom - fraction * (bottom - top);
+    out += `<path d="M${left},${py}H${right}" stroke="#ffffff25"/>
+      <text x="${left - 8}" y="${py + 4}" text-anchor="end">${stamina ? num(10 ** (maximum * fraction) - 1) : `${i * 25}%`}</text>`;
+    const depth = Math.round(first + (last - first) * fraction);
+    if (i === 0 || depth !== Math.round(first + (last - first) * (i - 1) / 4))
+      out += `<text x="${x(depth)}" y="${bottom + 20}" text-anchor="middle">${depth}</text>`;
+  }
+  out += `<text x="${(left + right) / 2}" y="276" text-anchor="middle">Depth (in-game)</text>`;
+  if (stamina) {
+    const types = [...new Set(profile.rows.flatMap(row => row.objects.map(r => r.type)))];
+    for (const type of types) out += line(profile.rows.flatMap(row => {
+      const object = row.objects.find(r => r.type === type);
+      return object ? [[x(row.depth), y(object.expected)]] : [];
+    }), depthColors[type % depthColors.length]);
+    out += line([[left, y(profile.budget)], [right, y(profile.budget)]], '#fff', true);
+  } else {
+    out += line(profile.rows.map(row => [x(row.depth), y(row.hard)]), '#fb8299', true);
+    out += line(profile.rows.map(row => [x(row.depth), y(row.blockedExits)]), '#ffb74d');
+  }
+  for (const row of profile.rows) {
+    const tip = `Depth ${row.depth}\nAll descent holes over budget: ${depthPercent(row.blockedExits)}\nNormal rocks over budget: ${depthPercent(row.hard)}`
+      + (stamina ? '\n' + row.objects.map(r => `${r.name}${r.boss ? ' (boss)' : ''}: ${depthCost(r.expected)} stamina${r.overBudget ? ' (over budget)' : ''}`).join('\n') : '');
+    const a = first === last ? left : Math.max(left, x(row.depth - .5));
+    const b = first === last ? right : Math.min(right, x(row.depth + .5));
+    out += `<rect x="${a}" y="${top}" width="${b - a}" height="${bottom - top}" fill="transparent" data-stip="${esc(tip)}"/>`;
+  }
+  return out + '</svg>';
+}
+function renderDepthInspector() {
+  if (!depthProfile) return;
+  const row = depthProfile.rows.find(r => r.depth === Number($('depth-inspect').value));
+  if (!row) return;
+  $('depth-selected').textContent = row.depth;
+  $('depth-values').innerHTML = `<p>Depth ${row.depth}: all descent holes over budget <strong>${depthPercent(row.blockedExits)}</strong>;
+    normal rocks over budget ${depthPercent(row.hard)}.</p><div class="scroll"><table>
+    <thead><tr><th>Object</th><th>Normal-rock share</th><th>Power requirement</th><th>Hit chance</th><th>Hits needed</th><th>Reference tool</th><th>Expected stamina</th></tr></thead>
+    <tbody>${row.objects.map(r => `<tr><td>${esc(r.name)}${r.boss ? ' (boss)' : ''}</td>
+      <td>${r.boss ? 'Boss floor only' : depthPercent(r.probability)}</td><td>${num(r.requirement)}</td>
+      <td>${depthPercent(r.hitChance)}</td><td>${num(r.hits)}</td><td>${esc(text(input.tools.find(t => t.id === r.tool).name))}</td>
+      <td class="${r.overBudget ? 'warning' : ''}">${depthCost(r.expected)}${r.overBudget ? ' (over budget)' : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderDepthLimits() {
+  hideTip(); depthProfile = null;
+  if (!input) { $('depth-graphs').textContent = 'Load a valid save to estimate depth limits.'; $('depth-values').replaceChildren(); return; }
+  try {
+    const config = readConfig();
+    if (depthCave !== config.cave) {
+      const record = (config.manic ? input.manicDepths : input.depths)[config.cave] || 0;
+      $('depth-from').value = Math.max(1, record - 100);
+      $('depth-to').value = Math.min(10000, Math.max(150, record + 100));
+      depthCave = config.cave;
+    }
+    if (depthInput !== input) {
+      const selected = $('depth-tool').value;
+      $('depth-tool').innerHTML = option('best', 'Lowest isolated cost (optimistic)')
+        + input.tools.map(t => option(t.id, text(t.name))).join('');
+      $('depth-tool').value = selected === 'best' || input.tools.some(t => String(t.id) === selected) ? selected : 'best';
+      depthInput = input;
+    }
+    depthProfile = spelunkDepthProfile(input, config, { from: Number($('depth-from').value), to: Number($('depth-to').value),
+      tool: $('depth-tool').value === 'best' ? 'best' : Number($('depth-tool').value) });
+    const p = depthProfile, objects = [...new Map(p.rows.flatMap(row => row.objects.map(r => [r.type, r]))).values()];
+    $('depth-graphs').innerHTML = `<p><strong>${esc(p.cave)} / ${config.manic ? 'Manic' : 'Normal'}</strong>
+      &middot; entry Power ${num(p.power)} &middot; ${config.stamina === 'full' ? 'Full' : 'Saved'} party stamina <strong>${num(p.budget)}</strong>
+      ${p.partial ? '<span class="warning"> &middot; Partial account inputs</span>' : ''}</p>
+      <h3>1. Effectively unbreakable exits</h3>${depthChart(p, false)}
+      <p class="depth-legend"><span style="--series:#ffb74d">All descent holes over budget</span>
+      <span style="--series:#fb8299">Normal rocks over budget (dashed)</span></p>
+      <p class="muted">An object is over budget only when its expected stamina cost exceeds the entire selected party's starting stamina.
+      Extra holes are included: one bad hole does not trap you if another is reachable. These are per-floor placement odds,
+      not actual failure odds or cumulative risk. Bosses, full-clear requirements and Grand Discovery's descent restriction are excluded from this exit-placement probability.</p>
+      <h3>2. Stamina to break each object</h3>${depthChart(p, true)}
+      <p class="depth-legend">${objects.map(r => `<span style="--series:${depthColors[r.type % depthColors.length]}">${esc(r.name)}${r.boss ? ' (boss)' : ''}</span>`).join('')}
+      <span style="--series:#fff">Party starting stamina (dashed)</span></p>
+      <p class="muted">Logarithmic scale: log10(1 + stamina). Costs include resists, rounded successful-hit counts, damage upgrades,
+      Manic's 30x cost and fixed memorized entry effects${p.refund ? `, including ${num(p.refund * 100)}% stamina refund` : ''}.
+      Each object is targeted alone with the reference tool repeated throughout; this is not Native Auto's tool selection.
+      No area-damage savings, Shadow/adjacent strikes, Nova, later belt drinks, Power decay or stamina-restoration procs are included.
+      Tool affordability, member switches and partial final digs are not modeled. Earlier floors already spend stamina:
+      the full starting budget is an optimistic reference, not remaining stamina at that depth.
+      Values beyond numeric range are flagged in the inspector and capped at the chart's top.
+      Expected cost is not a guarantee of success or an exact stopping depth.</p>`;
+    $('depth-inspect').min = p.rows[0].depth; $('depth-inspect').max = p.rows.at(-1).depth;
+    $('depth-inspect').value = Math.max(p.rows[0].depth, Math.min(p.rows.at(-1).depth, Number($('depth-inspect').value)));
+    renderDepthInspector();
+  } catch (e) {
+    depthProfile = null;
+    $('depth-graphs').innerHTML = `<p class="error" role="alert">Cannot estimate depth limits: ${esc(e.message)}</p>`;
+    $('depth-values').replaceChildren();
+  }
+}
 function selectTab(name) {
   activeTab = name;
   pause(); closePicker(false); hideTip();
   $(`${name}-status-host`).append($('job-status'));
+  if (name === 'depth') renderDepthLimits();
   document.querySelectorAll('[data-tab]').forEach(b => {
     const active = b.dataset.tab === name;
     b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1;
@@ -361,6 +500,8 @@ function renderRun(bundle) {
     <div class="card"><span>Expedition time</span><strong>${num(r.seconds)}s</strong></div>
     <div class="card"><span>Recovery to starting stamina</span><strong>${num(recovery)}h</strong></div></div>
     <p class="muted">Recovery holds current regeneration fixed and restores this party's starting stamina; it is not guaranteed daily income.</p>
+    ${renderContributions(r.diagnostics, captured)}
+    ${renderPartyAnalysis(r.partyAnalysis, captured)}
     ${r.exit ? `<p class="muted" tabindex="0" data-stip="${esc('Automatically takes the Delve exit once the whole party is exhausted and the floor transition ends.\nAmber keeps its exact fraction. Each other found reward keeps the whole part, then rolls its fractional remainder for one extra item.')}">Toll paid &middot; ${num(100 * r.exit.retained)}% loot retained before item rolls</p>` : ''}
     <details><summary>Rewards &amp; stamina</summary><table><thead><tr><th>Reward</th><th class="num">Gross</th><th class="num">${r.settled ? 'Collected' : 'Uncollected'}</th></tr></thead><tbody>
       ${r.rewards.map((v, i) => {
@@ -552,38 +693,103 @@ function tick(now) {
   if (!playback.running) pause();
   else animation = requestAnimationFrame(tick);
 }
+function sampleRate(count, total) {
+  if (!total) return 'Unavailable';
+  return `${num(100 * count / total)}% (${count}/${total})`;
+}
+function renderContributions(diagnostics, captured, aggregate = false) {
+  if (!diagnostics) return '<p class="muted">Party diagnostics unavailable for this stored result.</p>';
+  const rows = diagnostics.members;
+  return `<details open><summary>${aggregate ? 'Mean character activity &amp; sampled risks' : 'Character activity'}</summary>
+    <p class="muted">Events belong to the character active when they resolve, including delayed effects from earlier members.
+    No descent does not mean wasted: damage, broken objects and loot still count. Amber below is gross, before toll.</p>
+    <table class="comparison"><thead><tr><th>Character</th><th>Stamina used</th><th>Fully resisted stamina</th>
+    <th>Hits / resists</th><th>Damage / breaks</th><th>Descents / Amber</th><th>Outcome</th></tr></thead><tbody>
+    ${rows.map(c => `<tr><td data-label="Character">${esc(captured.characters[c.id].name)}</td>
+      <td data-label="Stamina used">${num(c.spent)}</td><td data-label="Fully resisted stamina">${num(c.resistedStamina)}</td>
+      <td data-label="Hits / resists">${num(c.hits)} / ${num(c.misses)}</td>
+      <td data-label="Damage / breaks">${num(c.damage)} / ${num(c.broken)}</td>
+      <td data-label="Descents / Amber">${num(c.descents)} / ${num(aggregate ? c.amber : c.rewards[0])}</td>
+      <td data-label="Outcome">${aggregate
+        ? `Unused ${sampleRate(c.unused, c.total)}<br>No later descent ${sampleRate(c.noFurtherFloor, c.total)}<br>Resist stall ${sampleRate(c.resistStall, c.total)}`
+        : c.unused ? 'Never activated' : `${c.noAdvance ? 'No descent during turn' : 'Advanced floors'}${c.noFurtherFloor ? '; party never descended again' : ''}${c.resistStall ? '; resist stall' : ''}`}</td></tr>`).join('')}
+    </tbody></table><p class="muted">Resist stall = an exhausted member who attempted digs, encountered resists, and had no breaks or descents during their turn.
+    Partial damage is still shown; this is not proof of an impossible object. Fully resisted stamina counts digs with no successful direct hit.
+    No later descent = the whole party exhausted without going below that member's entry floor; rates use all trials, including unused members.
+    A missing-exit blocked floor is separate.</p></details>`;
+}
+function renderPartyAnalysis(analysis, captured) {
+  if (!analysis) return '';
+  const recommended = analysis.rows.find(row => row.config.party.length === analysis.recommendedSize);
+  return `<details open><summary>How many characters are worth sending?</summary>
+    <p>${recommended ? `Smallest measured party retaining 99% of the best observed ${esc(goalNames[analysis.objective])}${analysis.objective === 'depth' ? ' gain' : ''}: <strong>${analysis.recommendedSize} character${analysis.recommendedSize === 1 ? '' : 's'}</strong>.`
+      : 'No shorter prefix is eligible for recommendation in the captured search scope.'}</p>
+    <p class="muted">${analysis.trials === 1 ? 'One seed only: these are outcomes, not estimated probabilities.' : `${analysis.trials} paired trials per party size; all other captured settings fixed.`}
+    Ordered prefixes only, not every possible smaller team. This 1% efficiency allowance is descriptive, not proven equivalence.
+    Depth compares floors gained beyond entry. The optimizer's highest-objective winner is unchanged.</p>
+    <table class="comparison"><thead><tr><th>Party</th><th>${esc(goalNames[analysis.objective])}</th><th>Depth / Amber</th>
+    <th>Gain from extra member</th></tr></thead><tbody>${analysis.rows.map(row => {
+      const m = row.marginal;
+      const otherLoot = m?.rewards.flatMap((v, i) => i && v ? [`${SPELUNK_REWARDS[i]} ${v > 0 ? '+' : ''}${num(v)}`] : []).join('; ');
+      return `<tr><td data-label="Party">${row.config.party.length}: ${row.config.party.map(id => esc(captured.characters[id].name)).join(' &rarr; ')}
+        ${row.allowed ? '' : '<small>(outside search scope; diagnostic only)</small>'}</td>
+      <td data-label="${esc(goalNames[analysis.objective])}">${num(row.score)}</td>
+      <td data-label="Depth / Amber">${num(row.depth)} / ${num(row.amber)}</td>
+      <td data-label="Gain from extra member">${m ? `${num(m.objective)} objective; ${num(m.depth)} floors; ${num(m.amber)} Amber<br>
+        ${analysis.trials === 1 ? `Extra depth on this seed: ${m.extraDepth ? 'yes' : 'no'}` : `Extra depth ${sampleRate(m.extraDepth, m.total)}`}
+        ${m.interval ? `<br>Approx. paired 95% change interval: ${num(m.interval[0])} to ${num(m.interval[1])}` : ''}
+        ${m.grands ? `<br>${num(m.grands)} Grand Discoveries` : ''}
+        ${otherLoot ? `<br>${esc(otherLoot)}` : ''}` : 'First character'}</td></tr>`;
+    }).join('')}</tbody></table></details>`;
+}
 function renderComparison(bundle, destination) {
   const r = bundle.result, captured = bundle.input;
   const winner = r.winner;
+  const efficient = winner?.partyAnalysis?.rows.find(row => row.allowed
+    && row.config.party.length === winner.partyAnalysis.recommendedSize
+    && row.config.party.length < winner.config.party.length);
   $(destination).innerHTML = `<h2>${esc(goalNames[r.objective])}</h2>`
     + (winner ? `${layout(winner.config, captured)}<p><strong>Best measured: ${num(winner.score)}</strong> &middot; baseline ${num(r.baseline.score)}
       &middot; change ${r.delta >= 0 ? '+' : ''}${num(r.delta)}</p><button id="use-winner">Use recommendation in controls</button>
       <p class="muted">${esc(r.claim)}</p>` : '')
-    + `<table class="comparison"><thead><tr><th>Configuration</th><th class="num">${esc(goalNames[r.objective])}</th><th class="num">Mean depth</th><th class="num">Collected Amber</th><th class="num">Settled</th><th>Inspect</th></tr></thead><tbody>`
+    + (winner ? renderPartyAnalysis(winner.partyAnalysis, captured) : '')
+    + (efficient ? '<button id="use-party">Use smaller party (1% observed efficiency allowance)</button>' : '')
+    + `<table class="comparison"><thead><tr><th>Configuration</th><th class="num">${esc(goalNames[r.objective])}</th><th class="num">Mean depth</th><th class="num">Collected Amber</th><th class="num">Resist stalls</th><th class="num">Unused / no descent</th><th class="num">Settled</th><th>Inspect</th></tr></thead><tbody>`
     + r.rows.map((row, i) => `<tr><td data-label="Configuration">${row.label === 'Screened strategy' ? '' : `<small class="muted">${esc(row.label)}</small>`}${row.referenceOnly ? ' <small class="muted">(reference only)</small>' : ''}${layout(row.config, captured)}</td>
       <td class="num" data-label="${esc(goalNames[r.objective])}">${num(row.score)}</td>
       <td class="num" data-label="Mean depth">${num(row.depth)}</td><td class="num" data-label="Collected Amber">${num(row.amber)}</td>
+      <td class="num" data-label="Resist stalls">${row.diagnostics ? sampleRate(row.diagnostics.resistStall.count, row.total) : 'Unavailable'}</td>
+      <td class="num" data-label="Unused / no descent">${row.diagnostics ? `${num(row.diagnostics.unused)} / ${num(row.diagnostics.noAdvance)}` : 'Unavailable'}</td>
       <td class="num" data-label="Settled">${row.settled}/${row.total}</td>
       <td data-label="Inspect"><button data-inspect="${i}" data-owner="${destination}">Runs</button></td></tr>
-      <tr hidden id="${destination}-detail-${i}"><td colspan="6" data-label="Trial details">
+      <tr hidden id="${destination}-detail-${i}"><td colspan="8" data-label="Trial details">
       <p>${num(row.seconds)}s mean run &middot; ${num(row.recoveryHours)}h mean recovery &middot; SE ${num(row.se)}</p>
+      ${row.diagnostics ? `<p>Missing-exit blocked floors: ${sampleRate(row.diagnostics.blocked.count, row.total)}</p>` : ''}
+      ${renderContributions(row.diagnostics, captured, true)}
+      ${renderPartyAnalysis(row.partyAnalysis, captured)}
       <div>${row.runs.map((run, j) => `<button data-replay-row="${i}" data-replay-trial="${j}" data-owner="${destination}">Run ${j + 1}: ${esc(run.status)}</button>`).join(' ')}</div></td></tr>`).join('')
     + '</tbody></table><p class="warning">Blocked runs have zero collected Amber in these comparisons. Depth and Grand Discovery goals may include unfinished expeditions.</p>'
     + (r.scope ? `<details><summary>Search details</summary><p>${esc(r.scope)}</p>
       <p>Captured scope: party ${r.searchScope.partyMin}&ndash;${r.searchScope.partyMax};
+      ${esc((r.searchScope.characters ?? captured.characters.map(c => c.id)).map(id => captured.characters.find(c => c.id === id)?.name ?? `Character ${id + 1}`).join(', '))};
+      ${r.searchScope.enabled?.party === false ? 'current party order (fixed)'
+        : r.searchScope.ignoreOrder ? 'each group once in character-slot order' : 'all party orders'};
       ${esc(r.searchScope.modes.join(' / '))}; ${esc(r.searchScope.clears.map(v => v ? 'full clear' : 'first exit').join(' / '))};
       Auto speeds ${esc(r.searchScope.speeds.map(v => v || 'Base').join(', ') || 'none')}.
       Belt: ${esc(r.searchScope.elixirs.map(id => elixirNames[id]).join(', ') || 'none')}.
       Memory: ${esc(r.searchScope.memorized.map(id => elixirNames[id]).join(', ') || 'none')}.</p>
+      ${r.searchScope.enabled ? `<p>Search sections: ${esc(Object.keys(searchSections).filter(key => r.searchScope.enabled[key] !== false).map(key => searchSections[key]).join(', ') || 'none (current configuration only)')}. Other sections fixed to captured controls.</p>` : ''}
       <p>All ${esc(BigInt(r.configurations).toLocaleString())} allowed configurations screened (${esc(BigInt(r.screened).toLocaleString())} including references) on ${bundle.workers ?? 1} workers. Descriptive paired change interval: ${num(r.interval[0])} to ${num(r.interval[1])}.</p></details>` : '');
-  if (winner) $('use-winner').onclick = () => {
+  const apply = config => {
     try {
       const current = buildSpelunkInputs(saveData, captured.charIdx);
-      const config = normalizeSpelunkConfig(current, winner.config);
+      config = normalizeSpelunkConfig(current, config);
       input = current; $('character').value = captured.charIdx;
       populate(config); invalidate();
     } catch (e) { error(e.message); }
   };
+  if (winner) $('use-winner').onclick = () => apply(winner.config);
+  if (efficient) $('use-party').onclick = () => apply(efficient.config);
 }
 function start(type, extra = {}) {
   try {
@@ -661,8 +867,10 @@ document.querySelectorAll('[data-tab]').forEach(b => {
 });
 $('main-content').addEventListener('change', e => {
   const target = e.target;
+  if (target.closest('#panel-depth')) { if (target.id === 'depth-inspect') renderDepthInspector(); else renderDepthLimits(); return; }
   if (target.closest('#simulate-result,#compare-result,#optimize-result') || target.dataset.checked != null || target.id === 'config-name') return;
   if (target.closest('#search-scope')) {
+    syncSearchSections();
     searchSettings = readSearchScope();
     try { localStorage.setItem(scopeKey, JSON.stringify(searchSettings)); }
     catch (e) { error(`Cannot persist search scope: ${e.message}`); }
@@ -686,6 +894,7 @@ $('main-content').addEventListener('change', e => {
   }
   syncVisuals(); syncPolicy(); invalidate();
 });
+$('depth-inspect').addEventListener('input', renderDepthInspector);
 $('configurations').addEventListener('change', e => {
   if (e.target.dataset.checked != null) {
     const id = Number(e.target.dataset.checked); if (e.target.checked) checked.add(id); else checked.delete(id);
@@ -766,7 +975,10 @@ try {
   const stored = JSON.parse(localStorage.getItem(scopeKey) || 'null');
   if (stored) {
     if (typeof stored !== 'object' || Array.isArray(stored)
-      || ['modes', 'clears', 'speeds', 'elixirs', 'memorized'].some(k => stored[k] != null && !Array.isArray(stored[k])))
+      || ['characters', 'modes', 'clears', 'speeds', 'elixirs', 'memorized'].some(k => stored[k] != null && !Array.isArray(stored[k]))
+      || stored.ignoreOrder != null && typeof stored.ignoreOrder !== 'boolean'
+      || stored.enabled != null && (typeof stored.enabled !== 'object' || Array.isArray(stored.enabled)
+        || Object.entries(stored.enabled).some(([key, value]) => !(key in searchSections) || typeof value !== 'boolean')))
       throw new Error('Stored search selections are malformed.');
     searchSettings = stored;
   }
@@ -807,9 +1019,11 @@ initSaveLoader({ target: '#save-area', auth: true, onLoad(S, parsed, metadata) {
       renderSearchScope();
     }
     loaded = true;
+    if (activeTab === 'depth') renderDepthLimits();
     if (!worker) { cancel(); $('status').textContent = 'Ready.'; }
   } catch (e) {
     input = null; $('reset-elixirs').disabled = true;
+    if (activeTab === 'depth') renderDepthLimits();
     error(`Cannot initialize Spelunking: ${e.message}`); if (!refresh) cancel();
   }
 } });

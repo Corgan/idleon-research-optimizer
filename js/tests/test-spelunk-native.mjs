@@ -4,6 +4,7 @@ import { spelunkCaves, spelunkTools, spelunkElixirs } from '../stats/data/w7/spe
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { Spelunky, SpelunkRocks } from '../stats/data/game/customlists.js';
 import { spelunkReplayDrop } from '../ui/spelunk-replay.js';
+import { getLOG } from '../formulas.js';
 
 const source = fs.readFileSync(new URL('../../src/N.new.formatted.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 function method(className, name, environment = {}) {
@@ -99,6 +100,7 @@ function nativeHarness(input, rows, values = [], options = {}) {
   };
   const tickTask = method('com.stencyl.behavior.TimedTask', 'update', { a });
   const k = {
+    _customBlock_getLOG: getLOG,
     _customBlock_addImgInst(name) {
       const art = SPELUNK_SPRITES[name.replace('.png', '')] || { w: 16, h: 16 };
       return { sx: 1, sy: 1, set_alpha() {},
@@ -124,7 +126,9 @@ function nativeHarness(input, rows, values = [], options = {}) {
       : 26 + 18 * (slot % 12) + 18 * Math.floor(slot / 12);
     if (name === 'StaminaMax') return 10000;
     if (name === 'POW') return input.pow;
-    if (name === 'RockPOWreq' || name === 'BonusDMG' || name === 'StaminaCostMulti') return 1;
+    if (name === 'RockPOWreq') return options.requirement ?? 1;
+    if (name === 'BonusDMG') return 1 + input.shop[33] / 100;
+    if (name === 'StaminaCostMulti') return 1;
     if (name === 'ShopUpgBonus') return input.shop[id];
     if (name === 'NovaBlastHitChance') return input.shop[38] / 100;
     if (name === 'ElixirEffectQTY') return input.elixirs[id].quantity;
@@ -266,6 +270,29 @@ function traceRandom(debug) {
   }
   assert.equal(native.draws, values.length);
   assert.ok(run.result().hits === 2);
+}
+
+// The native strict resist comparison includes equality; Manic changes cost, not object POW.
+for (const manic of [false, true]) for (const ratio of [.01, .5, 1, 2, 100, 1000]) {
+  const chance = ratio ** .6;
+  for (const roll of [0, Math.min(1 - Number.EPSILON, chance - Number.EPSILON),
+    chance, Math.min(1 - Number.EPSILON, chance + Number.EPSILON)].filter(v => v >= 0 && v < 1)) {
+    const { input, run, debug } = fresh({ manic });
+    input.pow = ratio * 100;
+    input.shop[33] = 25; input.shop[34] = 1;
+    const r = rock(65, { requirement: 100 });
+    debug.set({ rocks: [r] });
+    debug.state.random.next = () => roll;
+    const native = nativeHarness(input, [], [roll], { requirement: r.requirement });
+    native.gi[47] = nativeRows(native, [r]);
+    debug.hit(r, 2);
+    native.gi[94] = 2; native.actor._TRIGGEREDtext = 'a0';
+    native.actor._customEvent_SpelunkStuff2();
+    assert.equal(r.hp, native.gi[47][0][5], `native resist/damage boundary, ratio ${ratio}, roll ${roll}`);
+    assert.equal(run.result().misses, Number(roll > chance));
+    assert.equal(native.gi[110][4], Number(roll > chance));
+    assert.equal(native.draws, 1, 'every hit attempt consumes one resist roll, including guaranteed hits');
+  }
 }
 
 // Native Auto samples animated centres and preserves the 25-point draw order at every speed.

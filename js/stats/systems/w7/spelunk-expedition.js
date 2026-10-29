@@ -62,6 +62,26 @@ function _tween(from, to, elapsed, duration, easing) {
 function _powerBoost(input, effects) {
   return effects[4] > .5 ? 5 / (1 + input.elixirs[4].quantity / 100) ** (effects[4] - 1) : 1;
 }
+export function spelunkEntryEffects(input, config) {
+  const effects = Array(13).fill(0);
+  for (const id of config.memorized) {
+    const n = Math.floor(1 + input.shop[58] / 100);
+    if ([0, 2, 4, 9].includes(id)) effects[id] = 1;
+    else if ([3, 6, 7, 10].includes(id)) effects[id] += n;
+    else if (id === 5) effects[id] += 2 * n;
+  }
+  return effects;
+}
+export function spelunkDigPower(input, effects) {
+  return input.pow * Math.max(1, 100 * effects[10]) / (1 + Math.min(99, 99 * effects[9])) * _powerBoost(input, effects);
+}
+export function spelunkStaminaMultiplier(config, effects) {
+  return (1 + Math.min(2, 2 * effects[9])) * Math.max(1, 4 * effects[10]) * (config.manic ? 30 : 1);
+}
+export function spelunkHitDamage(input, damage, ratio) {
+  if (input.shop[34] >= 1) damage *= 1 + Math.max(0, Math.floor(getLOG(ratio)) - 1);
+  return damage * (1 + input.shop[33] / 100);
+}
 function _amberBoost(input, effects) {
   return effects[3] > .5 ? 1 + .1 * input.elixirs[3].quantity * effects[3] / 100 : 1;
 }
@@ -144,7 +164,7 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   _integer(options.seed ?? 1, 0, 0xffffffff, 'seed');
   const cave = input.caves[config.cave], shop = input.shop, random = _rng(options.seed ?? 1);
   const stamina = input.characters.map(c => config.stamina === 'full' ? c.max : c.stamina);
-  const start = [...stamina], effects = Array(13).fill(0);
+  const start = [...stamina], effects = spelunkEntryEffects(input, config);
   const startingStamina = config.party.reduce((sum, id) => sum + start[id], 0);
   const charges = config.elixirs.map(id => id < 0 ? 0 : input.elixirs[id].charges), ready = charges.map(() => 0);
   const tasks = [];
@@ -157,6 +177,11 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   let rocks = [], mask = Array(144).fill(0), pending = [], time = 0, transition = true;
   let floorEnteredAt = 0, floorLeavingAt = null;
   let active = config.party[0], found = false, attempted = false;
+  const contributions = new Map(config.party.map(id => [id, {
+    id, startDepth: null, digs: 0, spent: 0, resistedStamina: 0, hits: 0, misses: 0,
+    damage: 0, broken: 0, descents: 0, grands: 0, rewards: Array(12).fill(0),
+  }]));
+  contributions.get(active).startDepth = depth + 1;
   let countdown = 0, actions = 0, spent = 0, hits = 0, misses = 0, broken = 0;
   let toolId = input.tools.at(-1).id, status = 'running', settled = false;
   let replayManualTool = config.tool === 'adaptive' ? null : config.tool;
@@ -194,15 +219,8 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
       for (let n = 0; n < 30; n++) later(10 * n, () => visualRolls(5));
     });
   }
-  for (const id of config.memorized) {
-    const n = Math.floor(1 + shop[58] / 100);
-    if ([0, 2, 4, 9].includes(id)) effects[id] = 1;
-    else if ([3, 6, 7, 10].includes(id)) effects[id] += n;
-    else if (id === 5) effects[id] += 2 * n;
-  }
-  const costMulti = () => (1 + Math.min(2, 2 * effects[9])) * Math.max(1, 4 * effects[10]) * (config.manic ? 30 : 1);
-  const power = () => input.pow * Math.max(1, 100 * effects[10]) / (1 + Math.min(99, 99 * effects[9]))
-    * _powerBoost(input, effects);
+  const costMulti = () => spelunkStaminaMultiplier(config, effects);
+  const power = () => spelunkDigPower(input, effects);
   function sprite(rock) {
     const name = rock.boss ? `CaveBoss${cave.id}` : rock.type >= 0
       ? `CaveRock${cave.letter}${rock.type}` : rock.type === -1 ? `CaveRockExit${cave.id}` : 'CaveRope';
@@ -310,13 +328,15 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
     const ratio = power() / r.requirement;
     if (random.next() > ratio ** .6) {
       misses++; flags[4] = 1;
+      contributions.get(active).misses++;
       if (options.replay) replayEvent('miss', { ...position(r), slot: r.slot, source });
       return;
     }
     hits++;
+    contributions.get(active).hits++;
     r.hitAt = time;
-    if (shop[34] >= 1) damage *= 1 + Math.max(0, Math.floor(getLOG(ratio)) - 1);
-    const dealt = damage * (1 + shop[33] / 100);
+    const dealt = spelunkHitDamage(input, damage, ratio);
+    contributions.get(active).damage += Math.min(Math.max(0, r.hp), dealt);
     r.hp -= dealt;
     if (options.replay) replayEvent('hit', { ...position(r), slot: r.slot, damage: dealt, source });
   }
@@ -325,12 +345,14 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
       const r = rocks[index];
       if (r.type < 0 || r.hp > 0) continue;
       broken++;
+      contributions.get(active).broken++;
       if (options.replay) replayEvent('break', { ...position(r), slot: r.slot });
       visualRolls(2 * 5);
       const drops = [];
       function drop(reward, quantity = 1) {
         if (!rewardOrder.includes(reward)) rewardOrder.push(reward);
         rewards[reward] += quantity;
+        contributions.get(active).rewards[reward] += quantity;
         drops.push({ reward, quantity });
       }
       if (random.next() < Math.min(.8, (shop[7] + shop[52]) / 100 / (1 + 9 * shop[67]))) {
@@ -365,6 +387,7 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
         else if (r.type === cave.rocks.length - 2 && shop[43] >= 1 && grandCount < 10
           && random.next() < input.grand / 2 ** grandCount * (1 + Math.min(4, 4 * effects[9]))) {
           grandCount++; pending.push({ type: 'grand', remaining: 12000 }); record('grand-discovery');
+          contributions.get(active).grands++;
         }
       }
       if (effects[5] > 0) _neighbors(r.slot).forEach((d, n) => {
@@ -432,11 +455,15 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
       return;
     }
     attempted = false;
+    const hitsBefore = hits;
     for (const r of rocks) if (within(r, x, y, tool.radius)) hit(r, tool.damage);
     if (!attempted) return;
     const before = stamina[active];
     if (effects[0] > 0) stamina[active] += cost * input.elixirs[2].quantity / 100;
     stamina[active] = Math.max(0, stamina[active] - cost);
+    const contribution = contributions.get(active), used = Math.max(0, before - stamina[active]);
+    contribution.digs++; contribution.spent += used;
+    if (hits === hitsBefore) contribution.resistedStamina += used;
     spent += Math.min(input.characters[active].max, cost);
     actions++; record('dig', { x, y, tool: tool.id, character: active, used: before - stamina[active] });
     if (random.next() < shop[31] * (1 + Math.min(.5, effects[7])) / 100) {
@@ -454,6 +481,7 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
     }
   }
   function descend() {
+    contributions.get(active).descents++;
     if (!rocks.some(r => r.type >= 0)) fullCount++;
     effects[5] = Math.max(0, effects[5] - 1);
     if (effects[4] > 0) effects[4]++;
@@ -595,7 +623,10 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
               effects[0] = effects[2] = 0;
               const next = config.party.find(id => stamina[id] > 0);
               if (next == null) { if (!transition) settle('exhausted'); }
-              else { active = next; if (input.switchNova) nova(); record('switch', { character: active }); }
+              else {
+                active = next; contributions.get(active).startDepth = depth + 1;
+                if (input.switchNova) nova(); record('switch', { character: active });
+              }
             }
           }
           if (status === 'running' && !transition) {
@@ -611,11 +642,26 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
       }
     },
     result() {
+      const members = [...contributions.values()].map(c => ({
+        ...c, rewards: [...c.rewards], unused: c.startDepth == null,
+        exhausted: c.startDepth != null && stamina[c.id] <= 0,
+        noAdvance: c.startDepth != null && c.descents === 0,
+        noFurtherFloor: status === 'exhausted' && c.startDepth != null && depth + 1 <= c.startDepth,
+        resistStall: status !== 'running' && c.startDepth != null && stamina[c.id] <= 0
+          && c.digs > 0 && c.misses > 0 && c.broken === 0 && c.descents === 0,
+      }));
       return { config, seed: options.seed ?? 1, status, settled, seconds: time / 100, startDepth: startDepth + 1, depth: depth + 1,
         actions, spent, hits, misses, broken, rewards: [...rewards], grossRewards: [...(grossRewards || rewards)],
         rewardState: settled ? 'collected' : 'uncollected',
         exit: exit && { ...exit, items: exit.items.map(item => ({ ...item })) },
         stamina: config.party.map(id => ({ id, start: start[id], end: stamina[id], max: input.characters[id].max })),
+        diagnostics: {
+          members, resistStall: members.some(c => c.resistStall),
+          unused: members.filter(c => c.unused).length,
+          noAdvance: members.filter(c => c.noAdvance).length,
+          resistedStamina: members.reduce((sum, c) => sum + c.resistedStamina, 0),
+          blocked: status === 'blocked',
+        },
         grands: grandCount - (input.grands[cave.id] || 0), discoveries: [...discovered].filter(n => !input.discoveries.includes(n)),
         rngCalls: random.calls, events: records.map(r => ({ ...r })), eventsDropped: eventCount - records.length,
         frames: options.replay ? [...snapshots.filter(f => f.seconds < time / 100), frame()] : [],

@@ -5,8 +5,8 @@ import vm from 'node:vm';
 import { spelunkCaves, spelunkTools, spelunkElixirs } from '../stats/data/w7/spelunking.js';
 import { shopUpgBonus } from '../stats/systems/w7/spelunking.js';
 import { createSpelunkExpedition, normalizeSpelunkConfig, simulateSpelunkExpedition, spelunkRockStats, spelunkActiveBuffs, spelunkRewardImage } from '../stats/systems/w7/spelunk-expedition.js';
-import { createSpelunkComparison, createSpelunkSearch, normalizeSpelunkSearchScope, spelunkSearchSpace, spelunkRunMetric } from '../stats/systems/w7/spelunk-planner.js';
-import { SpelunkRocks } from '../stats/data/game/customlists.js';
+import { createSpelunkComparison, createSpelunkSearch, createSpelunkPartyAnalysis, normalizeSpelunkSearchScope, spelunkSearchSpace, spelunkRunMetric } from '../stats/systems/w7/spelunk-planner.js';
+import { SpelunkRocks, SpelunkUpg } from '../stats/data/game/customlists.js';
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { spelunkReplayTile } from '../ui/spelunk-replay.js';
 
@@ -119,6 +119,36 @@ for (const [upgrade, tier] of [[20, 1], [41, 2], [51, 3], [66, 4]]) {
   assert.equal(spelunkRewardImage(lootInput, 0), `CaveAmber${tier}`);
 }
 const ordered = simulateSpelunkExpedition(input, { party: [2, 0], policy: 'dive' }, { seed: 32 });
+assert.deepEqual(ordered.diagnostics.members.map(c => c.id), [2, 0]);
+for (const key of ['hits', 'misses', 'broken', 'grands'])
+  assert.equal(ordered.diagnostics.members.reduce((sum, c) => sum + c[key], 0), ordered[key],
+    `${key} activity partitions across members without duplicating delayed effects`);
+for (let key = 0; key < 12; key++)
+  assert.ok(Math.abs(ordered.diagnostics.members.reduce((sum, c) => sum + c.rewards[key], 0) - ordered.grossRewards[key]) < 1e-8);
+assert.equal(ordered.diagnostics.members.reduce((sum, c) => sum + c.descents, 0),
+  ordered.events.filter(e => e.type === 'descend').length);
+const duringTurn = createSpelunkExpedition(input, { party: [2, 0], policy: 'dive' }, { seed: 32 });
+const midTurn = advanceUntil(duringTurn, r => r.actions > 0);
+assert.equal(midTurn.diagnostics.members[1].unused, true);
+midTurn.diagnostics.members[0].rewards[0] = -999;
+assert.ok(duringTurn.result().diagnostics.members[0].rewards[0] >= 0, 'diagnostic arrays are detached');
+const wallInput = { ...input, pow: 1e-100 };
+const wallConfig = { party: [2, 0], policy: 'dive', tool: 0 };
+const wall = simulateSpelunkExpedition(wallInput, wallConfig, { seed: 32 });
+assert.equal(wall.status, 'exhausted');
+assert.equal(wall.hits, 0);
+assert.equal(wall.diagnostics.resistStall, true);
+assert.equal(wall.diagnostics.unused, 0, 'members consumed against resists are not classified as unused');
+assert.ok(wall.diagnostics.members.every(c => c.noAdvance && c.noFurtherFloor && c.resistStall
+  && c.resistedStamina === c.spent && c.spent > 0));
+const toughInput = structuredClone(input);
+toughInput.caves.forEach(c => c.rocks.forEach(r => { r.hp = 1e20; }));
+const tough = simulateSpelunkExpedition(toughInput, wallConfig, { seed: 32 });
+assert.equal(tough.broken, 0);
+assert.ok(tough.hits > 0);
+assert.equal(tough.diagnostics.resistStall, false, 'ordinary damage without resists is not a resist stall');
+assert.ok(tough.diagnostics.members.some(c => c.damage > 0 && c.noAdvance),
+  'partial damage is retained even without a break or descent');
 assert.equal(ordered.events.find(e => e.type === 'dig').character, 2);
 assert.equal(ordered.events.find(e => e.type === 'switch').character, 0);
 const withoutNovaBonus = structuredClone(input);
@@ -268,6 +298,35 @@ for (const [id, value] of [[7, 15], [19, 50], [25, 1], [38, 20]]) {
 const sourcePath = new URL('../../src/N.new.formatted.js', import.meta.url);
 if (fs.existsSync(sourcePath)) {
   const source = fs.readFileSync(sourcePath, 'utf8');
+  const rockTable = source.match(/\.SpelunkRocks = function\(\) \{([\s\S]*?)\n\s*\},/);
+  assert.ok(rockTable, 'native object definitions are available independently of extracted tables');
+  const nativeRocks = new Function(rockTable[1])();
+  assert.deepEqual(SpelunkRocks, nativeRocks, 'object coefficients, growth and depth gates match the current source');
+  const shopStart = source.indexOf('if ("ShopUpgBonus" == e) {');
+  const shopEnd = source.indexOf('if ("ExaltDropChance" == e)', shopStart);
+  assert.ok(shopStart > 0 && shopEnd > shopStart);
+  const nativeShop = new Function('a', 'c', 'k', 'm', 'h', `
+    var e = 'ShopUpgBonus', t = 3, i = 0, _, s, o, r, u;
+    ${source.slice(shopStart, shopEnd)}
+  `);
+  const haulSave = { spelunkData: Array.from({ length: 48 }, () => []) };
+  haulSave.spelunkData[5][3] = 10;
+  for (const hauls of [[0, .1, .99999, 1], [1.000001, 10.00001], [10, 100, 1e30], [1e30 * 1.00001]]) {
+    haulSave.spelunkData[2] = hauls;
+    const attributes = {
+      Spelunk: haulSave.spelunkData, DNSM: { h: {} }, GetPlayersUsernames: [],
+      CustomLists: { h: { SpelunkUpg } },
+    };
+    const nativeBonus = nativeShop(
+      { engine: { getGameAttribute: key => attributes[key] } }, { asNumber: Number },
+      { _customBlock_getLOG: v => Math.log(Math.max(v, 1)) / 2.30259 },
+      { _customBlock_Spelunk: (name, id, mode) => {
+        if (name === 'GrandDiscoveries_Total') return 0;
+        assert.equal(name, 'ShopUpgBonus'); assert.equal(mode, 1);
+        return Number(SpelunkUpg[id][4]) * Math.max(0, Number(haulSave.spelunkData[5][id]) || 0);
+      } }, { string: String });
+    assert.equal(shopUpgBonus(3, haulSave), nativeBonus, 'haul POW uses native clamped/approximate getLOG');
+  }
   const memoryLoop = source.match(/for \(var r = Math.floor\(1 \+[^\r\n]+ShopUpgBonus", 58[^\r\n]+/)[0];
   const nativeMemory = new Function('id', 'bonus', `
     const c = { asNumber: Number }, D = { contains: (a, v) => a.includes(v) };
@@ -290,11 +349,12 @@ if (fs.existsSync(sourcePath)) {
     .replace(/,\s*\w+\)\._GenINFO/g, ',null)._GenINFO');
   const native = new Function(...parameters, 'scope', 'helpers', expressions);
   const actor = { _GenINFO: [] }, attributes = {
-    OptionsListAccount: Array(500).fill(20), CustomLists: { h: { SpelunkRocks } },
+    OptionsListAccount: Array(500).fill(20), CustomLists: { h: { SpelunkRocks: nativeRocks } },
     PixelHelperActor: Array.from({ length: 27 }, () => ({ behaviors: { getBehavior: () => actor } })),
   };
   for (const cave of spelunkCaves()) for (let type = 0; type < cave.rocks.length; type++)
-    for (const depth of [Math.max(0, cave.rocks[type].depth), 100, 300]) {
+    for (const depth of new Set([0, Math.max(0, cave.rocks[type].depth - 1), cave.rocks[type].depth,
+      cave.rocks[type].depth + 1, cave.bossDepth, 100, 300])) {
       actor._GenINFO[70] = depth;
       const local = spelunkRockStats(cave, type, depth);
       for (const [name, key] of [['RockPOWreq', 'requirement'], ['RockHP', 'hp'], ['RockAmber', 'amber']])
@@ -397,6 +457,50 @@ const pooledComparison = driveBatches(createSpelunkComparison(input, [
 ], { trials: 2, seed: 12, objective: 'amber', batchSize: 4 }), []);
 assert.deepEqual(pooledComparison, comparison, 'comparison batches restore original trial order');
 
+const wallRequests = [];
+const wallComparison = driveBatches(createSpelunkComparison(wallInput, [{ config: wallConfig }],
+  { trials: 3, seed: 12, batchSize: 4 }), wallRequests,
+  request => simulateSpelunkExpedition(wallInput, request.config, { seed: request.seed }));
+const wallRow = wallComparison.rows[0];
+assert.deepEqual(wallRow.diagnostics.resistStall, { count: 3, total: 3 });
+assert.deepEqual(wallRow.diagnostics.blocked, { count: 0, total: 3 });
+assert.ok(wallRow.diagnostics.members.every(c => c.noFurtherFloor === 3 && c.resistStall === 3));
+assert.equal(wallRow.partyAnalysis.recommendedSize, 1, 'shorter parties are actually measured against a resist wall');
+assert.equal(wallRow.partyAnalysis.rows[1].marginal.extraDepth, 0);
+assert.deepEqual(wallRow.partyAnalysis.rows[1].marginal.interval, [0, 0]);
+assert.equal(wallRequests.length, 6, 'existing full-party measurements are reused rather than rerun');
+assert.deepEqual(wallRequests.slice(3).map(r => r.seed), wallRequests.slice(0, 3).map(r => r.seed));
+assert.ok(wallRequests.slice(3).every(r => r.config.party.join() === '2'
+  && r.config.tool === wallRow.config.tool && r.config.policy === wallRow.config.policy
+  && JSON.stringify(r.config.elixirs) === JSON.stringify(wallRow.config.elixirs)));
+const knownPrefixRequests = [];
+driveBatches(createSpelunkComparison(wallInput, [{ config: { ...wallConfig, party: [2] } }, { config: wallConfig }],
+  { trials: 3, seed: 12 }), knownPrefixRequests,
+  request => simulateSpelunkExpedition(wallInput, request.config, { seed: request.seed }));
+assert.equal(knownPrefixRequests.length, 6, 'matching existing rows supply prefixes on identical trial seeds');
+function measuredPartyAdvice(objective, small, full) {
+  const config = normalizeSpelunkConfig(input, wallConfig);
+  const runs = [11, 12].map(seed => ({ ...wall, seed, ...full }));
+  return driveBatches(createSpelunkPartyAnalysis(input, [{ config, runs }], { objective }), [],
+    request => ({ ...wall, ...small, seed: request.seed, stamina: wall.stamina.slice(0, 1) }))[0];
+}
+assert.equal(measuredPartyAdvice('amber', { rewards: [10] }, { rewards: [100] }).recommendedSize, 2,
+  'no extra floor does not make additional collected loot worthless');
+assert.equal(measuredPartyAdvice('amber', { rewards: [99.5] }, { rewards: [100] }).recommendedSize, 1,
+  'the explicitly labeled one-percent allowance can recommend a smaller sampled party');
+assert.equal(measuredPartyAdvice('amber', { rewards: [98] }, { rewards: [100] }).recommendedSize, 2);
+assert.equal(measuredPartyAdvice('depth', { startDepth: 500, depth: 505 },
+  { startDepth: 500, depth: 506 }).recommendedSize, 2,
+  'a deep shortcut cannot disguise a substantial loss of gained floors');
+const absent = measuredPartyAdvice('depth', { diagnostics: undefined }, { diagnostics: undefined });
+assert.ok(absent.rows.every(r => r.diagnostics === null), 'missing diagnostics are unavailable, never invented zeros');
+const oneTrial = driveBatches(createSpelunkPartyAnalysis(input, [{
+  config: normalizeSpelunkConfig(input, wallConfig), runs: [wall],
+}]), [], request => simulateSpelunkExpedition(input, request.config, { seed: request.seed }))[0];
+assert.equal(oneTrial.rows[1].marginal.interval, null, 'one replay cannot supply a probability uncertainty interval');
+assert.throws(() => createSpelunkPartyAnalysis(input, [{ config: wallConfig, runs: [wall, wall] }]).next(),
+  /distinct paired trial seeds/);
+
 const scopeInput = { ...memoryInput, slots: 2, dupes: 1 };
 const scopedOptions = { ...options, scope: {
   partyMin: 2, partyMax: 3, modes: ['auto'], clears: [false, true], speeds: [0, 1, 4],
@@ -412,15 +516,137 @@ assert.ok(scoped.baseline.referenceOnly);
 assert.equal(scoped.baseline.score, 1000);
 assert.equal(scoped.winner.score, 5, 'an excluded reference cannot win even with the highest score');
 assert.ok(inScope(scoped.winner.config));
-assert.ok(scopedRequests.every(r => JSON.stringify(r.config) === JSON.stringify(normalizedBase) || inScope(r.config)),
-  'all generated and refined candidates obey every selected restriction');
+assert.ok(scopedRequests.filter(r => r.phase !== 'Measuring shorter parties on paired seeds')
+  .every(r => JSON.stringify(r.config) === JSON.stringify(normalizedBase) || inScope(r.config)),
+  'all generated and refined candidates obey every selected restriction; shorter diagnostic prefixes cannot win');
+assert.ok(scoped.winner.partyAnalysis.rows.filter(row => row.config.party.length < 2).every(row => !row.allowed));
+assert.ok(scoped.winner.partyAnalysis.recommendedSize >= 2, 'party advice respects the captured minimum');
 assert.deepEqual([...new Set(scopedRequests.filter(r => inScope(r.config)).map(r => r.config.speed))].sort(), [0, 1, 4]);
 assert.deepEqual([...new Set(scopedRequests.filter(r => inScope(r.config)).map(r => r.config.party.length))].sort(), [2, 3]);
-assert.deepEqual(scoped.searchScope, scopedOptions.scope, 'results capture exact allowed choices');
+assert.deepEqual(scoped.searchScope, { ...scopedOptions.scope, characters: [0, 1, 2], ignoreOrder: false },
+  'results capture exact allowed choices, including the default full character pool and ordered search');
 const scopedPooledRequests = [];
 assert.deepEqual(driveBatches(createSpelunkSearch(scopeInput, normalizedBase, { ...scopedOptions, batchSize: 4 }),
   scopedPooledRequests, measureScope), scoped);
 assert.deepEqual(scopedPooledRequests, scopedRequests);
+const fixedSections = Object.fromEntries(['party', 'modes', 'clears', 'speeds', 'elixirs', 'memorized', 'tools', 'entry']
+  .map(key => [key, false]));
+const latePrefix = driveBatches(createSpelunkSearch(input, wallConfig, {
+  screening: 1, trials: 2, scope: { partyMin: 1, partyMax: 2, enabled: { ...fixedSections, party: true } },
+}), [], request => ({ ...normal, seed: request.seed,
+  depth: request.phase.startsWith('Screening')
+    ? request.config.party.length === 2 ? 10 : 1
+    : request.config.party.length === 1 ? 100 : 10 }));
+assert.equal(latePrefix.winner.label, 'Measured shorter party',
+  'an eligible paired prefix that beats the original finalists must compete on the real objective');
+assert.equal(latePrefix.winner.config.party.length, 1);
+assert.equal(latePrefix.winner.score, 100);
+const fixedParty = driveBatches(createSpelunkSearch(input, wallConfig, {
+  screening: 1, trials: 2, scope: { enabled: fixedSections },
+}), [], request => ({ ...normal, seed: request.seed, depth: request.config.party.length === 1 ? 100 : 10 }));
+assert.equal(fixedParty.winner.config.party.length, 2, 'diagnostic prefixes never override a frozen party');
+assert.equal(fixedParty.winner.partyAnalysis.recommendedSize, 2);
+const fixedBase = normalizeSpelunkConfig(scopeInput, { ...basic, policy: 'auto', speed: 4,
+  elixirs: [2, -1], memorized: [4], entry: 'shortcut' });
+const fixedMeasure = request => ({ ...normal, seed: request.seed, depth: request.config.party.length });
+const fixedScope = { ...scopedOptions.scope, partyMin: 1, partyMax: 2, enabled: fixedSections };
+const fixedRequests = [];
+const fixedSearch = driveBatches(createSpelunkSearch(scopeInput, fixedBase, { ...options, scope: fixedScope }),
+  fixedRequests, fixedMeasure);
+assert.equal(fixedSearch.configurations, 1, 'all sections off measures the exact current setup once');
+assert.equal(fixedSearch.baseline.referenceOnly, false, 'a fixed underfilled belt remains eligible');
+assert.ok(fixedRequests.every(r => JSON.stringify(r.config) === JSON.stringify(fixedBase)));
+for (const key of Object.keys(fixedSections)) {
+  const enabled = { ...fixedSections, [key]: true };
+  const scope = { ...fixedScope, enabled };
+  const records = [];
+  const result = driveBatches(createSpelunkSearch(scopeInput, fixedBase, { ...options, scope }), records, fixedMeasure);
+  const training = records.filter(r => r.progress < .75);
+  const candidates = training.filter(r => key !== 'elixirs' || JSON.stringify(r.config) !== JSON.stringify(fixedBase));
+  assert.equal(result.configurations, spelunkSearchSpace(scopeInput, fixedBase, scope).configurations, key);
+  assert.equal(training.length, Number(result.configurations) + (result.baseline.referenceOnly ? 1 : 0), key);
+  assert.equal(new Set(training.map(r => JSON.stringify(r.config))).size, training.length, key);
+  for (const { config } of candidates) {
+    if (key !== 'party') assert.deepEqual(config.party, fixedBase.party, key);
+    if (!['modes', 'clears'].includes(key)) assert.equal(config.policy, fixedBase.policy, key);
+    if (key !== 'clears') assert.equal(config.fullClear, fixedBase.fullClear, key);
+    if (key !== 'speeds') assert.equal(config.speed, fixedBase.speed, key);
+    if (key !== 'elixirs') assert.deepEqual(config.elixirs, fixedBase.elixirs, key);
+    if (key !== 'memorized') assert.deepEqual(config.memorized, fixedBase.memorized, key);
+    if (key !== 'tools') assert.equal(config.tool, fixedBase.tool, key);
+    if (key !== 'entry') assert.equal(config.entry, fixedBase.entry, key);
+  }
+  if (key === 'party') {
+    assert.equal(result.configurations, 9, 'party-only search tests three singles and six ordered pairs');
+    assert.deepEqual([...new Set(candidates.map(r => r.config.party.length))].sort(), [1, 2]);
+    assert.equal(result.winner.config.party.length, 2);
+  }
+}
+for (const policy of ['dive', 'efficient', 'clear']) for (const modes of [false, true]) for (const clears of [false, true]) {
+  const base = { ...fixedBase, policy };
+  const scope = { ...fixedScope, modes: ['auto', 'manual'], clears: [false, true],
+    enabled: { ...fixedSections, modes, clears, tools: true } };
+  const records = [];
+  const result = driveBatches(createSpelunkSearch(scopeInput, base, { ...options, scope }), records, fixedMeasure);
+  assert.equal(result.configurations, spelunkSearchSpace(scopeInput, base, scope).configurations);
+  assert.equal(records.filter(r => r.progress < .75).length, result.configurations);
+  if (!modes && !clears) assert.ok(records.every(r => r.config.policy === policy));
+}
+const fixedReference = driveBatches(createSpelunkSearch(scopeInput, fixedBase, {
+  ...options, scope: fixedScope, configurations: [{ label: 'Different belt', config: { ...fixedBase, elixirs: [0, 2] } }],
+}), [], request => ({ ...normal, seed: request.seed, depth: request.config.elixirs[0] === 0 ? 1000 : 1 }));
+assert.ok(fixedReference.rows.find(row => row.label === 'Different belt').referenceOnly);
+assert.deepEqual(fixedReference.winner.config, fixedBase, 'a submitted setup cannot change a disabled section');
+assert.equal(spelunkSearchSpace(scopeInput, fixedBase, {
+  enabled: fixedSections, partyMin: -1, modes: [], clears: [], speeds: [], elixirs: [999], memorized: [-1],
+}).configurations, 1, 'disabled choices are ignored rather than validated as active search restrictions');
+assert.throws(() => spelunkSearchSpace(scopeInput, fixedBase, { enabled: { party: 'false' } }), /Invalid search section/);
+const partyScope = { partyMin: 1, partyMax: 2, characters: [2, 0],
+  enabled: { ...fixedSections, party: true } };
+const partyBase = { ...fixedBase, party: [2, 0] };
+assert.equal(spelunkSearchSpace(scopeInput, partyBase, partyScope).configurations, 4,
+  'a two-character pool has two singles and two ordered pairs');
+const orderedPoolRequests = [];
+driveBatches(createSpelunkSearch(scopeInput, partyBase, { ...options, scope: partyScope }),
+  orderedPoolRequests, fixedMeasure);
+assert.deepEqual(orderedPoolRequests.filter(r => r.progress < .75).map(r => r.config.party),
+  [[2, 0], [0], [0, 2], [2]], 'ordered mode tests only the selected characters, including both entry orders');
+const groupScope = { ...partyScope, characters: [2, 0, 2], ignoreOrder: true };
+const groupScopeBefore = structuredClone(groupScope);
+assert.deepEqual(spelunkSearchSpace(scopeInput, partyBase, groupScope).scope.characters, [0, 2]);
+assert.equal(spelunkSearchSpace(scopeInput, partyBase, groupScope).configurations, 3,
+  'combination search tests each selected group once');
+const groupRequests = [];
+const groupOptions = { ...options, scope: groupScope,
+  configurations: [{ label: 'Excluded character', config: { ...partyBase, party: [1] } }] };
+const groupMeasure = request => ({ ...normal, seed: request.seed,
+  depth: request.config.party.includes(1) || request.config.party.join() === '2,0' ? 1000 : request.config.party.length });
+const grouped = driveBatches(createSpelunkSearch(scopeInput, partyBase, groupOptions), groupRequests, groupMeasure);
+assert.deepEqual(groupScope, groupScopeBefore, 'normalizing a pool never mutates the caller selections');
+assert.deepEqual(grouped.winner.config.party, [0, 2]);
+assert.ok(grouped.baseline.referenceOnly, 'an unsearched baseline order is diagnostic only');
+assert.ok(grouped.rows.find(row => row.label === 'Excluded character').referenceOnly);
+assert.ok(grouped.rows.filter(row => !row.referenceOnly).every(row => row.config.party.every(id => [0, 2].includes(id))
+  && row.config.party.every((id, i, ids) => !i || ids[i - 1] < id)),
+  'neither references nor their measured prefixes can bypass character and canonical-order restrictions');
+assert.deepEqual(groupRequests.filter(r => r.progress < .75 && groupMeasure(r).depth !== 1000)
+  .map(r => r.config.party), [[0], [0, 2], [2]]);
+assert.equal(grouped.screened, 5, 'three groups plus the reversed baseline and excluded reference');
+assert.deepEqual(driveBatches(createSpelunkSearch(scopeInput, partyBase, { ...groupOptions, batchSize: 4 }),
+  [], groupMeasure), grouped, 'selected-pool combinations retain ordered-batch parity');
+assert.deepEqual(spelunkSearchSpace(scopeInput, partyBase, { ...groupScope,
+  enabled: fixedSections }).scope.characters, [2, 0], 'a disabled party section preserves the captured party');
+assert.equal(spelunkSearchSpace(scopeInput, partyBase, { ...groupScope,
+  characters: [], ignoreOrder: 'invalid but inactive', enabled: fixedSections }).configurations, 1);
+for (const characters of [[], [99], ['0'], '0,2']) {
+  assert.throws(() => spelunkSearchSpace(scopeInput, fixedBase, { ...partyScope, characters }), /Invalid search characters|Not enough/);
+}
+assert.throws(() => spelunkSearchSpace(scopeInput, fixedBase, { ...partyScope, characters: [0], partyMin: 2 }), /Not enough/);
+assert.throws(() => spelunkSearchSpace(scopeInput, fixedBase, { ...partyScope, ignoreOrder: 'true' }), /Invalid party order/);
+const tiredPool = { ...scopeInput, characters: scopeInput.characters.map(c => c.id === 2 ? { ...c, stamina: 0 } : c) };
+assert.throws(() => spelunkSearchSpace(tiredPool, { ...fixedBase, party: [0] }, { ...partyScope, characters: [2] }), /Not enough/);
+assert.equal(spelunkSearchSpace(tiredPool, { ...fixedBase, party: [0], stamina: 'full' },
+  { ...partyScope, characters: [2] }).configurations, 1, 'full-stamina assumptions restore selected tired characters');
 const screenedConfigs = scopedRequests.filter(r => r.progress < .75 && inScope(r.config));
 assert.equal(scoped.configurations, 576, '12 ordered parties x 6 Auto settings x 2 full belts x 2 memories x 2 entries');
 assert.equal(screenedConfigs.length, 576, 'coverage is not capped at the old 48 or 256 configurations');
@@ -465,10 +691,74 @@ const purpleBuff = spelunkActiveBuffs(purpleInput, [0, 0, 0, 0, 0, 0, 0, 3]).fin
 assert.equal(purpleBuff.value, .9, 'three doses each add 30% to extra-strike quantity');
 assert.match(purpleBuff.detail, /30%/, 'the chance bonus caps at 1.5x the base chance, independently of extra strikes');
 const ui = fs.readFileSync(new URL('../ui/spelunking.js', import.meta.url), 'utf8');
+const scopeHost = { innerHTML: '' }, scopeWorkload = { textContent: '', dataset: {} };
+const scopeRows = {}, scopeToggles = Object.keys(fixedSections).map(key => {
+  const row = { dataset: {}, querySelector: () => row.fieldset, fieldset: { disabled: false } };
+  scopeRows[key] = row;
+  return { dataset: { scopeSection: key }, checked: key === 'party', closest: () => row };
+});
+let chosenCharacters = [{ value: '2' }, { value: '0' }];
+const orderControl = { checked: true };
+const scopeContext = {
+  input: scopeInput, searchSettings: { ...fixedScope, enabled: { ...fixedSections, party: true } },
+  $: id => id === 'search-scope' ? scopeHost : id === 'search-workload' ? scopeWorkload
+    : id === 'search-ignore-order' ? orderControl
+      : { value: id === 'search-party-min' || id === 'screen-trials' ? '1' : id === 'search-party-max' ? '2' : '0' },
+  document: { querySelectorAll: selector => selector === '[data-scope-section]' ? scopeToggles
+    : selector === '[data-scope="characters"]:checked' ? chosenCharacters : [] },
+  esc: String, art: String, updateSearchWorkload() {},
+};
+vm.createContext(scopeContext);
+vm.runInContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const policyNames ='))
+  + ui.slice(ui.indexOf('const searchSections ='), ui.indexOf('let searchSettings ='))
+  + ui.slice(ui.indexOf('function readSearchScope('), ui.indexOf('function updateSearchWorkload('))
+  + '\nrenderSearchScope(); globalThis.capturedScope = readSearchScope();', scopeContext);
+assert.equal((scopeHost.innerHTML.match(/data-scope-section=/g) || []).length, 8);
+assert.equal((scopeHost.innerHTML.match(/<fieldset/g) || []).length, 8);
+assert.equal(scopeRows.party.fieldset.disabled, false);
+assert.ok(Object.entries(scopeRows).filter(([key]) => key !== 'party').every(([, row]) => row.fieldset.disabled));
+assert.deepEqual(JSON.parse(JSON.stringify(scopeContext.capturedScope.enabled)), { ...fixedSections, party: true });
+assert.deepEqual(Array.from(scopeContext.capturedScope.characters), [2, 0]);
+assert.equal(scopeContext.capturedScope.ignoreOrder, true);
+assert.match(scopeHost.innerHTML, /Expedition outcomes can still depend on that order/);
+assert.equal((scopeHost.innerHTML.match(/data-scope="characters"/g) || []).length, scopeInput.characters.length);
+assert.equal((scopeHost.innerHTML.match(/data-scope="characters"[^>]*checked/g) || []).length, scopeInput.characters.length,
+  'all characters are checked for older stored scopes without a character pool');
+chosenCharacters = [];
+vm.runInContext('searchSettings = JSON.parse(JSON.stringify(readSearchScope())); renderSearchScope();', scopeContext);
+assert.deepEqual(Array.from(scopeContext.searchSettings.characters), [], 'an explicitly empty pool survives persistence');
+assert.ok(!/data-scope="characters"[^>]*checked/.test(scopeHost.innerHTML));
+assert.match(scopeHost.innerHTML, /id="search-ignore-order" type="checkbox" checked/);
+scopeToggles.find(toggle => toggle.dataset.scopeSection === 'party').checked = false;
+vm.runInContext('syncSearchSections();', scopeContext);
+assert.equal(scopeRows.party.fieldset.disabled, true, 'the entire character and order fieldset freezes with Party size');
+assert.equal(orderControl.checked, true, 'freezing the section does not lose its order preference');
+scopeToggles.find(toggle => toggle.dataset.scopeSection === 'elixirs').checked = true;
+vm.runInContext('syncSearchSections();', scopeContext);
+assert.equal(scopeRows.elixirs.fieldset.disabled, false, 'reenabling a section unlocks its existing choices without replacing them');
+assert.match(scopeHost.innerHTML, /Party size uses only checked characters/);
+scopeContext.spelunkSearchSpace = spelunkSearchSpace;
+scopeContext.readConfig = () => fixedBase;
+scopeToggles.find(toggle => toggle.dataset.scopeSection === 'party').checked = true;
+scopeToggles.find(toggle => toggle.dataset.scopeSection === 'elixirs').checked = false;
+vm.runInContext(ui.slice(ui.indexOf('function updateSearchWorkload('), ui.indexOf('function renderParty('))
+  + '\nupdateSearchWorkload();', scopeContext);
+assert.match(scopeWorkload.textContent, /Not enough selected characters/);
+assert.equal(scopeWorkload.dataset.configurations, undefined, 'an empty pool is visibly invalid, not silently reset to all');
+chosenCharacters = [{ value: '2' }, { value: '0' }];
+vm.runInContext('updateSearchWorkload();', scopeContext);
+assert.equal(scopeWorkload.dataset.configurations, '3', 'the displayed count uses combinations for the selected pool');
+orderControl.checked = false;
+vm.runInContext('updateSearchWorkload();', scopeContext);
+assert.equal(scopeWorkload.dataset.configurations, '4', 'reenabling permutations updates the displayed count');
+scopeToggles.find(toggle => toggle.dataset.scopeSection === 'party').checked = false;
+chosenCharacters = [];
+vm.runInContext('updateSearchWorkload();', scopeContext);
+assert.equal(scopeWorkload.dataset.configurations, '1', 'freezing Party size ignores an inactive empty pool');
 const host = { innerHTML: '' };
 vm.runInNewContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const storageKey ='))
   + ui.slice(ui.indexOf('function configurationText('), ui.indexOf('function renderConfigurations('))
-  + ui.slice(ui.indexOf('function renderComparison('), ui.indexOf('function start('))
+  + ui.slice(ui.indexOf('function sampleRate('), ui.indexOf('function start('))
   + '\nrenderComparison(bundle, "result");', {
     bundle: { result: duplicateSearch, input: duplicateInput }, $: () => host,
     esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
@@ -479,9 +769,17 @@ assert.ok(cells.every(([, cell]) => cell.includes('Native Auto') && cell.include
   && cell.includes('captured-belt') && cell.includes('Memory') && cell.includes('Auto tools')),
   'every comparison row visibly describes its captured strategy, party, belt, memories and tools');
 assert.ok(!host.innerHTML.includes('Screened strategy'), 'internal search-origin labels are not primary configurations');
+assert.match(host.innerHTML, /Resist stalls/);
+assert.match(host.innerHTML, /No later descent/);
+assert.match(host.innerHTML, /not proven equivalence/);
+assert.match(host.innerHTML, /outside search scope; diagnostic only/);
 const largeInput = { ...memoryInput, caves: [{ ...memoryInput.caves[0], capacity: 6 }],
   characters: Array.from({ length: 12 }, (_, id) => ({ id, name: `Character ${id + 1}`, max: 8, stamina: 8 })) };
 const largeSpace = spelunkSearchSpace(largeInput, basic);
+const elevenSpace = { ...largeInput, characters: largeInput.characters.slice(0, 11) };
+assert.equal(spelunkSearchSpace(elevenSpace, basic, { partyMin: 1, partyMax: 5, ignoreOrder: true,
+  enabled: { ...fixedSections, party: true } }).configurations, 1023,
+  'eleven characters over sizes one to five reduce from 64,471 orders to 1,023 groups');
 assert.equal(typeof largeSpace.configurations, 'string', 'huge exact workload counts cannot lose integer precision');
 assert.ok(BigInt(largeSpace.configurations) > BigInt(Number.MAX_SAFE_INTEGER));
 const hugeSearch = createSpelunkSearch(largeInput, basic);

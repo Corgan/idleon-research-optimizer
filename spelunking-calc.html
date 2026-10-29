@@ -45,10 +45,12 @@ main .cave-choice{display:flex;flex-direction:column;align-items:center;gap:3px;
 .captured-belt>span:not(.mini-slot){font-size:.75rem;color:var(--text2);margin-right:3px}.mini-slot{display:inline-grid;place-items:center;position:relative;width:32px;height:32px;border:1px solid #8e785b;background:#282135;border-radius:3px}.mini-slot img{width:30px;height:30px}
 .mini-slot b{position:absolute;right:1px;bottom:0;font-size:11px;color:#fff4b1;text-shadow:1px 1px #000}
 .search-scope{margin:12px 0}.scope-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:7px 0}.scope-row>span{width:82px;color:var(--text2);font-size:.8rem;flex-shrink:0}.scope-row .scope-choices{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0}
+main .scope-switch{width:116px;flex-shrink:0;min-height:34px}.scope-choices{border:0;padding:0;margin:0}.scope-row[data-fixed=true] .scope-choices{opacity:.4}
 main .scope-row label{flex-direction:row;align-items:center;gap:4px;font-size:.8rem}
 main .scope-row input[type=number]{width:58px;min-height:28px;padding:3px 5px}
 main .scope-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid #52617d;background:var(--bg);border-radius:4px;padding:3px 7px;min-height:28px}
 .scope-chip:has(input:checked){border-color:#e4ba74;background:#44364f}.scope-chip:has(input:disabled){opacity:.4}
+.scope-party-choices{flex:1}.scope-roster{display:flex;flex-wrap:wrap;gap:5px;width:100%}.scope-roster .scope-chip{max-width:100%;overflow-wrap:anywhere}
 main .scope-icon{position:relative;padding:1px;width:34px;height:34px;justify-content:center}.scope-icon img{width:30px;height:30px;object-fit:contain;image-rendering:pixelated}.scope-icon input{position:absolute;right:0;bottom:0;margin:0;width:11px!important;min-height:11px!important;height:11px}
 .scope-row small{color:var(--text2);font-size:.75rem}
 .replay-stage{position:relative;max-width:960px}.replay-stage canvas{display:block}.replay-hud{position:absolute;inset:10px;z-index:1;pointer-events:none}.replay-heading{position:absolute;top:0;left:0;display:grid;gap:4px}.replay-heading>strong{color:#ffe4ae;font-size:1.05rem}.replay-heading>span{font-size:.8rem;color:var(--text2)}
@@ -96,6 +98,10 @@ main .event-row button{min-height:30px;padding:3px 5px;background:#332c43;border
 .bt-val{font-weight:600;text-align:right;flex-shrink:0;white-space:nowrap;margin-left:auto;font-variant-numeric:tabular-nums}
 progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-height:24px;margin:10px 0}
 .strip{padding:10px;background:var(--bg);border-radius:5px;line-height:1.7;overflow-wrap:anywhere}
+.depth-chart{width:100%;height:auto;display:block;background:var(--bg);border:1px solid #435574;border-radius:5px}
+.depth-chart text{fill:var(--text2);font:12px 'Segoe UI',sans-serif}
+.depth-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem}
+.depth-legend span:before{content:"";display:inline-block;width:16px;border-top:3px solid var(--series);margin-right:5px;vertical-align:middle}
 @media(max-width:650px){main{padding:8px}.section{padding:12px}.toolbar>label{flex:1;min-width:130px}main select{max-width:100%}.bt-label{white-space:normal;overflow-wrap:anywhere}.comparison thead{display:none}.comparison tr{display:block;border:1px solid #435574;margin:8px 0;border-radius:5px;padding:8px}.comparison td{display:flex;justify-content:space-between;gap:12px;border:0;text-align:right}.comparison td:before{content:attr(data-label);color:var(--text2);text-align:left}.comparison td:first-child{font-weight:600;color:var(--cyan)}}
 @media(max-width:650px){.comparison td[colspan],.comparison td[data-label="Configuration"]{display:block;text-align:left}.comparison td[colspan]:before,.comparison td[data-label="Configuration"]:before{display:block;margin-bottom:6px}}
 </style>
@@ -136,6 +142,7 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
  <button role="tab" id="tab-simulate" aria-controls="panel-simulate" aria-selected="true" data-tab="simulate">Simulator</button>
  <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" data-tab="compare">Compare configurations</button>
  <button role="tab" id="tab-optimize" aria-controls="panel-optimize" aria-selected="false" data-tab="optimize">Optimizer</button>
+ <button role="tab" id="tab-depth" aria-controls="panel-depth" aria-selected="false" data-tab="depth">Depth limits</button>
  <button role="tab" id="tab-breakdowns" aria-controls="panel-breakdowns" aria-selected="false" data-tab="breakdowns">Breakdowns</button>
 </div>
 <div id="panel-simulate" role="tabpanel" aria-labelledby="tab-simulate">
@@ -181,10 +188,22 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
   <div id="breakdowns-status-host"></div>
   <div id="input-summary"></div><div id="trees" class="breakdowns"></div>
 </div>
+<div class="section" id="panel-depth" hidden role="tabpanel" aria-labelledby="tab-depth">
+  <h2>Depth-limit estimates for current controls</h2>
+  <div id="depth-status-host"></div>
+  <div class="toolbar">
+    <label>From depth<input id="depth-from" type="number" min="1" max="10000" value="1"></label>
+    <label>Through depth<input id="depth-to" type="number" min="1" max="10000" value="150"></label>
+    <label>Reference tool<select id="depth-tool"><option value="best">Lowest isolated cost (optimistic)</option></select></label>
+  </div>
+  <div id="depth-graphs">Load a valid save to estimate depth limits.</div>
+  <label>Inspect depth <output id="depth-selected">1</output><input id="depth-inspect" type="range" min="1" max="150" value="1" step="1"></label>
+  <div id="depth-values"></div>
+</div>
 </main>
 <div id="spelunk-picker" popover="auto" role="dialog" aria-labelledby="picker-label"><div class="picker-heading"><strong id="picker-label"></strong><button id="picker-close" aria-label="Close picker">&times;</button></div><div id="picker-options"></div></div>
 <div id="spelunk-tip" role="tooltip" hidden popover="manual"></div>
-<script type="module" src="./js/ui/spelunking.js?v=full-belts-1"></script>
+<script type="module" src="./js/ui/spelunking.js?v=depth-limits-1"></script>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </body>
 </html>

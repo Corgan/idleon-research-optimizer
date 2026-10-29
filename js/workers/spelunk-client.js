@@ -2,7 +2,7 @@
 export function startSpelunkWorkers(message, {
   onMessage, onError,
   concurrency = Math.min(4, Math.max(1, globalThis.navigator?.hardwareConcurrency || 2)),
-  workerFactory = () => new Worker(new URL('./spelunk-worker.js?v=full-belts-1', import.meta.url), { type: 'module' }),
+  workerFactory = () => new Worker(new URL('./spelunk-worker.js?v=depth-limits-1', import.meta.url), { type: 'module' }),
 }) {
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4)
     throw new Error('Use one to four expedition workers.');

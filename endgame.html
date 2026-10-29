@@ -19,6 +19,7 @@ main { flex: 1; width: 100%; position: relative; text-align: center; padding: 12
 #answer:not(:empty)::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse closest-side, #111321f5 25%, #111321c9 55%, transparent 100%); }
 #answer.yes { color: var(--green); }
 #answer.no { color: var(--red); }
+#answer.special { font-size: min(9vw, 18dvh, 8rem); padding: 12px; }
 #answer.yes, #answer.no { animation: verdict-in .65s cubic-bezier(.2, 1.5, .4, 1); }
 @keyframes verdict-in { from { opacity: 0; transform: scale(.3) rotate(-8deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
 #analysis { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 4; display: grid; gap: 12px; justify-items: center; padding: 16px 8px; background: linear-gradient(#1a1a2ef5 70%, #1a1a2e00); }
@@ -59,7 +60,7 @@ main { flex: 1; width: 100%; position: relative; text-align: center; padding: 12
 </main>
 <script type="module">
 import { initSaveLoader } from './js/ui/save-loader.js';
-import { isEndgamer } from './js/endgamers.js?v=profile-5';
+import { endgameVerdict } from './js/endgamers.js?v=sealed-verdicts-2';
 import { collectEndgameStats } from './js/endgame-stats.js?v=leaderboard-audit-3';
 import { fmtVal, fmtMonsterCash } from './js/renderers/format.js';
 
@@ -297,7 +298,7 @@ initSaveLoader({
     let failed = false;
     try {
       const revealing = stats ? revealStats(stats, version) : Promise.resolve();
-      const [matched] = await Promise.all([isEndgamer(raw, undefined, async () => {
+      const [verdict] = await Promise.all([endgameVerdict(raw, undefined, async () => {
         if (version !== checkVersion || failed) return;
         analysisStatus.textContent = sequence[Math.min(stage++, sequence.length - 1)];
         if (!revealRunning || reducedMotion.matches) analysisProgress.value = stage;
@@ -307,8 +308,8 @@ initSaveLoader({
       if (version === checkVersion) {
         analysis.hidden = true;
         analysisProgress.value = analysisProgress.max;
-        answer.textContent = matched ? 'YES' : 'NO';
-        answer.className = matched ? 'yes' : 'no';
+        answer.textContent = verdict;
+        answer.className = verdict === 'NO' ? 'no' : verdict === 'YES' ? 'yes' : 'yes special';
         statsError.textContent = statsFailure;
       }
     } catch (error) {

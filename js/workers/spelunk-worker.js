@@ -1,8 +1,8 @@
 import { loadSaveData } from '../save/loader.js';
 import { saveData } from '../state.js';
 import { buildSpelunkInputs } from '../stats/systems/w7/spelunk-inputs.js';
-import { createSpelunkExpedition } from '../stats/systems/w7/spelunk-expedition.js';
-import { createSpelunkComparison, createSpelunkSearch } from '../stats/systems/w7/spelunk-planner.js?v=full-belts-1';
+import { createSpelunkExpedition } from '../stats/systems/w7/spelunk-expedition.js?v=depth-limits-1';
+import { createSpelunkComparison, createSpelunkSearch, createSpelunkPartyAnalysis } from '../stats/systems/w7/spelunk-planner.js?v=depth-limits-1';
 
 let cachedInput = null;
 export async function executeSpelunkJob(message, report = () => {}, batch = null) {
@@ -22,19 +22,27 @@ export async function executeSpelunkJob(message, report = () => {}, batch = null
     const run = createSpelunkExpedition(input, config, { seed, replay });
     while (!run.done) {
       run.step(2000);
-      if (replay) progress(run.progress, phase);
+      if (replay) progress(fraction + span * run.progress, phase);
       else progress(fraction, phase);
       await new Promise(resolve => setTimeout(resolve, 0));
     }
     progress(fraction + span, phase);
     const result = run.result();
     if (replay) return result;
-    const { seed: runSeed, status, settled, seconds, depth, rewards, grossRewards, spent, grands, stamina } = result;
-    return { seed: runSeed, status, settled, seconds, depth, rewards, grossRewards, spent, grands, stamina };
+    const { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics } = result;
+    return { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics };
   }
   if (message.type === 'trial') return { result: await simulate(message.config, message.seed, false) };
   if (message.type === 'run') {
-    const result = await simulate(message.config, message.seed, true);
+    const result = await simulate(message.config, message.seed, true, 0, .8);
+    const analysis = createSpelunkPartyAnalysis(input, [{ config: result.config, runs: [result] }],
+      { objective: 'depth', progressFrom: .8 });
+    let next = analysis.next();
+    while (!next.done) {
+      const request = next.value;
+      next = analysis.next(await simulate(request.config, request.seed, false, request.progress, 0, request.phase));
+    }
+    result.partyAnalysis = next.value[0];
     progress(1, 'Complete');
     return { input, result };
   }

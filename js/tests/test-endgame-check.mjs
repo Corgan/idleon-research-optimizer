@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createHash } from 'node:crypto';
-import { isEndgamer } from '../endgamers.js';
+import { isEndgamer, endgameVerdict } from '../endgamers.js';
 import { collectEndgameStats } from '../endgame-stats.js';
 import { saveData } from '../state.js';
 import { createStatContext } from '../stats/stat-context.js';
@@ -70,7 +70,8 @@ const statsError = { textContent: '' };
 const elements = { answer, 'check-error': errorMessage, analysis,
   'analysis-status': analysisStatus, 'analysis-progress': analysisProgress,
   stats: statsPanel, 'stats-body': statsBody, 'stats-error': statsError };
-let checkAccount = checkFixture;
+const verdictFixture = (raw, _hashes, report) => endgameVerdict(raw, testHashes, report);
+let checkAccount = verdictFixture;
 let collectStats = () => [{ id: 'test', label: 'Test stat', group: 'Account', value: 123, detail: 'Saved value' }];
 let loader;
 const context = vm.createContext({
@@ -93,7 +94,7 @@ const context = vm.createContext({
     return id;
   },
   cancelAnimationFrame: id => frames.delete(id),
-  isEndgamer: (...args) => checkAccount(...args),
+  endgameVerdict: (...args) => checkAccount(...args),
   collectEndgameStats: (...args) => collectStats(...args),
   fmtVal, fmtMonsterCash,
   initSaveLoader: options => { loader = options; }
@@ -187,6 +188,14 @@ for (const charNames of [
 await loader.onLoad(null, { data: {}, charNames: ['ExampleEndgamer'] });
 await loader.onLoad(null, { data: {} });
 assert.equal(answer.textContent, 'NO', 'Missing names cannot retain the previous account result');
+checkAccount = async () => 'CUSTOM VERDICT';
+await loader.onLoad(null, {});
+assert.equal(answer.textContent, 'CUSTOM VERDICT');
+assert.equal(answer.className, 'yes special', 'Long verdicts retain positive coloring and responsive sizing');
+checkAccount = verdictFixture;
+await loader.onLoad(null, {});
+assert.equal(answer.textContent, 'NO');
+assert.equal(answer.className, 'no', 'A later ordinary result clears special sizing');
 let finishOld;
 let oldReport;
 checkAccount = (_raw, _hashes, report) => new Promise(resolve => {
@@ -195,13 +204,13 @@ checkAccount = (_raw, _hashes, report) => new Promise(resolve => {
 });
 const oldLoad = loader.onLoad(null, {});
 collectStats = () => [{ id: 'latest', label: 'Latest <stat>', group: 'Account', value: 456, detail: '<script>unsafe</script>' }];
-checkAccount = async () => false;
+checkAccount = async () => 'NO';
 await loader.onLoad(null, {});
 const latestStatus = analysisStatus.textContent;
 await oldReport('Superseded analysis');
 assert.equal(analysisStatus.textContent, latestStatus, 'Superseded stages cannot update progress');
 assert.equal(analysis.hidden, true, 'Superseded stages cannot reopen analysis');
-finishOld(true);
+finishOld('CUSTOM VERDICT');
 await oldLoad;
 assert.equal(answer.textContent, 'NO', 'An older asynchronous check cannot replace the latest account');
 assert.equal(answer.className, 'no', 'Superseded checks cannot change the latest result color');
@@ -259,7 +268,7 @@ assert.equal(answer.textContent, '', 'Failed checks do not display a misleading 
 assert.equal(answer.className, '', 'Failed checks clear the previous result color');
 assert.equal(analysis.hidden, true, 'Failed checks hide analysis');
 assert.match(errorMessage.textContent, /Hashing unavailable/);
-checkAccount = checkFixture;
+checkAccount = verdictFixture;
 await loader.onLoad(null, { charNames: ['ExampleEndgamer'] });
 assert.equal(answer.textContent, 'YES');
 assert.equal(errorMessage.textContent, '', 'A later successful check clears the error');
@@ -268,7 +277,9 @@ assert.ok(page.includes('<h1>Are you endgame?</h1>'));
 assert.ok(page.includes('id="analysis-status" role="status"'));
 assert.match(page, /#answer\.yes\s*\{\s*color:\s*var\(--green\)/);
 assert.match(page, /#answer\.no\s*\{\s*color:\s*var\(--red\)/);
-assert.ok(page.includes('endgamers.js?v=profile-5'), 'The page bypasses the previous checker cache');
+assert.ok(page.includes('endgamers.js?v=sealed-verdicts-2'), 'The page bypasses the previous checker cache');
+assert.match(page, /#answer\.special\s*\{[^}]*font-size:\s*min\(9vw, 18dvh, 8rem\)/,
+  'Long custom verdicts fit narrow viewports');
 assert.ok(page.includes('endgame-stats.js?v=leaderboard-audit-3'), 'The page bypasses the previous field mappings');
 assert.doesNotMatch(page, /stats-note|<details>|<summary>/, 'The subtitle and disclosures are removed');
 assert.match(page, /Math\.floor\(width \/ 120\)/, 'Statistics use compact responsive tracks');
