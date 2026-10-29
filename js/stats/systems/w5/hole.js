@@ -21,6 +21,7 @@ var HOLE_DATA = HOLE_MULTIPLIERS;
 export function computeBUpg(idx, value, saveData) {
   var holesData = saveData && saveData.holesData;
   if (!holesData || !holesData.length || (Number(holesData[13] && holesData[13][idx]) || 0) < 1) return 0;
+  if (idx === 48) return 10 * (Number(holesData[11] && holesData[11][26]) || 0);
   if (idx !== 49) return Number(value) || 0;
 
   var cavernLevels = holesData[11] || [];

@@ -4,7 +4,7 @@
 import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import {
-  PET_SHINY_TYPE, PET_NAMES, SHINY_BONUS_PER_LV, SHINY_TYPE_TO_CAT,
+  PET_STATS, PET_SHINY_TYPE, PET_NAMES, SHINY_BONUS_PER_LV, SHINY_TYPE_TO_CAT,
   SHINY_CAT_NAMES,
 } from '../../data/w4/breeding.js';
 import { menagerieUnlockOwned } from '../w7/menagerie.js';
@@ -19,6 +19,29 @@ export function shinyPetLevel(exp, saveData) {
       lv = e + 2;
   }
   return lv;
+}
+
+export function breedingLevelTotals(saveData) {
+  var breeding = saveData.breedingData;
+  var result = { shiny: 0, breedability: 0, worlds: [] };
+  if (!breeding || !breeding.length) return result;
+  var breedabilityUnlocked = Number(breeding[2] && breeding[2][3]) > 0;
+  for (var world = 0; world < 5; world++) {
+    var totals = { world: world, shiny: 0, breedability: 0 };
+    for (var pet = 0; pet < PET_STATS[world].length; pet++) {
+      if (PET_STATS[world][pet][0] === '_') continue;
+      var shinyExp = Number(breeding[22 + world] && breeding[22 + world][pet]) || 0;
+      var breedExp = Number(breeding[13 + world] && breeding[13 + world][pet]) || 0;
+      var multi = breedabilityUnlocked ? 1 + Math.log(Math.max(1, Math.pow(breedExp + 1, .725))) : 1;
+      // Native totals count level 1 even before a species gains training progress.
+      totals.shiny += Math.max(1, shinyPetLevel(shinyExp, saveData));
+      totals.breedability += Math.min(9, Math.floor(Math.pow(multi - 1, .8)) + 1);
+    }
+    if (totals.shiny) result.worlds.push(totals);
+    result.shiny += totals.shiny;
+    result.breedability += totals.breedability;
+  }
+  return result;
 }
 
 function _shinyBonusParts(catKey, saveData) {

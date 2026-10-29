@@ -18,7 +18,7 @@ import { sigilBonus } from '../w2/alchemy.js';
 import { talent } from '../common/talent.js';
 import { achieveStatus } from '../common/achievement.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
-import { computeShinyBonusS } from './breeding.js';
+import { breedingLevelTotals, computeShinyBonusS } from './breeding.js';
 import { computeFlurboShop } from '../w2/dungeon.js';
 import { guildBonusParams } from '../../data/common/guild.js';
 import { familyBonusParams } from '../../data/common/talent.js';
@@ -309,45 +309,14 @@ function tomeQTY(slot, S) {
       }
       return s;
 
-    case 49: // Total_Shiny_Mob_LV — sum shiny passive levels from Breeding[22..30]
-      s = 0;
-      if (S.breedingData) {
-        for (var terr = 0; terr < 9; terr++) {
-          var terrBr = S.breedingData[22 + terr];
-          if (!terrBr) continue;
-          for (i = 0; i < terrBr.length; i++) {
-            var shExp = num(terrBr[i]);
-            if (shExp > 0) {
-              var shLv = 1;
-              for (var t = 0; t < 19; t++) {
-                if (shExp > Math.floor((1 + Math.pow(t + 1, 1.6)) * Math.pow(1.7, t + 1))) shLv = t + 2;
-              }
-              s += shLv;
-            }
-          }
-        }
-      }
-      return s;
+    case 49: // Total_Shiny_Mob_LV
+      return breedingLevelTotals(S).shiny;
 
     case 50: // Total_Cooking_Meals_LV — sum Meals[0]
       return S.mealsData && S.mealsData[0] ? arrSum(S.mealsData[0]) : 0;
 
-    case 51: // Total_Mob_Breedability_LV — sum breedability from Breeding[13..17]
-      s = 0;
-      if (S.breedingData) {
-        for (var bt = 0; bt < 5; bt++) {
-          var brTerr = S.breedingData[13 + bt];
-          if (!brTerr) continue;
-          for (i = 0; i < brTerr.length; i++) {
-            var brExp = num(brTerr[i]);
-            if (brExp > 0) {
-              var multi2 = 1 + Math.log(Math.max(1, Math.pow(brExp + 1, 0.725)));
-              s += Math.min(9, Math.floor(Math.pow(multi2 - 1, 0.8)) + 1);
-            }
-          }
-        }
-      }
-      return s;
+    case 51: // Total_Mob_Breedability_LV
+      return breedingLevelTotals(S).breedability;
 
     case 52: // Total_Lab_Chips — sum Lab[15]
       return labData && labData[15] ? _arrSumPositive(labData[15]) : 0;
@@ -933,47 +902,18 @@ export function tomeQTYBreakdown(slot, S, saveData) {
     }
 
     case 49: { // Total Shiny Mob LV
-      ch = [];
-      if (S.breedingData) {
-        for (var terr = 0; terr < 9; terr++) {
-          var terrBr = S.breedingData[22 + terr];
-          if (!terrBr) continue;
-          var terrSum = 0;
-          for (i = 0; i < terrBr.length; i++) {
-            var shExp = num(terrBr[i]);
-            if (shExp > 0) {
-              var shLv = 1;
-              for (var t = 0; t < 19; t++) {
-                if (shExp > Math.floor((1 + Math.pow(t + 1, 1.6)) * Math.pow(1.7, t + 1))) shLv = t + 2;
-              }
-              terrSum += shLv;
-            }
-          }
-          if (terrSum > 0) ch.push(_n('territory ' + terr + ' shiny LV', terrSum));
-        }
-      }
+      ch = breedingLevelTotals(S).worlds.map(function(world) {
+        return _n('territory ' + world.world + ' shiny LV', world.shiny);
+      });
       return { val: val, children: ch };
     }
 
     case 50: return { val: val, children: [_n('sum Meals[0]', val)] };
 
     case 51: { // Total Mob Breedability LV
-      ch = [];
-      if (S.breedingData) {
-        for (var bt = 0; bt < 5; bt++) {
-          var brTerr = S.breedingData[13 + bt];
-          if (!brTerr) continue;
-          var bSum = 0;
-          for (i = 0; i < brTerr.length; i++) {
-            var brExp = num(brTerr[i]);
-            if (brExp > 0) {
-              var multi2 = 1 + Math.log(Math.max(1, Math.pow(brExp + 1, 0.725)));
-              bSum += Math.min(9, Math.floor(Math.pow(multi2 - 1, 0.8)) + 1);
-            }
-          }
-          if (bSum > 0) ch.push(_n('breed territory ' + bt, bSum));
-        }
-      }
+      ch = breedingLevelTotals(S).worlds.map(function(world) {
+        return _n('breed territory ' + world.world, world.breedability);
+      });
       return { val: val, children: ch };
     }
 

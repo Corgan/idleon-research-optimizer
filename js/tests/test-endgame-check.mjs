@@ -7,6 +7,9 @@ import { collectEndgameStats } from '../endgame-stats.js';
 import { saveData } from '../state.js';
 import { createStatContext } from '../stats/stat-context.js';
 import { fmtVal, fmtMonsterCash } from '../renderers/format.js';
+import { breedingLevelTotals, shinyPetLevel } from '../stats/systems/w4/breeding.js';
+import { tomeQTY, tomeQTYBreakdown } from '../stats/systems/w4/tome-score.js';
+import { PET_STATS } from '../stats/data/w4/breeding.js';
 
 const testHashes = new Set(['ExampleEndgamer', 'OtherExampleEndgamer'].map(name =>
   createHash('sha256').update(name.toLowerCase()).digest('hex')));
@@ -265,8 +268,8 @@ assert.ok(page.includes('<h1>Are you endgame?</h1>'));
 assert.ok(page.includes('id="analysis-status" role="status"'));
 assert.match(page, /#answer\.yes\s*\{\s*color:\s*var\(--green\)/);
 assert.match(page, /#answer\.no\s*\{\s*color:\s*var\(--red\)/);
-assert.ok(page.includes('endgamers.js?v=profile-2'), 'The page bypasses the previous checker cache');
-assert.ok(page.includes('endgame-stats.js?v=all-leaderboards-2'), 'The page bypasses the previous field mappings');
+assert.ok(page.includes('endgamers.js?v=profile-5'), 'The page bypasses the previous checker cache');
+assert.ok(page.includes('endgame-stats.js?v=leaderboard-audit-3'), 'The page bypasses the previous field mappings');
 assert.doesNotMatch(page, /stats-note|<details>|<summary>/, 'The subtitle and disclosures are removed');
 assert.match(page, /Math\.floor\(width \/ 120\)/, 'Statistics use compact responsive tracks');
 assert.match(page, /Math\.floor\(height \/ 86\)/, 'Grid rows are bounded by available viewport height');
@@ -423,12 +426,12 @@ for (const [id, value] of Object.entries({
   totalDayMarketLevels: 44, totalNightMarketLevels: 108, totalPrimeKills: 9,
   cookingMasteryLevel: 9, totalSushiStationUpgrades: 3, totalSushiKnowledgeLevels: 7,
   totalSushiPerfectos: 2, bestSushiCombo: 123, totalPaletteLevels: 7, logBook: 46,
-  totalCompassUpgrades: 3, totalMedallions: 3, totalTachyonsCollected: 7,
+  totalCompassUpgrades: 3, totalMedallions: 3, totalTachyonsCollected: 1,
   totalCoralKidUpgrades: 12, totalSpelunkingDepths: 8, totalManicSpelunkingDepths: 18,
   highestCogExp: 20, highestCallMeBob: 123, highestCallMeAsh: 234, highestHammerHammer: 345,
   highestBigP: 456, totalEquinoxUpgrades: 5, 'highestVillagerExp/hr': 100, 'totalVillagerExp/hr': 500,
   hoopsMinigame: 69, dartsMinigame: 1317, choppingMinigame: 11, fishingMinigame: 22,
-  catchingMinigame: 33, miningMinigame: 44, totalShinyLevels: 1
+  catchingMinigame: 33, miningMinigame: 44, totalShinyLevels: 68, totalBreedabilityLevels: 68
 })) assert.equal(expandedStat(id), value, id + ': ' + (expandedStats.find(row => row.id === id).detail || ''));
 assert.equal(expandedStats.find(row => row.id === 'totalShinyLevels').partial, true,
   'Older exports retain ordinary shiny levels while marking unknown Menagerie overlevels partial');
@@ -439,6 +442,74 @@ assert.equal(expandedStat('highestConstructExp/hr'), Math.max(...constructionVal
   'Construction EXP uses the explicit active-character panel context');
 assert.match(expandedStats.find(row => row.id === 'highestConstructExp/hr').detail, /Active-character/);
 assert.deepEqual(expanded, expandedBefore, 'Expanded metric calculations do not alter the raw save');
+const audited = structuredClone(expanded);
+audited.data.Cards0 = { frogG: 1000000, beanG: '2000000', length: 999 };
+audited.data.Spelunk[6] = [1, 2, 3];
+audited.data.Spelunk[44] = [4, 7];
+audited.data.StatueLevels_0 = [[2, 999999], [10, 999999]];
+audited.data.StatueLevels_1 = [[7, 0], [3, 0]];
+audited.data.StatueLevels_1[32] = ['unused padding', 0];
+audited.data.Lv0_0.push(-1);
+audited.data.CYDeliveryBoxComplete = 11;
+audited.data.CYDeliveryBoxStreak = 22;
+audited.data.CYDeliveryBoxMisc = 9999;
+audited.data.CauldronInfo[4][19] = 3;
+audited.data.OptLacc[131] = 7;
+audited.data.OptLacc[347] = 5;
+audited.data.OptLacc[394] = 12345;
+audited.data.MapBon = [[], [], [0, 1e15, 0]];
+audited.data.MapBon[0] = [0];
+audited.data.MapBon[1] = [0, 0, 0];
+audited.data.Arcane = Array(60).fill(0);
+audited.data.Arcane[58] = 10;
+audited.data.SL_1[589] = 500;
+audited.data.Holes[13][48] = 1;
+audited.data.Holes[11][26] = 3;
+const auditedBefore = structuredClone(audited);
+const auditedStats = collectEndgameStats(audited);
+const auditedStat = id => auditedStats.find(row => row.id === id);
+for (const [id, value] of Object.entries({
+  totalCards: 3000000, totalGrandDiscoveries: 11, totalStatues: 17,
+  totalTachyonsCollected: 12345, totalSkillsLevels: 22, postOfficeOrders: 51,
+  'highestVillagerExp/hr': 130, 'totalVillagerExp/hr': 650, highestArcaneMapMulti: 1.6
+})) assert.equal(auditedStat(id).value, value, id + ': ' + (auditedStat(id).detail || ''));
+assert.deepEqual(audited, auditedBefore, 'Audit fixes do not rewrite saved quantities or cached values');
+audited.data.MapBon[2] = [0, 0, 1e15];
+assert.equal(collectEndgameStats(audited).find(row => row.id === 'highestArcaneMapMulti').value, 1.6,
+  'AFK map bonuses also participate in the highest Arcane multiplier');
+delete audited.data.StatueLevels_1;
+const partialStatues = collectEndgameStats(audited).find(row => row.id === 'totalStatues');
+assert.equal(partialStatues.value, 12);
+assert.equal(partialStatues.partial, true, 'An unknown character cannot certify an account-wide statue maximum');
+
+const breedingSave = {
+  breedingData: Array.from({ length: 31 }, () => []),
+  menagerieData: [[], [], []]
+};
+breedingSave.breedingData[2][3] = 1;
+breedingSave.menagerieData[2][11] = 1;
+breedingSave.breedingData[22][0] = 1e20;
+breedingSave.breedingData[13][0] = 1e100;
+breedingSave.breedingData[22][99] = 1e100;
+breedingSave.breedingData[26][0] = 1e100;
+breedingSave.breedingData[13][99] = 1e100;
+assert.equal(shinyPetLevel(0, breedingSave), 0, 'Untrained species still grant no shiny passive');
+assert.equal(tomeQTY(49, breedingSave), 97, 'Tome counts 68 real species, baseline 1 and unlocked level 30');
+assert.equal(tomeQTY(51, breedingSave), 76, 'Breedability counts baseline 1, caps at 9 and ignores padding');
+for (const slot of [49, 51]) {
+  const tree = tomeQTYBreakdown(slot, breedingSave);
+  assert.equal(tree.children.reduce((sum, child) => sum + child.val, 0), tree.val,
+    'Breeding Tome breakdown reproduces its exact total');
+}
+breedingSave.menagerieData[2][11] = 0;
+assert.equal(tomeQTY(49, breedingSave), 87, 'Ordinary shiny levels cap at 20');
+breedingSave.breedingData[2][3] = 0;
+assert.equal(tomeQTY(51, breedingSave), 68, 'Breedability requires its native upgrade unlock');
+breedingSave.breedingData[2][3] = 1;
+for (let world = 0; world < 5; world++) {
+  breedingSave.breedingData[13 + world] = PET_STATS[world].map(() => 1e100);
+}
+assert.equal(breedingLevelTotals(breedingSave).breedability, 612, 'All 68 breedable species reach level 9');
 const truncatedOptions = structuredClone(expanded);
 truncatedOptions.data.OptLacc.length = 390;
 const truncatedStats = collectEndgameStats(truncatedOptions);

@@ -2,11 +2,12 @@ import { loadSaveData } from './save/loader.js';
 import { saveData } from './state.js';
 import { parseSaveKey } from './save/helpers.js';
 import { createStatContext } from './stats/stat-context.js';
-import { tomeQTY } from './stats/systems/w4/tome-score.js';
-import { shinyPetLevel } from './stats/systems/w4/breeding.js';
+import { breedingLevelTotals } from './stats/systems/w4/breeding.js';
+import { PET_STATS } from './stats/data/w4/breeding.js';
+import { STATUE_COUNT } from './stats/data/common/statues.js';
 import { computeArcaneMapMultiBon } from './stats/systems/mc/tesseract.js';
 import { outpostResourceRateBreakdown, royalGuardianDerivedInputs } from './stats/systems/w7/royal-guardian.js';
-import { MapDetails, HolesInfo, GrimoireUpg, DreamUpg } from './stats/data/game/customlists.js';
+import { MapDetails, MapAFKtarget, HolesInfo, GrimoireUpg, DreamUpg } from './stats/data/game/customlists.js';
 import { computeBUpg, cosmoBonus, computeMonumentROGbonus } from './stats/systems/w5/hole.js';
 import { collectibleBonus, computeMeasurementBonus } from './stats/systems/w5/jar.js';
 import { bonTOT } from './stats/systems/w5/fountain.js';
@@ -15,6 +16,7 @@ import { legendPTSbonus, computeLoreEpisodeBonus } from './stats/systems/w7/spel
 import { computeCompassBonus } from './stats/systems/w7/compass.js';
 import { computeStatueBonusGiven } from './stats/systems/common/stats.js';
 import { computeCardLv } from './stats/systems/common/cards.js';
+import { computeVialByKey } from './stats/systems/w2/alchemy.js';
 import { companions } from './stats/systems/common/companions.js';
 import { computeExoticBonus } from './stats/systems/w6/farming.js';
 import { arcadeBonus } from './stats/systems/w2/arcade.js';
@@ -142,9 +144,9 @@ function _villagerRates(read, option) {
       (computeMeasurementBonus(S, 7) +
       (Math.floor(_number(opals[i]) / 10) * cosmo(0) +
       (cosmo(1) * schematics + (cosmo(2) +
-      (Math.min(4 * computeCardLv('caveB', S), 50) +
+      (computeBUpg(48, 0, S) + (Math.min(4 * computeCardLv('caveB', S), 50) +
       (_number(read('Holes', 17, 1)) * Number(HolesInfo[59][3]) +
-      (computeMeasurementBonus(S, 0) + (computeWinBonus(21, { charIdx: 0 }, S) + vaultUpgBonus(73, S))))))))));
+      (computeMeasurementBonus(S, 0) + (computeWinBonus(21, { charIdx: 0 }, S) + vaultUpgBonus(73, S)))))))))));
     return _number(Math.max(1, special) * common * _number(opals[i]) * (1 + _number(parallel[i])) *
       (1 + computeExoticBonus(51, S) / 100) * (1 + arcadeBonus(38, S) / 100) *
       (1 + grimoireUpgBonus(29, GrimoireUpg, S) / 100) * (1 + arcaneUpgBonus(32, S) / 100) *
@@ -175,6 +177,7 @@ export function collectEndgameStats(raw) {
   const bind = (id, fn) => { compute[id] = fn; };
   for (const [id, key, path] of [
     ['totalStamps', 'StampLv', []], ['totalVials', 'CauldronInfo', [4]],
+    ['totalCards', 'Cards0', []], ['totalGrandDiscoveries', 'Spelunk', [44]],
     ['totalMeals', 'Meals', [0]], ['totalSummoningUpgrades', 'Summon', [0]],
     ['totalPlotRanks', 'FarmRank', [0]], ['totalPaletteLevels', 'Spelunk', [9]],
     ['totalSpelunkingUpgrades', 'Spelunk', [5]], ['totalZenithMarketUpgrades', 'Spelunk', [45]],
@@ -196,7 +199,8 @@ export function collectEndgameStats(raw) {
     fractalHours: 184, dungeonCredits: 72, dungeonFlurbos: 73, endlessSummoningWins: 319,
     bestCrucibleRound: 628, highestShowdownLevel: 369, mostGiantsKilled: 217,
     highestMegafeather: 262, highestMegaFish: 279, totalBonesCollected: 329,
-    totalDustCollected: 362, penpalMinigame: 99, hoopsMinigame: 242, dartsMinigame: 442
+    totalDustCollected: 362, totalTachyonsCollected: 394,
+    penpalMinigame: 99, hoopsMinigame: 242, dartsMinigame: 442
   })) bind(id, () => option(index));
   for (const [id, key, path] of [
     ['bits', 'Gaming', [0]], ['jadeCoins', 'Ninja', [102, 0]],
@@ -212,8 +216,6 @@ export function collectEndgameStats(raw) {
   bind('totalDayMarketLevels', () => sumSlice('FarmUpg', [], 2, 10));
   bind('totalNightMarketLevels', () => sumSlice('FarmUpg', [], 10, 18));
   bind('totalCoralKidUpgrades', () => Array.from({ length: 6 }, (_, i) => option(616 + i))
-    .reduce((sum, value) => sum + value, 0));
-  bind('totalTachyonsCollected', () => Array.from({ length: 7 }, (_, i) => option(388 + i))
     .reduce((sum, value) => sum + value, 0));
   bind('totalBraveryLevels', () => sumSlice('Holes', [15], 0, 10));
   bind('totalJusticeLevels', () => sumSlice('Holes', [15], 10, 20));
@@ -235,7 +237,6 @@ export function collectEndgameStats(raw) {
   bind('totalShrines', () => _entries(read('Shrine')).reduce((sum, [, row]) => sum + _number(row[3]), 0));
   bind('totalWaves', () => table('TotemInfo', 0));
   bind('totalMedallions', () => _entries(read('Compass', 3)).length);
-  bind('totalGrandDiscoveries', () => _entries(read('Spelunk', 6)).length);
   bind('totalGamingCrowns', () => _entries(read('Research', 11)).length);
   bind('slab', () => _entries(read('Cards1')).length);
   bind('glimboTotalTrades', () => table('Research', 12));
@@ -253,7 +254,9 @@ export function collectEndgameStats(raw) {
   bind('totalBoats', () => _entries(read('Boats')).reduce((sum, [, row]) =>
     sum + _number(row[3]) + _number(row[5]), 0));
   bind('totalLevels', () => characters(ci => _number(read('Lv0_' + ci, 0))).reduce((a, b) => a + b, 0));
-  bind('totalSkillsLevels', () => characters(ci => sumSlice('Lv0_' + ci, [], 1, 22)).reduce((a, b) => a + b, 0));
+  bind('totalSkillsLevels', () => characters(ci => _entries(read('Lv0_' + ci))
+    .filter(([index]) => Number(index) >= 1 && Number(index) < 22)
+    .reduce((sum, [, value]) => sum + Math.max(0, _number(value, true)), 0)).reduce((a, b) => a + b, 0));
   bind('level', () => Math.max(...characters(ci => _number(read('Lv0_' + ci, 0)))));
   CATEGORIES.Skills.split(' ').slice(1).forEach((id, offset) => {
     const index = offset + 1;
@@ -268,20 +271,51 @@ export function collectEndgameStats(raw) {
   bind('highestPowerPet', () => Math.max(0, ...['Pets', 'PetsStored'].flatMap(key =>
     _entries(read(key)).map(([, row]) => _number(row[2])))));
   bind('biggestHaulSpelunking', () => _max(read('Spelunk', 2)));
+  const breedingTotal = kind => {
+    read('Breeding');
+    for (let world = 0; world < 5; world++) {
+      if (!PET_STATS[world].some(([key]) => key !== '_')) continue;
+      for (const [index, exp] of _entries(read('Breeding', (kind === 'shiny' ? 22 : 13) + world))) {
+        if (PET_STATS[world][index]?.[0] && PET_STATS[world][index][0] !== '_') _number(exp);
+      }
+    }
+    return breedingLevelTotals(saveData)[kind];
+  };
   bind('totalShinyLevels', () => {
     if (save.Menagerie != null) read('Menagerie');
-    const value = _entries(read('Breeding')).filter(([index]) => Number(index) >= 22 && Number(index) <= 30)
-      .reduce((sum, [, row]) => sum + _entries(row).reduce((s, [, exp]) =>
-        s + shinyPetLevel(_number(exp), saveData), 0), 0);
+    const value = breedingTotal('shiny');
     return { value, partial: save.Menagerie == null, detail: save.Menagerie == null
       ? 'Menagerie shiny overlevel unlock is unavailable; using ordinary shiny levels.' : undefined };
   });
-  for (const [id, slot, key] of [
-    ['totalStatues', 1, 'StatueLevels_0'], ['totalCards', 2, 'Cards0'],
-    ['totalBreedabilityLevels', 51, 'Breeding']
-  ]) bind(id, () => { read(key); return tomeQTY(slot, saveData); });
-  bind('postOfficeOrders', () => ['CYDeliveryBoxComplete', 'CYDeliveryBoxStreak', 'CYDeliveryBoxMisc']
-    .reduce((sum, key) => sum + _number(read(key)), 0));
+  bind('totalBreedabilityLevels', () => breedingTotal('breedability'));
+  bind('totalStatues', () => {
+    const levels = Array(STATUE_COUNT).fill(0);
+    const missing = [];
+    for (let ci = 0; ci < count; ci++) {
+      try {
+        const rows = _entries(read('StatueLevels_' + ci))
+          .filter(([index]) => Number(index) >= 0 && Number(index) < levels.length)
+          .map(([index, row]) => [Number(index), _number(Array.isArray(row) ? row[0] : row)]);
+        for (const [index, level] of rows) {
+          if (index >= 0 && index < levels.length) levels[index] = Math.max(levels[index], level);
+        }
+      } catch (error) {
+        missing.push(error.message);
+      }
+    }
+    if (!count || missing.length === count) throw new Error('No character statue data available.');
+    return { value: levels.reduce((sum, level) => sum + level, 0), partial: missing.length > 0,
+      detail: 'Sum of each statue\'s highest saved character level.' };
+  });
+  bind('postOfficeOrders', () => {
+    read('CauldronInfo', 4);
+    return {
+      value: _number(read('CYDeliveryBoxComplete')) + _number(read('CYDeliveryBoxStreak')) +
+        option(347) + option(131) + computeVialByKey('BoxPoints', saveData, 0).val,
+      partial: ['Lab', 'Rift', 'UpgVault'].some(key => save[key] == null) ||
+        !saveData.companionDataAvailable || !saveData.activeVoteDataAvailable
+    };
+  });
   for (const [id, world, index] of [
     ['highestDamage', 1, 0], ['afkTime', 0, 2], ['monstersKilled', 0, 0],
     ['refinedSalts', 2, 0], ['trashedCogs', 2, 1], ['totalMaterialPrinted', 2, 3], ['plantsPicked', 4, 3]
@@ -314,9 +348,16 @@ export function collectEndgameStats(raw) {
     ['highestHammerHammer', 1, 2], ['highestBigP', 3, 21]
   ]) bind(id, () => _number(read('CauldronInfo', cauldron, bubble)));
   bind('highestArcaneMapMulti', () => {
-    const maps = _entries(read('MapBon')).map(([index]) => Number(index));
-    const best = Math.max(0, ...characters(ci => Math.max(0, ...maps.map(mapIdx =>
-      computeArcaneMapMultiBon(0, createStatContext({ charIdx: ci, mapIdx, saveData }))))));
+    const maps = _entries(read('MapBon'))
+      .filter(([index, row]) => !['Nothing', 'Z'].includes(MapAFKtarget[index]) && _entries(row).length > 0)
+      .map(([index, row]) => {
+        for (let channel = 0; channel < 3; channel++) _number(row[channel]);
+        return Number(index);
+      });
+    const best = Math.max(0, ...characters(ci => Math.max(0, ...maps.map(mapIdx => {
+      const ctx = createStatContext({ charIdx: ci, mapIdx, saveData });
+      return Math.max(...[0, 1, 2].map(channel => computeArcaneMapMultiBon(channel, ctx)));
+    }))));
     return best > 0 ? 1 + best / 100 : 0;
   });
   bind('totalOutposts', () => _entries(read('RoyalMaps')).filter(([, row]) => Array.isArray(row) && row.length >= 3).length);
