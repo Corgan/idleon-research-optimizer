@@ -152,7 +152,6 @@ export function computeBigFishBonus(idx, saveData) {
 export function shopUpgBonus(idx, saveData) {
   if (!saveData.spelunkData || !saveData.spelunkData[5]) return 0;
   var lv = Number(saveData.spelunkData[5][idx]) || 0;
-  if (lv <= 0) return 0;
   if (!SpelunkUpg || !SpelunkUpg[idx]) return 0;
   var value = (Number(SpelunkUpg[idx][4]) || 0) * Math.max(0, lv);
   var spelunk = saveData.spelunkData;

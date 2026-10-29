@@ -20,6 +20,7 @@ export const SITE_PAGES = [
   { href: 'farming-calc.html', label: 'Farming Planner', group: 'World 6', icon: '\u{1F331}' },
   { href: 'clamworks-calc.html', label: 'Clamworks Calculator', group: 'World 7', icon: '\u{1F41A}' },
   { href: 'royal-guardian-calc.html', label: 'Royal Guardian Calculator', group: 'World 7', icon: '\u{1F451}' },
+  { href: 'spelunking-calc.html', label: 'Spelunking Simulator & Optimizer', group: 'World 7', icon: '\u26CF\uFE0F' },
   { href: 'jelly-operator-calc.html', label: 'Jelly Operator Optimizer', group: 'World 7', icon: '\u{1F9EB}' },
   { href: 'research-optimizer-v2.html', label: 'Research Optimizer', group: 'World 7', icon: '\u{1F52C}' },
 ];

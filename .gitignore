@@ -16,3 +16,17 @@ node_modules/
 /img
 js/tests
 js/tests/*
+!/_tools/
+/_tools/*
+!/_tools/hash-endgamer.mjs
+!/_tools/extract/
+/_tools/extract/*
+!/_tools/extract/mbs.cjs
+!/_tools/extract/spelunk-assets.cjs
+!/js/tests/
+/js/tests/*
+!/js/tests/test-endgame-check.mjs
+!/js/tests/test-spelunk-expedition.mjs
+!/js/tests/test-spelunk-native.mjs
+!/js/tests/test-spelunk-replay.mjs
+!/js/tests/test-spelunk-workers.mjs
