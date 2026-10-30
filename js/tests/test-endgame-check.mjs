@@ -277,7 +277,7 @@ assert.ok(page.includes('<h1>Are you endgame?</h1>'));
 assert.ok(page.includes('id="analysis-status" role="status"'));
 assert.match(page, /#answer\.yes\s*\{\s*color:\s*var\(--green\)/);
 assert.match(page, /#answer\.no\s*\{\s*color:\s*var\(--red\)/);
-assert.ok(page.includes('endgamers.js?v=sealed-verdicts-2'), 'The page bypasses the previous checker cache');
+assert.ok(page.includes('endgamers.js?v=sealed-verdicts-3'), 'The page bypasses the previous checker cache');
 assert.match(page, /#answer\.special\s*\{[^}]*font-size:\s*min\(9vw, 18dvh, 8rem\)/,
   'Long custom verdicts fit narrow viewports');
 assert.ok(page.includes('endgame-stats.js?v=leaderboard-audit-3'), 'The page bypasses the previous field mappings');
