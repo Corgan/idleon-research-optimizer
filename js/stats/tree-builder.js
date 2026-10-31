@@ -7,6 +7,7 @@
 
 import { _bNode } from './node-helpers.js';
 import { overrideSourceItem, sourceTermKey, enterTermDescriptor, exitTermDescriptor } from './term-overrides.js';
+import { formulaConstant, formulaOperation } from './formula-tree.js';
 
 /**
  * Build a breakdown tree for a stat descriptor.
@@ -35,6 +36,7 @@ export function buildTree(desc, catalog, ctx) {
   }
 
   var pools = {};
+  var sourcePools = ctx.formulaDetails ? [] : null;
 
   for (var poolName in desc.pools) {
     var sources = desc.pools[poolName];
@@ -63,11 +65,43 @@ export function buildTree(desc, catalog, ctx) {
     }
 
     pools[poolName] = { items: items, sum: sum, product: product };
+    if (sourcePools) {
+      let sumTree = formulaConstant(0, 'Initial sum');
+      let productTree = formulaConstant(1, 'Initial product');
+      for (const item of items) {
+        const value = item.val || 0;
+        const input = Object.is(value, item.val) ? item : {
+          name: 'Source value or zero', val: value, kind: 'formula',
+          formula: 'source value || 0', children: [item],
+        };
+        sumTree = formulaOperation('Running sum', 'add', sumTree, input);
+        const factor = value !== 0 ? input : {
+          name: 'Zero source is neutral in this pool product', val: 1, kind: 'formula',
+          formula: 'source value !== 0 ? source value : 1', children: [input],
+        };
+        productTree = formulaOperation('Running product', 'multiply', productTree, factor);
+      }
+      sourcePools.push({ name: poolName, sum: sumTree, product: productTree });
+    }
   }
 
   enterTermDescriptor(ctx, desc);
+  const collecting = !!ctx.formulaDetails;
+  const previousReferences = ctx.formulaReferences;
+  const hadReferences = Object.prototype.hasOwnProperty.call(ctx, 'formulaReferences');
+  if (collecting) ctx.formulaReferences = [];
   var result;
-  try { result = desc.combine(pools, ctx); } finally { exitTermDescriptor(ctx); }
+  let sourceReferences;
+  try {
+    result = desc.combine(pools, ctx);
+    if (collecting) sourceReferences = ctx.formulaReferences;
+  } finally {
+    if (collecting) {
+      if (hadReferences) ctx.formulaReferences = previousReferences;
+      else delete ctx.formulaReferences;
+    }
+    exitTermDescriptor(ctx);
+  }
   return Object.assign({}, result, {
     name: result.name || desc.name,
     val: result.val,
@@ -76,6 +110,8 @@ export function buildTree(desc, catalog, ctx) {
     partial: !!result.partial,
     notApplicable: !!result.notApplicable,
     reason: result.reason || '',
+    ...(sourcePools ? { sourcePools } : {}),
+    ...(sourceReferences?.length ? { sourceReferences } : {}),
   });
 }
 

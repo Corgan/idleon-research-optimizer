@@ -20,9 +20,13 @@ export var companion = {
     var owned = ctx.saveData.companionIds ? ctx.saveData.companionIds.has(id) : false;
     var bonusVal = companionBonusForSave(id, ctx.saveData);
     var val = owned ? bonusVal : 0;
-    if (!owned) return node(name, 0, [node('Not owned', 0, null, { fmt: 'raw' })]);
+    var ownership = {
+      ...node(owned ? 'Owned' : 'Not owned', owned ? 1 : 0, null, { fmt: 'raw' }),
+      ...(ctx.formulaDetails ? { gameInput: { type: 'companion', id } } : {}),
+    };
+    if (!owned) return node(name, 0, [ownership]);
     return node(name, val, [
-      node('Owned', 1, null, { fmt: 'raw' }),
+      ownership,
       node('Bonus', bonusVal, null, { fmt: '+' }),
       ...(companionLevel2(id, ctx.saveData)
         ? [node('Pet+', 1, null, { fmt: 'raw' })]
@@ -41,7 +45,10 @@ export var compMulti = {
     var raw = divisor > 1 ? bonusVal / divisor : bonusVal;
     var val = Math.max(1, Math.min(cap, 1 + raw));
     return node(name, val, [
-      node(owned ? 'Owned' : 'Not owned', owned ? 1 : 0, null, { fmt: 'raw' }),
+      {
+        ...node(owned ? 'Owned' : 'Not owned', owned ? 1 : 0, null, { fmt: 'raw' }),
+        ...(ctx.formulaDetails ? { gameInput: { type: 'companion', id } } : {}),
+      },
       node('Raw bonus', bonusVal, null, { fmt: '+' }),
       node('Cap', cap, null, { fmt: 'x' }),
       node('Result', val, null, { fmt: 'x' }),

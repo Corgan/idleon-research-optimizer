@@ -7,6 +7,7 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { VAULT_NO_MASTERY } from '../../data/game-constants.js';
 import { vaultUpgPerLevel } from '../../data/common/vault.js';
+import { formulaInput, formulaConstant as c, formulaOperation as op } from '../../formula-tree.js';
 
 export function vaultUpgBonus(idx, saveData) {
   if (!saveData || !saveData.vaultData) return 0;
@@ -39,6 +40,33 @@ export function vaultUpgBonus(idx, saveData) {
 // Indices that return lv * perLv WITHOUT mastery multiplier
 var NO_MASTERY = VAULT_NO_MASTERY;
 
+function _vaultFormula(id, lv, perLevel, masteryLv) {
+  const level = formulaInput('Purchased level', lv, 'UpgVault[' + id + ']');
+  let base = op('Level bonus', 'multiply', level,
+    formulaInput('Bonus per level', perLevel, 'UpgradeVault[' + id + '][5]'));
+  const thresholds = id === 0 ? [[25, 1], [50, 1], [100, 1]]
+    : id === 60 ? [[25, 1], [50, 1], [100, 2], [200, 3], [300, 5], [400, 7], [450, 10]] : [];
+  let extra;
+  for (const [threshold, multiplier] of thresholds) {
+    let term = op('Levels above ' + threshold, 'max', c(0),
+      op('Breakpoint difference', 'subtract', level, c(threshold)));
+    if (multiplier !== 1) term = op('Breakpoint bonus', 'multiply', c(multiplier), term);
+    extra = extra ? op('Breakpoint sum', 'add', extra, term) : term;
+  }
+  if (extra) base = op('Base plus breakpoints', 'add', base, extra);
+  if (id === 60) {
+    base = op('Scaled breakpoint bonus', 'multiply', base,
+      op('Scaling multiplier', 'add', c(1),
+        op('Scaling fraction', 'divide',
+          op('Completed level groups', 'floor', op('Level groups', 'divide', level, c(25))), c(5))));
+  }
+  const masteryId = id < 32 ? 32 : id <= 60 ? 61 : id <= 88 ? 89 : null;
+  const mastery = NO_MASTERY.has(id) || masteryId === null ? c(1, 'No mastery multiplier')
+    : op('Mastery multiplier', 'add', c(1), op('Mastery percentage', 'divide',
+      formulaInput('Mastery level', masteryLv, 'UpgVault[' + masteryId + ']'), c(100)));
+  return op('Vault upgrade bonus', 'multiply', base, mastery);
+}
+
 export var vault = {
   resolve: function(id, ctx) {
     var name = label('Vault', id);
@@ -68,6 +96,7 @@ export var vault = {
     }
     var masteryMulti = 1 + masteryLv / 100;
     var val = baseVal * masteryMulti;
+    if (ctx.formulaDetails) return node(name, val, [_vaultFormula(id, lv, perLevel, masteryLv)], { fmt: '+' });
 
     var children = [
       node('Level', lv, null, { fmt: 'raw' }),

@@ -1,8 +1,8 @@
 import { loadSaveData } from '../save/loader.js';
 import { saveData } from '../state.js';
 import { buildSpelunkInputs } from '../stats/systems/w7/spelunk-inputs.js';
-import { createSpelunkExpedition } from '../stats/systems/w7/spelunk-expedition.js?v=depth-limits-1';
-import { createSpelunkComparison, createSpelunkSearch, createSpelunkPartyAnalysis } from '../stats/systems/w7/spelunk-planner.js?v=depth-limits-1';
+import { createSpelunkExpedition } from '../stats/systems/w7/spelunk-expedition.js?v=amber-search-2';
+import { createSpelunkComparison, createSpelunkCaveComparison, createSpelunkSearch, createSpelunkAmberSearch, createSpelunkPartyAnalysis } from '../stats/systems/w7/spelunk-planner.js?v=amber-search-2';
 
 let cachedInput = null;
 export async function executeSpelunkJob(message, report = () => {}, batch = null) {
@@ -29,8 +29,8 @@ export async function executeSpelunkJob(message, report = () => {}, batch = null
     progress(fraction + span, phase);
     const result = run.result();
     if (replay) return result;
-    const { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics } = result;
-    return { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics };
+    const { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics, exit, amber } = result;
+    return { seed: runSeed, status, settled, seconds, startDepth, depth, rewards, grossRewards, spent, grands, stamina, diagnostics, exit, amber };
   }
   if (message.type === 'trial') return { result: await simulate(message.config, message.seed, false) };
   if (message.type === 'run') {
@@ -46,10 +46,13 @@ export async function executeSpelunkJob(message, report = () => {}, batch = null
     progress(1, 'Complete');
     return { input, result };
   }
-  if (!['compare', 'optimize'].includes(message.type)) throw new Error('Unknown expedition operation.');
-  const iterator = message.type === 'compare'
+  if (!['compare', 'caves', 'optimize'].includes(message.type)) throw new Error('Unknown expedition operation.');
+  const iterator = message.type === 'caves'
+    ? createSpelunkCaveComparison(input, message.config, { ...message.options, seed: message.seed })
+    : message.type === 'compare'
     ? createSpelunkComparison(input, message.configurations, { ...message.options, seed: message.seed })
-    : createSpelunkSearch(input, message.config, { ...message.options, seed: message.seed });
+    : (message.options?.mode === 'amber' ? createSpelunkAmberSearch : createSpelunkSearch)
+      (input, message.config, { ...message.options, seed: message.seed });
   let next = iterator.next();
   while (!next.done) {
     const request = next.value;

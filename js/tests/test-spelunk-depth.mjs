@@ -139,7 +139,7 @@ currentConfig = { ...config, party: [0, 1] };
 vm.runInContext('renderDepthLimits();', context);
 assert.match(node('depth-graphs').innerHTML, /<strong>25<\/strong>/, 'party edits update the cutoff');
 assert.equal(invalidations, 0, 'display-only graph edits do not cancel workers or invalidate comparison results');
-const tabs = ['simulate', 'compare', 'optimize', 'depth', 'breakdowns']
+const tabs = ['simulate', 'compare', 'caves', 'optimize', 'depth', 'breakdowns']
   .map(name => ({ dataset: { tab: name }, setAttribute(key, value) { this[key] = value; } }));
 Object.assign(context, { activeTab: 'simulate', pause() {}, closePicker() {},
   document: { querySelectorAll: () => tabs } });
@@ -150,6 +150,11 @@ assert.equal(tabs.find(tab => tab.dataset.tab === 'depth')['aria-selected'], 'tr
 assert.equal(node('panel-depth').hidden, false);
 assert.equal(node('panel-simulate').hidden, true);
 assert.equal(invalidations, 0, 'switching to graphs leaves captured comparison work intact');
+vm.runInContext('selectTab("caves");', context);
+assert.equal(node('caves-status-host').child, node('job-status'), 'cave comparisons share the same movable status controls');
+assert.equal(node('panel-caves').hidden, false);
+assert.equal(node('panel-depth').hidden, true);
+assert.equal(invalidations, 0, 'switching to cave comparisons preserves in-flight and completed work');
 current = null;
 vm.runInContext('renderDepthLimits();', context);
 assert.match(node('depth-graphs').textContent, /Load a valid save/);
@@ -162,6 +167,9 @@ vm.runInNewContext(ui.slice(ui.indexOf("$('main-content').addEventListener('chan
 });
 events.change({ target: { id: 'depth-tool', closest: selector => selector === '#panel-depth' } });
 assert.equal(events.rendered, true);
+events.change({ target: { id: 'cave-result-inspect', closest: selector => selector.includes('#caves-result') } });
+assert.match(html, /data-tab="caves"/);
+assert.match(html, /id="cave-trials"[^>]*min="1"[^>]*max="64"/);
 assert.match(html, /data-tab="depth"/);
 assert.match(html, /id="depth-inspect"[^>]*type="range"/, 'keyboard users have an exact-depth inspector');
 console.log('Spelunking depth costs, multi-hole risk, entry effects and graph lifecycle passed.');

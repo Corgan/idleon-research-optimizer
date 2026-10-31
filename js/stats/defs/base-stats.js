@@ -14,6 +14,7 @@ function makeStatDescriptor(statName) {
     combine: function(pools, ctx) {
       var result = computeTotalStat(statName, ctx.charIdx || 0, ctx);
       return {
+        ...(ctx.formulaDetails ? result.tree : {}),
         val: result.computed,
         children: result.tree ? result.tree.children : null,
       };

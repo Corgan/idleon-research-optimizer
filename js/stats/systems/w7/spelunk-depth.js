@@ -1,10 +1,17 @@
 // ===== SPELUNKING DEPTH-LIMIT ESTIMATES (W7) =====
 import { normalizeSpelunkConfig, spelunkRockStats, spelunkEntryEffects, spelunkDigPower,
-  spelunkStaminaMultiplier, spelunkHitDamage } from './spelunk-expedition.js?v=depth-limits-1';
+  spelunkStaminaMultiplier, spelunkHitDamage } from './spelunk-expedition.js?v=amber-search-2';
 
 function _finite(n, name, minimum = 0) {
   if (!Number.isFinite(n) || n < minimum) throw new Error(`${name} is unavailable or invalid.`);
   return n;
+}
+
+export function spelunkExitDistribution(input) {
+  const bonus = _finite(input.shop[18] + input.holesBonus, 'Extra exits') / 100;
+  const clamp = n => Math.max(0, Math.min(1, n));
+  const probabilities = [clamp(1 - bonus), clamp(2 - bonus) - clamp(1 - bonus), 1 - clamp(2 - bonus)];
+  return { probabilities, expected: probabilities.reduce((sum, chance, i) => sum + chance * (i + 1), 0) };
 }
 
 export function spelunkRockProbabilities(cave, depth) {
@@ -36,9 +43,7 @@ export function spelunkDepthProfile(input, requested, { from = 1, to = 150, tool
     ? input.characters[id].max : input.characters[id].stamina, 'Party stamina'), 0);
   _finite(budget, 'Party stamina', Number.MIN_VALUE);
   const refund = effects[0] > 0 ? _finite(input.elixirs[2].quantity, 'Stamina refund') / 100 : 0;
-  const bonus = _finite(input.shop[18] + input.holesBonus, 'Extra exits') / 100;
-  const clamp = n => Math.max(0, Math.min(1, n));
-  const holes = [clamp(1 - bonus), clamp(2 - bonus) - clamp(1 - bonus), 1 - clamp(2 - bonus)];
+  const holes = spelunkExitDistribution(input).probabilities;
   const rows = [];
   for (let visibleDepth = from; visibleDepth <= to; visibleDepth++) {
     const depth = visibleDepth - 1, probabilities = spelunkRockProbabilities(cave, depth);

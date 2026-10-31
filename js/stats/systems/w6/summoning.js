@@ -10,13 +10,89 @@ import {
   SUMMON_ENDLESS_TYPE,
   SUMMON_ENDLESS_VAL,
   SUMMON_NORMAL_BONUS,
+  SUMMON_VICTORY_MOBS,
 } from '../../data/w7/summon.js';
 import { achieveStatus } from '../common/achievement.js';
 import { computeEmperorBon } from './emperor.js';
 import { maxTalentBonus } from '../common/talent.js';
 import { getSetBonus } from '../w3/setBonus.js';
+import { optionsListData } from '../../../save/data.js';
+import { createStatContext } from '../../stat-context.js';
+import { finalBubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
+import { computeLampBonus, computeGambitBonus, computeMonumentROGbonus } from '../w5/hole.js';
+import { menagerieBoostQTY } from '../w7/menagerie.js';
+import { pristineBon } from '../w5/pristine.js';
+import { bonTOT } from '../w5/fountain.js';
+import { computeRiftSkillBonus } from '../w4/rift.js';
+import { computeMealBonus, computeStatueBonusGiven } from '../common/stats.js';
+import { computeMSABonus, computeSlabboBonus } from '../w4/gaming.js';
+import { votingBonusz } from '../w2/voting.js';
+import { arcadeBonus } from '../w2/arcade.js';
+import { vaultUpgBonus } from '../common/vault.js';
+import { computeStampBonusOfTypeX } from '../w1/stamp.js';
 
-export function computeSummWinBonus(saveData) {
+export function summoningEssencePerHour(S, color, charIdx = 0) {
+  if (S.olaData !== optionsListData) S = { ...S, olaData: optionsListData };
+  if (!Number.isInteger(color) || color < 0 || color > 7) throw new Error('Choose a valid essence color.');
+  if (!Array.isArray(S.summonData?.[0]) || !Array.isArray(S.summonData?.[1]))
+    throw new Error('Saved Summoning upgrades or victories are missing.');
+  const unlocks = [null, 4, 13, 23, 33, 44, 53];
+  if (color > 0 && color < 7 && !(Number(S.summonData[0][unlocks[color]]) >= 1)) return 0;
+  if (color === 7) {
+    if (S.spelunkData?.[0]?.[4] == null) throw new Error('Saved black-essence lore unlock is missing.');
+    if (!(Number(S.spelunkData[0][4]) >= 1)) return 0;
+  }
+  const level = S.lv0AllData?.[charIdx]?.[18];
+  if (level == null || level === '' || !Number.isFinite(Number(level)) || Number(level) < 0)
+    throw new Error('Character Summoning level is missing or invalid.');
+  const endless = optionsListData[319];
+  if (endless == null || endless === '' || !Number.isFinite(Number(endless)) || Number(endless) < 0)
+    throw new Error('Saved endless Summoning victories are missing or invalid.');
+  const victories = Array(9).fill(0);
+  for (const mob of S.summonData[1]) {
+    if (typeof mob !== 'string') throw new Error('Saved Summoning victory is invalid.');
+    if (mob.startsWith('Pet')) victories[0]++;
+    else for (let world = 0; world < SUMMON_VICTORY_MOBS.length; world++) {
+      if (SUMMON_VICTORY_MOBS[world].includes(mob)) victories[world + 1]++;
+    }
+  }
+  let total = 0;
+  for (const count of victories) total = Math.round(total + count);
+  total = Math.round(total + Number(endless));
+  const upgrade = id => Number(computeSummUpgBonus(id, S));
+  const bubble = key => Number(finalBubbleValByKey(key, charIdx, S));
+  const vote = S.activeVoteIdx === 28
+    ? createStatContext({ saveData: S, charIdx }).resolve('voting-multi').val : 1;
+  if (!S.holesData?.[31]?.[1] || typeof S.holesData[31][1] !== 'object'
+      || !S.holesData?.[32]?.[1] || typeof S.holesData[32][1] !== 'object')
+    throw new Error('Saved Fountain upgrades for Summoning essence are missing.');
+  const common = (1 + computeWinBonus(5, { charIdx, accountOptions: optionsListData }, S) / 100)
+    * (1 + computeLampBonus(2, 2, S) / 100)
+    * (1 + computeGambitBonus(5, S) / 100)
+    * (1 + menagerieBoostQTY(S, 14) / 100)
+    * Math.pow(1.4, Number(S.gemItemsData?.[137]) || 0)
+    * (1 + pristineBon(12, S) / 100)
+    * (1 + bonTOT(S.holesData?.[31] || [], S.holesData?.[32] || [], 1, 17) / 100)
+    * (1 + computeMonumentROGbonus(1, 4, S) / 100)
+    * (1 + 10 * computeRiftSkillBonus(17, 1, S) / 100)
+    * (1 + upgrade(62) * Number(endless) / 100)
+    * (1 + (bubble('M10AllCharz') + (computeMealBonus('zSumEss', S, charIdx)
+      + (computeMSABonus(8, S) + computeSlabboBonus(5, S)))) / 100)
+    * (1 + (5 * achieveStatus(372, S) + 5 * achieveStatus(374, S)) / 100)
+    * (1 + votingBonusz(28, vote, S) / 100);
+  let rate = 10 * common * (1 + upgrade([65, 66, 67, 30, 40, 52, 58, 80][color]) * Number(level) / 100);
+  const colorBubble = { 1: 'A7AllCharz', 2: 'Y7', 4: 'M8AllCharz', 5: 'W9AllCharz' }[color];
+  if (colorBubble) rate *= 1 + bubble(colorBubble) / 100;
+  rate *= 1 + (color === 0 ? total : victories[color]) * upgrade([0, 11, 18, 27, 38, 46, 54, 73][color]) / 100;
+  if (color > 0 && color < 7) rate *= 1 + upgrade(unlocks[color]) / 100;
+  if (color === 0) return rate * (1 + (Number(computeVialByKey('6WhiteEss', S, charIdx))
+    + (computeStatueBonusGiven(27, charIdx, S) + (arcadeBonus(34, S) + vaultUpgBonus(83, S)))) / 100)
+    * (1 + computeStampBonusOfTypeX('WhiteEss', S) / 100);
+  return rate * (1 + (color === 7 ? vaultUpgBonus(87, S)
+    : computeStampBonusOfTypeX(color < 4 ? '123Ess' : '456Ess', S) + vaultUpgBonus(87, S)) / 100);
+}
+
+export function computeSummWinBonus(saveData, accountOptions = saveData?.olaData) {
   var bonus = new Array(32).fill(0);
   if (!saveData || !saveData.summonData) return bonus;
   var normalWins = saveData.summonData[1] || [];
@@ -28,7 +104,7 @@ export function computeSummWinBonus(saveData) {
     var bonusIdx = Math.round(entry[0] - 1);
     if (bonusIdx >= 0 && bonusIdx < 32) bonus[bonusIdx] += entry[1];
   }
-  var endlessWins = Number(saveData.olaData && saveData.olaData[319]) || 0;
+  var endlessWins = Number(accountOptions && accountOptions[319]) || 0;
   for (var i = 0; i < endlessWins; i++) {
     var idx = i % 40;
     var type = SUMMON_ENDLESS_TYPE[idx] - 1;
@@ -68,7 +144,7 @@ function _winBonusParts(idx, swb, saveData, charIdx) {
 }
 
 export function computeWinBonus(idx, opts, saveData) {
-  var swb = computeSummWinBonus(saveData);
+  var swb = computeSummWinBonus(saveData, opts && opts.accountOptions);
   var p = _winBonusParts(idx, swb, saveData, opts && opts.charIdx);
   if (opts && opts.noArt32 && p.artBonus32 > 0) {
     var ws = p.winnerSum - p.artBonus32;

@@ -9,6 +9,18 @@ import { drBonus as cglunkoDropRate } from '../systems/w5/cglunko.js';
 import { computeDungeonDropRate, isDungeonMap } from '../systems/w2/dungeon.js';
 import { jellyRewardBonus } from '../data/w7/jelly-operator.js';
 import { menagerieBoostQTY } from '../systems/w7/menagerie.js';
+import { formulaInput as input, formulaConstant as c, formulaOperation as op } from '../formula-tree.js';
+
+function _poolSum(name, items) {
+  let total = c(0);
+  for (const item of items) {
+    const value = item.val || 0;
+    total = op(name, 'add', total, Object.is(item.val, value) ? item : {
+      name: item.name, val: value, kind: 'formula', formula: 'Source value || 0', children: [item],
+    });
+  }
+  return { ...total, name, formulaTerm: true };
+}
 
 export default createDescriptor({
   id: 'drop-rate',
@@ -119,6 +131,10 @@ export default createDescriptor({
         };
       }
       var dungeonDR = computeDungeonDropRate(ctx.dungeonLuk, ctx.dungeonDropRarity);
+      if (ctx.formulaDetails) return op('Dungeon Drop Rate', 'add', c(1),
+        op('Percent to fraction', 'divide', op('Dungeon bonuses', 'add',
+          input('Dungeon Total LUK', ctx.dungeonLuk, 'Live dungeon Total LUK input'),
+          input('Dungeon Drop Rate stat', ctx.dungeonDropRarity, 'Live dungeon Drop Rate input')), c(100)));
       return {
         val: dungeonDR,
         children: [
@@ -141,6 +157,7 @@ export default createDescriptor({
     // Chip cap-break (only if base < 5)
     var chipPct = pools.chipDR.items[0] ? pools.chipDR.items[0].val : 0;
     var chipApplied = 0;
+    var beforeChip = base;
     if (base < 5 && chipPct > 0) {
       chipApplied = Math.min(5 - base, chipPct / 100);
       base += chipApplied;
@@ -178,6 +195,57 @@ export default createDescriptor({
       * (1 + pv(9) / 100) * (1 + pv(10) / 100) * (1 + pv(11) / 100);
     dr = dr * (1 + pv(12) / 100) * (1 + pv(13) / 100) * (1 + pv(14) / 100);
     dr = dr * comp26x160 * comp50Mult;
+
+    let detail;
+    if (ctx.formulaDetails) {
+      const source = i => {
+        const value = pv(i);
+        if (!pm[i]) return c(0);
+        return Object.is(pm[i].val, value) ? pm[i] : {
+          name: pm[i].name, val: value, kind: 'formula',
+          formula: 'Number(source value) || 0', children: [pm[i]],
+        };
+      };
+      const percent = term => op('Percentage multiplier', 'add', c(1),
+        op('Percent to fraction', 'divide', term, c(100)));
+      const multiply = term => { detail = op('Drop Rate', 'multiply', detail, term); };
+      detail = op('Base Drop Rate', 'add',
+        op('LUK and additive bonuses', 'add',
+          op('LUK contribution', 'multiply', c(1.4), { ...pools.base.items[0], formulaTerm: true }),
+          op('Additive bonuses', 'divide',
+            op('Combined bonuses', 'add', _poolSum('Core Drop Rate Bonuses', pools.addMain.items),
+              _poolSum('Additional Drop Rate Bonuses', pools.addLUK2.items)), c(100))), c(1));
+      if (beforeChip < 5 && chipPct > 0) {
+        detail = op('Chip-boosted Drop Rate', 'add', detail,
+          op('Grounded Processor cap', 'min', op('Room below cap', 'subtract', c(5), detail),
+            op('Chip percentage', 'divide', pools.chipDR.items[0], c(100))));
+      }
+      detail = op('Bundle bonus', 'add', detail, pf[0] || c(0));
+      multiply(pm[0] || c(1));
+      detail = op('Account bonus', 'add', detail, pf[1] || c(0));
+      multiply(pm[1] || c(1));
+      multiply(percent(source(2)));
+      multiply(percent(input('Royal statue bonus', royalStatue1)));
+      multiply(percent(input('Menagerie Drop Rate boost', menagerieB24)));
+      multiply(percent(source(3)));
+      const family = computeFamBonusQTYs(ctx.charIdx || 0, S, { formulaDetails: true });
+      multiply(percent(family[32] ? { ...family[32], name: 'Family Drop Rate bonus' }
+        : { name: 'Family Drop Rate bonus', val: 0, kind: 'formula', formula: 'No eligible family contributor.' }));
+      multiply(op('Companion damage-to-drops bonus', 'add', c(1), op('Companion contribution', 'multiply', c(0.3), source(4))));
+      multiply(op('Companion tier bonus', 'add', c(1),
+        op('Normal and Pet+ bonuses', 'add', op('Normal bonus cap', 'min', c(0.5), source(5)),
+          op('Pet+ contribution', 'multiply', c(0.2), input('Pet+ owned', compLv2_132)))));
+      multiply(percent(op('Sushi and Jelly rewards', 'add', source(6), input('Jelly Drop Rate reward', jelly14))));
+      multiply(op('Minimum Glimbo multiplier', 'max', c(1), source(7)));
+      for (let i = 8; i <= 14; i++) multiply(percent(source(i)));
+      multiply(op('Combined companion multiplier', 'max', c(1),
+        op('Companion multipliers', 'multiply',
+          op('First companion cap', 'min', c(1.3), op('First companion bonus', 'add', c(1), source(15))),
+          op('Second companion bonus', 'add', c(1), op('Second companion contribution', 'multiply', c(0.5), source(16))))));
+      multiply(op('Final companion multiplier', 'max', c(1),
+        op('Companion cap', 'min', c(1.01),
+          op('Companion scaling', 'add', c(1), op('Companion contribution', 'divide', source(17), c(2500))))));
+    }
 
     // Build tree
     var postMult = base > 0 ? dr / base : 1;
@@ -232,8 +300,9 @@ export default createDescriptor({
     if (ctx.saveData.companionDataAvailable === false) missingMetadata.push('companion ownership');
     if (ctx.saveData.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
     return {
+      ...(detail || {}),
       val: dr,
-      children: children,
+      children: detail ? detail.children : children,
       partial: missingMetadata.length > 0,
       reason: missingMetadata.length > 0
         ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'

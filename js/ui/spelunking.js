@@ -4,13 +4,13 @@ import { fmtVal } from '../renderers/format.js';
 import { renderBreakdownTree } from './dash-breakdowns.js';
 import { toRenderNode } from '../stats/tree-builder.js';
 import { buildSpelunkInputs } from '../stats/systems/w7/spelunk-inputs.js';
-import { normalizeSpelunkConfig, spelunkActiveBuffs, spelunkRewardImage, SPELUNK_REWARDS } from '../stats/systems/w7/spelunk-expedition.js?v=depth-limits-1';
-import { spelunkDepthProfile } from '../stats/systems/w7/spelunk-depth.js?v=depth-limits-1';
+import { normalizeSpelunkConfig, spelunkActiveBuffs, spelunkRewardImage, SPELUNK_REWARDS } from '../stats/systems/w7/spelunk-expedition.js?v=amber-search-2';
+import { spelunkDepthProfile } from '../stats/systems/w7/spelunk-depth.js?v=amber-search-2';
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { spelunkTools } from '../stats/data/w7/spelunking.js';
 import { createSpelunkPlayback, spelunkReplaySample, spelunkReplayTile, spelunkReplayDrop, spelunkReplayEvents, spelunkReplayActionTime } from './spelunk-replay.js';
-import { startSpelunkWorkers } from '../workers/spelunk-client.js?v=depth-limits-1';
-import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js?v=depth-limits-1';
+import { startSpelunkWorkers } from '../workers/spelunk-client.js?v=amber-search-2';
+import { spelunkSearchSpace } from '../stats/systems/w7/spelunk-planner.js?v=amber-search-2';
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -18,11 +18,25 @@ const num = n => fmtVal(Number(n));
 const text = s => String(s).replace(/_/g, ' ');
 const elixirNames = ['Stamina refund', 'Exit radar', 'Stamina shield', 'Amber boost', 'Power boost',
   'Adjacent breaks', 'Double Amber', 'Shadow strikes', 'Nova', 'Grand Discovery', 'Overdrive', 'Unspecified effect'];
-const policyNames = { auto: 'Native Auto', dive: 'Manual depth diving', efficient: 'Stamina efficiency', clear: 'Full clear' };
+const elixirPresets = [
+  { id: 'memorized', label: 'Memorized', kind: 'memory', elixirs: [0, 2, 7] },
+  { id: 'depth', label: 'Depth', kind: 'elixir', elixirs: [0, 2, 7, 7, 10] },
+  { id: 'depth-shortcut', label: 'Depth after shortcut', kind: 'elixir', elixirs: [2, 7, 7, 7, 10] },
+  { id: 'manic', label: 'Manic', kind: 'elixir', elixirs: [0, 2, 7, 7, 7] },
+  { id: 'amber', label: 'Amber', kind: 'elixir', elixirs: [3, 3, 3, 6, 6] },
+  { id: 'grand', label: 'Grand Discovery', kind: 'elixir', elixirs: [2, 7, 7, 7, 9] },
+];
+const policyNames = { auto: 'Native Auto', dive: 'Manual depth diving', efficient: 'Stamina efficiency',
+  'clear-fifth': 'Manual clear every 5 depths', clear: 'Full clear', 'amber-farm': 'Phased manual Amber farming' };
+const amberPhaseNames = { buildup: 'Full-clear buildup', dump: 'Stamina burn', activate: 'Drink oranges',
+  harvest: 'Boosted harvest', 'rope-search': 'Seek untouched rope' };
+const amberFields = { 'amber-dump-depth': 'dumpDepth', 'amber-finishers': 'finishers', 'amber-reserve': 'reservePct',
+  'amber-harvest': 'harvestDepths', 'amber-rope-reserve': 'ropeReservePct' };
 const goalNames = { depth: 'Depth', amber: 'Amber / expedition', 'amber-per-stamina': 'Amber / stamina',
   'sustainable-amber': 'Amber / run + recovery hour', grand: 'Grand Discoveries / expedition' };
 const storageKey = 'spelunk-configurations-v1', controlKey = 'spelunk-controls-v1';
 const scopeKey = 'spelunk-search-scope-v1';
+const amberSearchKey = 'spelunk-amber-search-v1';
 const searchSections = { party: 'Party size', modes: 'Play', clears: 'Descend', speeds: 'Auto speeds',
   elixirs: 'Belt pool', memorized: 'Memory pool', tools: 'Manual tools', entry: 'Entry' };
 let searchSettings = null;
@@ -43,7 +57,7 @@ function cancel(label = 'Cancelled. No incomplete recommendation was applied.') 
   requestId++;
   if (worker) { worker.terminate(); worker = null; $('status').textContent = label; }
   $('cancel').hidden = true; $('progress').hidden = true;
-  document.querySelectorAll('#run,#compare,#optimize').forEach(b => b.disabled = !input);
+  document.querySelectorAll('#run,#compare,#compare-caves,#optimize').forEach(b => b.disabled = !input);
   $('reset-elixirs').disabled = !input;
 }
 function pause() {
@@ -69,6 +83,7 @@ function readConfig() {
     fullClear: $('full-clear').checked, speed: Number($('speed').value), stamina: $('stamina').value,
     entry: $('entry').value, tool: $('tool').value === 'adaptive' ? 'adaptive' : Number($('tool').value),
     reactionMs: Number($('reaction').value),
+    amber: Object.fromEntries(Object.entries(amberFields).map(([id, key]) => [key, Number($(id).value)])),
   });
 }
 function readSearchScope() {
@@ -76,7 +91,7 @@ function readSearchScope() {
     .map(e => convert(e.value));
   return { partyMin: Number($('search-party-min').value), partyMax: Number($('search-party-max').value),
     characters: selected('characters'), ignoreOrder: $('search-ignore-order').checked,
-    modes: selected('modes', String), clears: selected('clears', v => v === 'true'),
+    modes: selected('modes', String), clears: selected('clears', v => v === 'fifth' ? 'fifth' : v === 'true'),
     speeds: selected('speeds'), elixirs: selected('elixirs'), memorized: selected('memorized'),
     enabled: Object.fromEntries([...document.querySelectorAll('[data-scope-section]')].map(e => [e.dataset.scopeSection, e.checked])) };
 }
@@ -114,6 +129,7 @@ function renderSearchScope() {
     ${chip('modes', 'manual', 'Manual', 'Search simulated manual targeting strategies.')}</fieldset></div>
     <div class="scope-row">${heading('clears')}<fieldset class="scope-choices" aria-label="Descent search choices">
     ${chip('clears', false, 'First exit', 'Descend when an exit is revealed. Manual searches include depth-diving and damage-per-stamina targeting.')}
+    ${chip('clears', 'fifth', 'Every 5 depths', 'Manual only: clear depths 5, 10, 15 and so on; otherwise descend at the first exit using stamina-efficient targeting. Hidden Elixirs and an equipped belt are needed for refills.')}
     ${chip('clears', true, 'Full clear', 'Clear every remaining rock before descending, for both Auto and manual strategies.')}</fieldset></div>
     <div class="scope-row">${heading('speeds')}<fieldset class="scope-choices" aria-label="Auto speed search choices">
     ${Array.from({ length: input.speedMax + 1 }, (_, speed) => chip('speeds', speed, speed ? String(speed) : 'Base',
@@ -131,6 +147,13 @@ function updateSearchWorkload() {
   if (!input) return;
   const host = $('search-workload');
   try {
+    syncOptimizerMode();
+    if ($('optimizer-mode').value === 'amber') {
+      const config = readConfig();
+      if (!config.elixirs.includes(3)) throw new Error('Equip orange elixirs for Amber phase search. The Amber belt preset is available above.');
+      host.textContent = `Bounded search: up to ${config.party.length > 1 ? 60 : 30} phase strategies, plus the current phased strategy and baseline. Party, belt and memory stay fixed; fresh finalists compare collected Amber and sampled rope exits.`;
+      delete host.dataset.configurations; return;
+    }
     const { configurations } = spelunkSearchSpace(input, readConfig(), readSearchScope());
     const screening = Number($('screen-trials').value);
     if (!Number.isInteger(screening) || screening < 1 || screening > 8) throw new Error('Invalid screening trials.');
@@ -167,6 +190,47 @@ function renderElixirs(ids, memorized = input.memorized) {
   }
   syncElixirOptions();
   renderElixirHelp();
+  renderElixirPresets();
+}
+function elixirPresetIssues(preset) {
+  if (!input) return ['Load a valid save first.'];
+  const issues = [], memory = preset.kind === 'memory';
+  const slots = memory ? input.memorySlots : input.slots;
+  if (preset.elixirs.length > slots)
+    issues.push(`Requires ${preset.elixirs.length} ${memory ? 'memorization' : 'belt'} slots; ${slots} unlocked.`);
+  const counts = new Map();
+  for (const id of preset.elixirs) counts.set(id, (counts.get(id) || 0) + 1);
+  for (const [id, count] of counts) {
+    if (id >= input.elixirOwned) issues.push(`${elixirNames[id]} is locked.`);
+    if (!memory && count > input.dupes)
+      issues.push(`Requires ${count} copies of ${elixirNames[id]}; duplicate limit ${input.dupes}.`);
+  }
+  return issues;
+}
+function renderElixirPresets() {
+  $('elixir-presets').innerHTML = elixirPresets.map(preset => {
+    const issues = elixirPresetIssues(preset);
+    const kind = preset.kind === 'memory' ? 'Memorized' : 'Equipped';
+    return `<div class="elixir-preset"><strong>${esc(preset.label)}<small>${kind}</small></strong>
+      <div class="elixir-slots">${preset.elixirs.map((id, slot) => `<span class="mini-slot" tabindex="0"
+        aria-label="${esc(`${kind} slot ${slot + 1}: ${elixirNames[id]}`)}"
+        data-stip="${esc(`${kind} slot ${slot + 1}: ${elixirNames[id]}\n${input?.elixirs[id]?.description ?? ''}`)}">${art(`CaveElix${id}`)}</span>`).join('')}</div>
+      <button data-elixir-preset="${preset.id}" aria-label="Apply ${esc(preset.label)} ${kind.toLowerCase()} preset"${issues.length ? ' disabled' : ''}>Apply</button>
+      ${issues.length ? `<small class="warning">${esc(issues.join(' '))}</small>` : ''}</div>`;
+  }).join('');
+}
+function applyElixirPreset(id) {
+  const preset = elixirPresets.find(p => p.id === id);
+  if (!preset) throw new Error('Unknown elixir preset.');
+  const issues = elixirPresetIssues(preset);
+  if (issues.length) throw new Error(`${preset.label}: ${issues.join(' ')}`);
+  const equipped = [...document.querySelectorAll('[data-elixir]')].map(e => Number(e.value));
+  const memorized = [...document.querySelectorAll('[data-memory]')].map(e => Number(e.value)).filter(id => id >= 0);
+  error('');
+  renderElixirs(preset.kind === 'elixir' ? preset.elixirs : equipped,
+    preset.kind === 'memory' ? preset.elixirs : memorized);
+  invalidate();
+  $('elixir-presets').querySelector(`[data-elixir-preset="${preset.id}"]`).focus({ preventScroll: true });
 }
 function syncElixirOptions() {
   const memories = [...document.querySelectorAll('[data-memory]')];
@@ -308,6 +372,16 @@ function syncPolicy() {
   const auto = $('policy').value === 'auto';
   $('speed').disabled = $('full-clear').disabled = !auto;
   $('tool').disabled = $('reaction').disabled = auto;
+  $('amber-policy').hidden = $('policy').value !== 'amber-farm';
+  if ($('policy').value === 'amber-farm') $('full-clear').checked = true;
+}
+function syncOptimizerMode() {
+  const amber = $('optimizer-mode').value === 'amber';
+  $('amber-search').hidden = !amber;
+  $('search-scope').hidden = amber;
+  $('configuration-search-help').hidden = amber;
+  for (const option of $('objective').options) option.disabled = amber && !option.value.includes('amber');
+  if (amber && !String($('objective').value).includes('amber')) $('objective').value = 'amber';
 }
 function populate(config = null) {
   $('cave').innerHTML = input.caves.map(c => option(c.id, c.name)).join('');
@@ -325,6 +399,7 @@ function populate(config = null) {
   $('speed').value = Math.min(input.speedMax, base.speed); $('full-clear').checked = base.fullClear;
   for (const [id, key] of Object.entries({ stamina: 'stamina', entry: 'entry', tool: 'tool', reaction: 'reactionMs' }))
     if (base[key] != null) $(id).value = base[key];
+  for (const [id, key] of Object.entries(amberFields)) if (base.amber?.[key] != null) $(id).value = base.amber[key];
   renderParty(base.party); renderElixirs(base.elixirs, base.memorized ?? input.memorized);
   syncPolicy(); renderInputs(); renderSearchScope();
 }
@@ -353,7 +428,58 @@ function layout(config, captured) {
     <div class="captured-belt"><span>Belt</span>${config.elixirs.map((id, slot) => mini(id, slot, 'Equipped')).join('')}
     <span>Memory</span>${(config.memorized ?? captured.memorized).map((id, slot) => mini(id, slot, 'Memorized')).join('') || '&mdash;'}</div>
     <small>${config.policy === 'auto' ? 'Auto tools' : config.tool === 'adaptive' ? 'Adaptive tools' : esc(text(captured.tools.find(t => t.id === config.tool).name))}
-    &middot; ${config.entry === 'surface' ? 'Surface' : 'Saved shortcut if unlocked'}</small></div>`;
+    &middot; ${config.entry === 'surface' ? 'Surface' : 'Saved shortcut if unlocked'}</small>
+    ${config.amber ? `<small><strong>Planned:</strong> look for stamina burn from D${config.amber.dumpDepth} &middot; preserve last ${Math.min(config.party.length, config.amber.finishers)} character(s), first at ${config.amber.reservePct}% stamina.
+      ${config.amber.harvestDepths === 0 ? 'After oranges, seek the next visible rope immediately.'
+        : `After oranges, target +${config.amber.harvestDepths} floors before seeking a rope.`}
+      Seek sooner below ${config.amber.ropeReservePct}% finishing stamina. This is a target, not floors actually gained.</small>` : ''}</div>`;
+}
+function amberInstructions(config, captured) {
+  if (!config.amber) return '';
+  const a = config.amber, finishers = config.party.slice(-a.finishers);
+  return `<ol><li>Full-clear floors and drink teals as available; save oranges. Keep the in-game Auto full-clear setting enabled, but follow these manual actions rather than unattended Auto.</li>
+    <li>From depth ${a.dumpDepth}, burn stamina on visible resistant objects if available. Preserve ${a.reservePct}% of ${esc(captured.characters[finishers[0]].name)}'s starting stamina${finishers.length > 1 ? ` and all of ${esc(captured.characters[finishers[1]].name)}'s` : ''}. Stop sooner if the next dig would cross that reserve.</li>
+    <li>Drink available oranges after the burn: use all currently available charges, including later refills, and keep using teals. Harvest visible rocks within the remaining expected stamina budget; manually descend through a revealed exit when none remain feasible. Without a suitable dump, buildup continues only until the reserve triggers activation.</li>
+    <li>${a.harvestDepths === 0 ? 'After the oranges, immediately seek the next visible untouched rope, including on the same floor.'
+      : `Try to advance ${a.harvestDepths} more floors after orange activation, then seek the first visible untouched rope.`}
+      Start seeking sooner below ${a.ropeReservePct}% of finishers' combined starting stamina. This is not a guaranteed number of floors or full clears. Click before digging; delayed native procs may still remove a rope. If none appears, continue harvesting and descending. Exhaustion pays the toll; blocked runs remain uncollected.</li></ol>`;
+}
+function amberOutcomeSummary(runs) {
+  const recorded = runs.filter(run => Array.isArray(run.amber?.activations));
+  if (!recorded.length) return '<p class="muted">Amber phase measurements unavailable.</p>';
+  const average = values => num(values.reduce((sum, value) => sum + value, 0) / values.length);
+  const activated = recorded.filter(run => run.amber.activations.length);
+  const sought = recorded.flatMap(run => {
+    const change = run.amber.transitions?.find(t => t.phase === 'rope-search');
+    return change ? [change.depth] : [];
+  });
+  const entry = recorded.map(run => run.startDepth).filter(Number.isFinite);
+  const advances = activated.map(run => Math.max(0, run.depth - run.amber.activations[0].depth));
+  return `<div class="amber-outcome"><strong>Measured (${recorded.length} trial${recorded.length === 1 ? '' : 's'}; means below)</strong>
+    ${recorded.length < runs.length ? `<div>Phase measurements unavailable for ${runs.length - recorded.length} other runs.</div>` : ''}
+    <div>${entry.length === recorded.length ? `Entry D${average(entry)} &rarr; ` : ''}Finish D${average(recorded.map(run => run.depth))}
+      ${entry.length === recorded.length ? `(+${average(recorded.map(run => Math.max(0, run.depth - run.startDepth)))} floors overall)` : ''}</div>
+    <div>Orange drinks: ${average(recorded.map(run => run.amber.activations.length))}/run.
+      ${activated.length ? `First orange at D${average(activated.map(run => run.amber.activations[0].depth))} (${activated.length}/${recorded.length} runs).`
+        : 'No oranges consumed.'}</div>
+    ${activated.length ? `<div><strong>Advanced +${average(advances)} floors after first orange</strong>
+      (range ${Math.min(...advances)}&ndash;${Math.max(...advances)}; ${activated.length} activated runs). Not full clears.</div>` : ''}
+    <div>${sought.length ? `Began seeking rope at D${average(sought)} (${sought.length}/${recorded.length} runs).`
+      : 'Rope-seeking phase not reached.'}</div></div>`;
+}
+function amberRunDetails(run) {
+  if (!run.amber) return '';
+  if (!Array.isArray(run.amber.activations)) return '<p class="muted">Orange timing unavailable for this run.</p>';
+  const first = run.amber.activations[0];
+  const advanced = first ? Math.max(0, run.depth - first.depth) : null;
+  const ending = run.exit?.type === 'rope' ? 'rope exit' : run.exit?.type === 'toll' ? 'exhaustion / toll' : run.status;
+  return `<details><summary>D${run.depth}: ${esc(ending)} &middot; ${first
+    ? `+${advanced} ${advanced === 1 ? 'floor' : 'floors'} after first orange at D${first.depth}` : 'no oranges consumed'}</summary>
+    ${amberOutcomeSummary([run])}
+    <p>${run.amber.dumpDigs} deliberate burn digs &middot; ${num(run.amber.dumpSpent)} native spent-stamina credit</p>
+    ${(run.amber.transitions ?? []).map(t => `<p>D${t.depth}: ${esc(amberPhaseNames[t.phase])} &mdash; ${esc(t.reason)}</p>`).join('')}
+    ${run.amber.activations.map(a => `<p>D${a.depth}: orange snapshots ${num(a.spent)} stamina spent; accumulated effect ${num(a.effect)}.</p>`).join('')}
+    ${!run.amber.activations.length ? '<p>No orange activation reached.</p>' : ''}</details>`;
 }
 function renderConfigurations() {
   $('configurations').innerHTML = configurations.length ? configurations.map((c, i) => `<div class="toolbar">
@@ -500,13 +626,15 @@ function renderRun(bundle) {
     <div class="card"><span>Expedition time</span><strong>${num(r.seconds)}s</strong></div>
     <div class="card"><span>Recovery to starting stamina</span><strong>${num(recovery)}h</strong></div></div>
     <p class="muted">Recovery holds current regeneration fixed and restores this party's starting stamina; it is not guaranteed daily income.</p>
+    ${r.amber ? amberOutcomeSummary([r]) : ''}${amberInstructions(r.config, captured)}${amberRunDetails(r)}
     ${renderContributions(r.diagnostics, captured)}
     ${renderPartyAnalysis(r.partyAnalysis, captured)}
-    ${r.exit ? `<p class="muted" tabindex="0" data-stip="${esc('Automatically takes the Delve exit once the whole party is exhausted and the floor transition ends.\nAmber keeps its exact fraction. Each other found reward keeps the whole part, then rolls its fractional remainder for one extra item.')}">Toll paid &middot; ${num(100 * r.exit.retained)}% loot retained before item rolls</p>` : ''}
+    ${r.exit?.type === 'rope' ? `<p>Rope exit &middot; ${num(r.exit.amberMultiplier)}x Amber; other rewards retained without a toll.</p>`
+      : r.exit ? `<p class="muted" tabindex="0" data-stip="${esc('Automatically takes the Delve exit once the whole party is exhausted and the floor transition ends.\nAmber keeps its exact fraction. Each other found reward keeps the whole part, then rolls its fractional remainder for one extra item.')}">Toll paid &middot; ${num(100 * r.exit.retained)}% loot retained before item rolls</p>` : ''}
     <details><summary>Rewards &amp; stamina</summary><table><thead><tr><th>Reward</th><th class="num">Gross</th><th class="num">${r.settled ? 'Collected' : 'Uncollected'}</th></tr></thead><tbody>
       ${r.rewards.map((v, i) => {
         const payout = r.exit?.items.find(item => item.reward === i);
-        const tip = payout ? `${SPELUNK_REWARDS[i]}\n${r.grossRewards[i]} found\n${payout.expected} after toll\n${v} collected${payout.chance == null ? '\nAmber is not rounded.' : `\n${num(payout.chance * 100)}% chance of one extra item${payout.chance > 0 ? `: ${payout.roundedUp ? 'won' : 'missed'}` : '.'}`}` : SPELUNK_REWARDS[i];
+        const tip = payout ? `${SPELUNK_REWARDS[i]}\n${r.grossRewards[i]} found\n${payout.expected} after ${r.exit.type === 'rope' ? 'rope bonus (no toll)' : 'toll'}\n${v} collected${payout.chance == null ? '\nNo rounding roll.' : `\n${num(payout.chance * 100)}% chance of one extra item${payout.chance > 0 ? `: ${payout.roundedUp ? 'won' : 'missed'}` : '.'}`}` : SPELUNK_REWARDS[i];
         return v || r.grossRewards[i] ? `<tr><td><span class="reward-name" tabindex="0" data-stip="${esc(tip)}">${art(spelunkRewardImage(captured, i))}${esc(SPELUNK_REWARDS[i])}</span></td><td class="num">${num(r.grossRewards[i])}</td><td class="num">${num(v)}</td></tr>` : '';
       }).join('')}</tbody></table>
       ${r.stamina.map(c => `<p>${esc(captured.characters[c.id].name)}: ${num(c.start)} &rarr; ${num(c.end)} stamina</p>`).join('')}
@@ -550,13 +678,15 @@ function renderEvent(event, captured) {
     elixir: elixirNames[event.id], switch: character?.name || 'Party switch',
     boss: 'Boss defeated', discovery: `Discovered ${text(event.name || 'rock')}`,
     'grand-discovery': 'Grand Discovery', 'exit-found': 'Exit revealed', descend: 'Next floor',
-    exhausted: 'Stamina exhausted', blocked: 'No way down' };
+    exhausted: 'Stamina exhausted', blocked: 'No way down', rope: 'Rope exit',
+    'amber-phase': amberPhaseNames[event.phase] };
   const label = labels[event.type] || text(event.type).replace(/-/g, ' ');
   const icon = event.type === 'dig' ? `CaveTool${event.tool}` : event.type === 'elixir' ? `CaveElix${event.id}`
     : event.type === 'discovery' && SPELUNK_SPRITES[event.name] ? event.name
     : ['floor', 'descend', 'exit-found'].includes(event.type) ? 'CaveRope' : 'CaveStamC';
   const time = `${Math.floor(event.time / 60)}:${(event.time % 60).toFixed(1).padStart(4, '0')}`;
-  const detail = event.type === 'dig' ? `${character?.name || ''}${event.used == null ? '' : ` · ${num(event.used)} stamina`}` : '';
+  const detail = event.type === 'dig' ? `${character?.name || ''}${event.used == null ? '' : ` · ${num(event.used)} stamina`}`
+    : event.type === 'amber-phase' ? event.reason : '';
   return `<li class="event-row"><button data-event-time="${event.time}" aria-label="${esc(`Replay ${label} at ${time}`)}">${time}</button>
     <span class="event-depth" aria-label="Depth ${event.depth}">D${event.depth}</span>
     <span class="event-icon">${event.type === 'switch' && character ? portrait(character) : art(icon)}</span>
@@ -651,7 +781,7 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
-  $('replay-depth').textContent = `Depth ${frame.depth}`;
+  $('replay-depth').textContent = `Depth ${frame.depth}${frame.amberPhase ? ` / ${amberPhaseNames[frame.amberPhase]}` : ''}`;
   $('replay-time').textContent = `${playback.seconds.toFixed(1)} / ${replay.result.seconds.toFixed(1)}s`;
   if ($('replay-party').dataset.frame !== String(index)) {
     $('replay-party').dataset.frame = index;
@@ -742,6 +872,45 @@ function renderPartyAnalysis(analysis, captured) {
         ${otherLoot ? `<br>${esc(otherLoot)}` : ''}` : 'First character'}</td></tr>`;
     }).join('')}</tbody></table></details>`;
 }
+function applyCapturedConfig(config, captured) {
+  try {
+    const current = buildSpelunkInputs(saveData, captured.charIdx);
+    config = normalizeSpelunkConfig(current, config);
+    input = current; $('character').value = captured.charIdx;
+    populate(config); invalidate();
+  } catch (e) { error(e.message); }
+}
+function renderCaveComparison(bundle, destination) {
+  const { result: r, input: captured } = bundle;
+  const count = value => value == null ? 'Unavailable' : num(value);
+  $(destination).innerHTML = `<h2>New depths by cave &middot; ${r.config.manic ? 'Manic' : 'Normal'}</h2>`
+    + (r.winner ? `<p><strong>Most new depths observed: ${esc(r.winner.label)}, +${num(r.winner.newDepths)} per expedition.</strong></p>`
+      : `<p>${r.rows.some(row => row.newDepths != null) ? 'No new depths observed in the measured caves.' : 'Saved records are unavailable; record gains cannot be ranked.'}</p>`)
+    + `<p class="muted">Ranked by mean positive gain beyond each cave's previous maximum, not absolute depth or floors since entry.
+      ${r.trials} trials per cave with shared seeds. Smaller caves keep the first party members that fit; all other settings stay fixed.
+      These are sampled estimates, not guaranteed gains or a statistically confirmed winner.</p>
+      <table class="comparison"><thead><tr><th>Cave &amp; party</th><th class="num">Previous max floor</th>
+      <th class="num">Mean reached floor</th><th class="num">New depths / expedition</th><th class="num">Beat record</th>
+      <th class="num">Resist stalls</th><th>Actions</th></tr></thead><tbody>`
+    + r.rows.map((row, i) => `<tr><td data-label="Cave &amp; party"><strong>${esc(row.label)}</strong>
+        <div class="captured-party">${row.config.party.map(id => `<span>${portrait(captured.characters[id])}${esc(captured.characters[id].name)}</span>`).join('<span aria-hidden="true">&rarr;</span>')}</div>
+        ${row.excluded.length ? `<small class="muted">Over party limit: ${row.excluded.map(id => esc(captured.characters[id].name)).join(', ')}</small>` : ''}
+        ${row.recordDepth == null ? '<small class="warning">Missing saved record; excluded from ranking.</small>' : ''}</td>
+      <td class="num" data-label="Previous max floor" tabindex="0" data-stip="Previous maximum converted to the expedition's floor labels. The game's saved record counter is one below its in-run floor label.">${count(row.recordDepth)}</td>
+      <td class="num" data-label="Mean reached floor">${num(row.depth)}</td>
+      <td class="num" data-label="New depths / expedition">${row.newDepths == null ? 'Unavailable' : `+${num(row.newDepths)}`}</td>
+      <td class="num" data-label="Beat record">${row.recordBeaten == null ? 'Unavailable' : sampleRate(row.recordBeaten, row.total)}</td>
+      <td class="num" data-label="Resist stalls">${row.diagnostics ? sampleRate(row.diagnostics.resistStall.count, row.total) : 'Unavailable'}</td>
+      <td data-label="Actions"><button data-use-cave="${i}" data-owner="${destination}">Use configuration</button>
+      <button data-inspect="${i}" data-owner="${destination}">Runs</button></td></tr>
+      <tr hidden id="${destination}-detail-${i}"><td colspan="7" data-label="Trial details">${layout(row.config, captured)}
+      <p>${num(row.seconds)}s mean run &middot; ${row.newDepthsSe == null ? 'Gain standard error unavailable' : `Gain standard error ${num(row.newDepthsSe)}`}
+      &middot; ${row.settled}/${row.total} settled. Reached depths count even when loot is uncollected.</p>
+      ${renderContributions(row.diagnostics, captured, true)}
+      <div>${row.runs.map((run, j) => `<button data-replay-row="${i}" data-replay-trial="${j}" data-owner="${destination}">
+      Run ${j + 1}: floor ${run.depth}, ${run.newDepths == null ? 'unknown gain' : `+${num(run.newDepths)} new depths`} (${esc(run.status)})</button>`).join(' ')}</div>
+      </td></tr>`).join('') + '</tbody></table>';
+}
 function renderComparison(bundle, destination) {
   const r = bundle.result, captured = bundle.input;
   const winner = r.winner;
@@ -753,43 +922,54 @@ function renderComparison(bundle, destination) {
       &middot; change ${r.delta >= 0 ? '+' : ''}${num(r.delta)}</p><button id="use-winner">Use recommendation in controls</button>
       <p class="muted">${esc(r.claim)}</p>` : '')
     + (winner ? renderPartyAnalysis(winner.partyAnalysis, captured) : '')
+    + (r.kind === 'amber-search' ? `<p>${esc(r.claim)} Minimum sampled rope exits: ${r.amberSearch.minRopePct}%.</p>
+      ${winner ? amberOutcomeSummary(winner.runs) + amberInstructions(winner.config, captured) : '<p class="warning">No fresh finalist met the selected sampled rope-exit requirement. No recommendation is available.</p>'}
+      <p class="muted">Planned floors before rope seeking are a strategy target, not measured harvest. Each row shows actual first-orange and finish depths plus floors advanced afterward. These advances count descents, not full clears. A rope-search target of zero means seek the next visible rope immediately after oranges, not an immediate guaranteed exit. No rope means more harvesting, then a toll or an uncollected blocked run.</p>
+      ${r.amberSearch.unresolved ? `<p class="warning">Leading comparisons remain unresolved after ${r.amberSearch.trials} fresh trials per strategy. Best measured is not a confirmed improvement.</p>` : ''}
+      ${r.amberSearch.riskUncertain ? '<p class="warning">Sampled rope rates remain uncertain around your requirement; passing the sample filter is not a safety guarantee.</p>' : ''}
+      <details><summary>Amber phase search scope</summary><p>${r.screened} phase strategies tested:
+      ${r.amberSearch.coarse} broad strategies and ${r.amberSearch.refined} local refinements.
+      Initial dump depths ${r.amberSearch.depths.join(', ')}; two refinement rounds test nearby individual floors and observed orange depths.
+      ${r.amberSearch.observedBehaviors} distinct behaviors observed in the initial ${r.amberSearch.screening}-trial samples, not proven strategy equivalence.
+      Promising strategies rechecked on ${r.amberSearch.racingTrials} shared discovery trials.
+      ${r.amberSearch.finalistStrategies} finalists received ${r.amberSearch.trials} fresh trials each
+      (initial ${r.amberSearch.initialTrials}, cap ${r.amberSearch.maxTrials}, ${r.amberSearch.adaptiveRounds} extensions).
+      Matching captured outcomes share a result row; the selected baseline stays visible.
+      Party, belt and other controls held fixed; no global-optimality claim.</p>
+      ${r.interval ? `<p>Descriptive paired change interval: ${num(r.interval[0])} to ${num(r.interval[1])}.</p>` : ''}</details>` : '')
     + (efficient ? '<button id="use-party">Use smaller party (1% observed efficiency allowance)</button>' : '')
-    + `<table class="comparison"><thead><tr><th>Configuration</th><th class="num">${esc(goalNames[r.objective])}</th><th class="num">Mean depth</th><th class="num">Collected Amber</th><th class="num">Resist stalls</th><th class="num">Unused / no descent</th><th class="num">Settled</th><th>Inspect</th></tr></thead><tbody>`
-    + r.rows.map((row, i) => `<tr><td data-label="Configuration">${row.label === 'Screened strategy' ? '' : `<small class="muted">${esc(row.label)}</small>`}${row.referenceOnly ? ' <small class="muted">(reference only)</small>' : ''}${layout(row.config, captured)}</td>
+    + `<table class="comparison"><thead><tr><th>Configuration</th><th class="num">${esc(goalNames[r.objective])}</th><th class="num">Mean depth</th><th class="num">Collected Amber</th><th class="num">Resist stalls</th><th class="num">Unused / no descent</th><th class="num">${r.kind === 'amber-search' ? 'Rope / toll / blocked' : 'Settled'}</th><th>Inspect</th></tr></thead><tbody>`
+    + r.rows.map((row, i) => `<tr><td data-label="Configuration">${row.label === 'Screened strategy' ? '' : `<small class="muted">${esc(row.label)}</small>`}${row.referenceOnly ? ' <small class="muted">(reference only)</small>' : ''}${layout(row.config, captured)}${row.config.amber ? amberOutcomeSummary(row.runs) : ''}${row.matchingStrategies ? `<small class="muted">${row.matchingStrategies} other tested settings matched these captured outcomes; not proven equivalent.</small>` : ''}</td>
       <td class="num" data-label="${esc(goalNames[r.objective])}">${num(row.score)}</td>
       <td class="num" data-label="Mean depth">${num(row.depth)}</td><td class="num" data-label="Collected Amber">${num(row.amber)}</td>
       <td class="num" data-label="Resist stalls">${row.diagnostics ? sampleRate(row.diagnostics.resistStall.count, row.total) : 'Unavailable'}</td>
       <td class="num" data-label="Unused / no descent">${row.diagnostics ? `${num(row.diagnostics.unused)} / ${num(row.diagnostics.noAdvance)}` : 'Unavailable'}</td>
-      <td class="num" data-label="Settled">${row.settled}/${row.total}</td>
+      <td class="num" data-label="${r.kind === 'amber-search' ? 'Rope / toll / blocked' : 'Settled'}">${r.kind === 'amber-search'
+        ? `${sampleRate(row.rope, row.total)} rope<br>${row.toll} toll / ${row.blocked} blocked${row.riskEligible ? '' : '<br>Below rope requirement'}`
+        : `${row.settled}/${row.total}`}</td>
       <td data-label="Inspect"><button data-inspect="${i}" data-owner="${destination}">Runs</button></td></tr>
       <tr hidden id="${destination}-detail-${i}"><td colspan="8" data-label="Trial details">
       <p>${num(row.seconds)}s mean run &middot; ${num(row.recoveryHours)}h mean recovery &middot; SE ${num(row.se)}</p>
       ${row.diagnostics ? `<p>Missing-exit blocked floors: ${sampleRate(row.diagnostics.blocked.count, row.total)}</p>` : ''}
       ${renderContributions(row.diagnostics, captured, true)}
       ${renderPartyAnalysis(row.partyAnalysis, captured)}
-      <div>${row.runs.map((run, j) => `<button data-replay-row="${i}" data-replay-trial="${j}" data-owner="${destination}">Run ${j + 1}: ${esc(run.status)}</button>`).join(' ')}</div></td></tr>`).join('')
+      ${amberInstructions(row.config, captured)}
+      ${row.runs.map((run, j) => run.amber ? `<div><strong>Run ${j + 1}</strong>${amberRunDetails(run)}</div>` : '').join('')}
+      <div>${row.runs.map((run, j) => `<button data-replay-row="${i}" data-replay-trial="${j}" data-owner="${destination}">Run ${j + 1}: D${run.depth}, ${esc(run.status)}</button>`).join(' ')}</div></td></tr>`).join('')
     + '</tbody></table><p class="warning">Blocked runs have zero collected Amber in these comparisons. Depth and Grand Discovery goals may include unfinished expeditions.</p>'
     + (r.scope ? `<details><summary>Search details</summary><p>${esc(r.scope)}</p>
       <p>Captured scope: party ${r.searchScope.partyMin}&ndash;${r.searchScope.partyMax};
       ${esc((r.searchScope.characters ?? captured.characters.map(c => c.id)).map(id => captured.characters.find(c => c.id === id)?.name ?? `Character ${id + 1}`).join(', '))};
       ${r.searchScope.enabled?.party === false ? 'current party order (fixed)'
         : r.searchScope.ignoreOrder ? 'each group once in character-slot order' : 'all party orders'};
-      ${esc(r.searchScope.modes.join(' / '))}; ${esc(r.searchScope.clears.map(v => v ? 'full clear' : 'first exit').join(' / '))};
+      ${esc(r.searchScope.modes.join(' / '))}; ${esc(r.searchScope.clears.map(v => v === 'fifth' ? 'every 5 depths' : v ? 'full clear' : 'first exit').join(' / '))};
       Auto speeds ${esc(r.searchScope.speeds.map(v => v || 'Base').join(', ') || 'none')}.
       Belt: ${esc(r.searchScope.elixirs.map(id => elixirNames[id]).join(', ') || 'none')}.
       Memory: ${esc(r.searchScope.memorized.map(id => elixirNames[id]).join(', ') || 'none')}.</p>
       ${r.searchScope.enabled ? `<p>Search sections: ${esc(Object.keys(searchSections).filter(key => r.searchScope.enabled[key] !== false).map(key => searchSections[key]).join(', ') || 'none (current configuration only)')}. Other sections fixed to captured controls.</p>` : ''}
       <p>All ${esc(BigInt(r.configurations).toLocaleString())} allowed configurations screened (${esc(BigInt(r.screened).toLocaleString())} including references) on ${bundle.workers ?? 1} workers. Descriptive paired change interval: ${num(r.interval[0])} to ${num(r.interval[1])}.</p></details>` : '');
-  const apply = config => {
-    try {
-      const current = buildSpelunkInputs(saveData, captured.charIdx);
-      config = normalizeSpelunkConfig(current, config);
-      input = current; $('character').value = captured.charIdx;
-      populate(config); invalidate();
-    } catch (e) { error(e.message); }
-  };
-  if (winner) $('use-winner').onclick = () => apply(winner.config);
-  if (efficient) $('use-party').onclick = () => apply(efficient.config);
+  if (winner) $('use-winner').onclick = () => applyCapturedConfig(winner.config, captured);
+  if (efficient) $('use-party').onclick = () => applyCapturedConfig(efficient.config, captured);
 }
 function start(type, extra = {}) {
   try {
@@ -797,11 +977,12 @@ function start(type, extra = {}) {
     error(''); cancel(); pause();
     const config = extra.config || readConfig(), id = ++requestId;
     const message = { type, id, raw, charIdx: Number($('character').value), config, seed: freshSeed(), ...extra };
-    const destination = type === 'run' ? 'simulate-result' : type === 'compare' ? 'compare-result' : 'optimize-result';
+    const destination = type === 'run' ? 'simulate-result' : type === 'caves' ? 'caves-result'
+      : type === 'compare' ? 'compare-result' : 'optimize-result';
     const capturedRaw = message.raw;
     const capturedStale = capturedRaw !== raw;
     jobRevision = revision;
-    document.querySelectorAll('#run,#compare,#optimize').forEach(b => b.disabled = true);
+    document.querySelectorAll('#run,#compare,#compare-caves,#optimize').forEach(b => b.disabled = true);
     $('status').textContent = 'Preparing captured expedition inputs...'; $('progress').value = 0;
     $('progress').hidden = false; $('cancel').hidden = false;
     worker = startSpelunkWorkers(message, { onMessage: data => {
@@ -815,6 +996,7 @@ function start(type, extra = {}) {
           if (!data.result || !data.input) throw new Error('The expedition worker returned an empty result.');
           retained[destination] = { ...data, raw: capturedRaw, stale: capturedStale || jobRevision !== revision };
           if (type === 'run') renderRun(retained[destination]);
+          else if (type === 'caves') renderCaveComparison(retained[destination], destination);
           else renderComparison(retained[destination], destination);
           cancel(); $('status').textContent = 'Complete.';
         } catch (e) { cancel(); error(`Cannot render expedition result: ${e.message}`); }
@@ -838,10 +1020,13 @@ $('compare').onclick = () => {
   try { start('compare', { configurations: [{ label: 'Current controls', config: readConfig() }, ...selectedConfigurations()],
     options: { trials: Number($('compare-trials').value), objective: $('compare-objective').value } }); } catch (e) { error(e.message); }
 };
+$('compare-caves').onclick = () => start('caves', { options: { trials: Number($('cave-trials').value) } });
 $('optimize').onclick = () => {
-  try { start('optimize', { options: { objective: $('objective').value,
+  try { start('optimize', { options: { objective: $('objective').value, mode: $('optimizer-mode').value,
     screening: Number($('screen-trials').value), trials: Number($('final-trials').value),
-    scope: readSearchScope(), configurations: selectedConfigurations() } }); }
+    ...($('optimizer-mode').value === 'amber' ? { from: Number($('amber-search-from').value),
+      to: $('amber-search-to').value.trim() ? Number($('amber-search-to').value) : null,
+      minRopePct: Number($('amber-min-rope').value), maxTrials: Number($('amber-max-trials').value) } : { scope: readSearchScope(), configurations: selectedConfigurations() }) } }); }
   catch (e) { error(e.message); }
 };
 $('cancel').onclick = () => cancel();
@@ -868,7 +1053,13 @@ document.querySelectorAll('[data-tab]').forEach(b => {
 $('main-content').addEventListener('change', e => {
   const target = e.target;
   if (target.closest('#panel-depth')) { if (target.id === 'depth-inspect') renderDepthInspector(); else renderDepthLimits(); return; }
-  if (target.closest('#simulate-result,#compare-result,#optimize-result') || target.dataset.checked != null || target.id === 'config-name') return;
+  if (target.closest('#simulate-result,#compare-result,#caves-result,#optimize-result') || target.dataset.checked != null || target.id === 'config-name') return;
+  if (['optimizer-mode', 'amber-search-from', 'amber-search-to', 'amber-min-rope', 'amber-max-trials'].includes(target.id)) {
+    syncOptimizerMode();
+    try { localStorage.setItem(amberSearchKey, JSON.stringify(Object.fromEntries(
+      ['optimizer-mode', 'amber-search-from', 'amber-search-to', 'amber-min-rope', 'amber-max-trials'].map(id => [id, $(id).value])))); }
+    catch (e) { error(`Cannot persist Amber search settings: ${e.message}`); }
+  }
   if (target.closest('#search-scope')) {
     syncSearchSections();
     searchSettings = readSearchScope();
@@ -905,6 +1096,7 @@ $('main-content').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   try {
+    if (b.dataset.elixirPreset != null) applyElixirPreset(b.dataset.elixirPreset);
     if (b.dataset.slotKind != null) {
       if (!input) throw new Error('Load a valid save before editing the expedition.');
       openSlot(b);
@@ -923,6 +1115,10 @@ $('main-content').addEventListener('click', e => {
     if (b.dataset.delete != null) { configurations.splice(Number(b.dataset.delete), 1); checked.clear(); persistConfigurations(); invalidate(); }
     if (b.dataset.inspect != null) {
       const detail = $(`${b.dataset.owner}-detail-${b.dataset.inspect}`); detail.hidden = !detail.hidden;
+    }
+    if (b.dataset.useCave != null) {
+      const bundle = retained[b.dataset.owner], row = bundle.result.rows[Number(b.dataset.useCave)];
+      applyCapturedConfig(row.config, bundle.input);
     }
     if (b.dataset.replayRow != null) {
       const bundle = retained[b.dataset.owner], row = bundle.result.rows[Number(b.dataset.replayRow)];
@@ -983,6 +1179,16 @@ try {
     searchSettings = stored;
   }
 } catch (e) { error(`Could not restore search scope: ${e.message}`); }
+try {
+  const stored = JSON.parse(localStorage.getItem(amberSearchKey) || 'null');
+  if (stored) {
+    if (typeof stored !== 'object' || Array.isArray(stored)
+      || !['configuration', 'amber'].includes(stored['optimizer-mode'])) throw new Error('Malformed Amber search settings.');
+    for (const id of ['optimizer-mode', 'amber-search-from', 'amber-search-to', 'amber-min-rope', 'amber-max-trials'])
+      if (stored[id] != null) $(id).value = stored[id];
+  }
+  syncOptimizerMode();
+} catch (e) { error(`Could not restore Amber search settings: ${e.message}`); }
 initSaveLoader({ target: '#save-area', auth: true, onLoad(S, parsed, metadata) {
   const refresh = metadata?.source === 'auto-refresh' && loaded;
   revision++;
@@ -990,7 +1196,7 @@ initSaveLoader({ target: '#save-area', auth: true, onLoad(S, parsed, metadata) {
   raw = parsed;
   if (!refresh) {
     cancel('Save loaded.'); pause(); retained = {}; replay = null;
-    for (const id of ['simulate-result', 'compare-result', 'optimize-result']) $(id).replaceChildren();
+    for (const id of ['simulate-result', 'compare-result', 'caves-result', 'optimize-result']) $(id).replaceChildren();
   } else {
     Object.values(retained).forEach(bundle => { bundle.stale = true; });
   }
@@ -1023,6 +1229,7 @@ initSaveLoader({ target: '#save-area', auth: true, onLoad(S, parsed, metadata) {
     if (!worker) { cancel(); $('status').textContent = 'Ready.'; }
   } catch (e) {
     input = null; $('reset-elixirs').disabled = true;
+    renderElixirPresets();
     if (activeTab === 'depth') renderDepthLimits();
     error(`Cannot initialize Spelunking: ${e.message}`); if (!refresh) cancel();
   }

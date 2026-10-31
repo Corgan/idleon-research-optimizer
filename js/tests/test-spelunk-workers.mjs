@@ -46,20 +46,56 @@ function workerFactory() {
   adapters.push(adapter);
   return adapter;
 }
-async function run(message, concurrency) {
+async function run(message, concurrency, capturedRaw = raw) {
   const start = adapters.length;
+  const progress = [];
   const result = await new Promise((resolve, reject) => {
-    startSpelunkWorkers({ ...message, raw, id: 7 }, {
-      concurrency, workerFactory, onMessage: data => { if (data.type === 'done') resolve(data); }, onError: reject,
+    startSpelunkWorkers({ ...message, raw: capturedRaw, id: 7 }, {
+      concurrency, workerFactory, onMessage: data => {
+        if (data.type === 'progress') progress.push(data.fraction);
+        if (data.type === 'done') resolve(data);
+      }, onError: reject,
     });
   });
   const workers = adapters.slice(start);
   assert.ok(workers.every(w => w.terminated), 'completion terminates every worker');
   assert.ok(workers.every(w => w.messages.filter(m => m.raw).length === 1), 'each worker loads one captured save');
   assert.ok(workers.every(w => w.messages.filter(m => m.type === 'trial').every(m => !m.raw)));
+  if (message.options?.mode === 'amber')
+    assert.ok(progress.every((p, i) => p >= 0 && p <= 1 && (!i || p >= progress[i - 1])),
+      'real owner/helper Amber progress is monotonic across refinement and adaptive comparison');
   return result;
 }
 const config = { party: [0], policy: 'dive', manic: true, elixirs: [] };
+const fifthConfig = { ...config, policy: 'clear-fifth' };
+const fifthOptions = { screening: 1, trials: 2, scope: { clears: ['fifth'],
+  enabled: { party: false, modes: false, clears: true, speeds: false, elixirs: false,
+    memorized: false, tools: false, entry: false } } };
+const fifthSerial = await run({ type: 'optimize', config: fifthConfig, seed: 33, options: fifthOptions }, 1);
+const fifthPooled = await run({ type: 'optimize', config: fifthConfig, seed: 33, options: fifthOptions }, 4);
+assert.deepEqual(fifthPooled.result, fifthSerial.result, 'the new manual policy and descent scope survive pooled dispatch');
+assert.equal(fifthPooled.result.winner.config.policy, 'clear-fifth');
+assert.equal(fifthPooled.result.configurations, 1);
+const amberRaw = structuredClone(raw);
+amberRaw.Spelunk[5][23] = 12; amberRaw.Spelunk[5][24] = 4; amberRaw.Spelunk[5][25] = 2;
+const amberBefore = structuredClone(amberRaw);
+const amberJob = { type: 'optimize', config: { ...config, party: [1, 0], elixirs: [3, 3, 3, 6, 6] },
+  seed: 33, options: { mode: 'amber', objective: 'amber', screening: 1, trials: 2, maxTrials: 4, from: 1, to: 2, minRopePct: 0 } };
+const amberSerial = await run(amberJob, 1, amberRaw);
+const amberPooled = await run(amberJob, 4, amberRaw);
+assert.deepEqual(amberPooled.result, amberSerial.result, 'real Amber owner/helper jobs preserve all measured phases and risk outcomes');
+assert.equal(amberPooled.result.kind, 'amber-search');
+assert.equal(amberPooled.result.amberSearch.trials, 4);
+assert.ok(amberPooled.result.amberSearch.refined > 0);
+assert.ok(amberPooled.result.winner);
+assert.ok(amberPooled.result.rows.filter(row => !row.referenceOnly).every(row =>
+  row.config.party.join() === '1,0' && row.config.elixirs.join() === '3,3,3,6,6'
+  && row.runs.every(run => run.amber && run.exit)));
+const amberRow = amberPooled.result.winner, amberTrial = amberRow.runs[0];
+const amberReplay = await run({ type: 'run', config: amberRow.config, seed: amberTrial.seed }, 1, amberRaw);
+assert.deepEqual(amberReplay.result.amber, amberTrial.amber, 'captured Amber trials replay their measured transition plan');
+assert.deepEqual(amberReplay.result.exit, amberTrial.exit);
+assert.deepEqual(amberRaw, amberBefore);
 const options = { screening: 1, trials: 2, scope: {
   partyMin: 1, partyMax: 1, modes: ['manual'], clears: [true], speeds: [], elixirs: [], memorized: [],
 } };
@@ -99,6 +135,24 @@ assert.ok(compared.rows.every(row => row.diagnostics?.members.length === row.con
 assert.deepEqual(compared.rows[1].partyAnalysis.rows.map(row => row.config.party), [[1], [1, 0]]);
 assert.ok(partyPooled.result.winner.partyAnalysis.rows
   .some(row => row.config.party.length === partyPooled.result.winner.partyAnalysis.recommendedSize && row.allowed));
+const caveRaw = structuredClone(raw);
+caveRaw.Spelunk[0][0] = 1;
+caveRaw.Spelunk[1] = [50, 5];
+caveRaw.Spelunk[47] = [2, 0];
+const caveBefore = structuredClone(caveRaw);
+const caves = { type: 'caves', config: { ...config, party: [1, 0] }, seed: 57, options: { trials: 3 } };
+const caveSerial = await run(caves, 1, caveRaw);
+const cavePooled = await run(caves, 4, caveRaw);
+assert.equal(cavePooled.workers, 4, 'all-cave comparison uses the helper pool');
+assert.deepEqual(cavePooled.result, caveSerial.result, 'real all-cave workers preserve ranking, records, gains and run order');
+assert.equal(cavePooled.result.rows.length, 2, 'compare exactly the unlocked caves');
+assert.ok(cavePooled.result.rows.every(row => row.runs.length === 3 && row.diagnostics
+  && row.recordDepth === caveRaw.Spelunk[47][row.config.cave] + 1));
+const caveRow = cavePooled.result.rows[0], trial = caveRow.runs[0];
+const caveReplay = await run({ type: 'run', config: caveRow.config, seed: trial.seed }, 1, caveRaw);
+assert.equal(caveReplay.result.depth, trial.depth, 'captured cave trial replays at the measured depth');
+assert.equal(caveReplay.result.status, trial.status);
+assert.deepEqual(caveRaw, caveBefore);
 const replay = await run({ type: 'run', config, seed: 57 }, 4);
 assert.equal(replay.workers, 1, 'a replay stays on one dedicated worker');
 assert.ok(replay.result.frames.length > 0);

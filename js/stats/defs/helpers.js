@@ -62,9 +62,17 @@ export function rval(resolver, id, ctx, args) {
       var sys = resolverTermName(resolver);
       if (sys) item = overrideSourceItem(ctx, sourceTermKey(sys, id, args, resolver), item);
     }
-    return item.val || 0;
+    const value = item.val || 0;
+    if (ctx?.formulaReferences) ctx.formulaReferences.push(item);
+    return value;
   }
-  catch(e) { return 0; }
+  catch(e) {
+    if (ctx?.formulaReferences) ctx.formulaReferences.push({
+      name: 'Resolver input failed', val: NaN, unavailable: true,
+      reason: e?.message || String(e),
+    });
+    return 0;
+  }
 }
 
 // safeTree(fn, ...args): like safe(), but always returns {val, children}.

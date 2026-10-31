@@ -52,6 +52,7 @@ import { computeGambitBonus } from '../systems/w5/hole.js';
 import { zenithMarketPerLevel } from '../data/w5/sailing.js';
 import { getLOG } from '../../formulas.js';
 import { createDescriptor } from './helpers.js';
+import { alchemyExpMultiplier } from '../systems/w2/alchemy-production.js';
 
 function _num(value) {
   if (value && typeof value === 'object') {
@@ -509,6 +510,14 @@ var SKILL_EXP_CONFIG = {
       return talent265 + talent297 + card40 + stampCatchExp + talent75
         + arcade9 + ach107 + riftBonus5 + voting10 + vault29;
     },
+  },
+  Alchemy: {
+    skillLvIdx: 5,
+    calcTalentRow: null,
+    customCombine: function(ci, ctx) {
+      return alchemyExpMultiplier(ctx.saveData, ci);
+    },
+    sources: null,
   },
   Smithing: {
     skillLvIdx: 2,

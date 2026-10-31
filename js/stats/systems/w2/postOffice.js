@@ -6,6 +6,8 @@ import { label } from '../../entity-names.js';
 import { postOfficeData } from '../../../save/data.js';
 import { formulaEval } from '../../../formulas.js';
 import { postOfficeSlotParams } from '../../data/w2/postOffice.js';
+import { formulaEvalDetail } from '../../../formula-details.js';
+import { formulaInput, formulaOperation } from '../../formula-tree.js';
 
 export var postOffice = {
   resolve: function(id, ctx) {
@@ -17,6 +19,23 @@ export var postOffice = {
     var name = label('Post Office', boxIdx);
     if (!data) return node(name, 0, null, { note: 'post office ' + key });
     var points = Math.round(Number((postOfficeData && postOfficeData[ctx.charIdx] && postOfficeData[ctx.charIdx][boxIdx]) || 0));
+    if (ctx.formulaDetails) {
+      const level = formulaOperation('Rounded invested points', 'round', formulaInput('Saved points',
+        Number(postOfficeData?.[ctx.charIdx]?.[boxIdx]) || 0,
+        'POu_' + ctx.charIdx + '[' + boxIdx + ']'));
+      if (points <= 0) return {
+        name, val: 0, kind: 'formula', formulaTerm: true,
+        formula: 'Rounded invested points <= 0: return 0', children: [level],
+      };
+      return {
+        ...formulaEvalDetail(data.formula, data.x1, data.x2, points, {
+          x1: formulaInput('First coefficient', data.x1, 'PostOffUpgradeInfo[' + boxIdx + '][' + (1 + slotIdx * 4) + ']'),
+          x2: formulaInput('Second coefficient', data.x2, 'PostOffUpgradeInfo[' + boxIdx + '][' + (2 + slotIdx * 4) + ']'),
+          lv: level,
+        }),
+        name, formulaTerm: true,
+      };
+    }
     if (points <= 0) return node(name, 0, null, { note: 'post office ' + key });
     var val = formulaEval(data.formula, data.x1, data.x2, points);
     return node(name, val, [

@@ -5,6 +5,8 @@ import { node } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { legendTalentPerPt } from '../../data/w7/legendTalent.js';
 import { spelunkUpgPerLevel } from '../../data/w7/spelunking.js';
+import { formulaInput as input, formulaConstant as c, formulaOperation as op } from '../../formula-tree.js';
+import { legendPTS } from './legend.js';
 
 export function legendPTSbonus(idx, saveData) {
   var lv = (saveData.spelunkData && saveData.spelunkData[18] && saveData.spelunkData[18][idx]) || 0;
@@ -114,6 +116,42 @@ export var palette = {
   resolve: function(id, ctx) {
     var val = computePaletteBonus(id, ctx.saveData);
     var paletteLv = Number(ctx.saveData.spelunkData && ctx.saveData.spelunkData[9] && ctx.saveData.spelunkData[9][id]) || 0;
+    if (ctx.formulaDetails && paletteLv > 0) {
+      const S = ctx.saveData;
+      const pal = paletteParams(id);
+      if (pal) {
+        const level = input('Palette level', paletteLv, 'Spelunk[9][' + id + ']');
+        const coefficient = input('Palette coefficient', pal.coeff, 'GamingPalette[' + id + '][4]');
+        let raw = pal.isDecay
+          ? op('Decay bonus', 'multiply', op('Decay fraction', 'divide', level,
+            op('Decay denominator', 'add', level, c(pal.denom))), coefficient)
+          : op('Linear bonus', 'multiply', level, coefficient);
+        const bit = PALETTE_SUPERBIT_PAIRS.find(pair => pair[1] === id)?.[0];
+        if (bit !== undefined && superBitType(bit, S.gamingData?.[12]) === 1) {
+          const bit59 = {
+            name: 'Superbit upgrade owned', val: superBitType(59, S.gamingData?.[12]),
+            formula: 'Gaming[12] contains the encoded superbit key',
+            children: [{ name: 'Saved superbit keys', val: S.gamingData?.[12], kind: 'input', source: 'Gaming[12]', nonNumeric: true }],
+          };
+          raw = op('Superbit boosted bonus', 'multiply', raw,
+            op('Superbit multiplier', 'add', c(2), op('Superbit upgrade', 'multiply', c(0.5), bit59)));
+        }
+        const legend = op('Legend multiplier', 'add', c(1),
+          op('Legend percentage', 'divide', legendPTS.resolve(10, ctx), c(100)));
+        const stars = input('Placed Black Stars', Number(S.spelunkData?.[49]?.[id]) || 0, 'Spelunk[49][' + id + ']');
+        const starMulti = op('Black Star multiplier', 'max', c(1),
+          op('Star bonus', 'add', c(1), op('Star steps', 'add', stars,
+            op('Star pair steps', 'floor', op('Star pairs', 'divide', stars, c(2))))));
+        const lore = {
+          name: 'Lore multiplier', val: 1 + 0.5 * (Number(S.spelunkData?.[0]?.[8] || 0) >= 1 ? 1 : 0),
+          formula: '1 + 0.5 * (saved Lore flag >= 1 ? 1 : 0)',
+          children: [input('Lore flag', Number(S.spelunkData?.[0]?.[8]) || 0, 'Spelunk[0][8]')],
+        };
+        const detail = op('Palette bonus', 'multiply',
+          op('Star boosted bonus', 'multiply', op('Legend boosted bonus', 'multiply', raw, legend), starMulti), lore);
+        return node(label('Palette', id), val, [detail], { fmt: '+' });
+      }
+    }
     var children = [node('Palette Level', paletteLv, null, { fmt: 'raw' })];
     var blackStarMulti = paletteBlackStarMultiplier(id, ctx.saveData);
     if (blackStarMulti !== 1) children.push(node('Black Stars', blackStarMulti, null, { fmt: 'x' }));

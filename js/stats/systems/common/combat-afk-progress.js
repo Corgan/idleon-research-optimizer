@@ -66,7 +66,7 @@ export function combatAfkProgress(S, ci, mapIdx, claim, ctx, rawSave) {
     add('grottoKills', 'Grotto mushroom kills', kills * multiplier, 'kills', S.holesData?.[11]?.[27]);
     add('grottoTotal', 'Grotto total mushroom credit', kills * multiplier, 'kills', S.holesData?.[11]?.[28]);
   } else if (target === 'caveC') add('templeKills', 'Temple Ancient Golem kills', kills, 'kills', S.holesData?.[11]?.[63]);
-  else if (target === 'caveD') add('coveKills', 'Cove Crystal Glunko kills', kills, 'kills', S.optionsListData?.[668]);
+  else if (target === 'caveD') add('coveKills', 'Cove Crystal Glunko kills', kills, 'kills', D.optionsListData?.[668]);
   add('forgeSeconds', 'Extra Forge time', kills * tn(280) / 100 * tn(280, 2), 'seconds');
   if (!claim.candy && N(D.divinityData?.[ci]) === 5) {
     const rate = computeDivinityExpPerHour(ci, ctx);
@@ -87,13 +87,13 @@ export function combatAfkProgress(S, ci, mapIdx, claim, ctx, rawSave) {
     }
   }
   if (menagerieUnlockOwned(S, 2) === 1) {
-    const level = N(S.optionsListData?.[619]);
+    const level = N(D.optionsListData?.[619]);
     const multiplier = Math.max(0, Math.min(1, Math.round(125 * level / (level + 100)) / 100));
-    add('coralHours', 'Coral Kid banked hours', Math.floor(hours) * multiplier, 'hours', S.optionsListData?.[624]);
+    add('coralHours', 'Coral Kid banked hours', Math.floor(hours) * multiplier, 'hours', D.optionsListData?.[624]);
   }
   // These three quest items use original elapsed time, even with Prayer 2.
   const mc = { 14: ['Quest97', 367], 29: ['Quest96', 401], 40: ['Quest101', 452] }[N(D.charClassData[ci])];
-  if (!claim.candy && mc && N(S.optionsListData?.[mc[1]]) === 1 && claim.hours * 3600 > 3599) {
+  if (!claim.candy && mc && N(D.optionsListData?.[mc[1]]) === 1 && claim.hours * 3600 > 3599) {
     const bonus = N(computeMeritocBonusz(19, S, ci));
     drop(mc[0], 1, Math.floor(claim.hours + Math.max(0, bonus / 100 * Math.min(48, claim.hours))));
   }

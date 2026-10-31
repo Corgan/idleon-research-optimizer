@@ -26,6 +26,9 @@ main p{line-height:1.5}.muted{color:var(--text2)}.warning{color:#ffd27b}.error{c
 .elixir-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}.elixir-heading h2{margin:0;color:#ffe4ae;letter-spacing:1px;font-size:.9rem}.elixir-heading button{min-height:26px;padding:2px 8px;font-size:.8rem}
 .elixir-row{display:flex;align-items:center;gap:8px;margin:7px 0}.elixir-row>span{width:90px;flex-shrink:0;font-size:.8rem;color:var(--text2)}
 .elixir-row small{font-size:inherit}.elixir-slots{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.elixir-preset{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #ffffff15}
+.elixir-preset>strong{flex:1;min-width:125px;font-size:.8rem}.elixir-preset>strong small{display:block;color:var(--text2);font-weight:400;margin-top:3px}
+.elixir-preset>small{width:100%;font-size:.75rem}.elixir-preset>button{min-height:32px;padding:4px 8px}
 .expedition-prep{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:14px;margin-top:12px}
 .game-panel{background:#332c43;border:3px solid #8e785b;box-shadow:inset 0 0 0 2px #1e1928,0 2px 0 #111;padding:12px;min-width:0;border-radius:3px}
 .game-panel img,.cave-choice img,.portrait,.mini-slot img,#spelunk-picker img{image-rendering:pixelated;object-fit:contain}
@@ -75,6 +78,7 @@ main .scope-icon{position:relative;padding:1px;width:34px;height:34px;justify-co
 details{margin-top:12px}summary{cursor:pointer;min-height:32px;color:var(--cyan)}
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:8px;border-bottom:1px solid #ffffff15}th{color:var(--text2)}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .comparison td{vertical-align:top}.comparison .captured{max-width:420px}
+.amber-outcome{max-width:420px;margin-top:8px;padding:8px;border-left:2px solid var(--gold);background:var(--bg);font-size:.8rem;line-height:1.6}
 .scroll{overflow:auto}canvas{width:100%;max-width:960px;background:#151523;border:1px solid #435574;image-rendering:pixelated}
 input[type=range]{width:min(650px,100%)}.breakdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px;align-items:start}
 .breakdown{min-width:0;background:var(--bg);padding:10px;border:1px solid #40536e;border-radius:5px}.breakdown h3{margin:0 0 8px;color:var(--cyan)}
@@ -117,9 +121,19 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
     <label>Logged-in character<select id="character"></select></label>
     <label hidden>Cave<select id="cave"></select></label>
     <label>Expedition<select id="mode"><option value="false">Normal</option><option value="true">Manic</option></select></label>
-    <label>Policy<select id="policy"><option value="auto">Native Auto</option><option value="dive">Manual depth diving</option><option value="efficient">Manual stamina efficiency</option><option value="clear">Manual full clear</option></select></label>
+    <label>Policy<select id="policy"><option value="auto">Native Auto</option><option value="dive">Manual depth diving</option><option value="efficient">Manual stamina efficiency</option><option value="clear-fifth">Manual clear every 5 depths</option><option value="clear">Manual full clear</option><option value="amber-farm">Phased manual Amber farming</option></select></label>
     <label class="check"><input id="full-clear" type="checkbox">Auto full clear</label>
     <label>Auto speed<select id="speed"></select></label>
+  </div>
+  <div id="amber-policy" hidden>
+  <div class="toolbar">
+    <label>Start looking for stamina dump at depth<input id="amber-dump-depth" type="number" min="1" max="10000" value="20"></label>
+    <label>Finishing characters<select id="amber-finishers"><option value="1">Last character</option><option value="2">Last two characters</option></select></label>
+    <label>First finisher's stamina to keep (%)<input id="amber-reserve" type="number" min="25" max="100" value="100"></label>
+    <label>Target floors after oranges before seeking rope<input id="amber-harvest" type="number" min="0" max="100" value="3"></label>
+    <label>Seek rope below finishing stamina (%)<input id="amber-rope-reserve" type="number" min="1" max="100" value="25"></label>
+  </div>
+  <p class="muted">Manual targeting throughout: full-clear, drink teals as available, burn stamina on visible resistant objects, then drink oranges and harvest. The first finisher keeps the selected fraction of starting stamina; later finishers stay untouched until needed. If no suitable dump appears, activate oranges at the reserve instead. After activation, manually descend when an exit is revealed and remaining rocks exceed the expected stamina budget. Auto full-clear stays enabled; this is not unattended Auto execution. Take an eligible rope before digging; delayed procs may still remove it. No rope is guaranteed.</p>
   </div>
   <div class="expedition-prep">
   <div class="game-panel"><div class="elixir-heading"><h2>Party</h2><span class="team-total"><img src="./assets/spelunking/CaveStamC.png" alt="Team stamina"><b id="party-stamina">0</b></span></div><div id="party" class="slots"></div></div>
@@ -127,6 +141,10 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
   <div class="elixir-heading"><h2>Elixir belt</h2><button id="reset-elixirs" disabled>Use saved</button></div>
   <div class="elixir-row"><span>Equipped</span><div id="elixirs" class="elixir-slots"></div></div>
   <div class="elixir-row"><span>Memorized <small id="memory-count"></small></span><div id="memorized" class="elixir-slots"></div></div>
+  <details><summary>Built-in elixir presets</summary>
+    <p class="muted">Each preset replaces only its equipped belt or memorized set. Party, expedition mode, entry and strategy stay unchanged. These pictured loadouts are not optimizer recommendations.</p>
+    <div id="elixir-presets"></div>
+  </details>
   <details id="elixir-help" hidden><summary>Selected elixir effects</summary><div id="elixir-effects"></div></details>
   </div></div>
   <div id="cave-choices" class="cave-choices" aria-label="Caves: Normal / Manic depth records"></div>
@@ -136,11 +154,13 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
     <label>Manual tool<select id="tool"></select></label>
     <label>Manual reaction (ms)<input id="reaction" type="number" min="100" max="5000" value="350"></label>
   </div>
-  <p class="muted">Runs continue until stamina is exhausted or no further progress is possible; Cancel stops calculation. Auto speed changes decision timing only. Manual policies cannot see hidden exits. Fixed manual tools fall back to the basic tool when unaffordable.</p></details>
+  <p class="muted">Runs continue until stamina is exhausted or no further progress is possible; phased Amber farming may instead take a visible rope. Cancel stops calculation. Auto speed changes decision timing only. Manual policies cannot see hidden exits. Fixed manual tools fall back to the basic tool when unaffordable.</p>
+  <p class="muted">Manual clear every 5 depths uses stamina-efficient targeting, fully clears depths 5, 10, 15 and so on, and otherwise descends at the first exit. With Hidden Elixirs unlocked and an equipped elixir, each fifth depth contains one refill. Clearing costs extra stamina and may not improve the final depth.</p></details>
 </div>
 <div class="tabs" role="tablist" aria-label="Spelunking workspace">
  <button role="tab" id="tab-simulate" aria-controls="panel-simulate" aria-selected="true" data-tab="simulate">Simulator</button>
  <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" data-tab="compare">Compare configurations</button>
+ <button role="tab" id="tab-caves" aria-controls="panel-caves" aria-selected="false" data-tab="caves">Compare caves</button>
  <button role="tab" id="tab-optimize" aria-controls="panel-optimize" aria-selected="false" data-tab="optimize">Optimizer</button>
  <button role="tab" id="tab-depth" aria-controls="panel-depth" aria-selected="false" data-tab="depth">Depth limits</button>
  <button role="tab" id="tab-breakdowns" aria-controls="panel-breakdowns" aria-selected="false" data-tab="breakdowns">Breakdowns</button>
@@ -168,18 +188,38 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
  </div>
  <div id="compare-result" class="section result-section"></div>
 </div>
+<div id="panel-caves" hidden role="tabpanel" aria-labelledby="tab-caves">
+ <div class="section">
+  <div class="toolbar"><label>Trials per cave<input id="cave-trials" type="number" value="8" min="1" max="64"></label>
+  <button id="compare-caves" class="primary">Compare all unlocked caves</button></div>
+  <p class="muted">Use the current configuration and selected Normal/Manic mode to find the largest gain over each cave's previous maximum.
+  Keep party order; exclude members beyond each cave's party limit. No party, strategy or elixir search is performed.</p>
+  <div id="caves-status-host"></div>
+ </div>
+ <div id="caves-result" class="section result-section"></div>
+</div>
 <div id="panel-optimize" hidden role="tabpanel" aria-labelledby="tab-optimize">
  <div class="section">
   <div class="toolbar">
+    <label>Optimization mode<select id="optimizer-mode"><option value="configuration">Configurations</option><option value="amber">Amber farming phases</option></select></label>
     <label>Goal<select id="objective"><option value="depth">Deepest depth</option><option value="amber">Collected Amber / expedition</option><option value="amber-per-stamina">Collected Amber / stamina</option><option value="sustainable-amber">Amber / run + recovery hour</option><option value="grand">Grand Discoveries / expedition</option></select></label>
     <button id="optimize" class="primary">Find strategy</button>
+  </div>
+  <div id="amber-search" hidden>
+    <div class="toolbar">
+      <label>Earliest dump depth<input id="amber-search-from" type="number" min="1" max="10000" value="1"></label>
+      <label>Latest dump depth<input id="amber-search-to" type="number" min="1" max="10000" placeholder="Auto: measured depth"></label>
+      <label>Minimum sampled rope exits (%)<input id="amber-min-rope" type="number" min="0" max="100" value="0"></label>
+      <label>Adaptive trials per finalist (cap)<input id="amber-max-trials" type="number" min="2" max="256" value="128"></label>
+    </div>
+    <p class="muted">Keep the current party order, belt, memory, cave, mode, entry and tools. Use the Amber belt preset for three oranges and two teals if unlocked. Explore one/two finishers, 25/50/75/100% reserves, short/long harvest targets and early/late rope seeking. Refine promising depths and reserves twice, down to individual floors, including observed orange-activation depths. Shortcut runs concentrate on floors at or after entry instead of wasting most depth choices before entry. Distinct observed behaviors and extra parameter-space challengers survive screening; promising strategies get at least eight shared discovery trials. Fresh finalist trials start at the setting below and increase for close comparisons or uncertain rope rates, up to the cap. This stronger search takes longer. Targets are not guaranteed descents or full clears; zero seeks the next visible untouched rope immediately. Zero minimum allows any observed rope rate; higher values filter fresh finalists, not guarantee safety. Current phased settings remain a reference. Named configurations and configuration-search scope are not used.</p>
   </div>
   <div id="search-scope" class="search-scope" aria-label="Allowed optimizer strategies"></div>
   <p id="search-workload" class="muted" role="status"></p>
   <details><summary>Trial settings</summary><div class="toolbar">
     <label>Screening trials<input id="screen-trials" type="number" value="2" min="1" max="8"></label>
-    <label>Fresh finalist trials<input id="final-trials" type="number" value="12" min="2" max="64"></label>
-  </div><p class="muted">Every legal combination in the selected scope receives screening trials. Cave and Normal/Manic mode stay fixed. Belts fill every possible slot from the checked elixirs, including unlocked duplicates. Empty slots remain only when that pool cannot fill them. Memories are optional; none checked means no memories. Current and checked named configurations are measured as references even when excluded, but excluded references cannot win. The strongest five screening setups and references receive fresh finalist trials. Up to four workers run independent trials in parallel.</p></details>
+    <label>Fresh finalist trials (initial in Amber mode)<input id="final-trials" type="number" value="12" min="2" max="64"></label>
+  </div><p class="muted" id="configuration-search-help">Every legal combination in the selected scope receives screening trials. Cave and Normal/Manic mode stay fixed. Belts fill every possible slot from the checked elixirs, including unlocked duplicates. Empty slots remain only when that pool cannot fill them. Memories are optional; none checked means no memories. Current and checked named configurations are measured as references even when excluded, but excluded references cannot win. The strongest five screening setups and references receive fresh finalist trials. Up to four workers run independent trials in parallel.</p></details>
   <div id="optimize-status-host"></div>
  </div>
  <div id="optimize-result" class="section result-section"></div>
@@ -203,7 +243,7 @@ progress{width:260px;max-width:100%;accent-color:var(--accent)}.status{min-heigh
 </main>
 <div id="spelunk-picker" popover="auto" role="dialog" aria-labelledby="picker-label"><div class="picker-heading"><strong id="picker-label"></strong><button id="picker-close" aria-label="Close picker">&times;</button></div><div id="picker-options"></div></div>
 <div id="spelunk-tip" role="tooltip" hidden popover="manual"></div>
-<script type="module" src="./js/ui/spelunking.js?v=depth-limits-1"></script>
+<script type="module" src="./js/ui/spelunking.js?v=amber-search-2"></script>
 <script type="module" src="./js/ui/site-nav.js"></script>
 </body>
 </html>

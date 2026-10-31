@@ -66,7 +66,9 @@ import { guild } from '../systems/common/guild.js';
 import { obolMiscMulti } from '../systems/w7/menagerie.js';
 import { statueBonus } from '../systems/w7/royal-guardian.js';
 import { coralKidUpgradeEffect } from '../systems/w5/coral-god-rank.js';
-import { safe, rval, getBuffBonus, createDescriptor } from './helpers.js';
+import { safe as resolveSafe, rval as resolveValue, getBuffBonus, createDescriptor } from './helpers.js';
+import { formulaInput, formulaConstant as c, formulaOperation as op } from '../formula-tree.js';
+import { getLOGDetail } from '../../formula-details.js';
 
 // computeStatueBonusGiven is now in systems/common/stats.js
 
@@ -77,6 +79,24 @@ export default createDescriptor({
   category: 'stat',
 
   combine: function(pools, ctx) {
+    var sources = ctx.formulaDetails ? new Map() : null;
+    var weaponInputs = sources ? { equipment: [], obols: [], food: [] } : null;
+    function remember(provider, args, value, tree) {
+      if (!sources) return;
+      if (!sources.has(provider)) sources.set(provider, []);
+      sources.get(provider).push({ args, value, tree });
+    }
+    function safe(fn, ...args) {
+      var value = resolveSafe(fn, ...args);
+      remember(fn, args, value);
+      return value;
+    }
+    function rval(provider, id, context, args) {
+      var start = context.formulaReferences?.length;
+      var value = resolveValue(provider, id, context, args);
+      remember(provider, [id, args], value, context.formulaReferences?.[start]);
+      return value;
+    }
     var s = ctx.saveData;
     if (!s) return { val: 0, children: null };
     var ci = ctx.charIdx || 0;
@@ -142,6 +162,12 @@ export default createDescriptor({
           if (_iname && _iname !== 'Blank') {
             _equipWP += (ITEMS[_iname] ? Number(ITEMS[_iname].Weapon_Power) || 0 : 0)
               + (_em0 && _em0[_si] ? Number(_em0[_si].Weapon_Power) || 0 : 0);
+            if (weaponInputs) weaponInputs.equipment.push({
+              ...op(label('Item', _iname), 'add',
+                formulaInput('Base Weapon Power', Number(ITEMS[_iname]?.Weapon_Power) || 0, 'ItemDefinitions.' + _iname + '.Weapon_Power'),
+                formulaInput('Added Weapon Power', Number(_em0?.[_si]?.Weapon_Power) || 0, 'EMm0_' + ci + '[' + _si + '].Weapon_Power')),
+              formulaTerm: true,
+            });
           }
         }
       }
@@ -177,7 +203,15 @@ export default createDescriptor({
             var _oStat = _oItem ? (Number(_oItem.Weapon_Power) || 0) : 0;
             var _oMap = _pMaps && _pMaps[_oi] ? (Number(_pMaps[_oi].Weapon_Power) || 0) : 0;
             var _oSlot = _oStat + _oMap;
-            if (_oSlot > 0) _obolWP += _oSlot;
+            if (_oSlot > 0) {
+              _obolWP += _oSlot;
+              if (weaponInputs) weaponInputs.obols.push({
+                ...op(label('Item', _on), 'add',
+                  formulaInput('Base Weapon Power', _oStat, 'ItemDefinitions.' + _on + '.Weapon_Power'),
+                  formulaInput('Added Weapon Power', _oMap, 'ObolEqMAP_' + ci + '[' + _oi + '].Weapon_Power')),
+                formulaTerm: true,
+              });
+            }
           }
         }
         var _fNames = obolFamilyNames;
@@ -191,12 +225,21 @@ export default createDescriptor({
             var _fStat = _fItem ? (Number(_fItem.Weapon_Power) || 0) : 0;
             var _fMap = _fMaps && _fMaps[_fi2] ? (Number(_fMaps[_fi2].Weapon_Power) || 0) : 0;
             var _fSlot = _fStat + _fMap;
-            if (_fSlot > 0) _obolWP += _fSlot;
+            if (_fSlot > 0) {
+              _obolWP += _fSlot;
+              if (weaponInputs) weaponInputs.obols.push({
+                ...op(label('Item', _fn) + ' (Family)', 'add',
+                  formulaInput('Base Weapon Power', _fStat, 'ItemDefinitions.' + _fn + '.Weapon_Power'),
+                  formulaInput('Added Weapon Power', _fMap, 'ObolEqMAPz1[' + _fi2 + '].Weapon_Power')),
+                formulaTerm: true,
+              });
+            }
           }
         }
       } catch(e) {}
       // TotalStats("Weapon_Power") obol (DN2) sum × MenagerieStuff("ObolMISCmulti")
-      _obolWP *= obolMiscMulti(s);
+      var _obolMisc = obolMiscMulti(s);
+      _obolWP *= _obolMisc;
       // Flat adds: 5 + BoxRewards["12a"] + CardLv(w5b2)
       var _br12a = safe(computeBoxReward, ci, '12a');
       var _box12a = (typeof _br12a === 'object' && _br12a) ? (_br12a.val || 0) : Number(_br12a) || 0;
@@ -260,6 +303,8 @@ export default createDescriptor({
             var _fqty = Number((_foodQty && _foodQty[_fi]) || 0);
             if (_fqty > 0) {
               _foodWP += Number(ITEMS[_fname].Amount) || 0;
+              if (weaponInputs) weaponInputs.food.push(formulaInput(label('Item', _fname),
+                Number(ITEMS[_fname].Amount) || 0, 'ItemDefinitions.' + _fname + '.Amount'));
             }
           }
         }
@@ -1034,6 +1079,302 @@ export default createDescriptor({
                 bundleApplied: !!(s.bundlesData && s.bundlesData.bon_a == 1),
                 steps: _ddl2Steps } });
 
+    if (ctx.formulaDetails) {
+      const term = (name, tree) => ({ ...tree, name, formulaTerm: true });
+      const raw = (name, value, source) => formulaInput(name, Number(value), source);
+      const sum = (...terms) => terms.length ? terms.reduce((a, b) => op('Sum', 'add', a, b)) : c(0);
+      const product = (...terms) => terms.reduce((a, b) => op('Product', 'multiply', a, b));
+      const pct = value => op('Percentage multiplier', 'add', c(1), op('Percent to fraction', 'divide', value, c(100)));
+      const scaled = (name, value, factor) => term(name, op(name, 'multiply', value, factor));
+      const checked = (name, expected, tree) => {
+        if (!Object.is(Number(expected), tree.val)) throw new Error('Damage formula mismatch: ' + name);
+        return term(name, tree);
+      };
+      const T = (id, args) => {
+        const key = JSON.stringify(args);
+        const found = sources.get(talent)?.find(item => item.args[0] === id && JSON.stringify(item.args[1]) === key);
+        if (!found) throw new Error('Missing captured damage talent: ' + id);
+        return term(label('Talent', id), found.tree || raw(label('Talent', id), found.value));
+      };
+      const sourceNames = new Map([
+        [computeArtifactBonus, 'Artifact'], [computeStatueBonusGiven, 'Statue'], [computePaletteBonus, 'Palette'],
+        [getBribeBonus, 'Bribe'], [grimoireUpgBonus, 'Grimoire'], [computeCompassBonus, 'Compass'],
+        [computeExoticBonus, 'Exotic'], [mainframeBonus, 'Mainframe'], [computePrayerReal, 'Prayer'],
+        [computeSaltLick, 'SaltLick'], [achieveStatus, 'Achievement'],
+      ]);
+      const F = (name, fn, ...args) => {
+        if (sourceNames.has(fn)) name = label(sourceNames.get(fn), args[0]);
+        const found = sources.get(fn)?.find(item => item.args.length === args.length
+          && item.args.every((value, i) => Object.is(value, args[i])));
+        if (!found) throw new Error('Missing captured damage source: ' + name);
+        const value = found.value;
+        const scalar = Number(value?.val ?? value?.computed ?? value?.total ?? value);
+        let detail = value?.tree || (value && typeof value === 'object' && 'val' in value ? value : null);
+        if (fn === computeStampBonusOfTypeX) detail = computeStampBonusOfTypeX(...args, ci, { formulaDetails: true });
+        else if (fn === computeBoxReward) detail = computeBoxReward(...args, { formulaDetails: true });
+        else if (fn === bubbleValByKey) detail = bubbleValByKey(...args, { formulaDetails: true });
+        else if (fn === computeVialByKey) detail = computeVialByKey(...args, ci, { formulaDetails: true });
+        if (detail && Object.is(detail.val, scalar)) return term(name, detail);
+        return { ...raw(name, scalar), formulaTerm: true,
+          ...(detail ? { children: [detail], note: 'Effective value replaces the source calculation.' } : {}) };
+      };
+      const B = key => F(label('Bubble', key), bubbleValByKey, key, ci, s);
+      const V = id => {
+        const found = sources.get(vault)?.find(item => item.args[0] === id);
+        return term(label('Vault', id), found?.tree || raw(label('Vault', id), found?.value));
+      };
+      const E = id => {
+        const found = sources.get(etcBonus)?.find(item => item.args[0] === String(id));
+        return term(label('EtcBonus', id), found?.tree || raw(label('EtcBonus', id), found?.value));
+      };
+      const saved = (name, value, path) => raw(name, value, path);
+      const account = id => saved('Saved account progress', Number(optionsListData[id]) || 0, 'OptionsListAccount[' + id + '] (OptLacc fallback)');
+      const skillNames = ['Class', 'Mining', 'Smithing', 'Choppin', 'Fishing', 'Alchemy', 'Catching',
+        'Trapping', 'Construction', 'Worship', 'Cooking', 'Laboratory', 'Divinity', 'Breeding', 'Gaming', 'Sailing'];
+      const level = index => saved(skillNames[index] + ' level', Number(_lv0?.[index]) || 0, 'Lv0_' + ci + '[' + index + ']');
+      const skillWP = (id, index) => scaled(label('Talent', id) + ' skill scaling', T(id),
+        op('Completed ten-level groups', 'floor', op('Skill level groups', 'divide', level(index), c(10))));
+      const softcaps = (name, tree, caps) => {
+        for (const [threshold, exponent, additive] of caps) {
+          if (tree.val <= threshold) continue;
+          tree = term(name + ' above ' + threshold, additive
+            ? op('Softcap', 'add', c(threshold), op('Positive excess', 'max',
+              op('Reduced excess', 'power', op('Excess', 'subtract', tree, c(threshold)), c(exponent)), c(0)))
+            : op('Softcap', 'multiply', c(threshold),
+              op('Reduced ratio', 'power', op('Ratio', 'divide', tree, c(threshold)), c(exponent))));
+        }
+        return term(name, tree);
+      };
+      const hp = term('Max HP', ctx.resolve('max-hp'));
+      const mp = term('Max MP', ctx.resolve('max-mp'));
+      const speed = term('Movement speed', ctx.resolve('movement-speed'));
+      const gatedBubble = (key, value) => value === 0 && B(key).val !== 0
+        ? term('Class-disabled ' + B(key).name, product(c(0), B(key))) : B(key);
+      const stat = checked('Primary Stat (' + pStatName + ')', statType,
+        product(term('Total ' + pStatName, pStatResult.tree), pct(sum(T(95), T(455), T(20),
+          gatedBubble('W6', bubbleW6), gatedBubble('A6', bubbleA6), gatedBubble('M6', bubbleM6)))));
+      const equipmentWP = checked('Equipment Weapon Power', _equipWP, sum(c(0), ...weaponInputs.equipment));
+      const obolWP = checked('Obol Weapon Power', _obolWP, product(sum(c(0), ...weaponInputs.obols),
+        raw('Menagerie obol multiplier', _obolMisc)));
+      let foodWP = sum(c(0), ...weaponInputs.food);
+      if (foodWP.val > 0) foodWP = product(foodWP, term('Food effect multiplier', pct(sum(
+        F('Post Office: Food Effect', computeBoxReward, ci, 'PowerFoodEffect'),
+        F('Food Effect Statue', computeStatueBonusGiven, 3, ci, s), raw('Equipment food effect', _bEtc9),
+        F('Food Effect stamps', computeStampBonusOfTypeX, 'BFood', s),
+        F('Star Signs: Food Effect', computeStarSignBonus, 'FoodEffect', ci, s),
+        F('Food Effect cards', computeCardBonusByType, 48, ci, s),
+        F('Food Effect card set', computeCardSetBonus, ci, '1'), T(631)))));
+      foodWP = checked('Weapon Power food', _foodWP, foodWP);
+      const beginnerWP = _maxBeginnerLv > 0 ? op('Beginner talent cap', 'min', T(616),
+        op('Highest Beginner level groups', 'floor', op('Highest Beginner level / 10', 'divide',
+          raw('Highest Beginner level', _maxBeginnerLv), c(10)))) : c(0);
+      let wpTree = sum(c(5), F('Post Office: Weapon Power', computeBoxReward, ci, '12a'),
+        F('Dungeon shop Weapon Power', computeFlurboShop, 0, s), foodWP,
+        F('W5 card Weapon Power', computeCardLv, 'w5b2', s),
+        F('Weapon Power cards', computeCardBonusByType, 18, ci, s),
+        raw('Weapon Power sigil', _sigil17), raw('Guild Weapon Power', _guild3),
+        product(sum(equipmentWP, term('Gallery Weapon Power', _galResult || raw('Gallery Weapon Power', _galleryWP)),
+          obolWP),
+        pct(sum(raw('Weapon Power chip', _chipWP), gatedBubble('W1', _bubW1),
+          gatedBubble('A1', _bubA1), gatedBubble('M1', _bubM1)))),
+        checked('Beginner Weapon Power talent', _tc616, beginnerWP), F('Weapon Power vial', computeVialByKey, 'WeaponPOW', s),
+        raw('Family Weapon Power', _fam16), F('Star Signs: Weapon Power', computeStarSignBonus, 'WepPow', ci, s),
+        raw('Arcade Weapon Power', _arc17), skillWP(530, 12), skillWP(140, 10), skillWP(170, 15),
+        skillWP(320, 13), skillWP(500, 14),
+        scaled('Breeding Weapon Power', T(365), getLOGDetail(op('Positive pet power', 'max',
+          c(1), saved('Stored pet power', _petStored02, 'PetsStored[0][2]')))));
+      wpTree = checked('Weapon Power', wpRaw, wpTree);
+      const weaponDamage = checked('Damage-scaled Weapon Power', wp,
+        op('Weapon damage', 'add', product(wpTree, pct(sum(T(97), T(277), T(457),
+          F('Cosmo Weapon Power', computeCosmoBonus, 2, 4, s)))), T(5)));
+      const hpBubble = scaled('HP-scaled base damage', B('bdmgHP'),
+        getLOGDetail(op('HP above 250', 'max', op('HP excess', 'subtract', hp, c(250)), c(1))));
+      const mpBubble = scaled('MP-scaled base damage', B('bdmgMP'),
+        getLOGDetail(op('MP above 150', 'max', op('MP excess', 'subtract', mp, c(150)), c(1))));
+      const speedBubble = checked('Speed-scaled base damage', bubbleSPD, product(B('bdmgSPD'),
+        op('Speed scaling', 'divide', op('Speed logarithm', 'log2',
+          op('Nonnegative speed excess', 'max', op('Speed - 0.1', 'subtract', speed, c(0.1)), c(0))),
+          c(0.25))));
+      let base = sum(op('Weapon square', 'power', op('Weapon divisor', 'divide', weaponDamage, c(3)), c(2)),
+        stat, raw('Golden food: Base Damage', gfBaseDmg),
+        op('Capped Weapon Power and stat bonus', 'min', c(150), sum(product(c(2), wpTree), stat)));
+      base = sum(base, sum(raw('Arcade Base Damage', arcade0), V(0),
+        product(V(20), F('Vault kill total (5)', computeVaultKillzTotal, 5, s))));
+      base = sum(base, sum(F('Power Statue', computeStatueBonusGiven, 0, ci, s),
+        F('Post Office: Base Damage', computeBoxReward, ci, 'basedmg'), E(16),
+        F('Base Damage cards', computeCardBonusByType, 4, ci, s)));
+      base = sum(base, sum(F('Base Damage stamps', computeStampBonusOfTypeX, 'BaseDmg', s),
+        raw('Owl Base Damage', owlBonus1), raw('Base Damage sigil', sigil4),
+        F('Halloween card level', computeCardLv, 'fallEvent2', s), hpBubble, mpBubble, speedBubble));
+      base = checked('Base Damage before softcaps', _preSoftcapDDL0, base);
+      base = checked('Base Damage (with softcap)', baseDmgRaw,
+        softcaps('Base Damage', base, [[4000, 0.91, true], [15000, 0.84, true]]));
+      const percentBase = checked('Percentage Damage additive pool', addBase, sum(
+        op('Primary stat scaling', 'power', stat, c(0.7)),
+        product(V(27), F('Vault kill total (6)', computeVaultKillzTotal, 6, s)),
+        product(V(15), account(338)), product(c(0.4), V(10)),
+        F('Bribe 30', getBribeBonus, '30', s), F('Bribe 20', getBribeBonus, '20', s),
+        F('Percentage Damage stamps', computeStampBonusOfTypeX, 'PctDmg', s),
+        F('Land Rank damage', farmRankUpgBonus, 14, ci, s), F('Damage Statue', computeStatueBonusGiven, 22, ci, s),
+        T(113), product(getLOGDetail(op('Positive HP', 'max', hp, c(1))), T(86)),
+        product(getLOGDetail(op('Positive MP', 'max', mp, c(1))), T(446)),
+        raw('Owl Damage', owlBonus2), F('Roo Damage', computeRooBonus, 4, s),
+        F('Bubba Damage', bubbaRoGBonuses, 4, s), V(80)));
+      let chain = sum(B('W12'), B('A12'), B('M12'));
+      chain = sum(chain, sum(
+        scaled('Lowest-skill damage', T(31), op('Five-level groups', 'floor',
+          op('Lowest skill / 5', 'divide', raw('Lowest skill level (1-9)', _minSkillLv), c(5)))),
+        scaled('Kill-threshold damage', T(110), op('Capped monster count', 'min',
+          raw('Maps with at least 100K kills', _monstersOver100K), T(110, { tab: 2 }))),
+        scaled('Refinery damage', T(125), raw('Refinery rank total', _refSum)),
+        scaled('Vial damage', T(485), raw('Vials above level 3', _vialCount)),
+        op('Slab damage', 'divide', product(T(305), raw('Eligible Slab entries', _cardCount)), c(50)),
+        op('Stamp damage', 'divide', product(T(470), raw('Owned stamps', _stampCount)), c(10))));
+      chain = sum(chain, raw('Cavern schematic 57', bUpg57));
+      chain = sum(chain, product(T(290), op('Speed groups', 'floor',
+        op('Speed groups', 'divide', op('Capped speed excess', 'min',
+          op('Speed excess', 'subtract', speed, c(1)), c(10)), c(0.15)))));
+      chain = sum(chain, product(T(656), raw('Completed Equinox dreams', _dreamCount)));
+      chain = sum(chain, product(getLOGDetail(account(161)), T(649)));
+      chain = sum(chain, product(getLOGDetail(account(71)), T(638)));
+      chain = sum(chain, op('Quest cap', 'min', raw('Completed quests', totalQuests), T(658)));
+      chain = sum(chain, F('Divinity minor damage', computeDivinityMinor, ci, 7, s));
+      chain = sum(chain, product(T(463, { tab: 2 }), op('Minigame groups', 'floor',
+        op('Minigame score / 25', 'divide',
+          saved('First minigame high score', minigameHS, 'FamilyValuesMap.MinigameHiscores[0]'), c(25)))));
+      chain = checked('Talent and bubble damage pool', talentChainSum, chain);
+      let percent = product(pct(percentBase), pct(product(T(284),
+        op('Smithing groups', 'divide', op('Capped Smithing level', 'min', c(100), level(2)), c(10)))),
+        pct(raw('Summoning damage reward', winBonus0)), pct(chain), pct(raw('Golden food damage %', gfdTotal)));
+      percent = checked('Percentage Damage before softcaps', _preSoftcapDDL1, percent);
+      percent = checked('Percentage Damage Multiplier', pctMult, softcaps('Percentage Damage', percent,
+        [[100, 0.86, true], [2e6, 0.5], [1e8, 0.3]]));
+      let multi = op('Construction damage floor', 'max', product(
+        pct(product(T(508, { mode: 'max', tab: 1 }), getLOGDetail(account(152)))),
+        pct(product(T(208, { mode: 'max', tab: 1 }), getLOGDetail(account(329))))), c(1));
+      let factorGroup = null;
+      const multiplyFactor = tree => {
+        if (factorGroup) factorGroup.push(tree);
+        else multi = product(multi, tree);
+      };
+      const multiplyPct = (name, tree) => multiplyFactor(term(name, pct(tree)));
+      const finishGroup = () => {
+        multi = product(multi, product(...factorGroup));
+        factorGroup = null;
+      };
+      multiplyPct('Damage vial multiplier', F('Damage vial', computeVialByKey, '7dmg', s));
+      multiplyPct('Eclipse Skull multiplier', F('Eclipse Skulls', computeEclipseSkulls, s));
+      multiplyPct('Palette damage multiplier', F('Palette 34', computePaletteBonus, 34, s));
+      multi = product(multi, term('Equinox dream multiplier', op('Dream multiplier', 'add',
+        c(1), op('Dream / 10', 'divide', saved('Dream 6', dream6, 'Dream[6]'), c(10)))));
+      multiplyPct('Pristine multiplier', raw('Pristine damage', pristine0));
+      multiplyPct('Summoning upgrade multiplier', F('Summoning upgrade 79', computeSummUpgBonus, 79, s));
+      multiplyPct('Cove multiplier', F('Cove damage', computeCglunkoTotalDmg, s));
+      multiplyPct('Friends, Star Signs & Divinity', checked('Friends, Star Signs & Divinity pool', _grp1Sum,
+        sum(raw('Active buff 108', buff108), raw('Friend damage', friendDmg),
+          F('Star Signs: Damage', computeStarSignBonus, 'PctDmg', ci, s),
+          product(op('Divinity level excess', 'max', c(0), op('Divinity level - 10', 'subtract',
+            saved('Divinity level', div25, 'Divinity[25]'), c(10))), T(507, { mode: 'max', tab: 1 })),
+          product(op('Class level groups', 'floor', op('Class excess / 50', 'divide',
+            op('Class excess', 'max', c(0), op('Class level - 200', 'subtract', level(0), c(200))), c(50))),
+          T(50, { mode: 'max', tab: 1 })))));
+      multiplyPct('Grimoire, Lustre Set & Account Bonuses', checked('Account damage pool', _grp2Sum, sum(
+        F('Grimoire 35', grimoireUpgBonus, 35, GrimoireUpg, s), F('Lustre set', getSetBonus, 'LUSTRE_SET', ci),
+        raw('Damage shrine', shrine0), F('Bravery Monument', computeMonumentROGbonus, 0, 6, s),
+        F('Post Office 12c', computeBoxReward, ci, '12c'), F('Post Office 21c', computeBoxReward, ci, '21c'),
+        F('Post Office 23c', computeBoxReward, ci, '23c'), raw('Family damage bonus', famBonus20),
+        F('Artifact 25', computeArtifactBonus, 25, ci, ctx),
+        product(saved('Atom 9 level', atomLevel9, 'Atoms[9]'), saved('Atom 9 coefficient', Number(AtomInfo[9]?.[4]) || 0, 'AtomInfo[9][4]')),
+        F('Shiny damage', computeShinyBonusS, 5, s), F('MSA damage', computeMSABonus, 0, s),
+        product(account(178), F('Equinox shimmer', computeAllShimmerBonuses, s)),
+        F('Crop damage', computeCropSC, 0, s), product(V(41), getLOGDetail(account(346))))));
+      multiplyPct('Rift, Damage & Main Stats', checked('Rift and stat damage pool', _grp3Sum, sum(
+        F('Rift skill damage', computeRiftSkillETC, 0, s), B('pctDmg1'), B('pctDmg2'), B('pctDmg3'),
+        F('Artifact 2', computeArtifactBonus, 2, ci, ctx), F('Artifact 8', computeArtifactBonus, 8, ci, ctx),
+        raw('Class-gated stat bubbles', statBubbles), raw('Construction mastery', constMastery1),
+        raw('Tome damage', tomeBonus0), F('Compass damage', computeCompassBonus, 48, s),
+        F('Exotic damage', computeExoticBonus, 41, s), account(419))));
+      multiplyPct('Talents, Salt Lick & Mainframe', checked('Talent and Lab damage pool', _grp4Sum, sum(
+        T(6), F('Salt Lick damage', computeSaltLick, 9, s), E(45),
+        F('Prayer damage', computePrayerReal, 15, 0, ci, s),
+        F('Mainframe 0', mainframeBonus, 0, s), F('Mainframe 11', mainframeBonus, 11, s),
+        F('Mainframe 110', mainframeBonus, 110, s), F('Artifact 27', computeArtifactBonus, 27, ci, ctx),
+        F('Artifact 29', computeArtifactBonus, 29, ci, ctx), raw('Cavern schematic 84', bUpg84),
+        raw('Arcade damage', arcade46), account(435))));
+      const C = id => {
+        const found = sources.get(companion)?.find(item => item.args[0] === id);
+        return term(label('Companion', id), found?.tree || raw(label('Companion', id), found?.value));
+      };
+      multiplyPct('Companions & Cards', checked('Companion and card damage pool', _grp5Sum, sum(C(10), C(156),
+        F('Damage cards', computeCardBonusByType, 42, ci, s), F('Damage card set', computeCardSetBonus, ci, '5'))));
+      multiplyPct('Pets, Meals, Achievements & Divinity', checked('Pet and meal damage pool', _grp6Sum, sum(
+        product(c(20), F('Pet Arena 2', computePetArenaBonus, 2)),
+        product(c(40), F('Pet Arena 15', computePetArenaBonus, 15)),
+        F('Damage chip', computeChipBonus, 'dmg', ci), F('Total Damage meals', computeMealBonus, 'TotDmg', s, ci),
+        raw('Achievement damage', achSum), F('Divinity blessing 7', computeDivinityBless, 7, s),
+        F('Divinity blessing 8', computeDivinityBless, 8, s))));
+      const penalties = checked('Damage penalties', penaltyMult, op('Penalty floor', 'max', product(
+        op('Talent penalty', 'subtract', c(1), op('Talent penalty %', 'divide', T(24), c(100))),
+        op('Buff penalty', 'subtract', c(1), op('Buff penalty %', 'divide', raw('Buff 124', buff124), c(100))),
+        op('Prayer floor', 'max', c(0.01), op('Prayer penalty', 'subtract', c(1), op('Prayer penalty %', 'divide',
+          sum(F('Prayer 6 curse', computePrayerReal, 6, 1, ci, s),
+            F('Prayer 13 curse', computePrayerReal, 13, 1, ci, s)), c(100))))), c(0.05)));
+      multi = product(multi, penalties);
+      factorGroup = [];
+      multiplyPct('Minehead multiplier', raw('Minehead base damage', mhBonusQTY0));
+      multiplyPct('Minehead weapon multiplier', raw('Minehead Weapon Power damage', mhWepPowDmgPCT));
+      multiplyPct('Jelly reward multiplier', raw('Jelly reward 37', jellyDamage37));
+      multiplyPct('Royal Statue multiplier', raw('Royal Statue damage', royalStatue0));
+      multiplyFactor(term('Coral Kid Singularity', op('Coral Kid multiplier', 'power', pct(raw('Coral Kid upgrade 11', coralKid11)),
+        op('Divinity levels above 35', 'max', c(0), op('Divinity level - 35', 'subtract',
+          saved('Divinity level', div25, 'Divinity[25]'), c(35))))));
+      finishGroup();
+      if (s.weeklyBossData?.g != null) multiplyPct('Weekly boss multiplier',
+        op('Weekly boss cap', 'min', c(150), saved('Weekly boss g', Number(s.weeklyBossData.g) || 0, 'WeeklyBoss.g')));
+      multi = checked('Multiplicative bonuses before softcaps', _ddl2PreSoftcap, multi);
+      multi = checked('Multiplicative bonuses after softcaps', _ddl2PostSoftcap, softcaps('Multiplicative damage', multi,
+        [[100, 0.86, true], [2e7, 0.8], [5e8, 0.6], [2e9, 0.45], [15e9, 0.36], [6e10, 0.28]]));
+      factorGroup = [];
+      for (const [name, tree] of [
+        ['Etc 72', E(72)], ['Etc 75', E(75)], ['Etc 104', E(104)],
+        ['Server vote', F('Server vote damage', votingBonusz, 1, 1, s)],
+        ['Fountain', raw('Fountain damage', fountainDmg)], ['Sushi reward', F('Sushi reward 49', rogBonusQTY, 49, s.cachedUniqueSushi || 0)],
+      ]) multiplyPct(name, tree);
+      multiplyFactor(term('Superbit 64 multiplier', op('Superbit multiplier', 'add', c(1),
+        product(c(0.1), F('Superbit 64', superBitType, 64, s.gamingData && s.gamingData[12])))));
+      multiplyPct('Account progression multiplier', product(c(10), op('Account bonus steps', 'floor',
+        op('Account option groups', 'divide', sum(c(96), account(232)), c(100)))));
+      multiplyPct('Card multiplier', F('Damage cards', computeCardBonusByType, 96, ci, s));
+      multiplyFactor(term('Sticker multiplier', op('Sticker floor', 'max', c(1), raw('Sticker damage', stickerDmg))));
+      multiplyPct('Tome and achievements', sum(raw('Tome damage', tomeBonus6),
+        F('Achievement 371', achieveStatus, 371, s), F('Achievement 384', achieveStatus, 384, s)));
+      multiplyFactor(term('Killroy multiplier', op('Killroy multiplier', 'add', c(1), op('Killroy floor', 'max', c(0),
+        op('Killroy cap', 'min', c(2), op('Killroy %', 'divide', F('Killroy damage', computeKillroyDMG, s), c(100)))))));
+      finishGroup();
+      factorGroup = [];
+      multiplyFactor(checked('Post-softcap companions', compMult, op('Companion floor', 'max', c(1),
+        product(sum(c(1), C(12)), sum(c(1), C(33)), sum(c(1), product(c(2), C(160))),
+          sum(c(1), product(c(0.5), C(168))), sum(c(1), C(170))))));
+      multiplyPct('Crystal card multiplier', op('Crystal card cap', 'min',
+        product(c(1.5), F('Crystal 6 card level', computeCardLv, 'Crystal6', s)), c(15)));
+      multiplyPct('Meritocracy multiplier', F('Meritocracy damage', computeMeritocBonusz, 5, s, ci));
+      finishGroup();
+      if (_bun && _bun.bon_a == 1) multi = product(multi, saved('Damage bundle', 1.5, 'BundlesReceived.bon_a'));
+      multiplyPct('Family multiplier', raw('Family bonus 80', famBonus80));
+      if (reliquariumOwned) multi = term('Unstable Reliquarium', op('Reliquarium exponent', 'power', multi,
+        op('Reliquarium exponent', 'divide', c(4), sum(c(5), account(473)))));
+      multi = checked('Multiplicative Damage Bonuses', ddl2, op('Clamworks Scurge penalty', 'divide', multi,
+        op('Scurge divisor', 'power', c(100), saved('Effective Self Affliction level', scurgeLevel,
+          Number(ctx.mapIdx) === 306 ? 'Menagerie[5][2]' : 'CurrentMap != 306: no Scurge penalty'))));
+      const max = checked('Max Damage', maxDmg, product(base, percent, multi));
+      const masteryDetail = checked('Mastery (min/max ratio)', mastery, op('Mastery cap', 'min', c(0.8),
+        sum(op('Base Mastery minus talent', 'subtract', c(0.35), op('Talent Mastery penalty', 'divide',
+          T(113, { tab: 2 }), c(100))),
+        op('Mastery bonus %', 'divide', sum(B('Mastery'), F('Mastery cards', computeCardBonusByType, 21, ci, s),
+          T(123), E(21)), c(100)))));
+      children = [max, checked('Min Damage', minDmg, product(max, masteryDetail))];
+    }
+
     var missingMetadata = [];
     if (s.companionDataAvailable === false) missingMetadata.push('companion ownership');
     if (s.activeVoteDataAvailable === false) missingMetadata.push('current server vote');
@@ -1042,6 +1383,7 @@ export default createDescriptor({
       minDamage: minDmg,
       mastery: mastery,
       children: children,
+      ...(ctx.formulaDetails ? { outputChild: 0, impactLabel: 'Max Damage' } : {}),
       partial: missingMetadata.length > 0,
       reason: missingMetadata.length > 0
         ? 'Partial total: the imported JSON does not include ' + missingMetadata.join(' or ') + ' metadata.'

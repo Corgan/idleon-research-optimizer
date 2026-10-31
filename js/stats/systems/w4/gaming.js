@@ -6,6 +6,19 @@ import { mainframeBonus } from './lab.js';
 import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { legendPTSbonus } from '../w7/spelunking.js';
 import { vaultUpgBonus } from '../common/vault.js';
+import { N2L } from '../../data/common/encoding.js';
+import { finalBubbleValByKey } from '../w2/alchemy.js';
+
+export function gamingLogbookMultiplier(saveData, charIdx = 0) {
+  if (typeof saveData.gamingData?.[11] !== 'string') throw new Error('Saved Gaming logbook is missing.');
+  let discovered = 0;
+  for (let index = 0; index < 10; index++) {
+    const count = N2L.indexOf(saveData.gamingData[11].charAt(index));
+    if (count >= 0) discovered += count;
+  }
+  return Math.max(1, Math.pow(1.08, discovered)
+    + Number(finalBubbleValByKey('Y3', charIdx, saveData)) * discovered / 100);
+}
 
 // ==================== GAMING STARS ====================
 

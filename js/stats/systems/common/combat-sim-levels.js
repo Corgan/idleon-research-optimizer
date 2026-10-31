@@ -2,6 +2,7 @@
 
 import { captureCombatExpStart, classExpRequirement } from './combat-sim-exp.js';
 import { captureCombatInputState, buildLiveLevelInputs } from './combat-sim-inputs.js';
+import { levelUpGiftItem } from './level-up-gifts.js';
 
 const CACHED_STATS = new Set(['damageMax', 'damageMin', 'damageMastery', 'accuracy', 'hitChancePct', 'playerDefence', 'bossMulti']);
 const START_ONLY = new Set(['state', 'initialBuffs', 'runtimeBuffs', 'initialCooldowns', 'initialHp', 'initialMp', 'savedCooldowns',
@@ -87,19 +88,9 @@ function _levelUpGift(sim, st) {
   const v = sim.inputs.values, rng = sim.rng;
   if (!(rng.randomFloat() < Number(v.levelUpGiftChance || 0))) return;
   const roll = rng.randomFloat();
-  let item;
-  if (st.level > 30 && roll < .0003) item = 'EquipmentHats21';
-  else if ((st.level < 20 && roll < .35) || roll < .32) item = 'PremiumGem';
-  else if (roll < .36) item = 'ExpBalloon1';
-  else if (roll < .4037) item = st.giftCount < 100
-    ? roll < .39 ? 'Timecandy1' : roll < .4 ? 'Timecandy2' : roll < .403 ? 'Timecandy3' : roll < .4035 ? 'Timecandy4' : 'Timecandy5'
-    : 'PremiumGem';
-  else if (roll < .6) item = 'EquipmentStatues' + rng.randomInt(1, 8);
-  else if (roll < .605 && Number(v.levelUpStampA23) === 0) item = 'StampA23';
-  else if (roll < .615 && st.giftCount < 100) item = 'StoneZ1';
-  else if (roll < .75) item = 'FoodPotYe' + Math.min(Math.ceil(st.level / 33), 3);
-  else if (roll < .753 && Number(v.levelUpStampC9) === 0) item = 'StampC9';
-  else item = 'Quest25';
+  let item = levelUpGiftItem(roll, { level: st.level, giftCount: st.giftCount,
+    stampA23: Number(v.levelUpStampA23), stampC9: Number(v.levelUpStampC9) });
+  if (item === 'EquipmentStatues') item += rng.randomInt(1, 8);
   if (sim.inputs.entries.levelUpGiftCount?.unavailable && !st.giftNotice) {
     st.giftNotice = true;
     sim.emit('unmodelled', { key: 'levelUpGiftCount', detail: 'The unsaved session gift counter starts at zero; candy/stone eligibility can differ from an existing game session.', t: sim.timeMs });

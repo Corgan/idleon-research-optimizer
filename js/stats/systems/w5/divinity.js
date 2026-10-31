@@ -1,12 +1,11 @@
 // ===== DIVINITY SYSTEM (W5) =====
 // God assignment / major bonus checks.
 
-import { divinityData, optionsListData, numCharacters, cauldronInfoData, cauldronBubblesData } from '../../../save/data.js';
+import { divinityData, optionsListData, numCharacters, skillLvData } from '../../../save/data.js';
 import { godsType } from '../../data/w4/gods.js';
 import { GodsInfo } from '../../data/game/customlists.js';
-import { bubbleParams } from '../../data/w2/alchemy.js';
-import { isBubblePrismad, getPrismaBonusMult } from '../w2/alchemy.js';
-import { formulaEval } from '../../../formulas.js';
+import { finalBubbleValByKey } from '../w2/alchemy.js';
+import { companions } from '../common/companions.js';
 import { treeResult } from '../../node.js';
 
 export function hasBonusMajor(playerIdx, godType, saveData) {
@@ -37,7 +36,7 @@ export function hasBonusMajor(playerIdx, godType, saveData) {
 // ==================== DIVINITY MINOR ====================
 // Divinity("Bonus_Minor", charIdx, style): divine bonus for given god style.
 
-export function computeDivinityMinor(ci, style, saveData) {
+export function computeDivinityMinor(ci, style, saveData, options = {}) {
   var s = saveData;
   var targetGod = -1;
   for (var g = 0; g < GodsInfo.length; g++) {
@@ -49,43 +48,47 @@ export function computeDivinityMinor(ci, style, saveData) {
     var st = Number(GodsInfo[godIdx] && GodsInfo[godIdx][13]);
     return Number(GodsInfo[st] && GodsInfo[st][3]) || 0;
   }
-  var _y2bp = bubbleParams(3, 21);
-  var y2Lv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
-  var y2Raw = (y2Lv > 0 && _y2bp) ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2Lv) : 0;
-  var y2Prisma = isBubblePrismad(3, 21) ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
-  var y2Value = y2Raw * y2Prisma;
-  var allBub = s.companionIds && s.companionIds.has(4);
+  if (options.tutorial) return treeResult(0);
+  var activeCharIdx = options.activeCharIdx ?? (ci >= 0 ? ci : 0);
+  var y2Value = options.alchBubbles
+    ? Number(options.alchBubbles.Y2ACTIVE) || 0
+    : Number(finalBubbleValByKey('Y2ACTIVE', activeCharIdx, saveData)) || 0;
   var coralKid3 = Math.round(Number(optionsListData && optionsListData[430]) || 0);
+  var universal = companions(0, s) === 1;
+  var pockets = [s.holesData?.[11]?.[29], s.holesData?.[11]?.[30]];
+  var pocket = pockets.some(god => god != null && Number(god) >= 0 && godsType(Number(god)) === style);
 
   function divMinorBonus(charIdx, godIdx) {
     var divLv = Number(s.lv0AllData && s.lv0AllData[charIdx] && s.lv0AllData[charIdx][14]) || 0;
     if (divLv <= 0) return { val: 0, children: null };
-    var y2Active = (allBub || (cauldronBubblesData && (cauldronBubblesData[charIdx] || []).includes('d21'))) ? y2Value : 0;
     var godBase = godBaseForIdx(godIdx);
-    var val = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (60 + divLv) * godBase;
+    var val = Math.max(1, y2Value) * ((1 + coralKid3 / 100) * divLv / (60 + divLv)) * godBase;
     return { val: val, children: [
       { name: 'Div Lv', val: divLv, fmt: 'raw' },
       { name: 'Lv Scale', val: divLv / (60 + divLv), fmt: 'raw', note: 'lv/(60+lv)' },
       { name: 'God Base', val: godBase, fmt: 'raw' },
-      { name: 'Y2 Bubble', val: Math.max(1, y2Active), fmt: 'x' },
+      { name: 'Logged-in Y2 Bubble', val: Math.max(1, y2Value), fmt: 'x' },
       { name: 'Coral Kid 3', val: 1 + coralKid3 / 100, fmt: 'x' },
     ] };
   }
 
-  if (style === 3 || style === 5) {
+  if (ci === -1) {
     var total = 0;
     var perCharChildren = [];
-    for (var c = 0; c < numCharacters; c++) {
-      var r = divMinorBonus(c, targetGod);
+    var allCharacters = (style === 3 || style === 5)
+      && (universal || pocket || Number(optionsListData[425]) === Math.round(style + 1));
+    for (var c = 0; c < Math.min(12, numCharacters); c++) {
+      var assigned = Number(divinityData[c + 12] ?? -1);
+      if (!allCharacters && (assigned < 0 || Number(GodsInfo[assigned]?.[13]) !== style)) continue;
+      var r = divMinorBonus(c, allCharacters ? targetGod : assigned);
       total += r.val;
       if (r.val > 0) perCharChildren.push({ name: 'Char ' + c, val: r.val, fmt: 'raw', children: r.children });
     }
     return treeResult(total, perCharChildren);
   }
   if (ci < 0) return treeResult(0);
-  // Universal condition: Companion(0) active → all gods' minor bonuses available
-  var hasUniversal = s.companionIds && s.companionIds.has(0);
-  if (hasUniversal) {
+  if (universal || pocket || (Number(s.gridLevels?.[173]) >= 1 && style === 2)
+    || (Number(s.gemItemsData?.[9]) === 1 && style === 0)) {
     var r = divMinorBonus(ci, targetGod);
     return treeResult(r.val, r.children);
   }
@@ -93,7 +96,13 @@ export function computeDivinityMinor(ci, style, saveData) {
   var linkedGod = _lgRaw != null ? Number(_lgRaw) : -1;
   if (linkedGod < 0) return treeResult(0);
   var linkedStyle = Number(GodsInfo[linkedGod] && GodsInfo[linkedGod][13]);
-  if (linkedStyle !== style) return treeResult(0);
+  if (linkedStyle !== style) {
+    var talent505 = Number(skillLvData?.[ci]?.[505]) || 0;
+    var extraGod = talent505 - 10 * Math.floor(talent505 / 10);
+    if (!(talent505 > 0 && Number(divinityData[25]) > extraGod
+      && Number(GodsInfo[extraGod]?.[13]) === style)) return treeResult(0);
+    linkedGod = extraGod;
+  }
   var r = divMinorBonus(ci, linkedGod);
   return treeResult(r.val, r.children);
 }
@@ -126,7 +135,7 @@ export function computeDivinityBless(blessIdx, saveData, inputs) {
       1,
       allEfficiencies
         + Math.pow((minEff + chopEff) / 100, 2)
-        + Math.pow((str + agi + wis) / 3, 0.5) / 7
+        + Math.pow((str + (agi + wis)) / 3, 0.5) / 7
     );
     var blessScale = Math.min(
       1.8,

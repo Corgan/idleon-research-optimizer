@@ -17,7 +17,7 @@ import { NjEQ } from '../../data/game/custommaps.js';
 import {
   nkBonus, charmStat, charmBonusType, isGoldCharm,
   funeralStealthBonus, parseTwinData, parseTwinEquip,
-  isTwinUntied,
+  isTwinUntied, nkUpgCost, itemFindExpected, NK_COUNT,
 } from './sneaking-math.js';
 import { farmRankUpgBonus } from './farmRank.js';
 import { computeCompassBonus } from '../../systems/w7/compass.js';
@@ -35,7 +35,7 @@ import { vaultUpgBonus } from '../common/vault.js';
 import { cloudBonus } from '../../../game-helpers.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 import { createStatContext } from '../../stat-context.js';
-import { maxTalentBonus } from '../common/talent.js';
+import { maxTalentBonus, talent } from '../common/talent.js';
 import { ZenithMarket } from '../../data/game/customlists.js';
 import { gambitPTSmulti } from '../w5/hole.js';
 import { getLOG } from '../../../formulas.js';
@@ -44,6 +44,34 @@ import { node } from '../../node.js';
 // ===== HELPERS =====
 
 function _num(v) { return Number(v) || 0; }
+
+export function sneakingUpgradeCost(S, index, activeCharIdx = 0) {
+  const levels = S.ninjaData?.[103];
+  if (!Number.isInteger(index) || index < 0 || index >= NK_COUNT || levels?.[index] == null
+      || !Number.isFinite(Number(levels[index])) || Number(levels[index]) < 0)
+    throw new Error('Saved Sneaking upgrade level is missing or invalid.');
+  const gold = goldInventoryBonuses(S.ninjaData, S.olaData || [], S.spelunkData || [], S, activeCharIdx);
+  return nkUpgCost(index, levels, {
+    omniLevels: S.menagerieData?.[7],
+    gemstone6: gemstoneBonus(6, S.olaData || [], S, activeCharIdx),
+    talent430: talent.resolve(430, createStatContext({ saveData: S, charIdx: activeCharIdx })).val,
+    ninjaBonus11: _num(gold[11]),
+    bubbleY10: Number(finalBubbleValByKey('Y10', activeCharIdx, S)),
+  });
+}
+
+export function sneakingBatchItemFind(S, twinIdx, successfulActions, activeCharIdx = 0) {
+  const phase = S.ninjaData?.[102]?.[10];
+  if (!Number.isInteger(twinIdx) || twinIdx < 0 || twinIdx >= 10
+      || !S.ninjaData?.[twinIdx]?.length || !Array.isArray(S.ninjaData?.[103]) || phase == null
+      || !Number.isFinite(Number(phase)) || Number(phase) < 0
+      || !Number.isFinite(successfulActions) || successfulActions <= 0)
+    throw new Error('Sneaking twin, item-find phase or successful-action batch is missing or invalid.');
+  const gold = goldInventoryBonuses(S.ninjaData, S.olaData || [], S.spelunkData || [], S, activeCharIdx);
+  const equipped = twinCharmBonuses(twinIdx, S.ninjaData, S.spelunkData || [], gold);
+  return itemFindExpected(S.ninjaData[103], _num(equipped[5]), successfulActions,
+    Number(finalBubbleValByKey('Y9ACTIVE', activeCharIdx, S)), Number(phase), S.menagerieData?.[7]);
+}
 
 // ----- NLbonuses(idx) = Ninja[103][idx] * NinjaUpg[idx][5] -----
 // Special cases for idx 6,7,10,12 add mastery component, but for stealth

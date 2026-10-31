@@ -2,8 +2,10 @@
 // Alchemy bubble bonuses and sigil bonuses.
 
 import { node, treeResult } from '../../node.js';
+import { formulaEvalDetail } from '../../../formula-details.js';
+import { formulaInput, formulaConstant, formulaOperation as op } from '../../formula-tree.js';
 import { label } from '../../entity-names.js';
-import { cauldronInfoData, optionsListData, charClassData, klaData } from '../../../save/data.js';
+import { cauldronInfoData, cauldronBubblesData, optionsListData, charClassData, klaData } from '../../../save/data.js';
 import { formulaEval, getLOG } from '../../../formulas.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { arcaneUpgBonus } from '../mc/tesseract.js';
@@ -17,6 +19,7 @@ import { companionBonusForSave } from '../../data/common/companions.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
 import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
 import { getSetBonus } from '../w3/setBonus.js';
+import { legendTalentPerPt } from '../../data/w7/legendTalent.js';
 
 export function sigilBonus(sigilIdx, saveData, charIdx) {
   var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
@@ -37,7 +40,8 @@ export function sigilBonus(sigilIdx, saveData, charIdx) {
   var meritocMulti = 1 + computeMeritocBonusz(21, saveData, charIdx) / 100;
   return base * artifactMulti * meritocMulti;
 }
-import { bubbleParams } from '../../data/w2/alchemy.js';
+import { bubbleParams, bubbleDefinitions, bubbleIngredients } from '../../data/w2/alchemy.js';
+import { achieveStatus } from '../common/achievement.js';
 import { companionBonus } from '../../data/common/companions.js';
 import { AlchemyDescription } from '../../data/game/customlists.js';
 import { mainframeBonus } from '../w4/lab.js';
@@ -53,6 +57,49 @@ var BIG_BUBBLE_MULTIPLIERS = [
   { key: 'MultiGr', indices: [0, 6, 9, 12, 14] },
   { key: 'MultiPu', indices: [0, 2, 6, 12, 14] },
 ];
+
+export function bubbleUpgradeCosts(saveData, charIdx = 0) {
+  const savedNumber = (raw, name) => {
+    if (raw == null || raw === '' || !Number.isFinite(Number(raw)) || Number(raw) < 0)
+      throw new Error(`${name} is missing or invalid.`);
+    return Number(raw);
+  };
+  const bargain = savedNumber(optionsListData[62], 'Bargain Tag level');
+  const bargainFactor = Math.max(.1, Math.pow(.75, bargain));
+  const achievementFactor = Math.max(.9, 1 - .1 * achieveStatus(108, saveData));
+  const bubble = key => Number(finalBubbleValByKey(key, charIdx, saveData));
+  const globalReduction = Math.max(.05,
+    1 - (Number(computeVialByKey('AlchBubbleCost', saveData, charIdx)) + bubble('BubbleCost')) / 100);
+  const colorReductions = ['BubbleCostOr', 'BubbleCostGr', 'BubbleCostPu', 'BubbleCostYe']
+    .map(key => Math.max(.05, 1 - bubble(key) / 100));
+  const brewReductions = new Map();
+  const results = [];
+  for (const definition of bubbleDefinitions()) {
+    const { cauldron, index } = definition;
+    const level = savedNumber(cauldronInfoData[cauldron]?.[index], 'Purchased bubble level');
+    if (level === 0) continue;
+    for (const ingredient of bubbleIngredients(cauldron, index)) {
+      let value;
+      if (ingredient.key.slice(0, -1) === 'Liquid') value = ingredient.base + Math.floor(level / 20);
+      else if (ingredient.key === 'Bits')
+        value = ingredient.base * Math.pow(2, level) * bargainFactor * achievementFactor;
+      else {
+        if (!brewReductions.has(cauldron)) {
+          const brewLevel = savedNumber(cauldronInfoData[8]?.[cauldron]?.[2]?.[1], 'Cauldron cost-reduction level');
+          const bonus = Math.round(10 * formulaEval('decay', 90, 100, brewLevel, 0, 0)) / 10;
+          brewReductions.set(cauldron, Math.max(.1, 1 - bonus / 100));
+        }
+        value = ingredient.base * Math.pow(index > 14
+          ? 1.37 - .28 * level / (60 + level) : 1.35 - .3 * level / (50 + level), level);
+        value *= colorReductions[cauldron];
+        value = value * brewReductions.get(cauldron) * globalReduction * bargainFactor * achievementFactor;
+        value = Math.round(Math.max(1, Math.min(1e9, value)));
+      }
+      results.push({ ...definition, ingredient: ingredient.key, slot: ingredient.slot, value });
+    }
+  }
+  return results;
+}
 
 // Game: OptionsListAccount[384] encodes prisma'd bubbles as e.g. "d1,d5,a3,"
 // Check: does the string contain letter + bubbleIndex + ","
@@ -77,7 +124,7 @@ export function isBubbleKeyPrismad(key) {
 
 // PrismaBonusMult: Math.min(5, 2 + (ArcaneUpg(45) + Arcade(54) + HaveW6Trophy + Palette(28)
 //   + 0.2*TotalPurpleSigils + ExoticBonusQTY(48) + LegendPTS(36) + 50*Companions(88)) / 100)
-function getPrismaBonusMult(saveData) {
+function getPrismaBonusMult(saveData, options) {
   var arcane45 = arcaneUpgBonus(45, saveData);     // flat index → raw level value
   var arcade54 = arcadeBonus(54, saveData);
   // HaveW6Trophy: Cards[1] contains "Trophy23" → 10, else 0
@@ -104,10 +151,64 @@ function getPrismaBonusMult(saveData) {
   var sushiRoG23 = rogBonusQTY(23, saveData.cachedUniqueSushi || 0);
   var sum = arcane45 + arcade54 + sushiRoG23 + jellyRewardBonus(saveData, 36) + hasW6Trophy + palette28
     + 0.2 * purpleSigils + exotic48 + legend36 + 50 * comp88;
+  if (options?.formulaDetails) {
+    const terms = [
+      formulaInput(label('Arcane', 45), arcane45),
+      { ...arcadeBonus(54, saveData, options), name: label('Arcade', 54), formulaTerm: true },
+      formulaInput(label('RoG', 23), sushiRoG23),
+      formulaInput('Jelly Reward 36', jellyRewardBonus(saveData, 36)),
+      { name: 'W6 Trophy', val: hasW6Trophy, kind: 'formula', formulaTerm: true,
+        formula: 'Trophy23 discovered ? 10 : 0',
+        children: [{ ...formulaInput('Discovered items', JSON.stringify(cards1), 'Cards[1]'), nonNumeric: true }] },
+      { ...palette.resolve(28, { saveData, formulaDetails: true }), formulaTerm: true },
+      op('Purple Sigil contribution', 'multiply', formulaConstant(0.2),
+        { name: 'Purple Sigil count', val: purpleSigils, kind: 'formula', formulaTerm: true,
+          formula: 'Count the 24 saved Sigil levels >= 3',
+          children: Array.from({ length: 24 }, (_, i) =>
+            formulaInput('Sigil ' + (i + 1), sigArr?.[1 + 2 * i], 'CauldronP2W[4][' + (1 + 2 * i) + ']')) }),
+      { ...(exLv > 0 ? formulaEvalDetail('decay', ex48.base, ex48.denom, exLv, {
+        x1: formulaInput('First coefficient', ex48.base),
+        x2: formulaInput('Second coefficient', ex48.denom),
+        lv: formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']'),
+      }) : { val: 0, kind: 'formula', formula: 'Exotic level <= 0: return 0',
+        children: [formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']')] }),
+        name: label('Exotic', 48), formulaTerm: true },
+      { ...op(label('Legend', 36), 'round',
+        op('Points times bonus', 'multiply',
+          formulaInput('Invested points', saveData.spelunkData?.[18]?.[36] || 0, 'Spelunk[18][36]'),
+          formulaInput('Bonus per point', legendTalentPerPt(36), 'LegendTalents[36][2]'))),
+        formulaTerm: true },
+      op(label('Companion', 88), 'multiply', formulaConstant(50), formulaInput('Effective companion bonus', comp88)),
+    ];
+    const additive = terms.slice(1).reduce((a, b) => op('Prisma bonuses', 'add', a, b), terms[0]);
+    const detail = op('Prisma Bonus', 'min', formulaConstant(5, 'Prisma cap'),
+      op('Prisma multiplier', 'add', formulaConstant(2),
+        op('Percent to fraction', 'divide', additive, formulaConstant(100))));
+    return Object.assign(treeResult(detail.val, detail.children), detail, { formulaTerm: true });
+  }
   return Math.min(5, 2 + sum / 100);
 }
 
 export { isBubblePrismad, getPrismaBonusMult };
+
+function _bubbleFormula(cauldron, index, formula, x1, x2, lv, saveData) {
+  const level = formulaInput('Purchased bubble level', lv, 'CauldronInfo[' + cauldron + '][' + index + ']');
+  if (lv <= 0) return {
+    name: 'Unpurchased bubble', val: 0, kind: 'formula',
+    formula: 'Purchased level <= 0: return 0', children: [level],
+  };
+  const base = formulaEvalDetail(formula, x1, x2, lv, {
+    x1: formulaInput('First coefficient', x1, 'AlchemyDescription[' + cauldron + '][' + index + '][1]'),
+    x2: formulaInput('Second coefficient', x2, 'AlchemyDescription[' + cauldron + '][' + index + '][2]'),
+    lv: level,
+  });
+  const prisma = isBubblePrismad(cauldron, index)
+    ? op('Applied Prisma multiplier', 'max', formulaConstant(1), getPrismaBonusMult(saveData, { formulaDetails: true }))
+    : { name: 'Prisma inactive', val: 1, kind: 'formula', formulaTerm: true,
+      formula: 'This bubble is not in the saved Prisma list: multiplier = 1',
+      children: [{ ...formulaInput('Prisma bubble list', String(optionsListData?.[384] || ''), 'OptionsListAccount[384]'), nonNumeric: true }] };
+  return op('Base bubble bonus', 'multiply', { ...base, formulaTerm: true }, prisma);
+}
 
 // Compute the Y13 bubble bonus (CODFREY_RULZ_OK, Kazam index 32) for GalleryBonusMulti.
 // Game: AlchBubbles.Y13 = CauldronStats("BubbleBonus", 3, 32, 0)
@@ -126,12 +227,16 @@ export function bubbleBonusY13(saveData) {
 export var alchemy = {
   resolve: function(id, ctx) {
     var saveData = ctx.saveData;
-    var bk = BUBBLE_KEYS[id];
+    var bk = Array.isArray(id) ? { cauldron: id[0], index: id[1] } : BUBBLE_KEYS[id];
     if (!bk) return node(label('Bubble', id), 0, null, { note: 'bubble ' + id });
     var bubbleId = [bk.cauldron, bk.index];
     var data = bubbleParams(bk.cauldron, bk.index);
     if (!data) return node(label('Bubble', bubbleId), 0, null, { note: 'bubble ' + id });
     var lv = Number((cauldronInfoData && cauldronInfoData[data.cauldron] && cauldronInfoData[data.cauldron][data.index]) || 0);
+    if (ctx.formulaDetails) return {
+      ..._bubbleFormula(data.cauldron, data.index, data.formula, data.x1, data.x2, lv, saveData),
+      name: label('Bubble', bubbleId), formulaTerm: true,
+    };
     if (lv <= 0) return node(label('Bubble', bubbleId), 0, null, { note: 'bubble ' + id });
     var baseVal = formulaEval(data.formula, data.x1, data.x2, lv);
     var isPrisma = isBubblePrismad(data.cauldron, data.index);
@@ -139,7 +244,11 @@ export var alchemy = {
     var val = baseVal * prismaMult;
     var children = [
       node('Bubble Level', lv, null, { fmt: 'raw' }),
-      node('Base Value', baseVal, null, { fmt: 'raw' }),
+      ctx.formulaDetails ? formulaEvalDetail(data.formula, data.x1, data.x2, lv, {
+        x1: formulaInput('First coefficient', data.x1, 'AlchemyDescription[' + data.cauldron + '][' + data.index + '][1]'),
+        x2: formulaInput('Second coefficient', data.x2, 'AlchemyDescription[' + data.cauldron + '][' + data.index + '][2]'),
+        lv: formulaInput('Purchased bubble level', lv, 'CauldronInfo[' + data.cauldron + '][' + data.index + ']'),
+      }) : node('Base Value', baseVal, null, { fmt: 'raw' }),
     ];
     if (isPrisma) {
       // Build prisma sub-breakdown
@@ -223,12 +332,23 @@ export function bubbleValByKey(key, charIdx, saveData, cacheInputs) {
     for (var i = 0; i < arr.length; i++) {
       if (arr[i] && arr[i][15] === key) {
         var lv = Number((cauldronInfoData && cauldronInfoData[c2] && cauldronInfoData[c2][i]) || 0);
-        if (lv <= 0) return treeResult(0, null);
+        const detailed = !!cacheInputs?.formulaDetails;
+        if (lv <= 0) {
+          if (detailed) {
+            const detail = _bubbleFormula(c2, i, arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv, saveData);
+            return Object.assign(treeResult(0, detail.children), detail);
+          }
+          return treeResult(0, null);
+        }
+        if (key.includes('ACTIVE') && companionBonusForSave(4, saveData) !== 1
+          && !(cauldronBubblesData?.[charIdx] || []).includes(N2L[c2] + i))
+          return treeResult(0, [node('Big bubble is not equipped', 0, null, { fmt: 'raw' })]);
         var baseVal = formulaEval(arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv);
         var children = [node('Level', lv, null, { fmt: 'raw' }), node('Base', baseVal, null, { fmt: 'raw' })];
         var isPrisma = isBubblePrismad(c2, i);
         var prismaMult = isPrisma ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
         var val = baseVal * prismaMult;
+        let detail = detailed ? _bubbleFormula(c2, i, arr[i][3], Number(arr[i][1]), Number(arr[i][2]), lv, saveData) : null;
         if (isPrisma) children.push(node('Prisma', prismaMult, null, { fmt: 'x' }));
         var hasDynamicInput = key === 'MinEff'
           ? cacheInputs && cacheInputs.playerHPmax != null
@@ -238,32 +358,47 @@ export function bubbleValByKey(key, charIdx, saveData, cacheInputs) {
           : 1;
         if (hasDynamicInput) {
           val *= dynamicMult;
+          if (detail) detail = op('Dynamically scaled bubble', 'multiply', detail,
+            formulaInput(key === 'MinEff' ? 'Max HP scaling' : 'Max MP scaling', dynamicMult));
           children.push(node(key === 'MinEff' ? 'Max HP scaling' : 'Max MP scaling', dynamicMult, null, { fmt: 'x' }));
         }
         var cls = Number(charClassData && charClassData[charIdx]) || 0;
         if (!(cacheInputs && cacheInputs.skipClassPass) && cls > 6 && i !== 16 && i < 30 && i > 0 &&
             key.indexOf('passz') < 0 && key.indexOf('ACTIVE') < 0 && key.indexOf('AllCharz') < 0) {
           if (c2 === 0 && cls < 18 && key !== 'Construction') {
-            var _pm = Math.max(1, bubbleValByKey('Opassz', charIdx, saveData));
+            var pass = bubbleValByKey('Opassz', charIdx, saveData, detailed ? { formulaDetails: true } : undefined);
+            var _pm = Math.max(1, pass);
             val *= _pm;
+            if (detail) detail = op('Class-scaled bubble', 'multiply', detail,
+              op('Orange class multiplier', 'max', formulaConstant(1), { ...pass, formulaTerm: true }));
             if (_pm > 1) children.push(node('Opassz', _pm, null, { fmt: 'x' }));
           } else if (c2 === 1 && cls >= 18 && cls < 30) {
-            var _pm = Math.max(1, bubbleValByKey('Gpassz', charIdx, saveData));
+            var pass = bubbleValByKey('Gpassz', charIdx, saveData, detailed ? { formulaDetails: true } : undefined);
+            var _pm = Math.max(1, pass);
             val *= _pm;
+            if (detail) detail = op('Class-scaled bubble', 'multiply', detail,
+              op('Green class multiplier', 'max', formulaConstant(1), { ...pass, formulaTerm: true }));
             if (_pm > 1) children.push(node('Gpassz', _pm, null, { fmt: 'x' }));
           } else if (c2 === 2 && cls >= 30 && cls < 42) {
-            var _pm = Math.max(1, bubbleValByKey('Ppassz', charIdx, saveData));
+            var pass = bubbleValByKey('Ppassz', charIdx, saveData, detailed ? { formulaDetails: true } : undefined);
+            var _pm = Math.max(1, pass);
             val *= _pm;
+            if (detail) detail = op('Class-scaled bubble', 'multiply', detail,
+              op('Purple class multiplier', 'max', formulaConstant(1), { ...pass, formulaTerm: true }));
             if (_pm > 1) children.push(node('Ppassz', _pm, null, { fmt: 'x' }));
           }
         }
         var bigBubble = BIG_BUBBLE_MULTIPLIERS[c2];
         if (!(cacheInputs && cacheInputs.skipBigBubble) && bigBubble
           && bigBubble.indices.indexOf(i) !== -1 && key !== bigBubble.key) {
-          var bigMult = Math.max(1, bubbleValByKey(bigBubble.key, charIdx, saveData));
+          var big = bubbleValByKey(bigBubble.key, charIdx, saveData, detailed ? { formulaDetails: true } : undefined);
+          var bigMult = Math.max(1, big);
           val *= bigMult;
+          if (detail) detail = op('Big Bubble multiplier', 'multiply', detail,
+            op('Big Bubble multiplier', 'max', formulaConstant(1), { ...big, formulaTerm: true }));
           if (bigMult > 1) children.push(node(bigBubble.key, bigMult, null, { fmt: 'x' }));
         }
+        if (detail) return Object.assign(treeResult(val, detail.children), detail);
         return treeResult(val, children);
       }
     }
@@ -374,7 +509,7 @@ export function finalBubbleValByKey(key, charIdx, saveData, cacheInputs) {
 // ==================== VIAL BY KEY ====================
 // Sum of all vials matching effect key, with lab/rift/vault/meritoc multipliers.
 
-export function computeVialByKey(effectKey, saveData, charIdx) {
+export function computeVialByKey(effectKey, saveData, charIdx, options) {
   var vials = AlchemyDescription[4];
   if (!vials) return treeResult(0);
   var total = 0;
@@ -382,7 +517,14 @@ export function computeVialByKey(effectKey, saveData, charIdx) {
   for (var vi = 0; vi < vials.length; vi++) {
     if (!vials[vi] || vials[vi][11] !== effectKey) continue;
     var vialLv = Number((cauldronInfoData && cauldronInfoData[4] && cauldronInfoData[4][vi]) || 0);
-    if (vialLv <= 0) continue;
+    if (vialLv <= 0) {
+      if (options?.formulaDetails) children.push({
+        name: label('Vial', vi), val: 0, kind: 'formula', formulaTerm: true,
+        formula: 'Vial level <= 0: return 0',
+        children: [formulaInput('Purchased vial level', vialLv, 'CauldronInfo[4][' + vi + ']')],
+      });
+      continue;
+    }
     var rawVal = formulaEval(vials[vi][3], Number(vials[vi][1]) || 0, Number(vials[vi][2]) || 0, vialLv);
     var labMult = mainframeBonus(10, saveData) === 2 ? 2 : 1;
     var riftActive = Number(saveData.riftData && saveData.riftData[0]) > 34;
@@ -391,8 +533,36 @@ export function computeVialByKey(effectKey, saveData, charIdx) {
     var meritoc20 = computeMeritocBonusz(20, saveData, charIdx) || 0;
     var contrib = labMult * (1 + dNzz / 100) * (1 + meritoc20 / 100) * rawVal;
     total += contrib;
+    if (options?.formulaDetails) {
+      const base = formulaEvalDetail(vials[vi][3], Number(vials[vi][1]) || 0, Number(vials[vi][2]) || 0, vialLv, {
+        x1: formulaInput('First coefficient', Number(vials[vi][1]) || 0, 'AlchemyDescription[4][' + vi + '][1]'),
+        x2: formulaInput('Second coefficient', Number(vials[vi][2]) || 0, 'AlchemyDescription[4][' + vi + '][2]'),
+        lv: formulaInput('Purchased vial level', vialLv, 'CauldronInfo[4][' + vi + ']'),
+      });
+      const rift = {
+        name: 'Rift vial bonus', val: riftActive ? 2 * maxLvVials : 0, kind: 'formula', formulaTerm: true,
+        formula: 'Rift level > 34 ? 2 * count(vial levels >= 13) : 0',
+        children: [formulaInput('Rift level', saveData.riftData?.[0], 'Rift[0]'),
+          ...Object.keys(cauldronInfoData?.[4] || {}).filter(key => /^\d+$/.test(key)).map(key =>
+            formulaInput(label('Vial', Number(key), ' level'), cauldronInfoData[4][key], 'CauldronInfo[4][' + key + ']'))],
+      };
+      children.push({
+        ...op(label('Vial', vi), 'multiply',
+          op('Vial multipliers', 'multiply',
+            op('Lab and Rift multipliers', 'multiply', formulaInput('Lab Multi', labMult),
+              op('Rift and Vault Multi', 'add', formulaConstant(1),
+                op('Percent to fraction', 'divide',
+                  op('Rift and Vault bonuses', 'add', rift, formulaInput(label('Vault', 42), vaultUpgBonus(42, saveData) || 0)),
+                  formulaConstant(100)))),
+            op('Meritoc Multi', 'add', formulaConstant(1),
+              op('Percent to fraction', 'divide', formulaInput(label('Meritoc', 20), meritoc20), formulaConstant(100)))),
+          { ...base, name: 'Base vial bonus', formulaTerm: true }),
+        formulaTerm: true,
+      });
+      continue;
+    }
     children.push({
-      name: (vials[vi][0] || 'Vial ' + vi), val: contrib, fmt: 'raw',
+      name: label('Vial', vi), val: contrib, fmt: 'raw',
       children: [
         { name: 'Raw (lv=' + vialLv + ')', val: rawVal, fmt: 'raw' },
         { name: 'Lab Multi', val: labMult, fmt: 'x' },
@@ -401,14 +571,19 @@ export function computeVialByKey(effectKey, saveData, charIdx) {
       ],
     });
   }
+  if (options?.formulaDetails) {
+    const detail = children.reduce((sum, term) => op('Vial bonuses', 'add', sum, term), formulaConstant(0));
+    return Object.assign(treeResult(total, detail.children), detail);
+  }
   return treeResult(total, children);
 }
 
 export var vial = {
   resolve: function(effectKey, ctx) {
-    var result = computeVialByKey(effectKey, ctx.saveData, ctx.charIdx);
+    var result = computeVialByKey(effectKey, ctx.saveData, ctx.charIdx, { formulaDetails: ctx.formulaDetails });
     var val = Number(result) || 0;
-    var name = effectKey === '7drMulto' ? 'Vial: Ship in a Bottle' : 'Vial: ' + effectKey;
+    var name = label('Vial', effectKey);
+    if (ctx.formulaDetails) return { ...result, name, formulaTerm: true };
     return node(name, val, result.children || null, { fmt: '+' });
   },
 };

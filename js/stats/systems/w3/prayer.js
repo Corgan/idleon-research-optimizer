@@ -6,10 +6,42 @@ import { label } from '../../entity-names.js';
 import { prayersPerCharData } from '../../../save/data.js';
 import { prayerBaseBonus } from '../../data/w3/prayer.js';
 import { superBitType } from '../../../game-helpers.js';
+import { formulaInput as input, formulaConstant as constant, formulaOperation as op } from '../../formula-tree.js';
 
 var PRAYER_DATA = {
   7: { baseBonus: prayerBaseBonus(7) },
 };
+
+function _prayerDetail(result, prayerIdx, costIdx, ci, saveData) {
+  const level = input('Prayer Level', result.prayerLv, 'PrayOwned[' + prayerIdx + ']');
+  const equipped = {
+    ...input('Equipped prayers', (prayersPerCharData[ci] || []).join(', '), 'Prayers_' + ci),
+    nonNumeric: true,
+  };
+  if (result.prayerLv <= 0 || (!result.isEquipped && result.passivePct <= 0)) return {
+    name: label('Prayer', prayerIdx), val: 0, kind: 'formula', formulaTerm: true,
+    formula: result.prayerLv <= 0 ? 'Prayer level <= 0: return 0' : 'Neither equipped nor passive: return 0',
+    children: [level, equipped],
+  };
+  const scale = op('Level scaling', 'max', constant(1), op('Level scaling', 'add', constant(1),
+    op('Additional level scaling', 'divide', op('Levels after first', 'subtract', level, constant(1)), constant(10))));
+  const base = input('Base Bonus', result.base, 'PrayerInfo[' + prayerIdx + '][' + (costIdx === 1 ? 4 : 3) + ']');
+  let amount = op('Prayer amount', 'multiply', base, scale);
+  if (!result.isEquipped) {
+    const bits = result.superBits.map((val, i) => ({
+      name: label('Super Bit', [9, 39, 53][i]), val, kind: 'formula', formulaTerm: true,
+      formula: 'Saved Super Bit unlock owned ? 1 : 0',
+      children: [{ ...input('Saved Super Bit unlocks', saveData.gamingData?.[12], 'Gaming[12]'), nonNumeric: true }],
+    }));
+    const passive = op('No-Prayer Passive', 'multiply', constant(0.2),
+      op('Unlocked passive bonuses', 'add', op('Unlocked passive bonuses', 'add', bits[0], bits[1]), bits[2]));
+    amount = op('Passive prayer amount', 'multiply', op('Passive base', 'multiply', passive, base), scale);
+  }
+  return {
+    ...op(label('Prayer', prayerIdx), 'round', amount), formulaTerm: true,
+    note: result.isEquipped ? 'Equipped on this character.' : 'No prayers equipped; passive Super Bit conditions met.',
+  };
+}
 
 function prayerValue(prayerIdx, costIdx, charIdx, saveData) {
   var prayerLv = Number(saveData.prayOwnedData && saveData.prayOwnedData[prayerIdx]) || 0;
@@ -48,6 +80,7 @@ export var prayer = {
     if (!data) return node(label('Prayer', id), 0);
     var name = label('Prayer', id);
     var result = prayerValue(id, 0, ctx.charIdx, ctx.saveData);
+    if (ctx.formulaDetails) return _prayerDetail(result, id, 0, ctx.charIdx, ctx.saveData);
     var stateChildren = [
       node('Prayer Level', result.prayerLv, null, { fmt: 'raw' }),
       node('Base Bonus', data.baseBonus, null, { fmt: 'raw' }),
@@ -70,8 +103,12 @@ export var prayer = {
 
 // ==================== PRAYER REAL (save-based aggregation) ====================
 
-export function computePrayerReal(prayerIdx, costIdx, ci, saveData) {
+export function computePrayerReal(prayerIdx, costIdx, ci, saveData, options) {
   var result = prayerValue(prayerIdx, costIdx, ci, saveData);
+  if (options?.formulaDetails) {
+    const detail = _prayerDetail(result, prayerIdx, costIdx, ci, saveData);
+    return Object.assign(treeResult(result.val, detail.children), detail);
+  }
   return treeResult(result.val, [
     { name: 'Base Bonus', val: result.base, fmt: 'raw' },
     { name: 'Prayer Level', val: result.prayerLv, fmt: 'raw' },

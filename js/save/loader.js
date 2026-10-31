@@ -33,6 +33,15 @@ function parseRoyalArray(save, key) {
   return result;
 }
 
+function parseAnvilArray(value) {
+  if (Array.isArray(value)) return value.map(parseAnvilArray);
+  if (value && typeof value === 'object' && Number.isInteger(value.length)
+      && value.length >= 0 && value.length <= 1024
+      && Object.keys(value).every(key => key === 'length' || /^\d+$/.test(key)))
+    return Array.from({ length: value.length }, (_, index) => parseAnvilArray(value[index]));
+  return value;
+}
+
 function parseItemPair(save, orderKey, quantityKey) {
   const orderRaw = parseSaveKey(save, orderKey);
   const quantityRaw = parseSaveKey(save, quantityKey);
@@ -164,6 +173,7 @@ export function loadSaveData(raw) {
   assignState({ achieveRegData: parseSaveKey(save, 'AchieveReg') || [] });
   assignState({ bribeStatusData: parseSaveKey(save, 'BribeStatus') || [] });
   assignState({ cauldronP2WData: parseSaveKey(save, 'CauldronP2W') || [] });
+  assignState({ cauldronJobsData: parseSaveKey(save, 'CauldronJobs') || [] });
   assignSaveData({ tasksW7Data: parseSaveKey(save, 'TaskZZ5') || [] });
   const tasksGlobal = [];
   for (let tz = 0; tz <= 5; tz++) tasksGlobal.push(parseSaveKey(save, 'TaskZZ' + tz) || []);
@@ -182,7 +192,7 @@ export function loadSaveData(raw) {
 
   let inferredChars = 0;
   for (const key of Object.keys(save)) {
-    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign|PVFishingToolkit|FoodSlO|AttackLoadout|MaxCarryCap|InventoryOrder|ItemQTY)_(\d+)$/.exec(key);
+    const match = /^(?:Lv0|Exp0|CharacterClass|SL|SM|PlayerStuff|PVtStarSign|PVFishingToolkit|PVStatList|FoodSlO|AttackLoadout|MaxCarryCap|InventoryOrder|ItemQTY|AnvilPAstats|AnvilPA|AnvilPAselect)_(\d+)$/.exec(key);
     if (match) inferredChars = Math.max(inferredChars, Number(match[1]) + 1);
   }
   const loadedNames = Array.isArray(raw.charNames) ? raw.charNames : [];
@@ -191,7 +201,9 @@ export function loadSaveData(raw) {
   assignState({ charNames: loadedNames });
 
   // Per-character data
-  const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], statueLvAll = [];
+  const lv0All = [], exp0All = [], charClass = [], skillLv = [], skillLvMax = [], playerStuff = [], statueLvAll = [], anvilPAStats = [];
+  const statLists = [];
+  const anvilPA = [], anvilPASelect = [];
   for (let ci = 0; ci < nChars; ci++) {
     lv0All.push(parseSaveKey(save, 'Lv0_' + ci) || []);
     exp0All.push(parseSaveKey(save, 'Exp0_' + ci) || []);
@@ -200,6 +212,10 @@ export function loadSaveData(raw) {
     skillLvMax.push(parseSaveKey(save, 'SM_' + ci) || {});
     playerStuff.push(parseSaveKey(save, 'PlayerStuff_' + ci) || []);
     statueLvAll.push(parseSaveKey(save, 'StatueLevels_' + ci) || []);
+    anvilPAStats.push(parseSaveKey(save, 'AnvilPAstats_' + ci) || []);
+    anvilPA.push(parseAnvilArray(parseSaveKey(save, 'AnvilPA_' + ci)));
+    anvilPASelect.push(parseAnvilArray(parseSaveKey(save, 'AnvilPAselect_' + ci)));
+    statLists.push(parseSaveKey(save, 'PVStatList_' + ci) || []);
   }
   // Statue levels: each char's array is [[level, exp], [level, exp], ...]. Extract level-only flat array from char 0.
   const statueLevels = (statueLvAll[0] || []).map(s => Number(Array.isArray(s) ? s[0] : s) || 0);
@@ -210,6 +226,9 @@ export function loadSaveData(raw) {
   assignState({ statueGData: Array.isArray(stuGRaw) ? stuGRaw : (typeof stuGRaw === 'string' ? JSON.parse(stuGRaw) : []) });
   assignState({ lv0AllData: lv0All });
   assignState({ exp0AllData: exp0All });
+  assignState({ anvilPAStatsData: anvilPAStats });
+  assignState({ anvilPAData: anvilPA, anvilPASelectData: anvilPASelect });
+  assignState({ statListData: statLists });
   assignState({ cyTalentPointsData: parseSaveKey(save, 'CYTalentPoints') || [] });
   assignSaveData({ charClassData: charClass });
   assignSaveData({ skillLvData: skillLv });

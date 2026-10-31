@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Prisma Calculator</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text2:#c0c0d4;--gold:#ffd700;--green:#4caf50;--blue:#2196f3;--purple:#bb86fc;--cyan:#4dd0e1;--red:#f44}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+h1{margin:0;padding:14px;text-align:center;background:var(--bg2);border-bottom:2px solid var(--accent);font-size:1.4rem}h1 span{color:var(--accent)}
+main{max-width:1100px;margin:auto;padding:16px}.section{padding:16px;border-radius:8px;background:var(--bg2)}
+.toolbar,.tabs{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}.toolbar label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--text2)}
+main input,main select,main button{font:inherit;color:var(--text);background:var(--bg);border:1px solid #57617a;border-radius:5px;min-height:38px;padding:7px 10px;max-width:100%}
+main button{cursor:pointer}main button:disabled{opacity:.5;cursor:default}main :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.tabs{border-bottom:1px solid #49506a;gap:4px}.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;flex:1}
+.tabs button[aria-pressed=true]{color:var(--gold);border-bottom-color:var(--accent);background:var(--bg3)}
+#run{background:var(--accent);border:0}#status{min-height:24px;margin:8px 0}.muted{color:var(--text2)}.error{color:#ff9292}.positive{color:#89df9b}.negative{color:#ff9292}
+#summary{color:var(--gold);margin:12px 0}.note{font-size:.85rem;line-height:1.5;color:var(--text2)}progress{width:100%;height:9px;accent-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:.9rem;table-layout:fixed}th{text-align:left;color:var(--text2);padding:8px;border-bottom:1px solid #48516a}th:first-child{width:30%}
+td{vertical-align:top;padding:10px 8px;border-bottom:1px solid #ffffff0c;overflow-wrap:anywhere}tbody>tr:hover{background:#ffffff04}
+.bubble-name{font-weight:600}.bubble-level{color:var(--text2);font-size:.8rem;margin-top:3px}.outcome{display:inline-block;margin:0 12px 4px 0}.outcome[tabindex]{cursor:help;border-bottom:1px dotted #8890a0}
+summary{cursor:pointer}.results-detail{padding-top:10px}.result-line{display:flex;gap:8px;justify-content:space-between;padding:5px 0}.result-line>span:last-child{text-align:right}
+.exact{font-variant-numeric:tabular-nums;color:var(--text2)}.partial{color:var(--gold);font-size:.8rem}#coverage{margin-top:16px}#coverage-body{max-height:300px;overflow:auto;padding-top:8px}
+#tooltip{position:fixed;z-index:10000;max-width:min(420px,calc(100vw - 20px));white-space:pre-wrap;padding:10px 12px;border:1px solid #66738d;border-radius:6px;background:#10172b;color:var(--text);font-size:.85rem;pointer-events:none}
+[hidden]{display:none!important}
+@media(max-width:600px){main{padding:8px}.section{padding:10px}.toolbar label{flex:1 1 140px;min-width:0}.toolbar select,.toolbar input{width:100%}th:first-child{width:36%}td,th{padding:8px 4px}.outcome{display:block;margin-right:0}.result-line{display:block}.result-line>span{display:block}.result-line>span:last-child{text-align:left}}
+</style>
+</head>
+<body>
+<script type="module" src="./js/ui/site-nav.js"></script>
+<h1><span>Idleon</span> Prisma Calculator</h1>
+<div id="save-area"></div>
+<main>
+<section class="section">
+<div class="toolbar">
+<label>Character<select id="character" disabled></select></label>
+<label>AFK claim hours<input id="afk-hours" type="number" min="0.034" max="55555" step="any" value="1"></label>
+<label>Rank by<select id="metric"><option value="">Bubble order</option></select></label>
+<label>Filter bubbles<input id="search" type="search" placeholder="Name or changed outcome"></label>
+<button id="run" disabled>Recalculate</button><button id="cancel" disabled>Cancel</button>
+</div>
+<div class="tabs" aria-label="Cauldron">
+<button data-cauldron="0" aria-pressed="true">Power</button>
+<button data-cauldron="1" aria-pressed="false">Quicc</button>
+<button data-cauldron="2" aria-pressed="false">High IQ</button>
+<button data-cauldron="3" aria-pressed="false">Kazam</button>
+</div>
+<p id="summary">Load a save to compare Prisma outcomes.</p>
+<p id="stale" class="partial" hidden>Save refreshed. These comparisons retain their captured save; Recalculate uses the new save.</p>
+<p id="status" role="status" aria-live="polite"></p>
+<progress id="progress" value="0" max="1" hidden></progress>
+<table aria-label="Prisma outcomes"><thead><tr><th>Bubble</th><th>Outcome</th></tr></thead><tbody id="rows"></tbody></table>
+<p class="note">Unowned Prisma rows compare current save &rarr; with Prisma. Already-Prisma rows show the benefit retained: without that one Prisma &rarr; current save. Bubble levels, other Prisma flags and every other input stay unchanged. Adding Prisma costs 10 fragments; previews never spend fragments or change your save. Gains are independent, not additive.</p>
+<details id="coverage"><summary>Measured totals &amp; calculation scope</summary>
+<p class="note">Uses shared stat models for the selected character, saved map, equipment and buffs, plus Farming, Fishing, Sneaking, Sailing routes, Anvil potential, assigned Alchemy brewing/liquids/EXP, Sigil speed, Summoning essence, Gaming logbook, bubble/atom costs and purchase-roll distributions, library/cog/egg timing, single-egg normal/shiny hatch chances, new-trap placement and saved-trap collection rewards, Cooking recipe fire and one manual discovery after the entered hours, statue retention and static Spelunking inputs and exit-count probabilities. Mining, Chopping, Catching and Fishing include independent resource/location claims, one-pass food depletion/refill, cards and rare-drop distributions, accepted EXP and supported general AFK effects. Gathering retains refreshed entry skill caches rather than phase-integrating food-dependent yields. Conditional main-resource pickups add Motherlode, Hive, Evertree and credited Trench fish to their saved layer counters without automatically clearing layers or awarding opals. Fishing pool-card bonuses and rare-table rewards are separate generated outputs before presentation/pickup caps; later positive same-key bonuses overwrite earlier successes, while later zero rolls retain them. Missing rare-drop inputs do not suppress known food, accepted EXP or cavern pickup results. Finite combat AFK claims include food depletion/refill, native batch loot distributions, expected accepted EXP and Sailing/Gaming bonus-time credit. Clamworks separately measures initial payout and the keep-Pure/reroll-misses policy using settled pearl tables; discarded rerolls are never added to the payout. Queued time is not completed account production; ordinary rerolls and inventory pickup limits are excluded. Divinity free cost is independent of success; repeated offering expectations hold the saved choice and rank fixed. Other layouts and assignments stay fixed; potential rates do not simulate storage filling or progression. Existing traps retain their stored values. Route estimates exclude shared chest-pile evolution. Form-drop quantities assume fresh-map counters, not rewards per hour. Processed bubble bonuses are separate intermediates, never extra final outcomes. Completion scope is current-state formulas and explicitly defined one-action outcomes, not ongoing whole-game progression, automatic spending or talent allocation. Numerical coverage is not certified: ordinary retained pickup and other one-action gaps remain, and source-to-output reconciliation is unfinished. Traced cache/display references are not additional final outcomes or proof of completeness. No measured change does not mean no effect. Only the chosen metric determines ranking.</p>
+<p class="note">Anvil also compares one native production batch after the entered hours of credited time, using saved hammer assignments, progress and shared product capacity. New items and Smithing EXP are stored in the Anvil, not collected or awarded. Full products stop production. Automatic deposits, interleaved collections and level/cache changes remain excluded.</p>
+<p class="note">Motherlode, Hive and Evertree separately show layer progress if every main-resource drop from the claim is picked. These resources bypass inventory capacity and can exceed the current layer requirement; clearing the layer and awarding its opal require a separate action and are not assumed.</p>
+<div id="coverage-body"></div></details>
+<p class="note">Breeding includes saved-egg sequences with Keep successes and Trash all side by side, advancing normal discoveries within one world. Expected gains cover at most 64 hatches with native refills; unfinished probability is a diagnostic, not a reward. The separate use-all action consumes at most 100 saved front eggs for DNA and EXP without discovery or refill. Incubation compares map-entry and settled online catch-up separately, using banked egg time plus the entered hours of credited time without hatching. Their time thresholds and rarity odds differ. Exact nest distributions cover at most 256 cycles; remaining time is not extrapolated and state-limit failures stay visible. A separate use-all-after-incubation comparison evaluates every possible nest before averaging consumed eggs, DNA and EXP. Missing DNA inputs do not suppress known hatch counts or EXP; missing achievement/Legend data discloses neutral assumptions. Timed incubation/hatch interleaving, level settlement, deployment, achievements and cache-refresh consequences remain unmodeled.</p>
+<p class="note">Talent outcomes include all five Class point pools and Star points before spending, including the special fifth-pool class formulas. Missing extra-pool inputs do not suppress the first four pools. Point allocation and resulting talent-level changes are not simulated. Next-Class-level gift distributions explicitly assume either a fresh session or the 100-gift limit. Level Up Gift itself cannot receive Prisma; no effect is inferred merely because a formula is listed.</p>
+</section>
+</main>
+<div id="tooltip" role="tooltip" hidden></div>
+<script type="module" src="./js/ui/prisma.js"></script>
+</body>
+</html>

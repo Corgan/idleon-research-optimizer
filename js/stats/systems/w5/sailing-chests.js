@@ -684,7 +684,8 @@ function _artifactTierUnlocked(currentTier, saveData) {
 
 export function artifactOddsDenominator(islandIdx, artifactIdx, currentTier, serverVars) {
   serverVars = serverVars || {};
-  var ancientStep = _num(serverVars.AncientOddPerIsland) || 960;
+  var ancientStep = serverVars.AncientOddPerIsland == null
+    ? 960 : _num(serverVars.AncientOddPerIsland);
   var ancientPct = _num(serverVars.AncientArtiPCT);
   var serverMulti = 1 + ancientPct / 100;
   if (currentTier === 0) return artifactBaseOdds(artifactIdx);
@@ -786,6 +787,7 @@ export function islandArtifactOdds(islandIdx, artifactMultiplier, saveData, opti
   var offset = islandArtifactOffset(islandIdx);
   var count = islandArtifactCount(islandIdx);
   var fail = 1;
+  var partial = false;
   var artifacts = [];
   for (var i = 0; i < count; i++) {
     var artifactIdx = offset + i;
@@ -795,14 +797,38 @@ export function islandArtifactOdds(islandIdx, artifactMultiplier, saveData, opti
     var denominator = unlocked
       ? artifactOddsDenominator(islandIdx, artifactIdx, currentTier, options.serverVars)
       : Infinity;
-    var chance = isFinite(denominator) ? Math.min(1, artifactMultiplier / denominator) : 0;
+    const serverDependent = currentTier > 0 && currentTier < 7
+      && islandIdx >= [Infinity, 3, 3, 5, 6, 6, 6][currentTier];
+    if (unlocked && serverDependent && ['AncientOddPerIsland', 'AncientArtiPCT'].some(key =>
+      options.serverVars?.[key] == null || options.serverVars[key] === ''
+      || !Number.isFinite(Number(options.serverVars[key])))) partial = true;
+    var chance = isFinite(denominator) ? Math.max(0, Math.min(1, artifactMultiplier / denominator)) : 0;
     var exactChance = fail * chance;
     artifacts.push({ artifactIdx: artifactIdx, name: artifactName(artifactIdx), currentTier: currentTier,
       nextTier: currentTier + 1, unlocked: unlocked, denominator: denominator,
-      rawChance: chance, exactChance: exactChance });
+      rawChance: chance, exactChance: exactChance, partial: unlocked && partial });
     fail *= 1 - chance;
   }
-  return { anyChance: 1 - fail, artifacts: artifacts };
+  return { anyChance: 1 - fail, artifacts: artifacts, partial,
+    reason: partial ? 'Ancient artifact server variables are missing or invalid; denominator defaults are estimates.' : '' };
+}
+
+export function sailingChestArtifactOutcome(saveData, options) {
+  const chest = saveData.sailChestsData?.[0];
+  if (!Array.isArray(chest)) throw new Error('No saved front Sailing chest is available.');
+  const island = chest[1], multiplier = chest[2];
+  if (island == null || island === '' || !Number.isInteger(Number(island))
+    || Number(island) < 0 || Number(island) >= islandCount()
+    || multiplier == null || multiplier === '' || !Number.isFinite(Number(multiplier)) || Number(multiplier) < 0)
+    throw new Error('Saved Sailing chest artifact inputs are invalid.');
+  const offset = islandArtifactOffset(Number(island)), count = islandArtifactCount(Number(island));
+  for (let index = offset; index < offset + count; index++) {
+    const tier = saveData.sailingData?.[3]?.[index];
+    if (tier == null || tier === '' || !Number.isInteger(Number(tier)) || Number(tier) < 0 || Number(tier) > 7)
+      throw new Error('Saved artifact tier is missing or invalid.');
+  }
+  const odds = islandArtifactOdds(Number(island), Number(multiplier), saveData, options);
+  return { ...odds, noArtifactChance: 1 - odds.anyChance, islandIdx: Number(island), multiplier: Number(multiplier) };
 }
 
 export function maxChestSlots(saveData, activeCharIdx) {
@@ -837,6 +863,7 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
   var chestValuePerTrip = 0;
   var treasurePerTrip = 0;
   var artifactChancePerTrip = 0;
+  var artifactOutcomes = new Map();
   var tierRows = [];
 
   for (var t = 0; t < distribution.tiers.length; t++) {
@@ -851,6 +878,12 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
       chestValuePerTrip += tier.probability * chestValue;
       treasurePerTrip += tier.probability * chestValue * rolls;
       artifactChancePerTrip += tier.probability * artifact.anyChance;
+      for (const row of artifact.artifacts) {
+        const existing = artifactOutcomes.get(row.artifactIdx) || { artifactIdx: row.artifactIdx,
+          name: row.name, nextTier: row.nextTier, chancePerTrip: 0 };
+        existing.chancePerTrip += tier.probability * row.exactChance;
+        artifactOutcomes.set(row.artifactIdx, existing);
+      }
     }
     tierRows.push(Object.assign({}, tier, { kept: kept, chestValue: chestValue, rolls: rolls,
       treasureValue: chestValue * rolls, artifactMultiplier: artifactMultiplier,
@@ -873,6 +906,7 @@ export function routeMetrics(boatIdx, islandIdx, saveData, options) {
     treasurePerHour: trips * treasurePerTrip,
     artifactChancePerTrip: artifactChancePerTrip,
     artifactFindsPerHour: trips * artifactChancePerTrip,
+    artifactOutcomes: [...artifactOutcomes.values()].map(row => ({ ...row, findsPerHour: trips * row.chancePerTrip })),
     treasureShares: { gold: goldShare, primary: primaryShare, rare: rareShare },
     captainExpPerHour: trips * captainExpPerTrip(islandIdx, saveData, options.activeCharIdx),
   };

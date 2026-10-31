@@ -9,7 +9,8 @@ import { GRIMOIRE_NO_MULTI } from '../../data/game-constants.js';
 export function grimoireUpgBonus(idx, grimoireGameData, saveData) {
   var level = Number(saveData.grimoireData[idx]) || 0;
   if (level <= 0) return 0;
-  var perLv = (grimoireGameData && grimoireGameData[idx] && grimoireGameData[idx][5]) || 0;
+  var perLv = grimoireGameData ? (grimoireGameData[idx] && grimoireGameData[idx][5]) || 0
+    : grimoireUpgPerLevel(idx);
   if (GRIMOIRE_NO_MULTI.has(idx)) return level * perLv;
   var multi36 = grimoireUpgBonus(36, grimoireGameData, saveData);
   return level * perLv * (1 + multi36 / 100);

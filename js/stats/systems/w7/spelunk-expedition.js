@@ -3,7 +3,7 @@ import { SPELUNK_SPRITES } from '../../data/game/spelunk-sprites.js';
 import { getLOG } from '../../../formulas.js';
 
 const _lengths = [4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 11];
-export const SPELUNK_POLICIES = ['auto', 'dive', 'efficient', 'clear'];
+export const SPELUNK_POLICIES = ['auto', 'dive', 'efficient', 'clear-fifth', 'clear', 'amber-farm'];
 export const SPELUNK_REWARDS = ['Amber', 'Prisma Bubbles', 'Exalted Stamp Fragments',
   'Snail Mail', 'Blinding Lanterns', 'Sigil Syrup', 'Spirit Offerings', 'Strange Gold Pieces',
   'Rockenstone', 'Sheetmetal', 'Popcorn', 'Pillario'];
@@ -151,9 +151,17 @@ export function normalizeSpelunkConfig(input, requested = {}) {
   if (tool !== 'adaptive' && !input.tools.some(t => t.id === tool)) throw new Error('This tool is locked.');
   const entry = requested.entry ?? 'shortcut';
   if (!['surface', 'shortcut'].includes(entry)) throw new Error('Invalid entry.');
-  const fullClear = requested.fullClear ?? input.fullClear;
+  const fullClear = policy === 'amber-farm' ? true : requested.fullClear ?? input.fullClear;
   if (typeof fullClear !== 'boolean') throw new Error('Invalid full-clear setting.');
+  const amber = policy === 'amber-farm' ? {
+    dumpDepth: _integer(requested.amber?.dumpDepth ?? 20, 1, 10000, 'Amber dump depth'),
+    finishers: _integer(requested.amber?.finishers ?? 1, 1, 2, 'Amber finishing characters'),
+    reservePct: _integer(requested.amber?.reservePct ?? 100, 25, 100, 'Amber finishing reserve'),
+    harvestDepths: _integer(requested.amber?.harvestDepths ?? 3, 0, 100, 'Amber harvest depths'),
+    ropeReservePct: _integer(requested.amber?.ropeReservePct ?? 25, 1, 100, 'Amber rope reserve'),
+  } : null;
   return { cave, party, manic, policy, speed, elixirs, memorized, tool, entry, fullClear,
+    ...(amber ? { amber } : {}),
     reactionMs: _positive(requested.reactionMs ?? 350, 100, 5000, 'manual reaction time'),
     stamina: requested.stamina === 'full' ? 'full' : requested.stamina == null || requested.stamina === 'saved' ? 'saved' : (() => { throw new Error('Invalid starting stamina.'); })(),
   };
@@ -188,6 +196,28 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   let grandCount = input.grands[cave.id] || 0, exalt = 0, prisma = 0, bossCharged = false;
   let bossDefeated = Boolean(input.bosses?.[cave.id]);
   let lastAction = null, nextFrame = 0, replayDirty = false, grossRewards = null, eventCount = 0, exit = null;
+  const amber = config.amber ? { phase: 'buildup', transitions: [], activations: [],
+    dumpSpent: 0, dumpDigs: 0, activationDepth: null } : null;
+  const finishingParty = config.amber ? config.party.slice(-config.amber.finishers) : [];
+  function amberPhase(phase, reason) {
+    if (amber.phase === phase) return;
+    amber.phase = phase;
+    const change = { phase, reason, depth: depth + 1, spent, time: time / 100 };
+    amber.transitions.push(change); record('amber-phase', change);
+  }
+  function atAmberReserve() {
+    const index = config.party.indexOf(active), first = config.party.indexOf(finishingParty[0]);
+    return index > first || index === first && stamina[active] <= start[active] * config.amber.reservePct / 100;
+  }
+  function tryAmberRope() {
+    if (!amber || !['harvest', 'rope-search'].includes(amber.phase)) return false;
+    const remaining = config.party.reduce((sum, id) => sum + stamina[id], 0);
+    const reserve = finishingParty.reduce((sum, id) => sum + start[id], 0) * config.amber.ropeReservePct / 100;
+    if (depth + 1 >= amber.activationDepth + config.amber.harvestDepths || remaining <= reserve)
+      amberPhase('rope-search', remaining <= reserve ? 'Low finishing stamina' : 'Harvest depth target reached');
+    if (amber.phase !== 'rope-search' || !rocks.some(r => r.type === -2)) return false;
+    settle('rope'); return true;
+  }
 
   function replayEvent(type, detail = {}) {
     if (!options.replay) return;
@@ -412,7 +442,10 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
     if (random.next() >= input.nonconsume) charges[slot]--;
     if (random.next() < shop[39] / 100) nova();
     if ([0, 2, 4, 9].includes(id)) effects[id] = 1;
-    else if (id === 3) effects[3] += spent;
+    else if (id === 3) {
+      effects[3] = Math.round(effects[3] + spent);
+      if (amber) amber.activations.push({ depth: depth + 1, spent, effect: effects[3], time: time / 100, slot });
+    }
     else if (id === 5) effects[5] += 2;
     else if ([6, 7, 10].includes(id)) effects[id]++;
     else if (id === 8) nova();
@@ -431,12 +464,15 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   let radar = null;
   function chooseElixir() {
     const manual = config.policy !== 'auto';
+    if (amber) for (let slot = 0; slot < charges.length; slot++)
+      if (config.elixirs[slot] === 6 && useElixir(slot)) return true;
     for (let slot = 0; slot < charges.length; slot++) {
       const id = config.elixirs[slot];
       if (id < 0 || charges[slot] <= 0 || ready[slot] !== 0) continue;
       let use = id === 0 && !effects[0] || id === 2 && !effects[2] || [6, 7].includes(id);
       if (id === 1 && flags[1]) { use = true; flags[1] = 0; }
-      if (id === 3) use = spent > .6 * config.party.reduce((sum, _, i) => sum + input.characters[i].max, 0);
+      if (id === 3) use = amber ? ['activate', 'harvest', 'rope-search'].includes(amber.phase)
+        : spent > .6 * config.party.reduce((sum, _, i) => sum + input.characters[i].max, 0);
       if (id === 4) use = flags[4] === 1
         && (!effects[4] || 5 / (1 + input.elixirs[4].quantity / 100) ** (effects[4] - 1) < 1);
       if (id === 5 && flags[5]) { use = true; flags[5] = 0; }
@@ -499,9 +535,18 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   }
   function settle(reason) {
     status = reason;
-    if (reason !== 'exhausted') return;
+    if (!['exhausted', 'rope'].includes(reason)) return;
     settled = true;
     grossRewards = [...rewards];
+    if (reason === 'rope') {
+      exit = { type: 'rope', retained: 1, amberMultiplier: 1 + shop[22] / 100, items: [] };
+      for (const i of rewardOrder) {
+        if (i === 0) rewards[i] *= exit.amberMultiplier;
+        exit.items.push({ reward: i, gross: grossRewards[i], expected: rewards[i], chance: null,
+          roundedUp: null, collected: rewards[i] });
+      }
+      record(reason); return;
+    }
     exit = { type: 'toll', retained: 1 - shop[19] / 100, items: [] };
     for (const i of rewardOrder) {
       rewards[i] *= 1 - shop[19] / 100;
@@ -515,9 +560,22 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
   }
   function decision() {
     const manual = config.policy !== 'auto';
-    if (chooseElixir()) { countdown = manual ? -36 + Math.ceil(config.reactionMs / 10) : -15; return; }
     const live = rocks.filter(r => r.type >= 0);
-    const clear = manual ? config.policy === 'clear' : config.fullClear;
+    if (amber) {
+      if (['buildup', 'dump'].includes(amber.phase) && atAmberReserve()) {
+        amber.activationDepth = depth + 1;
+        amberPhase('activate', 'Finishing stamina reserve reached');
+      }
+      if (tryAmberRope()) return;
+    }
+    if (chooseElixir()) { countdown = manual ? -36 + Math.ceil(config.reactionMs / 10) : -15; return; }
+    if (amber?.phase === 'activate') {
+      if (config.elixirs.some((id, slot) => id === 3 && charges[slot] > 0 && ready[slot] !== 0)) return;
+      amberPhase('harvest', 'Available oranges consumed after stamina burn');
+      if (tryAmberRope()) return;
+    }
+    const clear = manual ? config.policy === 'clear' || Boolean(amber)
+      || config.policy === 'clear-fifth' && (depth + 1) % 5 === 0 : config.fullClear;
     const grand = pending.some(p => p.type === 'grand');
     if (manual && found && !grand && (!clear || !live.length)) { descend(); return; }
     if (!manual && found && !clear) { if (!grand) descend(); return; }
@@ -529,6 +587,50 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
     const tools = manual ? input.tools.filter(t => (config.tool === 'adaptive' || t.id === config.tool)
       && (input.overuse || t.id === 0 || Math.ceil(stamina[active]) >= t.cost * costMulti())) : [input.tools.find(t => t.id === toolId)];
     if (manual && !tools.length) tools.push(input.tools[0]);
+    const harvesting = amber && ['harvest', 'rope-search'].includes(amber.phase);
+    const remaining = harvesting ? config.party.reduce((sum, id) => sum + stamina[id], 0) : 0;
+    const canHarvest = (r, tool) => {
+      const ratio = power() / r.requirement, chance = Math.min(1, ratio ** .6);
+      const damage = spelunkHitDamage(input, tool.damage, ratio);
+      const net = tool.cost * costMulti() * (effects[0] ? 1 - input.elixirs[2].quantity / 100 : 1);
+      return chance > 0 && damage > 0 && Math.ceil(r.hp / damage) / chance * Math.max(0, net) <= remaining;
+    };
+    const reachableLoot = harvesting && tools.some(tool => live.some(r => canHarvest(r, tool)));
+    if (harvesting && found && !grand && !reachableLoot) { descend(); return; }
+    if (amber && ['buildup', 'dump'].includes(amber.phase) && active === finishingParty[0]) {
+      const available = stamina[active] - start[active] * config.amber.reservePct / 100;
+      const netCost = tool => tool.cost * costMulti() * (effects[0] ? 1 - input.elixirs[2].quantity / 100 : 1);
+      for (let i = tools.length - 1; i >= 0; i--) if (netCost(tools[i]) > available) tools.splice(i, 1);
+      if (!tools.length) {
+        amber.activationDepth = depth + 1;
+        amberPhase('activate', 'Next dig would consume finishing reserve');
+        return;
+      }
+    }
+    if (amber && ['buildup', 'dump'].includes(amber.phase) && depth + 1 >= config.amber.dumpDepth) {
+      let dump = null;
+      for (const tool of tools) for (const r of live) {
+        const chance = Math.min(1, (power() / r.requirement) ** .6);
+        const cost = tool.cost * costMulti(), refund = effects[0] ? cost * input.elixirs[2].quantity / 100 : 0;
+        const net = Math.min(stamina[active], Math.max(0, cost - refund));
+        if (!net || chance * spelunkHitDamage(input, tool.damage, power() / r.requirement)
+          * stamina[active] / net >= r.hp) continue;
+        const p = position(r), x = p.x, y = p.y - p.h / 2;
+        const damage = live.filter(other => within(other, x, y, tool.radius)).reduce((sum, other) =>
+          sum + Math.min(1, (power() / other.requirement) ** .6)
+            * Math.min(1, spelunkHitDamage(input, tool.damage, power() / other.requirement) / other.hp), 0);
+        const score = damage / net;
+        if (!dump || score < dump.score || score === dump.score && net > dump.net) dump = { x, y, tool, score, net };
+      }
+      if (dump) {
+        amberPhase('dump', 'Burn on visible objects unlikely to break with this character');
+        replayManualTool = dump.tool.id;
+        const before = spent;
+        dig(dump.x, dump.y, dump.tool);
+        amber.dumpSpent += spent - before; amber.dumpDigs++;
+        countdown = -36 + Math.ceil(config.reactionMs / 10); return;
+      }
+    }
     for (const tool of tools) {
       const points = manual ? live.map(r => { const p = position(r); return [p.x, p.y - p.h / 2]; })
         : Array.from({ length: 25 }, () => { const g = _grid(random.int(0, 143)); return [g[0] + random.int(-20, 20), g[1] + random.int(-20, 20)]; });
@@ -537,8 +639,9 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
         for (const r of live) if (within(r, x, y, tool.radius)) {
           count++;
           const chance = Math.min(1, (power() / r.requirement) ** .6);
-          const damage = tool.damage * (1 + shop[33] / 100);
-          score += config.policy === 'dive'
+          const damage = harvesting ? spelunkHitDamage(input, tool.damage, power() / r.requirement) : tool.damage * (1 + shop[33] / 100);
+          score += harvesting ? (reachableLoot && !canHarvest(r, tool) ? 0 : chance * Math.min(1, damage / r.hp))
+            : config.policy === 'dive'
             ? chance * (Number(damage >= r.hp) + .05 * Math.min(1, damage / r.hp))
             : Math.min(r.hp, damage) * chance;
         }
@@ -568,7 +671,7 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
         alpha: r.leaveAt != null ? _tween(1, 0, (time - r.leaveAt) * 10, 300, t => t)
           : r.type === -1 ? 1 : r.riseAt == null ? 0 : _tween(0, 1, (time - r.riseAt) * 10, 300, t => t),
         ...position(r) })),
-      radar: radar && { ...radar } };
+      radar: radar && { ...radar }, ...(amber ? { amberPhase: amber.phase } : {}) };
   }
   function capture() {
     if (!options.replay) return;
@@ -654,6 +757,8 @@ export function createSpelunkExpedition(input, requested = {}, options = {}) {
         actions, spent, hits, misses, broken, rewards: [...rewards], grossRewards: [...(grossRewards || rewards)],
         rewardState: settled ? 'collected' : 'uncollected',
         exit: exit && { ...exit, items: exit.items.map(item => ({ ...item })) },
+        ...(amber ? { amber: { ...amber, transitions: amber.transitions.map(t => ({ ...t })),
+          activations: amber.activations.map(a => ({ ...a })) } } : {}),
         stamina: config.party.map(id => ({ id, start: start[id], end: stamina[id], max: input.characters[id].max })),
         diagnostics: {
           members, resistStall: members.some(c => c.resistStall),

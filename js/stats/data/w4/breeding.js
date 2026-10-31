@@ -14,6 +14,14 @@ export const PET_NAMES = _PetStats.map(world =>
   world.map(p => (MONSTERS[p[0]] ? MONSTERS[p[0]].Name : p[0]).replace(/_/g, ' '))
 );
 
+export const PET_BREED_ODDS = _PetStats.map(world =>
+  world.map(p => Math.max(1, Number(RANDOlist[54][Number(p[5])]))));
+
+export const BREEDING_WORLDS = _PetStats.flatMap((world, index) =>
+  world.some(p => p[0] !== '_' && Number.isFinite(Number(p[5]))) ? [index] : []);
+
+export const BREEDING_WORLD_UNLOCK_PET = [4, 6, 8, 8];
+
 // [world][pet] = shinyTypeIdx
 export const PET_SHINY_TYPE = _PetStats.map(world =>
   world.map(p => Number(p[5]))

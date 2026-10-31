@@ -5,7 +5,9 @@ const N = x => Number(x) || 0;
 
 // AFKfoodsTimeRedux builds deadlines once, sorts at most 20 entries, and
 // refills each processed slot only once. It does not repeatedly consume refills.
-export function combatAfkFood(seconds, inputs, evaluate) {
+export function combatAfkFood(seconds, inputs, evaluate, { skill = 'Fighting' } = {}) {
+  if (!['Fighting', 'Mining', 'Fishing', 'Choppin', 'Catching'].includes(skill))
+    throw new Error('Unsupported AFK food activity: ' + skill);
   const order = inputs.foodSlots.order.slice(), qty = inputs.foodSlots.qty.slice();
   const storage = { ...inputs.foodStorage }, initialQty = qty.slice(), events = [], phases = [];
   const initial = evaluate(order, qty), deadlines = [];
@@ -13,11 +15,15 @@ export function combatAfkFood(seconds, inputs, evaluate) {
     const item = ITEMS[order[slot]];
     if (!item) continue;
     const trigger = N(item.Trigger);
-    if (trigger === -1 || trigger === -2) {
+    if (skill === 'Fighting' && (trigger === -1 || trigger === -2)) {
       const consumption = Math.max(N(item.Cooldown) / 100 * ((100 - N(inputs.foodNotConsume)) / 100), 0.001);
       const time = 3600 / Math.max(initial.rawKillsPerHour, 1) * (1 / consumption) * N(qty[slot]);
       if (time > 0) deadlines.push({ time, slot, used: -1 });
-    } else if (trigger > 0) {
+    } else if (trigger === ({ Mining: -4, Fishing: -5, Choppin: -6, Catching: -8 }[skill])) {
+      const consumption = Math.max(N(item.Cooldown) / 100 * ((100 - N(inputs.foodNotConsume)) / 100), 0.001);
+      const time = (initial.speed + .4) * (1 / consumption) * N(qty[slot]);
+      if (time > 0) deadlines.push({ time, slot, used: -1 });
+    } else if (skill === 'Fighting' && trigger > 0) {
       // The source resets this damage budget for each health slot.
       const damage = seconds * initial.monsterDamage * initial.incomingAttacksPerHour / 3600;
       if (damage > 0) {

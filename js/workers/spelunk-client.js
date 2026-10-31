@@ -2,11 +2,11 @@
 export function startSpelunkWorkers(message, {
   onMessage, onError,
   concurrency = Math.min(4, Math.max(1, globalThis.navigator?.hardwareConcurrency || 2)),
-  workerFactory = () => new Worker(new URL('./spelunk-worker.js?v=depth-limits-1', import.meta.url), { type: 'module' }),
+  workerFactory = () => new Worker(new URL('./spelunk-worker.js?v=amber-search-2', import.meta.url), { type: 'module' }),
 }) {
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4)
     throw new Error('Use one to four expedition workers.');
-  const count = ['compare', 'optimize'].includes(message.type) ? concurrency : 1;
+  const count = ['compare', 'caves', 'optimize'].includes(message.type) ? concurrency : 1;
   const slots = [];
   let stopped = false, ready = 0, batch = null;
   const terminate = () => {

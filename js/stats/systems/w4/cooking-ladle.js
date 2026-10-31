@@ -14,7 +14,7 @@ import { achieveStatus } from '../common/achievement.js';
 import { vaultUpgBonus } from '../common/vault.js';
 import { computeCardLv } from '../common/cards.js';
 import { computeStarSignBonus } from '../common/starSign.js';
-import { bubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
+import { bubbleValByKey, finalBubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { votingBonusz } from '../w2/voting.js';
 import { computeMSABonus } from './gaming.js';
@@ -33,6 +33,7 @@ import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
 import { GRIMOIRE_NO_MULTI } from '../../data/game-constants.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
 import { CLASS_TREES } from '../../data/common/talent.js';
+import { cookingSpiceRecipes, cookingRecipeRollChance } from '../../data/w4/cooking.js';
 import { MealINFO, AtomInfo, MapAFKtarget, MapDetails } from '../../data/game/customlists.js';
 import { MONSTERS } from '../../data/game/monsters.js';
 import { ITEMS } from '../../data/game/items.js';
@@ -483,6 +484,113 @@ function _levelSum(levels) {
   var total = 0;
   for (var i = 0; i < levels.length; i++) total += levels[i];
   return Math.max(0, total);
+}
+
+export function cookingRecipeDiscovery(S, kitchen, charIdx = 0, hours = 0) {
+  if (!Number.isFinite(hours) || hours < 0)
+    throw new Error('Recipe projection hours must be finite and nonnegative.');
+  const row = S.cookingData?.[kitchen], spices = cookingSpiceRecipes();
+  if (!Number.isInteger(kitchen) || kitchen < 0 || !Array.isArray(row) || Number(row[0]) === 0)
+    throw new Error('Choose an unlocked saved kitchen.');
+  for (const index of [0, 2, 3, 4, 5, 8, 10]) {
+    if (row[index] == null || String(row[index]).trim() === '' || !Number.isFinite(Number(row[index])))
+      throw new Error('Saved recipe ingredients, luck or fire progress are missing or invalid.');
+  }
+  if (Number(row[8]) < 0 || Number(row[10]) < 0)
+    throw new Error('Saved recipe luck or fire progress is invalid.');
+  const candidates = [];
+  let sum = 0, count = 0;
+  for (let index = 2; index < 6; index++) {
+    const spice = Number(row[index]);
+    if (!Number.isInteger(spice) || spice < -1 || spice >= spices.length)
+      throw new Error('Saved recipe ingredient is invalid.');
+    sum += Math.max(0, spice);
+    if (spice !== -1) { count++; candidates.push(spices[spice]); }
+  }
+  if (!count) throw new Error('Choose at least one saved recipe ingredient.');
+  const center = sum < 71 ? Math.min(55, sum) : sum < 87
+    ? Math.min(65, Math.round(sum - 14)) : Math.round(sum - 22);
+  if (center > .5) for (let index = 0; index < Math.min(count, 3); index++) {
+    const meal = Math.round(Math.min(73, Math.max(0, center + (index - Math.floor((Math.min(count, 3) - 1) / 2)))));
+    if (!candidates.includes(meal) && !spices.includes(meal)) candidates.push(meal);
+  }
+  // Native minimum-selection sorting retains a 99999 sentinel after duplicate candidates.
+  const recipes = [];
+  for (let index = 0; index < candidates.length; index++) {
+    let minimum = 99999;
+    for (const meal of candidates)
+      if (meal < minimum && !recipes.includes(meal)) minimum = meal;
+    recipes.push(minimum);
+  }
+  if (recipes.some(meal => meal === 99999 || S.mealsData?.[0]?.[meal] == null
+    || String(S.mealsData[0][meal]).trim() === '' || !Number.isFinite(Number(S.mealsData[0][meal]))))
+    throw new Error('Native recipe candidates or their saved meal levels are unavailable.');
+  const highest = recipes.at(-1);
+  const fireRequirement = 2 * mealRequirement(Math.min(66, highest)) * Math.pow(25, Math.max(0, highest - 66));
+  const firePerHour = cookingRecipeFire(S, kitchen, charIdx);
+  const fire = Number(row[10]) + firePerHour * hours;
+  if (![fireRequirement, firePerHour, fire].every(Number.isFinite) || fireRequirement <= 0 || firePerHour < 0)
+    throw new Error('Cooking recipe projection is not representable.');
+  function levelAt(progress) {
+    let level = 0, requirement = fireRequirement;
+    while (level < 100 && progress >= requirement) { requirement *= 3; level++; }
+    return level;
+  }
+  const startFireLevel = levelAt(Number(row[10])), fireLevel = levelAt(fire);
+  let nextRequirement = fireRequirement;
+  for (let level = 0; level < fireLevel; level++) nextRequirement *= 3;
+  const luck = 1 + Math.pow(5 * Number(row[8]), .85) / 100;
+  const outcomes = [];
+  let noRecipeChance = 1, newRecipeChance = 0;
+  for (let slot = recipes.length - 1; slot >= 0; slot--) {
+    const meal = recipes[slot], newRecipe = Number(S.mealsData[0][meal]) <= 0;
+    const rawChance = newRecipe ? cookingRecipeRollChance(slot) * luck * Math.pow(1.5, fireLevel)
+      : cookingRecipeRollChance(slot);
+    const probability = fireLevel >= 1 ? Math.max(0, Math.min(1, rawChance)) : 0;
+    const chance = noRecipeChance * probability;
+    outcomes.push({ meal, chance, newRecipe });
+    if (newRecipe) newRecipeChance += chance;
+    noRecipeChance *= 1 - probability;
+  }
+  return { recipes, firePerHour, fireRequirement, startFireLevel, fireLevel, fire,
+    nextLevelHours: firePerHour > 0 ? Math.max(0, nextRequirement - fire) / firePerHour : null,
+    newRecipeChance, noRecipeChance, outcomes };
+}
+
+export function cookingRecipeFire(S, kitchen, charIdx = 0) {
+  const row = S.cookingData?.[kitchen];
+  if (!Number.isInteger(kitchen) || kitchen < 0 || !row)
+    throw new Error('Choose a saved kitchen.');
+  for (const index of [0, 6, 7, 8]) {
+    if (row[index] == null || row[index] === '' || !Number.isFinite(Number(row[index])) || Number(row[index]) < 0)
+      throw new Error('Saved kitchen state or upgrade levels are missing or invalid.');
+  }
+  if (Number(row[0]) === 0) return 0;
+  if (!Array.isArray(S.mealsData?.[0]) || S.atomsData?.[8] == null)
+    throw new Error('Saved meal levels or Cooking atom level are missing.');
+  if (S.atomsData[8] === '' || !Number.isFinite(Number(S.atomsData[8])) || Number(S.atomsData[8]) < 0)
+    throw new Error('Saved Cooking atom level is invalid.');
+  const ctx = createStatContext({ saveData: S, charIdx });
+  let vote = 0;
+  if (S.activeVoteIdx === 13) {
+    const multiplier = ctx.resolve('voting-multi');
+    if (multiplier.unavailable) throw new Error(multiplier.reason || 'Vote multiplier is unavailable.');
+    vote = votingBonusz(13, multiplier.val, S);
+  }
+  const atom = Math.pow(1 + Number(S.atomsData[8]) * Number(AtomInfo[8][4]) / 100,
+    _countAtLeast(S.mealsData[0], 30));
+  return 5 * (1 + (Number(S.gemItemsData?.[120]) > kitchen ? 1 : 0))
+    * (1 + vote / 100)
+    * Math.max(1, Number(finalBubbleValByKey('MealSpdz', charIdx, S)))
+    * Math.max(1, atom)
+    * (1 + computeMSABonus(1, S) / 100)
+    * (1 + Number(row[7]) / 10)
+    * (1 + Number(computeVialByKey('RecCook', S, charIdx)) / 100)
+    * (1 + computeStampBonusOfTypeX('RecipeCook', S) / 100)
+    * (1 + computeMealBonus('Rcook', S, charIdx) / 100)
+    * (1 + Math.min(6 * computeCardLv('Boss4A', S), 50) / 100)
+    * (1 + computeMealBonus('KitchenEff', S, charIdx)
+      * Math.floor((Number(row[6]) + (Number(row[7]) + Number(row[8]))) / 10) / 100);
 }
 
 // Builds every save-backed CookingSPEED input once so meal-level changes can be re-evaluated cheaply.

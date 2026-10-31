@@ -1,0 +1,328 @@
+import { initSaveLoader } from './save-loader.js';
+import { prismaPlan, prismaOutcome } from '../stats/prisma.js';
+import { fmtVal } from '../renderers/format.js';
+
+const $ = id => document.getElementById(id);
+const esc = value => String(value).replace(/[&<>"']/g, char =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const exact = value => Number(value).toLocaleString('en-US', { maximumSignificantDigits: 17 });
+const number = value => value == null ? 'Unavailable' : value !== 0 && Math.abs(value) < .001
+  ? value.toExponential(3) : fmtVal(value);
+const signed = value => (value > 0 ? '+' : '') + number(value);
+const cache = new Map(), expanded = new Set();
+let raw, latestRaw, charIdx = 0, cauldron = 0, worker, request = 0, active, stale = false;
+let tooltipTarget;
+let rankMetricIds = new Set();
+const key = () => charIdx + ':' + cauldron + ':' + Number($('afk-hours').value);
+const current = () => cache.get(key());
+
+function deltaText(change) {
+  if (change.absolute || change.percent === null) return signed(change.delta) + ' ' + change.name;
+  const percent = change.percent;
+  return (percent > 0 ? '+' : '') + (percent !== 0 && Math.abs(percent) < .001
+    ? percent.toExponential(2) : percent.toLocaleString('en-US', { maximumFractionDigits: 3 })) + '% ' + change.name;
+}
+
+function tooltip(change, comparison) {
+  return `${change.name}\nBefore: ${exact(change.before)}\nAfter: ${exact(change.after)}\nChange: ${exact(change.delta)}`
+    + (change.percent === null ? '\nRelative change unavailable: starting value is zero.' : `\nRelative change: ${exact(change.percent)}%`)
+    + (comparison === 'retained' ? '\nComparison: without this Prisma -> current save.'
+      : comparison === 'added' ? '\nComparison: current save -> with this Prisma.' : '')
+    + (change.partial ? '\nPartial calculation.' : '') + (change.reason ? '\n' + change.reason : '');
+}
+
+function outcomeHtml(change, compact = false, comparison) {
+  const good = change.lowerIsBetter ? change.delta < 0 : change.delta > 0;
+  return `<span class="outcome ${change.delta === 0 ? 'muted' : good ? 'positive' : 'negative'}" tabindex="0"
+    data-tip="${esc(tooltip(change, comparison))}" data-metric="${esc(change.id)}" data-before="${change.before}" data-after="${change.after}"
+    data-delta="${change.delta}">${compact ? esc(number(change.before)) + ' &rarr; ' + esc(number(change.after))
+      + '<br>' + esc(deltaText({ ...change, name: '' })) : esc(deltaText(change))}${change.partial ? ' <span class="partial">Partial</span>' : ''}</span>`;
+}
+
+function breedingSequenceHtml(result, baseline) {
+  const groups = new Map();
+  for (const change of result.changes) {
+    const match = /^(breeding-sequence:\d+:\d+:(?:new|shiny)):(keep|trash):(.+)$/.exec(change.id);
+    if (!match) continue;
+    if (!groups.has(match[1])) groups.set(match[1], new Map());
+    groups.get(match[1]).set(match[3], change);
+  }
+  return [...groups].map(([id, fields]) => {
+    const first = fields.values().next().value;
+    const heading = first.name.split(' - ').slice(0, 2).join(' - ');
+    const cells = [...fields].map(([field, change]) => {
+      const label = change.name.split(' - ').at(-1);
+      return `<tr><th scope="row">${esc(label)}</th>${['keep', 'trash'].map(policy => {
+        const metricId = `${id}:${policy}:${field}`;
+        const metric = prismaOutcome(result, baseline, metricId);
+        return `<td>${metric ? outcomeHtml(metric, true, result.comparison) : '<span class="partial">Unavailable</span>'}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    return `<h3>${esc(heading)}</h3><p class="note">Up to 64 hatches from saved eggs and native refills.
+      Expected gains cover this bounded prefix only; unfinished branches are not extrapolated.
+      Breeding levels and cached multipliers remain fixed.</p><table aria-label="${esc(heading)} policy comparison">
+      <thead><tr><th>Outcome</th><th>Keep successes</th><th>Trash all</th></tr></thead><tbody>${cells}</tbody></table>`;
+  }).join('');
+}
+
+function sourceCoverageHtml(row) {
+  const coverage = row.sourceCoverage;
+  if (!coverage) return '';
+  return `<p class="note partial">Downstream coverage is incomplete. Native references are an audit checklist, not proof that every effect is measured.</p>
+    ${coverage.consumers.length ? `<details data-detail="references"><summary>${coverage.consumers.length} direct native reference(s)</summary>
+    ${coverage.consumers.map(ref => `<p class="note">${esc(ref.method.replace('_customBlock_', '').replace('_event_', 'Event '))}
+      ${ref.mode == null ? '' : ' / ' + esc(ref.mode)} - source line ${ref.line}${ref.kind === 'base-call' ? ' (base bonus call)' : ''}</p>`).join('')}</details>`
+      : '<p class="note">No direct literal consumer found. Aliased, computed and table-driven uses are not ruled out.</p>'}`;
+}
+
+function renderRows() {
+  const record = current(), query = $('search').value.trim().toLowerCase(), selected = $('metric').value;
+  $('tooltip').hidden = true;
+  if (!record) { $('rows').replaceChildren(); return; }
+  const rows = record.plan.rows.filter(row => {
+    const result = record.results.get(row.id);
+    return (row.name + ' ' + row.reason + ' ' + [...(result?.changes || []), ...(result?.intermediates || [])].map(change => change.name).join(' ')
+      + ' ' + (row.sourceCoverage?.consumers || []).map(ref => ref.mode || ref.method).join(' '))
+      .toLowerCase().includes(query);
+  });
+  if (selected) rows.sort((a, b) => {
+    const av = prismaOutcome(record.results.get(a.id), record.baseline, selected);
+    const bv = prismaOutcome(record.results.get(b.id), record.baseline, selected);
+    const score = metric => (metric.percent ?? metric.delta) * (metric.lowerIsBetter ? -1 : 1);
+    return av && bv ? score(bv) - score(av) || a.index - b.index : av ? -1 : bv ? 1 : a.index - b.index;
+  });
+  const focusedDetails = document.activeElement?.closest('details');
+  const focusRow = document.activeElement?.closest('[data-bubble-id]')?.dataset.bubbleId;
+  const focusDetail = focusedDetails?.dataset.detail;
+  $('rows').innerHTML = rows.map(row => {
+    const result = record.results.get(row.id);
+    let body;
+    if (!row.comparable) body = `<span class="muted">${esc(row.reason)}</span>`;
+    else if (!result) body = `<span class="muted">${record.error ? 'Not calculated - calculation failed.' : record.cancelled ? 'Not calculated - cancelled.' : 'Waiting...'}</span>`;
+    else if (result.status === 'error') body = `<span class="error">${esc(result.error)}</span>`;
+    else {
+      const ranked = selected && prismaOutcome(result, record.baseline, selected);
+      const changes = result.changes.filter(change => change.delta !== 0);
+      const preview = ranked ? [ranked] : selected ? [] : changes.slice(0, 3);
+      body = preview.length ? preview.map(change => outcomeHtml(change, false, result.comparison)).join('') : `<span class="muted">${selected
+        ? 'Selected outcome unavailable.' : result.intermediates?.length
+          ? 'Processed bonuses change; no downstream change measured.' : 'No measured downstream change; see coverage.'}</span>`;
+      body += `<details data-bubble="${row.id}"${expanded.has(key() + ':' + row.id) ? ' open' : ''}>
+        <summary>${changes.length ? changes.length + ' changed total' + (changes.length === 1 ? '' : 's') + ' & details' : 'Bubble bonus & coverage'}</summary>
+        <div class="results-detail">
+        <p class="note">${row.status === 'already' ? 'Benefit retained: without this Prisma &rarr; current save.'
+          : 'Potential gain: current save &rarr; with this Prisma.'} Every other Prisma flag stays unchanged.</p>
+        <p class="note">Base bubble bonus: ${esc(number(result.bubbleBefore))} &rarr; ${esc(number(result.bubbleAfter))}.
+        This bonus is not itself a downstream stat gain.</p>
+        ${changes.filter(change => !change.id.startsWith('breeding-sequence:')).map(change => `<div class="result-line">${outcomeHtml(change, false, result.comparison)}<span class="exact">${esc(number(change.before))} &rarr; ${esc(number(change.after))}</span></div>`).join('')}
+        ${breedingSequenceHtml(result, record.baseline)}
+        ${result.intermediates?.length ? `<details data-detail="intermediates"><summary>${result.intermediates.length} changed processed bubble bonus(es), not additional outcomes</summary>
+          ${result.intermediates.map(change => `<div class="result-line">${outcomeHtml(change, false, result.comparison)}</div>`).join('')}</details>` : ''}
+        ${sourceCoverageHtml(row)}
+        ${result.unavailable.length ? `<details data-detail="unavailable"><summary>${result.unavailable.length} unavailable outcome/intermediate record(s)</summary>
+          ${result.unavailable.map(metric => `<p class="note">${esc(metric.name)}: ${esc(metric.reason)}</p>`).join('')}</details>` : ''}
+        </div></details>`;
+    }
+    if (!row.comparable) body += `<details data-detail="coverage"><summary>Native effect coverage</summary>${sourceCoverageHtml(row)}</details>`;
+    return `<tr data-bubble-id="${row.id}" data-state="${esc(result?.status || row.status)}" data-comparison="${row.comparable ? row.status === 'already' ? 'retained' : 'added' : ''}"><td>
+      <div class="bubble-name">${esc(row.name)}</div><div class="bubble-level">${row.level === null ? 'Level unavailable' : 'Level ' + number(row.level)}</div>
+      ${row.status === 'already' ? '<div class="partial">Already Prisma-ed</div><div class="note">Benefit retained</div>' : ''}
+      </td><td>${body}</td></tr>`;
+  }).join('') || '<tr><td colspan="2" class="muted">No matching bubbles.</td></tr>';
+  for (const details of $('rows').querySelectorAll('details[data-bubble], details[data-detail]')) {
+    const row = details.closest('[data-bubble-id]').dataset.bubbleId;
+    const id = key() + ':' + row + (details.dataset.detail ? ':' + details.dataset.detail : '');
+    details.open = expanded.has(id);
+    details.addEventListener('toggle', () => {
+      if (!details.isConnected) return;
+      if (details.open) expanded.add(id); else expanded.delete(id);
+    });
+  }
+  if (focusRow && focusedDetails) {
+    const selector = focusDetail ? `[data-detail="${focusDetail}"]` : 'details[data-bubble]';
+    $('rows').querySelector(`[data-bubble-id="${focusRow}"] ${selector} > summary`)?.focus({ preventScroll: true });
+  }
+}
+
+function extendRankMetrics(metrics) {
+  const groups = $('metric').querySelectorAll('optgroup');
+  for (const metric of metrics) {
+    if (rankMetricIds.has(metric.id) || metric.unavailable || metric.notApplicable
+      || !Number.isFinite(metric.val ?? metric.after)) continue;
+    const option = document.createElement('option');
+    option.value = metric.id; option.textContent = metric.name;
+    groups[metric.intermediate ? 1 : 0].append(option);
+    rankMetricIds.add(metric.id);
+  }
+}
+
+function renderBaseline(record) {
+  const selected = $('metric').value;
+  $('metric').innerHTML = '<option value="">Bubble order</option>'
+    + '<optgroup label="Downstream outcomes"></optgroup><optgroup label="Processed bonuses (intermediates)"></optgroup>';
+  rankMetricIds = new Set();
+  extendRankMetrics(record.baseline);
+  for (const result of record.results.values())
+    if (result.status === 'done') extendRankMetrics([...result.changes, ...(result.intermediates || [])]);
+  if ([...$('metric').options].some(option => option.value === selected)) $('metric').value = selected;
+  const coverage = record.plan.rows[0]?.sourceCoverage;
+  const references = coverage?.computedReferences || [];
+  $('coverage-body').innerHTML = `<p class="note">${coverage?.unresolved || 0} computed native references still require tracing; ${
+    references.filter(row => row.traced).length} are traced cache-rebuild or display paths, not extra final outcomes.
+    Final game-wide numerical coverage is not certified.</p>` + record.baseline.map(metric => `<div class="result-line"><span>${esc(metric.name)}${metric.intermediate ? ' (intermediate)' : ''}</span><span class="exact">${
+    metric.notApplicable ? 'Not applicable' : metric.unavailable ? 'Unavailable: ' + esc(metric.reason) : esc(number(metric.val))
+      + (metric.partial ? ' (Partial: ' + esc(metric.reason) + ')' : '')}</span></div>`).join('');
+  const plan = record.plan;
+  $('summary').textContent = `Prisma multiplier: ${number(record.multiplier)}x | Fragments: ${number(plan.fragments)}`
+    + (plan.fragments !== null && plan.fragments < 10 ? ' - insufficient; previews are hypothetical' : '')
+    + (plan.mapIdx === null ? ' | Saved map unavailable' : ' | Saved map ' + plan.mapIdx);
+  if (record.multiplierPartial) $('summary').textContent += ' | Partial multiplier: companion metadata missing';
+}
+
+function cancel(message = 'Cancelled. Completed rows are retained.') {
+  if (!worker && !active) return;
+  worker?.terminate(); worker = null;
+  if (active) active.cancelled = true;
+  active = null; request++;
+  $('cancel').disabled = true; $('progress').hidden = true;
+  $('status').textContent = message;
+  renderRows();
+}
+
+function start() {
+  if (!raw) return;
+  cancel();
+  $('status').className = '';
+  let plan;
+  const afkHours = Number($('afk-hours').value);
+  try {
+    if (!Number.isFinite(afkHours) || afkHours * 3600 <= 120 || afkHours * 3600 > 2e8)
+      throw new Error('Enter AFK claim hours above 2 minutes and at most 55,555.');
+    plan = prismaPlan(raw, { charIdx, cauldron });
+  }
+  catch (error) { $('status').textContent = error.message; $('status').className = 'error'; return; }
+  const record = { plan, baseline: [], results: new Map(), cancelled: false, done: false };
+  cache.set(key(), record);
+  while (cache.size > 8) cache.delete(cache.keys().next().value);
+  active = record;
+  const id = ++request;
+  $('status').textContent = 'Calculating unchanged totals...';
+  $('cancel').disabled = false; $('progress').hidden = false; $('progress').value = 0;
+  $('coverage-body').textContent = 'Calculating...';
+  renderRows();
+  function fail(error) {
+    if (id !== request) return;
+    record.error = error.message || String(error);
+    cancel('Calculation failed: ' + record.error);
+    $('status').className = 'error';
+  }
+  try {
+    worker = new Worker(new URL('../workers/prisma-worker.js', import.meta.url), { type: 'module' });
+    worker.onerror = event => { event.preventDefault(); fail(new Error(event.message || 'Prisma worker failed.')); };
+    worker.onmessageerror = () => fail(new Error('Could not read the Prisma worker response.'));
+    worker.onmessage = ({ data }) => {
+      if (id !== request || data.id !== id) return;
+      try {
+        if (data.type === 'error') { fail(new Error(data.error)); return; }
+        if (data.type === 'baseline') {
+          if (!Array.isArray(data.baseline) || !data.baseline.length) throw new Error('Empty Prisma baseline.');
+          record.baseline = data.baseline; record.multiplier = data.multiplier;
+          record.multiplierPartial = data.multiplierPartial;
+          renderBaseline(record);
+          $('status').textContent = `Comparing 0 / ${data.total} eligible bubbles...`;
+        } else if (data.type === 'row') {
+          if (!record.plan.rows.some(row => row.comparable && row.id === data.result?.id)
+            || record.results.has(data.result.id)) throw new Error('Unexpected or duplicate Prisma result.');
+          record.results.set(data.result.id, data.result);
+          if (data.result.status === 'done')
+            extendRankMetrics([...data.result.changes, ...(data.result.intermediates || [])]);
+          $('progress').value = data.total ? data.completed / data.total : 1;
+          $('status').textContent = `Comparing ${data.completed} / ${data.total} eligible bubbles...`;
+          renderRows();
+        } else if (data.type === 'done') {
+          const expected = record.plan.rows.filter(row => row.comparable).length;
+          if (!data.result || !Array.isArray(data.result.results) || !record.baseline.length
+            || data.result.results.length !== expected || record.results.size !== expected) throw new Error('Incomplete Prisma completion.');
+          record.done = true;
+          worker.terminate(); worker = null; active = null;
+          $('cancel').disabled = true; $('progress').hidden = true;
+          const errors = [...record.results.values()].filter(row => row.status === 'error').length;
+          const outcomes = record.baseline.filter(metric => !metric.intermediate).length;
+          const intermediates = record.baseline.length - outcomes;
+          $('status').textContent = `Compared ${record.results.size} eligible bubbles independently across ${outcomes} outcome records and ${intermediates} intermediate bonuses.`
+            + (errors ? ` ${errors} failed; see their rows.` : '');
+          if (errors) $('status').className = 'error';
+          renderRows();
+        }
+      } catch (error) { fail(error); }
+    };
+    worker.postMessage({ id, raw, options: { charIdx, cauldron, afkHours } });
+  } catch (error) { fail(error); }
+}
+
+function populateCharacters() {
+  const plan = prismaPlan(raw, { charIdx, cauldron });
+  $('character').innerHTML = plan.characters.map(character => `<option value="${character.ci}">${esc(character.name)} - ${esc(character.className)}</option>`).join('');
+  $('character').value = charIdx;
+  $('character').disabled = false; $('run').disabled = false;
+}
+
+function show() {
+  const record = current();
+  if (record?.done) {
+    cancel();
+    renderBaseline(record); renderRows();
+    const errors = [...record.results.values()].filter(row => row.status === 'error').length;
+    $('status').className = errors ? 'error' : '';
+    $('status').textContent = `Compared ${record.results.size} eligible bubbles.`
+      + (errors ? ` ${errors} failed; see their rows.` : '');
+  } else start();
+}
+
+$('character').addEventListener('change', () => { charIdx = Number($('character').value); show(); });
+$('afk-hours').addEventListener('change', () => { if (raw) show(); });
+document.querySelectorAll('[data-cauldron]').forEach(button => button.addEventListener('click', () => {
+  cauldron = Number(button.dataset.cauldron);
+  document.querySelectorAll('[data-cauldron]').forEach(tab => tab.setAttribute('aria-pressed', String(tab === button)));
+  if (raw) show();
+}));
+$('metric').addEventListener('change', renderRows);
+$('search').addEventListener('input', renderRows);
+$('cancel').addEventListener('click', () => cancel());
+$('run').addEventListener('click', () => {
+  if (stale) {
+    cancel(); raw = latestRaw; cache.clear(); expanded.clear(); stale = false; $('stale').hidden = true;
+    populateCharacters();
+  }
+  start();
+});
+
+function showTooltip(target) {
+  if (!target) return;
+  tooltipTarget = target;
+  const tip = $('tooltip');
+  tip.textContent = target.dataset.tip; tip.hidden = false;
+  const rect = target.getBoundingClientRect();
+  tip.style.left = Math.max(10, Math.min(rect.left, innerWidth - tip.offsetWidth - 10)) + 'px';
+  tip.style.top = Math.max(10, Math.min(rect.bottom + 5, innerHeight - tip.offsetHeight - 10)) + 'px';
+}
+document.addEventListener('pointerover', event => showTooltip(event.target.closest('[data-tip]')));
+document.addEventListener('focusin', event => showTooltip(event.target.closest('[data-tip]')));
+document.addEventListener('pointerout', event => { if (event.target.closest('[data-tip]') === tooltipTarget) $('tooltip').hidden = true; });
+document.addEventListener('focusout', () => { $('tooltip').hidden = true; });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') $('tooltip').hidden = true; });
+window.addEventListener('scroll', () => {
+  if (!$('tooltip').hidden && document.activeElement === tooltipTarget) showTooltip(tooltipTarget);
+  else $('tooltip').hidden = true;
+}, true);
+window.addEventListener('pagehide', () => cancel());
+
+initSaveLoader({ target: '#save-area', auth: true, onLoad(_save, imported, metadata) {
+  latestRaw = imported;
+  if (raw && metadata?.source === 'auto-refresh') {
+    stale = true; $('stale').hidden = false; return;
+  }
+  cancel(); raw = imported; cache.clear(); expanded.clear();
+  stale = false; $('stale').hidden = true; charIdx = 0;
+  populateCharacters(); start();
+} });

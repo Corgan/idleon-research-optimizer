@@ -4,6 +4,7 @@ export const SITE_PAGES = [
   { href: 'shadow.html', label: 'Am I shadow banned?', group: 'General', icon: '?' },
   { href: 'endgame.html', label: 'Are you endgame?', group: 'General', icon: '?' },
   { href: 'fishing-calc.html', label: 'Fishing Calculator', group: 'World 2', icon: '\u{1F3A3}' },
+  { href: 'prisma-calc.html', label: 'Prisma Calculator', group: 'World 2', icon: '\u{1F52E}' },
   { href: 'killroy-calc.html', label: 'Killroy Calculator', group: 'World 2', icon: '\u{1F480}' },
   { href: 'cog-optimizer.html', label: 'Cog Board Optimizer', group: 'World 3', icon: '\u2699\uFE0F' },
   { href: 'worship-td-calc.html', label: 'Worship Tower Defense Simulator', group: 'World 3', icon: '\u{1F3F0}' },

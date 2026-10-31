@@ -37,28 +37,16 @@ function _plain(tree) {
   return out;
 }
 
-export function buildSpelunkInputs(S, charIdx = 0) {
-  if (!Array.isArray(S.spelunkData?.[3]) || !Array.isArray(S.spelunkData?.[5]))
-    throw new Error('This save has no Spelunking stamina or shop data.');
-  if (Number(optionsListData[478]) < 15 || !Number.isFinite(Number(optionsListData[478])))
-    throw new Error('Complete the Spelunking tutorial before simulating expeditions.');
+export function spelunkStaticInputs(S, charIdx = 0) {
+  if (!Array.isArray(S.spelunkData?.[5]))
+    throw new Error('This save has no Spelunking shop data.');
   if (!Number.isInteger(charIdx) || charIdx < 0 || charIdx >= numCharacters)
     throw new Error('Choose an existing logged-in character.');
   const ctx = createStatContext({ saveData: S, charIdx });
-  const pow = ctx.resolve('spelunking-pow');
   const shop = Array.from({ length: 80 }, (_, i) => _finite(shopUpgBonus(i, S), `Shop ${i}`));
   const ch = (a, b) => chapterBonus(a, b, S);
   const sushi = i => rogBonusQTY(i, S.cachedUniqueSushi || 0);
   const resolve = (system, id) => _finite(getCatalog()[system].resolve(id, ctx).val, `${system} bonus`);
-  const characters = Array.from({ length: numCharacters }, (_, id) => {
-    const tree = createStatContext({ saveData: S, charIdx: id }).resolve('spelunking-max-stamina');
-    const max = _finite(tree.val, 'Maximum stamina');
-    const raw = S.spelunkData[3][id];
-    if (raw == null || raw === '') throw new Error(`Saved stamina is missing for character ${id + 1}.`);
-    const stamina = Math.min(max, Math.max(0, _finite(raw, 'Saved stamina')));
-    return { id, name: S.charNames?.[id] || `Character ${id + 1}`, max, stamina,
-      classId: charClassData[id], level: S.lv0AllData?.[id]?.[0], breakdown: _plain(tree) };
-  });
   const amber = (1 + 14 * shop[67]) * (1 + arcadeBonus(55, S) / 100) * (1 + sushi(28) / 100)
     * (1 + (computeCropSC(8, S) + (computeLampBonus(3, 0, S)
       + computeStampBonusOfTypeX('spelunkamb', S) + computeVialByKey('7amber', S, charIdx)
@@ -88,6 +76,28 @@ export function buildSpelunkInputs(S, charIdx = 0) {
     * (1 + coveBonus(S, 20) / 100)
     * Math.max(1, _value(maxTalentBonusDetail(238, charIdx, S, { mode: 1 })))
     * (1 + shop[55] / 100) * Math.max(1, ch(6, 1));
+  return { shop, holesBonus: _finite(_value(finalBubbleValByKey('M11', charIdx, S)), 'Extra exits'),
+    amber: _finite(amber, 'Amber multiplier'), regen: _finite(regen, 'Stamina regeneration'),
+    grand: _finite(grand, 'Grand Discovery chance'), partial: S.companionDataAvailable === false };
+}
+
+export function buildSpelunkInputs(S, charIdx = 0) {
+  if (!Array.isArray(S.spelunkData?.[3]) || !Array.isArray(S.spelunkData?.[5]))
+    throw new Error('This save has no Spelunking stamina or shop data.');
+  if (Number(optionsListData[478]) < 15 || !Number.isFinite(Number(optionsListData[478])))
+    throw new Error('Complete the Spelunking tutorial before simulating expeditions.');
+  const pow = createStatContext({ saveData: S, charIdx }).resolve('spelunking-pow');
+  const { shop, amber, regen, grand, holesBonus } = spelunkStaticInputs(S, charIdx);
+  const ch = (a, b) => chapterBonus(a, b, S);
+  const characters = Array.from({ length: numCharacters }, (_, id) => {
+    const tree = createStatContext({ saveData: S, charIdx: id }).resolve('spelunking-max-stamina');
+    const max = _finite(tree.val, 'Maximum stamina');
+    const raw = S.spelunkData[3][id];
+    if (raw == null || raw === '') throw new Error(`Saved stamina is missing for character ${id + 1}.`);
+    const stamina = Math.min(max, Math.max(0, _finite(raw, 'Saved stamina')));
+    return { id, name: S.charNames?.[id] || `Character ${id + 1}`, max, stamina,
+      classId: charClassData[id], level: S.lv0AllData?.[id]?.[0], breakdown: _plain(tree) };
+  });
   let unlocked = 1;
   for (let i = 0; i < 9; i++) if (Number(S.spelunkData[0]?.[i]) >= 1) unlocked = i + 2;
   const tools = spelunkTools().filter(t => t.id === 0 || shop[13 + t.id] >= 1);
@@ -105,7 +115,7 @@ export function buildSpelunkInputs(S, charIdx = 0) {
     caves: spelunkCaves().slice(0, unlocked), tools, elixirs: spelunkElixirs(),
     elixirOwned: Math.round(Math.min(12, shop[23])), slots: Math.round(Math.min(5, 1 + shop[24])),
     dupes: Math.round(Math.min(5, shop[25])), nonconsume: Math.min(.6, (shop[26] + ch(3, 2)) / 100),
-    holesBonus: _finite(_value(finalBubbleValByKey('M11', charIdx, S)), 'Extra exits'),
+    holesBonus,
     auto: (shop[12] === 1 || Number(S.gemItemsData?.[43]) >= 1),
     speedMax: Math.max(0, Math.floor(Number(S.gemItemsData?.[43]) || 0)),
     overuse: superBitType(36, S.gamingData?.[12]) === 1, manic: shop[53] >= 1,

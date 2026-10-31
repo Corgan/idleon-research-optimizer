@@ -79,6 +79,83 @@ h1 .brand { color: var(--accent); }
 .bt-tag.auto { color: var(--accent); }
 .bt-tag.manual { color: var(--warning); }
 .bt-tooltip { position: fixed; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82em; max-width: min(350px, calc(100vw - 24px)); pointer-events: none; z-index: 999; display: none; }
+.fi-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 8px 0; }
+.fi-controls label { display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: .85em; }
+.fi-controls input, .fi-controls select, .fi-controls button, .fi-more { min-height: 38px; max-width: 100%; padding: 6px 10px; background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+.fi-controls input { width: min(360px, 70vw); }
+.fi-entry { margin: 8px 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.fi-entry > summary { cursor: pointer; min-height: 28px; color: var(--cyan); }
+.fi-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; padding: 3px 4px; min-height: 24px; border-bottom: 1px solid #ffffff12; overflow-wrap: anywhere; cursor: pointer; }
+.fi-node > summary.fi-row { display: flex; list-style: none; }
+.fi-node > summary.fi-row::-webkit-details-marker { display: none; }
+.fi-row::before { content: ''; width: 10px; flex: 0 0 10px; }
+.fi-node > summary.fi-row::before { content: '\25B8'; color: var(--text2); }
+.fi-node[open] > summary.fi-row::before { content: '\25BE'; }
+.fi-row:hover { background: #ffffff08; }
+.fi-row:focus-visible, .fi-entry > summary:focus-visible, .fi-operand:focus-visible, .fi-controls :focus-visible, .fi-more:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.fi-name { font-size: .85em; flex: 1 1 160px; min-width: 0; }
+.fi-value { color: var(--gold); margin-left: auto; text-align: right; user-select: text; overflow-wrap: anywhere; font-size: .85em; font-variant-numeric: tabular-nums; }
+.fi-collapse { float: right; padding: 1px 5px; margin-left: 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg3); color: var(--text2); cursor: pointer; font-size: .7em; }
+.fi-status { font-size: .7em; color: var(--text2); }
+.fi-row[data-status="Unavailable"] .fi-status { color: var(--red); }
+.fi-row[data-status="Partial"] .fi-status { color: var(--warning); }
+.fi-children { margin-left: 9px; border-left: 1px solid #ffffff18; padding-left: 5px; }
+.fi-terms { display: block; }
+.fi-terms > .fi-node { min-width: 0; }
+.fi-expression { white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; font-size: .85em; color: var(--text2); margin: 6px 4px; line-height: 1.65; }
+.fi-operand { color: var(--gold); border: 0; background: transparent; font: inherit; border-radius: 2px; padding: 1px; cursor: pointer; }
+.fi-inline { border: 1px solid var(--border); background: var(--bg3); color: var(--cyan); border-radius: 3px; padding: 0 4px; margin: 0 3px; font: inherit; cursor: pointer; }
+.fi-inline:focus-visible { outline: 2px solid var(--cyan); }
+.fi-active { background: #4dd0e128; box-shadow: inset 0 -1px var(--cyan); }
+.fi-error { color: var(--red); font-size: .85em; margin: 8px 0; }
+.fi-edit, .fi-clear { padding: 1px 5px; background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; color: var(--cyan); cursor: pointer; font-size: .75em; }
+.fi-inputs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; padding: 5px 4px 5px 20px; font-size: .8em; }
+.fi-inputs[hidden] { display: none; }
+.fi-node[hidden], .fi-filter [hidden] { display: none; }
+.fi-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 5px 0; font-size: .8em; }
+.fi-filter label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+.fi-filter input { width: 220px; min-width: 0; padding: 3px 6px; }
+.fi-filter-status { color: var(--text2); }
+.fi-match > .fi-name { color: var(--cyan); font-weight: 600; }
+.fi-input-label { display: inline-flex; align-items: center; gap: 5px; }
+.fi-input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 3px; min-height: 28px; max-width: 100%; }
+.fi-input[type="number"] { width: 110px; padding: 2px 4px; }
+.fi-input[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; }
+.fi-input[aria-invalid="true"] { border-color: var(--red); }
+.fi-saved, .dh-baseline { color: var(--text2); font-weight: normal; font-size: .8em; }
+.fi-edited { border-left: 2px solid var(--cyan); }
+.fi-changed > .fi-value { text-decoration: underline dotted var(--cyan); text-underline-offset: 3px; }
+.fi-contribution { color: var(--text2); font-size: .68em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fi-allocation { display: flex; align-items: baseline; gap: 8px; padding: 3px 4px; color: var(--text2); font-size: .85em; }
+.fi-allocation .fi-name { flex: 1; }
+.fi-allocation:focus-visible { outline: 2px solid var(--cyan); }
+.fi-changes { margin: 5px 0; font-size: .8em; }
+.fi-changes[hidden], #affected-formulas[hidden] { display: none; }
+.fi-changes > summary, #affected-formulas > summary { cursor: pointer; color: var(--cyan); }
+.fi-change-list { max-height: 360px; overflow: auto; }
+.fi-change-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 4px 0; border-bottom: 1px solid #ffffff12; overflow-wrap: anywhere; }
+.fi-change-link { font: inherit; text-align: left; background: transparent; border: 0; color: var(--cyan); cursor: pointer; padding: 0; overflow-wrap: anywhere; }
+.fi-change-link:focus-visible, .fi-changes > summary:focus-visible { outline: 2px solid var(--cyan); }
+.fi-comparison-note { margin: 5px 0; color: var(--text2); }
+#affected-formulas { margin-top: 8px; font-size: .85em; }
+.fi-inputs .fi-error:empty { display: none; }
+.dh-baseline { display: block; }
+.dh-baseline[hidden] { display: none; }
+.sandbox-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: .85em; }
+.sandbox-bar button, #input-changes button { background: var(--bg3); color: var(--cyan); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.sandbox-bar button:disabled { opacity: .5; cursor: default; }
+#input-changes { margin-top: 8px; font-size: .85em; }
+.input-change { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 5px 0; }
+.fi-edit:focus-visible, .fi-clear:focus-visible, .fi-input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.fi-tooltip { position: fixed; white-space: pre-wrap; overflow-wrap: anywhere; max-width: min(440px, calc(100vw - 16px)); max-height: 70vh; overflow: auto; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: .82em; pointer-events: auto; z-index: 999; }
+.fi-tooltip[hidden], .fi-more[hidden] { display: none; }
+.fl-ledger { margin-top: 16px; }
+.fl-ledger > summary, .fl-caveats > summary, .fl-body summary { cursor: pointer; color: var(--cyan); padding: 6px 0; }
+.fl-body { font-size: .85em; overflow-wrap: anywhere; }
+.fl-body p, .fl-caveats p { margin: 6px 0; }
+.fl-link { display: inline-block; font: inherit; color: var(--cyan); background: transparent; border: 1px solid var(--border); border-radius: 3px; padding: 4px 6px; margin: 3px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; }
+.fl-link:focus-visible, .fl-ledger summary:focus-visible { outline: 2px solid var(--cyan); }
+.fl-output, .fl-dependency { margin: 5px 0; padding-left: 8px; border-left: 1px solid var(--border); }
 
 @media (max-width: 700px) {
   h1 { gap: 7px; font-size: 1.05em; }
@@ -152,6 +229,14 @@ h1 .brand { color: var(--accent); }
         </label>
     </div>
     <div class="context-note" id="context-note">Load a save to calculate all descriptors.</div>
+    <div class="sandbox-bar">
+      <span id="input-status" role="status">Game-input sandbox: no edits.</span>
+      <button type="button" id="reset-inputs" disabled>Reset all edits</button>
+      <span class="context-note">Edit marked inputs to recalculate. No save changes or purchases.</span>
+    </div>
+    <div id="input-error" class="fi-error" role="alert"></div>
+    <details id="input-changes" hidden><summary>Changed inputs</summary><div id="input-change-list"></div></details>
+    <details id="affected-formulas" hidden><summary>Affected formulas</summary><div id="affected-formula-list" class="fi-change-list"></div></details>
   </section>
 
   <section class="dashboard-region" aria-labelledby="breakdowns-heading">
@@ -159,17 +244,28 @@ h1 .brand { color: var(--accent); }
     <div class="cat-tabs" id="cat-tabs" role="tablist"></div>
     <div id="cat-panels"></div>
   </section>
+  <section class="dashboard-region" aria-labelledby="explorer-heading">
+    <h2 class="region-title" id="explorer-heading">System formula explorer</h2>
+    <p class="context-note">Includes bonuses outside the stat summaries. Exact values, arithmetic and input locations appear where implemented; missing expansions remain marked rather than being presented as complete formulas.</p>
+    <div id="system-explorer"></div>
+    <div id="formula-ledger"></div>
+  </section>
 </main>
-<div class="bt-tooltip" id="bt-tooltip"></div>
+<div class="fi-tooltip" id="bt-tooltip" role="tooltip" hidden></div>
 <script type="module">
 'use strict';
 
 import { saveData } from './js/state.js';
 import { initSaveLoader } from './js/ui/save-loader.js';
-import { toRenderNode } from './js/stats/tree-builder.js';
+import { loadSaveData } from './js/save/loader.js';
+import { createFormulaInputSandbox } from './js/stats/formula-inputs.js';
 import { createStatContext } from './js/stats/stat-context.js';
 import { allDescriptors } from './js/stats/registry.js';
-import { renderBreakdownTree } from './js/ui/dash-breakdowns.js';
+import { renderFormulaInspector } from './js/ui/formula-inspector.js';
+import { createFormulaComparisonClient } from './js/ui/formula-comparison-client.js';
+import { formulaDifference } from './js/stats/formula-comparison.js';
+import { mountStatsExplorer } from './js/ui/stats-explorer.js';
+import { mountFormulaLedger } from './js/ui/formula-ledger.js';
 import { fmtVal, fmtMonsterCash, fmtDmgRange } from './js/renderers/format.js';
 import { ClassNames, MapDispName } from './js/stats/data/game/customlists.js';
 import { MONSTERS } from './js/stats/data/game/monsters.js';
@@ -285,6 +381,14 @@ var CUR_SKILL = 'Mining';
 var CONSTRUCTION_ACTIVE = true;
 var RESULTS = Object.create(null);
 var ACTIVE_CTX = null;
+var INPUT_SANDBOX = null;
+var BASELINE_KEY = '';
+var BASELINE_RESULTS = Object.create(null);
+var FORMULA_COMPARISONS = createFormulaComparisonClient();
+var INPUT_EDITOR = {
+  controls: function(node) { return INPUT_SANDBOX ? INPUT_SANDBOX.controls(node) : []; },
+  change: _changeInput,
+};
 
 // ======================= DESCRIPTOR GROUPING =======================
 var DESCS = allDescriptors();
@@ -358,7 +462,8 @@ function buildTabs() {
             '<span class="dh-reason" id="reason-' + desc.id + '"></span></span>' +
           '<span class="scope-badge ' + scope.className + '">' + scope.label + '</span>' +
           '<span class="state-badge" id="state-' + desc.id + '" hidden></span>' +
-          '<span class="dh-val" id="hval-' + desc.id + '">—</span>' +
+          '<span class="dh-val"><span id="hval-' + desc.id + '">—</span>' +
+            '<small class="dh-baseline" id="saved-' + desc.id + '" hidden></small></span>' +
         '</button>' +
         '<div class="desc-body" id="body-' + desc.id + '">' +
           '<div class="tree" id="tree-' + desc.id + '"></div>' +
@@ -394,14 +499,18 @@ function _renderDescriptorTree(id) {
   var desc = _descriptorById(id);
   var container = document.getElementById('tree-' + id);
   if (!result || !desc || !container) return;
-  var renderRoot = toRenderNode({
+  var renderRoot = {
+    ...result,
     name: result.name || desc.name,
-    val: Number.isFinite(Number(result.val)) ? Number(result.val) : 0,
-    children: result.children,
     fmt: result.fmt || desc.fmt || 'x',
     note: result.reason || result.note || '',
-  });
-  renderBreakdownTree(renderRoot, container, { tooltipId: 'bt-tooltip' });
+  };
+  renderFormulaInspector(renderRoot, container, { tooltip: document.getElementById('bt-tooltip'), editor: INPUT_EDITOR,
+    comparison: _formulaComparison({ descriptor: id }) });
+}
+
+function _formulaComparison(target) {
+  return INPUT_SANDBOX?.count() ? { load: function(root) { return FORMULA_COMPARISONS.load(target, root); } } : undefined;
 }
 
 function toggleDescriptor(id) {
@@ -420,6 +529,19 @@ function toggleDescriptor(id) {
 }
 
 buildTabs();
+var SYSTEM_EXPLORER = mountStatsExplorer(document.getElementById('system-explorer'), {
+  getContext: function() { return ACTIVE_CTX; },
+  tooltip: document.getElementById('bt-tooltip'),
+  editor: INPUT_EDITOR,
+  getComparison: function(entry) { return _formulaComparison({ entry: entry.key }); },
+});
+var FORMULA_LEDGER = mountFormulaLedger(document.getElementById('formula-ledger'), {
+  getContext: function() { return ACTIVE_CTX; },
+  tooltip: document.getElementById('bt-tooltip'),
+  getComparison: function(output) {
+    return _formulaComparison(output.descriptor ? { descriptor: output.descriptor.id } : { entry: output.key });
+  },
+});
 
 // ======================= MAP SELECTOR =======================
 function _mapLabel(mapOption, bonArr) {
@@ -572,6 +694,20 @@ function _renderResult(desc, result) {
   }
   if (reasonEl) reasonEl.textContent = reason;
   if (valueEl) valueEl.textContent = valueText;
+  var baseline = BASELINE_RESULTS[desc.id];
+  var savedEl = document.getElementById('saved-' + desc.id);
+  if (savedEl) {
+    var changed = INPUT_SANDBOX?.count() && baseline
+      && (!Object.is(baseline.val, result.val) || baseline.text !== valueText);
+    savedEl.hidden = !changed;
+    savedEl.textContent = changed ? 'Saved: ' + baseline.text : '';
+    if (changed && baseline.val > 0 && !baseline.unavailable && !result.unavailable && !result.notApplicable
+      && Number.isFinite(result.val)) {
+      var pct = (result.val / baseline.val - 1) * 100;
+      savedEl.textContent += ' (' + (pct > 0 ? '+' : '') + pct.toFixed(2) + '%)';
+    }
+    if (header && baseline) header.dataset.savedValue = String(baseline.val);
+  }
 
   var body = document.getElementById('body-' + desc.id);
   if (body && body.classList.contains('open')) {
@@ -583,6 +719,28 @@ function _renderResult(desc, result) {
 // ======================= COMPUTE ALL =======================
 function recalcAll() {
   if (!SAVE_RAW) return;
+  var baselineKey = [CUR_CHAR, CUR_MAP, CUR_SKILL, CONSTRUCTION_ACTIVE].join(':');
+  if (BASELINE_KEY !== baselineKey) {
+    var baselineResults = Object.create(null);
+    try {
+      if (INPUT_SANDBOX.count()) loadSaveData(SAVE_RAW);
+      var savedCtx = createStatContext({
+        charIdx: CUR_CHAR, mapIdx: CUR_MAP, saveData, mapBon: _mapBonuses(),
+        layer1: { skillType: CUR_SKILL, isActive: CONSTRUCTION_ACTIVE },
+      });
+      for (var baselineDesc of DESCS) {
+        var savedResult = _resolveDescriptor(savedCtx, baselineDesc);
+        baselineResults[baselineDesc.id] = {
+          val: savedResult.val, text: _displayValue(baselineDesc, savedResult), unavailable: !!savedResult.unavailable,
+          notApplicable: !!savedResult.notApplicable, partial: !!savedResult.partial, nonNumeric: !!savedResult.nonNumeric,
+        };
+      }
+    } finally {
+      if (INPUT_SANDBOX.count()) loadSaveData(INPUT_SANDBOX.current());
+    }
+    BASELINE_RESULTS = baselineResults;
+    BASELINE_KEY = baselineKey;
+  }
   RESULTS = Object.create(null);
   _clearRenderedTrees();
 
@@ -591,9 +749,17 @@ function recalcAll() {
     mapIdx: CUR_MAP,
     saveData: saveData,
     mapBon: _mapBonuses(),
-    layer1: { skillType: CUR_SKILL, isActive: CONSTRUCTION_ACTIVE },
+    layer1: { skillType: CUR_SKILL, isActive: CONSTRUCTION_ACTIVE, formulaDetails: true },
   });
   ACTIVE_CTX = ctx;
+  FORMULA_COMPARISONS.reset({
+    raw: SAVE_RAW, edits: INPUT_SANDBOX.capture(),
+    context: { charIdx: CUR_CHAR, mapIdx: CUR_MAP, mapBon: _mapBonuses(),
+      layer1: { skillType: CUR_SKILL, isActive: CONSTRUCTION_ACTIVE } },
+  });
+  document.getElementById('bt-tooltip').hidden = true;
+  SYSTEM_EXPLORER.refresh();
+  FORMULA_LEDGER.refresh();
 
   for (var i = 0; i < DESCS.length; i++) {
     var desc = DESCS[i];
@@ -608,11 +774,101 @@ function recalcAll() {
   document.getElementById('context-note').textContent = character + ' · ' + map + ' · ' + CUR_SKILL
     + ' · Construction ' + (CONSTRUCTION_ACTIVE ? 'Active' : 'Inactive')
     + (mapContext.warning ? ' · ' + mapContext.warning : '');
+  _renderInputChanges();
 }
+
+function _changeInput(id, value, reset) {
+  var undo = reset ? INPUT_SANDBOX.reset(id) : INPUT_SANDBOX.set(id, value);
+  var x = window.scrollX, y = window.scrollY;
+  try {
+    loadSaveData(INPUT_SANDBOX.current());
+    recalcAll();
+    document.getElementById('input-error').textContent = '';
+  } catch (error) {
+    undo();
+    var message = 'Input change was not applied: ' + (error.message || String(error));
+    try {
+      loadSaveData(INPUT_SANDBOX.current());
+      recalcAll();
+    } catch (restoreError) {
+      message += ' Calculator restore failed: ' + (restoreError.message || String(restoreError));
+    }
+    document.getElementById('input-error').textContent = message;
+    throw new Error(message);
+  } finally {
+    window.scrollTo(x, y);
+  }
+}
+
+function _renderInputChanges() {
+  var count = INPUT_SANDBOX.count();
+  document.getElementById('input-status').textContent = count
+    ? 'Hypothetical: ' + count + ' edited game input' + (count === 1 ? '' : 's') + '.'
+    : 'Game-input sandbox: no edits.';
+  document.getElementById('reset-inputs').disabled = !count;
+  document.getElementById('input-changes').hidden = !count;
+  var list = document.getElementById('input-change-list');
+  list.replaceChildren();
+  for (const change of INPUT_SANDBOX.changes()) {
+    const row = document.createElement('div');
+    row.className = 'input-change';
+    const text = document.createElement('span');
+    const format = function(value) {
+      return change.type === 'flag' ? value ? 'On' : 'Off'
+        : change.options?.find(option => Number(option.value) === value)?.label ?? String(value);
+    };
+    text.textContent = change.name + ' · ' + change.label + ': ' + format(change.saved) + ' → ' + format(change.value);
+    const reset = document.createElement('button');
+    reset.type = 'button'; reset.textContent = 'Reset';
+    reset.addEventListener('click', function() {
+      try { _changeInput(change.id, undefined, true); }
+      catch (error) { document.getElementById('input-error').textContent = error.message || String(error); }
+    });
+    row.append(text, reset); list.append(row);
+  }
+  var affected = document.getElementById('affected-formulas');
+  affected.hidden = !count;
+  var output = document.getElementById('affected-formula-list');
+  output.replaceChildren();
+  var affectedCount = 0;
+  for (const desc of DESCS) {
+    const current = RESULTS[desc.id], saved = BASELINE_RESULTS[desc.id];
+    if (!current || !saved) continue;
+    const diff = formulaDifference({ ...current, unavailable: !!current.unavailable,
+      notApplicable: !!current.notApplicable, partial: !!current.partial, nonNumeric: !!current.nonNumeric }, saved);
+    if (!diff.changed) continue;
+    affectedCount++;
+    const row = document.createElement('div'); row.className = 'fi-change-line';
+    const link = document.createElement('button'); link.type = 'button'; link.className = 'fi-change-link';
+    link.textContent = desc.name;
+    link.addEventListener('click', function() {
+      const tab = document.querySelector('.cat-tab[data-cat="' + desc.category + '"]');
+      tab?.click();
+      const header = document.querySelector('[data-desc-id="' + desc.id + '"]');
+      if (header?.getAttribute('aria-expanded') !== 'true') toggleDescriptor(desc.id);
+      header?.focus();
+    });
+    const text = document.createElement('span');
+    text.textContent = saved.text + ' → ' + _displayValue(desc, current)
+      + (diff.available ? ' (Δ ' + (diff.delta > 0 ? '+' : '') + String(diff.delta)
+        + (diff.percent === null ? '; % unavailable: saved zero' : '; ' + diff.percent.toPrecision(6) + '%') + ')' : ' — ' + diff.reason);
+    row.append(link, text); output.append(row);
+  }
+  affected.querySelector('summary').textContent = 'Affected formulas (' + affectedCount + ')';
+}
+
+document.getElementById('reset-inputs').addEventListener('click', function() {
+  try { _changeInput(undefined, undefined, true); }
+  catch (error) { document.getElementById('input-error').textContent = error.message || String(error); }
+});
 
 // ======================= SAVE LOADING =======================
 function onLoad(_loadedSaveData, raw) {
+  var previousEdits = INPUT_SANDBOX?.count();
   SAVE_RAW = raw || _loadedSaveData;
+  INPUT_SANDBOX = createFormulaInputSandbox(SAVE_RAW);
+  BASELINE_KEY = '';
+  document.getElementById('input-error').textContent = '';
   var data = SAVE_RAW.data || SAVE_RAW;
   CHARS = Array.isArray(SAVE_RAW.charNames) ? SAVE_RAW.charNames : (saveData.charNames || []);
   var charCount = Math.max(CHARS.length, saveData.lv0AllData?.length || 0);
@@ -639,6 +895,7 @@ function onLoad(_loadedSaveData, raw) {
   CUR_MAP = populateMapSel(CUR_MAP);
   mapSel.disabled = charCount === 0;
   recalcAll();
+  if (previousEdits) document.getElementById('input-status').textContent = 'New save loaded; hypothetical edits reset.';
 }
 
 initSaveLoader({ target: '#save-area', onLoad, auth: true });
@@ -695,6 +952,7 @@ window.statsDebug = function() {
       overkillTier: RESULTS['overkill-tier'] ? RESULTS['overkill-tier'].val : null,
     },
     descriptors: descriptorResults,
+    inputEdits: INPUT_SANDBOX?.changes() || [],
   };
   console.log('Stats diagnostics', debug);
   return debug;

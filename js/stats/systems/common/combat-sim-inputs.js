@@ -138,16 +138,8 @@ function _talent(saveData, charIdx, tab, id) {
 // Divinity("Bonus_Minor", -1, style) for styles other than 3/5 (src Divinity):
 // sums DivMinorBonus over every character whose linked god (Divinity[s+12]) has
 // GodsInfo[god][13] == style.
-function _divMinorAccount(S, style) {
-  const div = D.divinityData || [];
-  const n = Math.min(12, Number(D.numCharacters) || 0);
-  let total = 0;
-  for (let s = 0; s < n; s++) {
-    const g = Number(div[s + 12]);
-    if (!(g >= 0) || Number(GodsInfo[g]?.[13]) !== style) continue;
-    total += _num(computeDivinityMinor(s, style, S));
-  }
-  return total;
+function _divMinorAccount(S, style, activeCharIdx) {
+  return _num(computeDivinityMinor(-1, style, S, { activeCharIdx }));
 }
 
 /**
@@ -607,7 +599,7 @@ function _buildCombatInputs(saveData, charIdx, mapIdx, opts) {
   // DoubleItemDropz src 92409: 0 = Arcane18 + (T647_1 + (Palette19 + min(10, Bonus_Minor(-1,8))));
   // 1 = Arcane30 + (Palette24 + BigFishBonuses(5)).
   put('doubleItemDropz0', () => _num(arcaneUpgBonus(18, S)) + (_talent(S, ci, 1, 647)
-    + (_num(computePaletteBonus(19, S)) + Math.min(10, _divMinorAccount(S, 8)))), 'ArcaneType("DoubleItemDropz",0) src 92409');
+    + (_num(computePaletteBonus(19, S)) + Math.min(10, _divMinorAccount(S, 8, ci)))), 'ArcaneType("DoubleItemDropz",0) src 92409');
   put('doubleItemDropz1', () => _num(arcaneUpgBonus(30, S)) + (_num(computePaletteBonus(24, S)) + _num(computeBigFishBonus(5, S))),
     'ArcaneType("DoubleItemDropz",1) src 92409');
   put('legend2', () => _num(legendPTSbonus(2, S)), 'Thingies("LegendPTS_bonus",2) (EquipmentStatues/FoodG doubling)');
@@ -790,7 +782,7 @@ export function buildLiveFoodInputs(saveData, charIdx, mapIdx, opts = {}, order 
 
 // TotalFoodBonuses(effect) src 69253: Σ Amount * FoodBonuses(Effect+"EffectBonus")
 // over owned non-Blank slots with nonzero quantity (no dungeon filter).
-function _foodAmount(ci, effect, mult = 1) {
+export function foodBonusAmount(ci, effect, mult = 1) {
   const order = D.equipOrderData?.[ci]?.[2] || {};
   const qty = D.equipQtyData?.[ci]?.[2] || {};
   const slots = Number(D.foodSlotsOwnedData?.[ci]) || 0;
@@ -804,15 +796,20 @@ function _foodAmount(ci, effect, mult = 1) {
   return amt;
 }
 
+export function foodBoostMultiplier(S, ci, ctx) {
+  return 1 + (_num(computeBoxReward(ci, 'PowerFoodEffect')) + (_num(computeStatueBonusGiven(3, ci, S))
+    + (_num(ctx ? etcBonus.resolve('9', ctx) : 0) + (_num(computeStampBonusOfTypeX('BFood', S, ci))
+      + (_num(computeStarSignBonus('FoodEffect', ci, S)) + (_num(computeCardBonusByType(48, ci, S))
+        + (_num(computeCardSetBonus(ci, '1')) + _talent(S, ci, 1, 631)))))))) / 100;
+}
+
 // Food slots, effect multipliers and consumption inputs for the sim's
 // ConsumeFoodNEW / ConsumeFoods / mana-potion / movement-potion paths.
 function _foodInputs({ S, ci, map, raw, put, values, ctx }) {
   const etc9 = () => _num(ctx ? etcBonus.resolve('9', ctx) : 0);
   put('healthFoodEffect', () => healthFoodHealingPerHour(ci, { saveData: S, charIdx: ci, mapIdx: map }).effectMultiplier,
     'FoodBonuses("HealthEffectBonus") src 66105 = GoldFoodBonuses("HealthFoods")+(Box.HealthFoodEffect+Statue3+Etc9+Stamp HFood+StarSign FoodEffect+CardSet 1)/100');
-  put('boostFoodEffect', () => 1 + (_num(computeBoxReward(ci, 'PowerFoodEffect')) + (_num(computeStatueBonusGiven(3, ci, S)) + (etc9()
-    + (_num(computeStampBonusOfTypeX('BFood', S, ci)) + (_num(computeStarSignBonus('FoodEffect', ci, S)) + (_num(computeCardBonusByType(48, ci, S))
-    + (_num(computeCardSetBonus(ci, '1')) + _talent(S, ci, 1, 631)))))))) / 100,
+  put('boostFoodEffect', () => foodBoostMultiplier(S, ci, ctx),
   'FoodBonuses("*BoostsEffectBonus") src 66105 = 1+(Box.PowerFoodEffect+Statue3+Etc9+Stamp BFood+StarSign FoodEffect+Card48+CardSet 1+TN(1,631))/100', { default: 1 });
   put('foodNotConsume', () => {
     const mf = _num(mainframeBonus(108, S));
@@ -915,7 +912,7 @@ function _playerInputs({ S, ci, map, raw, put, unavailable, resolveId, values, e
     const lv = Number(values.denAmps?.[4]) || 0;
     return (1 + lv) * Math.pow(1.07, lv);
   }, 'Holes("MPcostboost") src 92176 = map 216 && Holes[0][char]==2 ? AmpDebuff(4)=(1+Holes[12][4])*1.07^Holes[12][4] : 1 (Holes[12] via denAmps)');
-  put('foodManaRegen', () => _foodAmount(ci, 'ManaRegenBoosts', values.boostFoodEffect),
+  put('foodManaRegen', () => foodBonusAmount(ci, 'ManaRegenBoosts', values.boostFoodEffect),
     'DNSM.ManaRegen = TotalFoodBonuses("ManaRegenBoosts") (src 65953)');
   put('sigil5', () => _num(sigilBonus(5, S, ci)), 'Labb("SigilBonus",5)');
   put('card51', () => _num(computeCardBonusByType(51, ci, S)), 'CardBonusREAL(51)');

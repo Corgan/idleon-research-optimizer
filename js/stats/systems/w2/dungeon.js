@@ -4,6 +4,7 @@
 import { formulaEval } from '../../../formulas.js';
 import { treeResult } from '../../node.js';
 import { DungPassiveStats2 } from '../../data/game/customlists.js';
+import { DungMobs } from '../../data/game/custommaps.js';
 
 export var DUNGEON_MAPS = new Set([39, 40, 70, 71, 118, 119]);
 
@@ -13,6 +14,27 @@ export function isDungeonMap(mapIdx) {
 
 export function computeDungeonDropRate(totalLuk, dungeonDropRarity) {
   return 1 + ((Number(totalLuk) || 0) + (Number(dungeonDropRarity) || 0)) / 100;
+}
+
+export function dungeonCardTargets() {
+  return Object.entries(DungMobs).filter(([, row]) => Number(row[4]) !== -1)
+    .map(([key, row]) => ({ key, cardIndex: Number(row[4]), baseChance: Number(row[7]),
+      tierDependent: ['frogGR', 'snakeZ', 'iceBossZ'].includes(key) }));
+}
+
+export function dungeonCardDropChance(baseChance, cardBonusPct, runCardChance, serverCardMulti) {
+  const inputs = [baseChance, cardBonusPct, runCardChance, serverCardMulti].map(value => {
+    if (value == null || value === '' || !Number.isFinite(Number(value)))
+      throw new Error('Dungeon card chance inputs are missing or invalid.');
+    return Number(value);
+  });
+  [baseChance, cardBonusPct, runCardChance, serverCardMulti] = inputs;
+  if (baseChance < 0 || cardBonusPct < -100 || runCardChance < 0 || serverCardMulti < 0)
+    throw new Error('Dungeon card chance inputs cannot be negative.');
+  const threshold = (1 + cardBonusPct / 100) * baseChance
+    * Math.max(1, Math.min(2, runCardChance) * Math.min(4, serverCardMulti));
+  if (!Number.isFinite(threshold)) throw new Error('Dungeon card chance exceeds numeric limits.');
+  return Math.min(1, threshold);
 }
 
 // ==================== FLURBO SHOP ====================

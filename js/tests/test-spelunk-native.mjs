@@ -35,7 +35,7 @@ assert.ok(localSource.includes(returnPoint));
 localSource = localSource.replace(returnPoint, `return {
     debug: {
       hit, within, position, advanceEffects, descend, destroy, decision, refill, useElixir, settle,
-      get state() { return { rocks, pending, time, transition, depth, countdown, toolId, random, charges, ready, effects, rewards, rewardOrder }; },
+      get state() { return { rocks, pending, time, transition, depth, countdown, toolId, random, charges, ready, effects, rewards, rewardOrder, stamina, active, spent, amber }; },
       set(state) {
         if ('rocks' in state) rocks = state.rocks;
         if ('pending' in state) pending = state.pending;
@@ -44,6 +44,9 @@ localSource = localSource.replace(returnPoint, `return {
         if ('countdown' in state) countdown = state.countdown;
         if ('found' in state) found = state.found;
         if ('toolId' in state) toolId = state.toolId;
+        if ('spent' in state) spent = state.spent;
+        if ('depth' in state) depth = state.depth;
+        if ('active' in state) active = state.active;
         if (state.clearTasks) tasks.length = 0;
       },
     },
@@ -206,30 +209,116 @@ function traceRandom(debug) {
   assert.ok(start > 0 && end > start);
   const nativeSettle = new Function('c', 'm', `var i,r,s; ${source.slice(start, end)}`);
   for (const order of [[], [0], [7, 0, 3, 1, 8], [8, 1, 3, 0, 7]]) {
-    for (const toll of [0, 37, 50, 100]) {
+    for (const toll of [0, 37, 50, 100, 'rope']) {
       const { input, run, debug } = fresh();
-      input.shop[19] = toll;
+      input.shop[19] = toll === 'rope' ? 50 : toll;
+      input.shop[22] = 37;
       const quantities = [13.7, 3, 0, 1, 0, 0, 0, 2, 17, 0, 0, 0];
       debug.state.rewardOrder.push(...order);
       for (const i of order) debug.state.rewards[i] = quantities[i];
       const values = traceRandom(debug);
-      debug.settle('exhausted');
+      debug.settle(toll === 'rope' ? 'rope' : 'exhausted');
       const gi = [];
-      gi[85] = 1; gi[78] = order.flatMap(i => ['_abcdefghijk'[i], quantities[i]]);
+      gi[85] = toll === 'rope' ? 0 : 1; gi[78] = order.flatMap(i => ['_abcdefghijk'[i], quantities[i]]);
       let cursor = 0;
       nativeSettle.call({ _GenINFO: gi }, {
         asNumber: v => Number(v) || 0,
         randomFloat: () => { assert.ok(cursor < values.length); return values[cursor++]; },
-      }, { _customBlock_Spelunk: name => { assert.equal(name, 'TollExitTax'); return 1 - toll / 100; } });
+      }, { _customBlock_Spelunk: (name, id) => {
+        if (toll === 'rope') { assert.equal(name, 'ShopUpgBonus'); assert.equal(id, 22); return input.shop[22]; }
+        assert.equal(name, 'TollExitTax'); return 1 - toll / 100;
+      } });
       assert.equal(cursor, values.length);
-      assert.equal(cursor, order.filter(i => i !== 0).length, 'absent loot consumes no rounding draws');
+      assert.equal(cursor, toll === 'rope' ? 0 : order.filter(i => i !== 0).length,
+        'ropes consume no payout rolls; toll rolls only found non-Amber rewards');
       const result = run.result();
       assert.deepEqual(order.map(i => result.rewards[i]), order.map((_, n) => gi[78][2 * n + 1]));
       assert.deepEqual(result.exit.items.map(item => item.reward), order);
-      assert.equal(result.exit.retained, 1 - toll / 100);
+      assert.equal(result.exit.retained, toll === 'rope' ? 1 : 1 - toll / 100);
       assert.deepEqual(result.grossRewards, quantities.map((v, i) => order.includes(i) ? v : 0));
     }
   }
+}
+
+{
+  const expression = source.match(/this\._GenINFO\[107\]\[3\] = Math\.round\(c\.asNumber\(this\._GenINFO\[107\]\[3\]\) \+ c\.asNumber\(this\._GenINFO\[108\]\)\)/)?.[0];
+  assert.ok(expression, 'native orange snapshot branch');
+  const nativeOrange = new Function('c', expression);
+  const { debug } = fresh({ policy: 'amber-farm', elixirs: [3] });
+  const gi = []; gi[107] = Array(13).fill(0);
+  for (const spent of [12.49, 12.51, 100.25]) {
+    debug.state.charges[0] = 1; debug.state.ready[0] = 0;
+    debug.set({ spent }); gi[108] = spent;
+    nativeOrange.call({ _GenINFO: gi }, { asNumber: Number });
+    debug.useElixir(0);
+    assert.equal(debug.state.effects[3], gi[107][3], 'every drink rounds the cumulative spent-stamina snapshot');
+  }
+  assert.deepEqual(debug.state.amber.activations.map(a => a.spent), [12.49, 12.51, 100.25]);
+  debug.set({ spent: 999 });
+  assert.equal(debug.state.effects[3], gi[107][3], 'later spending does not retroactively increase the orange effect');
+}
+{
+  const { input, run, debug } = fresh({ policy: 'amber-farm', elixirs: [3, 6], tool: 0,
+    amber: { dumpDepth: 1, reservePct: 50, harvestDepths: 3 } });
+  const resistant = rock(65, { requirement: 1e100, hp: 1e30, maxHP: 1e30 });
+  Object.defineProperty(resistant, 'hidden', { get() { throw new Error('Policy inspected hidden marker'); } });
+  debug.set({ rocks: [resistant] });
+  debug.decision();
+  assert.equal(run.result().events.at(-1).id, 6, 'available teals precede oranges regardless of physical belt order');
+  debug.state.charges[1] = 0;
+  const before = debug.state.stamina[0];
+  debug.decision();
+  assert.equal(debug.state.amber.phase, 'dump');
+  assert.ok(debug.state.stamina[0] < before);
+  assert.equal(debug.state.effects[3], 0, 'oranges wait until after the burn');
+  debug.state.stamina[0] = 5000.5;
+  debug.decision();
+  assert.equal(debug.state.amber.phase, 'activate');
+  assert.equal(debug.state.stamina[0], 5000.5, 'an indivisible dig cannot cross the configured reserve');
+  const burned = debug.state.spent;
+  debug.decision();
+  assert.equal(debug.state.effects[3], Math.round(burned), 'activation uses native spent credit, not remaining stamina');
+  debug.state.charges.fill(0);
+  debug.decision();
+  assert.equal(debug.state.amber.phase, 'harvest');
+  debug.set({ rocks: [rock(52, { type: -2 })], depth: 8 });
+  const draws = debug.state.random.calls;
+  debug.decision();
+  assert.equal(run.result().status, 'rope');
+  assert.equal(run.result().settled, true);
+  assert.equal(debug.state.random.calls, draws, 'an accepted untouched rope needs no targeting or payout RNG');
+  assert.equal(run.result().amber.dumpDigs, 1);
+}
+{
+  const { run, debug } = fresh({ policy: 'amber-farm', elixirs: [3], amber: { harvestDepths: 0 } });
+  debug.state.charges.fill(0);
+  debug.set({ rocks: [rock(52, { type: -2 })] });
+  const draws = debug.state.random.calls;
+  debug.decision();
+  assert.equal(run.result().status, 'rope', 'zero-depth harvesting can take an untouched rope without an intervening dig');
+  assert.equal(debug.state.random.calls, draws);
+}
+{
+  const { run, debug } = fresh({ policy: 'amber-farm', amber: { reservePct: 100 } });
+  debug.set({ rocks: [rock(52, { type: -1 }), rock(65, { requirement: 1e100, hp: 1e30 })], found: true });
+  debug.decision();
+  assert.equal(run.result().events.at(-1).type, 'descend',
+    'manual harvesting leaves a revealed exit when remaining rocks exceed the stamina budget');
+  assert.equal(run.result().spent, 0, 'an impossible full clear does not consume all finishing stamina');
+  assert.equal(run.result().config.fullClear, true, 'manual descent never toggles the native Auto full-clear setting');
+}
+{
+  const input = fixture();
+  input.characters = [0, 1, 2].map(id => ({ id, name: `Character ${id}`, max: 100, stamina: 100 }));
+  const run = createSpelunkExpedition(input, { party: [0, 1, 2], policy: 'amber-farm', elixirs: [3],
+    amber: { finishers: 2, reservePct: 50 } }, { seed: 782 });
+  const debug = run.debug;
+  debug.set({ transition: false, rocks: [rock(65)], active: 1, spent: 150 });
+  debug.state.stamina[0] = 0; debug.state.stamina[1] = 50;
+  debug.decision();
+  assert.equal(debug.state.amber.phase, 'activate');
+  assert.deepEqual(debug.state.stamina, [0, 50, 100], 'two finishers preserve half of the first and all of the last');
+  assert.equal(debug.state.active, 1, 'phase changes never reorder or skip the native active party member');
 }
 
 // Shadow placement uses the scaled target bounds and the tool's bottom-left-centre origin.

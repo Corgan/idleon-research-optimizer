@@ -11,7 +11,7 @@ import { TalentIconNames, SigilDesc, UpgradeVault, GrimoireUpg, LegendTalents,
   CosmoUpgrades, PrayerInfo, ShrineInfo, GuildBonuses,
   PostOffUpgradeInfo, SpelunkUpg, EmperorBon, ZenithMarket,
   RANDOlist, StatueInfo, SaltLicks, DungPassiveStats, DungPassiveStats2,
-  AlchemyVialItems, LabMainBonus } from './data/game/customlists.js';
+  LabMainBonus } from './data/game/customlists.js';
 import { NjEQ, IDforETCbonus } from './data/game/custommaps.js';
 import { ITEMS } from './data/game/items.js';
 import { MONSTERS } from './data/game/monsters.js';
@@ -70,7 +70,6 @@ var GAME_DATA = {
   Spelunking:     { data: SpelunkUpg, field: 0 },
   Statue:         { data: StatueInfo, field: 0 },
   SaltLick:       { data: SaltLicks, field: 0 },
-  Vial:           { data: AlchemyVialItems, field: null },
 };
 
 // Generic lookup: game data → fallback
@@ -154,6 +153,13 @@ var CUSTOM = {
   Bubble: function(id) {
     var c, idx;
     if (typeof id === 'string') {
+      for (var cauldron = 0; cauldron < 4; cauldron++) {
+        var row = AlchemyDescription[cauldron].find(function(bubble) {
+          return bubble && (bubble[15] === id || bubble[0] === id);
+        });
+        if (row) return clean(row[0]);
+      }
+      if (!/^[OGPY]\d+$/.test(id)) return '';
       c = 'OGPY'.indexOf(id[0]); idx = Number(id.slice(1));
     } else if (Array.isArray(id)) {
       c = id[0]; idx = id[1];
@@ -161,6 +167,14 @@ var CUSTOM = {
     if (c < 0) return '';
     var d = AlchemyDescription[c] && AlchemyDescription[c][idx];
     return d ? clean(d[0]) : '';
+  },
+  Vial: function(id) {
+    var vials = AlchemyDescription[4] || [];
+    if (typeof id === 'number' || /^\d+$/.test(id)) return clean(vials[id]?.[0]);
+    var names = vials.filter(function(vial) { return vial && vial[11] === id; })
+      .map(function(vial) { return clean(vial[0]); });
+    if (id === '7drMulto' && names.length) return 'Ship in a Bottle';
+    return names.join(' / ');
   },
 };
 

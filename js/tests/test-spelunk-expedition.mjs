@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { spelunkCaves, spelunkTools, spelunkElixirs } from '../stats/data/w7/spelunking.js';
 import { shopUpgBonus } from '../stats/systems/w7/spelunking.js';
 import { createSpelunkExpedition, normalizeSpelunkConfig, simulateSpelunkExpedition, spelunkRockStats, spelunkActiveBuffs, spelunkRewardImage } from '../stats/systems/w7/spelunk-expedition.js';
-import { createSpelunkComparison, createSpelunkSearch, createSpelunkPartyAnalysis, normalizeSpelunkSearchScope, spelunkSearchSpace, spelunkRunMetric } from '../stats/systems/w7/spelunk-planner.js';
+import { createSpelunkComparison, createSpelunkCaveComparison, createSpelunkSearch, createSpelunkAmberSearch, createSpelunkPartyAnalysis, normalizeSpelunkSearchScope, spelunkSearchSpace, spelunkRunMetric } from '../stats/systems/w7/spelunk-planner.js';
 import { SpelunkRocks, SpelunkUpg } from '../stats/data/game/customlists.js';
 import { SPELUNK_SPRITES } from '../stats/data/game/spelunk-sprites.js';
 import { spelunkReplayTile } from '../ui/spelunk-replay.js';
@@ -238,6 +238,42 @@ const autoEarly = advanceUntil(createSpelunkExpedition(abundant, autoBase, { see
 const autoClear = advanceUntil(createSpelunkExpedition(abundant, { ...autoBase, fullClear: true }, { seed: 75 }), r => r.events.some(e => e.type === 'descend'));
 assert.ok(autoClear.broken >= autoEarly.broken);
 assert.ok(autoClear.seconds >= autoEarly.seconds);
+const refillInput = structuredClone(abundant);
+refillInput.shop[36] = 1;
+const refillConfig = { party: [0], policy: 'clear-fifth', entry: 'surface', elixirs: [11] };
+const refillRun = createSpelunkExpedition(refillInput, refillConfig, { seed: 75, replay: true });
+let refillResult = refillRun.result();
+for (let i = 0; i < 200 && !refillRun.done && refillResult.depth < 11; i++) {
+  refillRun.step(200); refillResult = refillRun.result();
+}
+assert.ok(refillResult.depth >= 11, 'the fifth-depth strategy reaches both refill floors in this fixture');
+const refillDescents = refillResult.frames.filter(f => f.lastAction?.type === 'descend'
+  && f.lastAction.seconds === f.seconds && f.depth <= 10);
+assert.equal(refillDescents.length, 10);
+for (const f of refillDescents.filter(f => f.depth % 5 === 0)) {
+  assert.ok(f.rocks.every(r => r.type < 0), `depth ${f.depth} is fully cleared before descent`);
+  assert.equal(f.charges[0], refillInput.elixirs[11].charges + f.depth / 5,
+    'hidden fifth-depth objects grant real charge refills, carried across floors');
+}
+assert.ok(refillDescents.filter(f => f.depth % 5 !== 0).every(f => f.rocks.some(r => r.type >= 0)),
+  'other depths descend at the first revealed exit instead of full-clearing');
+const firstRefillDescent = refillDescents[0];
+const efficientStart = advanceUntil(createSpelunkExpedition(refillInput, { ...refillConfig, policy: 'efficient' },
+  { seed: 75 }), r => r.events.some(e => e.type === 'descend'));
+assert.equal(firstRefillDescent.seconds, efficientStart.events.find(e => e.type === 'descend').time,
+  'ordinary floors retain the existing stamina-efficient manual behavior');
+for (const withElixirs of [false, true]) {
+  const noRefills = { ...refillInput, shop: [...refillInput.shop], shortcut: true, depths: [50, 0] };
+  noRefills.shop[36] = withElixirs ? 0 : 1;
+  const run = createSpelunkExpedition(noRefills, { ...refillConfig, entry: 'shortcut',
+    elixirs: withElixirs ? [11] : [] }, { seed: 75, replay: true });
+  const result = advanceUntil(run, r => r.events.some(e => e.type === 'descend'));
+  const f = result.frames.find(f => f.lastAction?.type === 'descend' && f.lastAction.seconds === f.seconds);
+  assert.equal(f.depth, 50, 'shortcut entry uses the absolute depth, not five floors since entry');
+  assert.ok(f.rocks.every(r => r.type < 0));
+  assert.equal(f.charges[0], withElixirs ? noRefills.elixirs[11].charges : 0,
+    'the strategy cannot invent refills without both Hidden Elixirs and an equipped elixir');
+}
 const uncapped = createSpelunkExpedition(abundant, { ...autoBase, ...legacyLimits }, { seed: 75, replay: true, maxFrames: 2 });
 uncapped.step(12000);
 const shortReplay = uncapped.result();
@@ -448,6 +484,201 @@ function driveBatches(iterator, record, measure = r => simulateSpelunkExpedition
   }
   return next.value;
 }
+const amberInput = { ...fixture(), dupes: 3 };
+const amberBase = { ...config, elixirs: [3, 3, 3, 6, 6], entry: 'surface', tool: 0 };
+const amberBefore = structuredClone({ amberInput, amberBase });
+const amberOptions = { screening: 1, trials: 2, maxTrials: 2, seed: 33, from: 2, to: 6, minRopePct: 100 };
+function amberMeasure(request) {
+  const a = request.config.amber, safe = a?.reservePct === 100, blocked = a?.harvestDepths === 3;
+  return { ...normal, seed: request.seed, settled: !blocked, status: blocked ? 'blocked' : safe ? 'rope' : 'exhausted',
+    depth: 20, rewards: [!a ? 99999 : blocked ? 99999 : safe ? a.dumpDepth : 1000],
+    exit: blocked ? null : { type: safe ? 'rope' : 'toll' },
+    amber: a ? { phase: 'rope-search', dumpDigs: 2, dumpSpent: 20, activations: [],
+      transitions: [], activationDepth: a.dumpDepth } : undefined };
+}
+const amberRequests = [];
+const amberSearch = driveBatches(createSpelunkAmberSearch(amberInput, amberBase, amberOptions), amberRequests, amberMeasure);
+assert.equal(amberSearch.kind, 'amber-search');
+assert.equal(amberSearch.amberSearch.coarse, 170);
+assert.ok(amberSearch.amberSearch.refined > 0);
+assert.equal(amberSearch.winner.config.amber.reservePct, 100, 'the sampled rope requirement excludes higher-yield toll strategies');
+assert.equal(amberSearch.winner.config.amber.dumpDepth, 6);
+assert.ok(amberSearch.delta < 0, 'a worse qualifying Amber strategy is reported honestly against the reference');
+assert.ok(amberSearch.baseline.referenceOnly, 'an ordinary reference cannot masquerade as an optimized phased strategy');
+assert.ok(amberSearch.rows.some(r => !r.riskEligible));
+assert.ok(amberSearch.rows.every(r => r.rope + r.toll + r.blocked === r.total));
+assert.ok(amberRequests.every(r => r.config.party.join() === amberBase.party.join()
+  && r.config.elixirs.join() === amberBase.elixirs.join()
+  && r.config.entry === amberBase.entry && r.config.tool === amberBase.tool));
+assert.deepEqual(driveBatches(createSpelunkAmberSearch(amberInput, amberBase, { ...amberOptions, batchSize: 4 }),
+  [], amberMeasure), amberSearch, 'phase selection and paired differences retain ordered-batch parity');
+const amberTrainingSeeds = new Set(amberRequests.filter(r => !r.phase.startsWith('Fresh-seed')).map(r => r.seed));
+assert.ok(amberRequests.filter(r => r.phase.startsWith('Fresh-seed')).every(r => !amberTrainingSeeds.has(r.seed)),
+  'fresh finalists never reuse discovery seeds');
+assert.ok(amberRequests.every((r, i) => !i || r.progress >= amberRequests[i - 1].progress),
+  'dependent discovery, refinement and comparison phases preserve monotonic progress');
+assert.equal(new Set(amberRequests.map(r => `${JSON.stringify(r.config)}:${r.seed}`)).size, amberRequests.length,
+  'training extensions reuse prior samples instead of simulating the same configuration and seed again');
+const infeasibleAmber = driveBatches(createSpelunkAmberSearch(amberInput, amberBase, amberOptions), [],
+  r => ({ ...amberMeasure(r), exit: { type: 'toll' } }));
+assert.equal(infeasibleAmber.winner, null);
+assert.equal(infeasibleAmber.delta, null);
+const noRiskLimit = driveBatches(createSpelunkAmberSearch(amberInput, amberBase, { ...amberOptions, minRopePct: 0 }),
+  [], amberMeasure);
+assert.equal(noRiskLimit.winner.score, 1000, 'zero minimum permits real toll payouts, never uncollected gross Amber');
+assert.equal(driveBatches(createSpelunkAmberSearch(amberInput, amberBase, { ...amberOptions, to: null }),
+  [], amberMeasure).amberSearch.to, 20, 'automatic upper depth comes from measured baseline runs');
+for (const options of [{ minRopePct: 101 }, { from: 0 }, { from: 7, to: 6 }, { objective: 'depth' },
+  { trials: 12, maxTrials: 8 }, { maxTrials: 257 }])
+  assert.throws(() => createSpelunkAmberSearch(amberInput, amberBase, options).next(), /Invalid|Choose/);
+assert.throws(() => createSpelunkAmberSearch(amberInput, config).next(), /equipped orange/);
+const refinedRequests = [];
+const refinedSearch = driveBatches(createSpelunkAmberSearch(amberInput, amberBase,
+  { ...amberOptions, from: 2, to: 10, minRopePct: 0 }), refinedRequests, request => {
+    const a = request.config.amber;
+    return { ...amberMeasure(request), settled: true, status: 'rope', exit: { type: 'rope' },
+      rewards: [a ? 200 - (a.dumpDepth - 7) ** 2 - (a.reservePct - 65) ** 2 / 10 : 10] };
+  });
+assert.ok(!refinedSearch.amberSearch.depths.includes(7));
+assert.equal(refinedSearch.winner.config.amber.dumpDepth, 7, 'refinement discovers the optimum between coarse dump depths');
+assert.equal(refinedSearch.winner.config.amber.reservePct, 65, 'fine reserve refinement is not limited to 50% or 100%');
+assert.ok(refinedRequests.some(r => r.config.amber?.ropeReservePct === 40),
+  'emergency rope thresholds are refined as well as dump depths');
+const portfolioRequests = [];
+const firstTrainingSeed = amberRequests[0].seed;
+function portfolioMeasure(request) {
+  const a = request.config.amber, distinct = a?.ropeReservePct === 75;
+  return { ...normal, seed: request.seed, settled: true, status: 'rope', exit: { type: 'rope' },
+    rewards: [!a ? 10 : distinct ? request.seed === firstTrainingSeed ? 98 : 120 : 99],
+    amber: a ? { phase: 'rope-search', dumpDigs: 2, dumpSpent: 20, activations: [],
+      transitions: [], activationDepth: 10 } : undefined };
+}
+const portfolioSearch = driveBatches(createSpelunkAmberSearch(amberInput, amberBase,
+  { ...amberOptions, minRopePct: 0 }), portfolioRequests, portfolioMeasure);
+assert.equal(portfolioSearch.winner.config.amber.ropeReservePct, 75,
+  'identical initial leaders cannot crowd out a distinct initially lower-scoring challenger');
+assert.equal(portfolioSearch.winner.score, 120, 'additional discovery seeds overcome an unlucky initial sample');
+assert.ok(portfolioRequests.some(r => !r.phase.startsWith('Fresh-seed') && r.seed !== firstTrainingSeed),
+  'promising behavior families receive additional shared training trials before selection');
+assert.ok(portfolioSearch.rows.some(r => r.matchingStrategies > 0));
+assert.ok(portfolioSearch.rows.length < portfolioSearch.amberSearch.finalistStrategies,
+  'settings with identical captured outcomes share a row instead of suggesting false variety');
+assert.ok(portfolioSearch.rows.includes(portfolioSearch.baseline));
+const shortcutRequests = [];
+const shortcutSearch = driveBatches(createSpelunkAmberSearch(amberInput, amberBase,
+  { ...amberOptions, from: 1, to: null, minRopePct: 0 }), shortcutRequests,
+  r => ({ ...portfolioMeasure(r), startDepth: 330, depth: 350 }));
+assert.equal(shortcutSearch.amberSearch.effectiveFrom, 330);
+assert.deepEqual(shortcutSearch.amberSearch.depths, [330, 335, 340, 345, 350]);
+assert.ok(shortcutRequests.every(r => !r.config.amber || r.config.amber.dumpDepth >= 330),
+  'shortcut entry no longer wastes most depth choices on behaviorally identical pre-entry thresholds');
+const finalSeedIndices = new Map(Array.from({ length: 16 }, (_, i) =>
+  [((33 >>> 0) + Math.imul(i + 1, 0x9e3779b9) + 0x4f1bbcdc) >>> 0, i]));
+const rareRopeRequests = [];
+function rareRopeMeasure(request) {
+  const result = portfolioMeasure(request), rope = finalSeedIndices.get(request.seed) === 10;
+  return { ...result, status: rope ? 'rope' : 'exhausted', exit: { type: rope ? 'rope' : 'toll' } };
+}
+const rareOptions = { ...amberOptions, minRopePct: 5, maxTrials: 16 };
+const rareRopeSearch = driveBatches(createSpelunkAmberSearch(amberInput, amberBase, rareOptions),
+  rareRopeRequests, rareRopeMeasure);
+assert.equal(rareRopeSearch.amberSearch.initialTrials, 2);
+assert.equal(rareRopeSearch.amberSearch.trials, 16, 'uncertain rope rates extend shared fresh-seed prefixes to the declared cap');
+assert.ok(rareRopeSearch.amberSearch.adaptiveRounds > 0);
+assert.ok(rareRopeSearch.winner && rareRopeSearch.winner.rope === 1,
+  'zero ropes in the initial sample need not prematurely eliminate all strategies');
+assert.ok(rareRopeSearch.amberSearch.riskUncertain, 'a rare observed rope does not become a guaranteed safety claim');
+assert.ok(rareRopeSearch.rows.every(r => r.total === 16));
+assert.equal(new Set(rareRopeRequests.map(r => `${JSON.stringify(r.config)}:${r.seed}`)).size, rareRopeRequests.length);
+assert.deepEqual(driveBatches(createSpelunkAmberSearch(amberInput, amberBase, { ...rareOptions, batchSize: 4 }),
+  [], rareRopeMeasure), rareRopeSearch, 'adaptive extension restores original seed order in batched execution');
+const capturedAmber = normalizeSpelunkConfig(amberInput, { ...amberBase, policy: 'amber-farm', fullClear: false,
+  amber: { dumpDepth: 7, finishers: 2, reservePct: 75, harvestDepths: 2, ropeReservePct: 10 } });
+assert.equal(capturedAmber.fullClear, true);
+assert.deepEqual(normalizeSpelunkConfig(amberInput, JSON.parse(JSON.stringify(capturedAmber))), capturedAmber);
+const frozenAmberScope = { enabled: Object.fromEntries(
+  ['party', 'modes', 'clears', 'speeds', 'elixirs', 'memorized', 'tools', 'entry'].map(key => [key, false])) };
+assert.equal(spelunkSearchSpace(amberInput, capturedAmber, frozenAmberScope).configurations, 1);
+const frozenAmberSearch = createSpelunkSearch(amberInput, capturedAmber, { scope: frozenAmberScope, screening: 1, trials: 2 });
+assert.deepEqual(frozenAmberSearch.next().value.config, capturedAmber,
+  'ordinary searches with frozen Play/Descend preserve the exact phased policy and settings');
+frozenAmberSearch.return();
+assert.equal(normalizeSpelunkConfig(amberInput, { ...capturedAmber, policy: 'dive' }).amber, undefined);
+for (const amber of [{ dumpDepth: 0 }, { finishers: 3 }, { reservePct: 0 }, { harvestDepths: -1 }, { ropeReservePct: 0 }])
+  assert.throws(() => normalizeSpelunkConfig(amberInput, { ...capturedAmber, amber }), /Invalid Amber/);
+const actualAmber = simulateSpelunkExpedition(amberInput, capturedAmber, { seed: 934 });
+const actualAmberReplay = simulateSpelunkExpedition(amberInput, capturedAmber, { seed: 934, replay: true });
+assert.deepEqual({ ...actualAmberReplay, frames: [], replayEvents: [] }, actualAmber,
+  'Amber phase recording cannot change actions, settlement or the RNG stream');
+assert.ok(actualAmber.amber.activations.length > 0);
+assert.ok(actualAmberReplay.frames.some(frame => frame.amberPhase === 'dump' || frame.amberPhase === 'buildup'));
+assert.deepEqual({ amberInput, amberBase }, amberBefore, 'phase optimization never changes imported inputs or the baseline');
+const ropeAmberInput = structuredClone(amberInput);
+ropeAmberInput.characters = [60, 300].map((max, id) => ({ id, name: `Finisher ${id}`, max, stamina: max }));
+ropeAmberInput.bosses = [1, 1]; ropeAmberInput.shop[22] = 25;
+const generatedAmberRope = simulateSpelunkExpedition(ropeAmberInput, { ...amberBase, party: [0, 1],
+  policy: 'amber-farm', amber: { dumpDepth: 1, reservePct: 100, harvestDepths: 0 } }, { seed: 1, replay: true });
+assert.equal(generatedAmberRope.status, 'rope', 'the real generator and decision loop can complete the phased rope strategy');
+assert.ok(generatedAmberRope.amber.activations.length > 0);
+assert.ok(generatedAmberRope.stamina.some(c => c.end > 0));
+assert.ok(!generatedAmberRope.events.some(e => e.type === 'dig' && e.depth === generatedAmberRope.depth),
+  'the exit is chosen before the first dig removes the floor rope');
+assert.equal(generatedAmberRope.rewards[0], generatedAmberRope.grossRewards[0] * 1.25);
+assert.deepEqual(generatedAmberRope.rewards.slice(1), generatedAmberRope.grossRewards.slice(1));
+const caveInput = { ...input, memorySlots: 1, shortcut: true,
+  caves: [3, 1, 2, 5, 1].map((capacity, id) => ({ ...input.caves[0], id, name: `Cave ${id}`, capacity })),
+  depths: [99, 9, 29, 39], manicDepths: [0, 20, 30, 40] };
+const caveConfig = { ...config, party: [2, 0, 1], policy: 'auto', speed: 4, fullClear: true,
+  memorized: [7], entry: 'shortcut', stamina: 'full', reactionMs: 480, tool: 1 };
+const caveBefore = structuredClone({ caveInput, caveConfig });
+const caveDepths = [[99, 103], [14, 10], [31, 31], [40, 40], [200, 200]];
+function caveMeasurement() {
+  const counts = Array(5).fill(0);
+  return request => ({ ...normal, seed: request.seed, depth: caveDepths[request.config.cave][counts[request.config.cave]++] });
+}
+const caveRequests = [];
+const cavesCompared = driveBatches(createSpelunkCaveComparison(caveInput, caveConfig, { trials: 2, seed: 33 }),
+  caveRequests, caveMeasurement());
+assert.deepEqual(cavesCompared.rows.map(row => row.config.cave), [1, 0, 2, 3, 4],
+  'rank by positive record gains, not absolute reached depth; unknown records come last');
+assert.equal(cavesCompared.winner.newDepths, 2);
+const caveZero = cavesCompared.rows.find(row => row.config.cave === 0);
+assert.equal(caveZero.recordDepth, 100, 'native saved counter is one below the in-run floor label');
+assert.equal(caveZero.newDepths, 1.5, 'clamp negative gains per trial before averaging');
+assert.equal(caveZero.newDepthsSe, 1.5);
+assert.equal(caveZero.recordBeaten, 1);
+assert.deepEqual(caveZero.runs.map(run => run.newDepths), [0, 3]);
+for (const row of cavesCompared.rows) {
+  const capacity = caveInput.caves[row.config.cave].capacity;
+  assert.deepEqual(row.config.party, caveConfig.party.slice(0, capacity), 'keep the first ordered members that fit');
+  assert.deepEqual(row.excluded, caveConfig.party.slice(capacity), 'report only excess members, never fill a larger cave');
+  assert.deepEqual({ ...row.config, cave: 0, party: caveConfig.party }, normalizeSpelunkConfig(caveInput, caveConfig),
+    'every setting other than cave and capacity-limited party remains unchanged');
+}
+assert.equal(cavesCompared.rows[3].newDepths, 0, 'matching the old floor is not a new depth');
+assert.equal(cavesCompared.rows[4].newDepths, null, 'missing records must not become verified zero');
+assert.equal(cavesCompared.rows[4].recordBeaten, null);
+assert.equal(caveRequests.length, 10, 'measure one fixed configuration per cave, with no extra party search');
+assert.ok(caveRequests.slice(0, 5).every(request => request.seed === caveRequests[0].seed));
+assert.ok(caveRequests.slice(5).every(request => request.seed === caveRequests[5].seed));
+assert.notEqual(caveRequests[0].seed, caveRequests[5].seed);
+assert.deepEqual(driveBatches(createSpelunkCaveComparison(caveInput, caveConfig,
+  { trials: 2, seed: 33, batchSize: 4 }), [], caveMeasurement()), cavesCompared);
+const manicCompared = driveBatches(createSpelunkCaveComparison(caveInput, { ...caveConfig, manic: true },
+  { trials: 2 }), [], caveMeasurement());
+assert.equal(manicCompared.winner.config.cave, 0, 'Manic ranks against its own cave records');
+assert.equal(manicCompared.rows.find(row => row.config.cave === 1).recordDepth, 21);
+const noNewDepths = driveBatches(createSpelunkCaveComparison(caveInput, caveConfig, { trials: 1 }), [],
+  request => ({ ...normal, seed: request.seed, depth: 1 }));
+assert.equal(noNewDepths.winner, null);
+assert.ok(noNewDepths.rows.every(row => row.newDepthsSe == null), 'one trial has no gain uncertainty estimate');
+assert.deepEqual({ caveInput, caveConfig }, caveBefore);
+assert.throws(() => createSpelunkCaveComparison(caveInput, caveConfig, { trials: 0 }).next(), /Invalid/);
+const actualCaves = driveBatches(createSpelunkCaveComparison(input, config, { trials: 1 }), [],
+  request => simulateSpelunkExpedition(input, request.config, { seed: request.seed }));
+for (const row of actualCaves.rows)
+  assert.equal(row.newDepths, Math.max(0, row.runs[0].depth - 1 - input.depths[row.config.cave]),
+    'actual expedition floors compare against native zero-based records');
 const pooledRequests = [];
 assert.deepEqual(driveBatches(createSpelunkSearch(input, basic, { ...options, batchSize: 4 }), pooledRequests), broad,
   'batching cannot change candidate decisions, aggregate arithmetic or winner');
@@ -582,9 +813,9 @@ for (const key of Object.keys(fixedSections)) {
     assert.equal(result.winner.config.party.length, 2);
   }
 }
-for (const policy of ['dive', 'efficient', 'clear']) for (const modes of [false, true]) for (const clears of [false, true]) {
+for (const policy of ['dive', 'efficient', 'clear-fifth', 'clear']) for (const modes of [false, true]) for (const clears of [false, true]) {
   const base = { ...fixedBase, policy };
-  const scope = { ...fixedScope, modes: ['auto', 'manual'], clears: [false, true],
+  const scope = { ...fixedScope, modes: ['auto', 'manual'], clears: [false, true, 'fifth'],
     enabled: { ...fixedSections, modes, clears, tools: true } };
   const records = [];
   const result = driveBatches(createSpelunkSearch(scopeInput, base, { ...options, scope }), records, fixedMeasure);
@@ -592,6 +823,24 @@ for (const policy of ['dive', 'efficient', 'clear']) for (const modes of [false,
   assert.equal(records.filter(r => r.progress < .75).length, result.configurations);
   if (!modes && !clears) assert.ok(records.every(r => r.config.policy === policy));
 }
+const fifthBase = { ...fixedBase, policy: 'clear-fifth' };
+const fifthScope = { enabled: { ...fixedSections, clears: true }, clears: ['fifth'] };
+assert.equal(spelunkSearchSpace(scopeInput, fifthBase, fifthScope).configurations, 1);
+const fifthRequests = [];
+const fifthSearch = driveBatches(createSpelunkSearch(scopeInput, fifthBase, { ...options, scope: fifthScope }),
+  fifthRequests, fixedMeasure);
+assert.ok(fifthRequests.every(r => r.config.policy === 'clear-fifth'));
+assert.equal(fifthSearch.winner.config.policy, 'clear-fifth');
+const mixedFifthScope = { ...fifthScope, modes: ['auto', 'manual'],
+  enabled: { ...fifthScope.enabled, modes: true } };
+const mixedFifth = driveBatches(createSpelunkSearch(scopeInput, fixedBase, { ...options, scope: mixedFifthScope }),
+  [], fixedMeasure);
+assert.equal(mixedFifth.configurations, 1, 'a fifth-only mixed-mode scope enumerates manual play only');
+assert.equal(mixedFifth.winner.config.policy, 'clear-fifth', 'an excluded Auto baseline cannot win');
+assert.equal(spelunkSearchSpace(scopeInput, fixedBase, {
+  enabled: { ...fixedSections, clears: true }, clears: [false, true, 'fifth'],
+}).configurations, 2, 'the manual-only choice never creates a third Auto full-clear value');
+assert.throws(() => spelunkSearchSpace(scopeInput, fixedBase, fifthScope), /requires manual play/);
 const fixedReference = driveBatches(createSpelunkSearch(scopeInput, fixedBase, {
   ...options, scope: fixedScope, configurations: [{ label: 'Different belt', config: { ...fixedBase, elixirs: [0, 2] } }],
 }), [], request => ({ ...normal, seed: request.seed, depth: request.config.elixirs[0] === 0 ? 1000 : 1 }));
@@ -691,13 +940,81 @@ const purpleBuff = spelunkActiveBuffs(purpleInput, [0, 0, 0, 0, 0, 0, 0, 3]).fin
 assert.equal(purpleBuff.value, .9, 'three doses each add 30% to extra-strike quantity');
 assert.match(purpleBuff.detail, /30%/, 'the chance bonus caps at 1.5x the base chance, independently of extra strikes');
 const ui = fs.readFileSync(new URL('../ui/spelunking.js', import.meta.url), 'utf8');
+const presetInput = { ...fixture(), memorySlots: 3, dupes: 3 };
+let presetFocus;
+const presetOriginal = structuredClone(presetInput), presetHost = {
+  innerHTML: '', querySelector(selector) { return { focus() { presetFocus = selector; } }; },
+};
+let presetEquipped = [7, -1, 0, -1, 2], presetMemorized = [9], presetChanges = 0;
+const presetContext = {
+  input: presetInput, $: () => presetHost, esc: String, art: name => `<img src="${name}.png">`,
+  document: { querySelectorAll: selector => (selector === '[data-elixir]' ? presetEquipped : presetMemorized)
+    .map(value => ({ value: String(value) })) },
+  renderElixirs(equipped, memorized) { presetEquipped = Array.from(equipped); presetMemorized = Array.from(memorized); },
+  invalidate() { presetChanges++; }, error() {},
+};
+vm.createContext(presetContext);
+vm.runInContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const policyNames ='))
+  + ui.slice(ui.indexOf('function elixirPresetIssues('), ui.indexOf('function syncElixirOptions('))
+  + '\nrenderElixirPresets();', presetContext);
+assert.equal(presetChanges, 0, 'previewing built-ins never applies them');
+assert.equal((presetHost.innerHTML.match(/data-elixir-preset=/g) || []).length, 6);
+assert.ok(!presetHost.innerHTML.includes(' disabled'));
+vm.runInContext('applyElixirPreset("memorized");', presetContext);
+assert.deepEqual(presetMemorized, [0, 2, 7], 'pictured memories use refund, shield and Shadow Strikes');
+assert.deepEqual(presetEquipped, [7, -1, 0, -1, 2], 'applying memories preserves the exact belt including holes');
+const picturedBelts = {
+  depth: [0, 2, 7, 7, 10], 'depth-shortcut': [2, 7, 7, 7, 10],
+  manic: [0, 2, 7, 7, 7], amber: [3, 3, 3, 6, 6], grand: [2, 7, 7, 7, 9],
+};
+for (const [id, belt] of Object.entries(picturedBelts)) {
+  vm.runInContext(`applyElixirPreset("${id}");`, presetContext);
+  assert.deepEqual(presetEquipped, belt, `${id} preserves the pictured physical slot order`);
+  assert.deepEqual(presetMemorized, [0, 2, 7], 'belt presets do not replace memories');
+  const applied = normalizeSpelunkConfig(presetInput, {
+    party: [2, 0], elixirs: presetEquipped, memorized: presetMemorized, manic: false, entry: 'surface',
+  });
+  assert.deepEqual(applied.elixirs, belt, 'pictured belts feed the existing simulator/compare/search configuration');
+  assert.deepEqual(applied.party, [2, 0]);
+  assert.equal(applied.manic, false, 'the Manic belt name must not silently change expedition mode');
+  assert.equal(presetFocus, `[data-elixir-preset="${id}"]`, 'Apply restores keyboard focus after replacing the belt');
+}
+assert.equal(presetChanges, 6, 'every explicit application uses the existing persistence/invalidation flow');
+assert.deepEqual(presetInput, presetOriginal, 'presets never edit save-derived input or unlocks');
+presetInput.dupes = 2;
+const equippedBeforeRejection = [...presetEquipped];
+assert.throws(() => vm.runInContext('applyElixirPreset("amber");', presetContext), /3 copies of Amber boost.*limit 2/);
+assert.deepEqual(presetEquipped, equippedBeforeRejection, 'unavailable presets are rejected without partial application');
+assert.equal(presetChanges, 6);
+vm.runInContext('renderElixirPresets();', presetContext);
+assert.match(presetHost.innerHTML, /data-elixir-preset="amber"[^>]*disabled/);
+assert.match(presetHost.innerHTML, /Requires 3 copies of Amber boost/);
+presetInput.dupes = 3; presetInput.slots = 4;
+assert.throws(() => vm.runInContext('applyElixirPreset("depth");', presetContext), /5 belt slots; 4 unlocked/);
+presetInput.slots = 5; presetInput.memorySlots = 2;
+assert.throws(() => vm.runInContext('applyElixirPreset("memorized");', presetContext), /3 memorization slots; 2 unlocked/);
+presetInput.memorySlots = 3; presetInput.elixirOwned = 10;
+assert.throws(() => vm.runInContext('applyElixirPreset("depth");', presetContext), /Overdrive is locked/);
+vm.runInContext('applyElixirPreset("manic");', presetContext);
+assert.deepEqual(presetEquipped, picturedBelts.manic, 'presets need only the elixirs they actually contain');
+assert.throws(() => vm.runInContext('applyElixirPreset("unknown");', presetContext), /Unknown elixir preset/);
+presetContext.input = null;
+assert.throws(() => vm.runInContext('applyElixirPreset("depth");', presetContext), /Load a valid save/);
+vm.runInContext('renderElixirPresets();', presetContext);
+assert.equal((presetHost.innerHTML.match(/ disabled/g) || []).length, 6);
+const presetHtml = fs.readFileSync(new URL('../../spelunking-calc.html', import.meta.url), 'utf8');
+assert.match(presetHtml, /Built-in elixir presets/);
+assert.match(presetHtml, /value="clear-fifth">Manual clear every 5 depths/);
+assert.match(presetHtml, /Party, expedition mode, entry and strategy stay unchanged/);
+assert.match(ui, /if \(b.dataset.elixirPreset != null\) applyElixirPreset\(b.dataset.elixirPreset\)/,
+  'preset buttons route through the guarded explicit-apply handler');
 const scopeHost = { innerHTML: '' }, scopeWorkload = { textContent: '', dataset: {} };
 const scopeRows = {}, scopeToggles = Object.keys(fixedSections).map(key => {
   const row = { dataset: {}, querySelector: () => row.fieldset, fieldset: { disabled: false } };
   scopeRows[key] = row;
   return { dataset: { scopeSection: key }, checked: key === 'party', closest: () => row };
 });
-let chosenCharacters = [{ value: '2' }, { value: '0' }];
+let chosenCharacters = [{ value: '2' }, { value: '0' }], chosenClears = [{ value: 'fifth' }];
 const orderControl = { checked: true };
 const scopeContext = {
   input: scopeInput, searchSettings: { ...fixedScope, enabled: { ...fixedSections, party: true } },
@@ -705,8 +1022,9 @@ const scopeContext = {
     : id === 'search-ignore-order' ? orderControl
       : { value: id === 'search-party-min' || id === 'screen-trials' ? '1' : id === 'search-party-max' ? '2' : '0' },
   document: { querySelectorAll: selector => selector === '[data-scope-section]' ? scopeToggles
-    : selector === '[data-scope="characters"]:checked' ? chosenCharacters : [] },
-  esc: String, art: String, updateSearchWorkload() {},
+    : selector === '[data-scope="characters"]:checked' ? chosenCharacters
+      : selector === '[data-scope="clears"]:checked' ? chosenClears : [] },
+  esc: String, art: String, updateSearchWorkload() {}, syncOptimizerMode() {},
 };
 vm.createContext(scopeContext);
 vm.runInContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const policyNames ='))
@@ -720,6 +1038,9 @@ assert.ok(Object.entries(scopeRows).filter(([key]) => key !== 'party').every(([,
 assert.deepEqual(JSON.parse(JSON.stringify(scopeContext.capturedScope.enabled)), { ...fixedSections, party: true });
 assert.deepEqual(Array.from(scopeContext.capturedScope.characters), [2, 0]);
 assert.equal(scopeContext.capturedScope.ignoreOrder, true);
+assert.deepEqual(Array.from(scopeContext.capturedScope.clears), ['fifth'],
+  'the descent control preserves the third choice instead of coercing it to first-exit');
+assert.match(scopeHost.innerHTML, /data-scope="clears" value="fifth"/);
 assert.match(scopeHost.innerHTML, /Expedition outcomes can still depend on that order/);
 assert.equal((scopeHost.innerHTML.match(/data-scope="characters"/g) || []).length, scopeInput.characters.length);
 assert.equal((scopeHost.innerHTML.match(/data-scope="characters"[^>]*checked/g) || []).length, scopeInput.characters.length,
@@ -756,10 +1077,12 @@ chosenCharacters = [];
 vm.runInContext('updateSearchWorkload();', scopeContext);
 assert.equal(scopeWorkload.dataset.configurations, '1', 'freezing Party size ignores an inactive empty pool');
 const host = { innerHTML: '' };
-vm.runInNewContext(ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const storageKey ='))
+const comparisonUi = ui.slice(ui.indexOf('const elixirNames ='), ui.indexOf('const storageKey ='))
+  + ui.slice(ui.indexOf('const searchSections ='), ui.indexOf('let searchSettings ='))
   + ui.slice(ui.indexOf('function configurationText('), ui.indexOf('function renderConfigurations('))
   + ui.slice(ui.indexOf('function sampleRate('), ui.indexOf('function start('))
-  + '\nrenderComparison(bundle, "result");', {
+  + '\nrenderComparison(bundle, "result");';
+vm.runInNewContext(comparisonUi, {
     bundle: { result: duplicateSearch, input: duplicateInput }, $: () => host,
     esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
   });
@@ -773,6 +1096,115 @@ assert.match(host.innerHTML, /Resist stalls/);
 assert.match(host.innerHTML, /No later descent/);
 assert.match(host.innerHTML, /not proven equivalence/);
 assert.match(host.innerHTML, /outside search scope; diagnostic only/);
+vm.runInNewContext(comparisonUi, {
+  bundle: { result: fifthSearch, input: scopeInput }, $: () => host,
+  esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
+});
+assert.match(host.innerHTML, /Manual clear every 5 depths/, 'captured configurations show the new policy');
+assert.match(host.innerHTML, /manual; every 5 depths;/,
+  'captured scope details do not mislabel fifth-depth clearing as full-clearing every floor');
+vm.runInNewContext(comparisonUi, {
+  bundle: { result: infeasibleAmber, input: amberInput }, $: () => host,
+  esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
+});
+assert.match(host.innerHTML, /No fresh finalist met/);
+assert.match(host.innerHTML, /Rope \/ toll \/ blocked/);
+assert.ok(!host.innerHTML.includes('data-use="'), 'a risk-infeasible Amber search offers no winner to apply');
+vm.runInNewContext(comparisonUi, {
+  bundle: { result: amberSearch, input: amberInput }, $: () => host,
+  esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
+});
+assert.match(host.innerHTML, /Drink available oranges after the burn/);
+assert.match(host.innerHTML, /manually descend through a revealed exit/);
+assert.match(host.innerHTML, /Planned:/);
+assert.match(host.innerHTML, /Measured \(/);
+assert.ok(!host.innerHTML.includes('harvest 8 depths'), 'planned rope-search offsets are not described as measured harvest');
+assert.match(host.innerHTML, /Run 1: D\d+/, 'replay buttons include actual final depth');
+vm.runInNewContext(comparisonUi, {
+  bundle: { result: rareRopeSearch, input: amberInput }, $: () => host,
+  esc: String, num: String, text: String, art: String, portrait: c => `Character ${c.id}`,
+});
+assert.match(host.innerHTML, /16 fresh trials each/);
+assert.match(host.innerHTML, /Sampled rope rates remain uncertain/);
+assert.match(host.innerHTML, /other tested settings matched these captured outcomes; not proven equivalent/);
+const amberDisplayRuns = [
+  { startDepth: 330, depth: 350, status: 'rope', exit: { type: 'rope' },
+    amber: { dumpDigs: 12, dumpSpent: 120, activations: [
+      { depth: 349, spent: 120, effect: 120 }, { depth: 349, spent: 120, effect: 240 },
+      { depth: 350, spent: 150, effect: 390 },
+    ], transitions: [{ phase: 'rope-search', depth: 350, reason: 'Low finishing stamina' }] } },
+  { startDepth: 330, depth: 354, status: 'exhausted', exit: { type: 'toll' },
+    amber: { dumpDigs: 10, dumpSpent: 100, activations: [
+      { depth: 351, spent: 100, effect: 100 }, { depth: 351, spent: 100, effect: 200 },
+    ], transitions: [{ phase: 'rope-search', depth: 354, reason: 'Harvest depth target reached' }] } },
+];
+const amberDisplayBefore = JSON.stringify(amberDisplayRuns);
+const amberDisplayContext = vm.createContext({ num: String, esc: String, runs: amberDisplayRuns,
+  amberPhaseNames: { 'rope-search': 'Seek untouched rope' },
+  config: { party: [0], amber: { dumpDepth: 20, finishers: 1, reservePct: 100, harvestDepths: 8, ropeReservePct: 25 } },
+  captured: { characters: [{ name: 'Finisher' }] } });
+vm.runInContext(ui.slice(ui.indexOf('function amberInstructions('), ui.indexOf('function renderConfigurations(')),
+  amberDisplayContext);
+const measuredAmber = vm.runInContext('amberOutcomeSummary(runs)', amberDisplayContext);
+assert.match(measuredAmber, /Entry D330 &rarr; Finish D352/);
+assert.match(measuredAmber, /\(\+22 floors overall\)/, 'total expedition advances are separate from post-orange advances');
+assert.match(measuredAmber, /First orange at D350 \(2\/2 runs\)/);
+assert.match(measuredAmber, /Advanced \+2 floors after first orange/,
+  'actual descents use the first drink, not the configured eight-floor target or later refill drinks');
+assert.match(measuredAmber, /range 1&ndash;3/);
+assert.match(measuredAmber, /Orange drinks: 2.5\/run/);
+assert.match(measuredAmber, /Began seeking rope at D352 \(2\/2 runs\)/);
+const firstAmberDetails = vm.runInContext('amberRunDetails(runs[0])', amberDisplayContext);
+assert.match(firstAmberDetails, /D350: rope exit &middot; \+1 floor after first orange at D349/);
+assert.match(firstAmberDetails, /Low finishing stamina/, 'early seeking retains the measured reason');
+assert.match(vm.runInContext('amberRunDetails(runs[1])', amberDisplayContext), /D354: exhaustion \/ toll/);
+assert.match(vm.runInContext('amberInstructions(config, captured)', amberDisplayContext), /Try to advance 8 more floors/);
+vm.runInContext('config.amber.harvestDepths = 0', amberDisplayContext);
+assert.match(vm.runInContext('amberInstructions(config, captured)', amberDisplayContext),
+  /immediately seek the next visible untouched rope, including on the same floor/);
+const sameFloorAmber = { ...amberDisplayRuns[0], depth: 349,
+  amber: { ...amberDisplayRuns[0].amber, activations: [amberDisplayRuns[0].amber.activations[0]] } };
+amberDisplayContext.sameFloorAmber = sameFloorAmber;
+assert.match(vm.runInContext('amberRunDetails(sameFloorAmber)', amberDisplayContext),
+  /\+0 floors after first orange at D349/, 'same-floor rope exits do not invent a harvested depth');
+amberDisplayContext.noOrangeRun = { startDepth: 330, depth: 340, status: 'blocked',
+  amber: { activations: [], transitions: [], dumpDigs: 0, dumpSpent: 0 } };
+const noOrangeSummary = vm.runInContext('amberOutcomeSummary([runs[0], noOrangeRun])', amberDisplayContext);
+assert.match(noOrangeSummary, /First orange at D349 \(1\/2 runs\)/);
+assert.match(noOrangeSummary, /Advanced \+1 floors after first orange/,
+  'runs without orange activation are not treated as zero-depth boosted harvests');
+assert.match(vm.runInContext('amberOutcomeSummary([noOrangeRun])', amberDisplayContext), /No oranges consumed/);
+assert.ok(!vm.runInContext('amberOutcomeSummary([noOrangeRun])', amberDisplayContext).includes('Advanced +'));
+assert.match(vm.runInContext('amberOutcomeSummary([{ depth: 340 }])', amberDisplayContext), /measurements unavailable/);
+assert.match(vm.runInContext('amberRunDetails({ amber: {} })', amberDisplayContext), /timing unavailable/);
+assert.equal(JSON.stringify(amberDisplayRuns), amberDisplayBefore, 'outcome rendering does not mutate captured trials');
+const amberControls = Object.fromEntries(['optimizer-mode', 'amber-search', 'search-scope', 'configuration-search-help', 'objective']
+  .map(id => [id, { value: id === 'optimizer-mode' ? 'amber' : 'depth' }]));
+amberControls.objective.options = ['depth', 'amber', 'grand'].map(value => ({ value, disabled: false }));
+vm.runInNewContext(ui.slice(ui.indexOf('function syncOptimizerMode('), ui.indexOf('function populate('))
+  + '\nsyncOptimizerMode();', { $: id => amberControls[id] });
+assert.equal(amberControls.objective.value, 'amber');
+assert.equal(amberControls['amber-search'].hidden, false);
+assert.equal(amberControls['search-scope'].hidden, true);
+assert.deepEqual(amberControls.objective.options.map(o => o.disabled), [true, false, true]);
+amberControls['optimizer-mode'].value = 'configuration';
+vm.runInNewContext(ui.slice(ui.indexOf('function syncOptimizerMode('), ui.indexOf('function populate('))
+  + '\nsyncOptimizerMode();', { $: id => amberControls[id] });
+assert.equal(amberControls['search-scope'].hidden, false);
+assert.ok(amberControls.objective.options.every(o => !o.disabled));
+vm.runInNewContext(ui.slice(ui.indexOf('function renderCaveComparison('), ui.indexOf('function renderComparison('))
+  + '\nrenderCaveComparison(bundle, "caves-result");', {
+    bundle: { result: cavesCompared, input: caveInput }, $: () => host,
+    esc: String, num: String, portrait: c => `Character ${c.id}`,
+    layout: () => 'Captured configuration', renderContributions: () => '',
+    sampleRate: (count, total) => `${count}/${total}`,
+  });
+assert.match(host.innerHTML, /Most new depths observed: Cave 1, \+2/);
+assert.match(host.innerHTML, /Over party limit: Character 1, Character 2/);
+assert.match(host.innerHTML, /Missing saved record; excluded from ranking/);
+assert.equal((host.innerHTML.match(/data-use-cave=/g) || []).length, 5);
+assert.equal((host.innerHTML.match(/data-replay-trial=/g) || []).length, 10);
+assert.match(host.innerHTML, /data-owner="caves-result"/, 'actions and replays use their captured cave result');
 const largeInput = { ...memoryInput, caves: [{ ...memoryInput.caves[0], capacity: 6 }],
   characters: Array.from({ length: 12 }, (_, id) => ({ id, name: `Character ${id + 1}`, max: 8, stamina: 8 })) };
 const largeSpace = spelunkSearchSpace(largeInput, basic);

@@ -19,6 +19,8 @@ import { computeBoxReward, computeCardBonusByType, computeStatueBonusGiven } fro
 import { computeCardSetBonus } from '../common/cards.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 import { attackLoadoutFactor } from '../common/combat-outcomes.js';
+import { combatAfkFood } from '../common/combat-afk-food.js';
+import { afkDropRollDistribution, afkMonsterDropOutcomes } from '../common/combat-afk.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
 import { bubbleValByKey } from './alchemy.js';
 import { computeRiftSkillBonus } from '../w4/rift.js';
@@ -155,7 +157,8 @@ export function fishingPoolOutcome(poolKey, inputs, hours) {
   var creditedSlot = {};
   var fish = pool.fish.map(function(f, t) {
     var share = shares[t];
-    var count = Math.floor(catches * fishPerCatch * (share / 100));
+    var count = Math.floor(h * inputs.catchesPerHour * inputs.afkRate
+      * (1 + inputs.multiFish / 100) * oreValue * (share / 100));
     if (!(count > 0)) count = 0;
     var typeExp = share > 0 ? catches * f.expPerCatch * (share / 100) * inputs.expMulti : 0;
     exp += typeExp;
@@ -203,6 +206,63 @@ export function fishingPoolOutcome(poolKey, inputs, hours) {
 }
 
 // ---------- Save-backed evaluator ----------
+
+function _claimNumber(value, label) {
+  if (value == null || String(value).trim() === '' || !Number.isFinite(Number(value)) || Number(value) < 0)
+    throw new Error('Missing or invalid Fishing claim input: ' + label);
+  return Number(value);
+}
+
+export function fishingPoolBonusOutcomes(outcome, dropRate) {
+  dropRate = _claimNumber(dropRate, 'Drop Rarity');
+  if (!Array.isArray(outcome?.fish)) throw new Error('Missing Fishing pool outcome.');
+  const bonusDistributions = new Map();
+  for (const fish of outcome.fish) {
+    const count = _claimNumber(fish.count, 'fish count');
+    if (!(count > 0)) continue;
+    const odds = _claimNumber(fish.bonusOdds, 'pool bonus odds');
+    if (typeof fish.bonusItem !== 'string' || !fish.bonusItem)
+      throw new Error('Missing Fishing pool bonus item.');
+    const previous = bonusDistributions.get(fish.bonusItem) || new Map([[0, 1]]), next = new Map();
+    for (const [rolled, probability] of afkDropRollDistribution(count, odds * dropRate)) {
+      if (rolled < 1) {
+        for (const [quantity, oldProbability] of previous)
+          next.set(quantity, (next.get(quantity) || 0) + oldProbability * probability);
+      } else {
+        const quantity = Math.max(Math.floor(Math.pow(rolled, .7)), 1);
+        next.set(quantity, (next.get(quantity) || 0) + probability);
+      }
+    }
+    bonusDistributions.set(fish.bonusItem, next);
+  }
+  return [...bonusDistributions].map(([key, distribution]) => {
+    let expected = 0;
+    for (const [quantity, probability] of distribution) expected += quantity * probability;
+    return { key, expected, chance: 1 - (distribution.get(0) || 0) };
+  }).filter(row => row.chance > 0);
+}
+
+export function fishingClaim(poolKey, inputs, seconds, values, tables, options = {}) {
+  seconds = _claimNumber(seconds, 'away seconds');
+  if (!fishingPool(poolKey)) throw new Error('Unknown Fishing pool: ' + poolKey);
+  for (const key of ['efficiency', 'prowess', 'catchesPerHour', 'afkRate', 'multiFish', 'expMulti', 'speed'])
+    _claimNumber(inputs[key], key);
+  for (const key of ['D1', 'D2', 'D3']) _claimNumber(inputs.depths?.[key], key);
+  if (seconds <= 120)
+    return { eligible: false, creditedSeconds: 0, hours: 0, fishTotal: 0, exp: 0, fish: [], dropBatch: 0, food: null, bonuses: [], drops: [] };
+  const creditedSeconds = Math.min(Math.round(seconds), inputs.prayerCap ? 36000 : Infinity);
+  const outcome = fishingPoolOutcome(poolKey, inputs, creditedSeconds / 3600);
+  const food = combatAfkFood(creditedSeconds, values, () =>
+    ({ speed: inputs.speed, rawKillsPerHour: 0, percent: 100 }), { skill: 'Fishing' });
+  const dropBatch = Math.floor(outcome.hours * inputs.catchesPerHour * inputs.afkRate);
+  if (options.includeDrops === false)
+    return { ...outcome, eligible: true, creditedSeconds, dropBatch, food, bonuses: null, drops: null };
+  const bonuses = fishingPoolBonusOutcomes(outcome, values.dropRate);
+  const drops = afkMonsterDropOutcomes(dropBatch, poolKey,
+    { ...values, overkillActive: 0, multiKillTotal: 0, monsterCash: 0 }, tables)
+    .filter(row => row.key !== 'COIN');
+  return { ...outcome, eligible: true, creditedSeconds, dropBatch, food, bonuses, drops };
+}
 
 function _raw(fn) {
   try { return fn(); } catch (e) { return 0; }
@@ -270,8 +330,11 @@ function _withToolkit(charIdx, selection, fn) {
   }
 }
 
-function _ctx(saveData, charIdx) {
-  return createStatContext({ charIdx: charIdx, saveData: saveData, layer1: { skillType: 'Fishing' } });
+function _ctx(saveData, charIdx, options) {
+  const ctx = createStatContext({ charIdx: charIdx, saveData: saveData,
+    mapIdx: options.mapIdx, layer1: { skillType: 'Fishing' } });
+  if (options.afkTarget != null) ctx.afkTarget = options.afkTarget;
+  return ctx;
 }
 
 function _reason(result) {
@@ -290,9 +353,11 @@ export function toolkitStats(selection) {
 
 // Builds a cached evaluator for one character. evaluate() accepts a toolkit
 // selection and fishing spot, and returns outcomes for every fish pool.
-export function createFishingEvaluator(saveData, charIdx) {
+export function createFishingEvaluator(saveData, charIdx, options = {}) {
+  if (options.mapIdx != null && (!Number.isInteger(options.mapIdx) || options.mapIdx < 0))
+    throw new Error('Invalid Fishing evaluator map.');
   var ci = Number(charIdx) || 0;
-  var ctx = _ctx(saveData, ci);
+  var ctx = _ctx(saveData, ci, options);
   var level = Number(saveData.lv0AllData && saveData.lv0AllData[ci] && saveData.lv0AllData[ci][4]) || 0;
   var rodKey = equipOrderData[ci] && equipOrderData[ci][1] && equipOrderData[ci][1][2];
   var afkResult = ctx.resolve('skill-afk');
@@ -363,7 +428,7 @@ export function createFishingEvaluator(saveData, charIdx) {
   function powerTerms(selection, pow) {
     if (!(pow in powCache)) {
       powCache[pow] = _withToolkit(ci, selection, function() {
-        var c = _ctx(saveData, ci);
+        var c = _ctx(saveData, ci, options);
         var eff = c.resolve('skill-efficiency');
         var powerDetail = _raw(function() { return computeSkillPowerDetail('Fishing', ci, c); });
         return {
@@ -381,7 +446,7 @@ export function createFishingEvaluator(saveData, charIdx) {
   function expTerms(selection, exp) {
     if (!(exp in expCache)) {
       expCache[exp] = _withToolkit(ci, selection, function() {
-        var result = _ctx(saveData, ci).resolve('skill-exp');
+        var result = _ctx(saveData, ci, options).resolve('skill-exp');
         return {
           expMulti: Number(result && result.val) || 0,
           children: result && Array.isArray(result.children) ? result.children : null,

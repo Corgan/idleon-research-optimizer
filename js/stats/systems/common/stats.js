@@ -1,7 +1,6 @@
 // ===== STATS SYSTEM =====
 // Generic TotalStats computation for STR/AGI/WIS/LUK.
-// Currently LUK is fully implemented (for DR formula).
-// Other stats share the same structure — only IDs differ.
+// The four primary stats share the same structure, with stat-specific sources.
 //
 // Game formula (non-dungeon):
 //   Math.floor(
@@ -32,6 +31,8 @@ import {
 import { ITEMS } from '../../data/game/items.js';
 import { obolMiscMulti } from '../w7/menagerie.js';
 import { formulaEval } from '../../../formulas.js';
+import { formulaEvalDetail, getLOGDetail } from '../../../formula-details.js';
+import { formulaInput, formulaConstant, formulaOperation as op } from '../../formula-tree.js';
 import { superBitType } from '../../../game-helpers.js';
 import { isBubblePrismad, getPrismaBonusMult, sigil as sigilResolver } from '../w2/alchemy.js';
 import { etcBonus as etcBonusResolver } from './etcBonus.js';
@@ -81,8 +82,18 @@ function _effectLabel(prefix, raw, fallback) {
   return prefix + ': ' + (name || fallback);
 }
 
+function _statSum(name, terms) {
+  if (!terms.length) return formulaConstant(0, name);
+  return { ...terms.slice(1).reduce((sum, term) => op(name, 'add', sum, term), terms[0]), name };
+}
+
+function _statFormula(name, expected, tree) {
+  if (!Object.is(expected, tree.val)) throw new Error('Stat formula mismatch: ' + name);
+  return { ...tree, name, formulaTerm: true };
+}
+
 // ==================== STAT CONFIG ====================
-// Per-stat IDs. Only LUK is fully filled in; others can be added.
+// Per-stat source IDs.
 var STAT_CONFIG = {
   STR: {
     totalBubble: 'TotalSTR',
@@ -205,7 +216,7 @@ var STAT_CONFIG = {
 // ==================== STAR SIGN STAT BONUSES ====================
 // Parse StarSigns game data for a specific stat's flat + pct bonuses.
 // All star signs count (rift enables all). Applies Seraph_Cosmos multiplier.
-function computeStarSignStatBonuses(statName, charIdx, saveData) {
+function computeStarSignStatBonuses(statName, charIdx, saveData, options) {
   var flatTotal = 0, pctTotal = 0;
   var flatChildren = [], pctChildren = [];
   var enabled = getEnabledStarSigns(saveData);
@@ -223,10 +234,14 @@ function computeStarSignStatBonuses(statName, charIdx, saveData) {
       if (type === statName || type === 'All_Stats' || type === 'All_Stat') {
         if (isPct) {
           pctTotal += val;
-          pctChildren.push(node(label('Star Sign', i), val, null, { fmt: 'raw' }));
+          pctChildren.push(options?.formulaDetails
+            ? formulaInput(label('Star Sign', i), val, 'StarSigns[' + i + '][' + e + ']')
+            : node(label('Star Sign', i), val, null, { fmt: 'raw' }));
         } else {
           flatTotal += val;
-          flatChildren.push(node(label('Star Sign', i), val, null, { fmt: 'raw' }));
+          flatChildren.push(options?.formulaDetails
+            ? formulaInput(label('Star Sign', i), val, 'StarSigns[' + i + '][' + e + ']')
+            : node(label('Star Sign', i), val, null, { fmt: 'raw' }));
         }
       }
     }
@@ -263,9 +278,16 @@ export function computeCardBonusByType(typeId, charIdx, saveData, options) {
       var passiveLv = computeCardLv(cardKey, saveData);
       var passiveContrib = passiveLv * passiveCard.val;
       passiveTotal += passiveContrib;
-      passiveChildren.push(node(cardKey + ' Lv' + passiveLv, passiveContrib, null,
-        { fmt: 'raw', note: 'passive; per-star=' + passiveCard.val }));
+      passiveChildren.push(options?.formulaDetails
+        ? _statFormula(label('Card', cardKey), passiveContrib, op('Passive card bonus', 'multiply',
+          formulaInput('Card level', passiveLv, null, [
+            formulaInput('Owned cards', Number(saveData.cards0Data[cardKey]), 'Cards0.' + cardKey),
+          ]), formulaInput('Bonus per level', passiveCard.val, 'CardStuff entry "' + cardKey + '" field 4')))
+        : node(cardKey + ' Lv' + passiveLv, passiveContrib, null,
+          { fmt: 'raw', note: 'passive; per-star=' + passiveCard.val }));
     }
+    if (options?.formulaDetails) return _statFormula('Passive card bonuses', passiveTotal,
+      _statSum('Passive card bonuses', [formulaConstant(0), ...passiveChildren]));
     return { val: passiveTotal, children: passiveChildren };
   }
   var equipped = cardEquipData[charIdx] || [];
@@ -282,31 +304,61 @@ export function computeCardBonusByType(typeId, charIdx, saveData, options) {
                    || (i === 7 && charHasChip(charIdx, 'card2')) ? 2 : 1;
     var contrib = chipDouble * lv * cb.val * legendMulti;
     total += contrib;
-    children.push(node(cardKey + ' Lv' + lv, contrib, null,
-      { fmt: 'raw', note: 'per-star=' + cb.val + (chipDouble > 1 ? ' ×2chip' : '') }));
+    children.push(options?.formulaDetails
+      ? _statFormula(label('Card', cardKey), contrib, op('Legend-scaled card bonus', 'multiply',
+        op('Card bonus', 'multiply', op('Chip-scaled card level', 'multiply',
+          formulaInput('Equipped card chip multiplier', chipDouble),
+          formulaInput('Card level', lv, null, [
+            formulaInput('Owned cards', Number(saveData.cards0Data?.[cardKey]) || 0, 'Cards0.' + cardKey),
+          ])), formulaInput('Bonus per level', cb.val, 'CardStuff entry "' + cardKey + '" field 4')),
+        op('Legend multiplier', 'add', formulaConstant(1),
+          op('Legend percent', 'divide', formulaInput(label('Legend', 21), legend21), formulaConstant(100)))))
+      : node(cardKey + ' Lv' + lv, contrib, null,
+        { fmt: 'raw', note: 'per-star=' + cb.val + (chipDouble > 1 ? ' ×2chip' : '') }));
   }
+  if (options?.formulaDetails) return _statFormula('Equipped card bonuses', total,
+    _statSum('Equipped card bonuses', [formulaConstant(0), ...children]));
   return { val: total, children: children };
 }
 
 // ==================== BOX REWARDS ====================
 // Compute a BoxRewards value by key from PostOffUpgradeInfo + postOfficeData.
-export function computeBoxReward(charIdx, key) {
+export function computeBoxReward(charIdx, key, options) {
   for (var boxIdx = 0; boxIdx < PostOffUpgradeInfo.length; boxIdx++) {
     var box = PostOffUpgradeInfo[boxIdx];
     for (var slot = 0; slot < 3; slot++) {
       if (box[16 + slot] !== key) continue;
       var pts = Number((postOfficeData[charIdx] || [])[boxIdx]) || 0;
-      if (pts <= 0) return { val: 0, children: [] };
+      const rawPoints = options?.formulaDetails
+        ? formulaInput('Invested points', pts, 'POu_' + charIdx + '[' + boxIdx + ']') : null;
+      if (pts <= 0) return options?.formulaDetails
+        ? { val: 0, kind: 'formula', formula: 'No invested points: return 0', children: [rawPoints] }
+        : { val: 0, children: [] };
       // Game subtracts slot thresholds for slots 1 and 2
       if (slot === 1) pts -= Number(box[13]) || 0;
       if (slot === 2) pts -= Number(box[14]) || 0;
       pts = Math.round(pts);
-      if (pts <= 0) return { val: 0, children: [] };
+      const threshold = rawPoints && slot !== 0
+        ? formulaInput('Slot threshold', Number(box[slot === 1 ? 13 : 14]) || 0,
+          'PostOffUpgradeInfo[' + boxIdx + '][' + (slot === 1 ? 13 : 14) + ']') : null;
+      const eligiblePoints = rawPoints ? op('Eligible invested points', 'round',
+        threshold ? op('Points beyond threshold', 'subtract', rawPoints, threshold) : rawPoints) : null;
+      if (pts <= 0) return options?.formulaDetails
+        ? { val: 0, kind: 'formula', formula: 'Rounded points after slot threshold <= 0: return 0',
+          children: [eligiblePoints] }
+        : { val: 0, children: [] };
       var paramBase = 1 + slot * 4;
       var x1 = Number(box[paramBase]) || 0;
       var x2 = Number(box[paramBase + 1]) || 0;
       var formula = box[paramBase + 2];
       var val = formulaEval(formula, x1, x2, pts);
+      if (options?.formulaDetails) {
+        return formulaEvalDetail(formula, x1, x2, pts, {
+          x1: formulaInput('First coefficient', x1, 'PostOffUpgradeInfo[' + boxIdx + '][' + paramBase + ']'),
+          x2: formulaInput('Second coefficient', x2, 'PostOffUpgradeInfo[' + boxIdx + '][' + (paramBase + 1) + ']'),
+          lv: eligiblePoints,
+        });
+      }
       return {
         val: val,
         children: [node(box[0] + ' slot' + slot, val, null,
@@ -329,7 +381,7 @@ function computeDreamShimmer(saveData) {
 }
 
 // ==================== EQUIP BASE STAT ====================
-export function computeEquipBaseStat(charIdx, statName, saveData) {
+export function computeEquipBaseStat(charIdx, statName, saveData, options) {
   var total = 0;
   var children = [];
   var eqData = equipOrderData[charIdx];
@@ -358,11 +410,17 @@ export function computeEquipBaseStat(charIdx, statName, saveData) {
       var slotVal = baseStat + stoneStat;
       if (slotVal !== 0) {
         total += slotVal;
-        children.push(node('R' + row + 'S' + slot + ' ' + itemName, slotVal, null,
-          { fmt: 'raw', note: 'base=' + baseStat + ' stone=' + stoneStat }));
+        children.push(options?.formulaDetails
+          ? _statFormula(label('Item', itemName), slotVal, op('Item base and upgrades', 'add',
+            formulaInput('Base ' + statName, baseStat, 'ITEMS.' + itemName + '.' + statName),
+            formulaInput('Added ' + statName, stoneStat, 'EMm' + row + '_' + charIdx + '[' + slot + '].' + statName)))
+          : node('R' + row + 'S' + slot + ' ' + itemName, slotVal, null,
+            { fmt: 'raw', note: 'base=' + baseStat + ' stone=' + stoneStat }));
       }
     }
   }
+  if (options?.formulaDetails) return _statFormula('Equipment Base ' + statName, total,
+    _statSum('Equipment Base ' + statName, [formulaConstant(0), ...children]));
   return { val: total, children: children };
 }
 
@@ -392,11 +450,19 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
     var tier = trophyTier(i, saveData);
     var val = tier * gbm * tStat;
     trophyTotal += val;
-    trophyCh.push(node('Trophy' + trophyId + ' slot' + i, val, null,
-      { fmt: 'raw', note: 'base=' + tStat + ' tier=' + tier }));
+    trophyCh.push(ctx.formulaDetails
+      ? _statFormula(label('Item', 'Trophy' + trophyId), val, op('Trophy stat', 'multiply',
+        op('Gallery tier multiplier', 'multiply', formulaInput('Podium multiplier', tier),
+          formulaInput('Gallery multiplier', gbm, null, gbmObj.children)),
+        formulaInput('Base ' + statName, tStat, 'ITEMS.Trophy' + trophyId + '.' + statName)))
+      : node('Trophy' + trophyId + ' slot' + i, val, null,
+        { fmt: 'raw', note: 'base=' + tStat + ' tier=' + tier }));
   }
   if (trophyTotal > 0) {
-    children.push(node('Trophy Base ' + statName, trophyTotal, trophyCh, { fmt: 'raw' }));
+    children.push(ctx.formulaDetails
+      ? _statFormula('Trophy Base ' + statName, trophyTotal,
+        _statSum('Trophy Base ' + statName, [formulaConstant(0), ...trophyCh]))
+      : node('Trophy Base ' + statName, trophyTotal, trophyCh, { fmt: 'raw' }));
     total += trophyTotal;
   }
 
@@ -415,11 +481,21 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
     var ntier = NAMETAG_TIER_SCALE[Math.min(NAMETAG_TIER_SCALE.length - 1, nlv - 1)];
     var nval = ntier * gbm * nStat;
     nametagTotal += nval;
-    nametagCh.push(node('Nametag' + (ni + 1) + ' Lv' + nlv, nval, null,
-      { fmt: 'raw', note: 'base=' + nStat + ' tier=' + ntier }));
+    nametagCh.push(ctx.formulaDetails
+      ? _statFormula(label('Item', nItemKey), nval, op('Nametag stat', 'multiply',
+        op('Gallery tier multiplier', 'multiply',
+          formulaInput('Nametag tier multiplier', ntier, 'NAMETAG_TIER_SCALE[' + Math.min(NAMETAG_TIER_SCALE.length - 1, nlv - 1) + ']',
+            [formulaInput('Nametag level', nlv, 'Spelunk[17][' + ni + ']')]),
+          formulaInput('Gallery multiplier', gbm, null, gbmObj.children)),
+        formulaInput('Base ' + statName, nStat, 'ITEMS.' + nItemKey + '.' + statName)))
+      : node('Nametag' + (ni + 1) + ' Lv' + nlv, nval, null,
+        { fmt: 'raw', note: 'base=' + nStat + ' tier=' + ntier }));
   }
   if (nametagTotal > 0) {
-    children.push(node('Nametag Base ' + statName, nametagTotal, nametagCh, { fmt: 'raw' }));
+    children.push(ctx.formulaDetails
+      ? _statFormula('Nametag Base ' + statName, nametagTotal,
+        _statSum('Nametag Base ' + statName, [formulaConstant(0), ...nametagCh]))
+      : node('Nametag Base ' + statName, nametagTotal, nametagCh, { fmt: 'raw' }));
     total += nametagTotal;
   }
 
@@ -435,18 +511,27 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
     if (hStat === 0) continue;
     var hval = hbm * hStat;
     premhatTotal += hval;
-    premhatCh.push(node(hatName, hval, null, { fmt: 'raw', note: 'base=' + hStat }));
+    premhatCh.push(ctx.formulaDetails
+      ? _statFormula(label('Item', hatName), hval, op('Premium hat stat', 'multiply',
+        formulaInput('Hatrack multiplier', hbm, null, hbmObj.children),
+        formulaInput('Base ' + statName, hStat, 'ITEMS.' + hatName + '.' + statName)))
+      : node(hatName, hval, null, { fmt: 'raw', note: 'base=' + hStat }));
   }
   if (premhatTotal > 0) {
-    children.push(node('Premhat Base ' + statName, premhatTotal, premhatCh, { fmt: 'raw' }));
+    children.push(ctx.formulaDetails
+      ? _statFormula('Premhat Base ' + statName, premhatTotal,
+        _statSum('Premhat Base ' + statName, [formulaConstant(0), ...premhatCh]))
+      : node('Premhat Base ' + statName, premhatTotal, premhatCh, { fmt: 'raw' }));
     total += premhatTotal;
   }
 
+  if (ctx.formulaDetails) return _statFormula('Gallery Base ' + statName, total,
+    _statSum('Gallery Base ' + statName, [formulaConstant(0), ...children]));
   return { val: total, children: children };
 }
 
 // ==================== OBOL BASE STAT ====================
-export function computeObolBaseStat(charIdx, statName) {
+export function computeObolBaseStat(charIdx, statName, options) {
   var total = 0;
   var children = [];
   var pNames = obolNamesData && obolNamesData[charIdx];
@@ -461,7 +546,11 @@ export function computeObolBaseStat(charIdx, statName) {
       var slotTotal = oStat + mapBonus;
       if (slotTotal > 0) {
         total += slotTotal;
-        children.push(node('Personal ' + on, slotTotal, null, { fmt: 'raw' }));
+        children.push(options?.formulaDetails
+          ? _statFormula('Personal ' + label('Item', on), slotTotal, op('Obol base and upgrades', 'add',
+            formulaInput('Base ' + statName, oStat, 'ITEMS.' + on + '.' + statName),
+            formulaInput('Added ' + statName, mapBonus, 'ObolEqMAP_' + charIdx + '[' + i + '].' + statName)))
+          : node('Personal ' + on, slotTotal, null, { fmt: 'raw' }));
       }
     }
   }
@@ -477,10 +566,16 @@ export function computeObolBaseStat(charIdx, statName) {
       var fSlotTotal = fStat + fMapBonus;
       if (fSlotTotal > 0) {
         total += fSlotTotal;
-        children.push(node('Family ' + fn, fSlotTotal, null, { fmt: 'raw' }));
+        children.push(options?.formulaDetails
+          ? _statFormula('Family ' + label('Item', fn), fSlotTotal, op('Obol base and upgrades', 'add',
+            formulaInput('Base ' + statName, fStat, 'ITEMS.' + fn + '.' + statName),
+            formulaInput('Added ' + statName, fMapBonus, 'ObolEqMAPz1[' + j + '].' + statName)))
+          : node('Family ' + fn, fSlotTotal, null, { fmt: 'raw' }));
       }
     }
   }
+  if (options?.formulaDetails) return _statFormula('Obol Base ' + statName, total,
+    _statSum('Obol Base ' + statName, [formulaConstant(0), ...children]));
   return { val: total, children: children };
 }
 
@@ -501,7 +596,7 @@ export function computeObolMiscStat(charIdx, statName, S) {
 // ==================== STAMP BONUS BY TYPE ====================
 var CAT_LETTER = ['A', 'B', 'C'];
 
-function computeStampBonusOfTypeX(type, saveData) {
+function computeStampBonusOfTypeX(type, saveData, options) {
   var total = 0;
   var children = [];
   // Precompute shared multipliers
@@ -537,14 +632,47 @@ function computeStampBonusOfTypeX(type, saveData) {
       if (exalted) stampNote += ' exalted×' + exaltedMult.toFixed(2);
       if (cat < 2 && labDouble > 1) stampNote += ' lab×' + labDouble;
       if (cat < 2 && pristineMulti > 1) stampNote += ' prist×' + pristineMulti.toFixed(2);
-      children.push(node(stampName + ' Lv' + lv, val, null,
-        { fmt: 'raw', note: stampNote }));
+      if (options?.formulaDetails) {
+        let detail = op('Exalted stamp bonus', 'multiply',
+          formulaEvalDetail(formula, x1, x2, lv, {
+            x1: formulaInput('First coefficient', x1, 'ITEMS.' + stampName + '.desc_line1[2]'),
+            x2: formulaInput('Second coefficient', x2, 'ITEMS.' + stampName + '.desc_line1[3]'),
+            lv: formulaInput('Stamp level', lv, 'StampLv[' + cat + '][' + idx + ']'),
+          }),
+          exalted ? op('Exalted multiplier', 'add', formulaConstant(1),
+            op('Exalted percent', 'divide',
+              formulaInput('Exalted stamp bonuses', doublerInfo.total, null, doublerInfo.children), formulaConstant(100)))
+            : formulaConstant(1, 'Not exalted'));
+        if (cat < 2) detail = op('Boosted stamp bonus', 'multiply',
+          op('Lab-boosted stamp', 'multiply', detail, formulaInput('Certified Stamp Book multiplier', labDouble)),
+          prist17 > 0 ? op('Liquorice Rolle multiplier', 'add', formulaConstant(1),
+            op('Pristine percent', 'divide', formulaInput(label('Pristine', 17), prist17), formulaConstant(100)))
+            : formulaConstant(1, 'Liquorice Rolle inactive'));
+        children.push(_statFormula(label('Stamp', stampName.slice(5)), val, detail));
+      } else {
+        children.push(node(stampName + ' Lv' + lv, val, null,
+          { fmt: 'raw', note: stampNote }));
+      }
     }
   }
+  if (options?.formulaDetails) return _statFormula('Stamps: ' + type, total,
+    _statSum('Stamp bonuses', [formulaConstant(0), ...children]));
   return { val: total, children: children };
 }
 
 // ==================== ALCHEMY BUBBLE ====================
+function _statBubbleBase(params, level, saveData) {
+  return op('Base bubble bonus', 'multiply',
+    formulaEvalDetail(params.formula, params.x1, params.x2, level, {
+      x1: formulaInput('First coefficient', params.x1, 'AlchemyDescription[' + params.cauldron + '][' + params.index + '][1]'),
+      x2: formulaInput('Second coefficient', params.x2, 'AlchemyDescription[' + params.cauldron + '][' + params.index + '][2]'),
+      lv: formulaInput('Bubble level', level, 'CauldronInfo[' + params.cauldron + '][' + params.index + ']'),
+    }),
+    isBubblePrismad(params.cauldron, params.index)
+      ? op('Prisma multiplier', 'max', formulaConstant(1), getPrismaBonusMult(saveData, { formulaDetails: true }))
+      : formulaConstant(1, 'Prisma inactive'));
+}
+
 var BUBBLE_KEYS = {
   TotalLUK: { cauldron: 3, index: 0, slab: false },
   TotalSTR: { cauldron: 0, index: 0, slab: false },
@@ -565,7 +693,7 @@ var BUBBLE_KEYS = {
 // Gpassz = c1 i1 (archers: class 18-29)
 // Ppassz = c2 i1 (mages:   class 30-41)
 // Cauldron 3: no passz (multiply by 1).
-function getPasszMult(cauldron, charIdx, saveData) {
+function getPasszMult(cauldron, charIdx, saveData, options) {
   if (cauldron === 3) return { val: 1, children: [] };
   var charClass = Number(charClassData[charIdx] || 0);
   if (charClass <= 6) return { val: 1, children: [] };
@@ -584,6 +712,8 @@ function getPasszMult(cauldron, charIdx, saveData) {
   var passzBase = formulaEval(passzParams.formula, passzParams.x1, passzParams.x2, passzLv);
   var passzPrisma = isBubblePrismad(cauldron, 1) ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   var passzVal = Math.max(1, passzBase * passzPrisma);
+  if (options?.formulaDetails) return _statFormula(passzParams.name, passzVal,
+    op('Class multiplier', 'max', formulaConstant(1), _statBubbleBase(passzParams, passzLv, saveData)));
   return { val: passzVal, children: [
     node(passzParams.name, passzVal, [
       node('Level', passzLv, null, { fmt: 'raw' }),
@@ -605,7 +735,7 @@ var MULTI_AFFECTED = {
 };
 var MULTI_BUBBLE_INDEX = 16;
 
-function getMultiBubbleMult(cauldron, bubbleIndex, saveData) {
+function getMultiBubbleMult(cauldron, bubbleIndex, saveData, options) {
   var affected = MULTI_AFFECTED[cauldron];
   if (!affected || affected.indexOf(bubbleIndex) === -1) return { val: 1, children: [] };
   var multiParams = bubbleParams(cauldron, MULTI_BUBBLE_INDEX);
@@ -617,6 +747,8 @@ function getMultiBubbleMult(cauldron, bubbleIndex, saveData) {
   var multiPrisma = isBubblePrismad(cauldron, MULTI_BUBBLE_INDEX)
     ? Math.max(1, getPrismaBonusMult(saveData)) : 1;
   var multiVal = Math.max(1, multiBase * multiPrisma);
+  if (options?.formulaDetails) return _statFormula(multiParams.name, multiVal,
+    op('Multi-bubble multiplier', 'max', formulaConstant(1), _statBubbleBase(multiParams, multiLv, saveData)));
   return {
     val: multiVal,
     children: [node(multiParams.name + ' Multi', multiVal, [
@@ -628,7 +760,7 @@ function getMultiBubbleMult(cauldron, bubbleIndex, saveData) {
   };
 }
 
-function computeAlchBubble(bonusType, charIdx, saveData, dnsmCache) {
+function computeAlchBubble(bonusType, charIdx, saveData, dnsmCache, options) {
   var bk = BUBBLE_KEYS[bonusType];
   if (!bk) return { val: 0, children: [] };
   var cachedBubbles = dnsmCache && dnsmCache.alchBubbles;
@@ -674,12 +806,35 @@ function computeAlchBubble(bonusType, charIdx, saveData, dnsmCache) {
   // Passz multiplier: class-matched cauldron boost (Opassz/Gpassz/Ppassz)
   // Game order dependency: index 0 bubbles (TotalSTR/TotalAGI/TotalWIS/TotalLUK)
   // are processed BEFORE Passz at index 1, so Passz is unavailable → max(1,0)=1.
-  var passz = (charIdx != null && bk.index > 0) ? getPasszMult(bk.cauldron, charIdx, saveData) : { val: 1, children: [] };
+  var passz = (charIdx != null && bk.index > 0) ? getPasszMult(bk.cauldron, charIdx, saveData, options) : { val: 1, children: [] };
   var passzMult = passz.val;
   var val = baseVal * prismaMult * passzMult * slabMult * tomeMult * tomeExtraMult;
   // Multi bubble second-pass multiplication
-  var multi = getMultiBubbleMult(bk.cauldron, bk.index, saveData);
+  var multi = getMultiBubbleMult(bk.cauldron, bk.index, saveData, options);
   val *= multi.val;
+  if (options?.formulaDetails) {
+    const slab = params.slab ? op('Slab multiplier', 'max', formulaConstant(1),
+      op('Whole hundreds of discovered items', 'floor', op('Slab count per hundred', 'divide',
+        formulaInput('Discovered item count', slabCount, 'Cards1.length'), formulaConstant(100))))
+      : formulaConstant(1, 'No slab scaling');
+    const tome = params.tome ? op('Tome multiplier', 'max', formulaConstant(1),
+      op('Nonnegative Tome scaling', 'max', formulaConstant(0),
+        op('Whole Tome tiers', 'floor', op('Tome scaling', 'divide',
+          op('Tome points beyond threshold', 'subtract', formulaInput('Tome points', tomePoints), formulaConstant(5000)),
+          formulaConstant(2000))))) : formulaConstant(1, 'No Tome scaling');
+    const tomeExtra = params.tome ? op('Tome extra multiplier', 'add', formulaConstant(1),
+      op('Tome extra percent', 'divide', op('Grimoire and set bonus', 'add',
+        formulaInput('Grimoire level (legacy fallback)', g17, 'Grimoire[17]'),
+        formulaInput('Troll set bonus', trollSet)), formulaConstant(100)))
+      : formulaConstant(1, 'No Tome extra scaling');
+    let bubbleTree = _statBubbleBase(params, lv, saveData);
+    for (const factor of [
+      { ...passz, name: 'Class multiplier', formulaTerm: true },
+      slab, tome, tomeExtra, { ...multi, name: 'Multi-bubble multiplier', formulaTerm: true },
+    ]) bubbleTree = op('Scaled bubble bonus', 'multiply', bubbleTree, factor);
+    return { ..._statFormula(params.name, val, bubbleTree),
+      note: 'Current TotalStats fallback. Slab/Tome minimums and raw Grimoire scaling are legacy behavior, not a verified native cache reconstruction.' };
+  }
   var children = [
     node('Level', lv, null, { fmt: 'raw' }),
     node('Base', baseVal, null, { fmt: 'raw' }),
@@ -718,7 +873,7 @@ function returnClasses(classId) {
   return chain;
 }
 
-export function computeFamBonusQTYs(activeCharIdx, saveData) {
+export function computeFamBonusQTYs(activeCharIdx, saveData, options) {
   // Game: for each player, for each class in ReturnClasses(playerClass),
   // compute FamilyBonsuesREAL and keep max per key.
   // Talent 144 multiplier: if the active character sets the max for a key,
@@ -734,6 +889,7 @@ export function computeFamBonusQTYs(activeCharIdx, saveData) {
     rawLv144 = Number(sl144[144] || sl144['144']) || 0;
   }
   var result = {};
+  const details = options?.formulaDetails ? {} : null;
   for (var ci = 0; ci < numCharacters; ci++) {
     var classId = charClassData[ci] || 0;
     if (classId <= 0) continue;
@@ -757,8 +913,20 @@ export function computeFamBonusQTYs(activeCharIdx, saveData) {
         var key = Math.round(2 * clsIdx + type);
         if (!result[key] || bonus > result[key]) {
           result[key] = bonus;
+          let detail = details ? formulaEvalDetail(formula, x1, x2, effectiveLv, {
+            x1: formulaInput('First coefficient', x1, 'ClassFamilyBonuses[' + clsIdx + '][' + pb + ']'),
+            x2: formulaInput('Second coefficient', x2, 'ClassFamilyBonuses[' + clsIdx + '][' + (pb + 1) + ']'),
+            lv: op('Eligible character level', 'max', formulaConstant(0),
+              op('Rounded eligible level', 'round', op('Level beyond class threshold', 'subtract',
+                formulaInput('Character level', playerLv, 'Lv0_' + ci + '[0]'),
+                formulaInput('Class threshold', lvOffset, 'ClassAccountBonus[' + clsIdx + '][1]')))),
+          }) : null;
           if (key === 24 || key === 44) {
-            result[key] = bonus * (1 + maxTalentBonus(144, activeCharIdx, saveData) / 100);
+            var best144 = maxTalentBonus(144, activeCharIdx, saveData);
+            result[key] = bonus * (1 + best144 / 100);
+            if (detail) detail = op('Enhanced family bonus', 'multiply', detail,
+              op('Talent multiplier', 'add', formulaConstant(1),
+                op('Percent to fraction', 'divide', formulaInput(label('Talent', 144), best144), formulaConstant(100))));
           } else if (rawLv144 > 0 && ci === activeCharIdx) {
             // Compute tal144val lazily, reading FamBonusQTYs[68] from the
             // partially-built map to match the game's AllTalentLVz behavior.
@@ -766,9 +934,19 @@ export function computeFamBonusQTYs(activeCharIdx, saveData) {
             var t144 = talentParams(144);
             var tal144val = formulaEval(t144.formula, t144.x1, t144.x2, rawLv144 + bonus144);
             result[key] = bonus * (1 + tal144val / 100);
+            if (detail) detail = op('Enhanced family bonus', 'multiply', detail,
+              op('Talent multiplier', 'add', formulaConstant(1),
+                op('Percent to fraction', 'divide', formulaInput(label('Talent', 144), tal144val), formulaConstant(100))));
           }
+          if (detail) details[key] = { ...detail, formulaTerm: true,
+            note: 'Selected character ' + (ci + 1) + '. Candidates are checked in source order; raw bonus is compared against the stored, talent-adjusted winner.' };
         }
       }
+    }
+  }
+  if (details) {
+    for (const key of Object.keys(result)) {
+      result[key] = Object.assign(treeResult(result[key], details[key].children), details[key]);
     }
   }
   return result;
@@ -780,10 +958,15 @@ function computeAllStatPCT(charIdx, ctx) {
   var saveData = ctx.saveData;
   var sum = 0;
   var children = [];
+  const detailOptions = ctx.formulaDetails ? { formulaDetails: true } : undefined;
+  const terms = [];
 
-  function addSub(name, val, ch) {
+  function addSub(name, val, ch, detail) {
     sum += val;
     children.push(node(name, val, ch || null, { fmt: 'raw' }));
+    if (ctx.formulaDetails) terms.push(detail
+      ? _statFormula(name, val, detail)
+      : { ...formulaInput(name, val, null, ch), formulaTerm: true });
   }
 
   // 1. AlchVials.AllStatPCT
@@ -812,15 +995,33 @@ function computeAllStatPCT(charIdx, ctx) {
     var dNzz = riftVialBonus + vub42;
     var mf10lab = mainframeBonus(10, saveData) === 2 ? 2 : 1;
     var meritoc20 = computeMeritocBonusz(20, saveData, charIdx);
-    vialAllStatPCT += mf10lab * (1 + dNzz / 100) * (1 + meritoc20 / 100) * vialBase;
-    vialCh.push(node(vDesc[0] + ' Lv' + vialLv, vialAllStatPCT, [
+    var vialContribution = mf10lab * (1 + dNzz / 100) * (1 + meritoc20 / 100) * vialBase;
+    vialAllStatPCT += vialContribution;
+    vialCh.push(ctx.formulaDetails ? _statFormula(vDesc[0].replace(/_/g, ' '), vialContribution,
+      op('Scaled vial bonus', 'multiply',
+        op('Meritocracy-scaled vial', 'multiply',
+          op('Lab-scaled vial', 'multiply', formulaInput('Vial Lab multiplier', mf10lab),
+            op('Rift and Vault multiplier', 'add', formulaConstant(1),
+              op('Vial percent', 'divide', op('Vial bonuses', 'add',
+                op('Rift vial bonus', 'multiply', formulaConstant(riftActive ? 2 : 0),
+                  formulaInput('Max-level vials', maxLvVials)),
+                formulaInput(label('Vault', 42), vub42)), formulaConstant(100)))),
+          op('Meritocracy multiplier', 'add', formulaConstant(1),
+            op('Meritocracy percent', 'divide', formulaInput(label('Meritoc', 20), meritoc20), formulaConstant(100)))),
+        formulaEvalDetail(vDesc[3], Number(vDesc[1]) || 0, Number(vDesc[2]) || 0, vialLv, {
+          x1: formulaInput('First coefficient', Number(vDesc[1]) || 0, 'AlchemyDescription[4][' + vi + '][1]'),
+          x2: formulaInput('Second coefficient', Number(vDesc[2]) || 0, 'AlchemyDescription[4][' + vi + '][2]'),
+          lv: formulaInput('Vial level', vialLv, 'CauldronInfo[4][' + vi + ']'),
+        })))
+      : node(vDesc[0] + ' Lv' + vialLv, vialAllStatPCT, [
       node('Base', vialBase, null, { fmt: 'raw', note: vDesc[3] + '(' + vDesc[1] + ',' + vDesc[2] + ',' + vialLv + ')' }),
       node('Lab x2', mf10lab, null, { fmt: 'x' }),
       node(label('Vault', 42), vub42, null, { fmt: 'raw', note: 'DNzz=' + dNzz }),
       node(label('Meritoc', 20), 1 + meritoc20 / 100, null, { fmt: 'x' }),
     ], { fmt: 'raw' }));
   }
-  addSub('Alchemy Vials: All Stats', vialAllStatPCT, vialCh.length ? vialCh : null);
+  addSub('Alchemy Vials: All Stats', vialAllStatPCT, vialCh.length ? vialCh : null,
+    ctx.formulaDetails ? _statSum('Vial bonuses', [formulaConstant(0), ...vialCh]) : null);
 
   // 2. 15 * Companions(0) * CosmoBonusQTY(2,0)
   var comp0 = saveData.companionIds && saveData.companionIds.has(0) ? 1 : 0;
@@ -832,28 +1033,33 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('King Doot and Pocket Divinity', compCosmo, [
     node(label('Companion', 0, ' owned'), comp0, null, { fmt: 'raw' }),
     node(label('Cosmo', '2/0'), cosmo20, null, { fmt: 'raw', note: 'Base ' + cosmo20base + ', level ' + cosmo20Lv }),
-  ]);
+  ], ctx.formulaDetails ? op('Companion and Divinity bonus', 'multiply',
+    op('Companion factor', 'multiply', formulaInput('Normal companion bonus (legacy fallback)', COMPANION_BONUS[0], 'CompanionDB[0][2]'),
+      formulaInput('King Doot owned', comp0)),
+    op('Pocket Divinity', 'floor', op('Cosmo level bonus', 'multiply',
+      formulaInput('Bonus per level', cosmo20base, 'CosmoUpgrades[2][0][0]'),
+      formulaInput('Cosmo level', cosmo20Lv, 'Holes[6][0]')))) : null);
 
   // 3. MainframeBonus(104)
   var mf104 = mainframeBonus(104, saveData);
   addSub(label('Mainframe', 104), mf104);
 
   // 4. StampBonusOfTypeX("AllStatPct")
-  var stampAllStatPct = computeStampBonusOfTypeX('AllStatPct', saveData);
-  addSub('Stamps: All Stats', stampAllStatPct.val, stampAllStatPct.children);
+  var stampAllStatPct = computeStampBonusOfTypeX('AllStatPct', saveData, detailOptions);
+  addSub('Stamps: All Stats', stampAllStatPct.val, stampAllStatPct.children, ctx.formulaDetails ? stampAllStatPct : null);
 
   // 5. CardBonusREAL(82)
-  var card82 = computeCardBonusByType(82, charIdx, saveData);
-  addSub('Cards: All Stats', card82.val, card82.children);
+  var card82 = computeCardBonusByType(82, charIdx, saveData, detailOptions);
+  addSub('Cards: All Stats', card82.val, card82.children, ctx.formulaDetails ? card82 : null);
 
   // 6. Summoning WinBonus(18)
   var wb18 = computeWinBonus(18, null, saveData);
   addSub(label('WinBonus', 18), wb18);
 
   // 7. FamBonusQTYs[72]
-  var famMap = computeFamBonusQTYs(charIdx, saveData);
-  var fam72 = famMap[72] || 0;
-  addSub('Family Bonus: All Stats', fam72);
+  var famMap = computeFamBonusQTYs(charIdx, saveData, detailOptions);
+  var fam72 = Number(famMap[72]) || 0;
+  addSub('Family Bonus: All Stats', fam72, null, ctx.formulaDetails ? famMap[72] : null);
 
   // 8. Sailing ArtifactBonus(28)
   var sailing = saveData.sailingData;
@@ -862,11 +1068,13 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub(label('Artifact', 28), art28val, art28tier > 0 ? [
     node('Tier', art28tier, null, { fmt: 'raw' }),
     node('Base', artifactBase(28), null, { fmt: 'raw' }),
-  ] : null);
+  ] : null, ctx.formulaDetails && art28tier > 0 ? op('Artifact all-stat bonus', 'multiply',
+    formulaInput('Bonus per tier', artifactBase(28), 'ArtifactInfo[28][3]'),
+    formulaInput('Artifact tier', art28tier, 'Sailing[3][28]')) : null);
 
   // 9. GoldFoodBonuses("AllStatz")
   var gfoodAllStatz = goldFoodBonuses('AllStatz', charIdx, undefined, saveData, ctx.dnsmCache);
-  addSub('Golden Food: All Stats', gfoodAllStatz.total);
+  addSub('Golden Food: All Stats', gfoodAllStatz.total, ctx.formulaDetails ? gfoodAllStatz.children : null);
 
   // 10. AchieveStatus(309)
   addSub(label('Achievement', 309), achieveStatus(309, saveData));
@@ -881,7 +1089,10 @@ function computeAllStatPCT(charIdx, ctx) {
     node('Account Progress', ola172, null, { fmt: 'raw' }),
     node('Progress Logarithm', logOla172, null, { fmt: 'raw' }),
     tal653node,
-  ]);
+  ], ctx.formulaDetails ? op('Capped progress bonus', 'min', formulaConstant(15),
+    op('Progress-scaled talent', 'multiply',
+      getLOGDetail(formulaInput('Account Progress', ola172, 'OptionsListAccount[172]')),
+      { ...tal653node, formulaTerm: true })) : null);
 
   // 12. AchieveStatus(362)
   addSub(label('Achievement', 362), achieveStatus(362, saveData));
@@ -891,11 +1102,14 @@ function computeAllStatPCT(charIdx, ctx) {
   var ola232val = 10 * Math.floor((98 + ola232) / 100);
   addSub('Highest Sneaking Mastery', ola232val, [
     node('Mastery Progress', ola232, null, { fmt: 'raw' }),
-  ]);
+  ], ctx.formulaDetails ? op('Mastery stat bonus', 'multiply', formulaConstant(10),
+    op('Mastery steps', 'floor', op('Mastery progress', 'divide',
+      op('Mastery offset', 'add', formulaConstant(98),
+        formulaInput('Mastery Progress', ola232, 'OptionsListAccount[232]')), formulaConstant(100)))) : null);
 
   // 14. FarmingStuffs("LankRankUpgBonus", 19, 0)
   var farmRank19 = farmResolver.resolve('rank19', ctx);
-  addSub('Farming Rank 19', farmRank19.val, farmRank19.children);
+  addSub('Farming Rank 19', farmRank19.val, farmRank19.children, ctx.formulaDetails ? farmRank19 : null);
 
   // 15. Summoning VotingBonusz(2)
   var votingMultiResult = ctx.resolve ? ctx.resolve('voting-multi') : null;
@@ -912,6 +1126,12 @@ function computeAllStatPCT(charIdx, ctx) {
   addSub('Marbiglass Equipment Set', marbiVal);
 
   var raw = 0.1 * Math.floor(10 * sum);
+  if (ctx.formulaDetails) return { ..._statFormula('All Stats Percentage', raw,
+    op('Rounded all-stat percentage', 'multiply', formulaConstant(0.1),
+      op('Whole tenths', 'floor', op('All-stat sum in tenths', 'multiply', formulaConstant(10),
+        _statSum('All-stat percentage bonuses', [formulaConstant(0), ...terms]))))),
+    rawSum: sum,
+    note: 'Current calculator accumulation order. Native nested addition and legacy subsystem fallbacks still require reconciliation.' };
   return { val: raw, rawSum: sum, children: children };
 }
 
@@ -924,26 +1144,36 @@ export function computeTotalStat(statName, charIdx, ctx) {
 
   var tracked = { computed: 0, missing: 0, missingNames: [] };
   function addComputed(val) { tracked.computed += val; return val; }
+  const detailOptions = ctx.formulaDetails ? { formulaDetails: true } : undefined;
+  const resolved = ctx.formulaDetails ? new Map() : null;
+  function resolve(provider, id, options) {
+    const result = provider.resolve(id, ctx, options);
+    if (resolved) {
+      if (!resolved.has(provider)) resolved.set(provider, new Map());
+      resolved.get(provider).set(JSON.stringify([id, options]), result);
+    }
+    return result;
+  }
 
   // ==================== EQUIP DN ====================
-  var equipBase = computeEquipBaseStat(charIdx, statName, saveData);
+  var equipBase = computeEquipBaseStat(charIdx, statName, saveData, detailOptions);
   var equipBaseStat = addComputed(equipBase.val);
 
   var galleryBase = computeGalleryBaseStat(charIdx, ctx, statName);
   var galleryBaseStat = addComputed(galleryBase.val);
 
   // DN pct multiplier: (1 + (dnTalent + stampPct) / 100)
-  var dnTalentVal = talentResolver.resolve(cfg.dnPctTalent, ctx).val;
+  var dnTalentVal = resolve(talentResolver, cfg.dnPctTalent).val;
   addComputed(dnTalentVal);
-  var stampPctStat = computeStampBonusOfTypeX(cfg.dnPctStampType, saveData);
+  var stampPctStat = computeStampBonusOfTypeX(cfg.dnPctStampType, saveData, detailOptions);
   addComputed(stampPctStat.val);
   var equipPctMult = 1 + (dnTalentVal + stampPctStat.val) / 100;
   var totalStatsDN_main = (equipBaseStat + galleryBaseStat) * equipPctMult;
 
   // DN2 (obol) pct: (1 + (dn2Talent + 40*superBit2) / 100)
-  var obolBase = computeObolBaseStat(charIdx, statName);
+  var obolBase = computeObolBaseStat(charIdx, statName, detailOptions);
   var obolBaseStat = addComputed(obolBase.val);
-  var dn2TalentVal = talentResolver.resolve(cfg.dn2PctTalent, ctx).val;
+  var dn2TalentVal = resolve(talentResolver, cfg.dn2PctTalent).val;
   addComputed(dn2TalentVal);
   var superBit2 = superBitType(2, saveData.gamingData && saveData.gamingData[12]) ? 1 : 0;
   var obolPctMult = 1 + (dn2TalentVal + 40 * superBit2) / 100;
@@ -966,33 +1196,33 @@ export function computeTotalStat(statName, charIdx, ctx) {
   ];
 
   // ==================== PCT POOL ====================
-  var etcPct = etcBonusResolver.resolve(cfg.etcPct, ctx).val;
+  var etcPct = resolve(etcBonusResolver, cfg.etcPct).val;
   addComputed(etcPct);
-  var etcB46 = etcBonusResolver.resolve(46, ctx).val;
+  var etcB46 = resolve(etcBonusResolver, 46).val;
   addComputed(etcB46);
   // AllStatPCT: 16 sub-sources — see computeAllStatPCT()
   var allStatPCTResult = computeAllStatPCT(charIdx, ctx);
   var allStatPCT = allStatPCTResult.val;
   addComputed(allStatPCT);
-  var pristineVal = pristineResolver.resolve(cfg.pristineIdx, ctx).val;
+  var pristineVal = resolve(pristineResolver, cfg.pristineIdx).val;
   addComputed(pristineVal);
 
   // Star sign %stat
-  var signBonuses = computeStarSignStatBonuses(statName, charIdx, saveData);
+  var signBonuses = computeStarSignStatBonuses(statName, charIdx, saveData, detailOptions);
   var starSignPct = signBonuses.pct.val;
   addComputed(starSignPct);
 
   // Stat-specific pct talent (STR=143, AGI=368, WIS=533; LUK=none)
   var pctTalentVal = 0;
   if (cfg.pctTalent) {
-    pctTalentVal = talentResolver.resolve(cfg.pctTalent, ctx).val;
+    pctTalentVal = resolve(talentResolver, cfg.pctTalent).val;
     addComputed(pctTalentVal);
   }
 
   // Stat-specific pct bubble (STR=W8, AGI=A9, WIS=M9; LUK=none)
   var pctBubbleVal = 0;
   if (cfg.pctBubble) {
-    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx, saveData, ctx.dnsmCache);
+    var pctBbl = computeAlchBubble(cfg.pctBubble, charIdx, saveData, ctx.dnsmCache, detailOptions);
     pctBubbleVal = pctBbl.val;
     addComputed(pctBubbleVal);
   }
@@ -1017,22 +1247,22 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // ==================== FLAT BASE POOL ====================
   // Game grouping: (flatTalent + guildTalent + stampBase + [boxBase] + etcFlat + [shimmer])
   // LUK includes boxRewardsBase and shimmer in flatBase; other stats don't.
-  var flatTalentVal = talentResolver.resolve(cfg.flatTalent, ctx).val;
+  var flatTalentVal = resolve(talentResolver, cfg.flatTalent).val;
   addComputed(flatTalentVal);
 
   // Guild bonus: getbonus2(1, guildTalent, -1, saveData) = max talent across all chars
-  var guildMax = talentResolver.resolve(cfg.guildTalent, ctx, { mode: 'max' });
+  var guildMax = resolve(talentResolver, cfg.guildTalent, { mode: 'max' });
   var guildVal = guildMax.val;
   addComputed(guildVal);
 
-  var stampBase = computeStampBonusOfTypeX(cfg.stampBaseType, saveData);
+  var stampBase = computeStampBonusOfTypeX(cfg.stampBaseType, saveData, detailOptions);
   addComputed(stampBase.val);
 
   // BoxRewards base (e.g. "15c" for LUK = Science_Spare_Parts slot 2)
-  var boxBase = cfg.boxRewardsBase ? computeBoxReward(charIdx, cfg.boxRewardsBase) : { val: 0, children: [] };
+  var boxBase = cfg.boxRewardsBase ? computeBoxReward(charIdx, cfg.boxRewardsBase, detailOptions) : { val: 0, children: [] };
   addComputed(boxBase.val);
 
-  var etcFlat = etcBonusResolver.resolve(cfg.etcFlat, ctx).val;
+  var etcFlat = resolve(etcBonusResolver, cfg.etcFlat).val;
   addComputed(etcFlat);
 
   // OLA[shimmer] * DreamShimmer — LUK includes this in flatBase; others put it in flatAdd
@@ -1046,17 +1276,21 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var extraTalentCh = [];
   if (cfg.extraTalents) {
     for (var et = 0; et < cfg.extraTalents.length; et++) {
-      var etv = talentResolver.resolve(cfg.extraTalents[et], ctx).val;
+      var etNode = resolve(talentResolver, cfg.extraTalents[et]);
+      var etv = etNode.val;
       extraTalentSum += etv;
       addComputed(etv);
-      extraTalentCh.push(node(label('Talent', cfg.extraTalents[et]), etv, null, { fmt: 'raw' }));
+      extraTalentCh.push(ctx.formulaDetails ? { ...etNode, formulaTerm: true }
+        : node(label('Talent', cfg.extraTalents[et]), etv, null, { fmt: 'raw' }));
     }
   }
   if (cfg.extraTab2Talent) {
-    var et2v = talentResolver.resolve(cfg.extraTab2Talent, ctx, { tab: 2 }).val;
+    var et2Node = resolve(talentResolver, cfg.extraTab2Talent, { tab: 2 });
+    var et2v = et2Node.val;
     extraTalentSum += et2v;
     addComputed(et2v);
-    extraTalentCh.push(node(label('Talent', cfg.extraTab2Talent) + ' Secondary Effect', et2v, null, { fmt: 'raw' }));
+    extraTalentCh.push(ctx.formulaDetails ? { ...et2Node, formulaTerm: true }
+      : node(label('Talent', cfg.extraTab2Talent) + ' Secondary Effect', et2v, null, { fmt: 'raw' }));
   }
 
   // GetBuffBonuses (STR only: buff 94)
@@ -1069,7 +1303,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
       if (Number(charBuffs[bi][0] || charBuffs[bi]['0']) === buffId) { buffActive = true; break; }
     }
     if (buffActive) {
-      buffVal = talentResolver.resolve(buffId, ctx, { tab: buffTab }).val;
+      buffVal = resolve(talentResolver, buffId, { tab: buffTab }).val;
     }
   }
 
@@ -1096,12 +1330,12 @@ export function computeTotalStat(statName, charIdx, ctx) {
 
   // ==================== FLAT ADD POOL ====================
   // BoxRewards stat (e.g. "LUK" from Non_Predatory_Loot_Box)
-  var boxStat = cfg.boxRewardsStat ? computeBoxReward(charIdx, cfg.boxRewardsStat) : { val: 0, children: [] };
+  var boxStat = cfg.boxRewardsStat ? computeBoxReward(charIdx, cfg.boxRewardsStat, detailOptions) : { val: 0, children: [] };
   addComputed(boxStat.val);
 
   // FamBonusQTYs — family bonus for this stat
-  var famMap = computeFamBonusQTYs(charIdx, saveData);
-  var famBonus = famMap[cfg.famBonusIdx] || 0;
+  var famMap = computeFamBonusQTYs(charIdx, saveData, detailOptions);
+  var famBonus = Number(famMap[cfg.famBonusIdx]) || 0;
   addComputed(famBonus);
 
   // Star sign flat stat
@@ -1112,7 +1346,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var questsTal618 = 0;
   if (cfg.questsTal618) {
     var totalQC = saveData.totalQuestsComplete || 0;
-    var tal618node = talentResolver.resolve(618, ctx);
+    var tal618node = resolve(talentResolver, 618);
     var tal618eff = tal618node.val;
     questsTal618 = Math.min(totalQC, tal618eff);
     addComputed(questsTal618);
@@ -1121,7 +1355,7 @@ export function computeTotalStat(statName, charIdx, ctx) {
   // TalentCalc(620) = min(effectiveTalentLevel620, floor(maxCharLevel/10))
   // Game also applies AllTalentLVz to 620
   var tal620raw = 0;
-  var tal620node = talentResolver.resolve(620, ctx);
+  var tal620node = resolve(talentResolver, 620);
   var tal620eff = tal620node.val;
   if (tal620eff > 0) {
     var maxCharLv = 0;
@@ -1135,19 +1369,19 @@ export function computeTotalStat(statName, charIdx, ctx) {
   }
 
   // CardBonusREAL(typeId)
-  var cardResult = computeCardBonusByType(cfg.cardType, charIdx, saveData);
+  var cardResult = computeCardBonusByType(cfg.cardType, charIdx, saveData, detailOptions);
   addComputed(cardResult.val);
 
   // Flat talent 2 (e.g. Lucky Horseshoe for LUK)
-  var flatTal2Val = cfg.flatTalent2 ? talentResolver.resolve(cfg.flatTalent2, ctx).val : 0;
+  var flatTal2Val = cfg.flatTalent2 ? resolve(talentResolver, cfg.flatTalent2).val : 0;
   if (cfg.flatTalent2) addComputed(flatTal2Val);
 
   // Stamp BaseAllStat
-  var stampBaseAllStat = computeStampBonusOfTypeX('BaseAllStat', saveData);
+  var stampBaseAllStat = computeStampBonusOfTypeX('BaseAllStat', saveData, detailOptions);
   addComputed(stampBaseAllStat.val);
 
   // AllStat = floor(BoxRewards["20a"] + MealBonus("Stat") + GuildBonuses(1))
-  var boxRew20a = computeBoxReward(charIdx, '20a');
+  var boxRew20a = computeBoxReward(charIdx, '20a', detailOptions);
   addComputed(boxRew20a.val);
   var guildData = saveData.guildData;
   var gbPoints1 = guildData ? (Number((guildData[0] || {})[1]) || 0) : 0;
@@ -1159,23 +1393,23 @@ export function computeTotalStat(statName, charIdx, ctx) {
   var allStat = Math.floor(boxRew20a.val + mealBonusStat + guildBon1);
 
   // Sigil
-  var sigilVal = sigilResolver.resolve(cfg.sigilIdx, ctx).val;
+  var sigilVal = resolve(sigilResolver, cfg.sigilIdx).val;
   addComputed(sigilVal);
 
   // A4/W4/M4 bubble (stat-specific slab bubble)
   var a4Val = 0;
   var a4bubble;
   if (cfg.a4Bubble) {
-    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx, saveData, ctx.dnsmCache);
+    a4bubble = computeAlchBubble(cfg.a4Bubble, charIdx, saveData, ctx.dnsmCache, detailOptions);
     a4Val = a4bubble.val;
     addComputed(a4Val);
   }
 
-  var shinyVal = shinyResolver.resolve(cfg.shinyIdx, ctx).val;
+  var shinyVal = resolve(shinyResolver, cfg.shinyIdx).val;
   addComputed(shinyVal);
-  var arcadeVal = arcadeResolver.resolve(cfg.arcadeIdx, ctx).val;
+  var arcadeVal = resolve(arcadeResolver, cfg.arcadeIdx).val;
   addComputed(arcadeVal);
-  var owlVal = owlResolver.resolve(5, ctx).val;
+  var owlVal = resolve(owlResolver, 5).val;
   addComputed(owlVal);
 
   var flatAddSum = extraTalentSum + buffVal + shimmerVal + boxStat.val + famBonus + starSignFlat + questsTal618
@@ -1226,11 +1460,11 @@ export function computeTotalStat(statName, charIdx, ctx) {
   );
 
   // ==================== TOP LEVEL ====================
-  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx, saveData, ctx.dnsmCache);
+  var totalBubble = computeAlchBubble(cfg.totalBubble, charIdx, saveData, ctx.dnsmCache, detailOptions);
   addComputed(totalBubble.val);
-  var tal652 = talentResolver.resolve(652, ctx).val;
+  var tal652 = resolve(talentResolver, 652).val;
   addComputed(tal652);
-  var comp8 = companionResolver.resolve(8, ctx).val;
+  var comp8 = resolve(companionResolver, 8).val;
   addComputed(comp8);
 
   var topLevel = totalBubble.val + tal652 + comp8;
@@ -1255,11 +1489,116 @@ export function computeTotalStat(statName, charIdx, ctx) {
     node('Computed Total', computed, null, { fmt: 'full' }),
   ];
 
+  if (ctx.formulaDetails) {
+    const source = (provider, id, options) => {
+      const result = resolved.get(provider)?.get(JSON.stringify([id, options]));
+      if (!result) throw new Error('Missing captured stat source: ' + id);
+      return { ...result, formulaTerm: true };
+    };
+    const term = (name, value, result) => ({ ...result, name, val: value, formulaTerm: true });
+    const neutral = name => formulaConstant(0, name);
+    const pct = (name, pool) => op(name, 'add', formulaConstant(1),
+      op('Percent to fraction', 'divide', pool, formulaConstant(100)));
+    const equipment = _statFormula('Equipment and Obol Stats', totalStatsDN,
+      op('Equipment and obol sum', 'add',
+        op('Boosted equipment stats', 'multiply',
+          op('Equipped and collected items', 'add',
+            term('Equipment Base ' + statName, equipBaseStat, equipBase),
+            term('Gallery Base ' + statName, galleryBaseStat, galleryBase)),
+          _statFormula('Equipment Stat Multiplier', equipPctMult, pct('Equipment Stat Multiplier',
+            op('Equipment bonuses', 'add', source(talentResolver, cfg.dnPctTalent),
+              term('Stamps: Equipment ' + statName, stampPctStat.val, stampPctStat))))),
+        op('Boosted obol stats', 'multiply', term('Obol Base ' + statName, obolBaseStat, obolBase),
+          _statFormula('Obol Stat Multiplier', obolPctMult, pct('Obol Stat Multiplier',
+            op('Obol bonuses', 'add', source(talentResolver, cfg.dn2PctTalent),
+              op(label('Super Bit', 2), 'multiply', formulaConstant(40),
+                formulaInput('Super Bit active', superBit2, null, [
+                  { ...formulaInput('Saved Super Bits', saveData.gamingData?.[12], 'Gaming[12]'), nonNumeric: true },
+                ]))))))));
+    const sign = (name, result) => _statFormula(name, result.val, op(name, 'multiply',
+      _statSum('Active sign bonuses', [formulaConstant(0), ...result.children]),
+      formulaInput('Positive star sign multiplier', result.seraphMulti)));
+    const signsPct = sign('Star Signs: Total ' + statName, signBonuses.pct);
+    const signsFlat = sign('Star Signs: Base ' + statName, signBonuses.flat);
+    const pctTree = _statFormula('Total Stat Multiplier', pctMult, pct('Total Stat Multiplier',
+      _statSum('Stat percentage bonuses', [
+        cfg.pctTalent ? source(talentResolver, cfg.pctTalent) : neutral('No stat percentage talent'),
+        source(etcBonusResolver, cfg.etcPct), source(etcBonusResolver, 46),
+        term('All Stats Percentage', allStatPCT, allStatPCTResult),
+        source(pristineResolver, cfg.pristineIdx), signsPct,
+        cfg.pctBubble ? term(label('Bubble', cfg.pctBubble), pctBubbleVal, pctBbl) : neutral('No stat percentage bubble'),
+      ])));
+    const shimmer = _statFormula('Equinox Shimmer Bonus', shimmerVal, op('Shimmer stat bonus', 'multiply',
+      formulaInput('Account Progress', olaVal, 'OptionsListAccount[' + cfg.olaShimmer + ']'),
+      op('Shimmer Multiplier', 'max', formulaConstant(1), op('Shimmer cap', 'min', formulaConstant(4),
+        op('Artifact shimmer multiplier', 'add', formulaConstant(1),
+          op('Owned artifact tier', 'max', formulaConstant(0),
+            formulaInput('Shim Lantern tier', Number(saveData.sailingData?.[3]?.[31]) || 0, 'Sailing[3][31]')))))));
+    let flatBaseTree = _statSum('Flat Base', [
+      source(talentResolver, cfg.flatTalent), source(talentResolver, cfg.guildTalent, { mode: 'max' }),
+      term('Stamps: Base ' + statName, stampBase.val, stampBase), source(etcBonusResolver, cfg.etcFlat),
+    ]);
+    if (statName === 'LUK') flatBaseTree = op('Flat Base', 'add', flatBaseTree,
+      op('Base LUK extras', 'add', term('Box Rewards: Base LUK', boxBase.val, boxBase), shimmer));
+    flatBaseTree = _statFormula('Flat Base', flatBaseSum, flatBaseTree);
+    let levelCap = formulaConstant(0);
+    for (let ci = 0; ci < (saveData.lv0AllData || []).length; ci++) {
+      levelCap = op('Highest character level', 'max', levelCap,
+        formulaInput('Character ' + (ci + 1) + ' level', Number(saveData.lv0AllData[ci]?.[0]) || 0, 'Lv0_' + ci + '[0]'));
+    }
+    const levelTalent = tal620eff > 0
+      ? op(label('Talent', 620), 'min', source(talentResolver, 620),
+        op('Character level cap', 'floor', op('Level per ten', 'divide', levelCap, formulaConstant(10))))
+      : { ...neutral('Inactive ' + label('Talent', 620)), sourceReferences: [source(talentResolver, 620)] };
+    const guildTree = gbPoints1 > 0 && _gb1 ? formulaEvalDetail(_gb1.formula, _gb1.x1, _gb1.x2, gbPoints1, {
+      x1: formulaInput('First coefficient', _gb1.x1, 'GuildBonuses[1][4]'),
+      x2: formulaInput('Second coefficient', _gb1.x2, 'GuildBonuses[1][5]'),
+      lv: formulaInput('Guild points', gbPoints1, 'Guild[0][1]'),
+    }) : formulaInput(label('Guild', 1), guildBon1, null, [
+      formulaInput('Guild points', gbPoints1, 'Guild[0][1]'),
+    ]);
+    const shared = _statFormula('Shared Base Stats', allStat, op('Shared Base Stats', 'floor',
+      _statSum('Shared stat bonuses', [
+        term('Box Rewards: All Stats', boxRew20a.val, boxRew20a), formulaConstant(mealBonusStat, 'No current Stat meal'),
+        term(label('Guild', 1), guildBon1, guildTree),
+      ])));
+    let flatAddTree = _statSum('Flat Add', [
+      _statFormula('Extra Talents', extraTalentSum, _statSum('Extra Talents', [formulaConstant(0), ...extraTalentCh])),
+      cfg.buffBonus && buffActive ? source(talentResolver, buffId, { tab: buffTab }) : neutral('No active stat buff'),
+      shimmer, cfg.boxRewardsStat ? term('Box Rewards: ' + statName, boxStat.val, boxStat) : neutral('No stat box reward'),
+      famMap[cfg.famBonusIdx] ? term('Family Bonus: ' + statName, famBonus, famMap[cfg.famBonusIdx]) : neutral('No matching family bonus'),
+      signsFlat, cfg.questsTal618 ? _statFormula(label('Talent', 618) + ' Quest Scaling', questsTal618,
+        op('Quest-scaled LUK', 'min', formulaInput('Completed Quests', totalQC), source(talentResolver, 618)))
+        : neutral('No quest-scaled stat'),
+      _statFormula(label('Talent', 620), tal620raw, levelTalent),
+      term(_effectLabel('Cards', IDforCardBonus[cfg.cardType], statName), cardResult.val, cardResult),
+      cfg.flatTalent2 ? source(talentResolver, cfg.flatTalent2) : neutral('No second flat stat talent'),
+      term('Stamps: Base All Stats', stampBaseAllStat.val, stampBaseAllStat), shared,
+      source(sigilResolver, cfg.sigilIdx),
+      cfg.a4Bubble ? term(label('Bubble', cfg.a4Bubble), a4Val, a4bubble) : neutral('No slab stat bubble'),
+      source(shinyResolver, cfg.shinyIdx), source(arcadeResolver, cfg.arcadeIdx), source(owlResolver, 5),
+    ]);
+    if (statName === 'LUK') flatAddTree = op('Flat Add', 'subtract', flatAddTree, shimmer);
+    flatAddTree = _statFormula('Flat Add', flatAddSum, flatAddTree);
+    const top = _statFormula('Top Level', topLevel, _statSum('Top Level', [
+      term(label('Bubble', cfg.totalBubble), totalBubble.val, totalBubble),
+      source(talentResolver, 652), source(companionResolver, 8),
+    ]));
+    treeChildren = [top, pctTree, equipment, flatBaseTree, flatAddTree];
+  }
+
   return {
     computed: computed,
     missingCount: tracked.missing,
     missingNames: tracked.missingNames,
-    tree: node('Total ' + statName, computed, treeChildren, { fmt: 'full' }),
+    tree: ctx.formulaDetails ? op('Total ' + statName, 'floor',
+      op('Total before flooring', 'add', { ...treeChildren[0], formulaTerm: true },
+        op('Scaled base stats', 'multiply', { ...treeChildren[1], formulaTerm: true },
+          op('Base stats', 'add',
+            op('Equipment and flat base', 'add', { ...treeChildren[2], formulaTerm: true },
+              { ...treeChildren[3], formulaTerm: true }),
+            { ...treeChildren[4], formulaTerm: true }))))
+      : node('Total ' + statName, computed, treeChildren, { fmt: 'full' }),
   };
 }
 
@@ -1275,6 +1614,20 @@ export var lukScaling = {
     var lukResult = computeTotalStat('LUK', charIdx, ctx);
     var totalLUK = lukResult.computed;
     var drLUK = lukCurve(totalLUK);
+    if (ctx.formulaDetails) {
+      const total = { ...lukResult.tree, name: 'Total LUK', val: totalLUK, formulaTerm: true };
+      const detail = totalLUK < 1000
+        ? op('Drop Rate from Total LUK', 'divide',
+          op('LUK power bonus', 'subtract', op('LUK curve', 'power',
+            op('LUK plus one', 'add', total, formulaConstant(1)), formulaConstant(0.37)), formulaConstant(1)),
+          formulaConstant(40))
+        : op('Drop Rate from Total LUK', 'add',
+          op('Scaled LUK fraction', 'multiply', op('LUK fraction', 'divide',
+            op('LUK beyond threshold', 'subtract', total, formulaConstant(1000)),
+            op('LUK denominator', 'add', total, formulaConstant(2500))), formulaConstant(0.5)),
+          formulaConstant(0.297));
+      return { ...detail, formulaTerm: true };
+    }
 
     var lukChildren = lukResult.tree.children || [];
     lukChildren.unshift(

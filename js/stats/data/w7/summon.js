@@ -1,4 +1,6 @@
-import { SummonEnemies } from '../game/customlists.js';
+import { SummonEnemies, DeathNoteMobs } from '../game/customlists.js';
+
+export const SUMMON_VICTORY_MOBS = DeathNoteMobs;
 
 // ===== SUMMONING DATA =====
 // SummonEnemies[9]: 40-entry endless bonus types (1-indexed)

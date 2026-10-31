@@ -146,8 +146,8 @@ export function offeringStats(god, saveData, options) {
   var cost = offeringCost(god, saveData, options);
   var y4 = options.y4;
   var freeChance = y4 == null ? null : Math.min(0.35, Math.max(0, _num(y4) / 100));
-  var totalChance = freeChance == null ? chance : freeChance + (1 - freeChance) * chance;
-  var result = { successChancePerAttempt: chance, totalSuccessChancePerAttempt: totalChance, freeCostChance: freeChance, paidCostProbability: freeChance == null ? null : 1 - freeChance, paidSuccessProbability: freeChance == null ? chance : (1 - freeChance) * chance, paidFailureProbability: freeChance == null ? 1 - chance : (1 - freeChance) * (1 - chance), paidCost: cost.value, available: cost.available, missing: cost.missing || [] };
+  var totalChance = chance;
+  var result = { successChancePerAttempt: chance, totalSuccessChancePerAttempt: totalChance, freeCostChance: freeChance, freeSuccessProbability: freeChance == null ? null : freeChance * chance, freeFailureProbability: freeChance == null ? null : freeChance * (1 - chance), paidCostProbability: freeChance == null ? null : 1 - freeChance, paidSuccessProbability: freeChance == null ? null : (1 - freeChance) * chance, paidFailureProbability: freeChance == null ? null : (1 - freeChance) * (1 - chance), paidCost: cost.value, available: cost.available, missing: cost.missing || [] };
   if (!chance || !cost.available || freeChance == null) return result;
   result.expectedSpendForOneSuccess = cost.value * (1 - freeChance) / totalChance;
   result.confidence = {};

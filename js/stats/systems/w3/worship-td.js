@@ -42,6 +42,7 @@ import {
   equipQtyData,
   foodSlotsOwnedData,
   numCharacters,
+  optionsListData,
   playerStuffData,
   skillLvData,
 } from '../../../save/data.js';
@@ -789,12 +790,12 @@ export function worshipTdInputs(saveData, charIdx) {
   ] };
 
   var expRes = _raw(function() { return ctx.resolve('skill-exp'); });
-  var expMulti = _num(expRes) || 1;
+  var expMulti = expRes == null ? 1 : _num(expRes);
 
   var gl170 = Number(saveData.gridLevels && saveData.gridLevels[170]) || 0;
-  var ola501 = Number(saveData.optionsListData && saveData.optionsListData[501]) || 0;
+  var ola501 = Number(optionsListData[501]) || 0;
   var msaBonus = gl170 >= 1 ? _num(_raw(function() { return gridBonusFinal(saveData, 170); })) : 0;
-  var msa = gl170 >= 1 && ola501 === 0 ? 1 + msaBonus / 100 : 1;
+  var msa = msaBonus >= 1 && ola501 === 0 ? 1 + msaBonus / 100 : 1;
 
   var totem = saveData.totemInfoData || [];
   var bestWaves = [], cpWaves = [], cpPts = [];
@@ -888,8 +889,44 @@ export function claimOutcome(inputs, trial, best, charge) {
     single: ch >= base.charge ? per : 0,
     multi: Math.floor(per * inputs.msa * batches),
     msa: inputs.msa,
-    exp: expRewards(inputs, trial, best) * batches,
+    exp: expRewards(inputs, trial, best) * inputs.msa * batches,
   };
+}
+
+function _claimSoulQuantity(amount, cap) {
+  return 3 * Math.floor(Math.min(cap, amount / 4))
+    + Math.floor(Math.min(cap, amount % 4 + amount / 4));
+}
+
+export function worshipClaimOutcome(inputs, trial, best, charge = inputs.charge) {
+  if (!Number.isInteger(trial) || trial < 0 || trial >= TD_TRIAL_COUNT
+    || !Number.isFinite(charge) || charge < 0 || !Number.isFinite(best) || best < 0
+    || !Number.isFinite(inputs.msa) || inputs.msa < 1)
+    throw new Error('Worship claim inputs are missing or invalid.');
+  var base = tdTrialBase(trial);
+  var per = soulRewards(inputs, trial, best), xp = expRewards(inputs, trial, best);
+  if (!Number.isFinite(per) || per < 0 || !Number.isFinite(xp) || xp < 0)
+    throw new Error('Worship claim rewards are unavailable.');
+  var eligible = charge >= base.charge && per > 0.5;
+  var single = { souls: eligible ? _claimSoulQuantity(per, 1e9) : 0,
+    exp: eligible ? xp : 0, remainingCharge: eligible ? Math.max(charge - base.charge, 0) : charge };
+  var remaining = charge, souls = 0, exp = 0, batches = 0, passes = 0;
+  if (per > 0.5) {
+    while (passes < 1000 && Math.floor(remaining) >= base.charge) {
+      var count = 1;
+      while (Math.floor(remaining) > 5 * base.charge * count) count *= 5;
+      remaining = Math.max(remaining - base.charge * Math.max(1, count), 0);
+      var multiplier = Math.max(1, count * inputs.msa);
+      souls += _claimSoulQuantity(per * multiplier, 2e9);
+      exp += xp * multiplier;
+      batches += count;
+      passes++;
+    }
+  }
+  if (!Number.isFinite(souls) || !Number.isFinite(exp))
+    throw new Error('Worship claim totals are nonfinite.');
+  return { single, all: { souls, exp, batches, passes, remainingCharge: remaining,
+    complete: per <= 0.5 || Math.floor(remaining) < base.charge } };
 }
 
 export function trialSummary(inputs, trial) {

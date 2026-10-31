@@ -4,7 +4,6 @@
 
 import { node } from '../../node.js';
 import {
-  cauldronBubblesData,
   cauldronInfoData,
   charClassData,
   divinityData,
@@ -15,16 +14,15 @@ import {
   skillLvData,
 } from '../../../save/data.js';
 import { formulaEval, getLOG } from '../../../formulas.js';
+import { formulaEvalDetail } from '../../../formula-details.js';
+import { formulaInput, formulaOperation } from '../../formula-tree.js';
 import { superBitType } from '../../../game-helpers.js';
 import { getSetBonus } from '../w3/setBonus.js';
-import { hasBonusMajor } from '../w5/divinity.js';
+import { computeDivinityMinor } from '../w5/divinity.js';
 import { label, entityName } from '../../entity-names.js';
 import { CLASS_TREES, talentParams, familyBonusParams } from '../../data/common/talent.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
-import { bubbleParams } from '../../data/w2/alchemy.js';
 import { equipSetBonus } from '../../data/common/equipment.js';
-import { godMinorX1 } from '../../data/w5/divinity.js';
-import { DIVINITY_MINOR_DENOM } from '../../data/game-constants.js';
 import { ARMORY_UPGRADES } from '../../data/w7/royal-guardian.js';
 
 export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
@@ -109,25 +107,9 @@ export function computeAllTalentLVz(talentIdx, slotIdx, opts, saveData) {
   var comp1 = companionBonusForSave(1, saveData);
 
   // Divinity minor bonus 2 (Arctis)
-  var _y2bp = bubbleParams(3, 21);
-  var y2BubbleLv = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
-  var y2Value = y2BubbleLv > 0 ? formulaEval(_y2bp.formula, _y2bp.x1, _y2bp.x2, y2BubbleLv) : 0;
-  var allBubblesActive = saveData.companionIds.has(4);
-  var cachedBubbles = opts && opts.dnsmCache && opts.dnsmCache.alchBubbles;
-  // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character's
-  // own divinity level, NOT the max across all characters.
-  var divMinor = 0;
-  var coralKid3 = Number(optionsListData && optionsListData[430]) || 0;
-  if (ctxSlot >= 0 && hasBonusMajor(ctxSlot, 2, saveData)) {
-    var divLv = saveData.lv0AllData[ctxSlot] && saveData.lv0AllData[ctxSlot][14] || 0;
-    if (divLv > 0) {
-      var y2Active = cachedBubbles
-        ? (Object.prototype.hasOwnProperty.call(cachedBubbles, 'Y2ACTIVE')
-          ? Number(cachedBubbles.Y2ACTIVE) || 0 : 0)
-        : (allBubblesActive || (cauldronBubblesData && cauldronBubblesData[ctxSlot] || []).includes('d21')) ? y2Value : 0;
-      divMinor = Math.max(1, y2Active) * (1 + coralKid3 / 100) * divLv / (DIVINITY_MINOR_DENOM + divLv) * godMinorX1(2);
-    }
-  }
+  var divMinor = ctxSlot >= 0 ? Number(computeDivinityMinor(ctxSlot, 2, saveData, {
+    activeCharIdx: ctxSlot, alchBubbles: opts?.dnsmCache?.alchBubbles,
+  })) || 0 : 0;
 
   var dream12 = Number(dreamData && dreamData[12]) || 0;
   var ola232 = Number(optionsListData && optionsListData[232]) || 0;
@@ -263,24 +245,9 @@ var tal149 = intervalAddCharNode(149, label('Talent', 149));
   if (comp1v > 0) children.push(node(label('Companion', 1), comp1v, null, { fmt: 'raw' }));
 
   // Divinity minor 2 (Arctis)
-  var _y2bp2 = bubbleParams(3, 21);
-  var y2BubbleLv2 = Number(cauldronInfoData && cauldronInfoData[3] && cauldronInfoData[3][21]) || 0;
-  var y2Value2 = y2BubbleLv2 > 0 ? formulaEval(_y2bp2.formula, _y2bp2.x1, _y2bp2.x2, y2BubbleLv2) : 0;
-  var allBubblesActive2 = saveData.companionIds.has(4);
-  var cachedBubbles2 = opts && opts.dnsmCache && opts.dnsmCache.alchBubbles;
-  // Game: Divinity("Bonus_Minor", activeCharIdx, 2) — uses only the context character.
-  var divMinor2 = 0;
-  var coralKid32 = Number(optionsListData && optionsListData[430]) || 0;
-  if (contextSlot2 >= 0 && hasBonusMajor(contextSlot2, 2, saveData)) {
-    var divLv2 = saveData.lv0AllData[contextSlot2] && saveData.lv0AllData[contextSlot2][14] || 0;
-    if (divLv2 > 0) {
-      var y2Active2 = cachedBubbles2
-        ? (Object.prototype.hasOwnProperty.call(cachedBubbles2, 'Y2ACTIVE')
-          ? Number(cachedBubbles2.Y2ACTIVE) || 0 : 0)
-        : (allBubblesActive2 || (cauldronBubblesData && cauldronBubblesData[contextSlot2] || []).includes('d21')) ? y2Value2 : 0;
-      divMinor2 = Math.max(1, y2Active2) * (1 + coralKid32 / 100) * divLv2 / (DIVINITY_MINOR_DENOM + divLv2) * godMinorX1(2);
-    }
-  }
+  var divMinor2 = contextSlot2 >= 0 ? Number(computeDivinityMinor(contextSlot2, 2, saveData, {
+    activeCharIdx: contextSlot2, alchBubbles: opts?.dnsmCache?.alchBubbles,
+  })) || 0 : 0;
   var divCeil = Math.ceil(divMinor2);
   if (divCeil > 0) children.push(node('Divinity Minor 2 (Arctis)', divCeil, null, { fmt: 'raw' }));
 
@@ -379,6 +346,21 @@ export function maxTalentBonus(talentIdx, activeCharIdx, saveData) {
   return detail && detail.value || 0;
 }
 
+function _talentFormula(id, tab, data, result, charIdx) {
+  if (result.rawLv <= 0) return {
+    name: 'Unlearned talent', val: 0, kind: 'formula', formula: 'Purchased level <= 0: return 0',
+    children: [formulaInput('Purchased talent level', result.rawLv, 'SL_' + charIdx + '[' + id + ']')],
+  };
+  const offset = tab === 2 ? 3 : 0;
+  return formulaEvalDetail(data.formula, data.x1, data.x2, result.effectiveLv, {
+    x1: formulaInput('First coefficient', data.x1, 'TalentDescriptions[' + id + '][1][' + offset + ']'),
+    x2: formulaInput('Second coefficient', data.x2, 'TalentDescriptions[' + id + '][1][' + (offset + 1) + ']'),
+    lv: { ...formulaOperation('Effective talent level', 'add',
+      formulaInput('Purchased talent level', result.rawLv, 'SL_' + charIdx + '[' + id + ']'),
+      formulaInput('All-talent bonus levels', result.bonus || 0, null, result.bonusDetail?.children)), formulaTerm: true },
+  });
+}
+
 export var talent = {
   resolve: function(id, ctx, args) {
     var saveData = ctx.saveData;
@@ -404,6 +386,10 @@ export var talent = {
           node('Best Character ' + r.bestChar, r.val, null, { fmt: 'raw' }),
         ];
       }
+      if (ctx.formulaDetails && r.detail) return {
+        ..._talentFormula(id, tab, data, r.detail, r.bestChar), name, formulaTerm: true,
+        note: 'Best character: ' + r.bestChar,
+      };
       return node(name, r.val, maxChildren, { fmt: '+' });
     }
 
@@ -425,6 +411,7 @@ export var talent = {
           gb.detail.bonusDetail && gb.detail.bonusDetail.children.length ? gb.detail.bonusDetail.children : null,
           { fmt: '+' }));
         talCh.push(node('Effective Level', gb.detail.effectiveLv, null, { fmt: 'raw' }));
+        if (ctx.formulaDetails) talCh.push(_talentFormula(id, tab, data, gb.detail, gb.bestChar));
       }
       return node(name, total328, [
         node('Talent Value', gb.val, talCh, { fmt: 'raw', note: 'decay(6,150,' + (gb.detail ? gb.detail.effectiveLv : '?') + ')' }),
@@ -434,6 +421,15 @@ export var talent = {
     }
 
     r = getTalentNumber(ctx.charIdx, id, data, ctx.activeCharIdx, saveData, runtimeOpts);
+    if (ctx.formulaDetails) {
+      const detail = { ..._talentFormula(id, tab, data, r, ctx.charIdx), name, formulaTerm: true };
+      if (id === 655 && r.val !== 0) return {
+        ...formulaOperation(name, 'multiply', { ...detail, name: 'Per Skull' },
+          formulaInput('Skulls Beaten', Number(optionsListData?.[189]) || 0, 'OptionsListAccount[189]')),
+        formulaTerm: true,
+      };
+      return detail;
+    }
     if (r.val === 0) return node(name, 0);
 
     var bonusChildren = r.bonusDetail && r.bonusDetail.children.length ? r.bonusDetail.children : null;
@@ -448,7 +444,7 @@ export var talent = {
         node('Base Level', r.rawLv, null, { fmt: 'raw' }),
         node('Bonus Levels', r.bonus || 0, bonusChildren, { fmt: '+' }),
         node('Effective Level', r.effectiveLv, null, { fmt: 'raw' }),
-        node('Per Skull', perSkull, null, { fmt: 'raw' }),
+        node('Per Skull', perSkull, ctx.formulaDetails ? [_talentFormula(id, tab, data, r, ctx.charIdx)] : null, { fmt: 'raw' }),
         node('Skulls Beaten', skulls, null, { fmt: 'raw' }),
       ], { fmt: '+' });
     }
@@ -457,6 +453,7 @@ export var talent = {
       node('Base Level', r.rawLv, null, { fmt: 'raw' }),
       node('Bonus Levels', r.bonus || 0, bonusChildren, { fmt: '+' }),
       node('Effective Level', r.effectiveLv, null, { fmt: 'raw' }),
+      ...(ctx.formulaDetails ? [_talentFormula(id, tab, data, r, ctx.charIdx)] : []),
     ], { fmt: '+' });
   },
 };

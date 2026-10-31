@@ -22,6 +22,8 @@ import { STAMP_DATA } from '../../data/w1/stamp.js';
 import { ITEMS } from '../../data/game/items.js';
 import { emporiumBonus } from '../../../game-helpers.js';
 import { jellyRewardBonus } from '../../data/w7/jelly-operator.js';
+import { formulaEvalDetail } from '../../../formula-details.js';
+import { formulaInput, formulaConstant, formulaOperation as op } from '../../formula-tree.js';
 
 // Number2Letter mapping for stamp key encoding: cat → letter
 // Game's Number2Letter: [0]='_', [1]='a', [2]='b', [3]='c'
@@ -130,7 +132,11 @@ export var stamp = {
 
     var stampChildren = [
       node('Stamp Level', lv, null, { fmt: 'raw' }),
-      node('Formula Result', baseVal, null, { fmt: 'raw', note: data.formula + '(' + data.x1 + ',' + data.x2 + ',' + lv + ')' }),
+      ctx.formulaDetails ? formulaEvalDetail(data.formula, data.x1, data.x2, lv, {
+        x1: formulaInput('First coefficient', data.x1, 'ITEMS.Stamp' + id + '.desc_line1 field 2'),
+        x2: formulaInput('Second coefficient', data.x2, 'ITEMS.Stamp' + id + '.desc_line1 field 3'),
+        lv: formulaInput('Stamp level', lv, 'StampLv[' + data.cat + '][' + data.idx + ']'),
+      }) : node('Formula Result', baseVal, null, { fmt: 'raw', note: data.formula + '(' + data.x1 + ',' + data.x2 + ',' + lv + ')' }),
     ];
 
     if (exalted) {
@@ -183,6 +189,7 @@ function buildStampTypeMap() {
     _stampTypeCache[type].push({
       cat: catNum,
       idx: idx,
+      itemKey: k,
       x1: Number(parts[2]),
       x2: Number(parts[3]),
       formula: parts[1],
@@ -193,7 +200,7 @@ function buildStampTypeMap() {
   return _stampTypeCache;
 }
 
-export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
+export function computeStampBonusOfTypeX(typeKey, saveData, charIdx, options) {
   var map = buildStampTypeMap();
   var stamps = map[typeKey];
   if (!stamps) return treeResult(0, null);
@@ -203,12 +210,18 @@ export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
   var labDouble = mainframeBonus(7, saveData) === 2 ? 2 : 1;
   var prist17 = pristineBon(17, saveData) || 0;
   var pristMulti = prist17 > 0 ? 1 + prist17 / 100 : 1;
+  let detail = options?.formulaDetails ? formulaConstant(0) : null;
 
   for (var si = 0; si < stamps.length; si++) {
     var st = stamps[si];
     var lv = Number((stampLvData && stampLvData[st.cat] && stampLvData[st.cat][st.idx]) || 0);
     if (lv <= 0) continue;
     var val = formulaEval(st.formula, st.x1, st.x2, lv);
+    let term = detail ? formulaEvalDetail(st.formula, st.x1, st.x2, lv, {
+      x1: formulaInput('First coefficient', st.x1, 'ITEMS.' + st.itemKey + '.desc_line1[2]'),
+      x2: formulaInput('Second coefficient', st.x2, 'ITEMS.' + st.itemKey + '.desc_line1[3]'),
+      lv: formulaInput('Stamp level', lv, 'StampLv[' + st.cat + '][' + st.idx + ']'),
+    }) : null;
     var noteStr = 'lv=' + lv;
     if (isExalted(st.cat, st.idx, saveData)) {
       if (doublerTotal === null) {
@@ -216,25 +229,43 @@ export function computeStampBonusOfTypeX(typeKey, saveData, charIdx) {
         doublerTotal = (typeof _d === 'object' && _d) ? (_d.total || 0) : (Number(_d) || 0);
       }
       val *= 1 + doublerTotal / 100;
+      if (term) term = op('Exalted stamp bonus', 'multiply', term,
+        op('Exalted multiplier', 'add', formulaConstant(1),
+          op('Percent to fraction', 'divide',
+            formulaInput('Exalted bonuses', doublerTotal, null, _d.children), formulaConstant(100))));
       noteStr += ' exalted';
     }
     if (st.cat < 2) {
       val *= labDouble * pristMulti;
+      if (term) term = op('Boosted stamp bonus', 'multiply', term,
+        op('Lab and Pristine multipliers', 'multiply', formulaInput('Lab Multi', labDouble),
+          formulaInput('Pristine Multi', pristMulti)));
     }
     total += val;
     children.push(node(stampKey(st.cat, st.idx), val, null, { fmt: 'raw', note: noteStr }));
+    if (term) detail = op('Stamp bonuses', 'add', detail, {
+      ...term, name: label('Stamp', st.itemKey.slice(5)), formulaTerm: true,
+    });
   }
   // Post-loop: VaultUpgBonus(16) multiplier for base stat stamps (game applies this for BaseDmg/BaseHP/BaseAcc/BaseDef)
   if (typeKey === 'BaseDmg' || typeKey === 'BaseHP' || typeKey === 'BaseAcc' || typeKey === 'BaseDef') {
     var vault16 = vaultUpgBonus(16, saveData);
-    if (vault16 > 0) total *= 1 + vault16 / 100;
+    if (vault16 > 0) {
+      total *= 1 + vault16 / 100;
+      if (detail) detail = op('Vault-boosted stamps', 'multiply', detail,
+        op('Vault multiplier', 'add', formulaConstant(1),
+          op('Percent to fraction', 'divide', formulaInput(label('Vault', 16), vault16), formulaConstant(100))));
+    }
   }
   // Source multiplies every type key containing "Eff" (BaseFishEff, FishEffPerLv,
   // CookingEff, ...) by max(Talent 625, 1), not only BaseAllEff.
   if (typeKey.indexOf('Eff') !== -1) {
     var stampTalent625 = talent.resolve(625, { charIdx: charIdx == null ? 0 : charIdx, saveData: saveData }).val;
     total *= Math.max(Number(stampTalent625) || 0, 1);
+    if (detail) detail = op('Efficiency stamp multiplier', 'multiply', detail,
+      op('Minimum multiplier', 'max', formulaInput(label('Talent', 625), Number(stampTalent625) || 0), formulaConstant(1)));
   }
+  if (detail) return Object.assign(treeResult(total, detail.children), detail);
   return treeResult(total, children);
 }
 

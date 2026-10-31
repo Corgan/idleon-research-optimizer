@@ -6,9 +6,10 @@ import { node, treeResult } from '../../node.js';
 import { label } from '../../entity-names.js';
 import { computeCardLv, computeCardLvDetail } from '../common/cards.js';
 import { shrineBase, shrinePerLevel } from '../../data/w3/shrine.js';
-import { SaltLicks, AtomInfo, StatueInfo } from '../../data/game/customlists.js';
+import { SaltLicks, AtomInfo, StatueInfo, GrimoireUpg } from '../../data/game/customlists.js';
 import { BOSS3B_CARD_PCT } from '../../data/game-constants.js';
 import { mainframeBonus } from '../w4/lab.js';
+import { formulaInput, formulaOperation } from '../../formula-tree.js';
 
 export var shrine = {
   resolve: function(id, ctx) {
@@ -82,7 +83,17 @@ export function computeShrine(idx, saveData, mapIdx) {
 
 // ==================== SALT LICK ====================
 
-export function computeSaltLick(idx, saveData) {
+export function computeSaltLick(idx, saveData, options) {
+  if (options?.formulaDetails && SaltLicks[idx]) {
+    const purchased = Number(saveData.saltLickData?.[idx]) || 0;
+    const perLv = Number(SaltLicks[idx][3]) || 0;
+    const level = formulaInput('Purchased levels', purchased, 'SaltLick[' + idx + ']');
+    const detail = purchased > 0
+      ? formulaOperation(label('SaltLick', idx), 'multiply', level,
+        formulaInput('Bonus per level', perLv, 'SaltLicks[' + idx + '][3]'))
+      : { name: label('SaltLick', idx), val: 0, kind: 'formula', formula: 'Purchased levels <= 0: return 0', children: [level] };
+    return Object.assign(treeResult(detail.val, detail.children), detail, { formulaTerm: true });
+  }
   if (!saveData.saltLickData) return treeResult(0);
   var purchased = Number(saveData.saltLickData[idx]) || 0;
   if (purchased <= 0) return treeResult(0);
@@ -203,7 +214,7 @@ export function computeOwnedItemCount(itemName, saveData) {
 // Per-character build speed for construction board.
 
 import { formulaEval, getLOG } from '../../../formulas.js';
-import { bubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
+import { bubbleValByKey, finalBubbleValByKey, computeVialByKey } from '../w2/alchemy.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
 import { arcadeBonus } from '../w2/arcade.js';
 import { achieveStatus } from '../common/achievement.js';
@@ -218,7 +229,52 @@ import { computePaletteBonus } from '../../systems/w7/spelunking.js';
 import { bubbaRoGBonuses } from '../../systems/w7/bubba.js';
 import { talentParams } from '../../data/common/talent.js';
 import { computeAllTalentLVz } from '../common/talent.js';
-import { skillLvData, numCharacters, charClassData, postOfficeData, cauldronBubblesData } from '../../../save/data.js';
+import { skillLvData, numCharacters, charClassData, postOfficeData, cauldronBubblesData, optionsListData } from '../../../save/data.js';
+import { computeMealBonus } from '../common/stats.js';
+import { superBitType } from '../../../game-helpers.js';
+import { grimoireUpgBonus } from '../mc/grimoire.js';
+import { computeCompassBonus } from '../w7/compass.js';
+
+export function atomUpgradeCost(saveData, index, charIdx = 0) {
+  if (!Number.isInteger(index) || !AtomInfo[index]) throw new Error('Choose a valid atom upgrade.');
+  const level = saveData.atomsData?.[index];
+  if (level == null || level === '' || !Number.isFinite(Number(level)) || Number(level) < 0)
+    throw new Error('Saved atom upgrade level is missing or invalid.');
+  const collider = saveData.towerData?.[8], task = saveData.tasksGlobalData?.[2]?.[4]?.[6];
+  if (collider == null || task == null || !Number.isFinite(Number(collider)) || !Number.isFinite(Number(task)))
+    throw new Error('Saved Atom Collider or W5 task level is missing or invalid.');
+  const cost = 1 / (1 + (computePaletteBonus(35, saveData)
+    + computeStampBonusOfTypeX('AtomCost', saveData)
+    + (Number(saveData.atomsData?.[9]) || 0) * Number(AtomInfo[9][4])
+    + (10 * superBitType(21, saveData.gamingData?.[12])
+      + (grimoireUpgBonus(51, GrimoireUpg, saveData) + computeCompassBonus(50, saveData)))
+    + (Number(finalBubbleValByKey('Y5', charIdx, saveData))
+      + (Number(collider) / 10 + (7 * Number(task) + bubbaRoGBonuses(7, saveData))))) / 100)
+    * (Number(AtomInfo[index][3]) + Number(AtomInfo[index][1]) * Number(level))
+    * Math.pow(Number(AtomInfo[index][2]), Number(level));
+  return cost < 1e6 ? Math.floor(cost) : cost;
+}
+
+export function cogCreationMultiplier(saveData, charIdx = 0) {
+  if (Number(optionsListData[406]) === 5 && Number(saveData.towerData?.[62]) < 120) return 900;
+  return 1 + (Number(finalBubbleValByKey('CogMakeSpd', charIdx, saveData))
+    + (Number(computeVialByKey('CogSpd', saveData, charIdx))
+    + Math.min(8 * computeCardLv('Boss3A', saveData), 50))) / 100;
+}
+
+export function libraryBookSeconds(saveData, charIdx = 0) {
+  const books = optionsListData[55], library = saveData.towerData?.[1];
+  if (books == null || library == null || !Number.isFinite(Number(books)) || !Number.isFinite(Number(library)))
+    throw new Error('Saved library level or stored-book count is missing or invalid.');
+  const atom = (Number(saveData.atomsData?.[7]) || 0) * Number(AtomInfo[7][4]);
+  return Math.round(3600 / ((1 + computeMealBonus('Lib', saveData, charIdx) / 100)
+    * (1 + atom / 100)
+    * (1 + (5 * Number(library) + Number(finalBubbleValByKey('booksSpeed', charIdx, saveData))
+    + (Number(computeVialByKey('TalBookSpd', saveData, charIdx))
+    + (computeStampBonusOfTypeX('BookSpd', saveData) + Math.min(30, Math.max(0, 30 * achieveStatus(145, saveData)))
+    + superBitType(12, saveData.gamingData?.[12]) * (Number(saveData.lv0AllData?.[charIdx]?.[15]) || 0)))) / 100))
+    * 4 * (1 + 10 * Math.pow(Number(books), 1.4) / 100));
+}
 
 function _safe(fn) {
   try {
