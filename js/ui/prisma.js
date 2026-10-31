@@ -9,7 +9,8 @@ const exact = value => Number(value).toLocaleString('en-US', { maximumSignifican
 const number = value => value == null ? 'Unavailable' : value !== 0 && Math.abs(value) < .001
   ? value.toExponential(3) : fmtVal(value);
 const signed = value => (value > 0 ? '+' : '') + number(value);
-const cache = new Map(), expanded = new Set();
+const cache = new Map(), expanded = new Set(), pages = new Map();
+const PAGE_SIZE = 100, CACHE_BYTES = 32 * 1024 * 1024;
 let raw, latestRaw, charIdx = 0, cauldron = 0, worker, request = 0, active, stale = false;
 let tooltipTarget;
 let rankMetricIds = new Set();
@@ -69,10 +70,115 @@ function sourceCoverageHtml(row) {
   const coverage = row.sourceCoverage;
   if (!coverage) return '';
   return `<p class="note partial">Downstream coverage is incomplete. Native references are an audit checklist, not proof that every effect is measured.</p>
-    ${coverage.consumers.length ? `<details data-detail="references"><summary>${coverage.consumers.length} direct native reference(s)</summary>
-    ${coverage.consumers.map(ref => `<p class="note">${esc(ref.method.replace('_customBlock_', '').replace('_event_', 'Event '))}
-      ${ref.mode == null ? '' : ' / ' + esc(ref.mode)} - source line ${ref.line}${ref.kind === 'base-call' ? ' (base bonus call)' : ''}</p>`).join('')}</details>`
+    ${coverage.consumers.length ? detailShell('references', coverage.consumers.length + ' direct native reference(s)')
       : '<p class="note">No direct literal consumer found. Aliased, computed and table-driven uses are not ruled out.</p>'}`;
+}
+
+function detailShell(kind, summary) {
+  return `<details data-detail="${kind}"><summary>${esc(summary)}</summary><div data-lazy="${kind}"></div></details>`;
+}
+
+function pageHost(kind) {
+  return `<div data-page="${kind}"></div>`;
+}
+
+function renderPage(host, record, row) {
+  const result = row && record.results.get(row.id), kind = host.dataset.page;
+  const id = key() + ':' + (row?.id || 'baseline') + ':' + kind;
+  const limit = pages.get(id) || PAGE_SIZE;
+  let entries, html;
+  if (kind === 'baseline') {
+    entries = record.baseline;
+    html = entries.slice(0, limit).map(metric => `<div class="result-line"><span>${esc(metric.name)}${metric.intermediate ? ' (intermediate)' : ''}</span><span class="exact">${
+      metric.notApplicable ? 'Not applicable' : metric.unavailable ? 'Unavailable: ' + esc(metric.reason) : esc(number(metric.val))
+        + (metric.partial ? ' (Partial: ' + esc(metric.reason) + ')' : '')}</span></div>`).join('');
+  } else if (kind === 'unavailable') {
+    entries = result.unavailable;
+    html = entries.slice(0, limit).map(metric => `<p class="note" data-unavailable-record>${esc(metric.name)}: ${esc(metric.reason)}</p>`).join('');
+  } else {
+    entries = kind === 'intermediates' ? result.intermediates
+      : result.changes.filter(change => !change.id.startsWith('breeding-sequence:'));
+    html = entries.slice(0, limit).map(change => `<div class="result-line">${outcomeHtml(change, false, result.comparison)}${
+      kind === 'outcomes' ? `<span class="exact">${esc(number(change.before))} &rarr; ${esc(number(change.after))}</span>` : ''}</div>`).join('');
+  }
+  host.innerHTML = html + (entries.length > limit
+    ? `<p class="note">Showing ${limit} of ${entries.length} records.</p><button type="button" data-more>Show next ${Math.min(PAGE_SIZE, entries.length - limit)}</button>` : '');
+}
+
+function renderDetails(host, record, row) {
+  const result = record.results.get(row.id), kind = host.dataset.lazy;
+  if (kind === 'results') {
+    host.innerHTML = `<div class="results-detail">
+      <p class="note">${row.status === 'already' ? 'Benefit retained: without this Prisma &rarr; current save.'
+        : 'Potential gain: current save &rarr; with this Prisma.'} Every other Prisma flag stays unchanged.</p>
+      <p class="note">Base bubble bonus: ${esc(number(result.bubbleBefore))} &rarr; ${esc(number(result.bubbleAfter))}.
+      This bonus is not itself a downstream stat gain.</p>
+      ${pageHost('outcomes')}
+      ${result.changes.some(change => change.id.startsWith('breeding-sequence:'))
+        ? detailShell('breeding', 'Breeding sequence policy comparisons') : ''}
+      ${result.intermediates?.length ? detailShell('intermediates',
+        result.intermediates.length + ' changed processed bubble bonus(es), not additional outcomes') : ''}
+      ${sourceCoverageHtml(row)}
+      ${result.unavailable.length ? detailShell('unavailable',
+        result.unavailable.length + ' unavailable outcome/intermediate record(s)') : ''}
+      </div>`;
+  } else if (kind === 'coverage') host.innerHTML = sourceCoverageHtml(row);
+  else if (kind === 'references') host.innerHTML = row.sourceCoverage.consumers.map(ref =>
+    `<p class="note">${esc(ref.method.replace('_customBlock_', '').replace('_event_', 'Event '))}
+      ${ref.mode == null ? '' : ' / ' + esc(ref.mode)} - source line ${ref.line}${ref.kind === 'base-call' ? ' (base bonus call)' : ''}</p>`).join('');
+  else if (kind === 'breeding') host.innerHTML = breedingSequenceHtml(result, record.baseline);
+  else host.innerHTML = pageHost(kind);
+  for (const page of host.querySelectorAll('[data-page]')) renderPage(page, record, row);
+  bindDetails(host, record);
+}
+
+function bindDetails(host, record) {
+  for (const details of host.querySelectorAll('details[data-bubble], details[data-detail]')) {
+    if (details.dataset.bound) continue;
+    details.dataset.bound = 'true';
+    const row = record.plan.rows.find(row => row.id === details.closest('[data-bubble-id]').dataset.bubbleId);
+    const id = key() + ':' + row.id + (details.dataset.detail ? ':' + details.dataset.detail : '');
+    const body = details.querySelector(':scope > [data-lazy]');
+    function mount() {
+      if (body && !body.dataset.mounted) {
+        try {
+          renderDetails(body, record, row);
+          body.dataset.mounted = 'true';
+          body.classList.remove('error');
+        } catch (error) {
+          body.textContent = 'Could not render Prisma details: ' + (error.message || String(error));
+          body.classList.add('error');
+          $('status').textContent = body.textContent;
+          $('status').className = 'error';
+        }
+      }
+    }
+    details.open = expanded.has(id);
+    if (details.open) mount();
+    details.addEventListener('toggle', () => {
+      if (!details.isConnected) return;
+      if (details.open) { expanded.add(id); mount(); }
+      else expanded.delete(id);
+    });
+  }
+}
+
+function estimatedBytes(value) {
+  if (typeof value === 'string') return 16 + value.length * 2;
+  if (!value || typeof value !== 'object') return 8;
+  if (Array.isArray(value)) return 32 + value.reduce((size, entry) => size + 8 + estimatedBytes(entry), 0);
+  return 64 + Object.entries(value).reduce((size, [key, entry]) => size + 32 + key.length * 2 + estimatedBytes(entry), 0);
+}
+
+function trimCache() {
+  let bytes = [...cache.values()].reduce((sum, record) => sum + (record.bytes || 0), 0);
+  for (const [id, record] of cache) {
+    if (cache.size <= 8 && bytes <= CACHE_BYTES) break;
+    if (id === key()) continue;
+    cache.delete(id); bytes -= record.bytes || 0;
+    for (const state of [expanded, pages]) for (const entry of state.keys())
+      if (entry.startsWith(id + ':')) state.delete(entry);
+  }
 }
 
 function renderRows() {
@@ -92,6 +198,8 @@ function renderRows() {
     return av && bv ? score(bv) - score(av) || a.index - b.index : av ? -1 : bv ? 1 : a.index - b.index;
   });
   const focusedDetails = document.activeElement?.closest('details');
+  const focusPage = document.activeElement?.matches('[data-more]')
+    ? document.activeElement.closest('[data-page]')?.dataset.page : null;
   const focusRow = document.activeElement?.closest('[data-bubble-id]')?.dataset.bubbleId;
   const focusDetail = focusedDetails?.dataset.detail;
   $('rows').innerHTML = rows.map(row => {
@@ -109,38 +217,21 @@ function renderRows() {
           ? 'Processed bonuses change; no downstream change measured.' : 'No measured downstream change; see coverage.'}</span>`;
       body += `<details data-bubble="${row.id}"${expanded.has(key() + ':' + row.id) ? ' open' : ''}>
         <summary>${changes.length ? changes.length + ' changed total' + (changes.length === 1 ? '' : 's') + ' & details' : 'Bubble bonus & coverage'}</summary>
-        <div class="results-detail">
-        <p class="note">${row.status === 'already' ? 'Benefit retained: without this Prisma &rarr; current save.'
-          : 'Potential gain: current save &rarr; with this Prisma.'} Every other Prisma flag stays unchanged.</p>
-        <p class="note">Base bubble bonus: ${esc(number(result.bubbleBefore))} &rarr; ${esc(number(result.bubbleAfter))}.
-        This bonus is not itself a downstream stat gain.</p>
-        ${changes.filter(change => !change.id.startsWith('breeding-sequence:')).map(change => `<div class="result-line">${outcomeHtml(change, false, result.comparison)}<span class="exact">${esc(number(change.before))} &rarr; ${esc(number(change.after))}</span></div>`).join('')}
-        ${breedingSequenceHtml(result, record.baseline)}
-        ${result.intermediates?.length ? `<details data-detail="intermediates"><summary>${result.intermediates.length} changed processed bubble bonus(es), not additional outcomes</summary>
-          ${result.intermediates.map(change => `<div class="result-line">${outcomeHtml(change, false, result.comparison)}</div>`).join('')}</details>` : ''}
-        ${sourceCoverageHtml(row)}
-        ${result.unavailable.length ? `<details data-detail="unavailable"><summary>${result.unavailable.length} unavailable outcome/intermediate record(s)</summary>
-          ${result.unavailable.map(metric => `<p class="note">${esc(metric.name)}: ${esc(metric.reason)}</p>`).join('')}</details>` : ''}
-        </div></details>`;
+        <div data-lazy="results"></div></details>`;
     }
-    if (!row.comparable) body += `<details data-detail="coverage"><summary>Native effect coverage</summary>${sourceCoverageHtml(row)}</details>`;
+    if (!row.comparable) body += detailShell('coverage', 'Native effect coverage');
     return `<tr data-bubble-id="${row.id}" data-state="${esc(result?.status || row.status)}" data-comparison="${row.comparable ? row.status === 'already' ? 'retained' : 'added' : ''}"><td>
       <div class="bubble-name">${esc(row.name)}</div><div class="bubble-level">${row.level === null ? 'Level unavailable' : 'Level ' + number(row.level)}</div>
       ${row.status === 'already' ? '<div class="partial">Already Prisma-ed</div><div class="note">Benefit retained</div>' : ''}
       </td><td>${body}</td></tr>`;
   }).join('') || '<tr><td colspan="2" class="muted">No matching bubbles.</td></tr>';
-  for (const details of $('rows').querySelectorAll('details[data-bubble], details[data-detail]')) {
-    const row = details.closest('[data-bubble-id]').dataset.bubbleId;
-    const id = key() + ':' + row + (details.dataset.detail ? ':' + details.dataset.detail : '');
-    details.open = expanded.has(id);
-    details.addEventListener('toggle', () => {
-      if (!details.isConnected) return;
-      if (details.open) expanded.add(id); else expanded.delete(id);
-    });
-  }
+  bindDetails($('rows'), record);
   if (focusRow && focusedDetails) {
+    const rowHost = $('rows').querySelector(`[data-bubble-id="${focusRow}"]`);
     const selector = focusDetail ? `[data-detail="${focusDetail}"]` : 'details[data-bubble]';
-    $('rows').querySelector(`[data-bubble-id="${focusRow}"] ${selector} > summary`)?.focus({ preventScroll: true });
+    const target = (focusPage ? rowHost?.querySelector(`[data-page="${focusPage}"] [data-more]`) : null)
+      || rowHost?.querySelector(`${selector} > summary`);
+    target?.focus({ preventScroll: true });
   }
 }
 
@@ -156,6 +247,17 @@ function extendRankMetrics(metrics) {
   }
 }
 
+function renderCoverage(record) {
+  if (!$('coverage').open) { $('coverage-body').replaceChildren(); return; }
+  if (!record?.baseline.length) { $('coverage-body').textContent = 'Calculating...'; return; }
+  const coverage = record.plan.rows[0]?.sourceCoverage;
+  const references = coverage?.computedReferences || [];
+  $('coverage-body').innerHTML = `<p class="note">${coverage?.unresolved || 0} computed native references still require tracing; ${
+    references.filter(row => row.traced).length} are traced cache-rebuild or display paths, not extra final outcomes.
+    Final game-wide numerical coverage is not certified.</p>` + pageHost('baseline');
+  renderPage($('coverage-body').querySelector('[data-page]'), record);
+}
+
 function renderBaseline(record) {
   const selected = $('metric').value;
   $('metric').innerHTML = '<option value="">Bubble order</option>'
@@ -165,13 +267,7 @@ function renderBaseline(record) {
   for (const result of record.results.values())
     if (result.status === 'done') extendRankMetrics([...result.changes, ...(result.intermediates || [])]);
   if ([...$('metric').options].some(option => option.value === selected)) $('metric').value = selected;
-  const coverage = record.plan.rows[0]?.sourceCoverage;
-  const references = coverage?.computedReferences || [];
-  $('coverage-body').innerHTML = `<p class="note">${coverage?.unresolved || 0} computed native references still require tracing; ${
-    references.filter(row => row.traced).length} are traced cache-rebuild or display paths, not extra final outcomes.
-    Final game-wide numerical coverage is not certified.</p>` + record.baseline.map(metric => `<div class="result-line"><span>${esc(metric.name)}${metric.intermediate ? ' (intermediate)' : ''}</span><span class="exact">${
-    metric.notApplicable ? 'Not applicable' : metric.unavailable ? 'Unavailable: ' + esc(metric.reason) : esc(number(metric.val))
-      + (metric.partial ? ' (Partial: ' + esc(metric.reason) + ')' : '')}</span></div>`).join('');
+  renderCoverage(record);
   const plan = record.plan;
   $('summary').textContent = `Prisma multiplier: ${number(record.multiplier)}x | Fragments: ${number(plan.fragments)}`
     + (plan.fragments !== null && plan.fragments < 10 ? ' - insufficient; previews are hypothetical' : '')
@@ -201,9 +297,9 @@ function start() {
     plan = prismaPlan(raw, { charIdx, cauldron });
   }
   catch (error) { $('status').textContent = error.message; $('status').className = 'error'; return; }
-  const record = { plan, baseline: [], results: new Map(), cancelled: false, done: false };
+  const record = { plan, baseline: [], results: new Map(), cancelled: false, done: false, bytes: estimatedBytes(plan) };
   cache.set(key(), record);
-  while (cache.size > 8) cache.delete(cache.keys().next().value);
+  trimCache();
   active = record;
   const id = ++request;
   $('status').textContent = 'Calculating unchanged totals...';
@@ -217,7 +313,7 @@ function start() {
     $('status').className = 'error';
   }
   try {
-    worker = new Worker(new URL('../workers/prisma-worker.js', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('../workers/prisma-worker.js?v=lazy-results-1', import.meta.url), { type: 'module' });
     worker.onerror = event => { event.preventDefault(); fail(new Error(event.message || 'Prisma worker failed.')); };
     worker.onmessageerror = () => fail(new Error('Could not read the Prisma worker response.'));
     worker.onmessage = ({ data }) => {
@@ -228,12 +324,16 @@ function start() {
           if (!Array.isArray(data.baseline) || !data.baseline.length) throw new Error('Empty Prisma baseline.');
           record.baseline = data.baseline; record.multiplier = data.multiplier;
           record.multiplierPartial = data.multiplierPartial;
+          record.bytes += estimatedBytes(data.baseline);
+          trimCache();
           renderBaseline(record);
           $('status').textContent = `Comparing 0 / ${data.total} eligible bubbles...`;
         } else if (data.type === 'row') {
           if (!record.plan.rows.some(row => row.comparable && row.id === data.result?.id)
             || record.results.has(data.result.id)) throw new Error('Unexpected or duplicate Prisma result.');
           record.results.set(data.result.id, data.result);
+          record.bytes += estimatedBytes(data.result);
+          trimCache();
           if (data.result.status === 'done')
             extendRankMetrics([...data.result.changes, ...(data.result.intermediates || [])]);
           $('progress').value = data.total ? data.completed / data.total : 1;
@@ -241,8 +341,8 @@ function start() {
           renderRows();
         } else if (data.type === 'done') {
           const expected = record.plan.rows.filter(row => row.comparable).length;
-          if (!data.result || !Array.isArray(data.result.results) || !record.baseline.length
-            || data.result.results.length !== expected || record.results.size !== expected) throw new Error('Incomplete Prisma completion.');
+          if (data.completed !== expected || !record.baseline.length
+            || record.results.size !== expected) throw new Error('Incomplete Prisma completion.');
           record.done = true;
           worker.terminate(); worker = null; active = null;
           $('cancel').disabled = true; $('progress').hidden = true;
@@ -272,6 +372,7 @@ function show() {
   if (record?.done) {
     cancel();
     renderBaseline(record); renderRows();
+    cache.delete(key()); cache.set(key(), record);
     const errors = [...record.results.values()].filter(row => row.status === 'error').length;
     $('status').className = errors ? 'error' : '';
     $('status').textContent = `Compared ${record.results.size} eligible bubbles.`
@@ -288,10 +389,23 @@ document.querySelectorAll('[data-cauldron]').forEach(button => button.addEventLi
 }));
 $('metric').addEventListener('change', renderRows);
 $('search').addEventListener('input', renderRows);
+$('coverage').addEventListener('toggle', () => renderCoverage(current()));
+for (const host of [$('rows'), $('coverage-body')]) host.addEventListener('click', event => {
+  const button = event.target.closest('[data-more]');
+  if (!button) return;
+  const page = button.closest('[data-page]'), record = current();
+  const row = record.plan.rows.find(row => row.id === page.closest('[data-bubble-id]')?.dataset.bubbleId);
+  const id = key() + ':' + (row?.id || 'baseline') + ':' + page.dataset.page;
+  pages.set(id, (pages.get(id) || PAGE_SIZE) + PAGE_SIZE);
+  renderPage(page, record, row);
+  const focus = page.querySelector('[data-more]') || page;
+  if (focus === page) page.tabIndex = -1;
+  focus.focus({ preventScroll: true });
+});
 $('cancel').addEventListener('click', () => cancel());
 $('run').addEventListener('click', () => {
   if (stale) {
-    cancel(); raw = latestRaw; cache.clear(); expanded.clear(); stale = false; $('stale').hidden = true;
+    cancel(); raw = latestRaw; cache.clear(); expanded.clear(); pages.clear(); stale = false; $('stale').hidden = true;
     populateCharacters();
   }
   start();
@@ -322,7 +436,7 @@ initSaveLoader({ target: '#save-area', auth: true, onLoad(_save, imported, metad
   if (raw && metadata?.source === 'auto-refresh') {
     stale = true; $('stale').hidden = false; return;
   }
-  cancel(); raw = imported; cache.clear(); expanded.clear();
+  cancel(); raw = imported; cache.clear(); expanded.clear(); pages.clear();
   stale = false; $('stale').hidden = true; charIdx = 0;
   populateCharacters(); start();
 } });
