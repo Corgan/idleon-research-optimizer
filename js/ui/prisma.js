@@ -11,6 +11,8 @@ const number = value => value == null ? 'Unavailable' : value !== 0 && Math.abs(
 const signed = value => (value > 0 ? '+' : '') + number(value);
 const cache = new Map(), expanded = new Set(), pages = new Map();
 const PAGE_SIZE = 100, CACHE_BYTES = 32 * 1024 * 1024;
+const renderedRows = new Map();
+let renderedRecord, updateTimer = null, pendingUpdate;
 let raw, latestRaw, charIdx = 0, cauldron = 0, worker, request = 0, active, stale = false;
 let tooltipTarget;
 let rankMetricIds = new Set();
@@ -181,10 +183,22 @@ function trimCache() {
   }
 }
 
+function previewHtml(result, record, selected) {
+  const ranked = selected && prismaOutcome(result, record.baseline, selected);
+  const changes = result.changes.filter(change => change.delta !== 0);
+  const preview = ranked ? [ranked] : selected ? [] : changes.slice(0, 3);
+  return preview.length ? preview.map(change => outcomeHtml(change, false, result.comparison)).join('') : `<span class="muted">${selected
+    ? 'Selected outcome unavailable.' : result.intermediates?.length
+      ? 'Processed bonuses change; no downstream change measured.' : 'No measured downstream change; see coverage.'}</span>`;
+}
+
 function renderRows() {
   const record = current(), query = $('search').value.trim().toLowerCase(), selected = $('metric').value;
   $('tooltip').hidden = true;
-  if (!record) { $('rows').replaceChildren(); return; }
+  if (renderedRecord !== record) {
+    $('rows').replaceChildren(); renderedRows.clear(); renderedRecord = record;
+  }
+  if (!record) return;
   const rows = record.plan.rows.filter(row => {
     const result = record.results.get(row.id);
     return (row.name + ' ' + row.reason + ' ' + [...(result?.changes || []), ...(result?.intermediates || [])].map(change => change.name).join(' ')
@@ -197,54 +211,92 @@ function renderRows() {
     const score = metric => (metric.percent ?? metric.delta) * (metric.lowerIsBetter ? -1 : 1);
     return av && bv ? score(bv) - score(av) || a.index - b.index : av ? -1 : bv ? 1 : a.index - b.index;
   });
-  const focusedDetails = document.activeElement?.closest('details');
-  const focusPage = document.activeElement?.matches('[data-more]')
-    ? document.activeElement.closest('[data-page]')?.dataset.page : null;
-  const focusRow = document.activeElement?.closest('[data-bubble-id]')?.dataset.bubbleId;
-  const focusDetail = focusedDetails?.dataset.detail;
-  $('rows').innerHTML = rows.map(row => {
+  const focused = document.activeElement, x = scrollX, y = scrollY;
+  let cursor = $('rows').firstElementChild;
+  for (const row of rows) {
     const result = record.results.get(row.id);
-    let body;
-    if (!row.comparable) body = `<span class="muted">${esc(row.reason)}</span>`;
-    else if (!result) body = `<span class="muted">${record.error ? 'Not calculated - calculation failed.' : record.cancelled ? 'Not calculated - cancelled.' : 'Waiting...'}</span>`;
-    else if (result.status === 'error') body = `<span class="error">${esc(result.error)}</span>`;
-    else {
-      const ranked = selected && prismaOutcome(result, record.baseline, selected);
-      const changes = result.changes.filter(change => change.delta !== 0);
-      const preview = ranked ? [ranked] : selected ? [] : changes.slice(0, 3);
-      body = preview.length ? preview.map(change => outcomeHtml(change, false, result.comparison)).join('') : `<span class="muted">${selected
-        ? 'Selected outcome unavailable.' : result.intermediates?.length
-          ? 'Processed bonuses change; no downstream change measured.' : 'No measured downstream change; see coverage.'}</span>`;
-      body += `<details data-bubble="${row.id}"${expanded.has(key() + ':' + row.id) ? ' open' : ''}>
-        <summary>${changes.length ? changes.length + ' changed total' + (changes.length === 1 ? '' : 's') + ' & details' : 'Bubble bonus & coverage'}</summary>
-        <div data-lazy="results"></div></details>`;
+    const stopped = record.error || record.cancelled;
+    let entry = renderedRows.get(row.id);
+    if (!entry) {
+      const host = document.createElement('tr');
+      host.dataset.bubbleId = row.id;
+      host.dataset.comparison = row.comparable ? row.status === 'already' ? 'retained' : 'added' : '';
+      host.innerHTML = `<td><div class="bubble-name">${esc(row.name)}</div><div class="bubble-level">${
+        row.level === null ? 'Level unavailable' : 'Level ' + number(row.level)}</div>
+        ${row.status === 'already' ? '<div class="partial">Already Prisma-ed</div><div class="note">Benefit retained</div>' : ''}
+        </td><td></td>`;
+      entry = { host };
+      renderedRows.set(row.id, entry);
     }
-    if (!row.comparable) body += detailShell('coverage', 'Native effect coverage');
-    return `<tr data-bubble-id="${row.id}" data-state="${esc(result?.status || row.status)}" data-comparison="${row.comparable ? row.status === 'already' ? 'retained' : 'added' : ''}"><td>
-      <div class="bubble-name">${esc(row.name)}</div><div class="bubble-level">${row.level === null ? 'Level unavailable' : 'Level ' + number(row.level)}</div>
-      ${row.status === 'already' ? '<div class="partial">Already Prisma-ed</div><div class="note">Benefit retained</div>' : ''}
-      </td><td>${body}</td></tr>`;
-  }).join('') || '<tr><td colspan="2" class="muted">No matching bubbles.</td></tr>';
-  bindDetails($('rows'), record);
-  if (focusRow && focusedDetails) {
-    const rowHost = $('rows').querySelector(`[data-bubble-id="${focusRow}"]`);
-    const selector = focusDetail ? `[data-detail="${focusDetail}"]` : 'details[data-bubble]';
-    const target = (focusPage ? rowHost?.querySelector(`[data-page="${focusPage}"] [data-more]`) : null)
-      || rowHost?.querySelector(`${selector} > summary`);
-    target?.focus({ preventScroll: true });
+    if (!entry.mounted || entry.result !== result || (!result && entry.stopped !== stopped)) {
+      let body;
+      if (!row.comparable) body = `<span class="muted">${esc(row.reason)}</span>`;
+      else if (!result) body = `<span class="muted">${record.error ? 'Not calculated - calculation failed.' : record.cancelled ? 'Not calculated - cancelled.' : 'Waiting...'}</span>`;
+      else if (result.status === 'error') body = `<span class="error">${esc(result.error)}</span>`;
+      else {
+        const changes = result.changes.filter(change => change.delta !== 0);
+        body = `<div data-preview>${previewHtml(result, record, selected)}</div>`;
+        body += `<details data-bubble="${row.id}"${expanded.has(key() + ':' + row.id) ? ' open' : ''}>
+          <summary>${changes.length ? changes.length + ' changed total' + (changes.length === 1 ? '' : 's') + ' & details' : 'Bubble bonus & coverage'}</summary>
+          <div data-lazy="results"></div></details>`;
+      }
+      if (!row.comparable) body += detailShell('coverage', 'Native effect coverage');
+      entry.host.dataset.state = result?.status || row.status;
+      entry.host.cells[1].innerHTML = body;
+      bindDetails(entry.host, record);
+      entry.mounted = true; entry.result = result; entry.stopped = stopped;
+    } else if (entry.selected !== selected && result?.status === 'done') {
+      entry.host.querySelector('[data-preview]').innerHTML = previewHtml(result, record, selected);
+    }
+    entry.selected = selected;
+    if (entry.host !== cursor) $('rows').insertBefore(entry.host, cursor);
+    cursor = entry.host.nextElementSibling;
+  }
+  while (cursor) {
+    const next = cursor.nextElementSibling;
+    cursor.remove(); cursor = next;
+  }
+  if (!rows.length) $('rows').innerHTML = '<tr><td colspan="2" class="muted">No matching bubbles.</td></tr>';
+  if (focused?.isConnected) {
+    if (document.activeElement !== focused) focused.focus({ preventScroll: true });
+    if (scrollX !== x || scrollY !== y) window.scrollTo(x, y);
   }
 }
 
 function extendRankMetrics(metrics) {
   const groups = $('metric').querySelectorAll('optgroup');
+  const fragments = [document.createDocumentFragment(), document.createDocumentFragment()];
   for (const metric of metrics) {
     if (rankMetricIds.has(metric.id) || metric.unavailable || metric.notApplicable
       || !Number.isFinite(metric.val ?? metric.after)) continue;
     const option = document.createElement('option');
     option.value = metric.id; option.textContent = metric.name;
-    groups[metric.intermediate ? 1 : 0].append(option);
+    fragments[metric.intermediate ? 1 : 0].append(option);
     rankMetricIds.add(metric.id);
   }
+  fragments.forEach((fragment, i) => { if (fragment.childNodes.length) groups[i].append(fragment); });
+}
+
+function flushUpdates() {
+  clearTimeout(updateTimer); updateTimer = null;
+  const update = pendingUpdate; pendingUpdate = null;
+  if (!update || update.record !== current()) return;
+  try {
+    for (const id of update.rows) {
+      const result = update.record.results.get(id);
+      if (result.status === 'done') extendRankMetrics([...result.changes, ...(result.intermediates || [])]);
+    }
+    $('progress').value = update.total ? update.completed / update.total : 1;
+    $('status').textContent = `Comparing ${update.completed} / ${update.total} eligible bubbles...`;
+    renderRows();
+  } catch (error) { update.fail(error); }
+}
+
+function queueUpdate(record, data, fail) {
+  pendingUpdate ||= { record, rows: [], completed: 0, total: data.total, fail };
+  pendingUpdate.rows.push(data.result.id);
+  pendingUpdate.completed = Math.max(pendingUpdate.completed, data.completed);
+  if (updateTimer === null) updateTimer = setTimeout(flushUpdates, 100);
 }
 
 function renderCoverage(record) {
@@ -277,6 +329,7 @@ function renderBaseline(record) {
 
 function cancel(message = 'Cancelled. Completed rows are retained.') {
   if (!worker && !active) return;
+  flushUpdates();
   worker?.terminate(); worker = null;
   if (active) active.cancelled = true;
   active = null; request++;
@@ -313,7 +366,7 @@ function start() {
     $('status').className = 'error';
   }
   try {
-    worker = new Worker(new URL('../workers/prisma-worker.js?v=lazy-results-1', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('../workers/prisma-worker.js?v=streamed-results-1', import.meta.url), { type: 'module' });
     worker.onerror = event => { event.preventDefault(); fail(new Error(event.message || 'Prisma worker failed.')); };
     worker.onmessageerror = () => fail(new Error('Could not read the Prisma worker response.'));
     worker.onmessage = ({ data }) => {
@@ -334,15 +387,13 @@ function start() {
           record.results.set(data.result.id, data.result);
           record.bytes += estimatedBytes(data.result);
           trimCache();
-          if (data.result.status === 'done')
-            extendRankMetrics([...data.result.changes, ...(data.result.intermediates || [])]);
-          $('progress').value = data.total ? data.completed / data.total : 1;
-          $('status').textContent = `Comparing ${data.completed} / ${data.total} eligible bubbles...`;
-          renderRows();
+          queueUpdate(record, data, fail);
         } else if (data.type === 'done') {
           const expected = record.plan.rows.filter(row => row.comparable).length;
           if (data.completed !== expected || !record.baseline.length
             || record.results.size !== expected) throw new Error('Incomplete Prisma completion.');
+          flushUpdates();
+          if (id !== request) return;
           record.done = true;
           worker.terminate(); worker = null; active = null;
           $('cancel').disabled = true; $('progress').hidden = true;
