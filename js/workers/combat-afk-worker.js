@@ -3,6 +3,7 @@ import { saveData } from '../state.js';
 import { applyCombatSetup } from '../stats/systems/common/combat-sim-setup.js';
 import { withCombatTerms } from '../stats/systems/common/combat-sim-terms.js';
 import { combatAfkGains } from '../stats/systems/common/combat-afk.js';
+import { captureCombatExpStart, projectCombatAfkExp } from '../stats/systems/common/combat-sim-exp.js?v=afk-exp-1';
 
 let rawSave = null, loadedVariant = null, patched = null;
 self.onmessage = ({ data: msg }) => {
@@ -22,9 +23,11 @@ self.onmessage = ({ data: msg }) => {
       loadSaveData(patched);
       loadedVariant = signature;
     }
+    const expStart = msg.expDetails ? captureCombatExpStart(saveData, msg.charIdx, {}) : null;
     const result = withCombatTerms(msg.setup?.termOverrides, () => combatAfkGains(saveData, msg.charIdx, msg.mapIdx, msg.hours, {
       rawSave: patched, toggles: msg.setup?.toggles, holeCavern: msg.holeCavern, candy: msg.candy, clamworksPhase: msg.clamworksPhase,
     }));
+    if (msg.expDetails && !result.unavailable) result.classExp = projectCombatAfkExp(expStart, result.exp, result.hours);
     self.postMessage({ type: 'done', id: msg.id, result });
   } catch (error) {
     self.postMessage({ type: 'error', id: msg.id, error: error.message || String(error) });

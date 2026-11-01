@@ -1,4 +1,4 @@
-// ===== ACTIVE COMBAT SIMULATOR - CLASS EXP PROJECTIONS =====
+// ===== COMBAT - CLASS EXP PROJECTIONS =====
 
 export function classExpRequirement(level) {
   level = Number(level);
@@ -73,4 +73,25 @@ export function projectCombatExp(start, gained, timeMs, targetLevel, actual = nu
     targetHours: eta(targetExp), targetRemainingHours: eta(targetExp - gained),
     targetReached: targetLevel <= endLevel, milestones,
   };
+}
+
+export function projectCombatAfkExp(start, gained, hours) {
+  const projection = projectCombatExp(start, gained, hours * 3600000);
+  const levelTimeline = [];
+  let timelineCoarsened = false;
+  if (projection.available) {
+    levelTimeline.push({ hours: 0, levels: 0 });
+    const stride = Math.max(1, Math.ceil(projection.levelsGained / 126));
+    timelineCoarsened = stride > 1;
+    let needed = -projection.start.exp;
+    for (let level = projection.start.level; level < projection.end.level; level++) {
+      needed += classExpRequirement(level);
+      const levels = level + 1 - projection.start.level;
+      if (levels % stride === 0 || level + 1 === projection.end.level) {
+        levelTimeline.push({ hours: projection.perHour > 0 ? Math.min(hours, Math.max(0, needed) / projection.perHour) : 0, levels });
+      }
+    }
+    levelTimeline.push({ hours, levels: projection.levelsGained });
+  }
+  return { ...projection, hours, levelTimeline, timelineCoarsened };
 }

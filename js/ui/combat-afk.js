@@ -25,6 +25,50 @@ function odds(p, guaranteed) {
   return String(Number((p * 100).toPrecision(4))) + '%';
 }
 
+function expChart(projection, levels = false) {
+  const width = 900, height = 210, left = 65, right = 880, top = 25, bottom = 165;
+  const max = Math.max(1, levels ? projection.levelsGained : projection.gained);
+  const x = hours => left + (right - left) * (projection.hours > 0 ? hours / projection.hours : 0);
+  const y = value => bottom - (bottom - top) * value / max;
+  const label = levels ? 'Projected Class levels gained' : 'Illustrative Class EXP at the claim-average rate';
+  let path = `M${left},${bottom}`;
+  if (levels) {
+    for (const point of projection.levelTimeline) path += `H${x(point.hours)}V${y(point.levels)}`;
+  } else path += `L${x(projection.hours)},${y(projection.gained)}`;
+  let html = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(label + ': ' + number(levels ? projection.levelsGained : projection.gained) + ' over ' + number(projection.hours) + ' hours away')}" data-afk-exp-chart="${levels ? 'levels' : 'exp'}">
+    <text x="${left}" y="16" fill="#c0c0d4" font-size="11">${esc(levels ? 'Levels gained (projected)' : 'Class EXP (illustrative)')}</text>`;
+  for (let i = 0; i <= 4; i++) {
+    const value = max * i / 4, hours = projection.hours * i / 4;
+    if (!levels || Number.isInteger(value)) html += `<line x1="${left}" y1="${y(value)}" x2="${right}" y2="${y(value)}" stroke="#333"/>
+      <text x="${left - 8}" y="${y(value) + 4}" text-anchor="end" fill="#c0c0d4" font-size="11">${esc(number(value))}</text>`;
+    if (projection.hours > 0 || i === 0) html += `<text x="${x(hours)}" y="${bottom + 19}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}" fill="#c0c0d4" font-size="11">${esc(number(hours))}h</text>`;
+  }
+  return html + `<path d="${path}" fill="none" stroke="${levels ? '#4dd0e1' : '#e94560'}" stroke-width="2"/>
+    <circle cx="${x(projection.hours)}" cy="${y(levels ? projection.levelsGained : projection.gained)}" r="3" fill="${levels ? '#4dd0e1' : '#e94560'}"/>
+    <text x="${(left + right) / 2}" y="${height - 6}" text-anchor="middle" fill="#c0c0d4" font-size="11">Hours away (entered duration)</text></svg>`;
+}
+
+function expDetails(result) {
+  const p = result.classExp;
+  if (!p) return '<div class="note">Class level progress was not captured for this claim.</div>';
+  const card = (name, value, sub) => `<div class="card"><div class="card-title">${name}</div><div class="card-val">${value}</div><div class="card-sub">${sub}</div></div>`;
+  let html = '<h4>Class EXP &amp; Levels</h4><div class="card-grid cols-4">'
+    + card('Class EXP earned', number(p.gained), 'From this single claim')
+    + card('Average Class EXP / hr', number(p.perHour), 'Per entered hour away, including any prayer cap');
+  if (p.available) html += card('Projected level after claim', `${number(p.start.level)} &rarr; ${number(p.end.level)}`, `+${number(p.levelsGained)} levels; ${(p.end.progress * 100).toFixed(2)}% toward next`)
+    + card('Estimated time to next level', p.nextLevelHours == null ? 'Not estimable' : number(p.nextLevelHours) + 'h', 'From projected claim end, holding this average constant');
+  html += '</div>';
+  if (!p.available) html += `<div class="note"><strong>Level progress unavailable:</strong> ${esc(p.reason)}</div>`;
+  else html += '<table class="data-table"><thead><tr><th>Progress</th><th class="num">Level</th><th class="num">EXP toward next</th><th class="num">Next-level requirement</th></tr></thead><tbody>'
+    + [['Captured claim start', p.start], ['Projected after claim', p.end]].map(([label, progress]) => `<tr><td>${label}</td><td class="num">${number(progress.level)}</td><td class="num">${number(progress.exp)}</td><td class="num">${number(progress.requirement)}</td></tr>`).join('') + '</tbody></table>';
+  html += '<h4>Class EXP over hours away</h4>' + expChart(p);
+  if (p.available) html += '<h4>Projected Class levels gained</h4>' + expChart(p, true);
+  return html + `<span hidden data-afk-exp="${esc(JSON.stringify(p))}"></span>`
+    + '<div class="note">Offline EXP is awarded when claimed, not continuously. These charts spread this claim\'s EXP evenly across the entered hours to illustrate its average rate; they are not recorded level-up times or recalculated shorter claims. '
+    + 'Food depletion, prayer caps and claim rounding can change actual shorter-claim rewards. Levels use the captured starting progress and the full claim EXP; they do not increase this claim\'s rewards or simulate level-up gifts. Future ETAs hold the same average constant, not a sequence of new claims.'
+    + (p.timelineCoarsened ? ' Large level gains show grouped steps.' : '') + '</div>';
+}
+
 export function mountCombatAfk(host, options) {
   const KEY = 'combat-sim-afk-v1';
   const scopes = ['accessible', 'all', 'world', 'custom', 'drops'];
@@ -58,6 +102,7 @@ export function mountCombatAfk(host, options) {
     .afk-summary tr[data-afk-row]{cursor:pointer}.afk-summary tr[data-selected] td{background:rgba(77,208,225,.12)}
     .afk-summary tr[data-afk-row]:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
     .afk-detail{margin-top:14px}.afk-detail .note{margin:6px 0}.afk-detail table{max-width:900px}
+    .afk-detail h4{margin:14px 0 8px}.afk-detail svg[data-afk-exp-chart]{width:100%;max-width:900px;background:#0b0f1f;border-radius:6px}
     @media(max-width:650px){.afk-summary thead{display:none}.afk-summary tr,.afk-summary td{display:block}.afk-summary tr{border:1px solid #42516b;border-radius:6px;margin:8px 0;padding:6px}.afk-summary td{display:flex;justify-content:space-between;gap:12px;border:0}.afk-summary td:before{content:attr(data-label);color:var(--text2)}}
   </style>
   <div class="section"><h2>AFK gains</h2>
@@ -226,12 +271,13 @@ export function mountCombatAfk(host, options) {
     const cellDrop = row => row.result?.drops?.find(d => d.key === chosenDrop);
     const value = row => sortKey === 'drop' ? cellDrop(row)?.expected || 0 : sortKey === 'chance' ? cellDrop(row)?.chance || 0
       : sortKey === 'map' ? mapName(row.mapIdx, row.holeCavern) : sortKey === 'character' ? row.character : sortKey === 'loadout' ? row.loadout
-      : row.result?.[sortKey] ?? -Infinity;
+      : sortKey === 'expPerHour' ? row.result?.classExp?.perHour ?? -Infinity
+      : sortKey === 'levelsGained' ? row.result?.classExp?.levelsGained ?? -Infinity : row.result?.[sortKey] ?? -Infinity;
     const ordered = [...results].sort((a, b) => {
       const av = value(a), bv = value(b);
       return sortDirection * (typeof av === 'string' ? av.localeCompare(bv) : av - bv) || a.id - b.id;
     });
-    const headers = [['character', 'Character'], ['loadout', 'Loadout'], ['map', 'Map'], ['effectiveHours', 'Claim hours'], ['rewardKills', 'Reward kills'], ['creditedKills', 'Kill credit'], ['exp', 'Class EXP'], ['coins', 'Expected coins']];
+    const headers = [['character', 'Character'], ['loadout', 'Loadout'], ['map', 'Map'], ['effectiveHours', 'Claim hours'], ['rewardKills', 'Reward kills'], ['creditedKills', 'Kill credit'], ['exp', 'Class EXP'], ['expPerHour', 'EXP / hr away'], ['levelsGained', 'Levels gained'], ['coins', 'Expected coins']];
     if (chosenDrop) headers.push(['drop', 'Expected ' + itemName(chosenDrop)], ['chance', 'Chance of at least one']);
     const td = (label, body) => `<td data-label="${esc(label)}">${body}</td>`;
     container.innerHTML = (stale ? `<div class="note"><strong>Stale snapshot:</strong> ${esc(stale)}</div>` : '')
@@ -244,7 +290,9 @@ export function mountCombatAfk(host, options) {
           + td('Map', `${esc(mapName(row.mapIdx, row.holeCavern))}${r?.partial ? ' <span class="badge badge-gold">Partial</span>' : ''}`);
         if (error) html += `<td colspan="${headers.length - 3}" data-label="Unavailable"><span class="err">${esc(error)}</span></td>`;
         else html += td('Claim hours', number(r.effectiveHours)) + td('Reward kills', number(r.rewardKills)) + td('Kill credit', number(r.creditedKills))
-          + td('Class EXP', number(r.exp)) + td('Expected coins', fmtCoins(r.coins))
+          + td('Class EXP', number(r.exp)) + td('EXP / hr away', number(r.classExp?.perHour))
+          + td('Levels gained', r.classExp?.available ? `+${number(r.classExp.levelsGained)} <span class="note">(${number(r.classExp.start.level)} &rarr; ${number(r.classExp.end.level)})</span>` : 'Unavailable')
+          + td('Expected coins', fmtCoins(r.coins))
           + (chosenDrop ? td('Expected ' + itemName(chosenDrop), number(drop?.expected || 0)) + td('Chance of at least one', odds(drop?.chance || 0, drop?.guaranteed)) : '');
         return `<tr data-afk-row="${row.id}" tabindex="0" aria-label="${esc(row.character + ', ' + row.loadout + ', ' + mapName(row.mapIdx, row.holeCavern) + ': inspect drops')}"${selected === row.id ? ' data-selected' : ''}>${html}</tr>`;
       }).join('') + '</tbody></table></div><div class="afk-detail" data-afk-detail></div>';
@@ -261,6 +309,7 @@ export function mountCombatAfk(host, options) {
     if (!r || r.unavailable) { detail.textContent = row.error || r?.reason; return; }
     detail.innerHTML = `<h3>${esc(row.character)} / ${esc(row.loadout)} / ${esc(mapName(row.mapIdx, row.holeCavern))}</h3>
       <div class="note">${r.candy ? 'Candy AFK' : 'Normal offline AFK'} &middot; ${number(r.effectiveHours)} claim hours &middot; ${number(r.dropRolls)} initial drop rolls &middot; ${number(r.survivability)}% survivability</div>`
+      + expDetails(r)
       + r.warnings.map(w => `<div class="note"><strong>Partial / limit:</strong> ${esc(w)}</div>`).join('')
       + r.notes.map(note => `<div class="note">${esc(note)}</div>`).join('')
       + (r.progress?.rows.length ? '<h4>Offline progress</h4><table class="data-table"><thead><tr><th>Progress</th><th class="num">Gained</th></tr></thead><tbody>'
@@ -294,14 +343,14 @@ export function mountCombatAfk(host, options) {
         if (index < queue.length) {
           const job = queue[index++];
           worker.job = job;
-          worker.postMessage({ type: 'afk', id: job.id, charIdx: job.charIdx, mapIdx: job.mapIdx, holeCavern: job.holeCavern, setup: job.setup, hours, candy });
+          worker.postMessage({ type: 'afk', id: job.id, charIdx: job.charIdx, mapIdx: job.mapIdx, holeCavern: job.holeCavern, setup: job.setup, hours, candy, expDetails: true });
         } else {
           worker.job = null;
           if (finished === total) stop('Complete: ' + finished + ' AFK combinations.');
         }
       }
       for (let n = 0; n < Math.min(4, queue.length, navigator.hardwareConcurrency || 2); n++) {
-        const worker = new Worker(new URL('../workers/combat-afk-worker.js', import.meta.url), { type: 'module' });
+        const worker = new Worker(new URL('../workers/combat-afk-worker.js?v=afk-exp-1', import.meta.url), { type: 'module' });
         workers.push(worker);
         worker.onerror = event => {
           if (token !== generation) return;
