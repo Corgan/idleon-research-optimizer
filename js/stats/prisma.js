@@ -7,14 +7,14 @@ import { readRawKey, saveRoot, characterOptions } from './systems/common/combat-
 import { PRISMA_SOURCE_COVERAGE } from './data/prisma-source-coverage.js';
 
 const COMPUTED_REFERENCE_REVIEW = {
-  sourceHash: 'd103bacc16c9a1072f29725cca469217b836977a442ea16883d7d7bb8f0d2a98',
+  sourceHash: '955b2ebe976e85f48b1de2ed14c61c9b2514703be0dca9d47516bc00fc110206',
   cache: {
-    67068: 'Purchased/equipped bubble iteration, partial HP/MP scaling and class-pass cache construction.',
-    67070: 'Second cache pass applies the color multibubble to its declared indices.',
-    67072: 'Slab-count post-pass scales W2/A2/M2 and W4/A4/M4.',
-    67073: 'Tome, logged-in level and class-family level post-passes.',
-    67074: 'Class-family zeroing and cleared-W6-map count for Y6.',
-    67076: 'Y6 cache replacement before the independent vial-cache rebuild.',
+    67073: 'Purchased/equipped bubble iteration, partial HP/MP scaling and class-pass cache construction.',
+    67075: 'Second cache pass applies the color multibubble to its declared indices.',
+    67077: 'Slab-count post-pass scales W2/A2/M2 and W4/A4/M4.',
+    67078: 'Tome, logged-in level and class-family level post-passes.',
+    67079: 'Class-family zeroing and cleared-W6-map count for Y6.',
+    67081: 'Y6 cache replacement before the independent vial-cache rebuild.',
   },
 };
 
@@ -24,10 +24,10 @@ export function prismaSourceCoverage(effect) {
     if (PRISMA_SOURCE_COVERAGE.sourceHash === COMPUTED_REFERENCE_REVIEW.sourceHash) {
       if (row.owner === 'scripts.ActorEvents_124' && row.method === '_customBlock_TalentCalc') {
         explanation = row.kind === 'computed-cache-read' ? COMPUTED_REFERENCE_REVIEW.cache[row.line] || ''
-          : row.kind === 'computed-base-call' && row.line === 67068
+          : row.kind === 'computed-base-call' && row.line === 67073
             ? 'Base bubble iteration feeds cache construction, not a separate final outcome.' : '';
       } else if (row.owner === 'scripts.ActorEvents_232' && row.method === '_event_4'
-          && row.kind === 'computed-base-call' && row.line === 72507) {
+          && row.kind === 'computed-base-call' && row.line === 72512) {
         explanation = 'Selected bubble tooltip preview; numerical base bonus is already measured separately.';
       }
     }

@@ -35,6 +35,7 @@ import { isFightingMap, mapKillReq } from '../game-data.js';
 import { isBubblePrismad, getPrismaBonusMult } from '../stats/systems/w2/alchemy.js';
 import { isExalted, computeStampDoublerSources } from '../stats/systems/w1/stamp.js';
 import { computeSeraphMulti } from '../stats/systems/common/starSign.js';
+import { capevine, capevineBonusSystemOn } from '../stats/systems/w7/gallery.js';
 
 /**
  * @typedef {object} DNSM
@@ -387,6 +388,7 @@ export function computeDNSM(charIdx = 0) {
     var sp = saveData.spelunkData || [];
     var galleryOn = (sp[16] && sp[16].length > 0) || (sp[17] && sp[17].length > 0);
     var premhatOn = sp[46] && sp[46].length > 0;
+    var capevineOn = capevineBonusSystemOn(charIdx);
 
     // Chip detection: check if pendant/keychain/trophy chips are equipped
     // ChipDesc IDs: 18 = pend, 17 = key1, 16 = troph (values are all 1)
@@ -412,6 +414,7 @@ export function computeDNSM(charIdx = 0) {
         // Skip gallery/premhat-managed slots (they have dedicated sub-systems)
         if (row === 0 && galleryOn && (slot === 10 || slot === 14)) continue;
         if (row === 0 && premhatOn && slot === 8) continue;
+        if (row === 0 && capevineOn && slot === 12) continue;
         const itemName = gear[slot] || 'Blank';
         if (itemName === 'Blank') continue;
         const emmSlot = emmGear[slot] || {};
@@ -459,6 +462,9 @@ export function computeDNSM(charIdx = 0) {
     if (galNametag[STAT]) { total += galNametag[STAT]; etcChildren.push(node('Nametag GF', galNametag[STAT], null, { fmt: 'raw' })); }
     var galPremhat = saveData.premHatBon || {};
     if (galPremhat[STAT]) { total += galPremhat[STAT]; etcChildren.push(node('Premhat GF', galPremhat[STAT], null, { fmt: 'raw' })); }
+    var capeBon = capevine.resolve('8', { saveData, charIdx });
+    total += capeBon.val;
+    if (capeBon.val) etcChildren.push(capeBon);
 
     dnsm.etcBonuses8 = total;
     T.etcBonuses8 = node('GFood Equip UQ', total, etcChildren.length ? etcChildren : null, { fmt: 'raw' });

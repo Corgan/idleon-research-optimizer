@@ -40,7 +40,7 @@ function _unitTypes(S, options) {
 	const derived = Array.from({ length: count }, (_, type) => type);
 	return (Array.isArray(configured) ? configured.map(n).filter(type => type >= 0 && type < 4) : derived).filter(type => _explicitGate(options, 'unlockUnitTypes') || derived.includes(type));
 }
-function _slotCap(S, mapIdx, options) { return Math.max(0, Math.min(6, 1 + n(_row(S, mapIdx)?.[0]), _finiteCap(options?.activeSlotCap ?? options?.slotCaps?.[mapIdx], 6, 6))); }
+function _slotCap(S, mapIdx, options) { return Math.max(0, Math.min(R.outpostAssignableSlotCount(S, mapIdx), _finiteCap(options?.activeSlotCap ?? options?.slotCaps?.[mapIdx], 7, 7))); }
 function _unitPool(S, options) {
 	if (Array.isArray(options?._unitPool)) return options._unitPool.slice(0, 4);
 	if (Array.isArray(options?.unitPool)) return options.unitPool.reduce((pool, type) => { type = n(type); if (type >= 0 && type <= 3) pool[type]++; return pool; }, [0, 0, 0, 0]);
@@ -102,7 +102,7 @@ export function encodePackedUnits(units, slotCap = 9) {
 	}).join(''));
 }
 
-// Overwrites only the listed unit slots, preserving locked digits and Barracks-fixed units.
+// Overwrites only the listed unit slots, preserving locked and unlisted digits.
 export function withPackedUnits(packed, units) {
 	const digits = decodePackedUnitDigits(packed);
 	for (const unit of Array.isArray(units) ? units : []) { const slot = n(unit?.slot), type = n(unit?.type); if (Number.isInteger(slot) && slot >= 0 && slot < 9 && type >= 0 && type <= 3) digits[slot] = type + 2; }

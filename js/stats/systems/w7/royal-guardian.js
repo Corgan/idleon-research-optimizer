@@ -390,10 +390,8 @@ export function outpostPointBreakdown(S, mapIdx) {
 export function outpostUnlockedBars(S) { return [27, 29, 73, 74, 75].map(idx => armoryLevel(S, idx) >= 1); }
 
 export function decodePackedUnits(packed) { const digits = String(Math.max(0, Math.floor(n(packed)))).padStart(9, '0').slice(-9).split('').map(Number); const units = digits.map((digit, slot) => ({ slot, type: digit >= 2 && digit <= 5 ? digit - 2 : -1, raw: digit })).filter(unit => unit.type >= 0); return units; }
-// Source OutpostUnitSlots: only slots below min(6, 1 + Barracks) are clickable. The Barracks
-// purchase converts the first locked digit at index 1..6 into a Worker, so Barracks 6 adds a
-// permanently fixed Worker at index 6 that still counts toward TotalUnitsz.
-export function outpostAssignableSlotCount(S, mapIdx) { return Math.min(9, Math.min(6, 1 + Math.max(0, Math.floor(n(row(S, mapIdx)?.[0]))))); }
+// Barracks 6 unlocks the seventh assignable unit; later levels improve collection only.
+export function outpostAssignableSlotCount(S, mapIdx) { return Math.min(9, Math.min(7, 1 + Math.max(0, Math.floor(n(row(S, mapIdx)?.[0]))))); }
 export function outpostStationedUnits(S, mapIdx) { return decodePackedUnits(row(S, mapIdx)?.[11]); }
 export function outpostUnits(S, mapIdx) { const cap = outpostAssignableSlotCount(S, mapIdx); return outpostStationedUnits(S, mapIdx).filter(unit => unit.slot < cap); }
 export function outpostBarracksFixedUnits(S, mapIdx) { const cap = outpostAssignableSlotCount(S, mapIdx); return outpostStationedUnits(S, mapIdx).filter(unit => unit.slot >= cap); }
@@ -596,7 +594,7 @@ export function outpostResourceRateBreakdown(S, mapIdx, ext) {
 		{ name: 'outpostPurifyBonus', value: 1 + (200 + armoryBonus(S, 1)) * outpostPurification(S, mapIdx) / 100 },
 		{ name: 'supportCollection', value: 1 + supportCollection(S) * _supportCountFor(S, mapIdx, ext) / 100 },
 		{ name: 'mapLevel1', value: 1 + n(row(S, mapIdx)?.[1]) * 5 / 100 }, { name: 'commandRank*armory73', value: 1 + outpostRank(S, mapIdx, 2) * armoryBonus(S, 73) / 100 },
-		{ name: 'unitSpec0*totalUnits0', value: 1 + unitSpecEffect(S, 0) * units[0] / 100 }, { name: 'mapLevel0Cap', value: Math.min(5, 1 + 10 * Math.max(0, Math.round(n(row(S, mapIdx)?.[0]) - 5)) / 100) },
+		{ name: 'unitSpec0*totalUnits0', value: 1 + unitSpecEffect(S, 0) * units[0] / 100 }, { name: 'mapLevel0Cap', value: Math.min(5, 1 + 10 * Math.max(0, Math.round(n(row(S, mapIdx)?.[0]) - 6)) / 100) },
 	];
 	return { value: factors.reduce((v, f) => v * f.value, 1), factors, global, available: global.available, partial: global.partial, missing: [...new Set(global.missing)] };
 }

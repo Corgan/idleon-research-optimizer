@@ -9,7 +9,7 @@ import { gbWith } from '../../../sim-math.js';
 import { SHAPE_BONUS_PCT } from '../../../game-data.js';
 import { ETC_STAT_NAMES, itemUqSlot } from '../../data/common/equipment.js';
 import { charHasChip } from '../w4/lab.js';
-import { galleryBonusSystemOn, premHatBonusSystemOn } from '../w7/gallery.js';
+import { galleryBonusSystemOn, premHatBonusSystemOn, capevineBonusSystemOn } from '../w7/gallery.js';
 
 function scanSlots(emm, equipOrder, row, statNames, grid172Multi, skipSlots, chipDoubles) {
   var data = emm[row] || {};
@@ -66,11 +66,13 @@ export var equipment = {
     // PremHat ON: skip slot 8 (head) — uses Hatrack resolver
     var galleryOn = galleryBonusSystemOn(ctx.charIdx);
     var premhatOn = premHatBonusSystemOn(ctx.charIdx);
+    var capevineOn = capevineBonusSystemOn(ctx.charIdx);
     var skipSlots = null;
-    if (galleryOn || premhatOn) {
+    if (galleryOn || premhatOn || capevineOn) {
       skipSlots = {};
       if (galleryOn) { skipSlots[10] = true; skipSlots[14] = true; }
       if (premhatOn) { skipSlots[8] = true; }
+      if (capevineOn) { skipSlots[12] = true; }
     }
 
     // Chip doublings: pendant(3)=pend, keychain(9)=key1, trophy(10)=troph

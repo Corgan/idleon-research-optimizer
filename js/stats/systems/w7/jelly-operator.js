@@ -7985,14 +7985,14 @@ export function* createJellyLayoutSearch(S, options = {}) {
   };
   const selectDiverse = (candidates, limit = beamWidth) => selectDiverseBy(candidates, limit, compareProxy);
   const virusLimit = 1 + jellyUpgradeQuantity(S, 15);
-  const addWithoutReplacement = (layout, placement) => {
+  const addWithoutReplacement = (layout, placement, knownOccupied) => {
     if (!placement) return null;
     if (placement.type === 5) {
       let viruses = 0;
       for (const type of Object.values(layout)) if (Number(type) === 5) viruses++;
       if (viruses >= virusLimit) return null;
     }
-    let occupied = occupancyCache.get(layout);
+    let occupied = knownOccupied || occupancyCache.get(layout);
     if (!occupied) {
       occupied = jellyLayoutOccupancy(layout);
       occupancyCache.set(layout, occupied);
@@ -8031,7 +8031,7 @@ export function* createJellyLayoutSearch(S, options = {}) {
       let bestLayout = null;
       let bestScore = -Infinity;
       for (const type of oneSlotTypes) {
-        const next = addWithoutReplacement(filled, { anchor: slot, type });
+        const next = addWithoutReplacement(filled, { anchor: slot, type }, occupied);
         if (!next) continue;
         const score = scoreLayout(next);
         if (score > bestScore) {

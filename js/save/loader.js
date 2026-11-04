@@ -514,7 +514,7 @@ export function recomputeDerivedBonuses() {
   const _researchAdditivePct = Number(rexp.additivePct) || 0;
   const _stickerVal = Number(rexp.stickerBonus) || 0;
   // simTotalExpWith adds grid bonuses dynamically (so optimizer sees changes),
-  // so extPctExSticker must exclude both sticker AND grids to avoid double-counting.
+  // so extPctExSticker excludes sticker, grids and projected mastery to avoid double-counting.
   // Grid(112) and Grid(94) are added by the sim with i=2 multipliers (×occFound, ×obsLVs),
   // so we must subtract those same scaled values here.
   const _abmCtx = { abm: saveData.allBonusMulti };
@@ -539,7 +539,7 @@ export function recomputeDerivedBonuses() {
     gbWith(saveData.gridLevels, saveData.shapeOverlay, 51, _abmCtx);
   assignState({
     externalResearchPct: _researchAdditivePct,
-    cachedExtPctExSticker: _researchAdditivePct - _stickerVal - _gridAdd,
+    cachedExtPctExSticker: _researchAdditivePct - _stickerVal - _gridAdd - (rexp.masteryAdditivePct || 0),
     comp52TrueMulti: (1 + companionBonusForSave(52, saveData)) * (1 + companionBonusForSave(153, saveData) + companionLevel2(153, saveData)),
     cachedRoyalResearch: Math.max(1, outpostROGBonus(saveData, 1)),
     // 2026-10-16 Research EXP terms the sim cannot recompute from grid levels.

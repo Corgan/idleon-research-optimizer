@@ -2404,10 +2404,10 @@
         return `<button class="outpost-row outpost-selectable ${selected ? "selected" : ""}" type="button" role="option" tabindex="${selected ? "0" : "-1"}" aria-selected="${selected ? "true" : "false"}" data-outpost-select="${x.mapIdx}"${rawClear ? ` data-royal-clear-tooltip ${rawClear.attributes}` : ""}><div class="row-head"><strong>${mapName(x.mapIdx)}</strong><span class="badge ${x.built ? "badge-green" : "badge-gold"}">${status}</span></div><div class="small">${summary}</div>${rawClear?.markup || ""}</button>`;
       }
       function permanentSourceText(unit, separator = ", ") {
-        return [unit.commandRank ? `Command Rank ${fi(unit.commandRank)}` : "", unit.glorified ? `Glorified ${fi(unit.glorified)}` : "", unit.barracks ? `Barracks 7th slot ${fi(unit.barracks)}` : ""].filter(Boolean).join(separator);
+        return [unit.commandRank ? `Command Rank ${fi(unit.commandRank)}` : "", unit.glorified ? `Glorified ${fi(unit.glorified)}` : ""].filter(Boolean).join(separator);
       }
       function fixedPermanentChildren(unit) {
-        return [{ label: "Command Rank permanent", val: unit.commandRank }, { label: "Glorified permanent", val: unit.glorified }, { label: "Barracks fixed 7th slot", val: unit.barracks || 0, note: "Expanded Barracks Lv 6 adds this Worker; it cannot be reassigned" }];
+        return [{ label: "Command Rank permanent", val: unit.commandRank }, { label: "Glorified permanent", val: unit.glorified }];
       }
       function outpostUnitDetails(S, mapIdx) {
         const units = R.outpostUnits(S, mapIdx);
@@ -2418,7 +2418,6 @@
         const rows = units.map(unit => {
           const sources = [`Command Rank: ${fi(unit.commandRank)}`];
           if (unit.glorified) sources.push(`Glorified: ${fi(unit.glorified)}`);
-          if (unit.barracks) sources.push(`Barracks 7th slot: ${fi(unit.barracks)}`);
           return `<span class="outpost-unit-detail">${unitIcon(unit.type)}<span>${unit.name} ×${fi(unit.count)}<br>${sources.join(" · ")}</span></span>`;
         }).join("");
         return `<div class="outpost-unit-list">${rows || '<span class="note">No fixed permanent units yet</span>'}</div><div class="small">Fixed professions; these cannot be reassigned. Next Command Rank unit: ${next.name} at rank ${fi(next.rank)}.</div>`;
@@ -2433,7 +2432,7 @@
       }
       function outpostUpgradeCards(S, raw) {
         const barracks = Math.max(0, n(raw[0])), logistics = Math.max(0, n(raw[1])), education = Math.max(0, n(raw[2]));
-        const slots = level => Math.min(6, 1 + level), barracksMulti = level => Math.min(5, 1 + Math.max(0, Math.round(level - 5)) * .1), rangeBonus = level => Math.floor(250 * level / (level + 100));
+        const slots = level => Math.min(7, 1 + level), barracksMulti = level => Math.min(5, 1 + Math.max(0, Math.round(level - 6)) * .1), rangeBonus = level => Math.floor(250 * level / (level + 100));
         const educationUnlocked = R.armoryLevel(S, 57) >= 1;
         return `<div class="card-grid cols-3"><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Expanded Barracks</b><span class="badge badge-blue">Lv ${fi(barracks)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">12 points</span></div><div class="outpost-upgrade-effect"><span>Unit slots</span><strong>${fi(slots(barracks))} → ${fi(slots(barracks + 1))}</strong><span>Post-cap collection</span><strong>${fmtMultiplier(barracksMulti(barracks))}x → ${fmtMultiplier(barracksMulti(barracks + 1))}x</strong></div></article><article class="card outpost-upgrade-card"><div class="outpost-upgrade-head"><b>Advanced Logistics</b><span class="badge badge-blue">Lv ${fi(logistics)}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">2 points</span></div><div class="outpost-upgrade-effect"><span>Collection bonus</span><strong>+${fi(logistics * 5)}% → +${fi((logistics + 1) * 5)}%</strong><span>Range bonus</span><strong>+${fi(rangeBonus(logistics))} → +${fi(rangeBonus(logistics + 1))}</strong></div></article><article class="card outpost-upgrade-card ${educationUnlocked ? "" : "locked"}"><div class="outpost-upgrade-head"><b>Greater Education</b><span class="badge ${educationUnlocked ? "badge-blue" : "badge-red"}">${educationUnlocked ? `Lv ${fi(education)}` : "Locked"}</span></div><div class="outpost-upgrade-meta"><span class="badge badge-gold">1 point</span></div><div class="outpost-upgrade-effect"><span>Rank EXP bonus</span><strong>${educationUnlocked ? `+${fi(education * 10)}% → +${fi((education + 1) * 10)}%` : "Armory required"}</strong></div><div class="small">${educationUnlocked ? "Multiplies every rank bar's EXP at this outpost, before the Glorified 2x." : `Unlock from Armory shelf ${fi(ARMORY_ORDER.indexOf(57) + 1)}.`}</div></article></div>`;
       }
@@ -2471,7 +2470,7 @@
       }
       function outpostPointPlanPanel(S, mapIdx) {
         const key = `${mapIdx}`, plan = session.outpostPointPlanKey === key ? session.outpostPointPlan : null;
-        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package. Current assignments uses saved resource links and each linked node's current grade; the other listings compare pre-grade outpost rates.</div><div class="planner-warning">Assignable Barracks slots cap at 6 at Barracks level 5. Later Barracks levels improve the post-cap collection multiplier and Global Decree - OL.</div>`;
+        const controls = `<div class="outpost-point-planner-controls"><button type="button" id="analyze-outpost-points" ${session.outpostPointRunning ? "disabled" : ""}>${session.outpostPointRunning ? "Analyzing..." : "Analyze"}</button><button type="button" id="cancel-outpost-points" ${session.outpostPointRunning ? "" : "disabled"}>Cancel</button></div>${plannerProgress(session.outpostPointProgress, "Point comparison")}${session.outpostPointError ? `<div class="planner-warning">${esc(session.outpostPointError)}</div>` : ""}<div class="planner-note">Assumes 12 points for each package. Current assignments uses saved resource links and each linked node's current grade; the other listings compare pre-grade outpost rates.</div><div class="planner-warning">Assignable Barracks slots cap at 7 at Barracks level 6. Levels 7+ improve the post-cap collection multiplier and Global Decree - OL.</div>`;
         if (!plan) return `<section class="outpost-point-planner" aria-label="Point spending planner"><h3>Point Spending Planner</h3>${controls}<p class="planner-note">Analyze this outpost's three fixed packages.</p></section>`;
         const missing = [...new Set([...(plan.missing || []), ...(plan.baseline?.invalid || []).map(item => item.reason)])];
         const scenarioRows = (scenario, title, description, showRecommendation = false) => {

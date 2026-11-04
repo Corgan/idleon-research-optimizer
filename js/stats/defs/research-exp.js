@@ -31,6 +31,7 @@ import { equipSetBonus } from '../data/common/equipment.js';
 import { label } from '../entity-names.js';
 import { dreamData } from '../../save/data.js';
 import { etcBonus } from '../systems/common/etcBonus.js';
+import { computeRiftSkillBonus } from '../systems/w4/rift.js';
 
 export default createDescriptor({
   id: 'research-exp',
@@ -245,6 +246,9 @@ export default createDescriptor({
       ] : null });
 
     // ---- Sum additive ----
+    var masteryAdditive = 10 * computeRiftSkillBonus(19, 0, saveData)
+      + 15 * computeRiftSkillBonus(19, 3, saveData);
+    items.push({ name: 'Research Skill Mastery', val: masteryAdditive });
     var totalAdd = 0;
     for (var i = 0; i < items.length; i++) totalAdd += items[i].val;
 
@@ -268,6 +272,8 @@ export default createDescriptor({
         note: 'Menagerie unlock 22 multiplier', children: stickerChildren });
     }
 
+    multItems.push({ name: 'Research Skill Mastery multiplier',
+      val: 1 + 10 * computeRiftSkillBonus(19, 5, saveData) / 100, fmt: 'x' });
     var clamWork9 = clamWorkBonus(9);
     multItems.push({ name: 'ClamWork Promotion 9', val: 1 + 0.25 * clamWork9, fmt: 'x', note: clamWork9 ? 'Promoted' : 'Not promoted' });
 
@@ -344,6 +350,7 @@ export default createDescriptor({
     return {
       val: fullMultiplier,
       additivePct: totalAdd,
+      masteryAdditivePct: masteryAdditive,
       stickerBonus: sticker,
       stickerMultiplicative: stickerMultiplicative,
       stickerMultiPct: stickerMultiPct,

@@ -452,7 +452,7 @@ export async function renderObsUnlock() {
   }
 
   summaryDiv.innerHTML =
-    `<span style="color:var(--text2);">Roll range: </span><span style="color:var(--gold);font-weight:700;">1\u2013${data.maxRoll}</span>` +
+    `<span style="color:var(--text2);">Roll range: </span><span style="color:var(--gold);font-weight:700;">${data.minRoll}\u2013${data.maxRoll}</span>` +
     (data.smartEyeLv > 0 ? `<span style="color:var(--text2);margin-left:8px;font-size:.85em;">(Smart Eye pity +${data.smartEyeLv}/fail, cap +${data.smartEyeCap})</span>` : '') +
     `<span style="color:var(--text2);margin-left:16px;">Rolls/day: </span><span style="color:var(--gold);font-weight:700;">${data.rollsPerDay}</span>` +
     `<span style="color:var(--text2);margin-left:16px;">Failed streak: </span><span style="color:var(--purple);font-weight:700;">${data.failedRolls}</span>` +

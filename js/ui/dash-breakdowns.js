@@ -15,6 +15,7 @@ import {
   computeOccurrencesToBeFound,
 } from '../sim-math.js';
 import { simTotalExp } from '../save/context.js';
+import { researchMasteryBonuses } from '../stats/systems/w7/research-math.js';
 import { mainframeBonus } from '../stats/systems/w4/lab.js';
 import { achieveStatus } from '../stats/systems/common/achievement.js';
 import { computeCardLv } from '../stats/systems/common/cards.js';
@@ -61,6 +62,8 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const rate = simTotalExp(simOpts, dSaveCtx);
   const occTBF = computeOccurrencesToBeFound(dSaveCtx.researchLevel, dSaveCtx.occFound);
   const addChildren = [];
+  const mastery = researchMasteryBonuses(simOpts.researchLevel ?? dSaveCtx.researchLevel, dSaveCtx);
+  addChildren.push(_bNode('Research Skill Mastery', mastery.additivePct, null, { fmt: '%' }));
 
   // Grid-based additive bonuses
   const gridExpSquares = [
@@ -343,7 +346,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   const equipmentMulti = Math.max(1, Math.min(15, dCtx.researchEquipmentMulti || 1));
 
   // ---- Build root with flat structure: obs base (leaf), additive group, multi group ----
-  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * equipmentMulti * stickerMultiVal * (1 + 0.25 * clamWork9) * (1 + 3 * dream14val / 100) * (1 + buttonBonus0 / 100) * (1 + arcade63 / 100) * Math.max(1, killroy5raw) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.5 * comp54Level2)) * (1 + rog0val) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * jellyResearchMulti * (1 + menagerieB3 / 100) * royalResearch;
+  const finalMulti = (1 + additiveTotal / 100) * (1 + takinNotesVal / 100) * equipmentMulti * stickerMultiVal * mastery.expMulti * (1 + 0.25 * clamWork9) * (1 + 3 * dream14val / 100) * (1 + buttonBonus0 / 100) * (1 + arcade63 / 100) * Math.max(1, killroy5raw) * Math.max(1, (1 + comp52val) * (1 + comp153val) * (1 + 0.5 * comp54Level2)) * (1 + rog0val) * (1 + (dCtx.cglunko11 || 0) / 100) * (1 + (dCtx.fountain2_16 || 0) / 100) * jellyResearchMulti * (1 + menagerieB3 / 100) * royalResearch;
 
   // Root children: obs base summary, then additive sources, then multipliers
   const rootChildren = [];
@@ -355,6 +358,7 @@ export function buildExpBreakdownTree(dSaveCtx, dCtx, simOpts) {
   rootChildren.push(tnNode);
   rootChildren.push(_bNode('Equipment Research EXP', equipmentMulti, null, { fmt: 'x', note: 'Capped at 15x' }));
   if (stickerMultiplicative) rootChildren.push(stickerNode);
+  rootChildren.push(_bNode('Research Skill Mastery Multiplier', mastery.expMulti, null, { fmt: 'x' }));
   rootChildren.push(clamNode);
   rootChildren.push(nonstopNode);
   rootChildren.push(jellyNode);

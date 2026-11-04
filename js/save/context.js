@@ -18,11 +18,20 @@ import { buildEventShopArray, buildSuperBitArray, buildEmporiumArray, ribbonBonu
 import { buildMhqArray } from '../stats/systems/w7/minehead.js';
 import { buildRogArray } from '../stats/systems/w7/sushi.js';
 import { saveData } from '../state.js';
-import { saveGlobalTime, tournamentDay, optionsListData } from './data.js';
+import { saveGlobalTime, tournamentDay, optionsListData, numCharacters } from './data.js';
 import { companionBonusForSave, companionLevel2 } from '../stats/data/common/companions.js';
 import { researchGridPointsTaskLevel } from '../stats/data/w7/tasks.js';
 import { jellyRewardBonus } from '../stats/data/w7/jelly-operator.js';
 import { hasBundle } from '../stats/systems/w7/menagerie.js';
+
+function _researchMastery() {
+  return {
+    unlocked: Number(saveData.riftData?.[0]) >= 15,
+    level: Number(saveData.researchLevel) || 0,
+    levels: Array.from({ length: numCharacters || saveData.lv0AllData?.length || 0 },
+      (_, ci) => Number(saveData.lv0AllData?.[ci]?.[20]) || 0),
+  };
+}
 
 /**
  * Snapshot every save-derived value the sim path needs.
@@ -93,6 +102,7 @@ export function buildSaveContext() {
     jellyGridPoint4: jellyRewardBonus(saveData, 4),
     jellyGridPoint57: jellyRewardBonus(saveData, 57),
     jellyObservationMaxRoll: jellyRewardBonus(saveData, 12),
+    researchMastery: _researchMastery(),
 
     // Sushi RoG bonuses (full precomputed array)
     rog: buildRogArray(saveData.cachedUniqueSushi),
@@ -183,6 +193,7 @@ export function makeSimCtx(gl, sc) {
       jellyResearchMulti: sc.jellyResearchMulti || 1,
       jellyInsightPct: sc.jellyInsightPct || 0,
       jellyKaleiPct: sc.jellyKaleiPct || 0,
+      researchMastery: sc.researchMastery,
     };
   }
 
@@ -235,6 +246,7 @@ export function makeSimCtx(gl, sc) {
     ),
     jellyInsightPct: jellyRewardBonus(saveData, 7),
     jellyKaleiPct: jellyRewardBonus(saveData, 25),
+    researchMastery: _researchMastery(),
   };
 }
 

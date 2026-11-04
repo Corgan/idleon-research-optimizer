@@ -1,14 +1,14 @@
 {
  "generatedBy": "_tools/extract/combat-sim-ui-assets.cjs",
  "source": {
-  "asar": "C:\\Program Files (x86)\\Steam\\steamapps\\content\\app_1476970\\depot_1476971\\resources\\app.asar",
-  "asarMtime": "2026-10-17T02:00:24.960Z",
-  "nJsSha256": "96DA128969EA9667B46B8CCE3C9A03E6EF9A57137A60A2927395E87EE0528D3C",
-  "pakSha256": "CA93ED295097474BA88A04C070A11C041956A6BB5B4C3E914954560AC5EE9043"
+  "asar": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Legends of Idleon\\resources\\app.asar",
+  "asarMtime": "2026-11-02T00:03:53.876Z",
+  "nJsSha256": "0E47E87BBE36198CBECC41943EA3CD8949F51E9350A4C125D67E3B7DE9771BA4",
+  "pakSha256": "F7EB2A11A58784BC48EC8F945B0B3AB7B22DD766E14CD97090D390FE7824DF45"
  },
- "formattedSourceSha256": "5785939EE18EA05B361ADA3EF2E77C5A9BEEAEFFBC01A3451A7F9F186A772057",
- "fileCount": 4355,
- "totalBytes": 7823704,
+ "formattedSourceSha256": "955B2EBE976E85F48B1DE2ED14C61C9B2514703BE0DCA9D47516BC00FC110206",
+ "fileCount": 4367,
+ "totalBytes": 7919074,
  "files": {
   "account/ArcaneUpg0.png": {
    "sha256": "6E2E3B688381AF02143C23BF6E4AB21D8326C8A67925E54F6E34C81C98C931FF",
@@ -6121,6 +6121,13 @@
    "h": 72,
    "source": "assets/data/2CardsY24.png"
   },
+  "cards/2CardsY25.png": {
+   "sha256": "77AAA9B06463FF7F2A3FFD7AC128145EF51A705C8709A168BE214F2DD3F53762",
+   "bytes": 1223,
+   "w": 56,
+   "h": 72,
+   "source": "assets/data/2CardsY25.png"
+  },
   "cards/2CardsY3.png": {
    "sha256": "61BB42EC00E092D98E6EBC52586AAF6C5987DE72A14A8EBF828B3BE7189859D8",
    "bytes": 1068,
@@ -6940,6 +6947,13 @@
    "h": 250,
    "source": "assets/graphics/1x/sprite-2-19.png"
   },
+  "companions/cathie.png": {
+   "sha256": "23949B218516DB55F9E66B8EF8E5582A01D9DAE75BE245CA6C798A7DB8A58066",
+   "bytes": 18084,
+   "w": 290,
+   "h": 350,
+   "source": "assets/graphics/1x/sprite-2-254.png"
+  },
   "companions/caveA.png": {
    "sha256": "E2A1C1A6ADF56BFDEF346AD39E6932DA1D183E0D4C70F4F7580C860F275D08B4",
    "bytes": 28440,
@@ -7689,13 +7703,6 @@
    "h": 300,
    "source": "assets/graphics/1x/sprite-2-251.png"
   },
-  "companions/thermostat.png": {
-   "sha256": "0DE7632711398C87102FADDE0B0FEC271DB37F57CC79BC8BAA872C3FCB17A012",
-   "bytes": 13822,
-   "w": 408,
-   "h": 408,
-   "source": "assets/graphics/1x/sprite-2-32.png"
-  },
   "companions/w4a2.png": {
    "sha256": "6A4C63FE0FDC3F7C6DBAA71F359444397C68984F2AFE6C3301A4FE3281E28421",
    "bytes": 13974,
@@ -8164,6 +8171,13 @@
    "w": 720,
    "h": 375,
    "source": "assets/graphics/1x/sprite-2-211.png"
+  },
+  "companions/w7c3.png": {
+   "sha256": "2E57361D8BD5EE1CA781C81178C8517B21E0E97F81B855E1E6DF8B07F059B873",
+   "bytes": 80032,
+   "w": 780,
+   "h": 470,
+   "source": "assets/graphics/1x/sprite-2-253.png"
   },
   "companions/w7d1.png": {
    "sha256": "6A1F8012763206DE361C440EA350B0BE8AD1C36E195DD880E50F2217AAC4A89C",
@@ -10440,6 +10454,13 @@
    "h": 36,
    "source": "assets/data/CardsY24.png"
   },
+  "items/CardsY25.png": {
+   "sha256": "3A4E0C6FF9EBD1A4627D3ABC27A2B6868820580BC4362A1779A1F8F248DB0028",
+   "bytes": 1058,
+   "w": 28,
+   "h": 36,
+   "source": "assets/data/CardsY25.png"
+  },
   "items/CardsY3.png": {
    "sha256": "D1DE4872C6216520BA59C3EA4C076FE624979BC1A472E29D8B1948667EE4C0ED",
    "bytes": 875,
@@ -12113,6 +12134,13 @@
    "h": 72,
    "source": "assets/data/EquipmentCape22.png"
   },
+  "items/EquipmentCape23.png": {
+   "sha256": "8EFBB8400F80E188404B1DF01480797E549EB7135B93DDA977F689464227777E",
+   "bytes": 1241,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentCape23.png"
+  },
   "items/EquipmentCape3.png": {
    "sha256": "414ECF114535D9FC94561B63E037D30E462D9608CA95FEB8873A8592F7169EF3",
    "bytes": 1464,
@@ -12589,12 +12617,54 @@
    "h": 72,
    "source": "assets/data/EquipmentHats144.png"
   },
+  "items/EquipmentHats145.png": {
+   "sha256": "6F90D8C03A747898A339EFFAEF6C1B65BE915CE57BC4F1343D7CC6B90D58DDDC",
+   "bytes": 1079,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats145.png"
+  },
+  "items/EquipmentHats146.png": {
+   "sha256": "84457372CE1E4A9F1802BC76C9FAB756070BB28DF4532B930206D77331E34A31",
+   "bytes": 1160,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats146.png"
+  },
+  "items/EquipmentHats147.png": {
+   "sha256": "43E82A262C931AF0676C6AD7FED9D239D9987C57E333C9B369679AA293F41CE2",
+   "bytes": 1358,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats147.png"
+  },
+  "items/EquipmentHats148.png": {
+   "sha256": "E23BC67E1CB73F7AC25FAD8EC653D4345FAE49D56912654EA202CF6C17D0976D",
+   "bytes": 592,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats148.png"
+  },
+  "items/EquipmentHats149.png": {
+   "sha256": "7F8B7B9F38B71EF73A7280643956ABC1C3579D4374F92005ACB060F4D84DDCBE",
+   "bytes": 630,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats149.png"
+  },
   "items/EquipmentHats15.png": {
    "sha256": "38AC5F73F5DB1C85BAB741E9C89D8D698435572613C11302AA97A68BD2249F5E",
    "bytes": 607,
    "w": 72,
    "h": 72,
    "source": "assets/data/EquipmentHats15.png"
+  },
+  "items/EquipmentHats150.png": {
+   "sha256": "1F2EA404D28B4C8971980153B8B7D8E809B41073B520CB389EF93C9F2DE0B67F",
+   "bytes": 643,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentHats150.png"
   },
   "items/EquipmentHats16.png": {
    "sha256": "747AABA1123CED0E6F1E17D78A7847C81057D1F27D223BC4288E657606A442B6",
@@ -13695,6 +13765,13 @@
    "h": 72,
    "source": "assets/data/EquipmentNametag42.png"
   },
+  "items/EquipmentNametag44.png": {
+   "sha256": "E6E90F34ACD0ACDC7243D475ED399F743BC820F77B469FD1C1B5BBC0DB9B0B7E",
+   "bytes": 1046,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentNametag44.png"
+  },
   "items/EquipmentNametag5.png": {
    "sha256": "EDB58051F3099029EC7BD332969AB6118CDF29E8A30B47941B4EABBEB6AF8B66",
    "bytes": 1380,
@@ -14002,6 +14079,13 @@
    "w": 72,
    "h": 72,
    "source": "assets/data/EquipmentNametagReplica43.png"
+  },
+  "items/EquipmentNametagReplica44.png": {
+   "sha256": "E6E90F34ACD0ACDC7243D475ED399F743BC820F77B469FD1C1B5BBC0DB9B0B7E",
+   "bytes": 1046,
+   "w": 72,
+   "h": 72,
+   "source": "assets/data/EquipmentNametagReplica44.png"
   },
   "items/EquipmentNametagReplica5.png": {
    "sha256": "ACD7D862989939C4348AB380AD203D61734866390F89BEE2EE933ACAF547174D",

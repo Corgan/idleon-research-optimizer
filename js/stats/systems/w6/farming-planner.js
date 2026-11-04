@@ -457,7 +457,8 @@ export function rankXpPerHarvest(plotIdx, saveData, snapshot, plotOverride) {
     * (1 + snapshot.rank.bonuses[2] * previousRank / 100)
     * ((Number(plot[0]) || 0) + 1)
     * overgrowthMultiplier(plot[5])
-    * (1 + snapshot.rank.rankXp / 100);
+    * (1 + snapshot.rank.rankXp / 100)
+    * Math.max(1, snapshot.plotRankDisplay);
 }
 
 export function beanRawContributions(saveData, quantities) {
@@ -914,7 +915,7 @@ function _rankObjectiveEvaluator(saveData, baseSnapshot, objective, options) {
       for (var i = 0; i < rankRows.length; i++) {
         sum += rankRows[i].base * (1 + rank.bonuses[2] * rankRows[i].previousRank / 100);
       }
-      return sum * (1 + rank.rankXp / 100);
+      return sum * (1 + rank.rankXp / 100) * Math.max(1, baseSnapshot.plotRankDisplay);
     };
   }
 

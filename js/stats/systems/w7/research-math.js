@@ -246,11 +246,25 @@ export function deathNoteRank(kills, mode, riftLv) {
 
 // ----- Total EXP rate -----
 
+// Saved mastery sums every character; forecasts advance one active character,
+// without assuming the player logs into the others to synchronize their levels.
+export function researchMasteryBonuses(rLv, ctx) {
+  const mastery = ctx?.researchMastery;
+  const total = mastery?.unlocked
+    ? mastery.levels.reduce((sum, level) => sum + level, 0) + (rLv - mastery.level) : 0;
+  const reached = threshold => total >= threshold ? 1 : 0;
+  return {
+    additivePct: 10 * reached(150) + 15 * reached(400),
+    expMulti: 1 + 10 * reached(750) / 100,
+    gridPoints: reached(300) + reached(500),
+    minRoll: reached(200),
+    maxRoll: reached(1000),
+  };
+}
+
 /**
  * Compute total research EXP/hr from full simulation state.
  * Pure - all mutable state comes through params + ctx.
- * ctx = { abm, c52, stickerFixed, boonyCount, evShop37, extPctExSticker, stickerMultiplicative,
- *         clamWork9, arcade63, menagerieB3, ... }
  */
 export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const _c52 = ctx.c52;
@@ -275,7 +289,8 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   // Menagerie unlock 22 moves the sticker from the additive pool (StickerBonus(1,99)) to a
   // separate (1 + StickerBonus(1,100)/100) multiplier.
   const stickerMulti = ctx.stickerMultiplicative ? 1 + dynSticker / 100 : 1;
-  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + gbWith(gl, so, 51, ctx) + ctx.extPctExSticker + (ctx.stickerMultiplicative ? 0 : dynSticker);
+  const mastery = researchMasteryBonuses(rLv, ctx);
+  let additive = gbWith(gl, so, 50, ctx) + gbWith(gl, so, 90, ctx) + gbWith(gl, so, 110, ctx) + gbWith(gl, so, 31, ctx) + gbWith(gl, so, 51, ctx) + ctx.extPctExSticker + (ctx.stickerMultiplicative ? 0 : dynSticker) + mastery.additivePct;
   let occFoundCount = 0;
   for (let i = 0; i < occTBF; i++) if ((occ[i] || 0) >= 1) occFoundCount++;
   additive += gbWith(gl, so, 112, ctx) * occFoundCount;
@@ -288,7 +303,7 @@ export function simTotalExpWith(gl, so, md, il, occ, rLv, ctx, _detail) {
   const button0 = ctx.btnBaseNoGrid > 0
     ? ctx.btnBaseNoGrid * (1 + _gb125 / 100)
     : (ctx.button0 || 0);
-  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * Math.max(1, Math.min(15, ctx.researchEquipmentMulti || 1)) * stickerMulti * (1 + 0.25 * (ctx.clamWork9 || 0)) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.arcade63 || 0) / 100) * Math.max(1, ctx.killroy5 || 1) * _c52 * (1 + 0.5 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * (1 + (ctx.menagerieB3 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
+  const multi = (1 + additive / 100) * (1 + takinNotes / 100) * Math.max(1, Math.min(15, ctx.researchEquipmentMulti || 1)) * stickerMulti * mastery.expMulti * (1 + 0.25 * (ctx.clamWork9 || 0)) * (1 + 3 * (ctx.dream14 || 0) / 100) * (1 + button0 / 100) * (1 + (ctx.arcade63 || 0) / 100) * Math.max(1, ctx.killroy5 || 1) * _c52 * (1 + 0.5 * (ctx.companion54Level2 || 0)) * (1 + ((ctx.rog && ctx.rog[0]) || 0) / 100) * (1 + (ctx.cglunko11 || 0) / 100) * (1 + (ctx.fountain2_16 || 0) / 100) * (ctx.jellyResearchMulti || 1) * (1 + (ctx.menagerieB3 || 0) / 100) * Math.max(1, ctx.royalResearch || 1);
   const total = obsTotal * multi;
   if (_detail) return { total, obsBase: obsTotal, multi };
   return total;
@@ -433,7 +448,7 @@ export function computeGridPointsEarned(rLv, sq50, bonusPts) {
   return Math.floor(rLv + (bonusPts || 0) + Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + (sq50 || 0)));
 }
 
-function gridPointSources(saveCtx) {
+function gridPointSources(saveCtx, rLv = saveCtx?.researchLevel || 0) {
   const taskLevel = Number(saveCtx && saveCtx.researchGridPointsTaskLevel);
   return [
     { label: 'Companion 153', value: saveCtx && saveCtx.companionHas153 ? 10 : 0 },
@@ -446,11 +461,12 @@ function gridPointSources(saveCtx) {
     { label: 'Jelly Reward 57', value: (saveCtx && saveCtx.jellyGridPoint57) || 0 },
     { label: 'Bundle (ban_k)', value: 5 * ((saveCtx && saveCtx.bundleBanK) ? 1 : 0) },
     { label: 'Graduate Thesis', value: (saveCtx && saveCtx.evShop && saveCtx.evShop[64]) || 0 },
+    { label: 'Research Skill Mastery', value: researchMasteryBonuses(rLv, saveCtx).gridPoints },
   ];
 }
 
-export function gridPointBonus(saveCtx) {
-  return gridPointSources(saveCtx).reduce((total, source) => total + source.value, 0);
+export function gridPointBonus(saveCtx, rLv) {
+  return gridPointSources(saveCtx, rLv).reduce((total, source) => total + source.value, 0);
 }
 
 /**
@@ -468,7 +484,7 @@ export function computeGridPointsSpent(gl) {
 export function computeGridPointsBreakdown(rLv, gl, saveCtx) {
   const sq50 = gl[50] || 0;
   const sources = typeof saveCtx === 'object' && saveCtx !== null
-    ? gridPointSources(saveCtx)
+    ? gridPointSources(saveCtx, rLv)
     : [{ label: 'Flat Bonus', value: saveCtx || 0 }];
   const bonusPts = sources.reduce((total, source) => total + source.value, 0);
   const everyTen = Math.floor(rLv / 10) * Math.round(1 + Math.min(1, Math.floor(rLv / 60)) + sq50);

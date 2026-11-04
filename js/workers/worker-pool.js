@@ -273,12 +273,12 @@ export async function runParallelOptimizer(target, progressCb, opts) {
 
     const preOptRate = simTotalExp({ gridLevels: _saveCtx.gridLevels, shapeOverlay: _saveCtx.shapeOverlay, magData: _saveCtx.magData, insightLvs: _saveCtx.insightLvs, occFound: _saveCtx.occFound, researchLevel: _saveCtx.researchLevel }, _saveCtx).total;
 
-    const comp153bonus = gridPointBonus(_saveCtx);
     const sq50 = _saveCtx.gridLevels[50] || 0;
     const availPts = computeGridPointsAvailable(_saveCtx.researchLevel, _saveCtx.gridLevels, _saveCtx);
-    const futureEarned = target.type === 'level'
-      ? Math.max(0, computeGridPointsEarned(target.value, sq50, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, sq50, comp153bonus))
-      : Math.max(0, computeGridPointsEarned(_saveCtx.researchLevel + 20, sq50, comp153bonus) - computeGridPointsEarned(_saveCtx.researchLevel, sq50, comp153bonus));
+    const futureLevel = target.type === 'level' ? target.value : _saveCtx.researchLevel + 20;
+    const futureEarned = Math.max(0,
+      computeGridPointsEarned(futureLevel, sq50, gridPointBonus(_saveCtx, futureLevel))
+      - computeGridPointsEarned(_saveCtx.researchLevel, sq50, gridPointBonus(_saveCtx)));
 
     if (availPts <= 0) {
       // No points to spend now - run one sim (future points handled per level-up)

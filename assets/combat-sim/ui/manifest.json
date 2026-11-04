@@ -256,6 +256,7 @@
   "CardsY22",
   "CardsY23",
   "CardsY24",
+  "CardsY25",
   "CardsY3",
   "CardsY4",
   "CardsY5",
@@ -495,6 +496,7 @@
   "EquipmentCape20",
   "EquipmentCape21",
   "EquipmentCape22",
+  "EquipmentCape23",
   "EquipmentCape3",
   "EquipmentCape4",
   "EquipmentCape5",
@@ -563,7 +565,13 @@
   "EquipmentHats142",
   "EquipmentHats143",
   "EquipmentHats144",
+  "EquipmentHats145",
+  "EquipmentHats146",
+  "EquipmentHats147",
+  "EquipmentHats148",
+  "EquipmentHats149",
   "EquipmentHats15",
+  "EquipmentHats150",
   "EquipmentHats16",
   "EquipmentHats17",
   "EquipmentHats18",
@@ -721,6 +729,7 @@
   "EquipmentNametag4",
   "EquipmentNametag41",
   "EquipmentNametag42",
+  "EquipmentNametag44",
   "EquipmentNametag5",
   "EquipmentNametag6b",
   "EquipmentNametag7",
@@ -765,6 +774,7 @@
   "EquipmentNametagReplica41",
   "EquipmentNametagReplica42",
   "EquipmentNametagReplica43",
+  "EquipmentNametagReplica44",
   "EquipmentNametagReplica5",
   "EquipmentNametagReplica6",
   "EquipmentNametagReplica7",
@@ -2435,7 +2445,7 @@
     "4_3": "research/ResSq4_3.png",
     "4_4": "research/ResSq4_4.png"
    },
-   "src": 101420
+   "src": 101522
   },
   "highlight": {
    "image": "ResSqH<0-9>"
@@ -2457,7 +2467,7 @@
      375
     ]
    },
-   "src": 100321
+   "src": 100423
   },
   "shapeSprites": {
    "0": {
@@ -3144,7 +3154,7 @@
      "image": "UIskills",
      "x": 579,
      "y": 21,
-     "src": 76292
+     "src": 76300
     },
     "tabs": {
      "image": "UISkillTabs<classId>",
@@ -3152,7 +3162,7 @@
      "y": 80,
      "count": 6,
      "rule": "tabs t=0..4 show UISkillTabs<returnClasses(classId)[t]> (Blank when absent); tab 5 is the SPECIALS tab (UISkillTabs0). Unselected tabs get BrightnessFilter(-30).",
-     "src": 76318
+     "src": 76326
     },
     "classTabs": {
      "0": [],
@@ -3512,7 +3522,7 @@
      "count": 15,
      "iconPx": 56,
      "rule": "SkillTabSelected = classId >= 1: talent = TalentOrder[t + 15*(classId-1)]. SkillTabSelected <= 0 (specials pages 0..-4): t<14 && t!=10 -> TalentOrder[t - floor(t/10) + 615 + 13*(-tab)], t=10 UISkillIconLEFT, t=14 UISkillIconRIGHT. Locked (SkillLevelsMAX[id] == -1) -> UISkillIconLocke.",
-     "src": 76303
+     "src": 76311
     },
     "classPages": {
      "1": [
@@ -4393,7 +4403,7 @@
      "image": "UItalAz2",
      "x": 518,
      "y": 381,
-     "src": 76292
+     "src": 76300
     },
     "classIcon": {
      "image": "ClassIcons<id>",
@@ -4584,7 +4594,7 @@
      "iconPx": 72,
      "rule": "tab 0 = EquipOrder_X[0][t]; tab 1 (tools) = EquipOrder_X[1][t]; tab 2 = food. Empty slot placeholder EquipmentTransparent<n>: tab 0 n=t+1 (premium pages 101..108 / 201..208), tools n=9..16, food n=17."
     },
-    "src": 76994
+    "src": 77002
    }
   },
   "obols": {
@@ -4944,7 +4954,7 @@
      "clickBox": 65,
      "rule": "obol icon (items/<key>.png, 72x72 source art) top-left at (x-4, y-4); personal slots locked (ObolLocked<shape+1>) while character level < levelReq; empty = Blank"
     },
-    "src": 75810
+    "src": 75818
    }
   },
   "lab": {
@@ -5034,7 +5044,7 @@
      "x": "20 + 64*floor(i/7)",
      "y": "140 + 46*(i%7)",
      "perColumn": 7,
-     "src": 88770
+     "src": 88779
     },
     "jewels": {
      "x": "JewelDesc[i][0] - 34",
@@ -5137,7 +5147,7 @@
        376
       ]
      ],
-     "src": 88912
+     "src": 88921
     },
     "mainframe": {
      "x": "LabMainBonus[i][1] - 38",
@@ -5205,7 +5215,7 @@
       "LabBonusB1"
      ],
      "connectRadius": 80,
-     "src": 88911
+     "src": 88920
     }
    }
   },
@@ -5637,7 +5647,8 @@
      "xmasEvent4": "cards/2CardsY21.png",
      "luckEvent1": "cards/2CardsY22.png",
      "luckEvent2": "cards/2CardsY23.png",
-     "anni5Event1": "cards/2CardsY24.png"
+     "anni5Event1": "cards/2CardsY24.png",
+     "fallEvent2": "cards/2CardsY25.png"
     }
    },
    "frames": {
@@ -5726,7 +5737,7 @@
       "y": "291 + 90*floor(i/4)",
       "rule": "no border at card level 0/1"
      },
-     "src": 78516
+     "src": 78524
     },
     "book": {
      "image": "Cards<suffix> (owned) / CardsBlank",
@@ -5734,7 +5745,7 @@
      "x": "404 + 31*(n%8)",
      "y": "157 + 43*floor(n/8)",
      "border": "CardsBorder<max(1,cardLv)> (OriginCentered, same position)",
-     "src": 77666
+     "src": 77674
     },
     "setIcons": [
      "CardSet0.png",
@@ -5930,7 +5941,7 @@
      ],
      "rule": "Prayer<i> at RANDOlist[8][2i], [2i+1]"
     },
-    "src": 79645
+    "src": 79653
    }
   },
   "signs": {
@@ -6354,7 +6365,7 @@
      ],
      "image": "SignStar<state 0-3><page letter a-c>; SignStarA*/B* specials"
     },
-    "src": 79432
+    "src": 79440
    }
   },
   "statues": {
@@ -6514,7 +6525,7 @@
      "y": "177 + 59*t"
     },
     "tiers": "Statue<n> normal; StatueG gold (StatueG>=1); StatueO onyx (>=2); StatueZ zenith (>=3); n = index+1",
-    "src": 76228
+    "src": 76236
    }
   },
   "alchemy": {
@@ -7745,16 +7756,16 @@
       ]
      ],
      "rule": "aUpgrades<letter><idx> for cauldron 0..3 (O/G/P/Y)",
-     "src": 72790
+     "src": 72797
     },
     "sigils": {
      "x": "18 + 42*((i+1)%12)",
      "y": "334 + 42*floor((i+1)/12)",
-     "src": 72602
+     "src": 72609
     },
     "vials": {
      "rule": "AlchemyDescription[4][i][5] + \"_x1\"; VialBlank when CauldronInfo[4][i] < 1",
-     "src": 84189
+     "src": 84198
     }
    }
   },
@@ -7937,7 +7948,7 @@
      "x": "193 + 225*(i%3)",
      "y": "22 + 97*floor(i/3)"
     },
-    "src": 90935
+    "src": 90947
    }
   },
   "companions": {
@@ -9094,15 +9105,15 @@
      "oy": 64
     },
     "105": {
-     "name": "thermostat",
-     "file": "companions/thermostat.png",
-     "across": 6,
-     "down": 6,
-     "frames": 36,
-     "fw": 68,
-     "fh": 68,
-     "ox": 34,
-     "oy": 68
+     "name": "cathie",
+     "file": "companions/cathie.png",
+     "across": 5,
+     "down": 5,
+     "frames": 23,
+     "fw": 58,
+     "fh": 70,
+     "ox": 29,
+     "oy": 70
     },
     "106": {
      "name": "w4a2",
@@ -9895,6 +9906,17 @@
      "fh": 60,
      "ox": 48,
      "oy": 60
+    },
+    "178": {
+     "name": "w7c3",
+     "file": "companions/w7c3.png",
+     "across": 6,
+     "down": 5,
+     "frames": 29,
+     "fw": 130,
+     "fh": 94,
+     "ox": 65,
+     "oy": 94
     }
    }
   },
@@ -10201,7 +10223,7 @@
      "plate": "CookingPlate<mealLv-1>"
     },
     "food": "food slots use items/<cFood key>.png",
-    "src": 73214
+    "src": 73221
    }
   },
   "account": {
@@ -10621,7 +10643,7 @@
      "image": "Atom<i>",
      "x": 159,
      "y": "75 + 93*t",
-     "src": 91012
+     "src": 91024
     },
     "vault": {
      "image": "VaultUpg<i>",
@@ -10643,11 +10665,11 @@
     },
     "guild": {
      "image": "Gbonus<i>",
-     "src": 78668
+     "src": 78676
     },
     "construction": {
      "image": "ConTower<i>",
-     "src": 83984
+     "src": 83993
     },
     "bribes": {
      "image": "BribeO<BribeDescriptions[i][3]>",

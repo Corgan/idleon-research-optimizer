@@ -12,8 +12,7 @@ const text = value => String(value ?? '').replace(/_/g, ' ').replace(/\\'/g, "'"
 // game source exposes a distinct meaning for it.
 // A 製 glyph in an Armory name renders as the in-game "?" button; tapping the
 // row toggles this ROYAL HELPER text, which the source hard-codes by upgrade ID
-// in the Armory draw routine. `@` is a line break. Texts for 75 and 79 also
-// exist there, but their names lack 製, so the game never shows them.
+// in the Armory draw routine. `@` is a line break. Text 79 remains unreachable.
 export const ARMORY_HELP_GLYPH = '製';
 export const ARMORY_HELPER_TEXT = Object.freeze({
   0: "A resource's Grade is shown by its border, and its Collection Rate bonus is applied to all Outposts connected to it!",
@@ -23,6 +22,7 @@ export const ARMORY_HELPER_TEXT = Object.freeze({
   46: 'Royal Guardians only get Talent Points from the Royal Armory, other Masterclasses, and several other small sources. @ Importantly, Class LV does not give any talent points.',
   53: 'Top of list resources are literally the resources at the top of each World list, like Wheat for World 1!',
   73: 'Each rank adds a new stationary unit! These are not adjustable, and the type of unit you get is in the order of Worker, Trader, Guard, then Surveyor',
+  75: 'Regal Intervention spawns +10 Regal Mobs when triggered.',
 });
 // 膛 in Armory descriptions is the same "?" glyph and refers to the in-game
 // Purified Bonuses button.

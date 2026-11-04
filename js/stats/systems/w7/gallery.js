@@ -7,7 +7,7 @@ import { optionsListData, labData, klaData } from '../../../save/data.js';
 import { computeCardLv } from '../common/cards.js';
 import { NAMETAG_TIER_SCALE } from '../../data/common/nametag.js';
 import { NAMETAG_DR, NAMETAG_NAMES, TROPHY_DR, TROPHY_NAMES,
-  PREMHAT_DR, PREMHAT_NAMES, GALLERY_STAT_FOR_ID } from '../../data/w7/gallery.js';
+  PREMHAT_DR, PREMHAT_NAMES, CAPE_UQ, CAPE_NAMES, GALLERY_STAT_FOR_ID } from '../../data/w7/gallery.js';
 import { mineheadBonusQTY } from './minehead.js';
 import { rogBonusQTY } from './sushi.js';
 import { legendPTSbonus } from './spelunking.js';
@@ -35,6 +35,39 @@ export function galleryBonusSystemOn(charIdx) {
 export function premHatBonusSystemOn(charIdx) {
   return _mapCleared(charIdx, 50);
 }
+
+export function capevineBonusSystemOn(charIdx) {
+  return _mapCleared(charIdx, 100);
+}
+
+export function capevineBonusMulti(saveData, slot = 999) {
+  var capes = saveData.spelunkData?.[54] || [];
+  var goldenSlots = Math.round(1 + ((Number(optionsListData[669]) || 0) + 3 * hasBundle(saveData, 'ban_o')));
+  var multi = 1 + (capes.length + companionBonusForSave(105, saveData)) / 100;
+  return goldenSlots > slot || slot === 999 ? multi : .25 * multi;
+}
+
+export var capevine = {
+  resolve: function(id, ctx) {
+    var ids = Array.isArray(id) ? id : [id];
+    var names = ids.map(value => GALLERY_STAT_FOR_ID[value]).filter(Boolean);
+    var capes = capevineBonusSystemOn(ctx.charIdx) ? ctx.saveData.spelunkData?.[54] || [] : [];
+    var total = 0, children = [];
+    for (var i = 0; i < capes.length; i++) {
+      for (var uq of CAPE_UQ[capes[i]] || []) {
+        if (!names.includes(uq.stat)) continue;
+        var multi = capevineBonusMulti(ctx.saveData, i);
+        var val = multi * (Number(uq.val) || 0);
+        total += val;
+        children.push(node(CAPE_NAMES[capes[i]] || capes[i], val, [
+          node('Cape Vine multiplier', multi, null, { fmt: 'x' }),
+          node('Base bonus', Number(uq.val) || 0, null, { fmt: 'raw' }),
+        ], { fmt: '+' }));
+      }
+    }
+    return node('Cape Vine Bonuses', total, children, { fmt: '+' });
+  },
+};
 
 export function galleryBonusMulti(saveData, charIdx, dnsmCache) {
   var sp = saveData.spelunkData || [];

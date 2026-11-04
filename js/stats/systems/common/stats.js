@@ -73,7 +73,7 @@ import { bonusMultiCook } from './meal-impact.js';
 import { getSetBonus } from '../w3/setBonus.js';
 import {
   galleryBonusMulti, hatrackBonusMulti, trophyTier,
-  galleryBonusSystemOn, premHatBonusSystemOn,
+  galleryBonusSystemOn, premHatBonusSystemOn, capevineBonusSystemOn, capevineBonusMulti,
 } from '../w7/gallery.js';
 import { COMPANION_BONUS } from '../../data/game-constants.js';
 
@@ -390,6 +390,7 @@ export function computeEquipBaseStat(charIdx, statName, saveData, options) {
   // Skip gallery/premhat-managed slots (same as equipment.js)
   var galleryOn = galleryBonusSystemOn(charIdx);
   var premhatOn = premHatBonusSystemOn(charIdx);
+  var capevineOn = capevineBonusSystemOn(charIdx);
   for (var row = 0; row < 2; row++) {
     var rr = eqData[row];
     if (!rr) continue;
@@ -398,6 +399,7 @@ export function computeEquipBaseStat(charIdx, statName, saveData, options) {
     for (var slot = 0; slot < maxSlots; slot++) {
       if (row === 0 && galleryOn && (slot === 10 || slot === 14)) continue;
       if (row === 0 && premhatOn && slot === 8) continue;
+      if (row === 0 && capevineOn && slot === 12) continue;
       var itemName = rr[slot] || rr[String(slot)];
       if (!itemName || itemName === 'Blank') continue;
       var item = ITEMS[itemName];
@@ -432,6 +434,7 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
   var sp = saveData.spelunkData || [];
   var galleryOn = galleryBonusSystemOn(charIdx);
   var premhatOn = premHatBonusSystemOn(charIdx);
+  var capevineOn = capevineBonusSystemOn(charIdx);
   var gbmObj = galleryBonusMulti(saveData, charIdx, ctx.dnsmCache);
   var gbm = gbmObj.val;
   var hbmObj = hatrackBonusMulti(saveData);
@@ -500,7 +503,7 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
   }
 
   // Premhat base stat
-  var hats = premhatOn ? (sp[46] || []) : [];
+  var hats = premhatOn || capevineOn ? (sp[46] || []) : [];
   var premhatTotal = 0;
   var premhatCh = [];
   for (var hi = 0; hi < hats.length; hi++) {
@@ -517,12 +520,36 @@ export function computeGalleryBaseStat(charIdx, ctx, statName) {
         formulaInput('Base ' + statName, hStat, 'ITEMS.' + hatName + '.' + statName)))
       : node(hatName, hval, null, { fmt: 'raw', note: 'base=' + hStat }));
   }
-  if (premhatTotal > 0) {
+  if (premhatOn && premhatTotal > 0) {
     children.push(ctx.formulaDetails
       ? _statFormula('Premhat Base ' + statName, premhatTotal,
         _statSum('Premhat Base ' + statName, [formulaConstant(0), ...premhatCh]))
       : node('Premhat Base ' + statName, premhatTotal, premhatCh, { fmt: 'raw' }));
     total += premhatTotal;
+  }
+
+  var capes = capevineOn ? sp[54] || [] : [];
+  if (capes.length && ['Weapon_Power', 'STR', 'AGI', 'WIS', 'LUK', 'Defence'].includes(statName)) {
+    // Native InitializeCapeBonuses overwrites bases with Hatrack + the last cape.
+    var capeKey = capes[capes.length - 1];
+    var capeBase = Number(ITEMS[capeKey]?.[statName]) || 0;
+    var capeMulti = capevineBonusMulti(saveData, capes.length - 1);
+    var capeValue = premhatTotal + capeMulti * capeBase;
+    var capeChildren = ctx.formulaDetails ? [
+      _statFormula('Hatrack cached base', premhatTotal,
+        _statSum('Hatrack cached base', [formulaConstant(0), ...premhatCh])),
+      _statFormula(label('Item', capeKey), capeMulti * capeBase, op('Final deposited cape base', 'multiply',
+        formulaInput('Cape Vine multiplier', capeMulti),
+        formulaInput('Base ' + statName, capeBase, 'ITEMS.' + capeKey + '.' + statName))),
+    ] : [
+      node('Hatrack cached base', premhatTotal, premhatCh, { fmt: 'raw' }),
+      node(label('Item', capeKey), capeMulti * capeBase, null, { fmt: 'raw' }),
+    ];
+    children.push(ctx.formulaDetails
+      ? _statFormula('Cape Vine Base ' + statName, capeValue, _statSum('Cape Vine cached base', capeChildren))
+      : node('Cape Vine Base ' + statName, capeValue, capeChildren,
+        { fmt: 'raw', note: 'Native cache: Hatrack base plus the final deposited cape only' }));
+    total += capeValue;
   }
 
   if (ctx.formulaDetails) return _statFormula('Gallery Base ' + statName, total,

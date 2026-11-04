@@ -22,7 +22,7 @@ import { charClassData, optionsListData, dreamData, divinityData } from '../../s
 import { GrimoireUpg, ArtifactInfo } from '../data/game/customlists.js';
 import { cauldronInfoData, klaData, stampLvData } from '../../save/data.js';
 import { MapDetails, MapAFKtarget } from '../data/game/customlists.js';
-import { computeVialByKey, bubbleValByKey } from '../systems/w2/alchemy.js';
+import { computeVialByKey, bubbleValByKey, totalGreenSigils } from '../systems/w2/alchemy.js';
 import { bubbleParams } from '../data/w2/alchemy.js';
 import { computeStatueBonusGiven, primaryStatForClass } from '../systems/common/stats.js';
 import { computeCosmoBonus, computeMonumentROGbonus } from '../systems/w5/hole.js';
@@ -66,7 +66,7 @@ import { guild } from '../systems/common/guild.js';
 import { obolMiscMulti } from '../systems/w7/menagerie.js';
 import { statueBonus } from '../systems/w7/royal-guardian.js';
 import { coralKidUpgradeEffect } from '../systems/w5/coral-god-rank.js';
-import { safe as resolveSafe, rval as resolveValue, getBuffBonus, createDescriptor } from './helpers.js';
+import { safe as resolveSafe, rval as resolveValue, getBuffBonus, createDescriptor, gridBonusFinal } from './helpers.js';
 import { formulaInput, formulaConstant as c, formulaOperation as op } from '../formula-tree.js';
 import { getLOGDetail } from '../../formula-details.js';
 
@@ -988,7 +988,9 @@ export default createDescriptor({
     var crystal6Lv = (typeof _crystal6 === 'object' && _crystal6) ? (_crystal6.val || 0) : Number(_crystal6) || 0;
     var crystal6Bonus = Math.min(1.5 * crystal6Lv, 15);
     var meritoc5 = safe(computeMeritocBonusz, 5, s, ci);
-    ddl2 *= compMult * (1 + crystal6Bonus / 100) * (1 + meritoc5 / 100);
+    var greenSigils = safe(totalGreenSigils, s);
+    var greenSigilDamage = Math.min(100, greenSigils * safe(gridBonusFinal, s, 127));
+    ddl2 *= compMult * (1 + crystal6Bonus / 100) * (1 + meritoc5 / 100) * (1 + greenSigilDamage / 100);
 
     // Bundle bonus
     try {
@@ -1358,6 +1360,8 @@ export default createDescriptor({
       multiplyPct('Crystal card multiplier', op('Crystal card cap', 'min',
         product(c(1.5), F('Crystal 6 card level', computeCardLv, 'Crystal6', s)), c(15)));
       multiplyPct('Meritocracy multiplier', F('Meritocracy damage', computeMeritocBonusz, 5, s, ci));
+      multiplyPct('Eclectic Sigil multiplier', op('Eclectic Sigil cap', 'min', c(100),
+        product(F('Green Sigil count', totalGreenSigils, s), F('Eclectic Sigils bonus', gridBonusFinal, s, 127))));
       finishGroup();
       if (_bun && _bun.bon_a == 1) multi = product(multi, saved('Damage bundle', 1.5, 'BundlesReceived.bon_a'));
       multiplyPct('Family multiplier', raw('Family bonus 80', famBonus80));

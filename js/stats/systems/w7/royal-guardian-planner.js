@@ -545,7 +545,7 @@ function _resourceRate(plan, mapIdx, options) {
 	const details = royalPlanRates(plan).resources.filter(item => resourceIdx === null || item.resourceIdx === resourceIdx);
 	return details.reduce((sum, item) => sum + (item.streams || []).filter(stream => stream.mapIdx === mapIdx).reduce((subtotal, stream) => subtotal + n(stream.currencyRate), 0), 0);
 }
-function _barracksSlot(S, mapIdx) { const row = _mapRow(S, mapIdx); const slot = R.barracksUnlockSlot(row?.[11]); return slot !== null && slot < Math.min(6, 2 + Math.max(0, Math.floor(n(row?.[0])))) ? slot : null; }
+function _barracksSlot(S, mapIdx) { const row = _mapRow(S, mapIdx); const slot = R.barracksUnlockSlot(row?.[11]); return slot !== null && slot < Math.min(7, 2 + Math.max(0, Math.floor(n(row?.[0])))) ? slot : null; }
 function _metrics(plan, baseline, mapIdx, goal, options) {
 	const S = _save(plan); const row = _mapRow(S, mapIdx); const selectedResource = _selectedResource(options);
 	const currencySlot = selectedResource === null ? null : R.resourceCurrency(selectedResource);

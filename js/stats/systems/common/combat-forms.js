@@ -217,7 +217,7 @@ export function formActionWaitTime(form, type, W, pct) {
 
 // Summoning("AllMasterclassDropz") src 91804.
 export function allMasterclassDropz(c) {
-  return (1 + _n(c.killroy4) / 100) * (1 + _n(c.shopUpg49) / 100) * (1 + _n(c.vial7masta) / 100)
+  return Math.max(1, _n(c.killroy4)) * (1 + _n(c.shopUpg49) / 100) * (1 + _n(c.vial7masta) / 100)
     * (1 + _n(c.button4) / 100) * (1 + _n(c.companion38)) * (1 + _n(c.etc101) / 100) * (1 + _n(c.etc106) / 100)
     * (1 + Math.min(_n(c.cardFmRat), 25) / 100);
 }

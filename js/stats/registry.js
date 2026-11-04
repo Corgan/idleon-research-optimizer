@@ -38,7 +38,7 @@ import { emperor } from './systems/w6/emperor.js';
 import { pristine } from './systems/w6/sneaking.js';
 import { legendPTS } from './systems/w7/legend.js';
 import { spelunkShop, palette } from './systems/w7/spelunking.js';
-import { nametag, premhat, trophy } from './systems/w7/gallery.js';
+import { nametag, premhat, trophy, capevine } from './systems/w7/gallery.js';
 import { minehead } from './systems/w7/minehead.js';
 import { meritoc } from './systems/w7/meritoc.js';
 import { grimoire } from './systems/mc/grimoire.js';
@@ -126,6 +126,7 @@ var _systems = {
   get spelunkShop() { return spelunkShop; },
   get palette() { return palette; },
   nametag, premhat, trophy,
+  get capevine() { return capevine; },
   get minehead() { return minehead; },
   get meritoc() { return meritoc; },
   grimoire, arcaneMap,

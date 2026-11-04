@@ -75,7 +75,7 @@ let currentPolicy = null;
 let simulator = null;
 let purchaseControls={strategy:'progression',objective:'clear',expCellType:-1,purchases:3,planningDays:30,quality:'thorough',lookahead:2,reoptimize:false,budget:true};
 let sectionControls={strategy:'progression',objective:'clear',expCellType:-1,tokens:null,quality:'thorough',beamWidth:8};
-let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,cheapScreening:false,adaptiveSearch:false,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
+let optimizerControls={mode:'bounded',objective:'clear',expCellType:-1,obstruction:null,beamWidth:12,iterations:20,savedRefinementRounds:3,refinementRounds:4,searchStarts:8,searchWorkers:4,cheapScreening:false,jointPolicyScreening:true,adaptiveSearch:false,adaptiveMinStarts:4,adaptiveConvergenceWindow:4,virusSearchMode:'balanced',finalistCount:8,simulationTrials:256,adaptiveMaxTrials:2048,exactNodeBudget:1000000,exactTimeBudgetMs:10000,exactRequireFullCoverage:true,exactDeterministicNodeBudget:true,certifyWindow:4,certifyStride:1,certifyCoordinationDepth:2,certifyNonlocalPairs:8,certifyAdaptiveRegions:8,certifyDependencyRegions:8,certifyScoreModel:'deterministic-proxy',certifySampledTrials:16,certifyJointPolicy:false,certifyNodeBudget:5000000,certifyTimeBudgetMs:60000,certifyDeterministicNodeBudget:true,certifyIterative:true,certifyMoveNeighborhood:true,certifyMaxPasses:8,certifyRepackCells:3,seedSandbox:false};
 let activeTab = 'overview';
 let optimizerAdvancedOpen = false;
 let jellyWorker = null;
@@ -832,7 +832,8 @@ async function startParallelJellyOptimization(layout,options){
   });
   const capturedUnlockedSlots=Array.from(J.jellyUnlockedSlots(saveData));
   const requestedStarts=Math.max(1,Math.min(32,Number(options.searchStarts)||1));
-  const sharedFinalization=requestedStarts>1&&options.sharedFinalization!==false;
+  // Reduced discovery must retain full final policy coverage, even with one start.
+  const sharedFinalization=options.jointPolicyScreening===false||(requestedStarts>1&&options.sharedFinalization!==false);
   const consolidateWork=options.consolidateWork!==false;
   const sharedMeasurements=consolidateWork&&options.measurementSharing!==false;
   const requestedWorkers=Math.max(1,Math.min(4,Number(options.searchWorkers)||1,options.finalistPooling===false?requestedStarts:4));
@@ -1041,7 +1042,7 @@ async function startParallelJellyOptimization(layout,options){
           measurements:measurementExchange(owner),
           policyMeasurements:policyExchange(owner),
           options:{
-            ...options,layout,template:best,deferFinalization:false,
+            ...options,layout,template:best,deferFinalization:false,jointPolicyScreening:true,
             discoveries:acceptedRows.map(row=>({layout:row.result.layout,candidates:row.result.discoveryCandidates})),
           },
         });
@@ -2778,6 +2779,7 @@ function render(){
       searchStarts:Number(root.querySelector('#search-starts').value),
       searchWorkers:Math.max(1,Math.min(4,Number(root.querySelector('#search-workers').value)||1)),
       cheapScreening:!!root.querySelector('#cheap-screening')?.checked,
+      jointPolicyScreening:!root.querySelector('#fast-policy-screening')?.checked,
       adaptiveSearch:root.querySelector('#adaptive-search').checked,
       adaptiveMinStarts:Math.max(1,Math.min(32,Number(root.querySelector('#adaptive-min-starts').value)||4)),
       adaptiveConvergenceWindow:Math.max(2,Math.min(32,Number(root.querySelector('#adaptive-convergence-window').value)||4)),
@@ -2812,7 +2814,7 @@ function render(){
       })(),
     };
   };
-  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#cheap-screening,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells,#seed-sandbox').forEach(control=>{
+  root.querySelectorAll('#optimizer-mode,#objective,#exp-cell-type,#obstruction,#beam,#iterations,#saved-refinement-rounds,#refinement-rounds,#search-starts,#search-workers,#cheap-screening,#fast-policy-screening,#adaptive-search,#adaptive-min-starts,#adaptive-convergence-window,#virus-search-mode,#finalists,#trials,#adaptive-max-trials,#exact-node-budget,#exact-time-budget,#exact-full-coverage,#exact-deterministic-budget,#certify-window,#certify-stride,#certify-coordination-depth,#certify-nonlocal-pairs,#certify-adaptive-regions,#certify-dependency-regions,#certify-score-model,#certify-sampled-trials,#certify-joint-policy,#certify-node-budget,#certify-time-budget,#certify-deterministic-budget,#certify-iterative,#certify-move-neighborhood,#certify-max-passes,#certify-repack-cells,#seed-sandbox').forEach(control=>{
     control.onchange=syncOptimizerControls;
     control.oninput=syncOptimizerControls;
   });
@@ -2882,6 +2884,7 @@ function render(){
       ...optimizerControls,
       ...exactOptions,
       ...localOptions,
+      jointPolicyScreening:operation==='layout'?optimizerControls.jointPolicyScreening:true,
       seed:randomSeed(),
     };
     delete options.seedSandbox;
@@ -3701,6 +3704,7 @@ function optimizerHtml(saved){
       ${auditProgressHtml()}
       ${optimizedStale?'<p class="bad">The save refreshed while this search was running. This recommendation uses the save from when the search started.</p>':''}
       ${optimized.search?.cheapScreening?'<p class="note">Reduced early policy screening was enabled. It can miss strong layout-policy combinations; surviving boards still receive full policy refinement and unchanged final trials.</p>':''}
+      ${optimized.search?.jointPolicyScreening===false?'<p class="note">Faster Fever / timing screening was enabled during discovery and can miss a better layout. Finalists still receive full policy search, unchanged final trials and confirmation, and a separate fresh audit.</p>':''}
       ${challenger&&!challenger.selected?'<p class="note">The search found a numerically higher challenger, but it did not prove that the challenger beats the saved layout on shared-seed paired trials. The saved layout is retained instead of recommending statistically unsupported changes.</p>':''}
       ${pairedStatus==='statistically-unresolved'?'<p class="note">The recommended and saved layouts remain statistically unresolved on the held-out paired trials. The recommendation has the higher measured objective, but the difference is not yet confirmed.</p>':''}
       ${legendHtml()}<div class="grid-pair">${gridHtml(resultSaved,optimizedStale?'Search starting save':'Current save',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}${gridHtml(optimized.layout,'Optimized',op.representative.obstruction,{unlocked:optimized.savedUnlockedSlots})}</div>
@@ -3808,6 +3812,7 @@ function optimizerHtml(saved){
       <label class="control">Trials<input id="trials" type="number" min="4" max="1000" value="${optimizerControls.simulationTrials}"></label>
       <label class="control">Confirmation cap<input id="adaptive-max-trials" type="number" min="512" max="8192" step="512" value="${optimizerControls.adaptiveMaxTrials}"></label>
       <label class="check-control"><input id="cheap-screening" type="checkbox" ${optimizerControls.cheapScreening?'checked':''}> Reduce early screening ${tooltipIcon('Fewer early policies can miss a better layout. Survivors keep full policy refinement and unchanged final trials.','Early screening help')}</label>
+      <label class="check-control"><input id="fast-policy-screening" type="checkbox" ${optimizerControls.jointPolicyScreening===false?'checked':''}> Faster Fever / timing screening ${tooltipIcon('Tests fewer Fever and Stronkroid timing combinations during discovery and can miss a better layout. Finalists retain full policy search, final trials, confirmation and a separate fresh audit. Independent of search breadth and Reduce early screening.','Faster policy screening help')}</label>
       <label class="check-control"><input id="adaptive-search" type="checkbox" ${optimizerControls.adaptiveSearch?'checked':''}> Stop after convergence</label>
       <label class="check-control"><input id="seed-sandbox" type="checkbox" ${optimizerControls.seedSandbox?'checked':''}> Include Simulator board ${tooltipIcon('Compare your Simulator board as a mandatory candidate, and search for improvements to it.','Simulator board help')}</label>
       </div>
@@ -3823,6 +3828,7 @@ function optimizerHtml(saved){
       <input id="search-starts" type="hidden" value="${optimizerControls.searchStarts}">
       <input id="search-workers" type="hidden" value="${optimizerControls.searchWorkers}">
       <input id="cheap-screening" type="checkbox" hidden ${optimizerControls.cheapScreening?'checked':''}>
+      <input id="fast-policy-screening" type="checkbox" hidden ${optimizerControls.jointPolicyScreening===false?'checked':''}>
       <input id="virus-search-mode" type="hidden" value="${optimizerControls.virusSearchMode}">
       <input id="adaptive-search" type="checkbox" hidden ${optimizerControls.adaptiveSearch?'checked':''}>
       <input id="adaptive-min-starts" type="hidden" value="${optimizerControls.adaptiveMinStarts}">

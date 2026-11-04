@@ -21,6 +21,14 @@ import { grimoireUpgPerLevel } from '../../data/mc/grimoire.js';
 import { getSetBonus } from '../w3/setBonus.js';
 import { legendTalentPerPt } from '../../data/w7/legendTalent.js';
 
+export function totalGreenSigils(saveData) {
+  var total = 0;
+  for (var i = 0; i < 24; i++) {
+    if (Number(saveData.cauldronP2WData?.[4]?.[1 + 2 * i]) >= 4) total++;
+  }
+  return total;
+}
+
 export function sigilBonus(sigilIdx, saveData, charIdx) {
   var sigilData = saveData.cauldronP2WData && saveData.cauldronP2WData[4];
   if (!sigilData || sigilData[1 + 2 * sigilIdx] == null) return 0;

@@ -35,7 +35,13 @@ for (const [name, item] of Object.entries(ITEMS)) {
 // Includes premium/cosmetic hats and crafted hats
 export var HAT_UQ = {};
 export var HAT_NAMES = {};
+export var CAPE_UQ = {};
+export var CAPE_NAMES = {};
 for (const [name, item] of Object.entries(ITEMS)) {
+  if (item.typeGen === 'aCape') {
+    CAPE_UQ[name] = uqEntries(item) || [];
+    CAPE_NAMES[name] = cleanName(item.displayName);
+  }
   if (!name.startsWith('EquipmentHats')) continue;
   var uqs = uqEntries(item);
   if (uqs) { HAT_UQ[name] = uqs; HAT_NAMES[name] = cleanName(item.displayName); }
