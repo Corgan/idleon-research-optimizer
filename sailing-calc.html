@@ -167,7 +167,7 @@ import {
   routeMetrics,
   sailingCurrencyMeta,
   unendingLootSearch,
-} from './js/stats/systems/w5/sailing-chests.js';
+} from './js/stats/systems/w5/sailing-chests.js?v=miracle-matrix-1';
 import { maxArtifactTier } from './js/stats/systems/w5/sailing.js';
 import {
   captainBonusName,
@@ -230,6 +230,11 @@ function fmt(n) {
 }
 function pct(v, digits) { return (100*(Number(v)||0)).toFixed(digits == null ? 2 : digits)+'%'; }
 function chance(v) { v=Number(v)||0; if(v<=0)return '—'; if(v>=1)return '100%'; if(v>=.001)return pct(v,3); return '1 in '+fmt(1/v); }
+function chestOdds(v) {
+  if(v<=0)return 'Never';
+  if(v<.00001)return '1 in '+fmt(1/v);
+  return pct(v,v>=.1?1:v>=.01?2:v>=.0001?3:5);
+}
 function time(sec) { if(!isFinite(sec))return '—'; if(sec<60)return sec.toFixed(0)+'s'; if(sec<3600)return (sec/60).toFixed(1)+'m'; return (sec/3600).toFixed(2)+'h'; }
 function card(title,value,sub) { return '<div class="card"><div class="card-title">'+title+'</div><div class="card-val">'+value+'</div><div class="card-sub">'+sub+'</div></div>'; }
 function boatCount() { return Math.min(saveData.boatsData?.length || 0, 1 + (Number(saveData.sailingData?.[2]?.[1]) || 0)); }
@@ -429,11 +434,7 @@ function aggregateFleetTiers(fleet){
 }
 
 function compactMatrixChance(value){
-  value=Number(value)||0;
-  if(value>=.1)return pct(value,1);
-  if(value>=.01)return pct(value,2);
-  if(value>=.0001)return pct(value,3);
-  return value>0?'1/'+fmt(Math.round(1/value)):'0%';
+  return chestOdds(value);
 }
 
 function replacementMatrixCell(route,strongest,targetTier){
@@ -459,16 +460,17 @@ function replacementMatrixCell(route,strongest,targetTier){
     lines.push('Minimum natural replacement: '+CHEST_TIER_NAMES[required]);
     lines.push('Incoming value: '+fmt(threshold.replacementValue)+' per payout');
     lines.push('Value margin: +'+pct(threshold.margin,1));
-    lines.push(CHEST_TIER_NAMES[required]+'+ drop chance: '+pct(outcome.naturalReplacementChance,3));
+    lines.push(CHEST_TIER_NAMES[required]+' through Tier 4 drop chance: '+pct(outcome.naturalReplacementChance,3));
     lines.push('Replacement is deterministic if this target is reached.');
   }else{
     lines.push('Natural replacement: Never');
-    lines.push('Maximum Tier 5 value: '+fmt(threshold.maxValue)+' per payout');
+    lines.push('Maximum ordinary Tier 4 value: '+fmt(threshold.maxValue)+' per payout');
     lines.push('Value shortfall: '+pct(threshold.shortfall,1));
   }
   lines.push('');
   lines.push('Total direct change chance: '+pct(outcome.totalChance,3));
   lines.push('Same-tier compounded + natural higher-tier.');
+  lines.push('Miracle generation is excluded; see the separate Miracle column.');
   lines.push('Direct change rate: '+fmt(outcome.totalRatePerHour)+'/hr');
   if(!outcome.active)lines.push('Unending Loot Search is inactive, so near-full processing does not run.');
   lines.push('');
@@ -477,7 +479,7 @@ function replacementMatrixCell(route,strongest,targetTier){
   lines.push('Earlier pile entries and future evolution are not simulated.');
   lines.push('Banked chests do not store their source boat or captain.');
   var cls='replacement-cell '+(outcome.totalChance<=0?'replacement-never':required<0||gap===1?'replacement-next':'replacement-jump');
-  var path=required>=0?'Tier '+required+'+':outcome.sameTierUpgradeChance>0?'Unending Loot Search':'';
+  var path=required>=0?'T'+required+(required<4?'-4':''):outcome.sameTierUpgradeChance>0?'Unending Loot Search':'';
   var content=compactMatrixChance(outcome.totalChance)+(path?' <span class="replacement-chance">'+path+'</span>':'');
   return '<td class="'+cls+'" data-tip="'+attr(lines.join('\n'))+'">'+content+'</td>';
 }
@@ -517,17 +519,18 @@ function naturalReplacementComparisonCell(incoming,banked){
     lines.push('Minimum natural replacement: '+CHEST_TIER_NAMES[required]);
     lines.push('Incoming value: '+fmt(threshold.replacementValue)+' per payout');
     lines.push('Value margin: +'+pct(threshold.margin,1));
-    lines.push(CHEST_TIER_NAMES[required]+'+ drop chance: '+pct(outcome.naturalReplacementChance,3));
+    lines.push(CHEST_TIER_NAMES[required]+' through Tier 4 drop chance: '+pct(outcome.naturalReplacementChance,3));
     lines.push('Qualifying rate: '+fmt(incoming.generatedChestsPerHour*outcome.naturalReplacementChance)+'/hr');
   }else{
     lines.push('Natural replacement: Never');
-    lines.push('Maximum Tier 5 value: '+fmt(threshold.maxValue)+' per payout');
+    lines.push('Maximum ordinary Tier 4 value: '+fmt(threshold.maxValue)+' per payout');
     lines.push('Value shortfall: '+pct(threshold.shortfall,1));
   }
   lines.push('');
   lines.push('A qualifying higher-tier replacement is deterministic if this banked chest is reached.');
   lines.push('Earlier banked entries may stop the scan first.');
-  var content=required<0?'Never':'T'+required+' <span class="replacement-chance">'+compactMatrixChance(outcome.naturalReplacementChance)+'</span>';
+  lines.push('Miracles use a separate first-non-Miracle replacement path, not this target comparison.');
+  var content=outcome.naturalReplacementChance<=0?'Never':'T'+required+' <span class="replacement-chance">'+compactMatrixChance(outcome.naturalReplacementChance)+'</span>';
   return '<td class="num '+(required<0?'replacement-never':required===2?'replacement-next':'replacement-jump')+'" data-tip="'+attr(lines.join('\n'))+'">'+content+'</td>';
 }
 
@@ -541,7 +544,7 @@ function renderReplacementDetail(incoming,fleet){
     for(var tier=0;tier<4;tier++)h+=sameTierComparisonCell(incoming,banked,tier);
     h+=naturalReplacementComparisonCell(incoming,banked)+'</tr>';
   });
-  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier cells show exact tier-drop chance &times; the conditional Unending Loot Search roll. The natural column shows the separate deterministic higher-tier path. Neither includes the chance that an earlier banked entry stops the scan.</div></div>';
+  return h+'</tbody></table><div class="callout" style="margin-top:8px">Same-tier cells show exact tier-drop chance &times; the conditional Unending Loot Search roll. The natural column covers ordinary tiers only. Both require Unending Loot Search and exactly one empty slot, and assume the scan reaches this target. Miracles are generated separately and replace the first non-Miracle chest with 0-2 empty slots, ignoring island and value.</div></div>';
 }
 
 function renderReplacementMatrix(fleet,capacity){
@@ -550,18 +553,21 @@ function renderReplacementMatrix(fleet,capacity){
   var rows=fleet.slice().sort(function(a,b){return b.loot.value-a.loot.value||a.boatIdx-b.boatIdx;});
   var h='<div class="section"><h2>Strongest-Source Replacement Matrix</h2><div class="card-grid">';
   h+=card('Strongest source','Boat '+(strongest.boatIdx+1)+' / '+captainCode(strongest.captainIdx),fmt(strongest.loot.value)+' Tier 0 value per payout');
-  h+=card('Matrix basis','Combined direct chance','Same-tier drop × Unending Loot Search, plus natural replacement');
+  h+=card('Matrix basis','Ordinary target replacement','Same-tier promotion plus natural Tier 0-4 replacement');
   h+=card('Current pile',fmt(saveData.sailChestsData?.length||0)+' / '+capacity,'Source boat and captain are not stored');
   h+=card('Data scope','Per target reached','Pile order and future evolution are not simulated');
-  h+='</div><div class="callout" style="margin-top:10px">Cells show the direct chance per incoming chest to change the hypothetical strongest-source chest: exact same-tier drop chance &times; conditional Unending Loot Search upgrade chance, plus the deterministic qualifying-higher-tier chance. Tooltips show both paths. Pile order can lower the realized chance if an earlier banked entry stops the scan. Green needs at most the next natural tier, gold must skip tiers, and red has no direct path.</div>';
+  h+='</div><div class="callout" style="margin-top:10px">Strongest Tier cells cover ordinary replacements with Unending Loot Search and exactly one empty slot, assuming the scan reaches that target. Miracle generation is separate: every boat can roll one without Unending Loot Search or island/value matching. With 3+ empty slots it is added; with 0-2 it replaces the first scanned non-Miracle chest, not necessarily the strongest target. If none is found by that scan, it is discarded.</div>';
   h+='<div class="table-wrap" style="margin-top:10px"><table class="data-table replacement-matrix"><thead><tr><th>Boat</th><th>Captain</th><th class="num">Tier 0 value / payout</th><th class="num">% max</th>';
-  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num" data-tip="Per incoming chest if this banked target is reached: exact same-tier drop chance × conditional Unending Loot Search chance + qualifying higher-tier chance">Strongest Tier '+targetTier+'</th>';
+  for(var targetTier=0;targetTier<5;targetTier++)h+='<th class="num" data-tip="Ordinary tiers only, with Unending Loot Search and one empty slot, if the scan reaches this target. Miracle generation is excluded.">Strongest Tier '+targetTier+'</th>';
+  h+='<th class="num" data-tip="Natural Miracle generation per incoming chest, independent of target value, island and Unending Loot Search. Not an upgrade or a specific-target replacement chance.">Miracle find</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(function(route){
     h+='<tr class="replacement-source-row '+(route===strongest?'best':'')+'" data-replacement-boat="'+route.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(route.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(route.captainIdx))+'">'+captainCode(route.captainIdx)+'</td><td class="num">'+fmt(route.loot.value)+'</td><td class="num">'+pct(route.loot.value/strongest.loot.value,1)+'</td>';
     for(var targetTier=0;targetTier<5;targetTier++)h+=replacementMatrixCell(route,strongest,targetTier);
+    var miracle=chestReplacementOutcome(route,strongest,4,saveData,activeCharIdx);
+    h+='<td class="num" data-probability="'+miracle.miracleGenerationChance+'" data-tip="'+attr('Natural Miracle generation: '+chestOdds(miracle.miracleGenerationChance)+' per incoming chest\nExpected finds: '+miracle.miracleGenerationRatePerHour+' /hr\n3+ empty slots: add a chest.\n0-2 empty slots: replace the first scanned non-Miracle, ignoring island/value.\nThe native scan visits only the first capacity-minus-one slots, even when full.\nNo non-Miracle found by the scan: discard.\nUnending Loot Search cannot promote Tier 4 to Miracle.')+'">'+chestOdds(miracle.miracleGenerationChance)+'</td>';
     h+='</tr>';
-    h+='<tr class="replacement-detail-row" data-replacement-detail="'+route.boatIdx+'" hidden><td class="replacement-detail-cell" colspan="9">'+renderReplacementDetail(route,fleet)+'</td></tr>';
+    h+='<tr class="replacement-detail-row" data-replacement-detail="'+route.boatIdx+'" hidden><td class="replacement-detail-cell" colspan="10">'+renderReplacementDetail(route,fleet)+'</td></tr>';
   });
   h+='</tbody></table></div></div>';
   return h;
@@ -622,22 +628,22 @@ function renderOdds(fleet,capacity,rec){
   aggregate.tiers.forEach(function(t,index){
     var breakdown=breakdowns[index];
     var kept=t.tier>=minimumTier;
-    h+='<tr><td><span class="badge '+(t.tier>=4?'badge-purple':t.tier>=2?'badge-gold':'badge-cyan')+'">'+t.name+'</span></td><td class="num">'+pct(t.probability,5)+'</td><td class="num">'+pct(t.cumulative,5)+'</td><td class="num">'+fmt(t.expectedPerHour)+'</td><td class="num">'+breakdown.multiplier.toFixed(3)+'x</td><td class="num">'+breakdown.payouts+'</td><td class="num"><span class="payout-value">'+fmt(breakdown.averageStoredValue)+'</span><span class="payout-detail">full value each time</span></td>'+currencyPayoutCell(breakdown.currencies.gold)+currencyPayoutCell(breakdown.currencies.primary)+currencyPayoutCell(breakdown.currencies.rare)+'<td class="num">'+t.artifactMultiplier.toFixed(3)+'</td><td>'+(kept?'<span class="badge badge-green">kept</span>':'discarded')+'</td></tr>';
+    h+='<tr><td><span class="badge '+(t.tier>=4?'badge-purple':t.tier>=2?'badge-gold':'badge-cyan')+'">'+t.name+'</span></td><td class="num" data-probability="'+t.probability+'" data-tip="'+attr('Exact tier probability: '+(100*t.probability)+'% per generated chest')+'">'+chestOdds(t.probability)+'</td><td class="num" data-probability="'+t.cumulative+'" data-tip="'+attr('Tier-or-higher probability: '+(100*t.cumulative)+'% per generated chest')+'">'+chestOdds(t.cumulative)+'</td><td class="num">'+fmt(t.expectedPerHour)+'</td><td class="num">'+breakdown.multiplier.toFixed(3)+'x</td><td class="num">'+breakdown.payouts+'</td><td class="num"><span class="payout-value">'+fmt(breakdown.averageStoredValue)+'</span><span class="payout-detail">full value each time</span></td>'+currencyPayoutCell(breakdown.currencies.gold)+currencyPayoutCell(breakdown.currencies.primary)+currencyPayoutCell(breakdown.currencies.rare)+'<td class="num">'+t.artifactMultiplier.toFixed(3)+'</td><td>'+(kept?'<span class="badge badge-green">kept</span>':'discarded')+'</td></tr>';
   });
   h+='</tbody></table></div><div class="callout" style="margin-top:10px"><strong>Fleet weighting:</strong> tier odds and average payout value are weighted by each boat\'s exact-tier chest rate. “Payouts avg” is the expected number of the guaranteed payouts that land on that currency, so fractional values describe many opened chests rather than one chest.</div></div>';
   h+='<div class="section"><h2>Per-Boat Tier Chances</h2><div class="table-wrap"><table class="data-table"><thead><tr><th>Boat</th><th>Captain</th><th class="num">Chest/hr</th><th class="num">Rare chest bonus</th><th class="num">Tier scale</th>';
-  for(var tier=0;tier<6;tier++)h+='<th class="num">'+CHEST_TIER_NAMES[tier]+'</th>';
+  for(var tier=0;tier<6;tier++)h+='<th class="num" data-tip="Exact odds per generated chest, not cumulative tier-or-higher odds">'+(tier===5?'Miracle (Tier 5)':CHEST_TIER_NAMES[tier])+'</th>';
   h+='</tr></thead><tbody>';
   fleet.forEach(function(routeRow){
     var distribution=routeRow.rarity||chestTierDistribution(routeRow.captainIdx,saveData);
     h+='<tr class="boat-tier-source-row" data-boat-tier-values="'+routeRow.boatIdx+'" aria-expanded="false" role="button" tabindex="0"><td><span class="replacement-arrow">&#9656;</span>Boat '+(routeRow.boatIdx+1)+'</td><td data-tip="'+attr(captainLabel(routeRow.captainIdx))+'">'+captainCode(routeRow.captainIdx)+'</td><td class="num">'+fmt(routeRow.generatedChestsPerHour)+'</td><td class="num">+'+fmt(distribution.captain)+'%</td><td class="num">'+distribution.rarityScale.toFixed(3)+'x</td>';
-    distribution.tiers.forEach(function(tierRow){h+='<td class="num">'+pct(tierRow.probability,5)+'</td>';});
+    distribution.tiers.forEach(function(tierRow){h+='<td class="num" data-probability="'+tierRow.probability+'" data-tip="'+attr('Exact '+tierRow.name+' probability: '+(100*tierRow.probability)+'% per generated chest')+'">'+chestOdds(tierRow.probability)+'</td>';});
     h+='</tr>';
     h+=renderBoatTierPayoutRows(routeRow,primaryCurrency,rareCurrency);
   });
   h+='</tbody></table></div><div class="callout" style="margin-top:10px">Click a boat row to show the displayed Treasure value per payout, expected currency totals, and combined value aligned beneath each chest tier. Each actual payout independently selects one currency. Captain Rare Chest Chance shifts generated chests into higher tiers; the ship changes chest rate and stored value, not tier odds.</div></div>';
   h+=renderReplacementMatrix(fleet,capacity);
-  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. At max slots minus one, each incoming chest scans banked chests from the first chest onward. The first same-island, same-tier, sufficient-value match rolls its tier-up chance and stops the scan whether it succeeds or fails. Otherwise, the first same-island chest with both a strictly higher tier and strictly greater stored value replaces the banked chest automatically. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases matching opportunities.</div></div>';return h;}
+  var talent=unendingLootSearch(saveData,activeCharIdx);h+='<div class="section"><h2>Near-Full Loot Pile</h2><div class="formula-grid">';for(var t=0;t<4;t++){var valueRatio=CHEST_LOOT_MULTIS[t+1]*chestLootRolls(t+1,saveData)/(CHEST_LOOT_MULTIS[t]*chestLootRolls(t,saveData));h+='<div class="formula"><strong>'+CHEST_TIER_NAMES[t]+' &rarr; '+CHEST_TIER_NAMES[t+1]+'</strong><br>'+chance(overflowUpgradeChance(t,saveData,activeCharIdx))+' per eligible match<br>Value / payout: '+CHEST_LOOT_MULTIS[t].toFixed(3)+'x &rarr; '+CHEST_LOOT_MULTIS[t+1].toFixed(3)+'x<br>'+valueRatio.toFixed(3)+'x total opened value on success<br>1.4x artifact multiplier on success</div>';}h+='</div><div class="callout" style="margin-top:10px">Unending Loot Search: '+fmt(talent)+'%. With this talent active and exactly one empty slot, each incoming ordinary chest scans banked chests from the first chest onward. The first same-island, same-tier, sufficient-value match rolls its tier-up chance and stops the scan whether it succeeds or fails. Otherwise, the first same-island chest with both a strictly higher tier and strictly greater stored value replaces the banked chest automatically. Tier 4 cannot upgrade to Miracle; naturally generated Miracles use the separate storage rules above. A stored chest has no captain identity. This stateful processing is <strong>not included</strong> in Direct treasure/hr or captain assignment optimization. Grouping boats on one island increases ordinary matching opportunities.</div></div>';return h;}
 
 function currencyPayoutCell(currency){
   return '<td class="num"><span class="payout-value">'+fmt(currency.expectedValuePerChest)+'</span><span class="payout-detail">'+currency.expectedPayoutsPerChest.toFixed(2)+' payouts avg · '+pct(currency.chancePerPayout,1)+'</span></td>';

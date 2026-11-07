@@ -527,7 +527,7 @@ export function chestReplacementThreshold(incomingRoute, referenceRoute, referen
   var replacementValue = 0;
 
   if (sameIsland) {
-    for (var tier = referenceTier + 1; tier < CHEST_LOOT_MULTIS.length; tier++) {
+    for (var tier = referenceTier + 1; tier < 5; tier++) {
       var candidateValue = incomingBase * CHEST_LOOT_MULTIS[tier];
       if (candidateValue > referenceValue) {
         requiredTier = tier;
@@ -537,10 +537,10 @@ export function chestReplacementThreshold(incomingRoute, referenceRoute, referen
     }
   }
 
-  var maxValue = incomingBase * CHEST_LOOT_MULTIS[CHEST_LOOT_MULTIS.length - 1];
+  var maxValue = incomingBase * CHEST_LOOT_MULTIS[4];
   return {
     sameIsland: sameIsland,
-    sameTierEligible: sameIsland && sameTierValue >= referenceValue,
+    sameTierEligible: referenceTier < 5 && sameIsland && sameTierValue >= referenceValue,
     referenceTier: referenceTier,
     referenceValue: referenceValue,
     requiredTier: requiredTier,
@@ -551,7 +551,7 @@ export function chestReplacementThreshold(incomingRoute, referenceRoute, referen
   };
 }
 
-/** Direct change chance per incoming chest, assuming the near-full scan reaches this target. */
+/** Ordinary target replacement at one empty slot; Miracle generation is a separate path. */
 export function chestReplacementOutcome(incomingRoute, referenceRoute, referenceTier, saveData, activeCharIdx) {
   var threshold = chestReplacementThreshold(incomingRoute, referenceRoute, referenceTier);
   var distribution = incomingRoute && (incomingRoute.rarity
@@ -564,8 +564,13 @@ export function chestReplacementOutcome(incomingRoute, referenceRoute, reference
   var ulsChance = active && threshold.sameTierEligible
     ? overflowUpgradeChance(threshold.referenceTier, saveData, activeCharIdx) : 0;
   var sameTierUpgradeChance = exactSameTierChance * ulsChance;
-  var naturalReplacementChance = active && threshold.requiredTier >= 0
-    ? _num(tierRows[threshold.requiredTier] && tierRows[threshold.requiredTier].cumulative) : 0;
+  var naturalReplacementChance = 0;
+  if (active && threshold.requiredTier >= 0) {
+    for (var tier = threshold.requiredTier; tier < 5; tier++) {
+      naturalReplacementChance += _num(tierRows[tier] && tierRows[tier].probability);
+    }
+  }
+  var miracleGenerationChance = _num(tierRows[5] && tierRows[5].probability);
   var totalChance = Math.min(1, sameTierUpgradeChance + naturalReplacementChance);
   var generatedRate = _num(incomingRoute && incomingRoute.generatedChestsPerHour);
 
@@ -577,6 +582,8 @@ export function chestReplacementOutcome(incomingRoute, referenceRoute, reference
     ulsChance: ulsChance,
     sameTierUpgradeChance: sameTierUpgradeChance,
     naturalReplacementChance: naturalReplacementChance,
+    miracleGenerationChance: miracleGenerationChance,
+    miracleGenerationRatePerHour: generatedRate * miracleGenerationChance,
     totalChance: totalChance,
     totalRatePerHour: generatedRate * totalChance,
   };
