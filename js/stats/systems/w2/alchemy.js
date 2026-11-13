@@ -13,6 +13,8 @@ import { computeMeritocBonusz } from '../w7/meritoc.js';
 import { arcadeBonus } from './arcade.js';
 import { legendPTSbonus, computePaletteBonus, palette } from '../w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
+import { computeExoticBonus } from '../w6/farming.js';
+import { isExoticOrganic } from '../w7/menagerie.js';
 import { sigilTiers } from '../../data/common/sigils.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { companionBonusForSave } from '../../data/common/companions.js';
@@ -148,10 +150,9 @@ function getPrismaBonusMult(saveData, options) {
       if (Number(sigArr[1 + 2 * si]) >= 3) purpleSigils++;
     }
   }
-  // ExoticBonusQTY(48): decay = base * lv / (denom + lv)
   var ex48 = exoticParams(48);
   var exLv = Number((saveData.farmUpgData && saveData.farmUpgData[ex48.farmSlot]) || 0);
-  var exotic48 = exLv > 0 ? ex48.base * exLv / (ex48.denom + exLv) : 0;
+  var exotic48 = computeExoticBonus(48, saveData);
   var legend36 = legendPTSbonus(36, saveData);
   // Companions(88) = rift4 companion: +Prisma Bubble bonus multi
   var comp88 = companionBonusForSave(88, saveData);
@@ -174,12 +175,17 @@ function getPrismaBonusMult(saveData, options) {
           formula: 'Count the 24 saved Sigil levels >= 3',
           children: Array.from({ length: 24 }, (_, i) =>
             formulaInput('Sigil ' + (i + 1), sigArr?.[1 + 2 * i], 'CauldronP2W[4][' + (1 + 2 * i) + ']')) }),
-      { ...(exLv > 0 ? formulaEvalDetail('decay', ex48.base, ex48.denom, exLv, {
-        x1: formulaInput('First coefficient', ex48.base),
-        x2: formulaInput('Second coefficient', ex48.denom),
-        lv: formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']'),
-      }) : { val: 0, kind: 'formula', formula: 'Exotic level <= 0: return 0',
-        children: [formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']')] }),
+      { ...op('Prisma Petal bonus', 'multiply',
+        exLv > 0 ? formulaEvalDetail('decay', ex48.base, ex48.denom, exLv, {
+          x1: formulaInput('First coefficient', ex48.base),
+          x2: formulaInput('Second coefficient', ex48.denom),
+          lv: formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']'),
+        }) : { val: 0, kind: 'formula', formula: 'Exotic level <= 0: return 0',
+          children: [formulaInput('Exotic level', exLv, 'FarmUpg[' + ex48.farmSlot + ']')] },
+        { name: 'Organic Label multiplier', val: isExoticOrganic(saveData, 48) ? 2 : 1,
+          kind: 'formula', formula: 'Organic Label owned ? 2 : 1',
+          children: [{ ...formulaInput('Organic Labels', JSON.stringify(saveData.spelunkData?.[50] || []),
+            'Spelunk[50]'), nonNumeric: true }] }),
         name: label('Exotic', 48), formulaTerm: true },
       { ...op(label('Legend', 36), 'round',
         op('Points times bonus', 'multiply',
@@ -271,7 +277,7 @@ export var alchemy = {
       if (sigArr) { for (var si = 0; si < 24; si++) { if (Number(sigArr[1 + 2 * si]) >= 3) purpleSigils++; } }
       var _ex48 = exoticParams(48);
       var exLv = Number((saveData.farmUpgData && saveData.farmUpgData[_ex48.farmSlot]) || 0);
-      var exotic48 = exLv > 0 ? _ex48.base * exLv / (_ex48.denom + exLv) : 0;
+      var exotic48 = computeExoticBonus(48, saveData);
       var legend36 = legendPTSbonus(36, saveData);
       var comp88 = companionBonusForSave(88, saveData);
       var jelly36 = jellyRewardBonus(saveData, 36);

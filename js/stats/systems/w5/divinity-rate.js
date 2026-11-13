@@ -12,6 +12,7 @@ import { computeArtifactBonus } from './sailing.js';
 import { zenithMarketPerLevel } from '../../data/w5/sailing.js';
 import { maxTalentBonus, talent } from '../common/talent.js';
 import { companions } from '../common/companions.js';
+import { companionLevel2 } from '../../data/common/companions.js';
 import { achieveStatus } from '../common/achievement.js';
 import {
   computeBoxReward,
@@ -20,7 +21,7 @@ import {
 } from '../common/stats.js';
 import { computeCardLv } from '../common/cards.js';
 import { computeStampBonusOfTypeX } from '../w1/stamp.js';
-import { bubbleValByKey, computeVialByKey, sigilBonus } from '../w2/alchemy.js';
+import { finalBubbleValByKey, computeVialByKey, sigilBonus } from '../w2/alchemy.js';
 import { computeRiftSkillBonus } from '../w4/rift.js';
 import { computeStarSignBonus } from '../common/starSign.js';
 import { guild } from '../common/guild.js';
@@ -71,8 +72,8 @@ function _allSkillXpMulti(charIdx, saveData) {
 }
 
 function _votingBonus(voteIdx, ctx) {
-  var votingMulti = 1;
-  try { votingMulti = Number(ctx.resolve('voting-multi').val) || 1; } catch(e) {}
+  var votingMulti = Number(ctx.resolve('voting-multi').val);
+  if (!Number.isFinite(votingMulti)) throw new Error('Divinity voting multiplier is unavailable.');
   return votingBonusz(voteIdx, votingMulti, ctx.saveData);
 }
 
@@ -87,11 +88,20 @@ function _lampBonus(tier, bonusIdx, saveData) {
     * lampLevel * (1 + zenithBonus / 100);
 }
 
+function _validateOverrides(ctx) {
+  if (ctx.divinityStyle != null && (!Number.isInteger(ctx.divinityStyle) || ctx.divinityStyle < 0 || ctx.divinityStyle > 7))
+    throw new Error('Divinity style must be an integer from 0 to 7.');
+  if (ctx.divinityActivity != null && ctx.divinityActivity !== 0 && ctx.divinityActivity !== 1)
+    throw new Error('Divinity claim activity must be 0 or 1.');
+}
+
 export function computeDivinityPointsPerHour(charIdx, ctx) {
+  _validateOverrides(ctx);
   var saveData = ctx.saveData;
-  var style = Math.max(0, Math.round(Number(divinityData[charIdx]) || 0));
+  var style = ctx.divinityStyle ?? Math.max(0, Math.round(Number(divinityData[charIdx]) || 0));
   var styleBase = Number(STYLE_POINTS_PER_HOUR[style]) || 0;
   var gemMulti = 1 + (Number(saveData.gemItemsData && saveData.gemItemsData[130]) || 0) / 4;
+  var dootMulti = 1 + .25 * companionLevel2(0, saveData);
   var rog46 = rogBonusQTY(46, saveData.cachedUniqueSushi || 0);
   var rogMulti = 1 + rog46 / 100;
   var coralKid6 = _coralKidBonus(6);
@@ -119,11 +129,9 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
   var lamp12 = _lampBonus(1, 2, saveData);
   var lampMulti = 1 + lamp12 / 100;
 
-  var spelunkStyles = 0;
   var styleCounts = saveData.spelunkData && saveData.spelunkData[13] || [];
-  for (var styleIdx = 0; styleIdx < 6; styleIdx++) {
-    spelunkStyles += Number(styleCounts[styleIdx]) || 0;
-  }
+  var spelunkStyles = Array.from({ length: 6 }, (_, i) => Number(styleCounts[i]) || 0)
+    .reduceRight((sum, value) => value + sum, 0);
   var coralKid4 = _coralKidBonus(4);
   var spelunkMulti = 1 + spelunkStyles * coralKid4 / 100;
 
@@ -133,16 +141,19 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
   var rift13 = 15 * computeRiftSkillBonus(13, 1, saveData);
   var bribe38 = _num(getBribeBonus('38', saveData));
   var vault71 = vaultUpgBonus(71, saveData);
-  var additive = box22c + achievement298 + achievement304 + rift13 + bribe38 + vault71;
+  var additive = box22c + (achievement298 + achievement304 + (rift13 + (bribe38 + vault71)));
   var additiveMulti = 1 + additive / 100;
 
-  var value = styleBase * gemMulti * rogMulti * coralKid6Multi * divinityMulti * talentMulti
+  var prefix = styleBase * gemMulti * dootMulti * rogMulti * coralKid6Multi;
+  var value = (ctx.divinityActivity == null ? prefix * divinityMulti * talentMulti
+    : prefix * talentMulti * ctx.divinityActivity * divinityMulti)
     * purrmepMulti * votingMulti * lampMulti * spelunkMulti * additiveMulti;
   return treeResult(value, [
     node('Divinity Style Base Points/hr', styleBase, [
       node('Style Index', style, null, { fmt: 'raw' }),
     ], { fmt: 'raw' }),
     node('Gem Shop Divinity Sparkie', gemMulti, null, { fmt: 'x' }),
+    node('Enhanced King Doot', dootMulti, null, { fmt: 'x' }),
     node(label('RoG', 46), rogMulti, null, { fmt: 'x' }),
     node('Coral Kid Singularity: Divinity PTS', coralKid6Multi, null, { fmt: 'x' }),
     node('Divinity Blessing Multiplier', divinityMulti, [
@@ -154,6 +165,7 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
       node(label('Artifact', 18), divinityMultipliers[5], null, { fmt: 'x' }),
     ], { fmt: 'x' }),
     node(label('Talent', 505), talentMulti, null, { fmt: 'x' }),
+    ...(ctx.divinityActivity == null ? [] : [node('Saved claim activity eligibility', ctx.divinityActivity, null, { fmt: 'x' })]),
     node('Purrmep Major Bonus', purrmepMulti, null, { fmt: 'x' }),
     node(label('Voting', 23), votingMulti, null, { fmt: 'x' }),
     node('Lamp Bonus', lampMulti, null, { fmt: 'x' }),
@@ -173,8 +185,9 @@ export function computeDivinityPointsPerHour(charIdx, ctx) {
 }
 
 export function computeDivinityExpPerHour(charIdx, ctx) {
+  _validateOverrides(ctx);
   var saveData = ctx.saveData;
-  var style = Math.max(0, Math.round(Number(divinityData[charIdx]) || 0));
+  var style = ctx.divinityStyle ?? Math.max(0, Math.round(Number(divinityData[charIdx]) || 0));
   var styleBase = Number(STYLE_EXP_PER_HOUR[style]) || 0;
   var gemMulti = 1 + (Number(saveData.gemItemsData && saveData.gemItemsData[130]) || 0) / 4;
   var legendMulti = 1 + legendPTSbonus(15, saveData) / 100;
@@ -193,7 +206,7 @@ export function computeDivinityExpPerHour(charIdx, ctx) {
   var sigil22 = sigilBonus(22, saveData, charIdx);
   var cardW5a5 = 6 * computeCardLv('w5a5', saveData);
   var stampDivineExp = _num(computeStampBonusOfTypeX('DivineExp', saveData, charIdx));
-  var bubbleM3 = _num(bubbleValByKey('M3ACTIVE', charIdx, saveData));
+  var bubbleM3 = _num(finalBubbleValByKey('M3ACTIVE', charIdx, saveData));
   var statue23 = _num(computeStatueBonusGiven(23, charIdx, saveData));
   var mealDivExp = _num(computeMealBonus('DivExp', saveData, charIdx));
   var vialDivXP = _num(computeVialByKey('DivXP', saveData, charIdx));

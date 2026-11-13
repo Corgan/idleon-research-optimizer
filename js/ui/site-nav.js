@@ -1,6 +1,7 @@
 export const SITE_PAGES = [
   { href: 'combat-sim-calc.html', label: 'Combat Simulator', group: 'General', icon: '\u2694\uFE0F' },
   { href: 'statue-calc.html', label: 'Statue Calculator', group: 'General', icon: '\u{1F5FF}' },
+  { href: 'pet-raid-calc.html', label: 'Pet Raid Odds', group: 'General', icon: '\u{1F43E}' },
   { href: 'shadow.html', label: 'Am I shadow banned?', group: 'General', icon: '?' },
   { href: 'endgame.html', label: 'Are you endgame?', group: 'General', icon: '?' },
   { href: 'fishing-calc.html', label: 'Fishing Calculator', group: 'World 2', icon: '\u{1F3A3}' },

@@ -1,7 +1,73 @@
 // ===== SNEAKING OPTIMIZER PRIMITIVES (W6) =====
 import { NjEQ } from '../../data/game/custommaps.js';
-import { isGoldCharm, maxDropLevel } from './sneaking-math.js';
-import { computeNK11Extras } from './sneaking-stealth.js';
+import { charmStat, isGoldCharm, isTwinUntied, maxDropLevel } from './sneaking-math.js';
+import { computeCoreStealth, computeNK11Extras, getTwinAllyContributions } from './sneaking-stealth.js';
+import { emporiumBonus } from '../../../game-helpers.js';
+
+export function ownedSneakingStealthTemplates(S, activeCharIdx = 0) {
+  const nd = S.ninjaData;
+  if (!Array.isArray(nd)) throw new Error('Saved Sneaking equipment is unavailable.');
+  const count = Math.min(12, S.charNames?.length || S.lv0AllData?.length || 0);
+  const twins = Array.from({ length: count }, (_, idx) => idx).filter(idx => nd[idx] && isTwinUntied(idx, nd));
+  const keys = ['NjTr17', 'NjTr4', 'NjTr16'];
+  const pool = [];
+  function collect(slot) {
+    const row = nd[slot];
+    if (!keys.includes(row?.[0])) return;
+    const level = Number(row[1]);
+    if (!Number.isFinite(level) || level < 0) throw new Error('Saved stealth charm level is invalid.');
+    pool.push({ key: row[0], level, slot });
+  }
+  for (const idx of twins) for (let part = 0; part < 2; part++) collect(14 + 4 * idx + part);
+  for (let slot = 60; slot < 99; slot++) collect(slot);
+  const byStrength = (a, b) => charmStat(b.key, b.level) - charmStat(a.key, a.level) || a.slot - b.slot;
+  const rosaries = pool.filter(item => item.key === 'NjTr17').sort(byStrength)[0];
+  const veil = pool.filter(item => item.key === 'NjTr4').sort(byStrength)[0];
+  const lotuses = pool.filter(item => item.key === 'NjTr16').sort(byStrength);
+  const symbols = S.spelunkData?.[14] || [];
+  const weight = (idx, part) => 1 + 50 * (Number(symbols[2 * idx + part]) || 0) / 100;
+  const charmed = emporiumBonus(3, nd[102]?.[9]) === 1;
+  const results = [];
+  for (const lead of twins) {
+    const supportSlots = [];
+    for (const idx of twins) {
+      if (idx === lead) continue;
+      const parts = charmed ? [0, 1] : [weight(idx, 1) > weight(idx, 0) ? 1 : 0];
+      for (const part of parts) supportSlots.push({ idx, part, weight: weight(idx, part) });
+    }
+    supportSlots.sort((a, b) => b.weight - a.weight || a.idx - b.idx || a.part - b.part);
+    // Both factors are positive: strongest copies paired with strongest Symbol slots
+    // maximize this fixed Lotus template's additive ally bonus.
+    const supports = supportSlots.slice(0, lotuses.length).map((target, i) => ({
+      ...lotuses[i], destination: 14 + 4 * target.idx + target.part,
+    }));
+    const pairs = [[rosaries, veil]];
+    if (rosaries || veil) pairs.push([veil, rosaries]);
+    for (const pair of pairs) {
+      const assignments = supports.slice();
+      for (let part = 0; part < 2; part++) if (pair[part]) {
+        assignments.push({ ...pair[part], destination: 14 + 4 * lead + part });
+      }
+      const ninjaData = nd.slice();
+      for (const idx of twins) for (let part = 0; part < 2; part++) ninjaData[14 + 4 * idx + part] = ['Blank', 0];
+      for (const item of assignments) ninjaData[item.slot] = ['Blank', 0];
+      for (const item of assignments) ninjaData[item.destination] = [item.key, item.level];
+      const state = { ...S, ninjaData };
+      const coreStealth = computeCoreStealth(lead, state, activeCharIdx);
+      const allyContribs = getTwinAllyContributions(state, activeCharIdx);
+      let allyMulti = 1;
+      for (const idx of twins) if (idx !== lead) {
+        allyMulti += allyContribs[idx].type8 / 100;
+        allyMulti += allyContribs[idx].type16 / 100;
+      }
+      if (!Number.isFinite(coreStealth) || !Number.isFinite(allyMulti)) throw new Error('Stealth template inputs are invalid.');
+      results.push({ lead, coreStealth, allyMulti, allyContribs, assignments,
+        lotusCount: supports.length, lotusSlots: supportSlots.length,
+        missing: [!rosaries && 'Rosaries', !veil && 'Silk Veil'].filter(Boolean) });
+    }
+  }
+  return results;
+}
 
 export function hypotheticalSneakingCharms(S, { activeCharIdx = 0, copies = 1 } = {}) {
   if (!Number.isInteger(copies) || copies < 1 || copies > 24) throw new Error('Hypothetical charm copies must be 1 to 24');

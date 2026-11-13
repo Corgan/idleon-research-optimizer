@@ -5,3 +5,4 @@ import { NinjaInfo } from '../game/customlists.js';
 export const MERITOC_BASE = [];
 for (let i = 1; i < NinjaInfo[41].length; i += 3)
   MERITOC_BASE.push(Number(NinjaInfo[41][i]));
+export function meritocBonusName(idx) { return String(NinjaInfo[41]?.[idx * 3] ?? '').replace(/_/g, ' '); }

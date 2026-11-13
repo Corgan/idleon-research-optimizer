@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pet Raid Odds - Idleon Builds</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text2:#c0c0d4;--gold:#ffd700;--cyan:#4dd0e1;--red:#f88;--green:#4caf50;--purple:#d4adff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px 'Segoe UI',system-ui,sans-serif}
+h1{text-align:center;background:var(--bg2);border-bottom:2px solid var(--accent);margin:0;padding:20px;font-size:1.5rem}
+h1 small{display:inline-block;font-size:.65rem;vertical-align:middle;text-transform:uppercase;letter-spacing:.08em;border:1px solid #75662c;border-radius:20px;padding:5px 9px;margin-left:8px}
+#main-content{max-width:1200px;margin:auto;padding:20px 16px}
+.section{background:var(--bg2);border:1px solid #303d59;border-radius:12px;padding:20px;margin-bottom:20px}
+.section-heading{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;margin-bottom:16px}h2{font-size:1.15rem;color:var(--cyan);margin:0}
+.section-heading .muted{font-size:.8rem}
+p{line-height:1.5}.muted{color:var(--text2)}.warning{color:var(--gold)}.error{color:var(--red)}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center}#main-content button,#main-content select{font:inherit;min-height:38px;border:1px solid #52617d;border-radius:5px;background:var(--bg3);color:var(--text);padding:7px 12px}
+#main-content button{cursor:pointer}#main-content button.primary{background:var(--accent);border-color:var(--accent);font-weight:600}#main-content button:disabled{opacity:.5;cursor:default}
+#main-content :focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+summary{cursor:pointer;padding:9px 0;font-weight:600}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:right;padding:14px 10px;border-bottom:1px solid #33415b;font-variant-numeric:tabular-nums}th{color:var(--text2);font-weight:500;font-size:.78rem}th:first-child,td:first-child{text-align:left;width:260px}td{vertical-align:top}td:nth-child(4){color:var(--gold);font-weight:700}td.error{color:var(--red)}
+.table-wrap{overflow:auto}progress{width:100%;margin:12px 0}
+.collection-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.stat{padding:12px;border:1px solid #3b4c6c;border-radius:8px;background:#111b30;min-width:0}.stat-label{display:block;font-size:.75rem;color:var(--text2);margin-bottom:4px}.stat-value{font-size:1.3rem;font-weight:700;color:var(--gold);overflow-wrap:anywhere}.stat-plus .stat-value{color:var(--purple)}
+.pets{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px}.enemy-pets{grid-template-columns:repeat(2,minmax(0,1fr));margin:6px 0}
+.pet{position:relative;display:grid;justify-items:center;grid-template-rows:16px 32px minmax(28px,auto) auto;gap:2px;min-width:0;padding:5px;background:#132742;border:1px solid #405b7e;border-radius:6px;text-align:center;font-size:.75rem}
+.pet-plus{background:linear-gradient(145deg,#32254c,#1c2340);border-color:#9f79cc;box-shadow:inset 0 2px #caa4ff}
+.pet-kind{justify-self:end;padding:1px 4px;border-radius:3px;background:#263f5e;color:#b9d1ef;font-size:.65rem;font-weight:700;letter-spacing:.02em}
+.pet-plus .pet-kind{background:#d4adff;color:#241536}.pet-name{align-self:center;overflow-wrap:anywhere;line-height:1.2;font-weight:600}.pet-power{color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums}.pet-power small{color:var(--text2);font-size:.65rem;font-weight:400}
+.pet-count{position:absolute;left:5px;top:6px;color:var(--text2);font-weight:700;font-size:.7rem}
+.css-setup-ico{display:inline-flex;align-items:center;justify-content:center;flex:none}.css-setup-sheet{display:block;background-repeat:no-repeat;image-rendering:pixelated}.css-setup-ico img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}.css-setup-ico-txt{border:1px solid #52617d;border-radius:5px;font-weight:700}
+[hidden]{display:none!important}
+@media(max-width:760px){#main-content{padding:12px}.section{padding:14px}.collection-stats{grid-template-columns:repeat(2,minmax(0,1fr))}thead{display:none}tbody{display:grid;gap:12px}tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid #3b4c6c;border-radius:9px;padding:10px;gap:10px}th,td{padding:0;border:0;font-size:.85rem;min-width:0}td:first-child{width:auto;grid-column:1/-1}td:not(:first-child)::before{content:attr(data-label);display:block;text-align:left;color:var(--text2);font-size:.7rem;font-weight:400;margin-bottom:4px}td:nth-child(4){grid-column:1/-1;background:#111b30;padding:10px;border-radius:5px;font-size:1.3rem}.enemy-pets{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}.toolbar{gap:10px}.toolbar label{font-size:.85rem}}
+</style>
+<script type="module" src="./js/ui/site-nav.js"></script>
+</head>
+<body>
+<h1>Pet Raid Odds <small class="warning">Experimental</small></h1>
+<div id="save-area"></div>
+<main id="main-content">
+  <section class="section">
+    <div class="section-heading"><h2>Raid win odds</h2><span id="lineup-status" class="muted"></span></div>
+    <div class="toolbar">
+      <label for="trials">Trials per difficulty</label>
+      <select id="trials"><option value="20000">20,000</option><option value="100000">100,000</option><option value="1000000">1,000,000</option></select>
+      <button id="run" class="primary" type="button" disabled>Estimate win odds</button>
+      <button id="cancel" type="button" disabled>Cancel</button>
+    </div>
+    <p id="job-status" role="status">Load your save to begin.</p>
+    <p id="stale" class="warning" hidden>Save refreshed. Run again to use the updated collection.</p>
+    <progress id="progress" max="1" value="0" hidden aria-label="Simulation progress"></progress>
+    <div class="table-wrap">
+      <table><thead><tr><th>Difficulty / lineup</th><th>Enemy pets</th><th>Pet Power</th><th>Estimated win chance</th><th>95% interval</th><th>Survivors per win</th></tr></thead><tbody id="results"></tbody></table>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-heading"><h2>Your collection</h2><span class="muted">Normal <span class="pet-kind">Pet</span> &nbsp; Enhanced <span class="pet-kind" style="background:#d4adff;color:#241536">Pet+</span></span></div>
+    <div id="collection">Load your save to see your pets.</div>
+    <p id="art-status" class="warning" hidden>Companion artwork unavailable.</p>
+    <div id="roster" class="pets"></div>
+  </section>
+</main>
+<script type="module" src="./js/ui/pet-raid.js?v=pet-raid-2"></script>
+</body>
+</html>

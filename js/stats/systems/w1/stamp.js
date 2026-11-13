@@ -15,6 +15,8 @@ import { vaultUpgBonus } from '../common/vault.js';
 import { mainframeBonus } from '../w4/lab.js';
 import { legendPTSbonus, computePaletteBonus, palette } from '../../systems/w7/spelunking.js';
 import { exoticParams } from '../../data/w5/farming.js';
+import { computeExoticBonus } from '../w6/farming.js';
+import { isExoticOrganic } from '../w7/menagerie.js';
 import { compassUpgPerLevel } from '../../data/common/compass.js';
 import { rogBonusQTY } from '../w7/sushi.js';
 import { talent } from '../common/talent.js';
@@ -63,9 +65,7 @@ function computeStampDoublerSources(saveData, charIdx) {
   // Source 7: ExoticBonusQTY(49) — EXALTED_ELDOU (decay type)
   var ex49 = exoticParams(49);
   var exoticLv = (saveData.farmUpgData && Number(saveData.farmUpgData[ex49.farmSlot])) || 0;
-  var exotic49 = exoticLv > 0
-    ? ex49.base * exoticLv / (ex49.denom + exoticLv)
-    : 0;
+  var exotic49 = computeExoticBonus(49, saveData);
 
   // Source 8: Math.round(Spelunk[4][3])
   var spelunk43 = Math.round(Number((saveData.spelunkData && saveData.spelunkData[4] && saveData.spelunkData[4][3]) || 0));
@@ -93,6 +93,8 @@ function computeStampDoublerSources(saveData, charIdx) {
     palette.resolve(23, { saveData: saveData }),
     node(label('Exotic', 49), exotic49, exoticLv > 0 ? [
       node('Exotic Level', exoticLv, null, { fmt: 'raw' }),
+      node('Organic Label multiplier', isExoticOrganic(saveData, 49) ? 2 : 1, null,
+        { fmt: 'x', note: 'Spelunk[50]' }),
     ] : null, { fmt: '+' }),
     node('Spelunk[4][3]', spelunk43, null, { fmt: '+' }),
     node(label('Legend', 36), legend36, null, { fmt: '+' }),

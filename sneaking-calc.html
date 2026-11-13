@@ -144,8 +144,31 @@ h1 span { color: var(--accent); }
 .mastery-tbl .col-flhr { color: var(--purple); }
 .mastery-tbl .col-door { color: var(--text); }
 .mastery-tbl .col-0pct { color: var(--text2); position: relative; cursor: help; }
-.mastery-tbl .col-0pct .tt { display: none; position: fixed; background: #1a1a2e; border: 1px solid #666; border-radius: 4px; padding: 4px 8px; white-space: nowrap; z-index: 100; font-size: .95em; line-height: 1.6; pointer-events: none; text-align: left; }
-.mastery-tbl .col-0pct:hover .tt { display: block; }
+.mastery-tbl .col-0pct .tt { display: none; position: fixed; background: #161d30; color: var(--text); border: 1px solid #4a5877; border-radius: 6px; padding: 7px; width: min(460px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow-y: auto; white-space: normal; z-index: 100; font-size: 11px; line-height: 1.25; box-shadow: 0 8px 24px #0006; pointer-events: none; text-align: left; }
+.threshold-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 5px; }
+.threshold-heading strong { color: var(--text); font-size: 1.05em; }
+.threshold-heading small { color: var(--text2); }
+.mastery-tbl .threshold-comparison { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid #34415d; border-radius: 7px; }
+.mastery-tbl .threshold-comparison th, .mastery-tbl .threshold-comparison td { position: static; padding: 3px 5px; border: 0; border-bottom: 1px solid #ffffff0c; white-space: normal; overflow-wrap: anywhere; text-align: right; vertical-align: middle; font-variant-numeric: tabular-nums; }
+.mastery-tbl .threshold-comparison thead th { background: #222d45; color: var(--text2); font-size: .85em; font-weight: 600; }
+.mastery-tbl .threshold-comparison th:first-child { width: 16%; text-align: left; }
+.mastery-tbl .threshold-comparison th:nth-child(2) { width: 22%; }
+.mastery-tbl .threshold-comparison thead th:nth-child(3) { color: var(--cyan); }
+.mastery-tbl .threshold-comparison thead th:last-child { color: #d3b5ff; background: #302c49; }
+.mastery-tbl .threshold-comparison tbody th { color: var(--text); font-weight: 600; }
+.mastery-tbl .threshold-comparison tbody td { background: transparent; }
+.mastery-tbl .threshold-comparison tbody tr:nth-child(even) > * { background: #ffffff04; }
+.mastery-tbl .threshold-comparison tbody td:last-child { background: #bb86fc0b; }
+.mastery-tbl .threshold-comparison tbody tr:last-child > * { border-bottom: 0; }
+.threshold-comparison .threshold-flowers { display: block; font-weight: 600; color: var(--cyan); }
+.threshold-comparison td:last-child .threshold-flowers { color: #d3b5ff; }
+.threshold-comparison small { display: block; color: var(--text2); font-size: .85em; }
+.threshold-template { margin-top: 5px; padding-left: 6px; border-left: 2px solid #9574c0; color: var(--text2); font-size: .85em; overflow-wrap: anywhere; }
+.threshold-template strong { color: #d3b5ff; }
+.threshold-template .threshold-missing { display: block; color: #ffb7a8; margin-top: 3px; }
+@media (max-width: 420px) {
+  .mastery-tbl .threshold-comparison th, .mastery-tbl .threshold-comparison td { padding: 3px; }
+}
 .mastery-tbl .mg-sep { border-left: 2px solid #555; }
 .mastery-tbl .mcur { background: rgba(233,69,96,.04); }
 .mastery-tbl thead th.mcur { background: var(--bg2); border-bottom-color: var(--accent); }
@@ -395,7 +418,7 @@ import {
 import { computeCoreStealth, computeCoreStealthDetailed, computeTwinStealth, findBestActiveChar, getTwinAllyContributions, computeActionSpeed, computeNK11Extras, computeDoorDamageDetailed, computeUntieProgressDetailed, buildStealthBreakdown, weaponItemStat, soloMultiplier, goldInventoryBonusDetails } from './js/stats/systems/w6/sneaking-stealth.js';
 import { computeDoorClearEstimate, computeJadeCoin, computeJadeRate, computeTeamDoorRates, computeSneakingTeamScenario, buildJadeBreakdown, buildDoorRateBreakdown } from './js/stats/systems/w6/sneaking-jade.js';
 import { buildSneakingExpBreakdown, computeSneakingExpPerHour, sneakingExpAccountInputs } from './js/stats/systems/w6/sneaking-exp.js';
-import { bestItemByScore, bestCharmPairFromPool, canEquipCharmPair, charmPairOrders } from './js/stats/systems/w6/sneaking-optimizer.js';
+import { bestItemByScore, bestCharmPairFromPool, canEquipCharmPair, charmPairOrders, ownedSneakingStealthTemplates } from './js/stats/systems/w6/sneaking-optimizer.js?v=stealth-template-1';
 import { bubbleValByKey } from './js/stats/systems/w2/alchemy.js';
 import { emporiumBonus } from './js/game-helpers.js';
 import { renderBreakdownTree, resetTreeCounter } from './js/ui/dash-breakdowns.js';
@@ -1731,8 +1754,8 @@ function _renderAllInner() {
       var rect = cell.getBoundingClientRect();
       var top = rect.top - h2 - 4;
       if (top < 0) top = rect.bottom + 4;
-      tt.style.left = Math.min(rect.left, window.innerWidth - tt.offsetWidth - 8) + 'px';
-      tt.style.top = top + 'px';
+      tt.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - tt.offsetWidth - 8)) + 'px';
+      tt.style.top = Math.max(8, Math.min(top, window.innerHeight - h2 - 8)) + 'px';
     }
     function hideThresholdTooltip(cell) {
       if (!cell) return;
@@ -2067,6 +2090,25 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
   var defaultSet = { twins: twins, allyContribs: defaultAlly, allTogetherAlly: defaultATA,
     activeCharIdx: twins.activeCharIdx,
     label: 'Current', loadout: null };
+  var ownedStealthSets = ownedSneakingStealthTemplates(saveData, twins.activeCharIdx).map(function(template) {
+    return {
+      twins: [{ idx: template.lead, coreStealth: template.coreStealth }],
+      allyContribs: template.allyContribs,
+      allTogetherAlly: [template.allyMulti],
+      template: template,
+    };
+  });
+  var ownedStealthByFloor = {};
+  function _ownedStealthAtFloor(fl) {
+    if (Object.prototype.hasOwnProperty.call(ownedStealthByFloor, fl)) return ownedStealthByFloor[fl];
+    var best = null, bestCore = -Infinity;
+    for (var candidate of ownedStealthSets) {
+      var core = candidate.twins[0].coreStealth * _allTogetherAllyAtFloor(candidate, fl)[0];
+      if (core > bestCore) { best = candidate; bestCore = core; }
+    }
+    ownedStealthByFloor[fl] = best;
+    return best;
+  }
 
   function _allTogetherAllyAtFloor(set, floor) {
     var multipliers = set.allTogetherAlly.slice();
@@ -2839,11 +2881,41 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
   }
 
   function _thresholds(fl, mLv) {
-    var targets = [1.0, 0.95, 0.80, 0.50, 0.10, 0];
-    var labels = ['100%', '95%', '80%', '50%', '10%', '0%'];
+    var targets = [0.99995, 0.99, 0.95, 0.80, 0.50, 0.10, 0];
+    var labels = ['<100%', '99%', '95%', '80%', '50%', '10%', '0%'];
     var vals = [];
-    for (var si = 0; si < targets.length; si++) vals.push({ label: labels[si], stealth: stealthForDetection(fl, targets[si], mLv) });
+    for (var si = 0; si < targets.length; si++) vals.push({ label: labels[si], detection: targets[si], strict: si === 0, stealth: stealthForDetection(fl, targets[si], mLv) });
     return vals;
+  }
+
+  function _flowersForDetection(fl, mLv, threshold, set) {
+    var st = set || defaultSet;
+    var allies = _allTogetherAllyAtFloor(st, fl);
+    var bestCore = 0;
+    for (var i = 0; i < st.twins.length; i++) {
+      var core = st.twins[i].coreStealth * allies[i];
+      if (!Number.isFinite(core) || core < 0) return Infinity;
+      bestCore = Math.max(bestCore, core);
+    }
+    if (!st.twins.length) return Infinity;
+    function reached(flowers) {
+      var det = detectionChance(simStealth(bestCore, 1, funeralStealthBonus(flowers, nkLvs)), fl, mLv);
+      return threshold.strict ? det < threshold.detection : det <= threshold.detection;
+    }
+    if (reached(0)) return 0;
+    if (!(nk21 > 0) || bestCore <= 0) return Infinity;
+    var lo = 0, hi = 1;
+    while (!reached(hi)) {
+      if (hi === Number.MAX_SAFE_INTEGER) return Infinity;
+      lo = hi;
+      hi = Math.min(Number.MAX_SAFE_INTEGER, hi * 2);
+    }
+    while (hi - lo > 1) {
+      var mid = lo + Math.floor((hi - lo) / 2);
+      if (reached(mid)) hi = mid;
+      else lo = mid;
+    }
+    return hi;
   }
 
   function _flowerRecoveryHours(fl, mLv, targetFlowers, set) {
@@ -3016,15 +3088,42 @@ async function _renderGridInner(gridEl, curMode, useAllItems, cacheKey, token) {
       h += '<td class="col-door' + cc2 + '" data-tip="State: ' + cd.doorStateLabel + '\nRemaining door HP: ' + _fmt(cd.hp) + '\nMaximum door HP: ' + _fmt(cd.doorMaxHP) + '\nSaved damage: ' + _fmt(cd.doorProgress) + '\nAverage damage/successful hit: ' + _fmt(cd.doorAverageDamagePerHit) + '\nEstimated successful hits needed: ' + (isFinite(cd.doorRequiredHits) ? _fmt(cd.doorRequiredHits) : '—') + '\nSuccessful hits/hr: ' + _perHour(cd.totalDoorHitsHr) + '\nFluid DPS ETA (not displayed): ' + (isFinite(cd.doorFluidEta) ? _timeStr(cd.doorFluidEta) : '—') + '">' + (isFinite(cd.doorEta) ? _timeStr(cd.doorEta) : cd.doorStateLabel) + '</td>';
       h += '<td class="' + cc2 + '" data-tip="' + (cd.captiveIdx >= 0 ? 'Twin ' + (cd.captiveIdx + 1) + ' remaining progress: ' + _fmt(cd.untieRemaining) + '\nProgress/hr: ' + _fmt(cd.totalUntieHr) : 'No captive assigned to this floor') + '">' + (isFinite(cd.untieEta) ? _timeStr(cd.untieEta) : cd.captiveIdx >= 0 ? 'Need Kunai' : '—') + '</td>';
       var thresholdTipId = 'threshold-tip-' + fl + '-' + mi2;
-      h += '<td class="col-0pct' + cc2 + '" tabindex="0" aria-describedby="' + thresholdTipId + '">' + _fmt(thresh[5].stealth);
-      h += '<span class="tt" id="' + thresholdTipId + '" role="tooltip">';
+      h += '<td class="col-0pct' + cc2 + '" tabindex="0" aria-describedby="' + thresholdTipId + '">' + _fmt(thresh[thresh.length - 1].stealth);
+      h += '<div class="tt" id="' + thresholdTipId + '" role="tooltip">';
       var ttSet = cd._set || defaultSet;
+      var ownedSet = _ownedStealthAtFloor(fl);
+      h += '<div class="threshold-heading"><strong>Flower thresholds</strong><small>Floor ' + fl
+        + ' &middot; Mastery ' + masteryLevels[mi2] + '</small></div>';
+      h += '<table class="threshold-comparison" aria-label="Detection thresholds and total flowers"><thead><tr>'
+        + '<th scope="col">Detection</th><th scope="col">Required stealth</th><th scope="col">'
+        + (ttSet === defaultSet ? 'Current' : 'Displayed loadout')
+        + '<small>Total flowers / multiplier</small></th><th scope="col">Owned template'
+        + '<small>Total flowers / multiplier</small></th></tr></thead><tbody>';
       for (var si2 = 0; si2 < thresh.length; si2++) {
-        var fmNeeded = _funeralMultiForStealth(fl, thresh[si2].stealth, ttSet);
-        var fmStr = fmNeeded === Infinity || fmNeeded > 1e15 ? '-' : _fmtMulti(fmNeeded);
-        h += thresh[si2].label + ': ' + _fmt(thresh[si2].stealth) + ' (🌸' + fmStr + ')' + (si2 < thresh.length - 1 ? '<br>' : '');
+        h += '<tr><th scope="row">' + escHtml(thresh[si2].label) + '</th><td>' + _fmt(thresh[si2].stealth) + '</td>';
+        for (var thresholdSet of [ttSet, ownedSet]) {
+          if (!thresholdSet) { h += '<td>Unavailable</td>'; continue; }
+          var fmNeeded = _funeralMultiForStealth(fl, thresh[si2].stealth, thresholdSet);
+          var fmStr = fmNeeded === Infinity || fmNeeded > 1e15 ? '-' : _fmtMulti(fmNeeded);
+          var flowersNeeded = _flowersForDetection(fl, masteryLevels[mi2], thresh[si2], thresholdSet);
+          var flowersStr = Number.isFinite(flowersNeeded) ? flowersNeeded.toLocaleString('en-US') : 'Unavailable';
+          h += '<td data-flowers="' + flowersNeeded + '"><span class="threshold-flowers">' + flowersStr
+            + '</span><small>' + fmStr + '</small></td>';
+        }
+        h += '</tr>';
       }
-      h += '</span></td>';
+      h += '</tbody></table><div class="threshold-template"><strong>Owned template</strong> &middot; ';
+      if (ownedSet) {
+        var template = ownedSet.template;
+        var leadGear = template.assignments.filter(function(item) {
+          return item.destination === 14 + 4 * template.lead || item.destination === 15 + 4 * template.lead;
+        }).sort(function(a, b) { return a.destination - b.destination; });
+        h += escHtml(_charName(template.lead)) + '<br>' + leadGear.map(function(item) {
+          return escHtml(charmDisplayName(item.key)) + ' +' + item.level;
+        }).join(' / ') + ' &middot; Lotus Flowers: ' + template.lotusCount + '/' + template.lotusSlots;
+        if (template.missing.length) h += '<span class="threshold-missing">Missing: ' + escHtml(template.missing.join(', ')) + '</span>';
+      } else h += 'Unavailable';
+      h += '</div></div></td>';
 
       // Rebuild time — how long to farm current flowers at this mastery's flower rate
       if (mIsCur[mi2]) {

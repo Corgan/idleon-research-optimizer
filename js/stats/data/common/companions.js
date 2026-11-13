@@ -9,6 +9,13 @@ import { CompanionDB } from '../game/customlists.js';
 //  3. Any sub-system that references it (e.g. systems/w7/meritoc.js, defs/voting-multi.js)
 //  4. entity-names.js if a display name is needed
 export function companionBonus(idx) { return Number(CompanionDB[idx]?.[2]) || 0; }
+export function companionPetPower(idx, enhanced = false) {
+	const value = Number(CompanionDB[idx]?.[enhanced ? 9 : 7]);
+	if (!Number.isInteger(idx) || idx < 0 || !Number.isFinite(value) || value <= 0) {
+		throw new Error('Unknown companion or unavailable Pet Power: ' + idx);
+	}
+	return value;
+}
 export function companionEnhancedBonus(idx) { return Number(CompanionDB[idx]?.[11]) || 0; }
 export function companionLevel2(idx, saveData) { return saveData?.enhancedCompanionIds?.has(idx) ? 1 : 0; }
 export function companionBonusForSave(idx, saveData) {
