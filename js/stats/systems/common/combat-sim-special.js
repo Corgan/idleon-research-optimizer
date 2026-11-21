@@ -35,9 +35,9 @@ import { talent } from './talent.js';
 import {
   dropSomething, overkillState, boneType, boneQtyBase, dustType, dustQtyBase, tachyonType, tachyonQtyBase,
   tempestAllDropBonus, tempestWepDrop, tempestRingDrop,
-} from './combat-sim-rewards.js';
+} from './combat-sim-rewards.js?v=vman-speedrun-3';
 import { grimoireBonesDropDEC, windwalkerExtraDust, arcaneExtraTachyon } from './combat-forms.js';
-import { getDef, monsters, addStatusToMonster, createMonster } from './combat-sim-world.js';
+import { getDef, monsters, addStatusToMonster, createMonster } from './combat-sim-world.js?v=vman-speedrun-3';
 
 const N = (x) => Number(x) || 0;
 const _num = (x) => (x && typeof x === 'object' ? N(x.val) : N(x));

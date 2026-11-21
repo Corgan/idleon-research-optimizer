@@ -14,6 +14,10 @@ import { MONSTERS } from '../game/monsters.js';
 
 export function mapKillReq(idx) { return Number(MapDetails[idx]?.[0]?.[0]) || 0; }
 
+export function mapPortalRequirements() {
+  return MapDetails.map(row => row[0].slice());
+}
+
 export function mapMonsterCount(idx) { return Number(MapDetails[idx]?.[1]?.[0]) || 0; }
 
 export function mapTravelDistance(idx) { return Number(MapDetails[idx]?.[1]?.[1]) || 0; }

@@ -21,7 +21,7 @@ import { MonsterDrops, DropTables } from '../../data/game/custommaps.js';
 import { RANDOlist, NonAFKmonsters, TalentOrder, NinjaInfo, HolesInfo } from '../../data/game/customlists.js';
 import { ITEMS } from '../../data/game/items.js';
 import { maxCapacityFor } from './combat-sim-inputs.js';
-import { addBuff, bulletSize } from './combat-sim-player.js';
+import { addBuff, bulletSize } from './combat-sim-player.js?v=vman-speedrun-3';
 
 const N = (x) => Number(x) || 0;
 const _clone = (v) => JSON.parse(JSON.stringify(v));

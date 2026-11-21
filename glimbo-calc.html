@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idleon Glimbo Trade Costs</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text2:#c0c0d4;--gold:#ffd700;--green:#4caf50;--blue:#2196f3;--purple:#bb86fc;--cyan:#4dd0e1;--red:#f44}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px 'Segoe UI',system-ui,sans-serif}
+h1{text-align:center;padding:14px;margin:0;background:var(--bg2);border-bottom:2px solid var(--accent);font-size:1.5em}
+h1 span{color:var(--accent)}
+.main{max-width:1400px;margin:auto;padding:16px}
+.toolbar{display:flex;gap:16px;flex-wrap:wrap;align-items:end;background:var(--bg2);padding:14px;border-radius:8px}
+#main-content label{display:grid;gap:5px;color:var(--text2)}
+#main-content select,#main-content input{font:inherit;color:var(--text);background:var(--bg);border:1px solid #555;border-radius:5px;padding:8px;min-height:38px;max-width:100%}
+#search{width:240px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.muted{color:var(--text2);line-height:1.5}
+#status{margin:12px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:14px}
+.trade{min-width:0;background:var(--bg2);padding:16px;border:1px solid #394564;border-radius:10px}
+.trade header{display:flex;align-items:center;gap:10px}
+.trade h2{font-size:1.1em;color:var(--cyan);margin:0}
+.trade h3{font-size:1em;margin:3px 0;color:var(--text)}
+.css-setup-ico{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.css-setup-ico img{max-width:100%;max-height:100%;image-rendering:pixelated}
+.css-setup-ico-txt{border:1px solid #555;border-radius:5px}
+.quotes{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}
+.quotes strong{display:block;color:var(--gold);font-size:1.35em}
+.chart{display:block;width:100%;height:auto;margin:8px 0}
+.chart text{fill:var(--text2);font:13px 'Segoe UI',sans-serif}
+.chart .axis{stroke:#46506b;stroke-width:1}
+.chart .price{fill:none;stroke:var(--cyan);stroke-width:2.5}
+.chart .reference{fill:none;stroke:var(--purple);stroke-width:2;stroke-dasharray:6 4}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.9em}
+.legend .account{color:var(--cyan)}.legend .base{color:var(--purple)}
+.error{color:#ff8585}.partial{color:var(--gold)}
+details{margin-top:12px}summary{cursor:pointer;color:var(--text2);padding:5px 0}
+.table-wrap{overflow:auto;max-height:340px;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:.9em}
+th,td{text-align:right;padding:6px;border-bottom:1px solid #35415e;white-space:nowrap}
+th{position:sticky;top:0;background:var(--bg2)}th:first-child,td:first-child{text-align:left}
+.css-setup-tip{position:fixed;z-index:10000;display:none;max-width:min(360px,calc(100vw - 16px));padding:12px;background:#101729;border:1px solid var(--cyan);border-radius:6px;box-shadow:0 4px 20px #0008;overflow-wrap:anywhere;pointer-events:none;line-height:1.5}
+[hidden]{display:none!important}
+@media(max-width:520px){.main{padding:10px}.trade{padding:12px}.toolbar label{flex:1 1 140px}#search{width:100%}}
+</style>
+</head>
+<body>
+<h1><span>Idleon</span> Glimbo Trade Costs</h1>
+<div id="save-area"></div>
+<main class="main" id="main-content">
+  <div class="toolbar">
+    <label>Start at<select id="start"><option value="zero">First trade</option><option value="saved" disabled>Saved trade counts</option></select></label>
+    <label>Trades to show<select id="count"><option>25</option><option selected>50</option><option>100</option><option>250</option><option>500</option></select></label>
+    <label>Graph<select id="metric"><option value="cost">Cost per trade</option><option value="cumulative">Cumulative cost</option></select></label>
+    <label>Find material or upgrade<input type="search" id="search" placeholder="Search trades"></label>
+  </div>
+  <p id="status" class="muted" role="status">Undiscounted reference from the first trade. Load a save for your counts and discounts.</p>
+  <p class="muted">Each material has its own paid-trade count. Bonus upgrade levels do not advance its price. Cumulative costs sum only the displayed trades; balances and affordability are not modeled.</p>
+  <div id="cards" class="cards"></div>
+  <p id="empty" hidden>No matching trades.</p>
+  <details><summary>Price formula and breakpoint</summary>
+    <p class="muted">Before companion discounts, the price is (1 + n + 1.5 &times; n) &times; scale<sup>n</sup>, with a 25% Event Shop discount if owned. Below one billion, the companion multiplier has a 0.2 minimum and the price is floored, with a minimum of one. At one billion or above, the minimum multiplier becomes 0.01 and no rounding is applied. Pet+ can therefore cause a downward jump. Here n is this material's completed paid trades, not its Vault upgrade level. Discounts are held fixed throughout each curve.</p>
+  </details>
+</main>
+<script type="module" src="./js/ui/site-nav.js"></script>
+<script type="module" src="./js/ui/glimbo.js?v=glimbo-icons-2"></script>
+</body>
+</html>

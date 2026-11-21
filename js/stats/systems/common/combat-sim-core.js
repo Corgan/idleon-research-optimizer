@@ -113,9 +113,9 @@
 
 import { buildCombatInputs } from './combat-sim-inputs.js';
 import { createCombatTelemetry } from './combat-sim-telemetry.js';
-import * as world from './combat-sim-world.js';
-import * as rewards from './combat-sim-rewards.js';
-import * as special from './combat-sim-special.js'; // class/mode kill mechanics (combat-sim-special.js)
+import * as world from './combat-sim-world.js?v=vman-speedrun-3';
+import * as rewards from './combat-sim-rewards.js?v=vman-speedrun-3';
+import * as special from './combat-sim-special.js?v=vman-speedrun-3'; // class/mode kill mechanics (combat-sim-special.js)
 import { initKillroy, killroySnapshot } from './combat-sim-killroy.js';
 import { initCombatLevels, combatLevelSummary } from './combat-sim-levels.js';
 import { initCombatProgress, combatProgressSummary } from './combat-sim-progress.js';
@@ -432,7 +432,7 @@ function _firstKillable(sim) {
 }
 
 export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, options = {} } = {}) {
-  const rng = createRng(seed);
+  const rng = options.rng || createRng(seed);
   const sched = createScheduler();
   const listeners = new Map();
   const inputs = options.inputs || buildCombatInputs(saveData, charIdx, mapIdx, { rawSave: options.rawSave, overrides: options.inputOverrides });
@@ -528,6 +528,7 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
     sim.unsupported = built.reason;
     return sim;
   }
+  options.encounter?.configure?.(sim);
   rewards.initRewards(sim);
   special.initSpecial(sim); // installs sim.special hooks; before startScene so clam HP applies to initial spawns
   initKillroy(sim);
@@ -537,6 +538,7 @@ export function createCombatSim({ saveData, charIdx = 0, mapIdx, seed = 1, optio
   world.startScene(sim);
   if (sim.state.killroy && sim.state.tempest === 1) throw new Error('Killroy cannot be entered while Tempest Form is active.');
   initCombatLevels(sim);
+  options.encounter?.start?.(sim);
   return sim;
 }
 

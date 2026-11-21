@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vman Speedrun - Idleon Builds</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--accent:#e94560;--text:#eee;--text2:#c0c0d4;--gold:#ffd700;--cyan:#4dd0e1;--red:#ff9999}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px 'Segoe UI',system-ui,sans-serif}
+h1{margin:0;padding:18px;text-align:center;background:var(--bg2);border-bottom:2px solid var(--accent);font-size:1.5rem}
+#main-content{max-width:1100px;margin:auto;padding:16px}
+#main-content .section{background:var(--bg2);padding:18px;border:1px solid #35435e;border-radius:9px;margin-bottom:16px}
+#main-content h2{color:var(--cyan);font-size:1.1rem;margin:0 0 12px}
+#main-content .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+#main-content label{display:flex;flex-direction:column;gap:6px}
+#main-content button,#main-content select,#main-content input{font:inherit;min-height:38px;padding:7px 10px;background:var(--bg3);color:var(--text);border:1px solid #596a86;border-radius:5px}
+#main-content select{max-width:100%}#main-content option{background:var(--bg2)}#main-content input{width:100px}
+#main-content button{cursor:pointer}#main-content .primary{background:var(--accent);border-color:var(--accent);font-weight:600}
+#main-content button:disabled{opacity:.5;cursor:default}#main-content :focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+#main-content details{margin-top:12px}#main-content summary{padding:9px 0;cursor:pointer;font-weight:600}
+#main-content p,#main-content li{line-height:1.5}#main-content .muted{color:var(--text2)}
+#main-content .warning{color:var(--gold)}#main-content .error{color:var(--red)}
+#main-content progress{width:100%;margin-top:8px}#main-content .stats{display:flex;flex-wrap:wrap;gap:12px 30px;margin:12px 0}
+#main-content .stat span{display:block;color:var(--text2);font-size:.8rem}#main-content .stat strong{font-size:1.4rem;color:var(--gold)}
+#main-content .table-wrap{overflow:auto}#main-content table{width:100%;border-collapse:collapse;font-size:.9rem}
+#main-content th,#main-content td{text-align:left;padding:10px 8px;border-bottom:1px solid #35435e;font-variant-numeric:tabular-nums;vertical-align:top}
+#main-content th{color:var(--text2)}#main-content td:first-child{white-space:nowrap}#main-content .boss{color:var(--cyan)}
+#main-content [hidden]{display:none!important}
+@media(max-width:600px){#main-content{padding:10px}#main-content .section{padding:12px}#main-content .toolbar label{width:100%}#main-content thead{display:none}#main-content tbody tr{display:grid;grid-template-columns:1fr 1fr;border:1px solid #35435e;margin:10px 0;padding:8px;gap:8px}#main-content td{border:0;padding:3px;overflow-wrap:anywhere;min-width:0}#main-content td::before{content:attr(data-label);display:block;color:var(--text2);font-size:.75rem}#main-content td:nth-child(2){grid-column:1/-1;grid-row:1}}
+</style>
+<script type="module" src="./js/ui/site-nav.js"></script>
+</head>
+<body>
+<h1>Vman Speedrun</h1>
+<div id="save-area"></div>
+<main id="main-content">
+  <section class="section">
+    <h2>Speedrun routes</h2>
+    <div class="toolbar">
+      <label for="character">Saved Voidwalker / Virtuoso<select id="character" disabled><option>Load your save</option></select></label>
+      <button id="run" class="primary" type="button" disabled>Find route</button>
+      <button id="cancel" type="button" disabled>Cancel</button>
+    </div>
+    <details><summary>Advanced</summary>
+      <label for="route-budget">Alternative routing policies<input id="route-budget" type="number" min="1" max="32" step="1" value="12"></label>
+    </details>
+    <p id="roster-status" class="muted"></p>
+    <p id="job-status" role="status">Load your save to begin.</p>
+    <p id="stale" class="warning" hidden>Save refreshed. Captured work uses the previous save; run again to use the refreshed save.</p>
+    <progress id="progress" max="1" value="0" aria-label="Route comparison progress" hidden></progress>
+  </section>
+  <section id="results" class="section" hidden aria-label="Captured speedrun result"></section>
+</main>
+<script type="module" src="./js/ui/vman-speedrun.js?v=vman-speedrun-6"></script>
+</body>
+</html>

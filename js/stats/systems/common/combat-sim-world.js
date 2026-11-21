@@ -23,7 +23,7 @@ import { MapDetails, NinjaInfo, RANDOlist, RiftStuff } from '../../data/game/cus
 import { MonsterDrops } from '../../data/game/custommaps.js';
 import { MONSTERS } from '../../data/game/monsters.js';
 import { MOB_SPRITES } from '../../data/game/combat-sprites.js';
-import { createDmgPixel as sharedCreateDmgPixel, distanceEqn } from './combat-sim-player.js';
+import { createDmgPixel as sharedCreateDmgPixel, distanceEqn } from './combat-sim-player.js?v=vman-speedrun-3';
 
 // ---------------------------------------------------------------------------
 // Monster Type (MonsterDefinitionsGET[x].Type). The extractor now emits the
@@ -98,6 +98,11 @@ export function getDef(sim, type) {
   } else {
     d.RespawnTime = (Number(base.RespawnTime) || 0) * (Number(sim.inputs.values.respawnRescale) || 1);
   }
+  if (sim.options.sceneRespawnDivisor != null) {
+    const divisor = Number(sim.options.sceneRespawnDivisor);
+    if (!Number.isFinite(divisor) || divisor < 1) throw new Error('Invalid scene respawn divisor.');
+    d.RespawnTime /= divisor;
+  }
   d.MonsterHPTotal = (Number(base.MonsterHPTotal) || 0) * (Number(sim.inputs.values.monsterHpRescale) || 1);
   defs[type] = d;
   return d;
@@ -167,9 +172,9 @@ function _playerYC(p) { return typeof p.yCenter === 'function' ? p.yCenter() : p
 export function buildScene(sim) {
   const map = Number(sim.mapIdx);
   const geo = SCENE_GEOMETRY[map];
-  const sp = SCENE_SPAWNS[map];
+  const sp = sim.options.encounter?.spawns || SCENE_SPAWNS[map] || (sim.options.transit ? { mobs: [] } : null);
   if (!geo) return { ok: false, reason: sp ? `map ${map} has spawns but no extracted scene geometry` : `map ${map} has no extracted scene geometry` };
-  if (!sp || !Array.isArray(sp.mobs) || sp.mobs.length === 0) return { ok: false, reason: `map ${map} (${geo.scene}) spawns no monsters in its scene script` };
+  if (!sp || !Array.isArray(sp.mobs) || (sp.mobs.length === 0 && !sim.options.transit)) return { ok: false, reason: `map ${map} (${geo.scene}) spawns no monsters in its scene script` };
   const v = sim.inputs.values;
   const nodes = geo.nodes.map((n) => ({
     x: Number(n.x) || 0, length: Number(n.length) || 0, y: Number(n.y) || 0,
@@ -744,6 +749,7 @@ function _removeTemp(sim, mon) {
 // ---------------------------------------------------------------------------
 export function damageMonster(sim, mon, amount, meta = {}) {
   if (!mon || mon.recycled) return { dealt: 0, willDie: 0 };
+  if (sim.options.encounter?.damage?.(sim, mon, amount, meta) === true) return { dealt: Number(amount) || 0, willDie: mon.willDie };
   const a = Number(amount) || 0;
   const hpBefore = mon.hp;
   mon.hp -= a;

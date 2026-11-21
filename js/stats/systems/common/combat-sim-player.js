@@ -482,7 +482,7 @@ function _applyPreRolled(sim, mon, dmg, source, crit = 1) {
   if (_hasStatus(mon, 'StatusBlockFull')) d = 10;
   const def = sim.world.getDef(sim, mon.type);
   if (_isMonsterType(sim, mon)) {
-    if (N(def?.DeathFrame) === -1) _unm(sim, 'bossHpArrow', 'DeathFrame -1 arrow damage (BossHP/Titan HP)');
+    if (N(def?.DeathFrame) === -1 && !sim.options.encounter) _unm(sim, 'bossHpArrow', 'DeathFrame -1 arrow damage (BossHP/Titan HP)');
     else sim.world.damageMonster(sim, mon, d, { markWillDie: false, source });
   }
   _dmgNumber(sim);
@@ -2222,6 +2222,7 @@ function _movement(sim) {
       p.x = connX - 6 * p.dir - p.width / 2;
     } else if (typ === 2) {
       p.vx = 0; p.animation = '0';
+      sim.options.onPortalConnection?.(sim, { from: p.node, to: nb });
     } else if (typ === 3) {
       p.vx = XC() < N(nbn.x) ? SPD : -SPD;
       pmm[0] = 6;
@@ -2519,7 +2520,7 @@ function _bowArrow(sim, e) {
   if (Math.abs(_xc(p) - _mox(t)) < 45) {
     if (_hasStatus(t, 'StatusBlockFull')) dmg = 1;
     if (_isMonsterType(sim, t)) {
-      if (N(def?.DeathFrame) === -1) _unm(sim, 'bossHpArrow', 'DeathFrame -1 arrow damage (BossHP/Titan HP)');
+      if (N(def?.DeathFrame) === -1 && !sim.options.encounter) _unm(sim, 'bossHpArrow', 'DeathFrame -1 arrow damage (BossHP/Titan HP)');
       else sim.world.damageMonster(sim, t, dmg, { markWillDie: false, source: 'bow' });
     }
     _dmgNumber(sim);
@@ -2750,7 +2751,7 @@ function _every1sec(sim) {
   } else p.respawn = 0;
 }
 
-function _autoCast(sim) {
+function _autoCast(sim, filter) {
   const st = sim.state, p = sim.player, v = _v(sim);
   if (N(v.ola25) !== 1 || !p.autoMove || !(p.hp > 0.1) || p.animation === 'Da' || st.attackSelected !== -1) return;
   // src 70389-70392: one pass in BuffsActive order; long buffs and the four
@@ -2769,6 +2770,7 @@ function _autoCast(sim) {
     for (let s = 0; s <= 5; s++) {
       const id = rows[r]?.[s];
       if (id == null || id === 'Null') continue;
+      if (filter && !filter(sim, Number(id))) continue;
       const def = attackDef(id);
       if (!def) continue;
       if (N(st.attackCooldowns[String(id)]) > 0 || p.mp < N(def.manaCost)) continue;
@@ -3227,8 +3229,15 @@ export function autoPlayer(opts = {}) {
       sim.every(150, () => _stopMoving(sim), p);
       sim.every(150, () => _takeDamage(sim), p);
       sim.every(50, () => _every005(sim), p);
-      sim.every(1000, () => _every1sec(sim), p);
-      sim.every(1000, () => _autoCast(sim), p);
+      const secondTick = sim.every(1000, () => _every1sec(sim), p);
+      const autoTick = sim.every(1000, () => _autoCast(sim, opts.autoCastFilter), p);
+      if (opts.clockOffsetMs !== undefined) {
+        if (!Number.isSafeInteger(opts.clockOffsetMs) || opts.clockOffsetMs < 0)
+          throw new Error('clockOffsetMs must be a nonnegative safe integer');
+        const remaining = 1000 - opts.clockOffsetMs % 1000;
+        sim.sched.setTimer(secondTick, remaining);
+        sim.sched.setTimer(autoTick, remaining);
+      }
       const manual = normalizeManualCasts(opts.manualCasts);
       if (manual.length) _manualCasts(sim, manual);
       // ActorEvents_232 (UI actor) food timers.
